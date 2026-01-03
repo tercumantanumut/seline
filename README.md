@@ -1,6 +1,19 @@
 # Seline
 
-Seline is an AI assistant that blends chat, visual tools, and a local knowledge base into a single desktop app. It runs entirely on your machine—your documents stay private, your conversations persist across sessions, and you can switch between LLM providers without leaving the app. 
+<div align="center">
+
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Electron](https://img.shields.io/badge/Electron-39.2.4-47848F?logo=electron&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15.5-black?logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
+</div>
+
+Seline is an AI assistant that blends chat, visual tools, and a local knowledge base into a single desktop app. It runs entirely on your machine—your documents stay private, your conversations persist across sessions, and you can switch between LLM providers without leaving the app.
 
 ## Highlights
 - Chat with configurable agents and keep long-running sessions organized.
