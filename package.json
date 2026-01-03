@@ -1,7 +1,7 @@
 {
-  "name": "styly-agent",
+  "name": "seline",
   "version": "0.1.0",
-  "description": "Seline - AI-powered styling assistant",
+  "description": "Seline - Agentic styling assistant",
   "author": "Seline",
   "private": true,
   "main": "electron-dist/main.js",
