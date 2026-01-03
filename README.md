@@ -11,6 +11,7 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 ## Supported Platforms
 - Windows (installer builds are available).
 - macOS is supported today; DMG distribution is coming soon. You can build macOS packages from source in the meantime.
+- Linux, not tested.
 
 ## Prerequisites
 For end users: none beyond the OS installer.
