@@ -13,6 +13,12 @@
 
 </div>
 
+<div align="center">
+  <img src="assets/demo.gif" alt="Seline Demo" width="800"/>
+</div>
+
+<br/>
+
 Seline is an AI assistant that blends chat, visual tools, and a local knowledge base into a single desktop app. It runs entirely on your machine—your documents stay private, your conversations persist across sessions, and you can switch between LLM providers without leaving the app.
 
 ## Highlights
