@@ -18,6 +18,7 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
 }) => {
     // If no result yet, show running state
     if (!result) {
+        // Guard against missing args
         if (!args) return null;
 
         return (

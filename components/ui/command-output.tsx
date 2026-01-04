@@ -85,7 +85,7 @@ export function CommandOutput({
     className,
 }: CommandOutputProps) {
     // Auto-collapse successful commands with no stderr
-    const shouldAutoCollapse = defaultCollapsed ?? (success && !stderr && stdout && stdout.length > 500);
+    const shouldAutoCollapse = defaultCollapsed ?? (success && !stderr && (stdout?.length ?? 0) > 500);
     const [isCollapsed, setIsCollapsed] = useState(shouldAutoCollapse);
 
     const fullCommand = [command, ...args].join(" ");

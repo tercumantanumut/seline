@@ -47,15 +47,34 @@ async function processWithConcurrency<T>(
   while (queue.length > 0 || active.length > 0) {
     while (queue.length > 0 && active.length < concurrency) {
       const item = queue.shift()!;
-      const promise = handler(item).then(() => {
+
+      const promise = handler(item);
+
+      // Add to active set
+      active.push(promise);
+
+      // Ensure we remove it from active set when done (success or fail)
+      // Use .finally() so it runs regardless of outcome
+      // We don't await here to not block the loop
+      promise.finally(() => {
         const index = active.indexOf(promise);
         if (index > -1) active.splice(index, 1);
+      }).catch(() => {
+        // Catch any unhandled rejection in the handler to prevent UnhandledPromiseRejectionWarning
+        // The error should ideally be handled inside the handler or logged there
       });
-      active.push(promise);
     }
 
     if (active.length > 0) {
-      await Promise.race(active);
+      // Wait for at least one to finish before checking queue again
+      // We use Promise.race to proceed as soon as one slot opens up
+      try {
+        await Promise.race(active);
+      } catch (e) {
+        // If a handler fails, Promise.race might reject. 
+        // We still want to continue processing others.
+        // The .finally block above ensures the failed promise is removed.
+      }
     }
   }
 }
