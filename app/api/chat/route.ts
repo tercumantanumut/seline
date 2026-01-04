@@ -11,9 +11,8 @@ import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
-import { createSession, createMessage, getSession, getMessages, getOrCreateLocalUser, updateSession } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
-import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -714,6 +713,100 @@ async function extractContent(
   return "[Message content not available]";
 }
 
+// Frontend message part type (from assistant-ui)
+interface FrontendMessagePart {
+  type: string;
+  text?: string;
+  image?: string;
+  url?: string;
+  // Tool call parts (from assistant-ui streaming format)
+  toolName?: string;
+  toolCallId?: string;
+  args?: unknown;
+  argsText?: string;
+  result?: unknown;
+}
+
+// Frontend message type (from assistant-ui / AssistantChatTransport)
+interface FrontendMessage {
+  id?: string;
+  role: string;
+  content?: string | unknown;
+  parts?: FrontendMessagePart[];
+  experimental_attachments?: Array<{ name?: string; contentType?: string; url?: string }>;
+}
+
+/**
+ * HYBRID APPROACH: Enhance frontend messages with tool results from database.
+ *
+ * This solves the ID mismatch problem between frontend (runtime IDs) and database (UUIDs).
+ *
+ * The frontend's messages are the source of truth for:
+ * - Conversation structure (which messages exist, in what order)
+ * - Message content (especially important for EDITED messages)
+ *
+ * The database provides:
+ * - Tool results (which the frontend's streaming messages may not have properly)
+ *
+ * How it works:
+ * 1. Start with the frontend messages exactly as sent
+ * 2. For assistant messages with tool-call parts, look up results from DB
+ * 3. Add tool results to the parts array
+ *
+ * This respects edits (frontend has correct truncated state) while getting tool results.
+ */
+async function enhanceFrontendMessagesWithToolResults(
+  frontendMessages: FrontendMessage[],
+  sessionId: string
+): Promise<FrontendMessage[]> {
+  // Fetch all tool results from the database for this session
+  const toolResults = await getToolResultsForSession(sessionId);
+
+  console.log(`[CHAT API] Hybrid approach: ${frontendMessages.length} frontend messages, ${toolResults.size} tool results from DB`);
+
+  // If no tool results, just return frontend messages as-is
+  if (toolResults.size === 0) {
+    return frontendMessages;
+  }
+
+  // Enhance each assistant message with tool results
+  const enhancedMessages = frontendMessages.map(msg => {
+    // Only enhance assistant messages
+    if (msg.role !== 'assistant') {
+      return msg;
+    }
+
+    // Check if this message has tool-call parts that need results
+    if (!msg.parts || !Array.isArray(msg.parts)) {
+      return msg;
+    }
+
+    // Look for tool-call parts and enhance with results from DB
+    let hasEnhancements = false;
+    const enhancedParts = msg.parts.map(part => {
+      // Handle tool-call parts (from assistant-ui streaming format)
+      // These have type like "tool-call" with toolCallId
+      if (part.type === 'tool-call' && part.toolCallId) {
+        const result = toolResults.get(part.toolCallId);
+        if (result !== undefined && part.result === undefined) {
+          hasEnhancements = true;
+          console.log(`[CHAT API] Enhanced tool call ${part.toolCallId} (${part.toolName}) with DB result`);
+          return { ...part, result };
+        }
+      }
+      return part;
+    });
+
+    if (hasEnhancements) {
+      return { ...msg, parts: enhancedParts };
+    }
+
+    return msg;
+  });
+
+  return enhancedMessages;
+}
+
 export async function POST(req: Request) {
   try {
     // Get local user for offline mode
@@ -863,14 +956,35 @@ export async function POST(req: Request) {
       console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
     }
 
-    // CRITICAL: Load messages from DATABASE instead of using frontend messages
-    // The frontend's streaming messages don't include tool results properly
-    // The database has the correct tool-call and tool-result parts saved
-    const dbMessages = await getMessages(sessionId);
-    console.log(`[CHAT API] Loaded ${dbMessages.length} messages from database for session ${sessionId}`);
+    // ==========================================================================
+    // HYBRID APPROACH: Use frontend messages enhanced with DB tool results
+    // ==========================================================================
+    //
+    // WHY: The old approach loaded all messages from DB, then tried to filter
+    // by frontend IDs. This failed because:
+    // - Frontend uses runtime-generated IDs (e.g., "ugcMV6iZqVklzR4b")
+    // - Database uses UUIDs (e.g., "c4fef2b7-9d87-4a49-9273-6a335acd08cb")
+    // - These NEVER match, so filtering never worked
+    //
+    // NEW APPROACH:
+    // 1. Use frontend messages directly (they have correct structure after edits)
+    // 2. Enhance with tool results from DB (which frontend may lack)
+    // 3. Convert to core format for AI
+    //
+    // This correctly handles message editing because the frontend has the
+    // truncated conversation state with the edited content.
+    // ==========================================================================
 
-    // Convert DB messages to UI format (which has dynamic-tool parts with output)
-    const uiMessages = convertDBMessagesToUIMessages(dbMessages);
+    console.log(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
+
+    // Enhance frontend messages with tool results from database
+    // This adds tool results to assistant messages that have tool-call parts
+    const enhancedMessages = await enhanceFrontendMessagesWithToolResults(
+      messages as FrontendMessage[],
+      sessionId
+    );
+
+    console.log(`[CHAT API] Enhanced ${enhancedMessages.length} messages with DB tool results`);
 
     // Convert to core format for the AI SDK
     // includeUrlHelpers=true so Claude gets URL text like [Image URL: /api/media/...] for tool calls
@@ -878,7 +992,7 @@ export async function POST(req: Request) {
     // sessionId enables smart truncation - long content is truncated but full version is retrievable
     // Tools like editRoomImage, describeImage handle base64 conversion themselves when needed
     const coreMessages: CoreMessage[] = await Promise.all(
-      uiMessages.map(async (msg, idx) => {
+      enhancedMessages.map(async (msg, idx) => {
         const content = await extractContent(
           msg as Parameters<typeof extractContent>[0],
           true,   // includeUrlHelpers - Claude needs URL text for tool calls
@@ -965,7 +1079,7 @@ export async function POST(req: Request) {
 
     // CRITICAL FIX: Initialize with tools discovered in PREVIOUS requests.
     // We use both session metadata (fast) and message history (robust ground truth).
-    const historicallyDiscoveredTools = getDiscoveredToolsFromMessages(uiMessages);
+    const historicallyDiscoveredTools = getDiscoveredToolsFromMessages(enhancedMessages);
     const metadataDiscoveredTools = getDiscoveredToolsFromMetadata(sessionMetadata);
     const previouslyDiscoveredTools = new Set([
       ...historicallyDiscoveredTools,
