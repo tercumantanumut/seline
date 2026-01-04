@@ -943,7 +943,7 @@ function setupIpcHandlers(): void {
     }
   });
 
-  // Command execution handler
+  // Command execution handler - proxies to Next.js API
   ipcMain.handle("command:execute", async (_event, options: {
     command: string;
     args: string[];
@@ -952,29 +952,28 @@ function setupIpcHandlers(): void {
     timeout?: number;
   }) => {
     try {
-      debugLog("[Command] Executing command:", options.command, options.args);
+      debugLog("[Command] Executing command via API:", options.command, options.args);
 
-      // Dynamic import to avoid bundling issues with the electron build
-      const { executeCommandWithValidation } = await import("../lib/command-execution");
-      const { getSyncFolders } = await import("../lib/vectordb/sync-service");
+      // Proxy to the Next.js API route which has access to the lib modules
+      const serverPort = isDev ? 3000 : PROD_SERVER_PORT;
+      const apiUrl = `http://localhost:${serverPort}/api/execute-command`;
 
-      // Get allowed paths from synced folders
-      const syncedFolders = await getSyncFolders(options.characterId);
-      const allowedPaths = syncedFolders.map((f: { folderPath: string }) => f.folderPath);
+      const response = await net.fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(options),
+      });
 
-      if (allowedPaths.length === 0) {
-        return {
-          success: false,
-          stdout: "",
-          stderr: "",
-          exitCode: null,
-          signal: null,
-          error: "No synced folders configured. Add synced folders to enable command execution.",
-        };
-      }
-
-      // Execute with validation
-      const result = await executeCommandWithValidation(options, allowedPaths);
+      const result = await response.json() as {
+        success: boolean;
+        stdout: string;
+        stderr: string;
+        exitCode: number | null;
+        signal: string | null;
+        error?: string;
+      };
 
       debugLog("[Command] Result:", result.success ? "success" : "failed", result.exitCode);
       return result;
