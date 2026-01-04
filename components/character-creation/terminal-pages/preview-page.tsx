@@ -21,6 +21,7 @@ const TOOL_TRANSLATION_KEYS: Record<string, string> = {
   generateVideoWan22: "generateVideoWan22",
   generatePixelVideoWan22: "generatePixelVideoWan22",
   showProductImages: "showProductImages",
+  executeCommand: "executeCommand",
 };
 
 interface PreviewPageProps {

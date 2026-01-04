@@ -5,6 +5,7 @@ import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
 import { createVectorSearchToolV2, createReadFileTool } from "@/lib/ai/vector-search";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
+import { createExecuteCommandTool } from "@/lib/ai/tools/execute-command-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -1070,6 +1071,12 @@ export async function POST(req: Request) {
         webQuery: createWebQueryTool({
           sessionId,
           userId: dbUser.id,
+          characterId: characterId || null,
+        }),
+      }),
+      ...(allTools.executeCommand && {
+        executeCommand: createExecuteCommandTool({
+          sessionId,
           characterId: characterId || null,
         }),
       }),

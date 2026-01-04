@@ -47,6 +47,7 @@ import { MarkdownText, UserMarkdownText } from "./markdown-text";
 import { ToolFallback } from "./tool-fallback";
 import { VectorSearchToolUI } from "./vector-search-inline";
 import { ProductGalleryToolUI } from "./product-gallery-inline";
+import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { useCharacter, DEFAULT_CHARACTER } from "./character-context";
@@ -1005,6 +1006,7 @@ const AssistantMessage: FC = () => {
                 by_name: {
                   vectorSearch: VectorSearchToolUI,
                   showProductImages: ProductGalleryToolUI,
+                  executeCommand: ExecuteCommandToolUI,
                 },
                 Fallback: ToolFallback,
               },

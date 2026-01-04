@@ -158,6 +158,10 @@
         "name": "Product Gallery",
         "description": "Display products with images and purchase links"
       },
+      "executeCommand": {
+        "name": "Execute Command",
+        "description": "Run shell commands safely within synced directories"
+      },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
         "description": "Generate images with Flux.2 Flex via OpenRouter"
@@ -525,6 +529,8 @@
         "describeImageDesc": "Analyze and describe images using AI vision",
         "showProductImages": "Product Gallery",
         "showProductImagesDesc": "Display products with images and purchase links for shopping queries",
+        "executeCommand": "Execute Command",
+        "executeCommandDesc": "Run shell commands safely within synced directories",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",
