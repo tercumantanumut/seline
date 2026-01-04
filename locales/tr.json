@@ -154,6 +154,10 @@
         "name": "Ürün Galerisi",
         "description": "Ürünleri görsellerle ve satın alma bağlantılarıyla gösterin"
       },
+      "executeCommand": {
+        "name": "Komut Çalıştır",
+        "description": "Senkronize klasörlerde güvenli kabuk komutları çalıştır"
+      },
       "generateImageFlux2Flex": {
         "name": "Üret (Flux.2 Flex)",
         "description": "Flux.2 Flex ile görsel üretin"
@@ -516,6 +520,8 @@
         "describeImageDesc": "AI görüşü kullanarak görselleri analiz et ve tanımla",
         "showProductImages": "Ürün Galerisi",
         "showProductImagesDesc": "Alışveriş sorguları için görsellerle ve satın alma bağlantılarıyla ürünleri görüntüle",
+        "executeCommand": "Komut Çalıştır",
+        "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",

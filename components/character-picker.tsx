@@ -49,6 +49,7 @@ const AVAILABLE_TOOLS = [
   { id: "assembleVideo", category: "video-generation" },
   { id: "describeImage", category: "analysis" },
   { id: "showProductImages", category: "utility" },
+  { id: "executeCommand", category: "utility" },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation" },
   { id: "editImageFlux2Flex", category: "image-editing" },
@@ -579,8 +580,8 @@ export function CharacterPicker() {
                           key={tool.id}
                           onClick={() => toggleTool(tool.id)}
                           className={`flex items-start gap-2 p-2 rounded cursor-pointer transition-colors ${selectedTools.includes(tool.id)
-                              ? "bg-terminal-green/10 border border-terminal-green/30"
-                              : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"
+                            ? "bg-terminal-green/10 border border-terminal-green/30"
+                            : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"
                             }`}
                         >
                           <Checkbox

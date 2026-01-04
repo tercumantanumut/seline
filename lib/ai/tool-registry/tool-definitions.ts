@@ -54,6 +54,7 @@ import { createVectorSearchToolV2, createReadFileTool } from "../vector-search";
 import { createFirecrawlCrawlTool } from "../firecrawl";
 import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
+import { createExecuteCommandTool } from "../tools/execute-command-tool";
 
 /**
  * Register all tools with the registry
@@ -387,6 +388,61 @@ localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
     } satisfies ToolMetadata,
     ({ sessionId }) =>
       createLocalGrepTool({
+        sessionId: sessionId || "UNSCOPED",
+        characterId: null,
+      })
+  );
+
+  // Execute Command Tool - Run shell commands safely within synced directories
+  registry.register(
+    "executeCommand",
+    {
+      displayName: "Execute Command",
+      category: "utility",
+      keywords: [
+        "execute",
+        "command",
+        "shell",
+        "terminal",
+        "npm",
+        "yarn",
+        "pnpm",
+        "git",
+        "run",
+        "script",
+        "build",
+        "test",
+        "lint",
+        "install",
+        "cli",
+      ],
+      shortDescription:
+        "Execute shell commands safely within synced directories",
+      fullInstructions: `Execute shell commands within the user's synced/indexed directories.
+
+**Security Restrictions:**
+- Commands only run within synced folders (user-approved directories)
+- Dangerous commands (rm, sudo, format, chmod, etc.) are blocked
+- 30-second timeout by default (max 5 minutes)
+- Output limited to prevent memory issues
+
+**Common Use Cases:**
+- Run tests: executeCommand({ command: "npm", args: ["test"] })
+- Check git status: executeCommand({ command: "git", args: ["status"] })
+- Install dependencies: executeCommand({ command: "npm", args: ["install"] })
+- Build project: executeCommand({ command: "npm", args: ["run", "build"] })
+- List files: executeCommand({ command: "ls", args: ["-la"] })
+
+**Parameters:**
+- command: The executable to run (npm, git, node, etc.)
+- args: Array of command arguments
+- cwd: Working directory (defaults to first synced folder)
+- timeout: Max execution time in ms (default 30000)`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createExecuteCommandTool({
         sessionId: sessionId || "UNSCOPED",
         characterId: null,
       })
