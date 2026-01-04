@@ -901,12 +901,6 @@ const UserActionBar: FC = () => {
 
 const EditComposer: FC = () => {
   const t = useTranslations("assistantUi");
-  // DEBUG: Log edit composer state
-  const composerState = useComposer();
-  const threadState = useThread();
-  console.log('[EditComposer] composer state:', composerState);
-  console.log('[EditComposer] thread isRunning:', threadState.isRunning);
-  console.log('[EditComposer] isEditing:', composerState.isEditing, 'isEmpty:', composerState.isEmpty);
 
   return (
     <ComposerPrimitive.Root className="mb-6 flex w-full max-w-[80rem] flex-col gap-2 pl-8">
