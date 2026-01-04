@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { requireAuth } from "@/lib/auth/local-auth";
 import {
     executeCommandWithValidation,
     type ExecuteResult,
@@ -34,8 +34,10 @@ interface ExecuteCommandRequest {
 export async function POST(req: NextRequest): Promise<NextResponse<ExecuteResult | { error: string }>> {
     try {
         // Check authentication
-        const session = await getServerSession();
-        if (!session?.user) {
+        let userId: string;
+        try {
+            userId = await requireAuth(req);
+        } catch (error) {
             return NextResponse.json(
                 { error: "Authentication required" },
                 { status: 401 }
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ExecuteResult
 
         // Verify character ownership
         const character = await getCharacter(characterId);
-        if (!character || character.userId !== session.user.id) {
+        if (!character || character.userId !== userId) {
             return NextResponse.json(
                 { error: "Access denied: Character not found or unauthorized" },
                 { status: 403 }
