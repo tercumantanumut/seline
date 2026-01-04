@@ -26,6 +26,7 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 - Enhance prompts with grounded context from your synced folders and memories.
 - Generate and edit images, then assemble them into videos.
 - Run vector search locally with LanceDB for fast, private retrieval.
+- Run commands in your synced/indexed folders
 
 ## Supported Platforms
 - Windows (installer builds are available).
