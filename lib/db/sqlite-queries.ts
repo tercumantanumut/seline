@@ -240,6 +240,52 @@ export async function getMessages(sessionId: string) {
   });
 }
 
+/**
+ * Get all tool results for a session, indexed by toolCallId.
+ * This fetches results from both:
+ * 1. role="tool" messages (separate tool result messages)
+ * 2. role="assistant" messages with inline tool-result parts
+ *
+ * Used by the hybrid message approach to enhance frontend messages with DB tool results.
+ */
+export async function getToolResultsForSession(sessionId: string): Promise<Map<string, unknown>> {
+  const toolResults = new Map<string, unknown>();
+
+  // Fetch all messages that might contain tool results
+  const allMessages = await db.query.messages.findMany({
+    where: and(
+      eq(messages.sessionId, sessionId),
+      or(
+        eq(messages.role, "tool"),
+        eq(messages.role, "assistant")
+      )
+    ),
+    orderBy: asc(messages.createdAt),
+  });
+
+  for (const msg of allMessages) {
+    const content = msg.content as Array<{ type: string; toolCallId?: string; result?: unknown }> | null;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      // Handle tool-result parts (from both tool and assistant messages)
+      if (part.type === "tool-result" && part.toolCallId) {
+        toolResults.set(part.toolCallId, part.result);
+      }
+    }
+
+    // Also check message-level toolCallId (alternative storage pattern)
+    if (msg.role === "tool" && msg.toolCallId && content.length > 0) {
+      const firstPart = content[0] as { result?: unknown };
+      if (firstPart.result !== undefined) {
+        toolResults.set(msg.toolCallId, firstPart.result);
+      }
+    }
+  }
+
+  return toolResults;
+}
+
 export async function getNonCompactedMessages(sessionId: string) {
   return db.query.messages.findMany({
     where: and(
