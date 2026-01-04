@@ -3,7 +3,7 @@
  * 
  * Safe command execution using child_process.spawn.
  * Implements security measures:
- * - No shell execution (shell: false)
+ * - Shell execution (shell: true) - Required for Windows cmd.exe compatibility
  * - Sandboxed environment variables
  * - Timeout and output size limits
  * - Integration with validation and logging
@@ -259,6 +259,6 @@ export async function executeCommandWithValidation(
     // Execute with validated path
     return executeCommand({
         ...options,
-        cwd: cwdValidation.resolvedPath!,
+        cwd: cwdValidation.resolvedPath ?? options.cwd,
     });
 }
