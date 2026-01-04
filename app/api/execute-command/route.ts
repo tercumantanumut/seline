@@ -12,6 +12,7 @@ import {
     type ExecuteResult,
 } from "@/lib/command-execution";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getCharacter } from "@/lib/characters/queries";
 
 /**
  * Request body schema
@@ -64,6 +65,15 @@ export async function POST(req: NextRequest): Promise<NextResponse<ExecuteResult
             return NextResponse.json(
                 { error: "Invalid request: 'cwd' is required and must be a string" },
                 { status: 400 }
+            );
+        }
+
+        // Verify character ownership
+        const character = await getCharacter(characterId);
+        if (!character || character.userId !== session.user.id) {
+            return NextResponse.json(
+                { error: "Access denied: Character not found or unauthorized" },
+                { status: 403 }
             );
         }
 

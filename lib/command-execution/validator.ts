@@ -43,11 +43,11 @@ const NETWORK_COMMANDS = [
 ];
 
 /**
- * Dangerous shell metacharacters that could enable injection in the COMMAND itself.
  * Note: Args passed as array are properly escaped by Node.js even with shell:true.
+ * Security relies on the combination of command validation, path validation, and array-arg quoting.
  * We only block these in the command, not in args.
  */
-const DANGEROUS_COMMAND_PATTERN = /[;&|`$()\[\]<>]/;
+const DANGEROUS_COMMAND_PATTERN = /[;&|`$()\[\]<>'"]/;
 
 /**
  * Validate that a directory is within allowed synced folders
@@ -131,7 +131,8 @@ export function validateCommand(
     const baseCommand = getBaseCommand(command);
 
     // Check against dangerous commands blacklist
-    if (DANGEROUS_COMMANDS.some((cmd) => baseCommand === cmd || baseCommand.includes(cmd))) {
+    // Use exact match to avoid blocking safe commands that contain dangerous substrings (e.g. "format-json")
+    if (DANGEROUS_COMMANDS.some((cmd) => baseCommand === cmd)) {
         return {
             valid: false,
             error: `Command '${command}' is blocked for security reasons.`,
@@ -156,17 +157,26 @@ export function validateCommand(
     }
 
     // Args are passed as an array to spawn(), which properly escapes them
-    // even with shell:true. We only need to check for path traversal, not injection.
-    // The shell cannot interpret metacharacters in properly escaped array args.
+    // even with shell:true. Security depends on:
+    // 1. Command blocklist/validation (checked above)
+    // 2. Path validation (checked in executeCommandWithValidation)
+    // 3. Platform-specific shell quoting for args (handled by Node.js)
+    // We checks for path traversal here as an extra layer of defense.
 
     // Check for path traversal in arguments
     for (const arg of args) {
-        // Skip flags (arguments starting with -)
-        if (arg.startsWith("-")) continue;
+        // Check for path traversal inside the argument (including flag values)
+        // We check before normalization because normalization resolves '..'
+        if (arg.includes("..")) {
+            return {
+                valid: false,
+                error: `Argument '${arg}' contains path traversal pattern.`,
+            };
+        }
 
-        // Check for obvious path traversal attempts
-        const normalizedArg = normalize(arg);
-        if (normalizedArg.includes("..")) {
+        // Also check if it's a flag with a value that might be suspicious
+        // e.g. --output=../../passwd
+        if (arg.includes("=") && arg.split("=")[1]?.includes("..")) {
             return {
                 valid: false,
                 error: `Argument '${arg}' contains path traversal pattern.`,
