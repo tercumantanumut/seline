@@ -123,6 +123,27 @@ const electronAPI = {
     },
   },
 
+  // Command execution operations
+  command: {
+    execute: (options: {
+      command: string;
+      args: string[];
+      cwd: string;
+      characterId: string;
+      timeout?: number;
+    }): Promise<{
+      success: boolean;
+      stdout: string;
+      stderr: string;
+      exitCode: number | null;
+      signal: string | null;
+      error?: string;
+      executionTime?: number;
+    }> => {
+      return ipcRenderer.invoke("command:execute", options);
+    },
+  },
+
   ipc: {
     send: (channel: string, ...args: unknown[]): void => {
       // Whitelist of allowed channels
@@ -157,6 +178,7 @@ const electronAPI = {
         "model:checkExists",
         "model:download",
         "logs:getBuffer",
+        "command:execute",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);

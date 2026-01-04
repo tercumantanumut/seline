@@ -16,9 +16,13 @@ import { isVectorDBEnabled } from "./client";
 // Map of folder ID to watcher instance
 const watchers = new Map<string, FSWatcher>();
 
-// Debounce timers for file changes
-const debounceTimers = new Map<string, NodeJS.Timeout>();
-const DEBOUNCE_MS = 1000; // Wait 1 second after last change before processing
+// Map of folder ID to set of changed file paths
+const folderQueues = new Map<string, Set<string>>();
+
+// Debounce timers for folders
+const folderTimers = new Map<string, NodeJS.Timeout>();
+const DEBOUNCE_MS = 1000; // Wait 1 second after last change before processing batch
+const MAX_CONCURRENCY = 5; // Process max 5 files at once per folder
 
 interface WatcherConfig {
   folderId: string;
@@ -27,6 +31,33 @@ interface WatcherConfig {
   recursive: boolean;
   includeExtensions: string[];
   excludePatterns: string[];
+}
+
+/**
+ * Simple concurrency limiter
+ */
+async function processWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  handler: (item: T) => Promise<void>
+): Promise<void> {
+  const queue = [...items];
+  const active: Promise<void>[] = [];
+
+  while (queue.length > 0 || active.length > 0) {
+    while (queue.length > 0 && active.length < concurrency) {
+      const item = queue.shift()!;
+      const promise = handler(item).then(() => {
+        const index = active.indexOf(promise);
+        if (index > -1) active.splice(index, 1);
+      });
+      active.push(promise);
+    }
+
+    if (active.length > 0) {
+      await Promise.race(active);
+    }
+  }
 }
 
 /**
@@ -44,6 +75,58 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   const { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns } = config;
 
   console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
+
+  // Initialize queue for this folder
+  folderQueues.set(folderId, new Set());
+
+  const processBatch = async () => {
+    const queue = folderQueues.get(folderId);
+    if (!queue || queue.size === 0) return;
+
+    // Create a snapshot of current files to process and clear the queue
+    const filesToProcess = Array.from(queue);
+    queue.clear();
+    folderTimers.delete(folderId);
+
+    console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath}`);
+
+    await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
+      try {
+        // Check if file still exists (it might have been deleted quickly)
+        const fileExists = true; // Indexing handles existence check
+
+        console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
+        const relativePath = relative(folderPath, filePath);
+        await indexFileToVectorDB({
+          characterId,
+          filePath,
+          folderId,
+          relativePath,
+        });
+      } catch (error) {
+        console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
+      }
+    });
+
+    console.log(`[FileWatcher] Batch processing complete for ${folderPath}`);
+  };
+
+  const scheduleBatch = (filePath: string) => {
+    const queue = folderQueues.get(folderId);
+    if (!queue) return;
+
+    queue.add(filePath);
+
+    // Reset debounce timer
+    if (folderTimers.has(folderId)) {
+      clearTimeout(folderTimers.get(folderId)!);
+    }
+
+    folderTimers.set(
+      folderId,
+      setTimeout(processBatch, DEBOUNCE_MS)
+    );
+  };
 
   const watcher = chokidar.watch(folderPath, {
     persistent: true,
@@ -70,36 +153,19 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       return; // Skip files with non-matching extensions
     }
 
-    // Debounce to avoid rapid re-indexing
-    const key = `${folderId}:${filePath}`;
-    if (debounceTimers.has(key)) {
-      clearTimeout(debounceTimers.get(key)!);
-    }
-
-    debounceTimers.set(
-      key,
-      setTimeout(async () => {
-        debounceTimers.delete(key);
-        try {
-          console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
-          const relativePath = relative(folderPath, filePath);
-          await indexFileToVectorDB({
-            characterId,
-            filePath,
-            folderId,
-            relativePath,
-          });
-        } catch (error) {
-          console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
-        }
-      }, DEBOUNCE_MS)
-    );
+    scheduleBatch(filePath);
   };
 
-  // Handle file removal
+  // Handle file removal - process immediately as it's fast and important to keep index clean
   const handleFileRemove = async (filePath: string) => {
     try {
       console.log(`[FileWatcher] Removing deleted file from index: ${filePath}`);
+
+      // Also remove from pending queue if it was waiting to be processed
+      const queue = folderQueues.get(folderId);
+      if (queue && queue.has(filePath)) {
+        queue.delete(filePath);
+      }
 
       // Look up the file record in the database
       const [fileRecord] = await db
@@ -169,12 +235,14 @@ export async function stopWatching(folderId: string): Promise<void> {
     console.log(`[FileWatcher] Stopped watching folder: ${folderId}`);
   }
 
-  // Clear any pending debounce timers for this folder
-  for (const [key, timer] of debounceTimers.entries()) {
-    if (key.startsWith(`${folderId}:`)) {
-      clearTimeout(timer);
-      debounceTimers.delete(key);
-    }
+  // Clear any pending queue and timer for this folder
+  if (folderTimers.has(folderId)) {
+    clearTimeout(folderTimers.get(folderId)!);
+    folderTimers.delete(folderId);
+  }
+
+  if (folderQueues.has(folderId)) {
+    folderQueues.delete(folderId);
   }
 }
 

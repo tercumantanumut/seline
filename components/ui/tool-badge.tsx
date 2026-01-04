@@ -13,6 +13,7 @@ import {
   Database,
   FileText,
   Flame,
+  Terminal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   assembleVideo: Video,
   describeImage: Eye,
   showProductImages: Package,
+  executeCommand: Terminal,
 };
 
 /** Tool ID to category color mapping */
@@ -65,6 +67,7 @@ const TOOL_CATEGORIES: Record<string, string> = {
   assembleVideo: "video-generation",
   describeImage: "analysis",
   showProductImages: "utility",
+  executeCommand: "utility",
 };
 
 interface ToolBadgeProps {

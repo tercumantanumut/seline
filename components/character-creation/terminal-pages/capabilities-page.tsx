@@ -31,6 +31,7 @@ const AVAILABLE_TOOLS: ToolCapability[] = [
   { id: "assembleVideo", nameKey: "assembleVideo", descKey: "assembleVideoDesc", category: "video-generation" },
   { id: "describeImage", nameKey: "describeImage", descKey: "describeImageDesc", category: "analysis" },
   { id: "showProductImages", nameKey: "showProductImages", descKey: "showProductImagesDesc", category: "utility" },
+  { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility" },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", nameKey: "generateImageFlux2Flex", descKey: "generateImageFlux2FlexDesc", category: "image-generation" },
   { id: "editImageFlux2Flex", nameKey: "editImageFlux2Flex", descKey: "editImageFlux2FlexDesc", category: "image-editing" },
@@ -219,14 +220,14 @@ function ToolToggle({
     <button
       onClick={onToggle}
       className={`w-full flex items-center gap-3 p-3 rounded border transition-colors text-left ${enabled
-          ? "bg-terminal-green/10 border-terminal-green/50"
-          : "bg-terminal-bg/20 border-terminal-border/50 hover:border-terminal-border"
+        ? "bg-terminal-green/10 border-terminal-green/50"
+        : "bg-terminal-bg/20 border-terminal-border/50 hover:border-terminal-border"
         }`}
     >
       <div
         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${enabled
-            ? "bg-terminal-green border-terminal-green text-white"
-            : "border-terminal-dark/30"
+          ? "bg-terminal-green border-terminal-green text-white"
+          : "border-terminal-dark/30"
           }`}
       >
         {enabled && (
