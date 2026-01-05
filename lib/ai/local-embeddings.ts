@@ -210,7 +210,11 @@ export function createLocalEmbeddingModel(
       const output = await pipeline(texts, { pooling: "mean", normalize: true });
       const embeddings = toEmbeddings(output, values.length);
 
-      return { embeddings };
+      return {
+        embeddings,
+        usage: { tokens: 0, totalTokens: 0 },
+        warnings: [],
+      };
     },
   };
 }
