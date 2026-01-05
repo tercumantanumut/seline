@@ -38,13 +38,8 @@ function generateRequestId(): string {
   return `req-${timestamp}-${random}`;
 }
 
-// Generate a unique session ID (cached per provider instance)
-let sessionId: string | null = null;
-function getSessionId(): string {
-  if (!sessionId) {
-    sessionId = `session-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
-  }
-  return sessionId;
+function generateSessionId(): string {
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
 }
 
 /**
@@ -92,6 +87,7 @@ function isGenerativeLanguageRequest(url: string): boolean {
  * Custom fetch wrapper that transforms requests for Antigravity API
  */
 function createAntigravityFetch(accessToken: string, projectId: string): typeof fetch {
+  const sessionId = generateSessionId();
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = input instanceof URL ? input.toString() :
       typeof input === "string" ? input : input.url;
@@ -192,7 +188,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
           requestId: generateRequestId(),
           request: {
             ...parsedBody,
-            sessionId: getSessionId(),
+            sessionId,
           },
         };
 
