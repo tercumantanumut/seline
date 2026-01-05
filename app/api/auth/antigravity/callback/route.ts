@@ -16,6 +16,34 @@ import {
 } from "@/lib/auth/antigravity-auth";
 import { invalidateProviderCache } from "@/lib/ai/providers";
 
+const OAUTH_FETCH_TIMEOUT_MS = 510 * 1000;
+
+function createTimeoutError(label: string, timeoutMs: number): Error {
+  const error = new Error(`${label} request timed out after ${Math.round(timeoutMs / 1000)}s`);
+  error.name = "AbortError";
+  return error;
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  label: string
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OAUTH_FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw createTimeoutError(label, OAUTH_FETCH_TIMEOUT_MS);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Decode the OAuth state parameter to extract PKCE verifier and project ID
  */
@@ -113,20 +141,24 @@ async function exchangeCodeForToken(code: string, verifier: string, requestUrl: 
   const redirectUri = `${requestUrl.origin}/api/auth/antigravity/callback`;
 
   // Exchange code with Google's token endpoint
-  const tokenResponse = await fetch(ANTIGRAVITY_OAUTH.TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+  const tokenResponse = await fetchWithTimeout(
+    ANTIGRAVITY_OAUTH.TOKEN_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: ANTIGRAVITY_OAUTH.CLIENT_ID,
+        client_secret: ANTIGRAVITY_OAUTH.CLIENT_SECRET,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+        code_verifier: verifier,
+      }),
     },
-    body: new URLSearchParams({
-      client_id: ANTIGRAVITY_OAUTH.CLIENT_ID,
-      client_secret: ANTIGRAVITY_OAUTH.CLIENT_SECRET,
-      code,
-      grant_type: "authorization_code",
-      redirect_uri: redirectUri,
-      code_verifier: verifier,
-    }),
-  });
+    "Token exchange"
+  );
 
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text();
@@ -138,17 +170,24 @@ async function exchangeCodeForToken(code: string, verifier: string, requestUrl: 
   // Fetch user info to get email
   let email: string | undefined;
   try {
-    const userInfoResponse = await fetch(ANTIGRAVITY_OAUTH.USERINFO_URL, {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
+    const userInfoResponse = await fetchWithTimeout(
+      ANTIGRAVITY_OAUTH.USERINFO_URL,
+      {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+        },
       },
-    });
+      "User info"
+    );
 
     if (userInfoResponse.ok) {
       const userInfo = await userInfoResponse.json();
       email = userInfo.email;
     }
   } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw e;
+    }
     console.warn("[AntigravityCallback] Failed to fetch user info:", e);
   }
 
