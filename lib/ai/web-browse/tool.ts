@@ -11,7 +11,7 @@
  * - Single response returned to primary agent
  */
 
-import { tool, type ToolCallOptions } from "ai";
+import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 import {
   browseAndSynthesize,
@@ -81,7 +81,7 @@ interface WebQueryArgs {
 async function executeWebBrowse(
   options: WebBrowseOptions,
   args: WebBrowseArgs,
-  toolCallOptions?: ToolCallOptions
+  toolCallOptions?: ToolExecutionOptions
 ): Promise<WebBrowseToolResult> {
   const { sessionId, userId, characterId } = options;
   const { urls, query } = args;
@@ -126,7 +126,7 @@ async function executeWebBrowse(
 async function executeWebQuery(
   sessionId: string,
   args: WebQueryArgs,
-  toolCallOptions?: ToolCallOptions
+  toolCallOptions?: ToolExecutionOptions
 ): Promise<WebBrowseToolResult> {
   const { query } = args;
 
@@ -172,7 +172,7 @@ export function createWebBrowseTool(options: WebBrowseOptions) {
   const executeWithLogging = withToolLogging(
     "webBrowse",
     sessionId,
-    (args: WebBrowseArgs, toolCallOptions?: ToolCallOptions) =>
+    (args: WebBrowseArgs, toolCallOptions?: ToolExecutionOptions) =>
       executeWebBrowse(options, args, toolCallOptions)
   );
 
@@ -212,7 +212,7 @@ export function createWebQueryTool(options: WebBrowseOptions) {
   const executeWithLogging = withToolLogging(
     "webQuery",
     sessionId,
-    (args: WebQueryArgs, toolCallOptions?: ToolCallOptions) =>
+    (args: WebQueryArgs, toolCallOptions?: ToolExecutionOptions) =>
       executeWebQuery(sessionId, args, toolCallOptions)
   );
 

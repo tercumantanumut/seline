@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, type CoreMessage, type Tool } from "ai";
+import { streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
 import { getLanguageModel, getProviderDisplayName } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
@@ -991,7 +991,7 @@ export async function POST(req: Request) {
     // convertUserImagesToBase64=false - DON'T send base64 to Claude (wastes ~200k tokens per image!)
     // sessionId enables smart truncation - long content is truncated but full version is retrievable
     // Tools like editRoomImage, describeImage handle base64 conversion themselves when needed
-    const coreMessages: CoreMessage[] = await Promise.all(
+    const coreMessages: ModelMessage[] = await Promise.all(
       enhancedMessages.map(async (msg, idx) => {
         const content = await extractContent(
           msg as Parameters<typeof extractContent>[0],
@@ -1010,7 +1010,7 @@ export async function POST(req: Request) {
         return {
           role: msg.role as "user" | "assistant" | "system",
           content,
-        } as CoreMessage;
+        } as ModelMessage;
       })
     );
 

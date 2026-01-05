@@ -4,7 +4,7 @@
  * Structured logging for tool calls with timing and success/failure tracking.
  */
 
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 
 /**
  * Log levels
@@ -204,9 +204,9 @@ function summarizeArgs(args: Record<string, unknown>): Record<string, unknown> {
 export function withToolLogging<TArgs extends object, TResult>(
   toolName: string,
   sessionId: string | undefined,
-  executeFn: (args: TArgs, options?: ToolCallOptions) => Promise<TResult>
-): (args: TArgs, options?: ToolCallOptions) => Promise<TResult> {
-  return async (args: TArgs, options?: ToolCallOptions): Promise<TResult> => {
+  executeFn: (args: TArgs, options?: ToolExecutionOptions) => Promise<TResult>
+): (args: TArgs, options?: ToolExecutionOptions) => Promise<TResult> {
+  return async (args: TArgs, options?: ToolExecutionOptions): Promise<TResult> => {
     const logger = createToolLogger(toolName, sessionId);
     const startTime = Date.now();
 

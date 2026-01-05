@@ -69,7 +69,7 @@ let _antigravityProvider: ReturnType<typeof createAntigravityProvider> | null = 
 let _antigravityProviderToken: string | undefined = undefined;
 
 // Cache for local embedding model instance
-let _localEmbeddingModel: EmbeddingModel<string> | null = null;
+let _localEmbeddingModel: EmbeddingModel | null = null;
 let _localEmbeddingModelId: string | null = null;
 let _localEmbeddingModelDir: string | undefined = undefined;
 
@@ -429,7 +429,7 @@ export function getUtilityModel(): LanguageModel {
  * Embeddings can be served via OpenRouter or a local Transformers.js model,
  * depending on settings and environment availability.
  */
-export function getEmbeddingModel(modelOverride?: string): EmbeddingModel<string> {
+export function getEmbeddingModel(modelOverride?: string): EmbeddingModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
@@ -469,7 +469,7 @@ export function getEmbeddingModel(modelOverride?: string): EmbeddingModel<string
   return getOpenRouterEmbeddingModel(resolved.openRouterModelId);
 }
 
-function getOpenRouterEmbeddingModel(model: string): EmbeddingModel<string> {
+function getOpenRouterEmbeddingModel(model: string): EmbeddingModel {
   const apiKey = getOpenRouterApiKey();
   if (!apiKey) {
     throw new Error(
