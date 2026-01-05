@@ -57,8 +57,8 @@ function resolveModelName(modelId: string): string {
  */
 function isGenerativeLanguageRequest(url: string): boolean {
   return url.includes("generativelanguage.googleapis.com") ||
-         url.includes("/models/") && url.includes(":generateContent") ||
-         url.includes("/models/") && url.includes(":streamGenerateContent");
+    url.includes("/models/") && url.includes(":generateContent") ||
+    url.includes("/models/") && url.includes(":streamGenerateContent");
 }
 
 /**
@@ -67,7 +67,7 @@ function isGenerativeLanguageRequest(url: string): boolean {
 function createAntigravityFetch(accessToken: string, projectId: string): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = input instanceof URL ? input.toString() :
-                typeof input === "string" ? input : input.url;
+      typeof input === "string" ? input : input.url;
 
     // Check if this is a generative language request we should intercept
     if (!isGenerativeLanguageRequest(url)) {
@@ -96,9 +96,68 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
     if (init?.body) {
       try {
         const bodyText = typeof init.body === "string" ? init.body :
-                        init.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body) :
-                        String(init.body);
+          init.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body) :
+            String(init.body);
         const parsedBody = JSON.parse(bodyText);
+
+        // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
+        // The Antigravity backend transforms Google format to Claude format, but Claude API requires 
+        // tool_use.id fields that don't exist in Google's functionCall format.
+        // We generate unique IDs for each functionCall and match them to corresponding functionResponse parts.
+        const isClaudeModel = effectiveModel.includes("claude");
+        if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
+          // Track functionCall IDs by name+index for matching with functionResponse
+          // Map structure: functionName -> array of generated IDs (in order of appearance)
+          const functionCallIds = new Map<string, string[]>();
+          // Track which ID index to use for each function name in responses
+          const functionResponseIndex = new Map<string, number>();
+
+          // First pass: inject IDs into all functionCall parts
+          for (const content of parsedBody.contents) {
+            if (content.parts && Array.isArray(content.parts)) {
+              for (const part of content.parts) {
+                if (part.functionCall && typeof part.functionCall === "object") {
+                  const funcName = (part.functionCall as Record<string, unknown>).name as string;
+                  // Generate a unique ID for this function call
+                  const callId = `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+
+                  // Store the ID for later matching with functionResponse
+                  if (!functionCallIds.has(funcName)) {
+                    functionCallIds.set(funcName, []);
+                  }
+                  functionCallIds.get(funcName)!.push(callId);
+
+                  // Inject the ID into the functionCall (this is what Antigravity backend needs)
+                  (part.functionCall as Record<string, unknown>).id = callId;
+                }
+              }
+            }
+          }
+
+          // Second pass: inject matching IDs into functionResponse parts
+          for (const content of parsedBody.contents) {
+            if (content.parts && Array.isArray(content.parts)) {
+              for (const part of content.parts) {
+                if (part.functionResponse && typeof part.functionResponse === "object") {
+                  const funcName = (part.functionResponse as Record<string, unknown>).name as string;
+                  const ids = functionCallIds.get(funcName);
+
+                  if (ids && ids.length > 0) {
+                    // Get the current index for this function name
+                    const idx = functionResponseIndex.get(funcName) || 0;
+                    if (idx < ids.length) {
+                      // Inject the matching ID
+                      (part.functionResponse as Record<string, unknown>).id = ids[idx];
+                      functionResponseIndex.set(funcName, idx + 1);
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          console.log(`[Antigravity] Injected tool call IDs for Claude model: ${functionCallIds.size} function types`);
+        }
 
         // Wrap the request in Antigravity's expected format
         const wrappedBody = {
