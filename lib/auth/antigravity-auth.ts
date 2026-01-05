@@ -383,24 +383,41 @@ export async function fetchAntigravityProjectId(): Promise<string | null> {
   }
 
   const loadCodeAssistUrl = `${ANTIGRAVITY_CONFIG.API_BASE_URL}/${ANTIGRAVITY_CONFIG.API_VERSION}:loadCodeAssist`;
+  const PROJECT_ID_FETCH_TIMEOUT_MS = 30 * 1000;
 
   try {
     console.log("[AntigravityAuth] Fetching project ID via loadCodeAssist...");
-    const response = await fetch(loadCodeAssistUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token.access_token}`,
-        "Content-Type": "application/json",
-        ...ANTIGRAVITY_CONFIG.HEADERS,
-      },
-      body: JSON.stringify({
-        metadata: {
-          ideType: "IDE_UNSPECIFIED",
-          platform: "PLATFORM_UNSPECIFIED",
-          pluginType: "GEMINI",
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROJECT_ID_FETCH_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(loadCodeAssistUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token.access_token}`,
+          "Content-Type": "application/json",
+          ...ANTIGRAVITY_CONFIG.HEADERS,
         },
-      }),
-    });
+        body: JSON.stringify({
+          metadata: {
+            ideType: "IDE_UNSPECIFIED",
+            platform: "PLATFORM_UNSPECIFIED",
+            pluginType: "GEMINI",
+          },
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        console.error("[AntigravityAuth] loadCodeAssist timed out");
+      } else {
+        throw error;
+      }
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.ok) {
       const data = await response.json();
