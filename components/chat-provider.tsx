@@ -12,7 +12,7 @@ import {
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
 import { useMemo } from "react";
-import type { HttpChatTransportInitOptions, UIMessage, UIMessageChunk } from "ai";
+import type { UIMessage, UIMessageChunk } from "ai";
 import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -113,13 +113,7 @@ const STREAM_BATCH_INTERVAL_MS = Number.isFinite(envInterval)
 const envMax = Number(process.env.NEXT_PUBLIC_STREAM_BATCH_MAX_CHARS);
 const STREAM_BATCH_MAX_CHARS = Number.isFinite(envMax) ? envMax : 4000;
 
-class BufferedAssistantChatTransport<
-  UI_MESSAGE extends UIMessage,
-> extends AssistantChatTransport<UI_MESSAGE> {
-  constructor(initOptions?: HttpChatTransportInitOptions<UI_MESSAGE>) {
-    super(initOptions);
-  }
-
+class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   protected override processResponseStream(
     stream: ReadableStream<Uint8Array>,
   ): ReadableStream<UIMessageChunk> {
@@ -142,7 +136,7 @@ class BufferedAssistantChatTransport<
         type: "text-delta",
         id: lastTextId,
         delta: bufferedDelta,
-      });
+      } as UIMessageChunk);
       bufferedDelta = "";
     };
 
@@ -323,7 +317,7 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     adapters: {
       attachments: attachmentAdapter,
     },
-  } as any);
+  });
 
   return (
     <ChatErrorBoundary

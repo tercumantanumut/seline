@@ -18,10 +18,14 @@ interface DBMessage {
 }
 
 // Simpler part type that works with any UIMessage
+// Note: For tool parts, we use the typed format `tool-${toolName}` to match what the AI SDK
+// sends during streaming. This ensures proper handling by AISDKMessageConverter which uses
+// isToolUIPart (matches both static tool-* and dynamic-tool) but extracts toolName differently.
+// Using tool-* format ensures the correct toolName extraction via type.replace("tool-", "").
 type SimplePart =
   | { type: "text"; text: string }
   | { type: "file"; mediaType: string; url: string }
-  | { type: "dynamic-tool"; toolName: string; toolCallId: string; state: "output-available"; input: unknown; output: unknown };
+  | { type: `tool-${string}`; toolCallId: string; state: "output-available"; input: unknown; output: unknown };
 
 /**
  * Convert a database message to UIMessage format for assistant-ui
@@ -59,9 +63,10 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
       });
     } else if (part.type === "tool-call") {
       const result = toolResults.get(part.toolCallId);
+      // Use typed tool format (tool-{toolName}) to match AI SDK streaming format
+      // This ensures AISDKMessageConverter extracts toolName correctly via type.replace("tool-", "")
       parts.push({
-        type: "dynamic-tool",
-        toolName: part.toolName,
+        type: `tool-${part.toolName}` as `tool-${string}`,
         toolCallId: part.toolCallId,
         state: "output-available",
         input: part.args,
@@ -175,9 +180,10 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
         const result = inlineToolResults.get(part.toolCallId) ??
                        globalToolResults.get(part.toolCallId) ??
                        null;
+        // Use typed tool format (tool-{toolName}) to match AI SDK streaming format
+        // This ensures AISDKMessageConverter extracts toolName correctly via type.replace("tool-", "")
         parts.push({
-          type: "dynamic-tool",
-          toolName: part.toolName,
+          type: `tool-${part.toolName}` as `tool-${string}`,
           toolCallId: part.toolCallId,
           state: "output-available",
           input: part.args,

@@ -1,4 +1,4 @@
-import { tool, jsonSchema, generateText, type ToolCallOptions } from "ai";
+import { tool, jsonSchema, generateText, type ToolExecutionOptions } from "ai";
 import { callImagenEdit, isAsyncResult } from "@/lib/image-edit/client";
 import { callFlux2Generate } from "@/lib/ai/flux2-client";
 import {
@@ -1421,7 +1421,7 @@ interface VideoAssemblyArgs {
 async function executeVideoAssembly(
   sessionId: string,
   args: VideoAssemblyArgs,
-  toolCallOptions?: ToolCallOptions
+  toolCallOptions?: ToolExecutionOptions
 ) {
   const {
     theme,
@@ -1598,7 +1598,7 @@ export function createVideoAssemblyTool(sessionId: string) {
   const executeWithLogging = withToolLogging(
     "assembleVideo",
     sessionId,
-    (args: VideoAssemblyArgs, toolCallOptions?: ToolCallOptions) =>
+    (args: VideoAssemblyArgs, toolCallOptions?: ToolExecutionOptions) =>
       executeVideoAssembly(sessionId, args, toolCallOptions)
   );
 

@@ -56,6 +56,10 @@ interface ToolResult {
   text?: string;
   jobId?: string;
   timeTaken?: number;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number | null;
+  executionTime?: number;
   // searchTools specific fields
   query?: string;
   message?: string;
@@ -179,13 +183,25 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
   // Handle searchTools results
   if (toolName === "searchTools") {
-    const searchResults = result.results as Array<{
+    const rawResults = (result as { results?: unknown }).results;
+    const searchResults = Array.isArray(rawResults) ? rawResults as Array<{
       name?: string;
       displayName?: string;
       category?: string;
       description?: string;
       isAvailable?: boolean;
-    }> | undefined;
+    }> : undefined;
+
+    if (rawResults !== undefined && !Array.isArray(rawResults)) {
+      return (
+        <div className="text-sm text-terminal-muted font-mono">
+          Unexpected tool search results format.
+          <pre className="mt-2 overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
+            {formatResultValue(rawResults)}
+          </pre>
+        </div>
+      );
+    }
 
     if (result.status === "no_results" || !searchResults || searchResults.length === 0) {
       return (
@@ -392,8 +408,25 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     );
   }
 
+  if (typeof result.stdout === "string" || typeof result.stderr === "string") {
+    return (
+      <div className="mt-2 space-y-2">
+        {result.stdout && (
+          <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
+            {result.stdout}
+          </pre>
+        )}
+        {result.stderr && (
+          <pre className="overflow-x-auto max-h-64 rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words text-red-600">
+            {result.stderr}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
   // Show batch results
-  if (result.results && result.results.length > 0) {
+  if (Array.isArray(result.results) && result.results.length > 0) {
     return (
       <div className="mt-2 space-y-4">
         {result.results.map((item, idx) => (
@@ -436,6 +469,16 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     );
   }
 
+  if (result.results && !Array.isArray(result.results)) {
+    return (
+      <div className="mt-2 text-sm text-terminal-muted font-mono">
+        <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
+          {formatResultValue(result.results)}
+        </pre>
+      </div>
+    );
+  }
+
   return null;
 };
 
@@ -445,5 +488,16 @@ function formatArgs(argsText: string): string {
     return JSON.stringify(parsed, null, 2);
   } catch {
     return argsText;
+  }
+}
+
+function formatResultValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
   }
 }

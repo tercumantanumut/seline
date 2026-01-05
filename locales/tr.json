@@ -681,7 +681,7 @@
     },
     "api": {
       "title": "LLM Sağlayıcısı",
-      "anthropic": "Anthropic (Claude)",
+      "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "keysTitle": "API Anahtarları",
       "fields": {

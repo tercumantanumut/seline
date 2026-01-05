@@ -4,12 +4,29 @@ import { loadConfigFromEnv } from "@/lib/config/vector-search";
 
 export interface AppSettings {
   // AI Provider settings
-  llmProvider: "anthropic" | "openrouter";
+  llmProvider: "anthropic" | "openrouter" | "antigravity";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   tavilyApiKey?: string;    // For Deep Research web search
   firecrawlApiKey?: string; // For web scraping with Firecrawl
   webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+
+  // Antigravity OAuth authentication (free models via Google OAuth)
+  antigravityAuth?: {
+    isAuthenticated: boolean;
+    email?: string;
+    expiresAt?: number;
+    lastRefresh?: number;
+  };
+  antigravityToken?: {
+    type: "oauth";
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
+    token_type?: string;
+    scope?: string;
+    project_id?: string; // Antigravity project ID from loadCodeAssist
+  };
 
   // Model selection for different tasks
   // Format: Model ID string (e.g., "claude-sonnet-4-5-20250929" or "x-ai/grok-4.1-fast")
@@ -295,6 +312,10 @@ export function hasRequiredApiKeys(): boolean {
   if (settings.llmProvider === "openrouter" && !settings.openrouterApiKey) {
     return false;
   }
+  // Antigravity requires OAuth authentication, not an API key
+  if (settings.llmProvider === "antigravity" && !settings.antigravityAuth?.isAuthenticated) {
+    return false;
+  }
 
   return true;
 }
@@ -307,6 +328,15 @@ export function resetSettings(): AppSettings {
   const settings = { ...DEFAULT_SETTINGS, localUserId: crypto.randomUUID() };
   saveSettings(settings);
   return settings;
+}
+
+/**
+ * Invalidate the settings cache to force a fresh read from disk.
+ * Call this when settings may have been modified by another process or request.
+ */
+export function invalidateSettingsCache(): void {
+  cachedSettings = null;
+  cachedSettingsTimestamp = 0;
 }
 
 /**

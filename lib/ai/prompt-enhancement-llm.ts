@@ -6,7 +6,7 @@
  * iterative refinement within the enhancement workflow.
  */
 
-import type { CoreMessage } from "ai";
+import type { ModelMessage } from "ai";
 import { nanoid } from "nanoid";
 
 // =============================================================================
@@ -16,7 +16,7 @@ import { nanoid } from "nanoid";
 export interface EnhancementSession {
   id: string;
   characterId: string;
-  messages: CoreMessage[];
+  messages: ModelMessage[];
   createdAt: Date;
   lastUsedAt: Date;
 }
@@ -68,7 +68,7 @@ export function getEnhancementSession(characterId: string): EnhancementSession {
  */
 export function addSessionMessage(
   characterId: string,
-  message: CoreMessage
+  message: ModelMessage
 ): void {
   const session = getEnhancementSession(characterId);
   session.messages.push(message);

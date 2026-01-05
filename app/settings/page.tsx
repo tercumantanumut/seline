@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
+import { toast } from "sonner";
+import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 
 interface AppSettings {
-  llmProvider: "anthropic" | "openrouter";
+  llmProvider: "anthropic" | "openrouter" | "antigravity";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   tavilyApiKey?: string;
@@ -43,6 +45,12 @@ interface AppSettings {
   vectorSearchTokenChunkStride?: number;
   vectorSearchMaxFileLines?: number;
   vectorSearchMaxLineLength?: number;
+  // Antigravity auth state (read-only, managed via OAuth)
+  antigravityAuth?: {
+    isAuthenticated: boolean;
+    email?: string;
+    expiresAt?: number;
+  };
 }
 
 type SettingsSection = "api-keys" | "models" | "vector-search" | "preferences";
@@ -60,7 +68,7 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState({
-    llmProvider: "anthropic" as "anthropic" | "openrouter",
+    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity",
     anthropicApiKey: "",
     openrouterApiKey: "",
     tavilyApiKey: "",
@@ -99,8 +107,17 @@ export default function SettingsPage() {
     localGrepRespectGitignore: true,
   });
 
+  // Antigravity auth state (separate from form state, managed via OAuth)
+  const [antigravityAuth, setAntigravityAuth] = useState<{
+    isAuthenticated: boolean;
+    email?: string;
+    expiresAt?: number;
+  } | null>(null);
+  const [antigravityLoading, setAntigravityLoading] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadAntigravityAuth();
   }, []);
 
   const loadSettings = async () => {
@@ -152,6 +169,155 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : t("errors.load"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAntigravityAuth = async (): Promise<boolean> => {
+    try {
+      // Add cache-busting to ensure fresh data
+      const response = await fetch(`/api/auth/antigravity?t=${Date.now()}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[Settings] Loaded Antigravity auth:", data);
+        setAntigravityAuth({
+          isAuthenticated: data.authenticated,
+          email: data.email,
+          expiresAt: data.expiresAt,
+        });
+        return data.authenticated;
+      }
+    } catch (err) {
+      console.error("Failed to load Antigravity auth status:", err);
+    }
+    return false;
+  };
+
+  const handleAntigravityLogin = async () => {
+    setAntigravityLoading(true);
+    let popup: Window | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let messageHandler: ((event: MessageEvent) => void) | null = null;
+    let pollInFlight = false;
+    const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+      ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+      : undefined;
+    const isElectron = !!electronAPI?.isElectron;
+
+    const cleanup = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (messageHandler) window.removeEventListener("message", messageHandler);
+      setAntigravityLoading(false);
+    };
+
+    try {
+      // Open a placeholder popup synchronously to avoid browser popup blockers
+      if (!isElectron) {
+        const width = 500;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        popup = window.open(
+          "about:blank",
+          "antigravity-auth",
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        if (popup) {
+          popup.document.write("<p style='font-family:sans-serif'>Connecting to Google...</p>");
+        }
+      }
+
+      // Get the OAuth authorization URL from our API
+      const authResponse = await fetch("/api/auth/antigravity/authorize");
+      const authData = await authResponse.json();
+
+      if (!authData.success || !authData.url) {
+        popup?.close();
+        throw new Error(authData.error || "Failed to get authorization URL");
+      }
+
+      if (isElectron && electronAPI?.shell?.openExternal) {
+        await electronAPI.shell.openExternal(authData.url);
+      } else if (popup) {
+        popup.location.href = authData.url;
+      } else {
+        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        cleanup();
+        return;
+      }
+
+      // Listen for auth completion message from popup
+      messageHandler = (event: MessageEvent) => {
+        // Only accept messages from same origin
+        if (event.origin !== window.location.origin) return;
+
+        if (event.data?.type === "antigravity-auth") {
+          console.log("[Settings] Received auth message from popup:", event.data);
+          popup?.close();
+          loadAntigravityAuth().finally(cleanup);
+        }
+      };
+      window.addEventListener("message", messageHandler);
+
+      // Poll for popup closure as fallback
+      pollInterval = setInterval(async () => {
+        if (pollInFlight) return;
+        pollInFlight = true;
+        try {
+          const authenticated = await loadAntigravityAuth();
+          if (authenticated) {
+            console.log("[Settings] Antigravity auth confirmed, closing popup...");
+            popup?.close();
+            cleanup();
+            return;
+          }
+
+          if (popup?.closed) {
+            console.log("[Settings] Popup closed, refreshing auth state...");
+            // Wait a moment for the server to process the callback
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await loadAntigravityAuth();
+            cleanup();
+          }
+        } finally {
+          pollInFlight = false;
+        }
+      }, 1000);
+
+      // Timeout after 5 minutes
+      timeoutId = setTimeout(() => {
+        console.warn("[Settings] OAuth timeout");
+        popup?.close();
+        cleanup();
+      }, 5 * 60 * 1000);
+
+    } catch (err) {
+      console.error("Antigravity login failed:", err);
+      cleanup();
+    }
+  };
+
+  const handleAntigravityLogout = async () => {
+    setAntigravityLoading(true);
+    try {
+      const response = await fetch("/api/auth/antigravity", { method: "DELETE" });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Logout failed with status ${response.status}`);
+      }
+      setAntigravityAuth(null);
+      // If currently using antigravity, switch to anthropic
+      if (formState.llmProvider === "antigravity") {
+        setFormState(prev => ({ ...prev, llmProvider: "anthropic" }));
+      }
+    } catch (err) {
+      console.error("Antigravity logout failed:", err);
+      toast.error(tc("error"));
+    } finally {
+      setAntigravityLoading(false);
     }
   };
 
@@ -241,7 +407,15 @@ export default function SettingsPage() {
                 {error}
               </div>
             )}
-            <SettingsPanel section={activeSection} formState={formState} setFormState={setFormState} />
+            <SettingsPanel
+              section={activeSection}
+              formState={formState}
+              setFormState={setFormState}
+              antigravityAuth={antigravityAuth}
+              antigravityLoading={antigravityLoading}
+              onAntigravityLogin={handleAntigravityLogin}
+              onAntigravityLogout={handleAntigravityLogout}
+            />
           </div>
         </div>
       </div>
@@ -250,7 +424,7 @@ export default function SettingsPage() {
 }
 
 interface FormState {
-  llmProvider: "anthropic" | "openrouter";
+  llmProvider: "anthropic" | "openrouter" | "antigravity";
   anthropicApiKey: string;
   openrouterApiKey: string;
   tavilyApiKey: string;
@@ -296,6 +470,8 @@ const LOCAL_EMBEDDING_MODELS = [
   { id: "Xenova/bge-small-en-v1.5", name: "BGE Small (384 dims, ~130MB)", size: "130MB" },
   { id: "Xenova/all-MiniLM-L6-v2", name: "MiniLM L6 (384 dims, ~90MB)", size: "90MB" },
 ];
+
+const ANTIGRAVITY_MODELS = getAntigravityModels();
 
 interface LocalEmbeddingModelSelectorProps {
   formState: FormState;
@@ -468,9 +644,21 @@ interface SettingsPanelProps {
   section: SettingsSection;
   formState: FormState;
   setFormState: React.Dispatch<React.SetStateAction<FormState>>;
+  antigravityAuth: { isAuthenticated: boolean; email?: string; expiresAt?: number } | null;
+  antigravityLoading: boolean;
+  onAntigravityLogin: () => void;
+  onAntigravityLogout: () => void;
 }
 
-function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps) {
+function SettingsPanel({
+  section,
+  formState,
+  setFormState,
+  antigravityAuth,
+  antigravityLoading,
+  onAntigravityLogin,
+  onAntigravityLogout,
+}: SettingsPanelProps) {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
   const [reindexingAll, setReindexingAll] = useState(false);
@@ -513,7 +701,7 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
                 name="llmProvider"
                 value="anthropic"
                 checked={formState.llmProvider === "anthropic"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter")}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.anthropic")}</span>
@@ -524,11 +712,69 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
                 name="llmProvider"
                 value="openrouter"
                 checked={formState.llmProvider === "openrouter"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter")}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.openrouter")}</span>
             </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="radio"
+                name="llmProvider"
+                value="antigravity"
+                checked={formState.llmProvider === "antigravity"}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
+                disabled={!antigravityAuth?.isAuthenticated}
+                className="size-4 accent-terminal-green disabled:opacity-50"
+              />
+              <span className={cn(
+                "font-mono",
+                antigravityAuth?.isAuthenticated ? "text-terminal-dark" : "text-terminal-muted"
+              )}>
+                Antigravity
+                {antigravityAuth?.isAuthenticated && (
+                  <span className="ml-2 text-xs text-terminal-green">✓ Connected</span>
+                )}
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Antigravity OAuth Section */}
+        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">
+                Antigravity - AI Models
+              </h3>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Access Claude Sonnet 4.5, Gemini 3 Pro, and more via your Antigravity subscription.
+              </p>
+              {antigravityAuth?.isAuthenticated && antigravityAuth.email && (
+                <p className="mt-1 font-mono text-xs text-terminal-green">
+                  Signed in as {antigravityAuth.email}
+                </p>
+              )}
+            </div>
+            <div>
+              {antigravityAuth?.isAuthenticated ? (
+                <button
+                  onClick={onAntigravityLogout}
+                  disabled={antigravityLoading}
+                  className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {antigravityLoading ? "..." : "Disconnect"}
+                </button>
+              ) : (
+                <button
+                  onClick={onAntigravityLogin}
+                  disabled={antigravityLoading}
+                  className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
+                >
+                  {antigravityLoading ? "Connecting..." : "Connect with Google"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -655,13 +901,30 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
         <div className="space-y-4">
           <div>
             <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("models.fields.chat.label")}</label>
-            <input
-              type="text"
-              value={formState.chatModel ?? ""}
-              onChange={(e) => updateField("chatModel", e.target.value)}
-              placeholder={formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" : "x-ai/grok-4.1-fast"}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-            />
+            {formState.llmProvider === "antigravity" ? (
+              <select
+                value={formState.chatModel || "claude-sonnet-4-5"}
+                onChange={(e) => updateField("chatModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={formState.chatModel ?? ""}
+                onChange={(e) => updateField("chatModel", e.target.value)}
+                placeholder={
+                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
+                  "x-ai/grok-4.1-fast"
+                }
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("models.fields.chat.helper")}
             </p>
@@ -669,13 +932,30 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
 
           <div>
             <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("models.fields.research.label")}</label>
-            <input
-              type="text"
-              value={formState.researchModel ?? ""}
-              onChange={(e) => updateField("researchModel", e.target.value)}
-              placeholder={formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" : "x-ai/grok-4.1-fast"}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-            />
+            {formState.llmProvider === "antigravity" ? (
+              <select
+                value={formState.researchModel || "gemini-3-pro-high"}
+                onChange={(e) => updateField("researchModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={formState.researchModel ?? ""}
+                onChange={(e) => updateField("researchModel", e.target.value)}
+                placeholder={
+                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
+                  "x-ai/grok-4.1-fast"
+                }
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("models.fields.research.helper")}
             </p>
@@ -683,13 +963,30 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
 
           <div>
             <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("models.fields.vision.label")}</label>
-            <input
-              type="text"
-              value={formState.visionModel ?? ""}
-              onChange={(e) => updateField("visionModel", e.target.value)}
-              placeholder={formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" : "google/gemini-2.0-flash-001"}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-            />
+            {formState.llmProvider === "antigravity" ? (
+              <select
+                value={formState.visionModel || "gemini-3-pro-low"}
+                onChange={(e) => updateField("visionModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={formState.visionModel ?? ""}
+                onChange={(e) => updateField("visionModel", e.target.value)}
+                placeholder={
+                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
+                  "google/gemini-2.0-flash-001"
+                }
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("models.fields.vision.helper")}
             </p>
@@ -697,13 +994,27 @@ function SettingsPanel({ section, formState, setFormState }: SettingsPanelProps)
 
           <div>
             <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("models.fields.utility.label")}</label>
-            <input
-              type="text"
-              value={formState.utilityModel ?? ""}
-              onChange={(e) => updateField("utilityModel", e.target.value)}
-              placeholder="google/gemini-2.0-flash-lite-001"
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-            />
+            {formState.llmProvider === "antigravity" ? (
+              <select
+                value={formState.utilityModel || "gemini-3-flash"}
+                onChange={(e) => updateField("utilityModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={formState.utilityModel ?? ""}
+                onChange={(e) => updateField("utilityModel", e.target.value)}
+                placeholder="google/gemini-2.0-flash-lite-001"
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("models.fields.utility.helper")}
             </p>
