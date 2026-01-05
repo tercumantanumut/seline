@@ -232,11 +232,12 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
       controller.abort(new Error("Antigravity request timed out"));
     }, ANTIGRAVITY_REQUEST_TIMEOUT_MS);
 
-    if (init?.signal) {
-      if (init.signal.aborted) {
-        controller.abort(init.signal.reason);
+    const upstreamSignal = init?.signal;
+    if (upstreamSignal) {
+      if (upstreamSignal.aborted) {
+        controller.abort(upstreamSignal.reason);
       } else {
-        init.signal.addEventListener("abort", () => controller.abort(init.signal.reason), { once: true });
+        upstreamSignal.addEventListener("abort", () => controller.abort(upstreamSignal.reason), { once: true });
       }
     }
 
