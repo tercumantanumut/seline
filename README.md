@@ -28,6 +28,8 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 - Run vector search locally with LanceDB for fast, private retrieval.
 - Run commands in your synced/indexed folders
 
+ ## Updates: - 3rd provider added. now can use antigravity models and google antigravity subscription 
+
 ## Supported Platforms
 - Windows (installer builds are available).
 - macOS is supported today; DMG distribution is coming soon. You can build macOS packages from source in the meantime.
