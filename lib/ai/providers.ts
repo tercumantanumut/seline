@@ -1,20 +1,29 @@
 /**
  * LLM Provider Configuration
- * 
+ *
  * Supports multiple providers:
  * - anthropic: Anthropic Claude models
  * - openrouter: OpenRouter (OpenAI-compatible API with access to many models)
+ * - antigravity: Antigravity free models via Google OAuth (Gemini 3, Claude Sonnet 4.5, etc.)
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { EmbeddingModel, LanguageModel } from "ai";
 import { existsSync } from "fs";
-import path from "path";
 import { createLocalEmbeddingModel, DEFAULT_LOCAL_EMBEDDING_MODEL } from "@/lib/ai/local-embeddings";
+import {
+  isAntigravityAuthenticated,
+  needsTokenRefresh,
+  refreshAntigravityToken,
+  getAntigravityToken,
+  ANTIGRAVITY_CONFIG,
+  fetchAntigravityProjectId,
+} from "@/lib/auth/antigravity-auth";
+import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
 
 // Provider types
-export type LLMProvider = "anthropic" | "openrouter";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity";
 export type EmbeddingProvider = "openrouter" | "local";
 
 // Provider configuration
@@ -35,20 +44,29 @@ const OPENROUTER_MODEL_PREFIX = "openrouter:";
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "x-ai/grok-4.1-fast",
+  antigravity: "claude-sonnet-4-5", // Free via Antigravity
 };
 
 // Utility models - fast/cheap models for background tasks (compaction, memory extraction)
 export const UTILITY_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   openrouter: "google/gemini-2.5-flash",
+  antigravity: "gemini-3-flash", // Free via Antigravity
 };
 
 // Claude model prefixes - models that should use Anthropic provider
 const CLAUDE_MODEL_PREFIXES = ["claude-", "claude3", "claude4"];
 
+// Antigravity model prefixes - models available via Antigravity
+const ANTIGRAVITY_MODEL_PREFIXES = ["gemini-3-", "claude-sonnet-4-5", "claude-opus-4-5"];
+
 // Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
 let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
 let _openrouterClientApiKey: string | undefined = undefined;
+
+// Lazy-initialized Antigravity provider
+let _antigravityProvider: ReturnType<typeof createAntigravityProvider> | null = null;
+let _antigravityProviderToken: string | undefined = undefined;
 
 // Cache for local embedding model instance
 let _localEmbeddingModel: EmbeddingModel<string> | null = null;
@@ -80,11 +98,84 @@ function getOpenRouterClient() {
 }
 
 /**
+ * Ensure Antigravity token is valid, refreshing if needed.
+ * Also fetches project ID if missing.
+ * This should be called before making API requests with Antigravity.
+ * Exported so it can be called from API routes before streaming.
+ */
+export async function ensureAntigravityTokenValid(): Promise<boolean> {
+  if (!isAntigravityAuthenticated()) {
+    return false;
+  }
+
+  if (needsTokenRefresh()) {
+    console.log("[PROVIDERS] Antigravity token needs refresh, attempting...");
+    const refreshed = await refreshAntigravityToken();
+    if (refreshed) {
+      // Invalidate provider so it picks up new token
+      _antigravityProvider = null;
+      _antigravityProviderToken = undefined;
+    } else {
+      return false;
+    }
+  }
+
+  // Fetch project ID if missing (required for API calls)
+  const token = getAntigravityToken();
+  if (token && !token.project_id) {
+    console.log("[PROVIDERS] Fetching Antigravity project ID...");
+    const projectId = await fetchAntigravityProjectId();
+    if (projectId) {
+      // Invalidate provider to pick up new project ID
+      _antigravityProvider = null;
+      _antigravityProviderToken = undefined;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Get Antigravity provider instance
+ * Uses Google Generative AI SDK with custom fetch wrapper for Antigravity API
+ */
+function getAntigravityProvider(): ((modelId: string) => LanguageModel) {
+  const token = getAntigravityToken();
+  const currentToken = token?.access_token;
+
+  // Recreate provider if token changed
+  if (_antigravityProvider && _antigravityProviderToken !== currentToken) {
+    _antigravityProvider = null;
+  }
+
+  if (!_antigravityProvider) {
+    _antigravityProviderToken = currentToken;
+    _antigravityProvider = createAntigravityProvider();
+  }
+
+  if (!_antigravityProvider) {
+    throw new Error("Antigravity provider not available - not authenticated");
+  }
+
+  return _antigravityProvider;
+}
+
+/**
+ * Check if a model ID is an Antigravity model
+ */
+function isAntigravityModel(modelId: string): boolean {
+  const lowerModel = modelId.toLowerCase();
+  return ANTIGRAVITY_MODEL_PREFIXES.some(prefix => lowerModel.startsWith(prefix.toLowerCase()));
+}
+
+/**
  * Invalidate cached provider clients (call when settings change)
  */
 export function invalidateProviderCache(): void {
   _openrouterClient = null;
   _openrouterClientApiKey = undefined;
+  _antigravityProvider = null;
+  _antigravityProviderToken = undefined;
 }
 
 /**
@@ -113,6 +204,14 @@ export function getConfiguredProvider(): LLMProvider {
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = settings.llmProvider || process.env.LLM_PROVIDER?.toLowerCase();
+
+  if (provider === "antigravity") {
+    if (!isAntigravityAuthenticated()) {
+      console.warn("[PROVIDERS] Antigravity selected but not authenticated, falling back to anthropic");
+      return "anthropic";
+    }
+    return "antigravity";
+  }
 
   if (provider === "openrouter") {
     const apiKey = getOpenRouterApiKey();
@@ -154,6 +253,13 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
 
   switch (provider) {
+    case "antigravity": {
+      if (!isAntigravityAuthenticated()) {
+        throw new Error("Antigravity authentication required. Please login via Settings.");
+      }
+      return getAntigravityProvider()(model);
+    }
+
     case "openrouter": {
       const apiKey = getOpenRouterApiKey();
       if (!apiKey) {
@@ -179,10 +285,17 @@ function isClaudeModel(modelId: string): boolean {
 /**
  * Get a language model instance for a specific model ID.
  * Automatically routes to the correct provider based on model ID:
+ * - Antigravity models (gemini-3-*, claude-sonnet-4-5, etc.) -> Antigravity provider (if authenticated)
  * - Claude models (claude-*) -> Anthropic provider
  * - Other models (provider/model format) -> OpenRouter provider
  */
 export function getModelByName(modelId: string): LanguageModel {
+  // Check if model should use Antigravity (and user is authenticated)
+  if (isAntigravityModel(modelId) && isAntigravityAuthenticated()) {
+    console.log(`[PROVIDERS] Using Antigravity for model: ${modelId}`);
+    return getAntigravityProvider()(modelId);
+  }
+
   if (isClaudeModel(modelId)) {
     console.log(`[PROVIDERS] Using Anthropic for Claude model: ${modelId}`);
     return anthropic(modelId);
@@ -270,6 +383,7 @@ export function getVisionModel(): LanguageModel {
  * Uses a fast/cheap model appropriate for the configured provider.
  * - Anthropic: Claude Haiku 4.5
  * - OpenRouter: Gemini 2.5 Flash
+ * - Antigravity: Gemini 3 Flash (free)
  */
 export function getUtilityModel(): LanguageModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -288,6 +402,13 @@ export function getUtilityModel(): LanguageModel {
   console.log(`[PROVIDERS] Using utility model: ${model} (provider: ${provider})`);
 
   switch (provider) {
+    case "antigravity": {
+      if (!isAntigravityAuthenticated()) {
+        throw new Error("Antigravity authentication required. Please login via Settings.");
+      }
+      return getAntigravityProvider()(model);
+    }
+
     case "openrouter": {
       const apiKey = getOpenRouterApiKey();
       if (!apiKey) {
@@ -451,6 +572,8 @@ export function getProviderDisplayName(): string {
   const model = getConfiguredModel();
 
   switch (provider) {
+    case "antigravity":
+      return `Antigravity (${model}) [Free]`;
     case "openrouter":
       return `OpenRouter (${model})`;
     case "anthropic":
@@ -469,6 +592,7 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
   const featureSupport: Record<LLMProvider, Record<string, boolean>> = {
     anthropic: { tools: true, streaming: true, images: true },
     openrouter: { tools: true, streaming: true, images: true },
+    antigravity: { tools: true, streaming: true, images: true },
   };
 
   return featureSupport[provider]?.[feature] ?? false;

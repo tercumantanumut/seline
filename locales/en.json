@@ -690,7 +690,7 @@
     },
     "api": {
       "title": "LLM Provider",
-      "anthropic": "Anthropic (Claude)",
+      "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "keysTitle": "API Keys",
       "fields": {
