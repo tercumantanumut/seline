@@ -57,8 +57,10 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
 // Claude model prefixes - models that should use Anthropic provider
 const CLAUDE_MODEL_PREFIXES = ["claude-", "claude3", "claude4"];
 
-// Antigravity model prefixes - models available via Antigravity
-const ANTIGRAVITY_MODEL_PREFIXES = ["gemini-3-", "claude-sonnet-4-5", "claude-opus-4-5"];
+// Antigravity models - route only known IDs to avoid false positives
+const ANTIGRAVITY_MODEL_ID_SET = new Set(
+  ANTIGRAVITY_CONFIG.AVAILABLE_MODELS.map((modelId) => modelId.toLowerCase())
+);
 
 // Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
 let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
@@ -129,6 +131,9 @@ export async function ensureAntigravityTokenValid(): Promise<boolean> {
       // Invalidate provider to pick up new project ID
       _antigravityProvider = null;
       _antigravityProviderToken = undefined;
+    } else {
+      console.warn("[PROVIDERS] Failed to fetch Antigravity project ID.");
+      return false;
     }
   }
 
@@ -165,7 +170,7 @@ function getAntigravityProvider(): ((modelId: string) => LanguageModel) {
  */
 function isAntigravityModel(modelId: string): boolean {
   const lowerModel = modelId.toLowerCase();
-  return ANTIGRAVITY_MODEL_PREFIXES.some(prefix => lowerModel.startsWith(prefix.toLowerCase()));
+  return ANTIGRAVITY_MODEL_ID_SET.has(lowerModel);
 }
 
 /**
@@ -478,7 +483,7 @@ function getOpenRouterEmbeddingModel(model: string): EmbeddingModel {
   }
 
   console.log(`[PROVIDERS] Using OpenRouter embedding model: ${model}`);
-  return getOpenRouterClient().textEmbeddingModel(model);
+  return getOpenRouterClient().embeddingModel(model);
 }
 
 function normalizeEmbeddingProvider(provider?: string): EmbeddingProvider {

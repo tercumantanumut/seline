@@ -29,6 +29,8 @@ const MODEL_ALIASES: Record<string, string> = {
   "gpt-oss-120b-medium": "gpt-oss-120b-medium",
 };
 
+const ANTIGRAVITY_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+
 // Generate a unique request ID
 function generateRequestId(): string {
   const timestamp = Date.now().toString(36);
@@ -50,6 +52,31 @@ function getSessionId(): string {
  */
 function resolveModelName(modelId: string): string {
   return MODEL_ALIASES[modelId] || modelId;
+}
+
+async function readRequestBody(body: BodyInit): Promise<string> {
+  if (typeof body === "string") {
+    return body;
+  }
+
+  if (body instanceof ArrayBuffer) {
+    return new TextDecoder().decode(body);
+  }
+
+  if (ArrayBuffer.isView(body)) {
+    const view = body as ArrayBufferView;
+    return new TextDecoder().decode(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+  }
+
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  if (typeof (body as Blob).text === "function") {
+    return await (body as Blob).text();
+  }
+
+  throw new Error("Unsupported request body type for Antigravity request");
 }
 
 /**
@@ -95,9 +122,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
     let transformedBody: string | undefined;
     if (init?.body) {
       try {
-        const bodyText = typeof init.body === "string" ? init.body :
-          init.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body) :
-            String(init.body);
+        const bodyText = await readRequestBody(init.body);
         const parsedBody = JSON.parse(bodyText);
 
         // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
@@ -174,7 +199,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
         transformedBody = JSON.stringify(wrappedBody);
       } catch (e) {
         console.error("[Antigravity] Failed to transform request body:", e);
-        transformedBody = init.body as string;
+        throw e;
       }
     }
 
@@ -194,14 +219,43 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
     console.log(`[Antigravity] URL: ${antigravityUrl}`);
 
     // Make the request to Antigravity
-    const response = await fetch(antigravityUrl, {
-      ...init,
-      method: init?.method || "POST",
-      headers,
-      body: transformedBody,
-    });
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const clearTimeoutOnce = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+    timeoutId = setTimeout(() => {
+      clearTimeoutOnce();
+      controller.abort(new Error("Antigravity request timed out"));
+    }, ANTIGRAVITY_REQUEST_TIMEOUT_MS);
+
+    if (init?.signal) {
+      if (init.signal.aborted) {
+        controller.abort(init.signal.reason);
+      } else {
+        init.signal.addEventListener("abort", () => controller.abort(init.signal.reason), { once: true });
+      }
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(antigravityUrl, {
+        ...init,
+        method: init?.method || "POST",
+        headers,
+        body: transformedBody,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeoutOnce();
+      throw error;
+    }
 
     if (!response.ok) {
+      clearTimeoutOnce();
       const errorText = await response.clone().text();
       console.error(`[Antigravity] Error: ${response.status} ${response.statusText}`);
       console.error(`[Antigravity] Response: ${errorText.substring(0, 500)}`);
@@ -212,7 +266,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
     if (streaming && response.body) {
       const transformedBody = response.body
         .pipeThrough(new TextDecoderStream())
-        .pipeThrough(createResponseTransformStream())
+        .pipeThrough(createResponseTransformStream(clearTimeoutOnce))
         .pipeThrough(new TextEncoderStream());
 
       return new Response(transformedBody, {
@@ -224,6 +278,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
 
     // For non-streaming, unwrap the response
     const text = await response.text();
+    clearTimeoutOnce();
     const unwrappedText = unwrapResponse(text);
 
     return new Response(unwrappedText, {
@@ -237,7 +292,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
 /**
  * Transform SSE stream to unwrap response objects
  */
-function createResponseTransformStream(): TransformStream<string, string> {
+function createResponseTransformStream(onComplete?: () => void): TransformStream<string, string> {
   let buffer = "";
 
   return new TransformStream<string, string>({
@@ -272,6 +327,7 @@ function createResponseTransformStream(): TransformStream<string, string> {
       if (buffer.length > 0) {
         controller.enqueue(buffer);
       }
+      onComplete?.();
     },
   });
 }
@@ -369,4 +425,3 @@ export function createAntigravityProvider(): ((modelId: string) => LanguageModel
     return google(effectiveModel) as unknown as LanguageModel;
   };
 }
-

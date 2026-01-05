@@ -215,7 +215,7 @@ async function fetchAccountProjectId(accessToken: string): Promise<string | unde
  */
 function generateCallbackHTML(success: boolean, message: string): string {
   const bgColor = success ? "#10b981" : "#ef4444";
-  const icon = success ? "✓" : "✗";
+  const icon = success ? "OK" : "!";
   
   return `<!DOCTYPE html>
 <html>
@@ -263,11 +263,11 @@ function generateCallbackHTML(success: boolean, message: string): string {
   <script>
     // Notify parent window if in popup
     if (window.opener) {
-      window.opener.postMessage({ type: 'antigravity-auth', success: ${success} }, '*');
-      setTimeout(() => window.close(), 2000);
+      const targetOrigin = window.location.origin;
+      window.opener.postMessage({ type: 'antigravity-auth', success: ${success} }, targetOrigin);
     }
+    setTimeout(() => window.close(), 2000);
   </script>
 </body>
 </html>`;
 }
-

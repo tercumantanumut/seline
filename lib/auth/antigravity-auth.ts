@@ -11,6 +11,7 @@
  */
 
 import { loadSettings, saveSettings } from "@/lib/settings/settings-manager";
+import { ANTIGRAVITY_MODEL_IDS, type AntigravityModelId } from "@/lib/auth/antigravity-models";
 
 // Antigravity OAuth token structure
 export interface AntigravityOAuthToken {
@@ -73,18 +74,10 @@ export const ANTIGRAVITY_CONFIG = {
     "Client-Metadata": '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
   } as const,
   // Available models through Antigravity (verified working 2026-01-05)
-  AVAILABLE_MODELS: [
-    "gemini-3-pro-high",
-    "gemini-3-pro-low",
-    "gemini-3-flash",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-thinking",
-    "claude-opus-4-5-thinking",
-    "gpt-oss-120b-medium",
-  ] as const,
+  AVAILABLE_MODELS: ANTIGRAVITY_MODEL_IDS,
 } as const;
 
-export type AntigravityModel = typeof ANTIGRAVITY_CONFIG.AVAILABLE_MODELS[number];
+export type AntigravityModel = AntigravityModelId;
 
 // Cache for current auth state
 let cachedAuthState: AntigravityAuthState | null = null;
@@ -440,27 +433,4 @@ export async function fetchAntigravityProjectId(): Promise<string | null> {
 /**
  * Get model display name for UI
  */
-export function getAntigravityModelDisplayName(modelId: AntigravityModel): string {
-  const displayNames: Record<AntigravityModel, string> = {
-    "gemini-3-pro-high": "Gemini 3 Pro (High)",
-    "gemini-3-pro-low": "Gemini 3 Pro (Low)",
-    "gemini-3-flash": "Gemini 3 Flash",
-    "claude-sonnet-4-5": "Claude Sonnet 4.5",
-    "claude-sonnet-4-5-thinking": "Claude Sonnet 4.5 (Thinking)",
-    "claude-opus-4-5-thinking": "Claude Opus 4.5 (Thinking)",
-    "gpt-oss-120b-medium": "GPT-OSS 120B (Medium)",
-  };
-
-  return displayNames[modelId] || modelId;
-}
-
-/**
- * Get all available Antigravity models with display names
- */
-export function getAntigravityModels(): Array<{ id: AntigravityModel; name: string }> {
-  return ANTIGRAVITY_CONFIG.AVAILABLE_MODELS.map((id) => ({
-    id,
-    name: getAntigravityModelDisplayName(id),
-  }));
-}
-
+export { getAntigravityModelDisplayName, getAntigravityModels } from "@/lib/auth/antigravity-models";

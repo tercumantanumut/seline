@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
+import { toast } from "sonner";
+import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 
 interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity";
@@ -196,6 +198,11 @@ export default function SettingsPage() {
     let pollInterval: NodeJS.Timeout | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
     let messageHandler: ((event: MessageEvent) => void) | null = null;
+    let pollInFlight = false;
+    const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+      ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+      : undefined;
+    const isElectron = !!electronAPI?.isElectron;
 
     const cleanup = () => {
       if (pollInterval) clearInterval(pollInterval);
@@ -205,28 +212,41 @@ export default function SettingsPage() {
     };
 
     try {
+      // Open a placeholder popup synchronously to avoid browser popup blockers
+      if (!isElectron) {
+        const width = 500;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        popup = window.open(
+          "about:blank",
+          "antigravity-auth",
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        if (popup) {
+          popup.document.write("<p style='font-family:sans-serif'>Connecting to Google...</p>");
+        }
+      }
+
       // Get the OAuth authorization URL from our API
       const authResponse = await fetch("/api/auth/antigravity/authorize");
       const authData = await authResponse.json();
 
       if (!authData.success || !authData.url) {
+        popup?.close();
         throw new Error(authData.error || "Failed to get authorization URL");
       }
 
-      // Open Google OAuth in a popup window
-      const width = 500;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-
-      popup = window.open(
-        authData.url,
-        "antigravity-auth",
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      if (!popup) {
-        throw new Error("Failed to open popup. Please allow popups for this site.");
+      if (isElectron && electronAPI?.shell?.openExternal) {
+        await electronAPI.shell.openExternal(authData.url);
+      } else if (popup) {
+        popup.location.href = authData.url;
+      } else {
+        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        cleanup();
+        return;
       }
 
       // Listen for auth completion message from popup
@@ -244,14 +264,28 @@ export default function SettingsPage() {
 
       // Poll for popup closure as fallback
       pollInterval = setInterval(async () => {
-        if (popup?.closed) {
-          console.log("[Settings] Popup closed, refreshing auth state...");
-          // Wait a moment for the server to process the callback
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await loadAntigravityAuth();
-          cleanup();
+        if (pollInFlight) return;
+        pollInFlight = true;
+        try {
+          const authenticated = await loadAntigravityAuth();
+          if (authenticated) {
+            console.log("[Settings] Antigravity auth confirmed, closing popup...");
+            popup?.close();
+            cleanup();
+            return;
+          }
+
+          if (popup?.closed) {
+            console.log("[Settings] Popup closed, refreshing auth state...");
+            // Wait a moment for the server to process the callback
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await loadAntigravityAuth();
+            cleanup();
+          }
+        } finally {
+          pollInFlight = false;
         }
-      }, 500);
+      }, 1000);
 
       // Timeout after 5 minutes
       timeoutId = setTimeout(() => {
@@ -269,7 +303,11 @@ export default function SettingsPage() {
   const handleAntigravityLogout = async () => {
     setAntigravityLoading(true);
     try {
-      await fetch("/api/auth/antigravity", { method: "DELETE" });
+      const response = await fetch("/api/auth/antigravity", { method: "DELETE" });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Logout failed with status ${response.status}`);
+      }
       setAntigravityAuth(null);
       // If currently using antigravity, switch to anthropic
       if (formState.llmProvider === "antigravity") {
@@ -277,6 +315,7 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error("Antigravity logout failed:", err);
+      toast.error(tc("error"));
     } finally {
       setAntigravityLoading(false);
     }
@@ -432,16 +471,7 @@ const LOCAL_EMBEDDING_MODELS = [
   { id: "Xenova/all-MiniLM-L6-v2", name: "MiniLM L6 (384 dims, ~90MB)", size: "90MB" },
 ];
 
-// Available Antigravity models (verified working 2026-01-05)
-const ANTIGRAVITY_MODELS = [
-  { id: "gemini-3-pro-high", name: "Gemini 3 Pro (High)" },
-  { id: "gemini-3-pro-low", name: "Gemini 3 Pro (Low)" },
-  { id: "gemini-3-flash", name: "Gemini 3 Flash" },
-  { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5" },
-  { id: "claude-sonnet-4-5-thinking", name: "Claude Sonnet 4.5 (Thinking)" },
-  { id: "claude-opus-4-5-thinking", name: "Claude Opus 4.5 (Thinking)" },
-  { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
-];
+const ANTIGRAVITY_MODELS = getAntigravityModels();
 
 interface LocalEmbeddingModelSelectorProps {
   formState: FormState;
