@@ -283,7 +283,7 @@ const Composer: FC = () => {
   const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
   const isDeepResearchActive = deepResearch?.isActive ?? false;
   const isDeepResearchLoading = deepResearch?.isLoading ?? false;
-  const isOperationRunning = isRunning || isDeepResearchActive || isDeepResearchLoading;
+  const isOperationRunning = isRunning || isDeepResearchLoading;
 
   // Track if we're currently processing a queued message
   const isProcessingQueue = useRef(false);
