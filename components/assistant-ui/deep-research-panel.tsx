@@ -59,38 +59,45 @@ export const DeepResearchPanel: FC<DeepResearchPanelProps> = ({
   const t = useTranslations("assistantUi.deepResearchPanel");
   const config = PHASE_CONFIG[phase];
   const Icon = config.icon;
+  const isComplete = phase === 'complete';
   const isActive = phase !== "idle" && phase !== "complete" && phase !== "error";
   const phaseLabel = t(`phases.${phase}`);
 
   return (
-    <div className="w-full rounded-lg border border-terminal-dark/20 bg-terminal-cream/50 p-4 mb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={cn("p-1.5 rounded-md bg-terminal-dark/5", config.color)}>
-            <Icon className={cn("size-4", isActive && "animate-pulse")} />
+    <div className={cn(
+      "w-full rounded-lg mb-4",
+      !isComplete && "border border-terminal-dark/20 bg-terminal-cream/50 p-4",
+      isComplete && "p-0"
+    )}>
+      {/* Header - Only show if not complete */}
+      {!isComplete && (
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className={cn("p-1.5 rounded-md bg-terminal-dark/5", config.color)}>
+              <Icon className={cn("size-4", isActive && "animate-pulse")} />
+            </div>
+            <div>
+              <span className="font-mono text-sm font-medium text-terminal-dark">
+                {t("title")}
+              </span>
+              <span className={cn("ml-2 text-xs font-mono", config.color)}>
+                {phaseLabel}
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="font-mono text-sm font-medium text-terminal-dark">
-              {t("title")}
-            </span>
-            <span className={cn("ml-2 text-xs font-mono", config.color)}>
-              {phaseLabel}
-            </span>
-          </div>
+          {isActive && (
+            <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 px-2">
+              <XIcon className="size-3 mr-1" />
+              {t("cancel")}
+            </Button>
+          )}
+          {phase === "error" && (
+            <Button variant="ghost" size="sm" onClick={onReset} className="h-7 px-2">
+              {t("newResearch")}
+            </Button>
+          )}
         </div>
-        {isActive && (
-          <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 px-2">
-            <XIcon className="size-3 mr-1" />
-            {t("cancel")}
-          </Button>
-        )}
-        {(phase === "complete" || phase === "error") && (
-          <Button variant="ghost" size="sm" onClick={onReset} className="h-7 px-2">
-            {t("newResearch")}
-          </Button>
-        )}
-      </div>
+      )}
 
       {/* Phase Message */}
       {phaseMessage && (
