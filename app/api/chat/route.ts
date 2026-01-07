@@ -11,6 +11,7 @@ import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
+import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
@@ -924,6 +925,7 @@ export async function POST(req: Request) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     const lastMessage = messages[messages.length - 1];
+    const userMessageCount = messages.filter((msg) => msg.role === "user").length;
     let savedUserMessageId: string | undefined;
 
     if (lastMessage && lastMessage.role === 'user') {
@@ -954,6 +956,13 @@ export async function POST(req: Request) {
 
       savedUserMessageId = result?.id;
       console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
+
+      const plainTextContent = getPlainTextFromContent(extractedContent);
+      const shouldAutoNameSession = (isNewSession || userMessageCount === 1) && plainTextContent.length > 0;
+
+      if (shouldAutoNameSession) {
+        void generateSessionTitle(sessionId, plainTextContent);
+      }
     }
 
     // ==========================================================================
@@ -1577,4 +1586,29 @@ export async function POST(req: Request) {
       }
     );
   }
+}
+
+function getPlainTextFromContent(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (part && typeof part === "object" && "text" in part) {
+          return String((part as { text?: unknown }).text ?? "");
+        }
+
+        return "";
+      })
+      .join(" ")
+      .trim();
+  }
+
+  return "";
 }

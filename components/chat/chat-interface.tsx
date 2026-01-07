@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider } from "@/components/chat-provider";
-import { CharacterProvider, type CharacterDisplayData, getCharacterInitials } from "@/components/assistant-ui/character-context";
+import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,7 @@ import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import { toast } from "sonner";
 
 interface CharacterFullData {
     id: string;
@@ -57,6 +60,9 @@ interface ChatInterfaceProps {
     characterDisplay: CharacterDisplayData;
 }
 
+const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
+    [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -70,15 +76,28 @@ export default function ChatInterface({
 
     const [sessionId, setSessionId] = useState(initialSessionId);
     // Sort initialSessions to ensure consistent ordering (most recent first)
-    const [sessions, setSessions] = useState<SessionInfo[]>(() =>
-        [...initialSessions].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )
-    );
+    const [sessions, setSessions] = useState<SessionInfo[]>(() => sortSessionsByUpdatedAt(initialSessions));
     const [messages, setMessages] = useState<UIMessage[]>(initialMessages);
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
+        const nextUpdatedAt = new Date().toISOString();
+        setSessions((prev) => {
+            let updated = false;
+            const next = prev.map((session) => {
+                if (session.id !== targetSessionId) {
+                    return session;
+                }
+                updated = true;
+                return { ...session, updatedAt: nextUpdatedAt };
+            });
+            if (!updated) {
+                return prev;
+            }
+            return sortSessionsByUpdatedAt(next);
+        });
+    }, []);
 
     const loadSessions = useCallback(async () => {
         try {
@@ -86,11 +105,7 @@ export default function ChatInterface({
             const response = await fetch(`/api/sessions?characterId=${character.id}`);
             if (response.ok) {
                 const data = await response.json();
-                const sortedSessions: SessionInfo[] = (data.sessions || []).sort(
-                    (a: SessionInfo, b: SessionInfo) =>
-                        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-                );
-                setSessions(sortedSessions);
+                setSessions(sortSessionsByUpdatedAt(data.sessions || []));
             }
         } catch (err) {
             console.error("Failed to load sessions:", err);
@@ -173,6 +188,64 @@ export default function ChatInterface({
         [sessionId, sessions, switchSession, createNewSession, loadSessions]
     );
 
+    const renameSession = useCallback(
+        async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
+            const trimmed = newTitle.trim();
+            const normalizedTitle = trimmed.length > 0 ? trimmed : null;
+            const optimisticUpdatedAt = new Date().toISOString();
+            let found = false;
+            let changed = false;
+
+            setSessions((prev) => {
+                const next = prev.map((session) => {
+                    if (session.id !== sessionToRenameId) {
+                        return session;
+                    }
+                    found = true;
+                    if (session.title === normalizedTitle) {
+                        return session;
+                    }
+                    changed = true;
+                    return { ...session, title: normalizedTitle, updatedAt: optimisticUpdatedAt };
+                });
+
+                if (!found || !changed) {
+                    return prev;
+                }
+
+                return sortSessionsByUpdatedAt(next);
+            });
+
+            if (!found) {
+                toast.error(tc("error"));
+                await loadSessions();
+                return false;
+            }
+
+            if (!changed) {
+                return true;
+            }
+
+            try {
+                const response = await fetch(`/api/sessions/${sessionToRenameId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ title: normalizedTitle }),
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to rename session");
+                }
+                return true;
+            } catch (err) {
+                console.error("Failed to rename session:", err);
+                toast.error(tc("error"));
+                await loadSessions();
+                return false;
+            }
+        },
+        [loadSessions, tc]
+    );
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -180,6 +253,13 @@ export default function ChatInterface({
             primaryImageUrl: newAvatarUrl || prev.primaryImageUrl,
         }));
     }, []);
+
+    const handleSessionActivity = useCallback(() => {
+        if (!sessionId) {
+            return;
+        }
+        refreshSessionTimestamp(sessionId);
+    }, [refreshSessionTimestamp, sessionId]);
 
     if (isLoading) {
         return (
@@ -205,6 +285,7 @@ export default function ChatInterface({
                     onNewSession={createNewSession}
                     onSwitchSession={switchSession}
                     onDeleteSession={deleteSession}
+                    onRenameSession={renameSession}
                     onAvatarChange={handleAvatarChange}
                 />
             }
@@ -216,7 +297,7 @@ export default function ChatInterface({
                     characterId={character.id}
                     initialMessages={messages}
                 >
-                    <Thread />
+                    <Thread onSessionActivity={handleSessionActivity} />
                 </ChatProvider>
             </CharacterProvider>
         </Shell>
@@ -252,6 +333,7 @@ function CharacterSidebar({
     onNewSession,
     onSwitchSession,
     onDeleteSession,
+    onRenameSession,
     onAvatarChange,
 }: {
     character: CharacterFullData;
@@ -262,13 +344,89 @@ function CharacterSidebar({
     onNewSession: () => void;
     onSwitchSession: (sessionId: string) => void;
     onDeleteSession: (sessionId: string) => void;
+    onRenameSession: (sessionId: string, title: string) => Promise<boolean>;
     onAvatarChange: (newAvatarUrl: string | null) => void;
 }) {
     const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+    const [editTitle, setEditTitle] = useState("");
+    const editInputRef = useRef<HTMLInputElement | null>(null);
+    const skipBlurRef = useRef(false);
     const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
     const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
     const t = useTranslations("chat");
     const formatter = useFormatter();
+
+    const stopEditing = useCallback(() => {
+        setEditingSessionId(null);
+        setEditTitle("");
+        editInputRef.current = null;
+        skipBlurRef.current = false;
+    }, []);
+
+    const startEditingSession = useCallback((session: SessionInfo) => {
+        setEditingSessionId(session.id);
+        setEditTitle(session.title || "");
+        skipBlurRef.current = false;
+    }, []);
+
+    useEffect(() => {
+        if (editingSessionId && editInputRef.current) {
+            editInputRef.current.focus();
+            editInputRef.current.select();
+        }
+    }, [editingSessionId]);
+
+    const handleRename = useCallback(async () => {
+        if (!editingSessionId) {
+            return;
+        }
+        const success = await onRenameSession(editingSessionId, editTitle);
+        if (success) {
+            stopEditing();
+        }
+    }, [editTitle, editingSessionId, onRenameSession, stopEditing]);
+
+    const handleInputBlur = useCallback(() => {
+        if (skipBlurRef.current) {
+            skipBlurRef.current = false;
+            return;
+        }
+        void handleRename();
+    }, [handleRename]);
+
+    const handleInputKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                void handleRename();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                stopEditing();
+            }
+        },
+        [handleRename, stopEditing]
+    );
+
+    const handleActionMouseDown = useCallback(() => {
+        skipBlurRef.current = true;
+    }, []);
+
+    const handleSaveClick = useCallback(
+        (event: MouseEvent<HTMLButtonElement>) => {
+            event.stopPropagation();
+            void handleRename();
+        },
+        [handleRename]
+    );
+
+    const handleCancelClick = useCallback(
+        (event: MouseEvent<HTMLButtonElement>) => {
+            event.stopPropagation();
+            stopEditing();
+        },
+        [stopEditing]
+    );
 
     const parseAsUTC = (dateStr: string): Date => {
         const normalized =
@@ -408,58 +566,117 @@ function CharacterSidebar({
                                     {t("sidebar.empty")}
                                 </p>
                             ) : (
-                                sessions.map((session) => (
-                                    <div
-                                        key={session.id}
-                                        className={cn(
-                                            "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer",
-                                            "transition-all duration-200 ease-out",
-                                            session.id === currentSessionId
-                                                ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
-                                                : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
-                                        )}
-                                        onClick={() => onSwitchSession(session.id)}
-                                    >
-                                        <MessageCircle
+                                sessions.map((session) => {
+                                    const isCurrent = session.id === currentSessionId;
+                                    const isEditing = editingSessionId === session.id;
+                                    return (
+                                        <div
+                                            key={session.id}
                                             className={cn(
-                                                "h-4 w-4 flex-shrink-0 transition-colors duration-200",
-                                                session.id === currentSessionId ? "text-terminal-green" : "text-terminal-muted"
+                                                "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer",
+                                                "transition-all duration-200 ease-out",
+                                                isCurrent
+                                                    ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
+                                                    : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
                                             )}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p
-                                                className={cn(
-                                                    "text-sm font-mono truncate transition-colors duration-200",
-                                                    session.id === currentSessionId
-                                                        ? "text-terminal-dark font-medium"
-                                                        : "text-terminal-muted"
-                                                )}
-                                            >
-                                                {session.title || t("session.untitled")}
-                                            </p>
-                                            <p className="text-xs text-terminal-muted/70 font-mono flex items-center gap-1 mt-0.5">
-                                                <Clock className="h-3 w-3" />
-                                                {formatSessionDate(session.updatedAt)}
-                                            </p>
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn(
-                                                "h-7 w-7 p-0 opacity-0 group-hover:opacity-100",
-                                                "transition-all duration-150 ease-out",
-                                                "text-terminal-muted hover:text-red-500 hover:bg-red-50 rounded hover:shadow-sm"
-                                            )}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onDeleteSession(session.id);
+                                            onClick={() => {
+                                                if (isEditing) {
+                                                    return;
+                                                }
+                                                onSwitchSession(session.id);
                                             }}
-                                            title={t("sidebar.delete")}
                                         >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                ))
+                                            <MessageCircle
+                                                className={cn(
+                                                    "h-4 w-4 flex-shrink-0 transition-colors duration-200",
+                                                    isCurrent ? "text-terminal-green" : "text-terminal-muted"
+                                                )}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                {isEditing ? (
+                                                    <div
+                                                        className="space-y-2"
+                                                        onClick={(event) => event.stopPropagation()}
+                                                    >
+                                                        <Input
+                                                            ref={isEditing ? editInputRef : undefined}
+                                                            type="text"
+                                                            value={editTitle}
+                                                            onChange={(event) => setEditTitle(event.target.value)}
+                                                            onKeyDown={handleInputKeyDown}
+                                                            onBlur={handleInputBlur}
+                                                            onClick={(event) => event.stopPropagation()}
+                                                            placeholder={t("sidebar.edit")}
+                                                            className="h-8 text-sm font-mono"
+                                                            aria-label={t("sidebar.edit")}
+                                                        />
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 px-3 text-xs font-mono"
+                                                                onMouseDown={handleActionMouseDown}
+                                                                onClick={handleSaveClick}
+                                                            >
+                                                                {t("sidebar.save")}
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-3 text-xs font-mono"
+                                                                onMouseDown={handleActionMouseDown}
+                                                                onClick={handleCancelClick}
+                                                            >
+                                                                {t("sidebar.cancel")}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p
+                                                        className={cn(
+                                                            "text-sm font-mono truncate transition-colors duration-200",
+                                                            isCurrent ? "text-terminal-dark font-medium" : "text-terminal-muted"
+                                                        )}
+                                                    >
+                                                        {session.title || t("session.untitled")}
+                                                    </p>
+                                                )}
+                                                <p className="text-xs text-terminal-muted/70 font-mono flex items-center gap-1 mt-0.5">
+                                                    <Clock className="h-3 w-3" />
+                                                    {formatSessionDate(session.updatedAt)}
+                                                </p>
+                                            </div>
+                                            {!isEditing && (
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 w-7 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 rounded hover:shadow-sm"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            startEditingSession(session);
+                                                        }}
+                                                        title={t("sidebar.rename")}
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 w-7 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 rounded hover:shadow-sm"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            onDeleteSession(session.id);
+                                                        }}
+                                                        title={t("sidebar.delete")}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </ScrollArea>
