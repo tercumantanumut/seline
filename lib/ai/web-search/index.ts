@@ -14,8 +14,7 @@
  * in the embeddings system for later retrieval via docsSearch.
  */
 
-import { tool } from "ai";
-import { z } from "zod";
+import { tool, jsonSchema } from "ai";
 import { cacheWebSearchResults, formatBriefSearchResults, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -157,22 +156,37 @@ async function performWebSearch(
 // Tool Schema
 // ============================================================================
 
-const webSearchSchema = z.object({
-  query: z.string().describe("The search query to look up on the web"),
-  maxResults: z
-    .number()
-    .min(1)
-    .max(10)
-    .optional()
-    .describe("Maximum number of results to return (1-10, default: 5)"),
-  includeAnswer: z
-    .boolean()
-    .optional()
-    .describe("Whether to include an AI-generated answer summary (default: true)"),
-  iterateIfLowQuality: z
-    .boolean()
-    .optional()
-    .describe("Whether to perform a follow-up search if initial results have low relevance (default: false)"),
+const webSearchSchema = jsonSchema<{
+  query: string;
+  maxResults?: number;
+  includeAnswer?: boolean;
+  iterateIfLowQuality?: boolean;
+}>({
+  type: "object",
+  title: "WebSearchInput",
+  description: "Input schema for web search queries",
+  properties: {
+    query: {
+      type: "string",
+      description: "The search query to look up on the web",
+    },
+    maxResults: {
+      type: "number",
+      minimum: 1,
+      maximum: 10,
+      description: "Maximum number of results to return (1-10, default: 5)",
+    },
+    includeAnswer: {
+      type: "boolean",
+      description: "Whether to include an AI-generated answer summary (default: true)",
+    },
+    iterateIfLowQuality: {
+      type: "boolean",
+      description: "Whether to perform a follow-up search if initial results have low relevance (default: false)",
+    },
+  },
+  required: ["query"],
+  additionalProperties: false,
 });
 
 // ============================================================================

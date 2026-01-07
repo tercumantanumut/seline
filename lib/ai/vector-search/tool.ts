@@ -11,8 +11,7 @@
  * - Organized findings with confidence scores
  */
 
-import { tool } from "ai";
-import { z } from "zod";
+import { tool, jsonSchema } from "ai";
 import { searchWithRouter, type VectorSearchHit, getSyncFolders } from "@/lib/vectordb";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getVectorSearchSession, addSearchHistory, getSearchHistory } from "./session-store";
@@ -33,26 +32,42 @@ import { extname, basename, dirname } from "path";
 // Input Schema
 // ============================================================================
 
-const vectorSearchSchema = z.object({
-  query: z
-    .string()
-    .describe("Natural language query to search the codebase. Be descriptive for best results."),
-  maxResults: z
-    .number()
-    .min(1)
-    .max(100)
-    .default(50)
-    .describe("Maximum number of results to return (default: 50)"),
-  minScore: z
-    .number()
-    .min(0)
-    .max(1)
-    .default(0.1)
-    .describe("Minimum similarity score threshold (0-1, default: 0.1)"),
-  folderIds: z
-    .array(z.string())
-    .optional()
-    .describe("Optional: Limit search to specific synced folder IDs"),
+const vectorSearchSchema = jsonSchema<{
+  query: string;
+  maxResults?: number;
+  minScore?: number;
+  folderIds?: string[];
+}>({
+  type: "object",
+  title: "VectorSearchInput",
+  description: "Input schema for vector-based codebase search",
+  properties: {
+    query: {
+      type: "string",
+      description: "Natural language query to search the codebase. Be descriptive for best results.",
+    },
+    maxResults: {
+      type: "number",
+      minimum: 1,
+      maximum: 100,
+      default: 50,
+      description: "Maximum number of results to return (default: 50)",
+    },
+    minScore: {
+      type: "number",
+      minimum: 0,
+      maximum: 1,
+      default: 0.1,
+      description: "Minimum similarity score threshold (0-1, default: 0.1)",
+    },
+    folderIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "Optional: Limit search to specific synced folder IDs",
+    },
+  },
+  required: ["query"],
+  additionalProperties: false,
 });
 
 // ============================================================================
@@ -418,9 +433,28 @@ Use this when:
 
 Note: Requires prior vectorSearch calls in this session.`,
 
-    inputSchema: z.object({
-      query: z.string().describe("Follow-up query building on previous search context"),
-      maxResults: z.number().min(1).max(20).default(10),
+    inputSchema: jsonSchema<{
+      query: string;
+      maxResults?: number;
+    }>({
+      type: "object",
+      title: "FollowUpSearchInput",
+      description: "Input schema for follow-up vector search queries",
+      properties: {
+        query: {
+          type: "string",
+          description: "Follow-up query building on previous search context",
+        },
+        maxResults: {
+          type: "number",
+          minimum: 1,
+          maximum: 20,
+          default: 10,
+          description: "Maximum number of results to return",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
     }),
 
     execute: async ({ query, maxResults }) => {
@@ -472,10 +506,30 @@ const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1MB
 const MAX_LINE_COUNT = 5000;
 
 // Schema for readFile tool
-const readFileSchema = z.object({
-  filePath: z.string().describe("File path or document name to read. Can be: (1) Knowledge Base document filename or title, (2) relative path from synced folder, or (3) absolute path within synced folders"),
-  startLine: z.number().optional().describe("Start line number (1-indexed, optional)"),
-  endLine: z.number().optional().describe("End line number (1-indexed, optional)"),
+const readFileSchema = jsonSchema<{
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+}>({
+  type: "object",
+  title: "ReadFileInput",
+  description: "Input schema for reading files from synced folders or knowledge base",
+  properties: {
+    filePath: {
+      type: "string",
+      description: "File path or document name to read. Can be: (1) Knowledge Base document filename or title, (2) relative path from synced folder, or (3) absolute path within synced folders",
+    },
+    startLine: {
+      type: "number",
+      description: "Start line number (1-indexed, optional)",
+    },
+    endLine: {
+      type: "number",
+      description: "End line number (1-indexed, optional)",
+    },
+  },
+  required: ["filePath"],
+  additionalProperties: false,
 });
 
 /**

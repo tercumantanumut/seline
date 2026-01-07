@@ -29,6 +29,8 @@ const imageEditSchema = jsonSchema<{
   temperature?: number;
 }>({
   type: "object",
+  title: "ImageEditInput",
+  description: "Input schema for image editing and virtual try-on",
   properties: {
     prompt: {
       type: "string",
@@ -65,6 +67,8 @@ const describeImageSchema = jsonSchema<{
   analysisType?: string;
 }>({
   type: "object",
+  title: "DescribeImageInput",
+  description: "Input schema for image analysis using vision AI",
   properties: {
     imageUrl: {
       type: "string",
@@ -106,6 +110,8 @@ const docsSearchSchema = jsonSchema<{
   minSimilarity?: number;
 }>({
   type: "object",
+  title: "DocsSearchInput",
+  description: "Input schema for searching agent documents and knowledge base",
   properties: {
     query: {
       type: "string",
@@ -556,6 +562,8 @@ const flux2GenerateSchema = jsonSchema<{
   referenceImages?: string[];
 }>({
   type: "object",
+  title: "Flux2GenerateInput",
+  description: "Input schema for Flux2 image generation",
   properties: {
     prompt: {
       type: "string",
@@ -782,6 +790,8 @@ const wan22ImagenSchema = jsonSchema<{
   seed?: number;
 }>({
   type: "object",
+  title: "Wan22ImagenInput",
+  description: "Input schema for Wan22 image generation",
   properties: {
     positive: {
       type: "string",
@@ -935,6 +945,8 @@ const wan22VideoSchema = jsonSchema<{
   seed?: number;
 }>({
   type: "object",
+  title: "Wan22VideoInput",
+  description: "Input schema for Wan22 video generation",
   properties: {
     image_url: {
       type: "string",
@@ -1118,6 +1130,8 @@ const wan22PixelVideoSchema = jsonSchema<{
   lora_strength?: number;
 }>({
   type: "object",
+  title: "Wan22PixelVideoInput",
+  description: "Input schema for Wan22 pixel art video generation",
   properties: {
     image_url: {
       type: "string",
@@ -1337,6 +1351,8 @@ const videoAssemblySchema = jsonSchema<{
   instructions?: string;
 }>({
   type: "object",
+  title: "VideoAssemblyInput",
+  description: "Input schema for assembling videos from session images",
   properties: {
     theme: {
       type: "string",
@@ -1636,6 +1652,8 @@ interface OpenRouterImageReferencingArgs {
 // Schemas for OpenRouter Image Tools
 const openRouterGenerateSchema = jsonSchema<OpenRouterImageGenerationArgs>({
   type: "object",
+  title: "OpenRouterGenerateInput",
+  description: "Input schema for OpenRouter image generation",
   properties: {
     prompt: { type: "string", description: "Text description of the image to generate" },
     aspect_ratio: { type: "string", description: "Aspect ratio (optional)", enum: ["1:1", "16:9", "9:16", "4:3", "3:4"] }
@@ -1646,6 +1664,8 @@ const openRouterGenerateSchema = jsonSchema<OpenRouterImageGenerationArgs>({
 
 const openRouterEditSchema = jsonSchema<OpenRouterImageEditingArgs>({
   type: "object",
+  title: "OpenRouterEditInput",
+  description: "Input schema for OpenRouter image editing",
   properties: {
     prompt: { type: "string", description: "Edit instructions for the images" },
     source_image_urls: { type: "array", items: { type: "string" }, description: "Array of source image URLs or base64 data URLs to edit (supports multiple images)" },
@@ -1658,6 +1678,8 @@ const openRouterEditSchema = jsonSchema<OpenRouterImageEditingArgs>({
 
 const openRouterReferenceSchema = jsonSchema<OpenRouterImageReferencingArgs>({
   type: "object",
+  title: "OpenRouterReferenceInput",
+  description: "Input schema for OpenRouter reference-guided image generation",
   properties: {
     prompt: { type: "string", description: "Generation instructions guided by the reference images" },
     reference_image_urls: { type: "array", items: { type: "string" }, description: "Array of reference image URLs or base64 data URLs for style/content guidance (supports multiple images)" },
@@ -2092,6 +2114,8 @@ const retrieveFullContentSchema = jsonSchema<{
   contentId: string;
 }>({
   type: "object",
+  title: "RetrieveFullContentInput",
+  description: "Input schema for retrieving full untruncated content",
   properties: {
     contentId: {
       type: "string",

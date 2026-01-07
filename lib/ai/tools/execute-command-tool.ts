@@ -19,6 +19,8 @@ import type {
  */
 const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
     type: "object",
+    title: "ExecuteCommandInput",
+    description: "Input schema for safe command execution within synced directories",
     properties: {
         command: {
             type: "string",
