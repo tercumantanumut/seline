@@ -59,10 +59,15 @@ import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
 
-export const Thread: FC = () => {
+interface ThreadProps {
+  onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
+}
+
+export const Thread: FC<ThreadProps> = ({ onSessionActivity }) => {
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root className="flex h-full flex-col bg-terminal-cream">
+        <SessionActivityWatcher onSessionActivity={onSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className="flex flex-1 flex-col items-center overflow-y-auto scroll-smooth px-4 pt-8">
             <ThreadWelcome />
@@ -127,6 +132,38 @@ const GalleryWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
       {children}
     </GalleryProvider>
   );
+};
+
+const SessionActivityWatcher: FC<{ onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void }> = ({ onSessionActivity }) => {
+  const messages = useThread((t) => t.messages);
+  const previousCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!onSessionActivity) {
+      previousCountRef.current = messages.length;
+      return;
+    }
+
+    if (previousCountRef.current === null) {
+      previousCountRef.current = messages.length;
+      return;
+    }
+
+    if (messages.length > previousCountRef.current) {
+      const newMessages = messages.slice(previousCountRef.current);
+      const recent = [...newMessages]
+        .reverse()
+        .find((msg) => msg.role === "user" || msg.role === "assistant");
+
+      if (recent) {
+        onSessionActivity({ id: recent.id, role: recent.role as "user" | "assistant" });
+      }
+    }
+
+    previousCountRef.current = messages.length;
+  }, [messages, onSessionActivity]);
+
+  return null;
 };
 
 const ThreadWelcome: FC = () => {

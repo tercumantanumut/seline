@@ -851,7 +851,11 @@
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
       "empty": "Henüz sohbet geçmişi yok",
-      "delete": "Sohbeti sil"
+      "delete": "Sohbeti sil",
+      "rename": "Sohbeti yeniden adlandır",
+      "edit": "Başlığı düzenle",
+      "save": "Kaydet",
+      "cancel": "İptal"
     },
     "session": {
       "untitled": "Başlıksız sohbet",

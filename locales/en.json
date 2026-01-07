@@ -864,7 +864,11 @@
       "startNew": "Start new chat",
       "new": "New",
       "empty": "No chat history yet",
-      "delete": "Delete chat"
+      "delete": "Delete chat",
+      "rename": "Rename chat",
+      "edit": "Edit title",
+      "save": "Save",
+      "cancel": "Cancel"
     },
     "session": {
       "untitled": "Untitled chat",
