@@ -49,8 +49,9 @@ npm install
 ```
 
 ## Development Workflow
+
 ```bash
-npm run electron:dev
+npm run electron:pack && npm run electron:dev
 ```
 This runs the Next.js dev server and launches Electron against `http://localhost:3000`.
 
