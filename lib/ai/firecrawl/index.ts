@@ -9,8 +9,7 @@
  * in the embeddings system for later retrieval via docsSearch.
  */
 
-import { tool } from "ai";
-import { z } from "zod";
+import { tool, jsonSchema } from "ai";
 import { cacheWebPage, formatBriefPageResult, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -62,23 +61,36 @@ export interface FirecrawlCrawlResult {
 // Scrape Tool
 // ============================================================================
 
-const scrapeSchema = z.object({
-  url: z.string().url().describe("The URL to scrape"),
-  onlyMainContent: z
-    .boolean()
-    .optional()
-    .describe("Extract only main content, excluding headers/footers/sidebars (default: true)"),
-  waitFor: z
-    .number()
-    .optional()
-    .describe("Milliseconds to wait for JavaScript rendering before scraping"),
-  extractImages: z
-    .boolean()
-    .optional()
-    .describe(
-      "Extract all image URLs from the page. Returns images array with absolute URLs. " +
-      "Use for product pages to get hero images. Also returns ogImage (Open Graph image) when available."
-    ),
+const scrapeSchema = jsonSchema<{
+  url: string;
+  onlyMainContent?: boolean;
+  waitFor?: number;
+  extractImages?: boolean;
+}>({
+  type: "object",
+  title: "FirecrawlScrapeInput",
+  description: "Input schema for web page scraping",
+  properties: {
+    url: {
+      type: "string",
+      format: "uri",
+      description: "The URL to scrape",
+    },
+    onlyMainContent: {
+      type: "boolean",
+      description: "Extract only main content, excluding headers/footers/sidebars (default: true)",
+    },
+    waitFor: {
+      type: "number",
+      description: "Milliseconds to wait for JavaScript rendering before scraping",
+    },
+    extractImages: {
+      type: "boolean",
+      description: "Extract all image URLs from the page. Returns images array with absolute URLs. Use for product pages to get hero images. Also returns ogImage (Open Graph image) when available.",
+    },
+  },
+  required: ["url"],
+  additionalProperties: false,
 });
 
 export interface FirecrawlToolOptions {
@@ -265,22 +277,40 @@ Returns clean, structured markdown content suitable for analysis.
 // Crawl Tool
 // ============================================================================
 
-const crawlSchema = z.object({
-  url: z.string().url().describe("Starting URL to crawl from"),
-  maxPages: z
-    .number()
-    .min(1)
-    .max(50)
-    .optional()
-    .describe("Maximum number of pages to crawl (1-50, default: 10)"),
-  includePaths: z
-    .array(z.string())
-    .optional()
-    .describe('URL path patterns to include (e.g., ["/docs/*", "/api/*"])'),
-  excludePaths: z
-    .array(z.string())
-    .optional()
-    .describe('URL path patterns to exclude (e.g., ["/blog/*", "/pricing"])'),
+const crawlSchema = jsonSchema<{
+  url: string;
+  maxPages?: number;
+  includePaths?: string[];
+  excludePaths?: string[];
+}>({
+  type: "object",
+  title: "FirecrawlCrawlInput",
+  description: "Input schema for website crawling",
+  properties: {
+    url: {
+      type: "string",
+      format: "uri",
+      description: "Starting URL to crawl from",
+    },
+    maxPages: {
+      type: "number",
+      minimum: 1,
+      maximum: 50,
+      description: "Maximum number of pages to crawl (1-50, default: 10)",
+    },
+    includePaths: {
+      type: "array",
+      items: { type: "string" },
+      description: 'URL path patterns to include (e.g., ["/docs/*", "/api/*"])',
+    },
+    excludePaths: {
+      type: "array",
+      items: { type: "string" },
+      description: 'URL path patterns to exclude (e.g., ["/blog/*", "/pricing"])',
+    },
+  },
+  required: ["url"],
+  additionalProperties: false,
 });
 
 // Args interface for firecrawlCrawl

@@ -26,6 +26,8 @@ const characterImageSchema = jsonSchema<{
   additionalPrompt?: string;
 }>({
   type: "object",
+  title: "CharacterImageInput",
+  description: "Input schema for generating character/agent avatar images",
   properties: {
     characterDescription: {
       type: "string",

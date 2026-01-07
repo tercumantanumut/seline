@@ -57,6 +57,8 @@ const toolSearchSchema = jsonSchema<{
   limit?: number;
 }>({
   type: "object",
+  title: "ToolSearchInput",
+  description: "Input schema for searching available tools",
   properties: {
     query: {
       type: "string",
@@ -307,14 +309,22 @@ export function createListToolsTool(context?: ToolSearchContext) {
 
   return tool({
     description: `List all available tools organized by category. Returns concise summaries.
- 
+
  **TOKEN WARNING:** This tool returns a large amount of text and is expensive to call. Only use it as a last resort if \`searchTools\` with specific queries failed to find what you need.
- 
+
  Tools marked as "isAvailable: true" can be called directly.
  For detailed usage instructions, use searchTools('<tool-name>').`,
-    inputSchema: jsonSchema<Record<string, never>>({
+    inputSchema: jsonSchema<{ includeDisabled?: boolean }>({
       type: "object",
-      properties: {},
+      title: "ListAllToolsInput",
+      description: "Input schema for listing all available tools",
+      properties: {
+        includeDisabled: {
+          type: "boolean",
+          description: "Whether to include disabled tools in the list (default: false). This parameter is optional and rarely needed.",
+        },
+      },
+      required: [],
       additionalProperties: false,
     }),
     execute: async () => {

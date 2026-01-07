@@ -12,8 +12,7 @@
  * - Inline readFile tool for following code relationships
  */
 
-import { generateText, tool } from "ai";
-import { z } from "zod";
+import { generateText, tool, jsonSchema } from "ai";
 import { readFile } from "fs/promises";
 import { getUtilityModel } from "@/lib/ai/providers";
 import type {
@@ -369,10 +368,30 @@ function isPathAllowed(filePath: string, allowedFolderPaths: string[]): string |
 }
 
 // Schema for readFile tool
-const readFileSchema = z.object({
-  filePath: z.string().describe("File path from the search results"),
-  startLine: z.number().optional().describe("Start line (1-indexed, optional)"),
-  endLine: z.number().optional().describe("End line (1-indexed, optional)"),
+const readFileSchema = jsonSchema<{
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+}>({
+  type: "object",
+  title: "ReadFileInput",
+  description: "Input schema for reading files during synthesis",
+  properties: {
+    filePath: {
+      type: "string",
+      description: "File path from the search results",
+    },
+    startLine: {
+      type: "number",
+      description: "Start line (1-indexed, optional)",
+    },
+    endLine: {
+      type: "number",
+      description: "End line (1-indexed, optional)",
+    },
+  },
+  required: ["filePath"],
+  additionalProperties: false,
 });
 
 /**

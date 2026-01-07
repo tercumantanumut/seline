@@ -11,8 +11,7 @@
  * - Single response returned to primary agent
  */
 
-import { tool, type ToolExecutionOptions } from "ai";
-import { z } from "zod";
+import { tool, jsonSchema, type ToolExecutionOptions } from "ai";
 import {
   browseAndSynthesize,
   querySessionContent,
@@ -27,25 +26,44 @@ import { getWebScraperProvider } from "@/lib/ai/web-scraper/provider";
 // Input Schema
 // ============================================================================
 
-const webBrowseSchema = z.object({
-  urls: z
-    .array(z.string().url())
-    .min(1)
-    .max(5)
-    .describe("URLs to fetch and analyze (1-5 URLs)"),
-  query: z
-    .string()
-    .describe(
-      "The question or information you want to extract from the web pages. Be specific about what you're looking for."
-    ),
+const webBrowseSchema = jsonSchema<{
+  urls: string[];
+  query: string;
+}>({
+  type: "object",
+  title: "WebBrowseInput",
+  description: "Input schema for browsing and analyzing web pages",
+  properties: {
+    urls: {
+      type: "array",
+      items: { type: "string", format: "uri" },
+      minItems: 1,
+      maxItems: 5,
+      description: "URLs to fetch and analyze (1-5 URLs)",
+    },
+    query: {
+      type: "string",
+      description: "The question or information you want to extract from the web pages. Be specific about what you're looking for.",
+    },
+  },
+  required: ["urls", "query"],
+  additionalProperties: false,
 });
 
-const webQuerySchema = z.object({
-  query: z
-    .string()
-    .describe(
-      "Question to answer using previously fetched web content in this session. Use when you've already fetched URLs and need more information from them."
-    ),
+const webQuerySchema = jsonSchema<{
+  query: string;
+}>({
+  type: "object",
+  title: "WebQueryInput",
+  description: "Input schema for querying previously fetched web content",
+  properties: {
+    query: {
+      type: "string",
+      description: "Question to answer using previously fetched web content in this session. Use when you've already fetched URLs and need more information from them.",
+    },
+  },
+  required: ["query"],
+  additionalProperties: false,
 });
 
 // ============================================================================

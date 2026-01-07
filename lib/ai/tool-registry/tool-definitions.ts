@@ -1705,6 +1705,8 @@ showProductImages({
           }>;
         }>({
           type: "object",
+          title: "DisplayProductsInput",
+          description: "Input schema for displaying product gallery",
           properties: {
             query: {
               type: "string",
