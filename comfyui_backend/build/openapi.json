@@ -1,0 +1,393 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "ComfyUI Workflow API - workflow_api",
+    "version": "1.0.0",
+    "description": "API for executing ComfyUI workflows",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/api/workflows/workflow_api": {
+      "post": {
+        "summary": "Execute workflow_api workflow",
+        "description": "Execute ComfyUI workflow with the following parameters:\n\n**Text Prompts:**\n- `prompt`: CLIPTextEncode text\n\n**Generation Settings:**\n- `vaeloader_vae_name`: VAELoader vae_name\n- `saveimage_filename_prefix`: SaveImage filename_prefix\n- `unetloader_unet_name`: UNETLoader unet_name\n- `unetloader_weight_dtype`: UNETLoader weight_dtype\n- `loraloader_lora_name`: LoraLoader lora_name\n- `loraloader_strength_model`: LoraLoader strength_model\n- `loraloader_strength_clip`: LoraLoader strength_clip\n- `seed`: KSampler seed\n- `steps`: KSampler steps\n- `cfg`: KSampler cfg\n- `sampler_name`: KSampler sampler_name\n- `scheduler`: KSampler scheduler\n- `denoise`: KSampler denoise\n- `image`: LoadImage image\n- `loadimage_upload`: LoadImage upload",
+        "operationId": "execute_workflow_api",
+        "tags": [
+          "workflows"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vaeloader_vae_name": {
+                    "type": "string",
+                    "description": "VAELoader vae_name",
+                    "default": "ae.safetensors"
+                  },
+                  "saveimage_filename_prefix": {
+                    "type": "string",
+                    "description": "SaveImage filename_prefix",
+                    "default": "ComfyUI"
+                  },
+                  "unetloader_unet_name": {
+                    "type": "string",
+                    "description": "UNETLoader unet_name",
+                    "default": "flux1-kontext-dev.safetensors"
+                  },
+                  "unetloader_weight_dtype": {
+                    "type": "string",
+                    "description": "UNETLoader weight_dtype",
+                    "default": "default"
+                  },
+                  "loraloader_lora_name": {
+                    "type": "string",
+                    "description": "LoraLoader lora_name",
+                    "default": "flux_kontext_lora_v4_consolidated_000010000.safetensors"
+                  },
+                  "loraloader_strength_model": {
+                    "type": "number",
+                    "description": "LoraLoader strength_model",
+                    "default": 1.0000000000000002
+                  },
+                  "loraloader_strength_clip": {
+                    "type": "number",
+                    "description": "LoraLoader strength_clip",
+                    "default": 1.0000000000000002
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "description": "KSampler seed",
+                    "default": 993480294246291
+                  },
+                  "steps": {
+                    "type": "integer",
+                    "description": "KSampler steps",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "default": 20
+                  },
+                  "cfg": {
+                    "type": "integer",
+                    "description": "KSampler cfg",
+                    "minimum": 1.0,
+                    "maximum": 30.0,
+                    "default": 1
+                  },
+                  "sampler_name": {
+                    "type": "string",
+                    "description": "KSampler sampler_name",
+                    "enum": [
+                      "euler",
+                      "euler_ancestral",
+                      "heun",
+                      "dpm_2",
+                      "dpm_2_ancestral",
+                      "lms",
+                      "dpm_fast",
+                      "dpm_adaptive",
+                      "dpmpp_2s_ancestral",
+                      "dpmpp_sde",
+                      "dpmpp_2m",
+                      "dpmpp_3m_sde",
+                      "ddim",
+                      "uni_pc"
+                    ],
+                    "default": "er_sde"
+                  },
+                  "scheduler": {
+                    "type": "string",
+                    "description": "KSampler scheduler",
+                    "enum": [
+                      "normal",
+                      "karras",
+                      "exponential",
+                      "sgm_uniform",
+                      "simple",
+                      "ddim_uniform"
+                    ],
+                    "default": "kl_optimal"
+                  },
+                  "denoise": {
+                    "type": "integer",
+                    "description": "KSampler denoise",
+                    "default": 1
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "CLIPTextEncode text"
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "LoadImage image",
+                    "default": "Screenshot 2025-09-22 at 13.19.59.png"
+                  },
+                  "loadimage_upload": {
+                    "type": "string",
+                    "description": "LoadImage upload",
+                    "default": "image"
+                  }
+                },
+                "required": [
+                  "prompt"
+                ],
+                "title": "Workflow_apiRequest"
+              },
+              "example": {
+                "vaeloader_vae_name": "ae.safetensors",
+                "saveimage_filename_prefix": "ComfyUI",
+                "unetloader_unet_name": "flux1-kontext-dev.safetensors",
+                "unetloader_weight_dtype": "default",
+                "loraloader_lora_name": "flux_kontext_lora_v4_consolidated_000010000.safetensors",
+                "loraloader_strength_model": 1.0000000000000002,
+                "loraloader_strength_clip": 1.0000000000000002,
+                "seed": 993480294246291,
+                "steps": 20,
+                "cfg": 1,
+                "sampler_name": "er_sde",
+                "scheduler": "kl_optimal",
+                "denoise": 1,
+                "prompt": "a beautiful sunset over mountains",
+                "image": "Screenshot 2025-09-22 at 13.19.59.png",
+                "loadimage_upload": "image"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful execution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Workflow_apiResponse",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "completed",
+                        "failed",
+                        "processing"
+                      ],
+                      "description": "Execution status"
+                    },
+                    "prompt_id": {
+                      "type": "string",
+                      "description": "Unique execution ID"
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "filename": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "width": {
+                            "type": "integer"
+                          },
+                          "height": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "description": "Generated images"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Error message if failed"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "prompt_id"
+                  ]
+                },
+                "example": {
+                  "status": "completed",
+                  "prompt_id": "abc-123",
+                  "images": [
+                    {
+                      "filename": "output_001.png",
+                      "url": "/api/images/output_001.png"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async execution started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "processing"
+                      ]
+                    },
+                    "prompt_id": {
+                      "type": "string"
+                    },
+                    "status_url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "tags": [
+          "status"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status/{prompt_id}": {
+      "get": {
+        "summary": "Get execution status",
+        "tags": [
+          "status"
+        ],
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "progress": {
+                      "type": "number"
+                    },
+                    "current_node": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "workflows",
+      "description": "Workflow execution endpoints"
+    },
+    {
+      "name": "status",
+      "description": "Status and monitoring endpoints"
+    },
+    {
+      "name": "images",
+      "description": "Image retrieval endpoints"
+    }
+  ]
+}

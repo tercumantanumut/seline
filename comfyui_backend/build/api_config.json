@@ -1,0 +1,75 @@
+{
+  "endpoint": "/generate",
+  "method": "POST",
+  "parameters": [
+    {
+      "name": "positive_prompt",
+      "type": "string",
+      "required": true,
+      "default": "",
+      "description": "Text prompt describing the image to generate"
+    },
+    {
+      "name": "seed",
+      "type": "integer",
+      "required": false,
+      "default": -1,
+      "description": "Random seed (-1 for random)"
+    },
+    {
+      "name": "width",
+      "type": "integer",
+      "required": false,
+      "default": 1024,
+      "description": "Image width",
+      "minimum": 512,
+      "maximum": 2048
+    },
+    {
+      "name": "height",
+      "type": "integer",
+      "required": false,
+      "default": 1024,
+      "description": "Image height",
+      "minimum": 512,
+      "maximum": 2048
+    },
+    {
+      "name": "steps",
+      "type": "integer",
+      "required": false,
+      "default": 9,
+      "description": "Sampling steps (Z-Image optimized)",
+      "minimum": 1,
+      "maximum": 50
+    },
+    {
+      "name": "cfg",
+      "type": "number",
+      "required": false,
+      "default": 1.0,
+      "description": "CFG scale",
+      "minimum": 0.1,
+      "maximum": 10.0
+    },
+    {
+      "name": "lora_strength",
+      "type": "number",
+      "required": false,
+      "default": 0.5,
+      "description": "Z-Image Detailer LoRA strength",
+      "minimum": 0.0,
+      "maximum": 2.0
+    },
+    {
+      "name": "batch_size",
+      "type": "integer",
+      "required": false,
+      "default": 1,
+      "description": "Number of images to generate",
+      "minimum": 1,
+      "maximum": 4
+    }
+  ],
+  "description": "Generate images with Z-Image Turbo FP8"
+}

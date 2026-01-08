@@ -6,6 +6,7 @@ node_modules
 .next
 out
 build
+!comfyui_backend/build/
 Context-Engine/
 # Environment
 .env
