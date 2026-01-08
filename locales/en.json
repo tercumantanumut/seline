@@ -221,6 +221,10 @@
       "referenceImageGemini3Pro": {
         "name": "Reference (Gemini 3 Pro)",
         "description": "Advanced style transfer with multiple reference images"
+      },
+      "generateImageZImage": {
+        "name": "Generate (Z-Image Local)",
+        "description": "Local image generation via ComfyUI (requires Docker)"
       }
     }
   },
@@ -560,7 +564,9 @@
         "editImageGemini3Pro": "Edit (Gemini 3 Pro)",
         "editImageGemini3ProDesc": "Advanced editing of one or more images with Gemini 3 Pro",
         "referenceImageGemini3Pro": "Reference (Gemini 3 Pro)",
-        "referenceImageGemini3ProDesc": "Advanced style transfer with multiple reference images"
+        "referenceImageGemini3ProDesc": "Advanced style transfer with multiple reference images",
+        "generateImageZImage": "Generate (Z-Image Local)",
+        "generateImageZImageDesc": "Local image generation via ComfyUI (requires Docker)"
       },
       "back": "← Back",
       "continue": "Continue →"

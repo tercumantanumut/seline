@@ -42,6 +42,15 @@ export interface AppSettings {
 
   // Image/Video generation
   stylyAiApiKey?: string;
+  imageGenerationProvider?: "openrouter" | "local-comfyui"; // Image generation provider selection
+
+  // ComfyUI Local Backend Settings
+  comfyuiEnabled?: boolean;        // Enable local ComfyUI for image generation
+  comfyuiInstalled?: boolean;      // Whether Docker image is built
+  comfyuiAutoStart?: boolean;      // Auto-start container on app launch
+  comfyuiPort?: number;            // API port (default: 8000)
+  comfyuiModelsDownloaded?: boolean; // Whether Z-Image models are downloaded
+  comfyuiBackendPath?: string;     // Path to comfyui_backend folder
 
   // Vector Database (LanceDB) - Advanced Semantic Search
   vectorDBEnabled?: boolean;  // Enable/disable LanceDB integration
@@ -108,6 +117,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   localGrepMaxResults: 100,
   localGrepContextLines: 2,
   localGrepRespectGitignore: true,
+  // ComfyUI defaults
+  imageGenerationProvider: "openrouter",
+  comfyuiEnabled: false,
+  comfyuiInstalled: false,
+  comfyuiAutoStart: false,
+  comfyuiPort: 8000,
+  comfyuiModelsDownloaded: false,
+  comfyuiBackendPath: "",
 };
 
 function getSettingsPath(): string {
@@ -294,6 +311,22 @@ function updateEnvFromSettings(settings: AppSettings): void {
   }
   if (settings.vectorSearchMaxLineLength !== undefined) {
     process.env.VECTOR_SEARCH_MAX_LINE_LENGTH = String(settings.vectorSearchMaxLineLength);
+  }
+
+  // ComfyUI settings
+  if (settings.imageGenerationProvider) {
+    process.env.IMAGE_GENERATION_PROVIDER = settings.imageGenerationProvider;
+  }
+  if (settings.comfyuiEnabled) {
+    process.env.COMFYUI_LOCAL_ENABLED = "true";
+  } else {
+    delete process.env.COMFYUI_LOCAL_ENABLED;
+  }
+  if (settings.comfyuiPort) {
+    process.env.COMFYUI_PORT = String(settings.comfyuiPort);
+  }
+  if (settings.comfyuiBackendPath) {
+    process.env.COMFYUI_BACKEND_PATH = settings.comfyuiBackendPath;
   }
 
   loadConfigFromEnv();

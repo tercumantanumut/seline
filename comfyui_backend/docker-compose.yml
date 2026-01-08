@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # ComfyUI Backend Service with Z-Image Turbo FP8
+  comfyui:
+    build:
+      context: .
+      dockerfile: build/Dockerfile
+      args:
+        DOWNLOAD_MODELS: "true"  # Set to "false" if you already have models locally
+    image: z-image-turbo-fp8:latest
+    container_name: comfyui-z-image
+    ports:
+      - "8188:8188"
+    volumes:
+      # NOTE: Models are now included in the image during build
+      # If you want to use external models, uncomment the line below:
+      - ./ComfyUI/models:/app/ComfyUI/models
+      # Output directory - direct mount to host
+      - ./output:/app/ComfyUI/output
+      # Input directory for test images
+      - ./inputs:/app/ComfyUI/input
+      # Mount the workflow
+      - ./workflow_to_replace_z_image_fp8.json:/app/ComfyUI/workflow_api.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - z-image-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Workflow API Service
+  workflow-api:
+    build:
+      context: ./deeployd-comfy
+      dockerfile: docker/api/Dockerfile
+      args:
+        - WORKFLOW_FILE=workflow_to_replace_z_image_fp8.json
+    container_name: z-image-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount our workflow file
+      - ./workflow_to_replace_z_image_fp8.json:/app/workflow.json:ro
+      # Output directory - shared with ComfyUI
+      - ./output:/app/outputs
+      # Input directory shared with ComfyUI
+      - ./inputs:/app/inputs
+      # Mount API config
+      - ./build/api_config.json:/app/api_config.json:ro
+    environment:
+      - COMFYUI_HOST=comfyui
+      - COMFYUI_PORT=8188
+      - WORKFLOW_PATH=/app/workflow.json
+      - OUTPUT_DIR=/app/outputs
+      - INPUT_DIR=/app/inputs
+      - PYTHONUNBUFFERED=1
+      - API_CONFIG_PATH=/app/api_config.json
+    depends_on:
+      comfyui:
+        condition: service_healthy
+    networks:
+      - z-image-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  z-image-network:
+    driver: bridge

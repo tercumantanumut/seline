@@ -1,0 +1,133 @@
+{
+  "description": "ComfyUI custom node priority mappings and configuration",
+  "version": "1.0.0",
+  "node_priority_mappings": {
+    "DWPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "LineArtPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "DepthAnythingPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "DepthAnythingV2Preprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "DWPosePreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "OpenposePreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "CannyEdgePreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "MiDaS-DepthMapPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "MLSDPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "NormalMapPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "OneFormer-COCO-SemSegPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "OneFormer-ADE20K-SemSegPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "PiDiNetPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "SAMPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "ScribblePreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "SemSegPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "UniformerSegPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "ZoeDepthMapPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "ColorPreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "DensePosePreprocessor": {
+      "repository": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "name": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "priority": 1
+    },
+    "NunchakuQwenImageDiTLoader": {
+      "repository": "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
+      "name": "ComfyUI-Nunchaku",
+      "priority": 1
+    },
+    "TextEncodeQwenImageEdit": {
+      "repository": "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
+      "name": "ComfyUI-Nunchaku",
+      "priority": 1
+    },
+    "ModelSamplingAuraFlow": {
+      "repository": "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
+      "name": "ComfyUI-Nunchaku",
+      "priority": 1
+    }
+  },
+  "always_install": [
+    {
+      "repository": "https://github.com/ltdrdata/ComfyUI-Manager",
+      "name": "ComfyUI-Manager",
+      "description": "ComfyUI Manager for installing custom nodes"
+    }
+  ],
+  "repository_aliases": {
+    "comfyui_controlnet_aux": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+    "ComfyUI-Inspire-Pack": "https://github.com/ltdrdata/ComfyUI-Inspire-Pack",
+    "ComfyUI-Impact-Pack": "https://github.com/ltdrdata/ComfyUI-Impact-Pack"
+  }
+}

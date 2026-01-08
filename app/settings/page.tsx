@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
+import { ComfyUIInstaller } from "@/components/comfyui";
 
 interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity";
@@ -53,7 +54,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "preferences";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -105,6 +106,9 @@ export default function SettingsPage() {
     localGrepMaxResults: 100,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
+    // ComfyUI settings
+    comfyuiEnabled: false,
+    comfyuiBackendPath: "",
   });
 
   // Antigravity auth state (separate from form state, managed via OAuth)
@@ -164,6 +168,9 @@ export default function SettingsPage() {
         localGrepMaxResults: data.localGrepMaxResults ?? 100,
         localGrepContextLines: data.localGrepContextLines ?? 2,
         localGrepRespectGitignore: data.localGrepRespectGitignore ?? true,
+        // ComfyUI settings
+        comfyuiEnabled: data.comfyuiEnabled ?? false,
+        comfyuiBackendPath: data.comfyuiBackendPath ?? "",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
@@ -346,6 +353,7 @@ export default function SettingsPage() {
     { id: "api-keys" as const, label: t("nav.apiKeys"), icon: KeyIcon },
     { id: "models" as const, label: t("nav.models"), icon: CpuIcon },
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
+    { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
   ];
 
@@ -461,6 +469,9 @@ interface FormState {
   localGrepMaxResults: number;
   localGrepContextLines: number;
   localGrepRespectGitignore: boolean;
+  // ComfyUI settings
+  comfyuiEnabled: boolean;
+  comfyuiBackendPath: string;
 }
 
 // Supported local embedding models with their metadata
@@ -920,7 +931,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("chatModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "x-ai/grok-4.1-fast"
+                    "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -951,7 +962,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("researchModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "x-ai/grok-4.1-fast"
+                    "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -982,7 +993,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("visionModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "google/gemini-2.0-flash-001"
+                    "google/gemini-2.0-flash-001"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -1341,6 +1352,27 @@ function SettingsPanel({
   if (section === "preferences") {
     return (
       <PreferencesSection formState={formState} updateField={updateField} />
+    );
+  }
+
+  if (section === "comfyui") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Local Image Generation</h2>
+          <p className="font-mono text-sm text-terminal-muted">
+            Generate images locally using ComfyUI with the Z-Image Turbo FP8 model.
+            Requires Docker Desktop and an NVIDIA GPU.
+          </p>
+        </div>
+
+        <ComfyUIInstaller
+          backendPath={formState.comfyuiBackendPath}
+          onBackendPathChange={(path) => updateField("comfyuiBackendPath", path)}
+          enabled={formState.comfyuiEnabled}
+          onEnabledChange={(enabled) => updateField("comfyuiEnabled", enabled)}
+        />
+      </div>
     );
   }
 

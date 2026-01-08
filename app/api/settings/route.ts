@@ -70,12 +70,16 @@ export async function PUT(request: NextRequest) {
       vectorSearchMaxLineLength: body.vectorSearchMaxLineLength !== undefined ? body.vectorSearchMaxLineLength : currentSettings.vectorSearchMaxLineLength,
       // Preferences
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
+      // ComfyUI
+      comfyuiEnabled: body.comfyuiEnabled !== undefined ? body.comfyuiEnabled : currentSettings.comfyuiEnabled,
+      comfyuiBackendPath: body.comfyuiBackendPath !== undefined ? body.comfyuiBackendPath : currentSettings.comfyuiBackendPath,
     };
 
     // Only update API keys if they're provided and not masked
     if (body.anthropicApiKey && !body.anthropicApiKey.includes("•")) {
       updatedSettings.anthropicApiKey = body.anthropicApiKey;
     }
+
     if (body.openrouterApiKey && !body.openrouterApiKey.includes("•")) {
       updatedSettings.openrouterApiKey = body.openrouterApiKey;
     }

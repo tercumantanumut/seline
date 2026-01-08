@@ -97,6 +97,50 @@ const electronAPI = {
     },
   },
 
+  // ComfyUI local backend operations
+  comfyui: {
+    checkStatus: (backendPath?: string): Promise<{
+      dockerInstalled: boolean;
+      imageBuilt: boolean;
+      containerRunning: boolean;
+      apiHealthy: boolean;
+      modelsDownloaded: boolean;
+      checkpointExists: boolean;
+      loraExists: boolean;
+    }> => {
+      return ipcRenderer.invoke("comfyui:checkStatus", backendPath);
+    },
+    install: (backendPath: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:install", backendPath);
+    },
+    downloadModels: (backendPath: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:downloadModels", backendPath);
+    },
+    start: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:start", backendPath);
+    },
+    stop: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:stop", backendPath);
+    },
+    getDefaultPath: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:getDefaultPath");
+    },
+    fullSetup: (): Promise<{ success: boolean; backendPath?: string; error?: string }> => {
+      return ipcRenderer.invoke("comfyui:fullSetup");
+    },
+    onInstallProgress: (callback: (data: {
+      stage: string;
+      progress: number;
+      message: string;
+      error?: string;
+    }) => void): void => {
+      ipcRenderer.on("comfyui:installProgress", (_event, data) => callback(data));
+    },
+    removeProgressListener: (): void => {
+      ipcRenderer.removeAllListeners("comfyui:installProgress");
+    },
+  },
+
   // Dev log streaming operations
   logs: {
     subscribe: (): void => {
@@ -179,6 +223,13 @@ const electronAPI = {
         "model:download",
         "logs:getBuffer",
         "command:execute",
+        "comfyui:checkStatus",
+        "comfyui:install",
+        "comfyui:downloadModels",
+        "comfyui:start",
+        "comfyui:stop",
+        "comfyui:getDefaultPath",
+        "comfyui:fullSetup",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -187,13 +238,13 @@ const electronAPI = {
     },
     on: (channel: string, callback: (...args: unknown[]) => void): void => {
       // Whitelist of allowed channels
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, (_event, ...args) => callback(...args));
       }
     },
     removeAllListeners: (channel: string): void => {
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }
