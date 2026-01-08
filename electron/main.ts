@@ -11,7 +11,8 @@ import {
 } from "electron";
 import * as path from "path";
 import * as fs from "fs";
-import { spawn, ChildProcess } from "child_process";
+import * as https from "https";
+import { spawn, exec, ChildProcess } from "child_process";
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === "development";
@@ -442,8 +443,8 @@ async function createWindow(): Promise<void> {
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
-          "img-src 'self' data: blob: https:; " +
-          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net; " +
+          "img-src 'self' data: blob: https: http://localhost:*; " +
+          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net http://localhost:*; " +
           "connect-src 'self' https://api.anthropic.com https://openrouter.ai ws://localhost:* http://localhost:*; " +
           "worker-src 'self' blob:; " +
           "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com;",
@@ -987,6 +988,626 @@ function setupIpcHandlers(): void {
         signal: null,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  });
+
+  // ============================================================================
+  // COMFYUI LOCAL BACKEND HANDLERS
+  // ============================================================================
+
+  // ComfyUI model definitions
+  const COMFYUI_MODELS = {
+    checkpoint: {
+      name: "z-image-turbo-fp8-aio.safetensors",
+      url: "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors",
+      path: "ComfyUI/models/checkpoints/",
+    },
+    lora: {
+      name: "z-image-detailer.safetensors",
+      url: "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-detailer.safetensors",
+      path: "ComfyUI/models/loras/",
+    },
+  };
+
+  // Get the default ComfyUI backend path
+  // In production: copy from bundled resources to user data folder
+  // In development: use the local comfyui_backend folder
+  function getComfyUIBackendPath(): string {
+    if (isDev) {
+      // In development, use the local comfyui_backend folder
+      return path.join(process.cwd(), "comfyui_backend");
+    } else {
+      // In production, use user data folder
+      return path.join(userDataPath, "comfyui_backend");
+    }
+  }
+
+  // Get the bundled ComfyUI backend path (in resources)
+  function getBundledComfyUIPath(): string {
+    return path.join(process.resourcesPath, "comfyui_backend");
+  }
+
+  // Copy directory recursively
+  function copyDirSync(src: string, dest: string): void {
+    fs.mkdirSync(dest, { recursive: true });
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      if (entry.isDirectory()) {
+        copyDirSync(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
+  }
+
+  // Ensure ComfyUI backend is set up in user data folder
+  async function ensureComfyUIBackend(): Promise<string> {
+    const backendPath = getComfyUIBackendPath();
+
+    if (isDev) {
+      // In dev mode, use local folder directly
+      return backendPath;
+    }
+
+    // In production, check if already copied to user data
+    const dockerComposePath = path.join(backendPath, "docker-compose.yml");
+    if (!fs.existsSync(dockerComposePath)) {
+      // Copy from bundled resources
+      const bundledPath = getBundledComfyUIPath();
+      if (fs.existsSync(bundledPath)) {
+        debugLog("[ComfyUI] Copying backend from bundled resources to user data...");
+        copyDirSync(bundledPath, backendPath);
+        debugLog("[ComfyUI] Backend copied to:", backendPath);
+      } else {
+        throw new Error("ComfyUI backend not found in bundled resources");
+      }
+    }
+
+    // Ensure model directories exist
+    fs.mkdirSync(path.join(backendPath, "ComfyUI", "models", "checkpoints"), { recursive: true });
+    fs.mkdirSync(path.join(backendPath, "ComfyUI", "models", "loras"), { recursive: true });
+    fs.mkdirSync(path.join(backendPath, "output"), { recursive: true });
+    fs.mkdirSync(path.join(backendPath, "inputs"), { recursive: true });
+
+    return backendPath;
+  }
+
+  // Helper: Execute command as promise
+  function execPromise(command: string, options?: { cwd?: string }): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // Always use shell on Windows for proper path handling
+      exec(command, { ...options, shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh' }, (error: Error | null, stdout: string, stderr: string) => {
+        if (error) {
+          reject(new Error(stderr || error.message));
+        } else {
+          resolve(stdout);
+        }
+      });
+    });
+  }
+
+  // Helper: Run docker compose command (tries both "docker compose" and "docker-compose")
+  async function dockerComposeExec(args: string, options?: { cwd?: string }): Promise<string> {
+    const workDir = options?.cwd;
+
+    debugLog(`[ComfyUI] Running docker compose command: ${args} in ${workDir || "default"}`);
+
+    // Verify docker-compose.yml exists in the working directory
+    if (workDir) {
+      const composeFile = path.join(workDir, "docker-compose.yml");
+      if (!fs.existsSync(composeFile)) {
+        throw new Error(`docker-compose.yml not found at ${composeFile}`);
+      }
+      debugLog(`[ComfyUI] Found docker-compose.yml at ${composeFile}`);
+    }
+
+    const execOptions = workDir ? { cwd: workDir } : undefined;
+
+    // Try new "docker compose" CLI first (Docker Desktop 3.4+)
+    try {
+      const cmd = `docker compose ${args}`;
+      debugLog(`[ComfyUI] Executing: ${cmd}`);
+      return await execPromise(cmd, execOptions);
+    } catch (e1) {
+      const err1 = e1 instanceof Error ? e1.message : String(e1);
+      debugLog(`[ComfyUI] docker compose failed: ${err1}`);
+
+      // Fallback to legacy "docker-compose" command
+      try {
+        const cmd = `docker-compose ${args}`;
+        debugLog(`[ComfyUI] Fallback executing: ${cmd}`);
+        return await execPromise(cmd, execOptions);
+      } catch (e2) {
+        const err2 = e2 instanceof Error ? e2.message : String(e2);
+        debugError(`[ComfyUI] docker-compose also failed: ${err2}`);
+        throw new Error(`Docker compose failed: ${err1}`);
+      }
+    }
+  }
+
+  // Helper: Sleep
+  function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Helper: Send progress to renderer
+  function sendComfyUIProgress(data: { stage: string; progress: number; message: string; error?: string }): void {
+    mainWindow?.webContents.send("comfyui:installProgress", data);
+  }
+
+  // Helper: Download file with progress
+  async function downloadFileWithProgress(
+    url: string,
+    destPath: string,
+    onProgress: (percent: number) => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(destPath);
+
+      const request = https.get(url, { headers: { "User-Agent": "STYLY-Agent" } }, (response) => {
+        // Handle redirects
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            file.close();
+            fs.unlinkSync(destPath);
+            downloadFileWithProgress(redirectUrl, destPath, onProgress).then(resolve).catch(reject);
+            return;
+          }
+        }
+
+        const totalSize = parseInt(response.headers["content-length"] || "0", 10);
+        let downloadedSize = 0;
+
+        response.on("data", (chunk: Buffer) => {
+          downloadedSize += chunk.length;
+          if (totalSize > 0) {
+            const percent = Math.floor((downloadedSize / totalSize) * 100);
+            onProgress(percent);
+          }
+        });
+
+        response.pipe(file);
+
+        file.on("finish", () => {
+          file.close();
+          resolve();
+        });
+      });
+
+      request.on("error", (error) => {
+        fs.unlink(destPath, () => { });
+        reject(error);
+      });
+    });
+  }
+
+  // Check ComfyUI status
+  ipcMain.handle("comfyui:checkStatus", async (_event, backendPath?: string) => {
+    // Use provided path or get default
+    const effectivePath = backendPath || getComfyUIBackendPath();
+
+    const status = {
+      dockerInstalled: false,
+      imageBuilt: false,
+      containerRunning: false,
+      apiHealthy: false,
+      modelsDownloaded: false,
+      checkpointExists: false,
+      loraExists: false,
+    };
+
+    try {
+      // Check Docker installed
+      await execPromise("docker --version");
+      status.dockerInstalled = true;
+
+      // Check if image exists
+      const images = await execPromise("docker images z-image-turbo-fp8 --format \"{{.Repository}}\"");
+      status.imageBuilt = images.trim().includes("z-image-turbo-fp8");
+
+      // Check if container is running
+      const containers = await execPromise("docker ps --filter \"name=comfyui-z-image\" --format \"{{.Names}}\"");
+      status.containerRunning = containers.trim().includes("comfyui-z-image");
+
+      // Check Available Models Helper
+      async function checkAvailableModels(): Promise<{ checkpoints: string[], loras: string[] }> {
+        try {
+          // Query ComfyUI directly on port 8188 for object_info
+          const [checkpointRes, loraRes] = await Promise.all([
+            net.fetch("http://127.0.0.1:8188/object_info/CheckpointLoaderSimple"),
+            net.fetch("http://127.0.0.1:8188/object_info/LoraLoader")
+          ]);
+
+          if (!checkpointRes.ok || !loraRes.ok) return { checkpoints: [], loras: [] };
+
+          const checkpointData = await checkpointRes.json() as any;
+          const loraData = await loraRes.json() as any;
+
+          const checkpoints = checkpointData?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
+          const loras = loraData?.LoraLoader?.input?.required?.lora_name?.[0] || [];
+
+          return { checkpoints, loras };
+        } catch (e) {
+          return { checkpoints: [], loras: [] };
+        }
+      }
+
+      // Check API health
+      if (status.containerRunning) {
+        try {
+          const response = await net.fetch("http://127.0.0.1:8000/health");
+          status.apiHealthy = response.ok;
+        } catch {
+          status.apiHealthy = false;
+        }
+      }
+
+      // Check models exist (Hybrid approach: API preferred, FS fallback)
+      let modelsFoundViaApi = false;
+
+      if (status.containerRunning) {
+        try {
+          const { checkpoints, loras } = await checkAvailableModels();
+
+          // Check for partial matches (sometimes files have different extensions or paths in the list)
+          if (checkpoints.some((c: string) => c.includes(COMFYUI_MODELS.checkpoint.name))) {
+            status.checkpointExists = true;
+          }
+          if (loras.some((l: string) => l.includes(COMFYUI_MODELS.lora.name))) {
+            status.loraExists = true;
+          }
+
+          if (status.checkpointExists && status.loraExists) {
+            status.modelsDownloaded = true;
+            modelsFoundViaApi = true;
+          }
+        } catch (e) {
+          debugError("[ComfyUI] Failed to check models via API:", e);
+        }
+      }
+
+      // If API check didn't confirm models (container down or models missing in API), fallback to file system
+      if (!modelsFoundViaApi && effectivePath) {
+        const checkpointPath = path.join(effectivePath, COMFYUI_MODELS.checkpoint.path, COMFYUI_MODELS.checkpoint.name);
+        const loraPath = path.join(effectivePath, COMFYUI_MODELS.lora.path, COMFYUI_MODELS.lora.name);
+
+        // Only update if false (don't overwrite true from API)
+        if (!status.checkpointExists) status.checkpointExists = fs.existsSync(checkpointPath);
+        if (!status.loraExists) status.loraExists = fs.existsSync(loraPath);
+
+        status.modelsDownloaded = status.checkpointExists && status.loraExists;
+      }
+
+      // If API is healthy, models must be working (even if filenames don't match our expected names)
+      if (status.apiHealthy && !status.modelsDownloaded) {
+        status.modelsDownloaded = true;
+        status.checkpointExists = true;
+        status.loraExists = true;
+      }
+    } catch (error) {
+      debugError("[ComfyUI] Status check error:", error);
+    }
+
+    return status;
+  });
+
+  // Install (build Docker image)
+  ipcMain.handle("comfyui:install", async (_event, backendPath: string) => {
+    try {
+      sendComfyUIProgress({ stage: "building", progress: 10, message: "Building Docker image..." });
+
+      const dockerComposePath = path.join(backendPath, "docker-compose.yml");
+      if (!fs.existsSync(dockerComposePath)) {
+        throw new Error(`docker-compose.yml not found at ${dockerComposePath}`);
+      }
+
+      // Build with docker-compose
+      await new Promise<void>((resolve, reject) => {
+        const build = spawn("docker-compose", ["build"], {
+          cwd: backendPath,
+          shell: true,
+        });
+
+        let progress = 10;
+        build.stdout?.on("data", (data) => {
+          const line = data.toString();
+          debugLog("[ComfyUI Build]", line);
+          progress = Math.min(progress + 2, 80);
+          sendComfyUIProgress({ stage: "building", progress, message: line.trim().slice(0, 100) });
+        });
+
+        build.stderr?.on("data", (data) => {
+          debugLog("[ComfyUI Build stderr]", data.toString());
+        });
+
+        build.on("close", (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Docker build failed with code ${code}`));
+          }
+        });
+
+        build.on("error", (err) => {
+          reject(err);
+        });
+      });
+
+      sendComfyUIProgress({ stage: "complete", progress: 100, message: "Docker image built successfully!" });
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      sendComfyUIProgress({ stage: "error", progress: 0, message: errorMessage, error: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  // Download models
+  ipcMain.handle("comfyui:downloadModels", async (_event, backendPath: string) => {
+    try {
+      sendComfyUIProgress({ stage: "downloading-models", progress: 0, message: "Preparing to download models..." });
+
+      // Create directories
+      const checkpointDir = path.join(backendPath, COMFYUI_MODELS.checkpoint.path);
+      const loraDir = path.join(backendPath, COMFYUI_MODELS.lora.path);
+      fs.mkdirSync(checkpointDir, { recursive: true });
+      fs.mkdirSync(loraDir, { recursive: true });
+
+      // Download checkpoint (~11GB)
+      const checkpointPath = path.join(checkpointDir, COMFYUI_MODELS.checkpoint.name);
+      if (!fs.existsSync(checkpointPath)) {
+        sendComfyUIProgress({ stage: "downloading-models", progress: 5, message: "Downloading checkpoint (~11GB)..." });
+        await downloadFileWithProgress(
+          COMFYUI_MODELS.checkpoint.url,
+          checkpointPath,
+          (progress) => {
+            sendComfyUIProgress({
+              stage: "downloading-models",
+              progress: 5 + Math.floor(progress * 0.7),
+              message: `Downloading checkpoint: ${progress}%`
+            });
+          }
+        );
+      }
+
+      // Download LoRA (~1.2GB)
+      const loraPath = path.join(loraDir, COMFYUI_MODELS.lora.name);
+      if (!fs.existsSync(loraPath)) {
+        sendComfyUIProgress({ stage: "downloading-models", progress: 80, message: "Downloading LoRA (~1.2GB)..." });
+        await downloadFileWithProgress(
+          COMFYUI_MODELS.lora.url,
+          loraPath,
+          (progress) => {
+            sendComfyUIProgress({
+              stage: "downloading-models",
+              progress: 80 + Math.floor(progress * 0.2),
+              message: `Downloading LoRA: ${progress}%`
+            });
+          }
+        );
+      }
+
+      sendComfyUIProgress({ stage: "complete", progress: 100, message: "Models downloaded successfully!" });
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      sendComfyUIProgress({ stage: "error", progress: 0, message: errorMessage, error: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  // Start container
+  ipcMain.handle("comfyui:start", async (_event, backendPath?: string) => {
+    try {
+      // Use provided path or get default
+      const effectivePath = backendPath || getComfyUIBackendPath();
+
+      sendComfyUIProgress({ stage: "starting", progress: 50, message: "Starting ComfyUI container..." });
+
+      await dockerComposeExec("up -d", { cwd: effectivePath });
+
+      // Wait for health check
+      let attempts = 0;
+      while (attempts < 30) {
+        try {
+          const response = await net.fetch("http://localhost:8000/health");
+          if (response.ok) {
+            sendComfyUIProgress({ stage: "complete", progress: 100, message: "ComfyUI is running!" });
+            return { success: true };
+          }
+        } catch {
+          // Not ready yet
+        }
+        await sleep(2000);
+        attempts++;
+        sendComfyUIProgress({ stage: "starting", progress: 50 + attempts, message: `Waiting for API... (${attempts}/30)` });
+      }
+
+      throw new Error("API health check timed out after 60 seconds");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return { success: false, error: errorMessage };
+    }
+  });
+
+  // Stop container
+  ipcMain.handle("comfyui:stop", async (_event, backendPath?: string) => {
+    try {
+      // Use provided path or get default
+      const effectivePath = backendPath || getComfyUIBackendPath();
+
+      // Try docker compose down first (supports both new and legacy CLI)
+      try {
+        await dockerComposeExec("down", { cwd: effectivePath });
+        return { success: true };
+      } catch (e) {
+        debugLog("[ComfyUI] docker compose down failed, trying direct stop...");
+      }
+
+      // Fallback: direct stop of known container names
+      try {
+        await execPromise("docker stop comfyui-z-image z-image-api");
+        await execPromise("docker rm comfyui-z-image z-image-api");
+      } catch {
+        // Force remove if stop fails
+        await execPromise("docker rm -f comfyui-z-image z-image-api");
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  });
+
+  // Get default backend path (auto-detected)
+  ipcMain.handle("comfyui:getDefaultPath", async () => {
+    try {
+      const backendPath = getComfyUIBackendPath();
+      return { success: true, path: backendPath };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  });
+
+  // Full setup: copies files, builds Docker, downloads models, starts containers
+  ipcMain.handle("comfyui:fullSetup", async () => {
+    try {
+      // Step 1: Ensure backend is set up
+      sendComfyUIProgress({ stage: "checking", progress: 5, message: "Setting up ComfyUI backend..." });
+      const backendPath = await ensureComfyUIBackend();
+      debugLog("[ComfyUI] Backend path:", backendPath);
+
+      // Step 2: Check Docker is installed
+      sendComfyUIProgress({ stage: "checking", progress: 10, message: "Checking Docker installation..." });
+      try {
+        await execPromise("docker --version");
+      } catch {
+        throw new Error("Docker is not installed. Please install Docker Desktop first.");
+      }
+
+      // Step 3: Build Docker images
+      sendComfyUIProgress({ stage: "building", progress: 15, message: "Building Docker images (this may take 10-20 minutes)..." });
+
+      const dockerComposePath = path.join(backendPath, "docker-compose.yml");
+      if (!fs.existsSync(dockerComposePath)) {
+        throw new Error(`docker-compose.yml not found at ${dockerComposePath}`);
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        // Try docker compose first, fallback to docker-compose
+        const composeCmd = process.platform === "win32" ? "docker" : "docker";
+        const composeArgs = process.platform === "win32" ? ["compose", "build"] : ["compose", "build"];
+
+        const build = spawn(composeCmd, composeArgs, {
+          cwd: backendPath,
+          shell: true,
+        });
+
+        let progress = 15;
+        build.stdout?.on("data", (data) => {
+          const line = data.toString();
+          debugLog("[ComfyUI Build]", line);
+          progress = Math.min(progress + 1, 40);
+          sendComfyUIProgress({ stage: "building", progress, message: line.trim().slice(0, 100) });
+        });
+
+        build.stderr?.on("data", (data) => {
+          const line = data.toString();
+          debugLog("[ComfyUI Build stderr]", line);
+          // Docker often outputs to stderr even for non-errors
+          progress = Math.min(progress + 1, 40);
+          sendComfyUIProgress({ stage: "building", progress, message: line.trim().slice(0, 100) });
+        });
+
+        build.on("close", (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Docker build failed with code ${code}`));
+          }
+        });
+
+        build.on("error", (err) => {
+          reject(err);
+        });
+      });
+
+      // Step 4: Download models
+      sendComfyUIProgress({ stage: "downloading-models", progress: 45, message: "Downloading models (~12GB total)..." });
+
+      const checkpointDir = path.join(backendPath, COMFYUI_MODELS.checkpoint.path);
+      const loraDir = path.join(backendPath, COMFYUI_MODELS.lora.path);
+      fs.mkdirSync(checkpointDir, { recursive: true });
+      fs.mkdirSync(loraDir, { recursive: true });
+
+      // Download checkpoint (~11GB)
+      const checkpointPath = path.join(checkpointDir, COMFYUI_MODELS.checkpoint.name);
+      if (!fs.existsSync(checkpointPath)) {
+        sendComfyUIProgress({ stage: "downloading-models", progress: 45, message: "Downloading checkpoint model (~11GB)..." });
+        await downloadFileWithProgress(
+          COMFYUI_MODELS.checkpoint.url,
+          checkpointPath,
+          (percent) => {
+            const overallProgress = 45 + Math.floor(percent * 0.35);
+            sendComfyUIProgress({
+              stage: "downloading-models",
+              progress: overallProgress,
+              message: `Downloading checkpoint: ${percent}%`
+            });
+          }
+        );
+      }
+
+      // Download LoRA (~1.2GB)
+      const loraPath = path.join(loraDir, COMFYUI_MODELS.lora.name);
+      if (!fs.existsSync(loraPath)) {
+        sendComfyUIProgress({ stage: "downloading-models", progress: 80, message: "Downloading LoRA model (~1.2GB)..." });
+        await downloadFileWithProgress(
+          COMFYUI_MODELS.lora.url,
+          loraPath,
+          (percent) => {
+            const overallProgress = 80 + Math.floor(percent * 0.1);
+            sendComfyUIProgress({
+              stage: "downloading-models",
+              progress: overallProgress,
+              message: `Downloading LoRA: ${percent}%`
+            });
+          }
+        );
+      }
+
+      // Step 5: Start containers
+      sendComfyUIProgress({ stage: "starting", progress: 92, message: "Starting ComfyUI containers..." });
+      await dockerComposeExec("up -d", { cwd: backendPath });
+
+      // Step 6: Wait for health check
+      let attempts = 0;
+      while (attempts < 60) {
+        try {
+          const response = await net.fetch("http://localhost:8000/health");
+          if (response.ok) {
+            sendComfyUIProgress({ stage: "complete", progress: 100, message: "ComfyUI is ready!" });
+            return { success: true, backendPath };
+          }
+        } catch {
+          // Not ready yet
+        }
+        await sleep(2000);
+        attempts++;
+        sendComfyUIProgress({
+          stage: "starting",
+          progress: 92 + Math.floor(attempts * 0.13),
+          message: `Waiting for API to be ready... (${attempts}/60)`
+        });
+      }
+
+      throw new Error("API health check timed out after 2 minutes. The containers may still be starting up.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      sendComfyUIProgress({ stage: "error", progress: 0, message: errorMessage, error: errorMessage });
+      return { success: false, error: errorMessage };
     }
   });
 }

@@ -48,6 +48,8 @@ const AVAILABLE_TOOLS: ToolCapability[] = [
   { id: "generateImageGemini3Pro", nameKey: "generateImageGemini3Pro", descKey: "generateImageGemini3ProDesc", category: "image-generation" },
   { id: "editImageGemini3Pro", nameKey: "editImageGemini3Pro", descKey: "editImageGemini3ProDesc", category: "image-editing" },
   { id: "referenceImageGemini3Pro", nameKey: "referenceImageGemini3Pro", descKey: "referenceImageGemini3ProDesc", category: "image-generation" },
+  // Local ComfyUI Image Tools
+  { id: "generateImageZImage", nameKey: "generateImageZImage", descKey: "generateImageZImageDesc", category: "image-generation" },
 ];
 
 /** Category translation keys */

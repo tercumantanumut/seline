@@ -55,6 +55,7 @@ import { createFirecrawlCrawlTool } from "../firecrawl";
 import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
 import { createExecuteCommandTool } from "../tools/execute-command-tool";
+import { createZImageGenerateTool } from "../tools/zimage-generate-tool";
 
 /**
  * Register all tools with the registry
@@ -746,6 +747,43 @@ Ask follow-up questions about web content already fetched in this conversation.
       requiresSession: true,
     } satisfies ToolMetadata,
     () => createWebQueryTool({ sessionId: "", userId: "", characterId: null })
+  );
+
+  // ============================================================================
+  // LOCAL COMFYUI IMAGE GENERATION TOOLS
+  // These tools use the local ComfyUI backend for image generation
+  // Enable via Settings > ComfyUI Settings
+  // ============================================================================
+
+  // Z-Image Turbo FP8 - Local Generation
+  registry.register(
+    "generateImageZImage",
+    {
+      displayName: "Generate Image (Z-Image Local)",
+      category: "image-generation",
+      keywords: [
+        "generate", "create", "image", "local", "comfyui", "z-image", "turbo", "fp8",
+        "text-to-image", "fast", "offline", "private", "local image", "generate locally",
+      ],
+      shortDescription: "Generate images locally using Z-Image Turbo FP8 via ComfyUI",
+      fullInstructions: `## Z-Image Turbo FP8 (Local ComfyUI)
+
+Generate high-quality images locally using the Z-Image Turbo FP8 model.
+
+
+### Parameters
+- **prompt** (required): Text description of the image
+- **seed** (optional): For reproducibility (-1 = random)
+- **width/height** (optional): Default 1024x1024
+- **steps** (optional): Default 9 (optimized)
+- **cfg** (optional): Default 1.0 (optimized)
+- **lora_strength** (optional): Detailer LoRA strength (0-2, default 0.5)`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+      // Only available when local ComfyUI is enabled
+      enableEnvVar: "COMFYUI_LOCAL_ENABLED",
+    } satisfies ToolMetadata,
+    () => createZImageGenerateTool()
   );
 
   // ============================================================================

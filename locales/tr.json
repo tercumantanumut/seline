@@ -217,6 +217,10 @@
       "referenceImageGemini3Pro": {
         "name": "Referans (Gemini 3 Pro)",
         "description": "Birden fazla referans görsel ile gelişmiş stil aktarımı"
+      },
+      "generateImageZImage": {
+        "name": "Üret (Z-Image Yerel)",
+        "description": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
       }
     }
   },
@@ -551,7 +555,9 @@
         "editImageGemini3Pro": "Düzenle (Gemini 3 Pro)",
         "editImageGemini3ProDesc": "Gemini 3 Pro ile bir veya daha fazla görsel gelişmiş düzenleme",
         "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
-        "referenceImageGemini3ProDesc": "Birden fazla referans görsel ile gelişmiş stil aktarımı"
+        "referenceImageGemini3ProDesc": "Birden fazla referans görsel ile gelişmiş stil aktarımı",
+        "generateImageZImage": "Üret (Z-Image Yerel)",
+        "generateImageZImageDesc": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
       },
       "back": "← Geri",
       "continue": "Devam →"

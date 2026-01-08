@@ -1,0 +1,84 @@
+# Pre-commit hooks for code quality
+default_language_version:
+  python: python3.13
+
+repos:
+  # General file checks
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: check-yaml
+  - id: check-json
+  - id: check-toml
+  - id: check-added-large-files
+    args: [--maxkb=10000]
+  - id: check-case-conflict
+  - id: check-merge-conflict
+  - id: detect-private-key
+  - id: mixed-line-ending
+    args: [--fix=lf]
+  - id: check-ast
+  - id: debug-statements
+
+  # Python code quality - Ruff
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.8.6
+  hooks:
+      # Run the linter
+  - id: ruff
+    args: [--fix, --exit-non-zero-on-fix]
+      # Run the formatter
+  - id: ruff-format
+
+  # Type checking with mypy
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.14.1
+  hooks:
+  - id: mypy
+    additional_dependencies:
+    - types-pyyaml
+    - types-aiofiles
+    - types-python-dateutil
+    - types-requests
+    args: [--ignore-missing-imports, --follow-imports=skip]
+    files: ^src/
+
+  # Security checks
+- repo: https://github.com/PyCQA/bandit
+  rev: 1.8.0
+  hooks:
+  - id: bandit
+    args: [-ll, --skip, 'B101,B601']
+    files: ^src/
+
+  # Documentation checks
+- repo: https://github.com/pycqa/pydocstyle
+  rev: 6.3.0
+  hooks:
+  - id: pydocstyle
+    files: ^src/
+    exclude: ^(tests/|setup.py|__init__.py)
+    additional_dependencies: [tomli]
+
+  # YAML formatting
+- repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+  rev: v2.15.0
+  hooks:
+  - id: pretty-format-yaml
+    args: [--autofix, --indent, '2', --line-width, '100']
+
+  # Markdown formatting
+- repo: https://github.com/DavidAnson/markdownlint-cli2
+  rev: v0.16.0
+  hooks:
+  - id: markdownlint-cli2
+    args: [--config, .markdownlint.json]
+    files: \.(md|markdown)$
+
+# Configuration for ci
+ci:
+  autofix_prs: true
+  autoupdate_schedule: weekly
+  autoupdate_commit_msg: 'chore: update pre-commit hooks'

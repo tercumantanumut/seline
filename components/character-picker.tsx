@@ -66,6 +66,8 @@ const AVAILABLE_TOOLS = [
   { id: "generateImageGemini3Pro", category: "image-generation" },
   { id: "editImageGemini3Pro", category: "image-editing" },
   { id: "referenceImageGemini3Pro", category: "image-generation" },
+  // Local ComfyUI Image Tools
+  { id: "generateImageZImage", category: "image-generation" },
 ];
 
 interface CharacterSummary {

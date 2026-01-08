@@ -57,6 +57,24 @@ extraResources:
     to: "models"
     filter:
       - "**/*"
+  # ComfyUI backend infrastructure (lightweight files only - no models)
+  - from: "comfyui_backend"
+    to: "comfyui_backend"
+    filter:
+      - "**/*"
+      - "!ComfyUI/models/**/*.safetensors"
+      - "!ComfyUI/models/**/*.ckpt"
+      - "!ComfyUI/models/**/*.pt"
+      - "!ComfyUI/models/**/*.bin"
+      - "!output/**"
+      - "!images/**"
+      - "!inputs/**"
+      - "!**/*.png"
+      - "!**/__pycache__/**"
+      - "!**/.git/**"
+      - "!**/node_modules/**"
+      - "!**/.venv/**"
+      - "!**/venv/**"
 
 # Compression settings
 asar: true

@@ -1,0 +1,47 @@
+{
+  "comment": "Fallback mappings for nodes not in ComfyUI-Manager database",
+  "mappings": {
+    "SetNode": {
+      "url": "https://github.com/kijai/ComfyUI-KJNodes",
+      "name": "ComfyUI-KJNodes",
+      "title": "KJNodes Set/Get System",
+      "description": "Workflow organization node for storing values",
+      "pip": []
+    },
+    "GetNode": {
+      "url": "https://github.com/kijai/ComfyUI-KJNodes",
+      "name": "ComfyUI-KJNodes",
+      "title": "KJNodes Set/Get System",
+      "description": "Workflow organization node for retrieving values",
+      "pip": []
+    },
+    "SetGet": {
+      "url": "https://github.com/kijai/ComfyUI-KJNodes",
+      "name": "ComfyUI-KJNodes",
+      "title": "KJNodes Set/Get System",
+      "description": "Combined Set/Get node",
+      "pip": []
+    },
+    "AnythingEverywhere": {
+      "url": "https://github.com/cg-use-everywhere/comfyui-use-everywhere",
+      "name": "ComfyUI Use Everywhere",
+      "title": "Use Everywhere",
+      "description": "Alternative connection management system",
+      "pip": []
+    },
+    "AnythingEverywhereConnector": {
+      "url": "https://github.com/cg-use-everywhere/comfyui-use-everywhere",
+      "name": "ComfyUI Use Everywhere",
+      "title": "Use Everywhere",
+      "description": "Connector node for Use Everywhere system",
+      "pip": []
+    },
+    "SeedEverywhere": {
+      "url": "https://github.com/cg-use-everywhere/comfyui-use-everywhere",
+      "name": "ComfyUI Use Everywhere",
+      "title": "Use Everywhere",
+      "description": "Seed distribution across workflow",
+      "pip": []
+    }
+  }
+}
