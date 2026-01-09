@@ -12,6 +12,86 @@
     "password": "Password",
     "confirmPassword": "Confirm Password"
   },
+  "onboarding": {
+    "welcome": {
+      "title": "Welcome to Seline",
+      "subtitle": "Your AI-powered creative companion. Let's get you set up in just a few steps.",
+      "features": {
+        "agents": {
+          "title": "Custom AI Agents",
+          "desc": "Create specialized assistants with unique personalities and capabilities"
+        },
+        "tools": {
+          "title": "Powerful Tools",
+          "desc": "Generate images, search the web, analyze code, and more"
+        },
+        "memory": {
+          "title": "Persistent Memory",
+          "desc": "Your agents remember preferences and learn your workflow"
+        }
+      },
+      "cta": "Get Started"
+    },
+    "provider": {
+      "title": "Choose Your AI Provider",
+      "subtitle": "Select how you want to power your AI agents",
+      "options": {
+        "antigravity": {
+          "title": "Antigravity (Free)",
+          "desc": "Sign in with your Antigravity account for free access",
+          "badge": "Recommended"
+        },
+        "anthropic": {
+          "title": "Anthropic",
+          "desc": "Use your own Claude API key for direct access"
+        },
+        "openrouter": {
+          "title": "OpenRouter",
+          "desc": "Access multiple models through OpenRouter"
+        }
+      }
+    },
+    "auth": {
+      "title": "Connect Your Account",
+      "apiKey": {
+        "label": "API Key",
+        "placeholder": "sk-ant-...",
+        "hint": "Your API key is stored locally and never sent to our servers"
+      },
+      "oauth": {
+        "button": "Sign in with Google",
+        "hint": "You'll be redirected to authenticate"
+      },
+      "skip": "Skip for now",
+      "skipHint": "You can configure this later in Settings"
+    },
+    "personalization": {
+      "title": "Personalize Your Experience",
+      "subtitle": "Help your agents understand your preferences (optional)",
+      "categories": {
+        "visual_preferences": {
+          "title": "Visual Preferences"
+        },
+        "communication_style": {
+          "title": "Communication Style"
+        },
+        "workflow_patterns": {
+          "title": "Workflow Patterns"
+        }
+      },
+      "skip": "Skip personalization"
+    },
+    "complete": {
+      "title": "You're All Set!",
+      "subtitle": "Your workspace is ready. Here's what you can do next:",
+      "tips": {
+        "agent": "Create your first AI agent with custom personality",
+        "chat": "Start a conversation and explore capabilities",
+        "settings": "Fine-tune your experience in Settings"
+      },
+      "cta": "Start Using Seline"
+    }
+  },
   "layout": {
     "brandShort": "S",
     "brand": "Seline",
@@ -688,7 +768,21 @@
       "apiKeys": "API Keys",
       "models": "Models",
       "vectorSearch": "Vector Search",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "memory": "Memory"
+    },
+    "onboarding": {
+      "title": "Onboarding",
+      "description": "Re-run the setup wizard to reconfigure your settings",
+      "cta": "Re-run Setup Wizard"
+    },
+    "memoryDefaults": {
+      "title": "Global Memory Defaults",
+      "description": "Set default preferences that will be applied to all agents. These memories help your agents understand your preferences.",
+      "addNew": "Add a new preference",
+      "placeholder": "e.g., \"Always use TypeScript for code examples\"",
+      "add": "Add",
+      "empty": "No global memory defaults set. Add preferences to personalize your agents."
     },
     "errors": {
       "load": "Failed to load settings",
