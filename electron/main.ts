@@ -1004,7 +1004,7 @@ function setupIpcHandlers(): void {
     },
     lora: {
       name: "z-image-detailer.safetensors",
-      url: "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-detailer.safetensors",
+      url: "https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors",
       path: "ComfyUI/models/loras/",
     },
   };
