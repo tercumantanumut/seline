@@ -14,6 +14,7 @@ import {
   getAntigravityToken,
   ANTIGRAVITY_CONFIG,
   fetchAntigravityProjectId,
+  ANTIGRAVITY_SYSTEM_INSTRUCTION,
 } from "@/lib/auth/antigravity-auth";
 
 // Model aliases - map display names to Antigravity API model IDs
@@ -46,7 +47,15 @@ function generateSessionId(): string {
  * Get the effective model name for Antigravity API
  */
 function resolveModelName(modelId: string): string {
-  return MODEL_ALIASES[modelId] || modelId;
+  // Strip antigravity- prefix if present
+  const modelWithoutPrefix = modelId.replace(/^antigravity-/i, "");
+  const model = MODEL_ALIASES[modelWithoutPrefix] || modelWithoutPrefix;
+
+  // Antigravity API: gemini-3-pro requires tier suffix (gemini-3-pro-low/high)
+  if (model.toLowerCase() === "gemini-3-pro") {
+    return "gemini-3-pro-low";
+  }
+  return model;
 }
 
 async function readRequestBody(body: BodyInit): Promise<string> {
@@ -79,8 +88,7 @@ async function readRequestBody(body: BodyInit): Promise<string> {
  */
 function isGenerativeLanguageRequest(url: string): boolean {
   return url.includes("generativelanguage.googleapis.com") ||
-    url.includes("/models/") && url.includes(":generateContent") ||
-    url.includes("/models/") && url.includes(":streamGenerateContent");
+    url.includes("/models/") && (url.includes(":generateContent") || url.includes(":streamGenerateContent"));
 }
 
 /**
@@ -121,16 +129,40 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
         const bodyText = await readRequestBody(init.body);
         const parsedBody = JSON.parse(bodyText);
 
+        // Inject Antigravity system instruction with role "user"
+        // This is critical for Antigravity API compatibility
+        if (parsedBody.systemInstruction) {
+          const sys = parsedBody.systemInstruction;
+          if (typeof sys === "object") {
+            sys.role = "user";
+            if (Array.isArray(sys.parts) && sys.parts.length > 0) {
+              const firstPart = sys.parts[0];
+              if (firstPart && typeof firstPart.text === "string") {
+                firstPart.text = ANTIGRAVITY_SYSTEM_INSTRUCTION + "\n\n" + firstPart.text;
+              } else {
+                sys.parts = [{ text: ANTIGRAVITY_SYSTEM_INSTRUCTION }, ...sys.parts];
+              }
+            } else {
+              sys.parts = [{ text: ANTIGRAVITY_SYSTEM_INSTRUCTION }];
+            }
+          } else if (typeof sys === "string") {
+            parsedBody.systemInstruction = {
+              role: "user",
+              parts: [{ text: ANTIGRAVITY_SYSTEM_INSTRUCTION + "\n\n" + sys }],
+            };
+          }
+        } else {
+          parsedBody.systemInstruction = {
+            role: "user",
+            parts: [{ text: ANTIGRAVITY_SYSTEM_INSTRUCTION }],
+          };
+        }
+
         // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
-        // The Antigravity backend transforms Google format to Claude format, but Claude API requires 
-        // tool_use.id fields that don't exist in Google's functionCall format.
-        // We generate unique IDs for each functionCall and match them to corresponding functionResponse parts.
         const isClaudeModel = effectiveModel.includes("claude");
         if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
           // Track functionCall IDs by name+index for matching with functionResponse
-          // Map structure: functionName -> array of generated IDs (in order of appearance)
           const functionCallIds = new Map<string, string[]>();
-          // Track which ID index to use for each function name in responses
           const functionResponseIndex = new Map<string, number>();
 
           // First pass: inject IDs into all functionCall parts
@@ -139,16 +171,12 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
               for (const part of content.parts) {
                 if (part.functionCall && typeof part.functionCall === "object") {
                   const funcName = (part.functionCall as Record<string, unknown>).name as string;
-                  // Generate a unique ID for this function call
                   const callId = `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
 
-                  // Store the ID for later matching with functionResponse
                   if (!functionCallIds.has(funcName)) {
                     functionCallIds.set(funcName, []);
                   }
                   functionCallIds.get(funcName)!.push(callId);
-
-                  // Inject the ID into the functionCall (this is what Antigravity backend needs)
                   (part.functionCall as Record<string, unknown>).id = callId;
                 }
               }
@@ -164,10 +192,8 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
                   const ids = functionCallIds.get(funcName);
 
                   if (ids && ids.length > 0) {
-                    // Get the current index for this function name
                     const idx = functionResponseIndex.get(funcName) || 0;
                     if (idx < ids.length) {
-                      // Inject the matching ID
                       (part.functionResponse as Record<string, unknown>).id = ids[idx];
                       functionResponseIndex.set(funcName, idx + 1);
                     }
@@ -176,8 +202,6 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
               }
             }
           }
-
-          console.log(`[Antigravity] Injected tool call IDs for Claude model: ${functionCallIds.size} function types`);
         }
 
         // Wrap the request in Antigravity's expected format
@@ -186,6 +210,7 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
           model: effectiveModel,
           userAgent: "antigravity",
           requestId: generateRequestId(),
+          requestType: "agent", // Required in v1.2.8
           request: {
             ...parsedBody,
             sessionId,
