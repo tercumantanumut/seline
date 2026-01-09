@@ -77,6 +77,21 @@ export interface AppSettings {
   theme: "dark" | "light" | "system";
   toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
   dataPath?: string;
+
+  // Onboarding state
+  onboardingComplete?: boolean;
+  onboardingCompletedAt?: string; // ISO timestamp
+  onboardingVersion?: number;      // For future migrations
+
+  // Global memory preferences (applied to new agents and synced to existing)
+  globalMemoryDefaults?: {
+    visual_preferences?: string[];    // e.g., ["Prefer dark mode", "16:9 aspect ratio"]
+    communication_style?: string[];   // e.g., ["Concise responses", "Use code blocks"]
+    workflow_patterns?: string[];
+  };
+
+  // Settings UI preferences
+  settingsExpandedSections?: string[]; // Remember which sections are expanded
 }
 
 const DEFAULT_SETTINGS: AppSettings = {

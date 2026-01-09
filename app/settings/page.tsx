@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, BrainIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
+import { useRouter } from "next/navigation";
 
 interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity";
@@ -53,7 +54,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "preferences";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "preferences" | "memory";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -347,6 +348,7 @@ export default function SettingsPage() {
     { id: "models" as const, label: t("nav.models"), icon: CpuIcon },
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
+    { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];
 
   if (loading) {
@@ -920,7 +922,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("chatModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "x-ai/grok-4.1-fast"
+                    "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -951,7 +953,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("researchModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "x-ai/grok-4.1-fast"
+                    "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -982,7 +984,7 @@ function SettingsPanel({
                 onChange={(e) => updateField("visionModel", e.target.value)}
                 placeholder={
                   formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                  "google/gemini-2.0-flash-001"
+                    "google/gemini-2.0-flash-001"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -1344,6 +1346,10 @@ function SettingsPanel({
     );
   }
 
+  if (section === "memory") {
+    return <MemorySection />;
+  }
+
   return null;
 }
 
@@ -1437,6 +1443,233 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.alwaysHelper")}</p>
             </div>
           </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MemorySection() {
+  const t = useTranslations("settings");
+  const router = useRouter();
+  const [memoryDefaults, setMemoryDefaults] = useState<{
+    visual_preferences: string[];
+    communication_style: string[];
+    workflow_patterns: string[];
+  }>({
+    visual_preferences: [],
+    communication_style: [],
+    workflow_patterns: [],
+  });
+  const [newMemory, setNewMemory] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<"visual_preferences" | "communication_style" | "workflow_patterns">("visual_preferences");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [resettingOnboarding, setResettingOnboarding] = useState(false);
+
+  // Load global memory defaults on mount
+  useEffect(() => {
+    loadMemoryDefaults();
+  }, []);
+
+  const loadMemoryDefaults = async () => {
+    try {
+      const response = await fetch("/api/settings");
+      if (response.ok) {
+        const settings = await response.json();
+        if (settings.globalMemoryDefaults) {
+          setMemoryDefaults({
+            visual_preferences: settings.globalMemoryDefaults.visual_preferences || [],
+            communication_style: settings.globalMemoryDefaults.communication_style || [],
+            workflow_patterns: settings.globalMemoryDefaults.workflow_patterns || [],
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load memory defaults:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveMemoryDefaults = async (newDefaults: typeof memoryDefaults) => {
+    setSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ globalMemoryDefaults: newDefaults }),
+      });
+    } catch (error) {
+      console.error("Failed to save memory defaults:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddMemory = () => {
+    if (!newMemory.trim()) return;
+
+    const updated = {
+      ...memoryDefaults,
+      [selectedCategory]: [...memoryDefaults[selectedCategory], newMemory.trim()],
+    };
+    setMemoryDefaults(updated);
+    saveMemoryDefaults(updated);
+    setNewMemory("");
+  };
+
+  const handleRemoveMemory = (category: keyof typeof memoryDefaults, index: number) => {
+    const updated = {
+      ...memoryDefaults,
+      [category]: memoryDefaults[category].filter((_, i) => i !== index),
+    };
+    setMemoryDefaults(updated);
+    saveMemoryDefaults(updated);
+  };
+
+  const handleResetOnboarding = async () => {
+    setResettingOnboarding(true);
+    try {
+      await fetch("/api/onboarding", { method: "DELETE" });
+      router.push("/onboarding");
+    } catch (error) {
+      console.error("Failed to reset onboarding:", error);
+      setResettingOnboarding(false);
+    }
+  };
+
+  const categoryLabels = {
+    visual_preferences: "Visual Preferences",
+    communication_style: "Communication Style",
+    workflow_patterns: "Workflow Patterns",
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2Icon className="size-6 animate-spin text-terminal-green" />
+      </div>
+    );
+  }
+
+  const totalMemories = Object.values(memoryDefaults).flat().length;
+
+  return (
+    <div className="space-y-8">
+      {/* Global Memory Defaults */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-mono text-lg font-semibold text-terminal-dark flex items-center gap-2">
+            <BrainIcon className="size-5 text-terminal-green" />
+            {t("memoryDefaults.title")}
+          </h2>
+          <p className="font-mono text-sm text-terminal-muted mt-1">
+            {t("memoryDefaults.description")}
+          </p>
+        </div>
+
+        {/* Add new memory */}
+        <div className="rounded-lg border border-terminal-border bg-white p-4">
+          <h3 className="font-mono text-sm font-medium text-terminal-dark mb-3">
+            {t("memoryDefaults.addNew")}
+          </h3>
+          <div className="flex gap-2">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value as typeof selectedCategory)}
+              className="rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
+            >
+              {Object.entries(categoryLabels).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={newMemory}
+              onChange={(e) => setNewMemory(e.target.value)}
+              placeholder={t("memoryDefaults.placeholder")}
+              className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
+              onKeyDown={(e) => e.key === "Enter" && handleAddMemory()}
+            />
+            <Button
+              onClick={handleAddMemory}
+              disabled={!newMemory.trim() || saving}
+              className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90"
+            >
+              {t("memoryDefaults.add")}
+            </Button>
+          </div>
+        </div>
+
+        {/* Display existing memories */}
+        {totalMemories === 0 ? (
+          <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/30 p-6 text-center">
+            <p className="font-mono text-sm text-terminal-muted">
+              {t("memoryDefaults.empty")}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(memoryDefaults).map(([category, memories]) => {
+              if (memories.length === 0) return null;
+
+              return (
+                <div key={category} className="rounded-lg border border-terminal-border bg-terminal-cream/30 p-4">
+                  <h3 className="font-mono text-sm font-medium text-terminal-dark mb-3">
+                    {categoryLabels[category as keyof typeof categoryLabels]}
+                  </h3>
+                  <ul className="space-y-2">
+                    {memories.map((memory, index) => (
+                      <li
+                        key={index}
+                        className="flex items-center gap-2 bg-white rounded px-3 py-2 border border-terminal-border"
+                      >
+                        <span className="flex-1 font-mono text-sm text-terminal-dark">{memory}</span>
+                        <button
+                          onClick={() => handleRemoveMemory(category as keyof typeof memoryDefaults, index)}
+                          className="text-terminal-muted hover:text-red-500 transition-colors p-1"
+                        >
+                          <XIcon className="size-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Re-run Onboarding */}
+      <div className="border-t border-terminal-border pt-6">
+        <div className="rounded-lg border border-terminal-border bg-white p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">
+                {t("onboarding.title")}
+              </h3>
+              <p className="font-mono text-xs text-terminal-muted mt-1">
+                {t("onboarding.description")}
+              </p>
+            </div>
+            <Button
+              onClick={handleResetOnboarding}
+              disabled={resettingOnboarding}
+              variant="outline"
+              className="gap-2 font-mono"
+            >
+              {resettingOnboarding ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <RefreshCwIcon className="size-4" />
+              )}
+              {t("onboarding.cta")}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
