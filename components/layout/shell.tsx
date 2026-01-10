@@ -41,9 +41,11 @@ interface ShellProps {
   sidebar?: ReactNode;
   sidebarHeader?: ReactNode;
   children: ReactNode;
+  /** Hide navigation (header, sidebar) - used for full-screen experiences like onboarding */
+  hideNav?: boolean;
 }
 
-export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children }) => {
+export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNav = false }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isElectronApp, setIsElectronApp] = useState(false);
   const [electronPlatform, setElectronPlatform] = useState<string | null>(null);
@@ -97,6 +99,17 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children }) => {
       <span className="font-semibold font-mono text-terminal-dark">{t("brand")}</span>
     </div>
   );
+
+  // When hideNav is true, render a minimal shell with just the content
+  if (hideNav) {
+    return (
+      <div className="flex h-dvh flex-col overflow-hidden bg-terminal-cream">
+        <WindowsTitleBar />
+        <main className="flex-1 overflow-y-auto bg-terminal-cream">{children}</main>
+        <DevLogsViewer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-terminal-cream">
