@@ -14,6 +14,7 @@ import {
   LANGUAGE_HANDLING,
   TOOL_INVOCATION_FORMAT,
   TOOL_DISCOVERY_MINIMAL,
+  TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
 } from "./prompts";
 
@@ -41,7 +42,10 @@ export function getCharacterAvatarUrl(character: CharacterFull): string | null {
  * Builds a dynamic system prompt from character data
  * Used for user-created agents on Styly Agents
  */
-export function buildCharacterSystemPrompt(character: CharacterFull): string {
+export function buildCharacterSystemPrompt(
+  character: CharacterFull,
+  options: { toolLoadingMode?: "deferred" | "always" } = {}
+): string {
   const sections: string[] = [];
 
   // Agent identity
@@ -86,7 +90,7 @@ export function buildCharacterSystemPrompt(character: CharacterFull): string {
   sections.push(LANGUAGE_HANDLING);
   sections.push(MEDIA_DISPLAY_RULES);
   sections.push(TOOL_INVOCATION_FORMAT); // Critical: Prevent tool syntax in text output
-  sections.push(TOOL_DISCOVERY_MINIMAL);
+  sections.push(options.toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL);
   sections.push(MULTI_IMAGE_TOOL_USAGE); // Multi-image guidance for edit/reference tools
 
   // Prepend temporal context for accurate date/time awareness
@@ -102,12 +106,13 @@ export interface CharacterPromptOptions {
   geminiEnabled?: boolean;
   flux2Enabled?: boolean;
   toolInstructions?: string;
+  toolLoadingMode?: "deferred" | "always";
 }
 
 export function buildFullSystemPrompt(options: CharacterPromptOptions): string {
-  const { character, toolInstructions } = options;
+  const { character, toolInstructions, toolLoadingMode } = options;
 
-  let prompt = buildCharacterSystemPrompt(character);
+  let prompt = buildCharacterSystemPrompt(character, { toolLoadingMode });
 
   if (toolInstructions) {
     prompt += "\n\n" + toolInstructions;

@@ -5,6 +5,7 @@
  * - anthropic: Anthropic Claude models
  * - openrouter: OpenRouter (OpenAI-compatible API with access to many models)
  * - antigravity: Antigravity free models via Google OAuth (Gemini 3, Claude Sonnet 4.5, etc.)
+ * - codex: OpenAI Codex models via ChatGPT OAuth
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
@@ -20,10 +21,13 @@ import {
   ANTIGRAVITY_CONFIG,
   fetchAntigravityProjectId,
 } from "@/lib/auth/antigravity-auth";
+import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
+import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
+import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
 
 // Provider types
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex";
 export type EmbeddingProvider = "openrouter" | "local";
 
 // Provider configuration
@@ -45,6 +49,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "x-ai/grok-4.1-fast",
   antigravity: "claude-sonnet-4-5", // Free via Antigravity
+  codex: "gpt-5.1-codex",
 };
 
 // Utility models - fast/cheap models for background tasks (compaction, memory extraction)
@@ -52,6 +57,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   openrouter: "google/gemini-2.5-flash",
   antigravity: "gemini-3-flash", // Free via Antigravity
+  codex: "gpt-5.1-codex-mini",
 };
 
 // Claude model prefixes - models that should use Anthropic provider
@@ -62,6 +68,10 @@ const ANTIGRAVITY_MODEL_ID_SET = new Set(
   ANTIGRAVITY_CONFIG.AVAILABLE_MODELS.map((modelId) => modelId.toLowerCase())
 );
 
+const CODEX_MODEL_ID_SET = new Set(
+  CODEX_MODEL_IDS.map((modelId) => modelId.toLowerCase())
+);
+
 // Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
 let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
 let _openrouterClientApiKey: string | undefined = undefined;
@@ -69,6 +79,9 @@ let _openrouterClientApiKey: string | undefined = undefined;
 // Lazy-initialized Antigravity provider
 let _antigravityProvider: ReturnType<typeof createAntigravityProvider> | null = null;
 let _antigravityProviderToken: string | undefined = undefined;
+
+// Lazy-initialized Codex provider
+let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
 
 // Cache for local embedding model instance
 let _localEmbeddingModel: EmbeddingModel | null = null;
@@ -173,6 +186,15 @@ function isAntigravityModel(modelId: string): boolean {
   return ANTIGRAVITY_MODEL_ID_SET.has(lowerModel);
 }
 
+function isCodexModel(modelId: string): boolean {
+  const baseModel = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+  const lower = baseModel.toLowerCase();
+  if (CODEX_MODEL_ID_SET.has(lower)) {
+    return true;
+  }
+  return lower.includes("codex") || lower.includes("gpt-5");
+}
+
 /**
  * Invalidate cached provider clients (call when settings change)
  */
@@ -181,6 +203,7 @@ export function invalidateProviderCache(): void {
   _openrouterClientApiKey = undefined;
   _antigravityProvider = null;
   _antigravityProviderToken = undefined;
+  _codexProvider = null;
 }
 
 /**
@@ -218,6 +241,14 @@ export function getConfiguredProvider(): LLMProvider {
     return "antigravity";
   }
 
+  if (provider === "codex") {
+    if (!isCodexAuthenticated()) {
+      console.warn("[PROVIDERS] Codex selected but not authenticated, falling back to anthropic");
+      return "anthropic";
+    }
+    return "codex";
+  }
+
   if (provider === "openrouter") {
     const apiKey = getOpenRouterApiKey();
     if (!apiKey) {
@@ -245,7 +276,16 @@ export function getConfiguredModel(): string {
   const envModel = settings.chatModel || process.env.LLM_MODEL;
 
   // Use environment model if set, otherwise use default for provider
-  return envModel || DEFAULT_MODELS[provider];
+  const model = envModel || DEFAULT_MODELS[provider];
+
+  if (provider === "codex" && model && !isCodexModel(model)) {
+    console.warn(
+      `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
+    );
+    return DEFAULT_MODELS.codex;
+  }
+
+  return model;
 }
 
 /**
@@ -253,7 +293,14 @@ export function getConfiguredModel(): string {
  */
 export function getLanguageModel(modelOverride?: string): LanguageModel {
   const provider = getConfiguredProvider();
-  const model = modelOverride || getConfiguredModel();
+  let model = modelOverride || getConfiguredModel();
+
+  if (provider === "codex" && model && !isCodexModel(model)) {
+    console.warn(
+      `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
+    );
+    model = DEFAULT_MODELS.codex;
+  }
 
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
 
@@ -263,6 +310,16 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
         throw new Error("Antigravity authentication required. Please login via Settings.");
       }
       return getAntigravityProvider()(model);
+    }
+
+    case "codex": {
+      if (!isCodexAuthenticated()) {
+        throw new Error("Codex authentication required. Please login via Settings.");
+      }
+      if (!_codexProvider) {
+        _codexProvider = createCodexProvider();
+      }
+      return _codexProvider(model);
     }
 
     case "openrouter": {
@@ -299,6 +356,14 @@ export function getModelByName(modelId: string): LanguageModel {
   if (isAntigravityModel(modelId) && isAntigravityAuthenticated()) {
     console.log(`[PROVIDERS] Using Antigravity for model: ${modelId}`);
     return getAntigravityProvider()(modelId);
+  }
+
+  if (isCodexModel(modelId) && isCodexAuthenticated()) {
+    console.log(`[PROVIDERS] Using Codex for model: ${modelId}`);
+    if (!_codexProvider) {
+      _codexProvider = createCodexProvider();
+    }
+    return _codexProvider(modelId);
   }
 
   if (isClaudeModel(modelId)) {
@@ -412,6 +477,16 @@ export function getUtilityModel(): LanguageModel {
         throw new Error("Antigravity authentication required. Please login via Settings.");
       }
       return getAntigravityProvider()(model);
+    }
+
+    case "codex": {
+      if (!isCodexAuthenticated()) {
+        throw new Error("Codex authentication required. Please login via Settings.");
+      }
+      if (!_codexProvider) {
+        _codexProvider = createCodexProvider();
+      }
+      return _codexProvider(model);
     }
 
     case "openrouter": {
@@ -579,6 +654,8 @@ export function getProviderDisplayName(): string {
   switch (provider) {
     case "antigravity":
       return `Antigravity (${model}) [Free]`;
+    case "codex":
+      return `Codex (${model})`;
     case "openrouter":
       return `OpenRouter (${model})`;
     case "anthropic":
@@ -598,6 +675,7 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
     anthropic: { tools: true, streaming: true, images: true },
     openrouter: { tools: true, streaming: true, images: true },
     antigravity: { tools: true, streaming: true, images: true },
+    codex: { tools: true, streaming: true, images: true },
   };
 
   return featureSupport[provider]?.[feature] ?? false;

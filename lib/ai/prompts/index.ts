@@ -16,6 +16,7 @@ export {
   RESPONSE_STYLE,
   TOOL_INVOCATION_FORMAT,
   TOOL_DISCOVERY_MINIMAL,
+  TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
   combineBlocks,
 } from "./shared-blocks";

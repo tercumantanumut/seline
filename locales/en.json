@@ -171,6 +171,17 @@
         "video-generation": "Video Generation",
         "analysis": "Analysis",
         "utility": "Utility"
+      },
+      "dependencyWarnings": {
+        "syncedFolders": "Requires synced folders",
+        "embeddings": "Requires embeddings",
+        "both": "Requires synced folders + embeddings",
+        "vectorDbEnabled": "Requires Vector DB enabled",
+        "tavilyKey": "Requires Tavily API key",
+        "webScraper": "Requires web scraper setup",
+        "openrouterKey": "Requires OpenRouter API key",
+        "comfyuiEnabled": "Requires ComfyUI enabled",
+        "localGrepEnabled": "Requires Local Grep enabled"
       }
     },
     "tools": {
@@ -440,7 +451,24 @@
       "generateVideoWan22": "WAN 2.2 Video Generation",
       "generatePixelVideoWan22": "WAN 2.2 Pixel Animation",
       "assembleVideo": "Video Assembly",
-      "showProductImages": "Product Gallery"
+      "showProductImages": "Product Gallery",
+      "executeCommand": "Execute Command",
+      "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
+      "editImageFlux2Flex": "Edit (Flux.2 Flex)",
+      "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
+      "generateImageGpt5Mini": "Generate (GPT-5 Mini)",
+      "editImageGpt5Mini": "Edit (GPT-5 Mini)",
+      "referenceImageGpt5Mini": "Reference (GPT-5 Mini)",
+      "generateImageGpt5": "Generate (GPT-5)",
+      "editImageGpt5": "Edit (GPT-5)",
+      "referenceImageGpt5": "Reference (GPT-5)",
+      "generateImageGemini25Flash": "Generate (Gemini 2.5 Flash)",
+      "editImageGemini25Flash": "Edit (Gemini 2.5 Flash)",
+      "referenceImageGemini25Flash": "Reference (Gemini 2.5 Flash)",
+      "generateImageGemini3Pro": "Generate (Gemini 3 Pro)",
+      "editImageGemini3Pro": "Edit (Gemini 3 Pro)",
+      "referenceImageGemini3Pro": "Reference (Gemini 3 Pro)",
+      "generateImageZImage": "Generate (Z-Image Local)"
     }
   },
   "folderSync": {
@@ -648,8 +676,40 @@
         "generateImageZImage": "Generate (Z-Image Local)",
         "generateImageZImageDesc": "Local image generation via ComfyUI (requires Docker)"
       },
+      "dependencyWarnings": {
+        "syncedFolders": "Requires synced folders",
+        "embeddings": "Requires embeddings",
+        "both": "Requires synced folders + embeddings",
+        "vectorDbEnabled": "Requires Vector DB enabled",
+        "tavilyKey": "Requires Tavily API key",
+        "webScraper": "Requires web scraper setup",
+        "openrouterKey": "Requires OpenRouter API key",
+        "comfyuiEnabled": "Requires ComfyUI enabled",
+        "localGrepEnabled": "Requires Local Grep enabled"
+      },
       "back": "← Back",
       "continue": "Continue →"
+    },
+    "embeddingSetup": {
+      "question": "Choose an embedding provider and model.",
+      "providers": {
+        "openrouter": {
+          "title": "OpenRouter (Cloud)",
+          "description": "Use OpenRouter embeddings with your API key."
+        },
+        "local": {
+          "title": "Local (On-device)",
+          "description": "Run embeddings locally with bundled models."
+        }
+      },
+      "selectModel": "Select an embedding model",
+      "models": {
+        "recommended": "Recommended"
+      },
+      "downloading": "Downloading...",
+      "back": "Back",
+      "skip": "Skip",
+      "continue": "Continue"
     },
     "style": {
       "question": "Choose a visual style for your agent...",
@@ -885,6 +945,7 @@
       "title": "Vector Search (LanceDB)",
       "subtitle": "Enable vector search to allow agents to search through indexed folders using semantic similarity. This uses LanceDB, an embedded vector database that runs locally.",
       "enable": "Enable Vector Search",
+      "enableLlmSynthesis": "Enable LLM synthesis",
       "enabled": "Vector search is enabled. You can configure which folders to index for each agent in the agent's settings or during agent creation.",
       "path": "Data is stored locally at:",
       "reindexRequired": {
@@ -913,6 +974,46 @@
         "maxFileLinesHelper": "Files exceeding this line count will be skipped during indexing (default: 3000)",
         "maxLineLength": "Max line length",
         "maxLineLengthHelper": "Files containing any line exceeding this character count will be skipped (checks for base64/massive strings, default: 1000)"
+      },
+      "advanced": {
+        "title": "Advanced Vector Settings",
+        "description": "Fine-tune retrieval behavior, chunking, reranking, and file limits.",
+        "resetToDefaults": "Reset to defaults",
+        "hybridSearch": {
+          "title": "Hybrid Search",
+          "description": "Combine dense and lexical search for better recall.",
+          "enable": "Enable hybrid search",
+          "denseWeight": "Dense weight",
+          "lexicalWeight": "Lexical weight",
+          "rrfK": "RRF k value"
+        },
+        "chunking": {
+          "title": "Token Chunking",
+          "description": "Split documents into token-aware chunks for better retrieval.",
+          "enable": "Enable token chunking",
+          "size": "Chunk size",
+          "stride": "Chunk stride"
+        },
+        "reranking": {
+          "title": "Reranking",
+          "description": "Rerank top results with an ONNX model for higher precision.",
+          "enable": "Enable reranking",
+          "topK": "Rerank top K",
+          "modelPath": "Rerank model path"
+        },
+        "queryProcessing": {
+          "title": "Query Processing",
+          "description": "Expand queries to improve recall.",
+          "enable": "Enable query expansion"
+        },
+        "fileLimits": {
+          "title": "File Limits",
+          "description": "Skip files that are too large or contain extreme lines.",
+          "maxLines": "Max file lines",
+          "maxLinesHelper": "Files exceeding this line count will be skipped during indexing (default: 3000)",
+          "maxLineLength": "Max line length",
+          "maxLineLengthHelper": "Files with any line exceeding this character count will be skipped (default: 1000)"
+        }
       }
     },
     "preferences": {

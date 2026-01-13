@@ -13,6 +13,7 @@ import {
   RESPONSE_STYLE,
   TOOL_INVOCATION_FORMAT,
   TOOL_DISCOVERY_MINIMAL,
+  TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
   combineBlocks,
 } from "./shared-blocks";
@@ -28,6 +29,8 @@ export interface BaseSystemPromptOptions {
   personalityTraits?: string[];
   /** Whether to include tool discovery instructions */
   includeToolDiscovery?: boolean;
+  /** Tool loading strategy (deferred = prompt mentions searchTools, always = tools already loaded) */
+  toolLoadingMode?: "deferred" | "always";
   /** Additional context to append (e.g., character memories, custom instructions) */
   additionalContext?: string;
 }
@@ -50,6 +53,7 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
     agentVibe,
     personalityTraits,
     includeToolDiscovery = true,
+    toolLoadingMode = "deferred",
     additionalContext,
   } = options;
 
@@ -79,7 +83,7 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
 
   // Add tool discovery if enabled
   if (includeToolDiscovery) {
-    sections.push(TOOL_DISCOVERY_MINIMAL);
+    sections.push(toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL);
   }
 
   // Add any additional context
@@ -106,9 +110,12 @@ export const DEFAULT_AGENT_CONFIG: BaseSystemPromptOptions = {
 /**
  * Build the default Seline agent system prompt
  */
-export function buildDefaultSystemPrompt(options: { includeToolDiscovery?: boolean } = {}): string {
+export function buildDefaultSystemPrompt(
+  options: { includeToolDiscovery?: boolean; toolLoadingMode?: "deferred" | "always" } = {}
+): string {
   return buildBaseSystemPrompt({
     ...DEFAULT_AGENT_CONFIG,
     includeToolDiscovery: options.includeToolDiscovery ?? true,
+    toolLoadingMode: options.toolLoadingMode ?? "deferred",
   });
 }

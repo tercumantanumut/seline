@@ -24,6 +24,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
+import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -37,37 +38,53 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 /** Available tools that can be enabled/disabled */
-const AVAILABLE_TOOLS = [
+type ToolDependency =
+  | "syncedFolders"
+  | "embeddings"
+  | "vectorDbEnabled"
+  | "tavilyKey"
+  | "webScraper"
+  | "openrouterKey"
+  | "comfyuiEnabled"
+  | "localGrepEnabled";
+
+type ToolDefinition = {
+  id: string;
+  category: "knowledge" | "search" | "image-generation" | "image-editing" | "video-generation" | "analysis" | "utility";
+  dependencies?: ToolDependency[];
+};
+
+const AVAILABLE_TOOLS: ToolDefinition[] = [
   { id: "docsSearch", category: "knowledge" },
-  { id: "vectorSearch", category: "knowledge" },
-  { id: "readFile", category: "knowledge" },
-  { id: "localGrep", category: "knowledge" },
-  { id: "webSearch", category: "search" },
-  { id: "webBrowse", category: "search" },
-  { id: "webQuery", category: "search" },
-  { id: "firecrawlCrawl", category: "search" },
+  { id: "vectorSearch", category: "knowledge", dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"] },
+  { id: "readFile", category: "knowledge", dependencies: ["syncedFolders"] },
+  { id: "localGrep", category: "knowledge", dependencies: ["syncedFolders", "localGrepEnabled"] },
+  { id: "webSearch", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webBrowse", category: "search", dependencies: ["webScraper"] },
+  { id: "webQuery", category: "search", dependencies: ["webScraper"] },
+  { id: "firecrawlCrawl", category: "search", dependencies: ["webScraper"] },
   { id: "assembleVideo", category: "video-generation" },
   { id: "describeImage", category: "analysis" },
   { id: "showProductImages", category: "utility" },
-  { id: "executeCommand", category: "utility" },
+  { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
   // OpenRouter Image Tools
-  { id: "generateImageFlux2Flex", category: "image-generation" },
-  { id: "editImageFlux2Flex", category: "image-editing" },
-  { id: "referenceImageFlux2Flex", category: "image-generation" },
-  { id: "generateImageGpt5Mini", category: "image-generation" },
-  { id: "editImageGpt5Mini", category: "image-editing" },
-  { id: "referenceImageGpt5Mini", category: "image-generation" },
-  { id: "generateImageGpt5", category: "image-generation" },
-  { id: "editImageGpt5", category: "image-editing" },
-  { id: "referenceImageGpt5", category: "image-generation" },
-  { id: "generateImageGemini25Flash", category: "image-generation" },
-  { id: "editImageGemini25Flash", category: "image-editing" },
-  { id: "referenceImageGemini25Flash", category: "image-generation" },
-  { id: "generateImageGemini3Pro", category: "image-generation" },
-  { id: "editImageGemini3Pro", category: "image-editing" },
-  { id: "referenceImageGemini3Pro", category: "image-generation" },
+  { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
+  { id: "referenceImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "generateImageGpt5Mini", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "editImageGpt5Mini", category: "image-editing", dependencies: ["openrouterKey"] },
+  { id: "referenceImageGpt5Mini", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "generateImageGpt5", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "editImageGpt5", category: "image-editing", dependencies: ["openrouterKey"] },
+  { id: "referenceImageGpt5", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "generateImageGemini25Flash", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "editImageGemini25Flash", category: "image-editing", dependencies: ["openrouterKey"] },
+  { id: "referenceImageGemini25Flash", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "generateImageGemini3Pro", category: "image-generation", dependencies: ["openrouterKey"] },
+  { id: "editImageGemini3Pro", category: "image-editing", dependencies: ["openrouterKey"] },
+  { id: "referenceImageGemini3Pro", category: "image-generation", dependencies: ["openrouterKey"] },
   // Local ComfyUI Image Tools
-  { id: "generateImageZImage", category: "image-generation" },
+  { id: "generateImageZImage", category: "image-generation", dependencies: ["comfyuiEnabled"] },
 ];
 
 interface CharacterSummary {
@@ -104,6 +121,27 @@ export function CharacterPicker() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const t = useTranslations("picker");
   const tc = useTranslations("common");
+  const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
+
+  const [dependencyStatus, setDependencyStatus] = useState<{
+    syncedFolders: boolean;
+    embeddings: boolean;
+    vectorDbEnabled: boolean;
+    tavilyKey: boolean;
+    webScraper: boolean;
+    openrouterKey: boolean;
+    comfyuiEnabled: boolean;
+    localGrepEnabled: boolean;
+  }>({
+    syncedFolders: false,
+    embeddings: false,
+    vectorDbEnabled: false,
+    tavilyKey: false,
+    webScraper: false,
+    openrouterKey: false,
+    comfyuiEnabled: false,
+    localGrepEnabled: true,
+  });
 
   // Group tools by category
   const toolsByCategory = useMemo(() => {
@@ -145,13 +183,29 @@ export function CharacterPicker() {
     });
   };
 
+  const areDependenciesMet = (tool: ToolDefinition): boolean => {
+    if (!tool.dependencies || tool.dependencies.length === 0) return true;
+    return tool.dependencies.every((dep) => dependencyStatus[dep]);
+  };
+
+  const getDependencyWarning = (tool: ToolDefinition): string | null => {
+    if (!tool.dependencies || tool.dependencies.length === 0) return null;
+    const unmet = tool.dependencies.filter((dep) => !dependencyStatus[dep]);
+    if (unmet.length === 0) return null;
+    if (unmet.length === 2 && unmet.includes("syncedFolders") && unmet.includes("embeddings")) {
+      return tDeps("both");
+    }
+    return unmet.map((dep) => tDeps(dep)).join(" + ");
+  };
+
   // Select/deselect all tools in a category
   const toggleAllInCategory = (category: string, select: boolean) => {
     const categoryTools = toolsByCategory[category] || [];
     const categoryToolIds = categoryTools.map((t) => t.id);
+    const selectableToolIds = categoryTools.filter(areDependenciesMet).map((t) => t.id);
     setSelectedTools((prev) => {
       if (select) {
-        return [...new Set([...prev, ...categoryToolIds])];
+        return [...new Set([...prev, ...selectableToolIds])];
       } else {
         return prev.filter((id) => !categoryToolIds.includes(id));
       }
@@ -181,6 +235,64 @@ export function CharacterPicker() {
       })
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!toolEditorOpen) return;
+    let cancelled = false;
+
+    const loadDependencyStatus = async () => {
+      let foldersCount = 0;
+      if (editingCharacter?.id) {
+        try {
+          const res = await fetch(`/api/vector-sync?characterId=${editingCharacter.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            foldersCount = data.folders?.length ?? 0;
+          }
+        } catch (e) {
+          console.error("Failed to check synced folders", e);
+        }
+      }
+
+      try {
+        const settingsRes = await fetch("/api/settings");
+        if (!settingsRes.ok) throw new Error("Failed to load settings");
+        const settingsData = await settingsRes.json();
+        const webScraperReady = settingsData.webScraperProvider === "local"
+          || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
+
+        if (cancelled) return;
+        setDependencyStatus({
+          syncedFolders: foldersCount > 0,
+          embeddings: !!(settingsData.embeddingModel || (settingsData.embeddingProvider === "local")),
+          vectorDbEnabled: settingsData.vectorDBEnabled === true,
+          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
+          webScraper: webScraperReady,
+          openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
+          comfyuiEnabled: settingsData.comfyuiEnabled === true,
+          localGrepEnabled: settingsData.localGrepEnabled !== false,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setDependencyStatus({
+          syncedFolders: foldersCount > 0,
+          embeddings: false,
+          vectorDbEnabled: false,
+          tavilyKey: false,
+          webScraper: false,
+          openrouterKey: false,
+          comfyuiEnabled: false,
+          localGrepEnabled: true,
+        });
+      }
+    };
+
+    loadDependencyStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [toolEditorOpen, editingCharacter]);
 
   // Filter characters based on search query
   const filteredCharacters = useMemo(() => {
@@ -539,7 +651,9 @@ export function CharacterPicker() {
               const isCollapsed = collapsedCategories.has(category);
               const selectedCount = getSelectedCountInCategory(category);
               const totalCount = (toolsByCategory[category] || []).length;
-              const allSelected = selectedCount === totalCount;
+              const selectableIds = (toolsByCategory[category] || []).filter(areDependenciesMet).map((t) => t.id);
+              const selectableSelectedCount = selectableIds.filter((id) => selectedTools.includes(id)).length;
+              const allSelected = selectableIds.length > 0 && selectableSelectedCount === selectableIds.length;
 
               return (
                 <div key={category} className="border border-terminal-border/50 rounded-lg overflow-hidden">
@@ -578,18 +692,29 @@ export function CharacterPicker() {
                   {!isCollapsed && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
                       {tools.map((tool) => (
+                        (() => {
+                          const isSelected = selectedTools.includes(tool.id);
+                          const dependenciesMet = areDependenciesMet(tool);
+                          const warning = dependenciesMet ? null : getDependencyWarning(tool);
+                          const canToggle = dependenciesMet || isSelected;
+
+                          return (
                         <div
                           key={tool.id}
-                          onClick={() => toggleTool(tool.id)}
-                          className={`flex items-start gap-2 p-2 rounded cursor-pointer transition-colors ${selectedTools.includes(tool.id)
+                          onClick={() => {
+                            if (!canToggle) return;
+                            toggleTool(tool.id);
+                          }}
+                          className={`flex items-start gap-2 p-2 rounded transition-colors ${canToggle ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${isSelected
                             ? "bg-terminal-green/10 border border-terminal-green/30"
                             : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"
-                            }`}
+                            } ${warning ? "border border-terminal-amber/30" : ""}`}
                         >
                           <Checkbox
                             id={`tool-${tool.id}`}
-                            checked={selectedTools.includes(tool.id)}
+                            checked={isSelected}
                             onCheckedChange={() => toggleTool(tool.id)}
+                            disabled={!canToggle}
                             className="mt-0.5"
                           />
                           <div className="flex-1 min-w-0">
@@ -602,8 +727,15 @@ export function CharacterPicker() {
                             <p className="text-[10px] font-mono text-terminal-muted line-clamp-1">
                               {t(`tools.${tool.id}.description`)}
                             </p>
+                            {warning && (
+                              <div className="mt-1">
+                                <ToolDependencyBadge warning={warning} />
+                              </div>
+                            )}
                           </div>
                         </div>
+                          );
+                        })()
                       ))}
                     </div>
                   )}

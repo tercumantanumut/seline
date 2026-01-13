@@ -10,6 +10,15 @@
 export async function register() {
   // Only run on server side
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    const shouldLogAiSdkWarnings =
+      process.env.AI_SDK_LOG_WARNINGS === "true" || process.env.AI_SDK_LOG_WARNINGS === "1";
+    if (!shouldLogAiSdkWarnings) {
+      const globalForAiSdk = globalThis as typeof globalThis & {
+        AI_SDK_LOG_WARNINGS?: boolean;
+      };
+      globalForAiSdk.AI_SDK_LOG_WARNINGS = false;
+    }
+
     console.log("[Instrumentation] Initializing server-side services...");
     
     // Initialize settings first

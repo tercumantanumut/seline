@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ComputerGraphic } from "../computer-graphic";
 import { TypewriterText } from "@/components/ui/typewriter-text";
 import { TerminalPrompt } from "@/components/ui/terminal-prompt";
-import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { useTranslations } from "next-intl";
+import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
+import { AlertTriangleIcon, LockIcon } from "lucide-react";
 
 /** Tool capability definition for the wizard */
 export interface ToolCapability {
@@ -16,40 +17,159 @@ export interface ToolCapability {
   /** Translation key for description (e.g., "docsSearch" -> t("tools.docsSearchDesc")) */
   descKey: string;
   category: "knowledge" | "search" | "image-generation" | "image-editing" | "video-generation" | "analysis" | "utility";
+  /** Dependencies required for this tool to function */
+  dependencies?: (
+    | "syncedFolders"
+    | "embeddings"
+    | "vectorDbEnabled"
+    | "tavilyKey"
+    | "webScraper"
+    | "openrouterKey"
+    | "comfyuiEnabled"
+    | "localGrepEnabled"
+  )[];
 }
 
 /** Available tools grouped by category - uses translation keys */
 const AVAILABLE_TOOLS: ToolCapability[] = [
   { id: "docsSearch", nameKey: "docsSearch", descKey: "docsSearchDesc", category: "knowledge" },
-  { id: "vectorSearch", nameKey: "vectorSearch", descKey: "vectorSearchDesc", category: "knowledge" },
-  { id: "readFile", nameKey: "readFile", descKey: "readFileDesc", category: "knowledge" },
-  { id: "localGrep", nameKey: "localGrep", descKey: "localGrepDesc", category: "knowledge" },
-  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search" },
-  { id: "webBrowse", nameKey: "webBrowse", descKey: "webBrowseDesc", category: "search" },
-  { id: "webQuery", nameKey: "webQuery", descKey: "webQueryDesc", category: "search" },
-  { id: "firecrawlCrawl", nameKey: "firecrawlCrawl", descKey: "firecrawlCrawlDesc", category: "search" },
+  {
+    id: "vectorSearch",
+    nameKey: "vectorSearch",
+    descKey: "vectorSearchDesc",
+    category: "knowledge",
+    dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"],
+  },
+  { id: "readFile", nameKey: "readFile", descKey: "readFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
+  {
+    id: "localGrep",
+    nameKey: "localGrep",
+    descKey: "localGrepDesc",
+    category: "knowledge",
+    dependencies: ["syncedFolders", "localGrepEnabled"],
+  },
+  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webBrowse", nameKey: "webBrowse", descKey: "webBrowseDesc", category: "search", dependencies: ["webScraper"] },
+  { id: "webQuery", nameKey: "webQuery", descKey: "webQueryDesc", category: "search", dependencies: ["webScraper"] },
+  { id: "firecrawlCrawl", nameKey: "firecrawlCrawl", descKey: "firecrawlCrawlDesc", category: "search", dependencies: ["webScraper"] },
   { id: "assembleVideo", nameKey: "assembleVideo", descKey: "assembleVideoDesc", category: "video-generation" },
   { id: "describeImage", nameKey: "describeImage", descKey: "describeImageDesc", category: "analysis" },
   { id: "showProductImages", nameKey: "showProductImages", descKey: "showProductImagesDesc", category: "utility" },
-  { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility" },
+  { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility", dependencies: ["syncedFolders"] },
   // OpenRouter Image Tools
-  { id: "generateImageFlux2Flex", nameKey: "generateImageFlux2Flex", descKey: "generateImageFlux2FlexDesc", category: "image-generation" },
-  { id: "editImageFlux2Flex", nameKey: "editImageFlux2Flex", descKey: "editImageFlux2FlexDesc", category: "image-editing" },
-  { id: "referenceImageFlux2Flex", nameKey: "referenceImageFlux2Flex", descKey: "referenceImageFlux2FlexDesc", category: "image-generation" },
-  { id: "generateImageGpt5Mini", nameKey: "generateImageGpt5Mini", descKey: "generateImageGpt5MiniDesc", category: "image-generation" },
-  { id: "editImageGpt5Mini", nameKey: "editImageGpt5Mini", descKey: "editImageGpt5MiniDesc", category: "image-editing" },
-  { id: "referenceImageGpt5Mini", nameKey: "referenceImageGpt5Mini", descKey: "referenceImageGpt5MiniDesc", category: "image-generation" },
-  { id: "generateImageGpt5", nameKey: "generateImageGpt5", descKey: "generateImageGpt5Desc", category: "image-generation" },
-  { id: "editImageGpt5", nameKey: "editImageGpt5", descKey: "editImageGpt5Desc", category: "image-editing" },
-  { id: "referenceImageGpt5", nameKey: "referenceImageGpt5", descKey: "referenceImageGpt5Desc", category: "image-generation" },
-  { id: "generateImageGemini25Flash", nameKey: "generateImageGemini25Flash", descKey: "generateImageGemini25FlashDesc", category: "image-generation" },
-  { id: "editImageGemini25Flash", nameKey: "editImageGemini25Flash", descKey: "editImageGemini25FlashDesc", category: "image-editing" },
-  { id: "referenceImageGemini25Flash", nameKey: "referenceImageGemini25Flash", descKey: "referenceImageGemini25FlashDesc", category: "image-generation" },
-  { id: "generateImageGemini3Pro", nameKey: "generateImageGemini3Pro", descKey: "generateImageGemini3ProDesc", category: "image-generation" },
-  { id: "editImageGemini3Pro", nameKey: "editImageGemini3Pro", descKey: "editImageGemini3ProDesc", category: "image-editing" },
-  { id: "referenceImageGemini3Pro", nameKey: "referenceImageGemini3Pro", descKey: "referenceImageGemini3ProDesc", category: "image-generation" },
+  {
+    id: "generateImageFlux2Flex",
+    nameKey: "generateImageFlux2Flex",
+    descKey: "generateImageFlux2FlexDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "editImageFlux2Flex",
+    nameKey: "editImageFlux2Flex",
+    descKey: "editImageFlux2FlexDesc",
+    category: "image-editing",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "referenceImageFlux2Flex",
+    nameKey: "referenceImageFlux2Flex",
+    descKey: "referenceImageFlux2FlexDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "generateImageGpt5Mini",
+    nameKey: "generateImageGpt5Mini",
+    descKey: "generateImageGpt5MiniDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "editImageGpt5Mini",
+    nameKey: "editImageGpt5Mini",
+    descKey: "editImageGpt5MiniDesc",
+    category: "image-editing",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "referenceImageGpt5Mini",
+    nameKey: "referenceImageGpt5Mini",
+    descKey: "referenceImageGpt5MiniDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "generateImageGpt5",
+    nameKey: "generateImageGpt5",
+    descKey: "generateImageGpt5Desc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "editImageGpt5",
+    nameKey: "editImageGpt5",
+    descKey: "editImageGpt5Desc",
+    category: "image-editing",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "referenceImageGpt5",
+    nameKey: "referenceImageGpt5",
+    descKey: "referenceImageGpt5Desc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "generateImageGemini25Flash",
+    nameKey: "generateImageGemini25Flash",
+    descKey: "generateImageGemini25FlashDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "editImageGemini25Flash",
+    nameKey: "editImageGemini25Flash",
+    descKey: "editImageGemini25FlashDesc",
+    category: "image-editing",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "referenceImageGemini25Flash",
+    nameKey: "referenceImageGemini25Flash",
+    descKey: "referenceImageGemini25FlashDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "generateImageGemini3Pro",
+    nameKey: "generateImageGemini3Pro",
+    descKey: "generateImageGemini3ProDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "editImageGemini3Pro",
+    nameKey: "editImageGemini3Pro",
+    descKey: "editImageGemini3ProDesc",
+    category: "image-editing",
+    dependencies: ["openrouterKey"],
+  },
+  {
+    id: "referenceImageGemini3Pro",
+    nameKey: "referenceImageGemini3Pro",
+    descKey: "referenceImageGemini3ProDesc",
+    category: "image-generation",
+    dependencies: ["openrouterKey"],
+  },
   // Local ComfyUI Image Tools
-  { id: "generateImageZImage", nameKey: "generateImageZImage", descKey: "generateImageZImageDesc", category: "image-generation" },
+  {
+    id: "generateImageZImage",
+    nameKey: "generateImageZImage",
+    descKey: "generateImageZImageDesc",
+    category: "image-generation",
+    dependencies: ["comfyuiEnabled"],
+  },
 ];
 
 /** Category translation keys */
@@ -65,6 +185,7 @@ const CATEGORY_KEYS: Record<string, string> = {
 
 interface CapabilitiesPageProps {
   agentName: string;
+  agentId?: string | null;
   initialEnabledTools?: string[];
   onSubmit: (enabledTools: string[]) => void;
   onBack: () => void;
@@ -72,15 +193,87 @@ interface CapabilitiesPageProps {
 
 export function CapabilitiesPage({
   agentName,
+  agentId,
   initialEnabledTools = ["docsSearch"],
   onSubmit,
   onBack,
 }: CapabilitiesPageProps) {
   const t = useTranslations("characterCreation.capabilities");
+  const tDeps = useTranslations("characterCreation.capabilities.dependencyWarnings");
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(initialEnabledTools));
   const [showForm, setShowForm] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
+
+  // Dependency status - tracks what's configured
+  const [dependencyStatus, setDependencyStatus] = useState<{
+    syncedFolders: boolean;
+    embeddings: boolean;
+    vectorDbEnabled: boolean;
+    tavilyKey: boolean;
+    webScraper: boolean;
+    openrouterKey: boolean;
+    comfyuiEnabled: boolean;
+    localGrepEnabled: boolean;
+  }>({
+    syncedFolders: false,
+    embeddings: false,
+    vectorDbEnabled: false,
+    tavilyKey: false,
+    webScraper: false,
+    openrouterKey: false,
+    comfyuiEnabled: false,
+    localGrepEnabled: true,
+  });
+
+  // Check dependencies on mount
+  useEffect(() => {
+    const checkDependencies = async () => {
+      let foldersCount = 0;
+      if (agentId) {
+        try {
+          const res = await fetch(`/api/vector-sync?characterId=${agentId}`);
+          if (res.ok) {
+            const data = await res.json();
+            foldersCount = data.folders?.length ?? 0;
+          }
+        } catch (e) {
+          console.error("Failed to check synced folders", e);
+        }
+      }
+
+      fetch("/api/settings").then((r) => r.json())
+        .then((settingsData) => {
+          const webScraperReady = settingsData.webScraperProvider === "local"
+            || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
+
+          setDependencyStatus({
+            syncedFolders: foldersCount > 0,
+            embeddings: !!(settingsData.embeddingModel || (settingsData.embeddingProvider === "local")),
+            vectorDbEnabled: settingsData.vectorDBEnabled === true,
+            tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
+            webScraper: webScraperReady,
+            openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
+            comfyuiEnabled: settingsData.comfyuiEnabled === true,
+            localGrepEnabled: settingsData.localGrepEnabled !== false,
+          });
+        })
+        .catch(() => {
+          setDependencyStatus({
+            syncedFolders: foldersCount > 0,
+            embeddings: false,
+            vectorDbEnabled: false,
+            tavilyKey: false,
+            webScraper: false,
+            openrouterKey: false,
+            comfyuiEnabled: false,
+            localGrepEnabled: true,
+          });
+        });
+    };
+
+    checkDependencies();
+  }, [agentId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -89,6 +282,23 @@ export function CapabilitiesPage({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onBack]);
+
+  // Helper to check if tool dependencies are met
+  const areDependenciesMet = (tool: ToolCapability): boolean => {
+    if (!tool.dependencies || tool.dependencies.length === 0) return true;
+    return tool.dependencies.every((dep) => dependencyStatus[dep]);
+  };
+
+  // Get dependency warning message
+  const getDependencyWarning = (tool: ToolCapability): string | null => {
+    if (!tool.dependencies || tool.dependencies.length === 0) return null;
+    const unmet = tool.dependencies.filter((dep) => !dependencyStatus[dep]);
+    if (unmet.length === 0) return null;
+    if (unmet.length === 2 && unmet.includes("syncedFolders") && unmet.includes("embeddings")) {
+      return tDeps("both");
+    }
+    return unmet.map((dep) => tDeps(dep)).join(" + ");
+  };
 
   const toggleTool = (toolId: string) => {
     setEnabledTools((prev) => {
@@ -166,16 +376,23 @@ export function CapabilitiesPage({
                       {t(`categories.${CATEGORY_KEYS[category]}`)}
                     </h3>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {tools.map((tool) => (
-                        <ToolToggle
-                          key={tool.id}
-                          tool={tool}
-                          displayName={t(`tools.${tool.nameKey}`)}
-                          description={t(`tools.${tool.descKey}`)}
-                          enabled={enabledTools.has(tool.id)}
-                          onToggle={() => toggleTool(tool.id)}
-                        />
-                      ))}
+                      {tools.map((tool) => {
+                        const isMet = areDependenciesMet(tool);
+                        const warning = getDependencyWarning(tool);
+
+                        return (
+                          <ToolToggle
+                            key={tool.id}
+                            tool={tool}
+                            displayName={t(`tools.${tool.nameKey}`)}
+                            description={t(`tools.${tool.descKey}`)}
+                            enabled={enabledTools.has(tool.id)}
+                            disabled={!isMet}
+                            warning={warning}
+                            onToggle={() => toggleTool(tool.id)}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -210,26 +427,35 @@ function ToolToggle({
   displayName,
   description,
   enabled,
+  disabled,
+  warning,
   onToggle,
 }: {
   tool: ToolCapability;
   displayName: string;
   description: string;
   enabled: boolean;
+  disabled?: boolean;
+  warning?: string | null;
   onToggle: () => void;
 }) {
   return (
     <button
       onClick={onToggle}
-      className={`w-full flex items-center gap-3 p-3 rounded border transition-colors text-left ${enabled
-        ? "bg-terminal-green/10 border-terminal-green/50"
-        : "bg-terminal-bg/20 border-terminal-border/50 hover:border-terminal-border"
+      disabled={disabled}
+      className={`w-full flex items-center gap-3 p-3 rounded border transition-colors text-left ${disabled
+        ? "bg-terminal-bg/10 border-terminal-border/30 opacity-60 cursor-not-allowed"
+        : enabled
+          ? "bg-terminal-green/10 border-terminal-green/50"
+          : "bg-terminal-bg/20 border-terminal-border/50 hover:border-terminal-border"
         }`}
     >
       <div
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${enabled
-          ? "bg-terminal-green border-terminal-green text-white"
-          : "border-terminal-dark/30"
+        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${disabled
+          ? "border-terminal-dark/10 bg-terminal-dark/5"
+          : enabled
+            ? "bg-terminal-green border-terminal-green text-white"
+            : "border-terminal-dark/30"
           }`}
       >
         {enabled && (
@@ -237,9 +463,13 @@ function ToolToggle({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         )}
+        {disabled && <LockIcon className="w-3 h-3 text-terminal-dark/30" />}
       </div>
       <div className="flex-1">
-        <div className="font-mono text-sm text-terminal-dark">{displayName}</div>
+        <div className="flex items-center gap-2">
+          <div className="font-mono text-sm text-terminal-dark">{displayName}</div>
+          {warning && <ToolDependencyBadge warning={warning} />}
+        </div>
         <div className="font-mono text-xs text-terminal-dark/60">{description}</div>
       </div>
     </button>

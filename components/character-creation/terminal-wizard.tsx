@@ -11,6 +11,7 @@ import {
   CapabilitiesPage,
   KnowledgeBasePage,
   VectorSearchPage,
+  EmbeddingSetupPage,
 } from "./terminal-pages";
 import { useReducedMotion } from "./hooks/use-reduced-motion";
 import { useAgentExpansion } from "@/lib/characters/hooks";
@@ -26,13 +27,14 @@ type WizardPage =
   | "identity"
   | "capabilities"
   | "knowledge"
+  | "embeddingSetup"
   | "vectorSearch"
   | "loading"
   | "preview"
   | "success";
 
 /** Pages that should show the progress bar */
-const PROGRESS_PAGES: WizardPage[] = ["identity", "capabilities", "knowledge", "vectorSearch", "preview"];
+const PROGRESS_PAGES: WizardPage[] = ["identity", "knowledge", "embeddingSetup", "vectorSearch", "capabilities", "preview"];
 
 interface WizardState {
   identity: AgentIdentity;
@@ -139,7 +141,7 @@ export function TerminalWizard() {
 
       const data = await response.json();
       setDraftAgentId(data.character.id);
-      navigateTo("capabilities");
+      navigateTo("knowledge");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create agent");
       navigateTo("identity", -1);
@@ -149,23 +151,50 @@ export function TerminalWizard() {
   // Handle capabilities submission
   const handleCapabilitiesSubmit = (enabledTools: string[]) => {
     setState((prev) => ({ ...prev, enabledTools }));
-    navigateTo("knowledge");
+    navigateTo("preview");
   };
 
   // Handle knowledge base submission
   const handleKnowledgeSubmit = (documents: UploadedDocument[]) => {
     setState((prev) => ({ ...prev, documents }));
-    // Navigate to vector search if enabled, otherwise go to preview
-    if (vectorDBEnabled) {
-      navigateTo("vectorSearch");
-    } else {
-      navigateTo("preview");
-    }
+    // Navigate to embedding setup to configure semantic search
+    navigateTo("embeddingSetup");
   };
 
   // Handle vector search submission
   const handleVectorSearchSubmit = () => {
-    navigateTo("preview");
+    navigateTo("capabilities");
+  };
+
+  // Handle embedding setup submission
+  const handleEmbeddingSetupSubmit = async (config: { provider: string; model: string; apiKey?: string }) => {
+    try {
+      // Save embedding config to settings and enable vector search
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeddingProvider: config.provider,
+          embeddingModel: config.model,
+          openrouterApiKey: config.apiKey || undefined,
+          vectorDBEnabled: true,
+        }),
+      });
+      setVectorDBEnabled(true);
+      navigateTo("vectorSearch");
+    } catch (err) {
+      console.error("Failed to save embedding config:", err);
+      navigateTo("vectorSearch");
+    }
+  };
+
+  // Handle embedding setup skip
+  const handleEmbeddingSetupSkip = () => {
+    if (vectorDBEnabled) {
+      navigateTo("vectorSearch");
+    } else {
+      navigateTo("capabilities");
+    }
   };
 
   // Agents expansion hook
@@ -301,9 +330,10 @@ export function TerminalWizard() {
             {currentPage === "capabilities" && (
               <CapabilitiesPage
                 agentName={state.identity.name}
+                agentId={draftAgentId}
                 initialEnabledTools={state.enabledTools}
                 onSubmit={handleCapabilitiesSubmit}
-                onBack={() => navigateTo("identity", -1)}
+                onBack={() => navigateTo(vectorDBEnabled ? "vectorSearch" : "embeddingSetup", -1)}
               />
             )}
             {currentPage === "knowledge" && draftAgentId && (
@@ -312,7 +342,7 @@ export function TerminalWizard() {
                 agentName={state.identity.name}
                 initialDocuments={state.documents}
                 onSubmit={handleKnowledgeSubmit}
-                onBack={() => navigateTo("capabilities", -1)}
+                onBack={() => navigateTo("identity", -1)}
               />
             )}
             {currentPage === "vectorSearch" && draftAgentId && (
@@ -320,8 +350,16 @@ export function TerminalWizard() {
                 agentId={draftAgentId}
                 agentName={state.identity.name}
                 onSubmit={handleVectorSearchSubmit}
-                onBack={() => navigateTo("knowledge", -1)}
+                onBack={() => navigateTo("embeddingSetup", -1)}
                 onSkip={handleVectorSearchSubmit}
+              />
+            )}
+            {currentPage === "embeddingSetup" && (
+              <EmbeddingSetupPage
+                agentName={state.identity.name}
+                onSubmit={handleEmbeddingSetupSubmit}
+                onBack={() => navigateTo("knowledge", -1)}
+                onSkip={handleEmbeddingSetupSkip}
               />
             )}
             {currentPage === "loading" && (
@@ -349,7 +387,7 @@ export function TerminalWizard() {
                 enabledTools={state.enabledTools}
                 documents={state.documents}
                 onConfirm={handleFinalizeAgent}
-                onBack={() => navigateTo(vectorDBEnabled ? "vectorSearch" : "knowledge", -1)}
+                onBack={() => navigateTo("capabilities", -1)}
                 isSubmitting={isSubmitting}
               />
             )}

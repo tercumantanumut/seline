@@ -13,6 +13,19 @@ import { tool, jsonSchema } from "ai";
 import { ToolRegistry } from "./registry";
 import type { ToolSearchResult, ToolCategory } from "./types";
 
+const TOOL_SEARCH_LOGGING_ENABLED =
+  process.env.TOOL_SEARCH_LOGGING === "true" || process.env.TOOL_SEARCH_LOGGING === "1";
+
+function logSearchTools(message: string): void {
+  if (!TOOL_SEARCH_LOGGING_ENABLED) return;
+  console.log(message);
+}
+
+function warnSearchTools(message: string): void {
+  if (!TOOL_SEARCH_LOGGING_ENABLED) return;
+  console.warn(message);
+}
+
 /**
  * Context for search/list tools to know which tools are actually available
  * in the current session (not just registered in the global registry).
@@ -175,7 +188,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
           });
 
           if (fuzzyMatches.length > exactMatches.length) {
-            console.log(`[searchTools] Category "${category}" expanded from ${exactMatches.length} exact to ${fuzzyMatches.length} fuzzy matches`);
+            logSearchTools(`[searchTools] Category "${category}" expanded from ${exactMatches.length} exact to ${fuzzyMatches.length} fuzzy matches`);
             results = fuzzyMatches;
           } else {
             results = exactMatches;
@@ -186,7 +199,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 
         // Warn if category filter was too narrow
         if (results.length < beforeCategoryFilter && results.length < 3) {
-          console.warn(`[searchTools] Category "${category}" narrowed ${beforeCategoryFilter} -> ${results.length} results. Consider query-only search for better discovery.`);
+          warnSearchTools(`[searchTools] Category "${category}" narrowed ${beforeCategoryFilter} -> ${results.length} results. Consider query-only search for better discovery.`);
         }
       }
 
@@ -203,7 +216,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
           // Only show tools that are in the enabledTools set
           return enabledTools.has(r.name);
         });
-        console.log(`[searchTools] Filtered ${beforeCount} -> ${results.length} results (agent has ${enabledTools.size} enabled tools)`);
+        logSearchTools(`[searchTools] Filtered ${beforeCount} -> ${results.length} results (agent has ${enabledTools.size} enabled tools)`);
       }
 
       // Apply final limit after filtering
@@ -249,7 +262,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
           const toolMeta = registry.get(result.name);
           if (toolMeta?.metadata.loading.deferLoading) {
             discoveredTools.add(result.name);
-            console.log(`[searchTools] Discovered deferred tool: ${result.name}`);
+            logSearchTools(`[searchTools] Discovered deferred tool: ${result.name}`);
           }
         }
       }

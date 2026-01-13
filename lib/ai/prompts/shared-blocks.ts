@@ -110,6 +110,31 @@ export const TOOL_DISCOVERY_MINIMAL = `## Tool Discovery & Codebase Search
 Most tools are deferred-loaded to save tokens. Use searchTools to discover capabilities like image generation or web browsing - NOT to search file contents.`;
 
 /**
+ * Tool Discovery Instructions (Always-Include Mode)
+ *
+ * Use when all tools are preloaded (no deferred loading).
+ */
+export const TOOL_DISCOVERY_ALWAYS = `## Tool Discovery & Codebase Search
+
+**⚠️ CRITICAL DISTINCTION - READ CAREFULLY:**
+
+| Task | Tool to Use |
+|------|-------------|
+| Search PROJECT FILES/CODEBASE for code | \`localGrep\` (exact) or \`vectorSearch\` (semantic) |
+| Discover what AI TOOLS you have | \`searchTools\` |
+
+**searchTools is NOT for searching code!** It queries your tool registry, not files:
+- ❌ WRONG: searchTools({ query: "tutorial positioning modal" })
+- ✅ RIGHT: localGrep({ pattern: "tutorial", fileTypes: ["tsx"] })
+
+**Tool availability:** Tools are already loaded in this session. Use a tool directly when you know it exists.
+Only use \`searchTools\` if you need to confirm a capability or view detailed usage instructions.
+
+**When user says "search the codebase" or "find X in the code":**
+→ Use \`localGrep\` for exact text/regex patterns
+→ Use \`vectorSearch\` for conceptual/semantic search`;
+
+/**
  * Multi-Image Tool Usage Guidelines
  *
  * Instructs the AI to combine multiple available images when appropriate

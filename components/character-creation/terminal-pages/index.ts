@@ -6,5 +6,6 @@ export { IdentityPage } from "./identity-page";
 export { CapabilitiesPage } from "./capabilities-page";
 export { KnowledgeBasePage } from "./knowledge-base-page";
 export { VectorSearchPage } from "./vector-search-page";
+export { EmbeddingSetupPage } from "./embedding-setup-page";
 
 // Legacy exports for backward compatibility (can be removed later)

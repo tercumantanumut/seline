@@ -27,7 +27,6 @@ export {
 } from "./search";
 export {
   searchWithRouter,
-  shouldUseV2,
 } from "./search-router";
 export {
   addSyncFolder,
