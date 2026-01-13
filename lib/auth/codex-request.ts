@@ -104,7 +104,7 @@ function resolveTextVerbosity(body: Record<string, any>): "low" | "medium" | "hi
 function resolveInclude(body: Record<string, any>): string[] {
   const providerOpenAI = body.providerOptions?.openai;
   const base = body.include || providerOpenAI?.include || ["reasoning.encrypted_content"];
-  const include = Array.from(new Set(base.filter(Boolean)));
+  const include = Array.from(new Set(base.filter(Boolean))) as string[];
   if (!include.includes("reasoning.encrypted_content")) {
     include.push("reasoning.encrypted_content");
   }
