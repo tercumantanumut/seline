@@ -10,11 +10,13 @@ import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
+import { getCodexModels } from "@/lib/auth/codex-models";
 import { ComfyUIInstaller } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
+import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 
 interface AppSettings {
-  llmProvider: "anthropic" | "openrouter" | "antigravity";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   tavilyApiKey?: string;
@@ -37,7 +39,7 @@ interface AppSettings {
   vectorSearchRerankingEnabled?: boolean;
   vectorSearchQueryExpansionEnabled?: boolean;
   vectorSearchLlmSynthesisEnabled?: boolean;
-  vectorSearchV2Percentage?: number;
+
   vectorSearchRrfK?: number;
   vectorSearchDenseWeight?: number;
   vectorSearchLexicalWeight?: number;
@@ -51,6 +53,12 @@ interface AppSettings {
   antigravityAuth?: {
     isAuthenticated: boolean;
     email?: string;
+    expiresAt?: number;
+  };
+  codexAuth?: {
+    isAuthenticated: boolean;
+    email?: string;
+    accountId?: string;
     expiresAt?: number;
   };
 }
@@ -70,7 +78,7 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState({
-    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity",
+    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex",
     anthropicApiKey: "",
     openrouterApiKey: "",
     tavilyApiKey: "",
@@ -92,7 +100,7 @@ export default function SettingsPage() {
     vectorSearchRerankingEnabled: false,
     vectorSearchQueryExpansionEnabled: false,
     vectorSearchLlmSynthesisEnabled: true,
-    vectorSearchV2Percentage: 0,
+
     vectorSearchRrfK: 30,
     vectorSearchDenseWeight: 1.5,
     vectorSearchLexicalWeight: 0.2,
@@ -120,9 +128,19 @@ export default function SettingsPage() {
   } | null>(null);
   const [antigravityLoading, setAntigravityLoading] = useState(false);
 
+  // Codex auth state (separate from form state, managed via OAuth)
+  const [codexAuth, setCodexAuth] = useState<{
+    isAuthenticated: boolean;
+    email?: string;
+    accountId?: string;
+    expiresAt?: number;
+  } | null>(null);
+  const [codexLoading, setCodexLoading] = useState(false);
+
   useEffect(() => {
     loadSettings();
     loadAntigravityAuth();
+    loadCodexAuth();
   }, []);
 
   const loadSettings = async () => {
@@ -154,7 +172,7 @@ export default function SettingsPage() {
         vectorSearchRerankingEnabled: data.vectorSearchRerankingEnabled ?? false,
         vectorSearchQueryExpansionEnabled: data.vectorSearchQueryExpansionEnabled ?? false,
         vectorSearchLlmSynthesisEnabled: data.vectorSearchLlmSynthesisEnabled ?? true,
-        vectorSearchV2Percentage: data.vectorSearchV2Percentage ?? 0,
+
         vectorSearchRrfK: data.vectorSearchRrfK ?? 30,
         vectorSearchDenseWeight: data.vectorSearchDenseWeight ?? 1.5,
         vectorSearchLexicalWeight: data.vectorSearchLexicalWeight ?? 0.2,
@@ -182,6 +200,9 @@ export default function SettingsPage() {
 
   const loadAntigravityAuth = async (): Promise<boolean> => {
     try {
+      // First, try to refresh if needed (proactive refresh)
+      await fetch('/api/auth/antigravity/refresh', { method: 'POST' });
+
       // Add cache-busting to ensure fresh data
       const response = await fetch(`/api/auth/antigravity?t=${Date.now()}`);
       if (response.ok) {
@@ -196,6 +217,28 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error("Failed to load Antigravity auth status:", err);
+    }
+    return false;
+  };
+
+  const loadCodexAuth = async (): Promise<boolean> => {
+    try {
+      await fetch("/api/auth/codex/refresh", { method: "POST" });
+
+      const response = await fetch(`/api/auth/codex?t=${Date.now()}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[Settings] Loaded Codex auth:", data);
+        setCodexAuth({
+          isAuthenticated: data.authenticated,
+          email: data.email,
+          accountId: data.accountId,
+          expiresAt: data.expiresAt,
+        });
+        return data.authenticated;
+      }
+    } catch (err) {
+      console.error("Failed to load Codex auth status:", err);
     }
     return false;
   };
@@ -329,6 +372,132 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCodexLogin = async () => {
+    setCodexLoading(true);
+    let popup: Window | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let messageHandler: ((event: MessageEvent) => void) | null = null;
+    let pollInFlight = false;
+    const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+      ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+      : undefined;
+    const isElectron = !!electronAPI?.isElectron;
+
+    const cleanup = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (messageHandler) window.removeEventListener("message", messageHandler);
+      setCodexLoading(false);
+    };
+
+    try {
+      if (!isElectron) {
+        const width = 520;
+        const height = 720;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        popup = window.open(
+          "about:blank",
+          "codex-auth",
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        if (popup) {
+          popup.document.write("<p style='font-family:sans-serif'>Connecting to OpenAI...</p>");
+        }
+      }
+
+      const authResponse = await fetch("/api/auth/codex/authorize");
+      const authData = await authResponse.json();
+
+      if (!authData.success || !authData.url) {
+        popup?.close();
+        throw new Error(authData.error || "Failed to get authorization URL");
+      }
+
+      if (isElectron && electronAPI?.shell?.openExternal) {
+        await electronAPI.shell.openExternal(authData.url);
+      } else if (popup) {
+        popup.location.href = authData.url;
+      } else {
+        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        cleanup();
+        return;
+      }
+
+      messageHandler = (event: MessageEvent) => {
+        const allowedOrigins = new Set([
+          window.location.origin,
+          "http://127.0.0.1:1455",
+          "http://localhost:1455",
+        ]);
+        if (!allowedOrigins.has(event.origin)) return;
+
+        if (event.data?.type === "codex-auth") {
+          console.log("[Settings] Received Codex auth message:", event.data);
+          popup?.close();
+          loadCodexAuth().finally(cleanup);
+        }
+      };
+
+      window.addEventListener("message", messageHandler);
+
+      pollInterval = setInterval(async () => {
+        if (pollInFlight) return;
+        pollInFlight = true;
+        try {
+          const authenticated = await loadCodexAuth();
+          if (authenticated) {
+            console.log("[Settings] Codex auth confirmed, closing popup...");
+            popup?.close();
+            cleanup();
+            return;
+          }
+
+          if (popup?.closed) {
+            console.log("[Settings] Codex popup closed, refreshing auth state...");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await loadCodexAuth();
+            cleanup();
+          }
+        } finally {
+          pollInFlight = false;
+        }
+      }, 1000);
+
+      timeoutId = setTimeout(() => {
+        console.warn("[Settings] Codex OAuth timeout");
+        popup?.close();
+        cleanup();
+      }, 5 * 60 * 1000);
+    } catch (err) {
+      console.error("Codex login failed:", err);
+      cleanup();
+    }
+  };
+
+  const handleCodexLogout = async () => {
+    setCodexLoading(true);
+    try {
+      const response = await fetch("/api/auth/codex", { method: "DELETE" });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Logout failed with status ${response.status}`);
+      }
+      setCodexAuth(null);
+      if (formState.llmProvider === "codex") {
+        setFormState(prev => ({ ...prev, llmProvider: "anthropic" }));
+      }
+    } catch (err) {
+      console.error("Codex logout failed:", err);
+      toast.error(tc("error"));
+    } finally {
+      setCodexLoading(false);
+    }
+  };
+
   const saveSettings = async () => {
     setSaving(true);
     setError(null);
@@ -425,6 +594,10 @@ export default function SettingsPage() {
               antigravityLoading={antigravityLoading}
               onAntigravityLogin={handleAntigravityLogin}
               onAntigravityLogout={handleAntigravityLogout}
+              codexAuth={codexAuth}
+              codexLoading={codexLoading}
+              onCodexLogin={handleCodexLogin}
+              onCodexLogout={handleCodexLogout}
             />
           </div>
         </div>
@@ -434,7 +607,7 @@ export default function SettingsPage() {
 }
 
 interface FormState {
-  llmProvider: "anthropic" | "openrouter" | "antigravity";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
   anthropicApiKey: string;
   openrouterApiKey: string;
   tavilyApiKey: string;
@@ -456,7 +629,7 @@ interface FormState {
   vectorSearchRerankingEnabled: boolean;
   vectorSearchQueryExpansionEnabled: boolean;
   vectorSearchLlmSynthesisEnabled: boolean;
-  vectorSearchV2Percentage: number;
+
   vectorSearchRrfK: number;
   vectorSearchDenseWeight: number;
   vectorSearchLexicalWeight: number;
@@ -485,6 +658,7 @@ const LOCAL_EMBEDDING_MODELS = [
 ];
 
 const ANTIGRAVITY_MODELS = getAntigravityModels();
+const CODEX_MODELS = getCodexModels();
 
 interface LocalEmbeddingModelSelectorProps {
   formState: FormState;
@@ -661,6 +835,10 @@ interface SettingsPanelProps {
   antigravityLoading: boolean;
   onAntigravityLogin: () => void;
   onAntigravityLogout: () => void;
+  codexAuth: { isAuthenticated: boolean; email?: string; accountId?: string; expiresAt?: number } | null;
+  codexLoading: boolean;
+  onCodexLogin: () => void;
+  onCodexLogout: () => void;
 }
 
 function SettingsPanel({
@@ -671,35 +849,15 @@ function SettingsPanel({
   antigravityLoading,
   onAntigravityLogin,
   onAntigravityLogout,
+  codexAuth,
+  codexLoading,
+  onCodexLogin,
+  onCodexLogout,
 }: SettingsPanelProps) {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
-  const [reindexingAll, setReindexingAll] = useState(false);
-  const [reindexError, setReindexError] = useState<string | null>(null);
-
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setFormState((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleReindexAll = async () => {
-    setReindexingAll(true);
-    setReindexError(null);
-    try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reindex-all" }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to reindex all folders");
-      }
-      updateField("embeddingReindexRequired", false);
-    } catch (err) {
-      setReindexError(err instanceof Error ? err.message : "Failed to reindex all folders");
-    } finally {
-      setReindexingAll(false);
-    }
   };
 
   if (section === "api-keys") {
@@ -714,7 +872,7 @@ function SettingsPanel({
                 name="llmProvider"
                 value="anthropic"
                 checked={formState.llmProvider === "anthropic"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.anthropic")}</span>
@@ -725,7 +883,7 @@ function SettingsPanel({
                 name="llmProvider"
                 value="openrouter"
                 checked={formState.llmProvider === "openrouter"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.openrouter")}</span>
@@ -734,9 +892,29 @@ function SettingsPanel({
               <input
                 type="radio"
                 name="llmProvider"
+                value="codex"
+                checked={formState.llmProvider === "codex"}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
+                disabled={!codexAuth?.isAuthenticated}
+                className="size-4 accent-terminal-green disabled:opacity-50"
+              />
+              <span className={cn(
+                "font-mono",
+                codexAuth?.isAuthenticated ? "text-terminal-dark" : "text-terminal-muted"
+              )}>
+                Codex
+                {codexAuth?.isAuthenticated && (
+                  <span className="ml-2 text-xs text-terminal-green">Connected</span>
+                )}
+              </span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="radio"
+                name="llmProvider"
                 value="antigravity"
                 checked={formState.llmProvider === "antigravity"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity")}
+                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
                 disabled={!antigravityAuth?.isAuthenticated}
                 className="size-4 accent-terminal-green disabled:opacity-50"
               />
@@ -785,6 +963,44 @@ function SettingsPanel({
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
                   {antigravityLoading ? "Connecting..." : "Connect with Google"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Codex OAuth Section */}
+        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">
+                OpenAI Codex
+              </h3>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Connect ChatGPT Plus or Pro to use GPT-5.x Codex models.
+              </p>
+              {codexAuth?.isAuthenticated && (codexAuth.email || codexAuth.accountId) && (
+                <p className="mt-1 font-mono text-xs text-terminal-green">
+                  Signed in as {codexAuth.email || codexAuth.accountId}
+                </p>
+              )}
+            </div>
+            <div>
+              {codexAuth?.isAuthenticated ? (
+                <button
+                  onClick={onCodexLogout}
+                  disabled={codexLoading}
+                  className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {codexLoading ? "..." : "Disconnect"}
+                </button>
+              ) : (
+                <button
+                  onClick={onCodexLogin}
+                  disabled={codexLoading}
+                  className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
+                >
+                  {codexLoading ? "Connecting..." : "Connect with OpenAI"}
                 </button>
               )}
             </div>
@@ -926,6 +1142,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "codex" ? (
+              <select
+                value={formState.chatModel || "gpt-5.1-codex"}
+                onChange={(e) => updateField("chatModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <input
                 type="text"
@@ -952,6 +1180,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "codex" ? (
+              <select
+                value={formState.researchModel || "gpt-5.1-codex"}
+                onChange={(e) => updateField("researchModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>
@@ -988,6 +1228,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "codex" ? (
+              <select
+                value={formState.visionModel || "gpt-5.1-codex"}
+                onChange={(e) => updateField("visionModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <input
                 type="text"
@@ -1014,6 +1266,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "codex" ? (
+              <select
+                value={formState.utilityModel || "gpt-5.1-codex-mini"}
+                onChange={(e) => updateField("utilityModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>
@@ -1097,18 +1361,6 @@ function SettingsPanel({
             <p className="font-mono text-xs text-amber-800">
               <strong>{t("vector.reindexRequired.title")}</strong> {t("vector.reindexRequired.body")}
             </p>
-            {reindexError && (
-              <p className="mt-2 font-mono text-xs text-red-600">{reindexError}</p>
-            )}
-            <div className="mt-3">
-              <Button
-                onClick={handleReindexAll}
-                disabled={reindexingAll}
-                className="gap-2 bg-amber-600 text-white hover:bg-amber-600/90"
-              >
-                {reindexingAll ? t("vector.reindexRequired.running") : t("vector.reindexRequired.cta")}
-              </Button>
-            </div>
           </div>
         )}
 
@@ -1136,163 +1388,49 @@ function SettingsPanel({
               </p>
             </div>
 
-            <div className="rounded border border-terminal-border bg-white p-4">
-              <h3 className="font-mono text-sm font-semibold text-terminal-dark">{t("vector.v2.title")}</h3>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">{t("vector.v2.subtitle")}</p>
-
-              <div className="mt-4 space-y-3">
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.vectorSearchHybridEnabled}
-                    onChange={(e) => updateField("vectorSearchHybridEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("vector.v2.enableHybrid")}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.vectorSearchTokenChunkingEnabled}
-                    onChange={(e) => updateField("vectorSearchTokenChunkingEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("vector.v2.enableTokenChunking")}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.vectorSearchRerankingEnabled}
-                    onChange={(e) => updateField("vectorSearchRerankingEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("vector.v2.enableReranking")}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.vectorSearchQueryExpansionEnabled}
-                    onChange={(e) => updateField("vectorSearchQueryExpansionEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("vector.v2.enableQueryExpansion")}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.vectorSearchLlmSynthesisEnabled}
-                    onChange={(e) => updateField("vectorSearchLlmSynthesisEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("vector.v2.enableLlmSynthesis")}</span>
-                </label>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.rollout")}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={formState.vectorSearchV2Percentage}
-                    onChange={(e) => updateField("vectorSearchV2Percentage", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.rrfK")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={formState.vectorSearchRrfK}
-                    onChange={(e) => updateField("vectorSearchRrfK", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.denseWeight")}</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formState.vectorSearchDenseWeight}
-                    onChange={(e) => updateField("vectorSearchDenseWeight", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.lexicalWeight")}</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formState.vectorSearchLexicalWeight}
-                    onChange={(e) => updateField("vectorSearchLexicalWeight", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.tokenChunkSize")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={formState.vectorSearchTokenChunkSize}
-                    onChange={(e) => updateField("vectorSearchTokenChunkSize", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.tokenChunkStride")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={formState.vectorSearchTokenChunkStride}
-                    onChange={(e) => updateField("vectorSearchTokenChunkStride", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.rerankTopK")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={formState.vectorSearchRerankTopK}
-                    onChange={(e) => updateField("vectorSearchRerankTopK", Number(e.target.value) || 0)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.rerankModel")}</label>
-                  <input
-                    type="text"
-                    value={formState.vectorSearchRerankModel}
-                    onChange={(e) => updateField("vectorSearchRerankModel", e.target.value)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.maxFileLines")}</label>
-                  <input
-                    type="number"
-                    min={100}
-                    value={formState.vectorSearchMaxFileLines}
-                    onChange={(e) => updateField("vectorSearchMaxFileLines", Number(e.target.value) || 3000)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                  <p className="mt-1 font-mono text-xs text-terminal-muted">{t("vector.v2.maxFileLinesHelper")}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("vector.v2.maxLineLength")}</label>
-                  <input
-                    type="number"
-                    min={100}
-                    value={formState.vectorSearchMaxLineLength}
-                    onChange={(e) => updateField("vectorSearchMaxLineLength", Number(e.target.value) || 1000)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                  <p className="mt-1 font-mono text-xs text-terminal-muted">{t("vector.v2.maxLineLengthHelper")}</p>
-                </div>
-              </div>
+            {/* LLM Synthesis Toggle - Main visible option */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="llmSynthesisEnabled"
+                checked={formState.vectorSearchLlmSynthesisEnabled}
+                onChange={(e) => updateField("vectorSearchLlmSynthesisEnabled", e.target.checked)}
+                className="size-4 accent-terminal-green"
+              />
+              <label htmlFor="llmSynthesisEnabled" className="font-mono text-sm text-terminal-dark">
+                {t("vector.enableLlmSynthesis")}
+              </label>
             </div>
+
+            {/* Advanced Settings Accordion */}
+            <AdvancedVectorSettings
+              hybridEnabled={formState.vectorSearchHybridEnabled}
+              onHybridEnabledChange={(v) => updateField("vectorSearchHybridEnabled", v)}
+              denseWeight={formState.vectorSearchDenseWeight}
+              onDenseWeightChange={(v) => updateField("vectorSearchDenseWeight", v)}
+              lexicalWeight={formState.vectorSearchLexicalWeight}
+              onLexicalWeightChange={(v) => updateField("vectorSearchLexicalWeight", v)}
+              rrfK={formState.vectorSearchRrfK}
+              onRrfKChange={(v) => updateField("vectorSearchRrfK", v)}
+              tokenChunkingEnabled={formState.vectorSearchTokenChunkingEnabled}
+              onTokenChunkingEnabledChange={(v) => updateField("vectorSearchTokenChunkingEnabled", v)}
+              chunkSize={formState.vectorSearchTokenChunkSize}
+              onChunkSizeChange={(v) => updateField("vectorSearchTokenChunkSize", v)}
+              chunkStride={formState.vectorSearchTokenChunkStride}
+              onChunkStrideChange={(v) => updateField("vectorSearchTokenChunkStride", v)}
+              rerankingEnabled={formState.vectorSearchRerankingEnabled}
+              onRerankingEnabledChange={(v) => updateField("vectorSearchRerankingEnabled", v)}
+              rerankTopK={formState.vectorSearchRerankTopK}
+              onRerankTopKChange={(v) => updateField("vectorSearchRerankTopK", v)}
+              rerankModel={formState.vectorSearchRerankModel}
+              onRerankModelChange={(v) => updateField("vectorSearchRerankModel", v)}
+              queryExpansionEnabled={formState.vectorSearchQueryExpansionEnabled}
+              onQueryExpansionEnabledChange={(v) => updateField("vectorSearchQueryExpansionEnabled", v)}
+              maxFileLines={formState.vectorSearchMaxFileLines}
+              onMaxFileLinesChange={(v) => updateField("vectorSearchMaxFileLines", v)}
+              maxLineLength={formState.vectorSearchMaxLineLength}
+              onMaxLineLengthChange={(v) => updateField("vectorSearchMaxLineLength", v)}
+            />
 
             {/* Local Grep Settings */}
             <div className="mt-6 rounded border border-terminal-border bg-white p-4">
@@ -1357,7 +1495,7 @@ function SettingsPanel({
     );
   }
 
-if (section === "comfyui") {
+  if (section === "comfyui") {
     return (
       <div className="space-y-6">
         <div>

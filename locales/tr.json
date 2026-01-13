@@ -12,6 +12,86 @@
     "password": "Şifre",
     "confirmPassword": "Şifreyi doğrula"
   },
+  "onboarding": {
+    "welcome": {
+      "title": "Seline'e hoş geldiniz",
+      "subtitle": "Yapay zeka destekli yaratıcı yardımcınız. Sizi birkaç adımda kurulumdan geçirelim.",
+      "features": {
+        "agents": {
+          "title": "Özel AI Ajanları",
+          "desc": "Benzersiz kişilik ve yeteneklere sahip uzman asistanlar oluşturun"
+        },
+        "tools": {
+          "title": "Güçlü Araçlar",
+          "desc": "Görsel üretin, webde arayın, kod analiz edin ve daha fazlasını yapın"
+        },
+        "memory": {
+          "title": "Kalıcı Hafıza",
+          "desc": "Ajanlarınız tercihleri hatırlar ve iş akışınızı öğrenir"
+        }
+      },
+      "cta": "Başlayalım"
+    },
+    "provider": {
+      "title": "AI Sağlayıcınızı Seçin",
+      "subtitle": "AI ajanlarınızı nasıl güçlendirmek istediğinizi seçin",
+      "options": {
+        "antigravity": {
+          "title": "Antigravity (Ücretsiz)",
+          "desc": "Ücretsiz erişim için Antigravity hesabınızla giriş yapın",
+          "badge": "Önerilen"
+        },
+        "anthropic": {
+          "title": "Anthropic",
+          "desc": "Claude API anahtarınızı kullanın"
+        },
+        "openrouter": {
+          "title": "OpenRouter",
+          "desc": "OpenRouter üzerinden birden fazla modele erişin"
+        }
+      }
+    },
+    "auth": {
+      "title": "Hesabınızı Bağlayın",
+      "apiKey": {
+        "label": "API Anahtarı",
+        "placeholder": "sk-ant-...",
+        "hint": "API anahtarınız yerel olarak saklanır ve sunucularımıza gönderilmez"
+      },
+      "oauth": {
+        "button": "Google ile giriş yap",
+        "hint": "Kimlik doğrulama için yönlendirileceksiniz"
+      },
+      "skip": "Şimdilik geç",
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
+    },
+    "personalization": {
+      "title": "Deneyiminizi Kişiselleştirin",
+      "subtitle": "Ajanların tercihlerinizi anlamasına yardımcı olun (isteğe bağlı)",
+      "categories": {
+        "visual_preferences": {
+          "title": "Görsel Tercihler"
+        },
+        "communication_style": {
+          "title": "İletişim Tarzı"
+        },
+        "workflow_patterns": {
+          "title": "İş Akışı Kalıpları"
+        }
+      },
+      "skip": "Kişiselleştirmeyi geç"
+    },
+    "complete": {
+      "title": "Her şey hazır!",
+      "subtitle": "Çalışma alanınız hazır. Şimdi şunları yapabilirsiniz:",
+      "tips": {
+        "agent": "Özel kişilikli ilk AI ajanınızı oluşturun",
+        "chat": "Sohbete başlayın ve yetenekleri keşfedin",
+        "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
+      },
+      "cta": "Seline'i kullanmaya başla"
+    }
+  },
   "layout": {
     "brandShort": "S",
     "brand": "Selin",
@@ -91,6 +171,17 @@
         "video-generation": "Video Oluşturma",
         "analysis": "Analiz",
         "utility": "Yardımcı Araçlar"
+      },
+      "dependencyWarnings": {
+        "syncedFolders": "Senkronize klasörler gerekli",
+        "embeddings": "Embedding gerekli",
+        "both": "Senkronize klasörler + embedding gerekli",
+        "vectorDbEnabled": "Vektör DB etkin olmalı",
+        "tavilyKey": "Tavily API anahtarı gerekli",
+        "webScraper": "Web tarayıcı kurulumu gerekli",
+        "openrouterKey": "OpenRouter API anahtarı gerekli",
+        "comfyuiEnabled": "ComfyUI etkin olmalı",
+        "localGrepEnabled": "Yerel Grep etkin olmalı"
       }
     },
     "tools": {
@@ -221,6 +312,10 @@
       "generateImageZImage": {
         "name": "Üret (Z-Image Yerel)",
         "description": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
+      },
+      "localGrep": {
+        "name": "Yerel Grep",
+        "description": "ripgrep ile hızlı ve regex arama"
       }
     }
   },
@@ -355,7 +450,25 @@
       "generateVideoWan22": "WAN 2.2 Video Oluşturma",
       "generatePixelVideoWan22": "WAN 2.2 Piksel Animasyonu",
       "assembleVideo": "Video Montajı",
-      "showProductImages": "Ürün Galerisi"
+      "showProductImages": "Ürün Galerisi",
+      "localGrep": "Yerel Grep",
+      "executeCommand": "Komut Çalıştır",
+      "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
+      "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
+      "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
+      "generateImageGpt5Mini": "Üret (GPT-5 Mini)",
+      "editImageGpt5Mini": "Düzenle (GPT-5 Mini)",
+      "referenceImageGpt5Mini": "Referans (GPT-5 Mini)",
+      "generateImageGpt5": "Üret (GPT-5)",
+      "editImageGpt5": "Düzenle (GPT-5)",
+      "referenceImageGpt5": "Referans (GPT-5)",
+      "generateImageGemini25Flash": "Üret (Gemini 2.5 Flash)",
+      "editImageGemini25Flash": "Düzenle (Gemini 2.5 Flash)",
+      "referenceImageGemini25Flash": "Referans (Gemini 2.5 Flash)",
+      "generateImageGemini3Pro": "Üret (Gemini 3 Pro)",
+      "editImageGemini3Pro": "Düzenle (Gemini 3 Pro)",
+      "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
+      "generateImageZImage": "Üret (Z-Image Yerel)"
     }
   },
   "folderSync": {
@@ -422,7 +535,9 @@
     "cancel": "İptal",
     "dismiss": "Kapat",
     "expand": "Detayları göster",
-    "collapse": "Detayları gizle"
+    "collapse": "Detayları gizle",
+    "clearStuck": "Takılı Senkronları Temizle",
+    "clearing": "Temizleniyor..."
   },
   "characterCreation": {
     "progress": {
@@ -557,10 +672,23 @@
         "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
         "referenceImageGemini3ProDesc": "Birden fazla referans görsel ile gelişmiş stil aktarımı",
         "generateImageZImage": "Üret (Z-Image Yerel)",
-        "generateImageZImageDesc": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
+        "generateImageZImageDesc": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)",
+        "localGrep": "Yerel Grep",
+        "localGrepDesc": "ripgrep ile hızlı ve regex arama"
       },
       "back": "← Geri",
-      "continue": "Devam →"
+      "continue": "Devam →",
+      "dependencyWarnings": {
+        "syncedFolders": "Senkronize klasörler gerekli",
+        "embeddings": "Embedding gerekli",
+        "both": "Senkronize klasörler + embedding gerekli",
+        "vectorDbEnabled": "Vektör DB etkin olmalı",
+        "tavilyKey": "Tavily API anahtarı gerekli",
+        "webScraper": "Web tarayıcı kurulumu gerekli",
+        "openrouterKey": "OpenRouter API anahtarı gerekli",
+        "comfyuiEnabled": "ComfyUI etkin olmalı",
+        "localGrepEnabled": "Yerel Grep etkin olmalı"
+      }
     },
     "style": {
       "question": "Ajanınız için bir görsel stil seçin...",
@@ -659,6 +787,27 @@
       },
       "back": "Geri",
       "continueWithAvatar": "Bu Avatar ile Devam Et"
+    },
+    "embeddingSetup": {
+      "question": "Bir embedding sağlayıcısı ve modeli seçin.",
+      "providers": {
+        "openrouter": {
+          "title": "OpenRouter (Bulut)",
+          "description": "API anahtarınızla OpenRouter embeddinglerini kullanın."
+        },
+        "local": {
+          "title": "Yerel (Cihazda)",
+          "description": "Embeddingleri yerel olarak paketlenmiş modellerle çalıştırın."
+        }
+      },
+      "selectModel": "Bir embedding modeli seçin",
+      "models": {
+        "recommended": "Önerilen"
+      },
+      "downloading": "İndiriliyor...",
+      "back": "Geri",
+      "skip": "Atla",
+      "continue": "Devam"
     }
   },
   "errors": {
@@ -679,7 +828,8 @@
       "apiKeys": "API Anahtarları",
       "models": "Modeller",
       "vectorSearch": "Vektör Arama",
-      "preferences": "Tercihler"
+      "preferences": "Tercihler",
+      "memory": "Hafıza"
     },
     "errors": {
       "load": "Ayarlar yüklenemedi",
@@ -767,6 +917,10 @@
           "label": "Yerel Model Yolu",
           "placeholder": "C:\\path\\to\\models",
           "helper": "Model klasorlerini iceren dizin (ornek: C:\\models icinde Xenova/bge-large-en-v1.5). Bos birakirsaniz onbellekten indirilebilir."
+        },
+        "utility": {
+          "label": "Yardımcı Model",
+          "helper": "Arka plan görevleri (örn. istem zenginleştirme) için hızlı/ucuz model. Örnek: google/gemini-2.0-flash-lite-001"
         }
       },
       "tip": {
@@ -806,6 +960,47 @@
         "maxFileLinesHelper": "Bu satır sayısını aşan dosyalar indeksleme sırasında atlanacaktır (varsayılan: 3000)",
         "maxLineLength": "Maksimum satır uzunluğu",
         "maxLineLengthHelper": "Bu karakter sayısını aşan herhangi bir satır içeren dosyalar atlanacaktır (base64/büyük dizeler kontrolü, varsayılan: 1000)"
+      },
+      "enableLlmSynthesis": "LLM sentezini etkinleştir",
+      "advanced": {
+        "title": "Gelişmiş Vektör Ayarları",
+        "description": "Geri getirme, parçalama, yeniden sıralama ve dosya limitlerini ince ayarlayın.",
+        "resetToDefaults": "Varsayılanlara sıfırla",
+        "hybridSearch": {
+          "title": "Hibrit Arama",
+          "description": "Daha iyi kapsam için yoğun ve sözcüksel aramayı birleştirir.",
+          "enable": "Hibrit aramayı etkinleştir",
+          "denseWeight": "Yoğun ağırlık",
+          "lexicalWeight": "Sözcüksel ağırlık",
+          "rrfK": "RRF k değeri"
+        },
+        "chunking": {
+          "title": "Token Parçalama",
+          "description": "Daha iyi geri getirme için belgeleri token tabanlı parçalara böler.",
+          "enable": "Token parçalamayı etkinleştir",
+          "size": "Parça boyutu",
+          "stride": "Parça kaydırma"
+        },
+        "reranking": {
+          "title": "Yeniden Sıralama",
+          "description": "En üst sonuçları ONNX modeliyle yeniden sıralar.",
+          "enable": "Yeniden sıralamayı etkinleştir",
+          "topK": "Yeniden sıralama üst K",
+          "modelPath": "Yeniden sıralama model yolu"
+        },
+        "queryProcessing": {
+          "title": "Sorgu İşleme",
+          "description": "Geri çağırmayı artırmak için sorguları genişletir.",
+          "enable": "Sorgu genişletmeyi etkinleştir"
+        },
+        "fileLimits": {
+          "title": "Dosya Limitleri",
+          "description": "Aşırı büyük dosyaları veya satırları olanları atla.",
+          "maxLines": "Maksimum dosya satırı",
+          "maxLinesHelper": "Bu satır sayısını aşan dosyalar indeksleme sırasında atlanır (varsayılan: 3000)",
+          "maxLineLength": "Maksimum satır uzunluğu",
+          "maxLineLengthHelper": "Herhangi bir satırı bu karakter sayısını aşan dosyalar atlanır (varsayılan: 1000)"
+        }
       }
     },
     "preferences": {
@@ -828,6 +1023,19 @@
         "always": "Her Zaman Dahil Et",
         "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
       }
+    },
+    "onboarding": {
+      "title": "Kurulum",
+      "description": "Ayarlarınızı yeniden yapılandırmak için kurulum sihirbazını tekrar çalıştırın",
+      "cta": "Kurulum Sihirbazını Tekrar Çalıştır"
+    },
+    "memoryDefaults": {
+      "title": "Genel Hafıza Varsayılanları",
+      "description": "Tüm ajanlara uygulanacak varsayılan tercihleri belirleyin. Bu hafızalar ajanların tercihlerinizi anlamasına yardımcı olur.",
+      "addNew": "Yeni bir tercih ekle",
+      "placeholder": "ör. \"Kod örneklerinde her zaman TypeScript kullan\"",
+      "add": "Ekle",
+      "empty": "Genel hafıza varsayılanı yok. Ajanlarınızı kişiselleştirmek için tercih ekleyin."
     }
   },
   "about": {

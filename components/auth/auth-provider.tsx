@@ -25,8 +25,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
-  signOut: async () => {},
-  refreshAuth: async () => {},
+  signOut: async () => { },
+  refreshAuth: async () => { },
 });
 
 export function useAuth() {
@@ -104,6 +104,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
   }, [pathname, router, verifyAuth]);
+
+  // Antigravity background token refresh
+  useEffect(() => {
+    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+    const triggerRefresh = async () => {
+      try {
+        await fetch("/api/auth/antigravity/refresh", { method: "POST" });
+      } catch (error) {
+        console.error("[AntigravityAuth] Background refresh error:", error);
+      }
+    };
+
+    // Initial check
+    triggerRefresh();
+
+    const intervalId = setInterval(triggerRefresh, REFRESH_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {

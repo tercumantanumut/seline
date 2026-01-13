@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
       vectorSearchRerankingEnabled: body.vectorSearchRerankingEnabled !== undefined ? body.vectorSearchRerankingEnabled : currentSettings.vectorSearchRerankingEnabled,
       vectorSearchQueryExpansionEnabled: body.vectorSearchQueryExpansionEnabled !== undefined ? body.vectorSearchQueryExpansionEnabled : currentSettings.vectorSearchQueryExpansionEnabled,
       vectorSearchLlmSynthesisEnabled: body.vectorSearchLlmSynthesisEnabled !== undefined ? body.vectorSearchLlmSynthesisEnabled : currentSettings.vectorSearchLlmSynthesisEnabled,
-      vectorSearchV2Percentage: body.vectorSearchV2Percentage !== undefined ? body.vectorSearchV2Percentage : currentSettings.vectorSearchV2Percentage,
+
       vectorSearchRrfK: body.vectorSearchRrfK !== undefined ? body.vectorSearchRrfK : currentSettings.vectorSearchRrfK,
       vectorSearchDenseWeight: body.vectorSearchDenseWeight !== undefined ? body.vectorSearchDenseWeight : currentSettings.vectorSearchDenseWeight,
       vectorSearchLexicalWeight: body.vectorSearchLexicalWeight !== undefined ? body.vectorSearchLexicalWeight : currentSettings.vectorSearchLexicalWeight,

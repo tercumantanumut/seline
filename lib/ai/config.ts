@@ -17,6 +17,7 @@ import { buildDefaultSystemPrompt } from "./prompts";
 
 interface SystemPromptOptions {
   stylyApiEnabled?: boolean;
+  toolLoadingMode?: "deferred" | "always";
 }
 
 /**
@@ -43,6 +44,7 @@ export function getToolInstructions(_options: SystemPromptOptions): string {
 export function getSystemPrompt(options: SystemPromptOptions = {}): string {
   return buildDefaultSystemPrompt({
     includeToolDiscovery: options.stylyApiEnabled ?? true,
+    toolLoadingMode: options.toolLoadingMode ?? "deferred",
   });
 }
 

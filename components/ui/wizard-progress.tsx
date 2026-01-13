@@ -22,9 +22,10 @@ interface WizardProgressProps {
 export const WIZARD_STEPS: WizardStep[] = [
   { id: "intro", label: "Start", icon: <Sparkles className="w-4 h-4" /> },
   { id: "identity", label: "Identity", icon: <User className="w-4 h-4" /> },
-  { id: "capabilities", label: "Capabilities", icon: <Wrench className="w-4 h-4" /> },
   { id: "knowledge", label: "Knowledge", icon: <BookOpen className="w-4 h-4" /> },
+  { id: "embeddingSetup", label: "Embeddings", icon: <Database className="w-4 h-4" /> },
   { id: "vectorSearch", label: "Vector Search", icon: <Database className="w-4 h-4" /> },
+  { id: "capabilities", label: "Capabilities", icon: <Wrench className="w-4 h-4" /> },
   { id: "preview", label: "Preview", icon: <Eye className="w-4 h-4" /> },
 ];
 

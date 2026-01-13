@@ -3,152 +3,166 @@ import { join, dirname } from "path";
 import { loadConfigFromEnv } from "@/lib/config/vector-search";
 
 export interface AppSettings {
-  // AI Provider settings
-  llmProvider: "anthropic" | "openrouter" | "antigravity";
-  anthropicApiKey?: string;
-  openrouterApiKey?: string;
-  tavilyApiKey?: string;    // For Deep Research web search
-  firecrawlApiKey?: string; // For web scraping with Firecrawl
-  webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+    // AI Provider settings
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
+    anthropicApiKey?: string;
+    openrouterApiKey?: string;
+    tavilyApiKey?: string;    // For Deep Research web search
+    firecrawlApiKey?: string; // For web scraping with Firecrawl
+    webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
 
-  // Antigravity OAuth authentication (free models via Google OAuth)
-  antigravityAuth?: {
-    isAuthenticated: boolean;
-    email?: string;
-    expiresAt?: number;
-    lastRefresh?: number;
-  };
-  antigravityToken?: {
-    type: "oauth";
-    access_token: string;
-    refresh_token: string;
-    expires_at: number;
-    token_type?: string;
-    scope?: string;
-    project_id?: string; // Antigravity project ID from loadCodeAssist
-  };
+    // Antigravity OAuth authentication (free models via Google OAuth)
+    antigravityAuth?: {
+        isAuthenticated: boolean;
+        email?: string;
+        expiresAt?: number;
+        lastRefresh?: number;
+    };
+    antigravityToken?: {
+        type: "oauth";
+        access_token: string;
+        refresh_token: string;
+        expires_at: number;
+        token_type?: string;
+        scope?: string;
+        project_id?: string; // Antigravity project ID from loadCodeAssist
+    };
 
-  // Model selection for different tasks
-  // Format: Model ID string (e.g., "claude-sonnet-4-5-20250929" or "x-ai/grok-4.1-fast")
-  // Empty string means use default for the provider
-  chatModel?: string;       // Main chat model
-  embeddingProvider?: "openrouter" | "local"; // Embedding provider selection
-  embeddingModel?: string;  // Model for document embeddings
-  embeddingModelDir?: string;  // Path to local embedding models (set by Electron)
-  researchModel?: string;   // Model for Deep Research mode
-  visionModel?: string;     // Model for image analysis/description (must support vision)
-  utilityModel?: string;    // Fast/cheap model for background tasks
-  embeddingReindexRequired?: boolean; // Flag to trigger reindex when embeddings change
+    // OpenAI Codex OAuth authentication (ChatGPT Plus/Pro)
+    codexAuth?: {
+        isAuthenticated: boolean;
+        email?: string;
+        accountId?: string;
+        expiresAt?: number;
+        lastRefresh?: number;
+    };
+    codexToken?: {
+        type: "oauth";
+        access_token: string;
+        refresh_token: string;
+        expires_at: number;
+    };
 
-  // Image/Video generation
-  stylyAiApiKey?: string;
-  imageGenerationProvider?: "openrouter" | "local-comfyui"; // Image generation provider selection
+    // Model selection for different tasks
+    // Format: Model ID string (e.g., "claude-sonnet-4-5-20250929" or "x-ai/grok-4.1-fast")
+    // Empty string means use default for the provider
+    chatModel?: string;       // Main chat model
+    embeddingProvider?: "openrouter" | "local"; // Embedding provider selection
+    embeddingModel?: string;  // Model for document embeddings
+    embeddingModelDir?: string;  // Path to local embedding models (set by Electron)
+    researchModel?: string;   // Model for Deep Research mode
+    visionModel?: string;     // Model for image analysis/description (must support vision)
+    utilityModel?: string;    // Fast/cheap model for background tasks
+    embeddingReindexRequired?: boolean; // Flag to trigger reindex when embeddings change
 
-  // ComfyUI Local Backend Settings
-  comfyuiEnabled?: boolean;        // Enable local ComfyUI for image generation
-  comfyuiInstalled?: boolean;      // Whether Docker image is built
-  comfyuiAutoStart?: boolean;      // Auto-start container on app launch
-  comfyuiPort?: number;            // API port (default: 8000)
-  comfyuiModelsDownloaded?: boolean; // Whether Z-Image models are downloaded
-  comfyuiBackendPath?: string;     // Path to comfyui_backend folder
+    // Image/Video generation
+    stylyAiApiKey?: string;
+    imageGenerationProvider?: "openrouter" | "local-comfyui"; // Image generation provider selection
 
-  // Vector Database (LanceDB) - Advanced Semantic Search
-  vectorDBEnabled?: boolean;  // Enable/disable LanceDB integration
-  vectorAutoSyncEnabled?: boolean;  // Enable/disable periodic background sync (default: true)
-  vectorSyncIntervalMinutes?: number;  // Interval between background syncs in minutes (default: 60)
-  vectorSearchHybridEnabled?: boolean;
-  vectorSearchTokenChunkingEnabled?: boolean;
-  vectorSearchRerankingEnabled?: boolean;
-  vectorSearchQueryExpansionEnabled?: boolean;
-  vectorSearchLlmSynthesisEnabled?: boolean;
-  vectorSearchV2Percentage?: number;
-  vectorSearchRrfK?: number;
-  vectorSearchDenseWeight?: number;
-  vectorSearchLexicalWeight?: number;
-  vectorSearchRerankModel?: string;
-  vectorSearchRerankTopK?: number;
-  vectorSearchTokenChunkSize?: number;
-  vectorSearchTokenChunkStride?: number;
-  vectorSearchMaxFileLines?: number;
-  vectorSearchMaxLineLength?: number;
+    // ComfyUI Local Backend Settings
+    comfyuiEnabled?: boolean;        // Enable local ComfyUI for image generation
+    comfyuiInstalled?: boolean;      // Whether Docker image is built
+    comfyuiAutoStart?: boolean;      // Auto-start container on app launch
+    comfyuiPort?: number;            // API port (default: 8000)
+    comfyuiModelsDownloaded?: boolean; // Whether Z-Image models are downloaded
+    comfyuiBackendPath?: string;     // Path to comfyui_backend folder
 
-  // Local Grep (ripgrep) settings
-  localGrepEnabled?: boolean;           // Enable/disable local grep tool (default: true)
-  localGrepMaxResults?: number;         // Maximum results (default: 100)
-  localGrepContextLines?: number;       // Context lines before/after match (default: 2)
-  localGrepRespectGitignore?: boolean;  // Respect .gitignore files (default: true)
+    // Vector Database (LanceDB) - Advanced Semantic Search
+    vectorDBEnabled?: boolean;  // Enable/disable LanceDB integration
+    vectorAutoSyncEnabled?: boolean;  // Enable/disable periodic background sync (default: true)
+    vectorSyncIntervalMinutes?: number;  // Interval between background syncs in minutes (default: 60)
+    vectorSearchHybridEnabled?: boolean;
+    vectorSearchTokenChunkingEnabled?: boolean;
+    vectorSearchRerankingEnabled?: boolean;
+    vectorSearchQueryExpansionEnabled?: boolean;
+    vectorSearchLlmSynthesisEnabled?: boolean;
 
-  // Local user info (for offline mode)
-  localUserId: string;
-  localUserEmail: string;
+    vectorSearchRrfK?: number;
+    vectorSearchDenseWeight?: number;
+    vectorSearchLexicalWeight?: number;
+    vectorSearchRerankModel?: string;
+    vectorSearchRerankTopK?: number;
+    vectorSearchTokenChunkSize?: number;
+    vectorSearchTokenChunkStride?: number;
+    vectorSearchMaxFileLines?: number;
+    vectorSearchMaxLineLength?: number;
 
-  // App preferences
-  theme: "dark" | "light" | "system";
-  toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
-  dataPath?: string;
+    // Local Grep (ripgrep) settings
+    localGrepEnabled?: boolean;           // Enable/disable local grep tool (default: true)
+    localGrepMaxResults?: number;         // Maximum results (default: 100)
+    localGrepContextLines?: number;       // Context lines before/after match (default: 2)
+    localGrepRespectGitignore?: boolean;  // Respect .gitignore files (default: true)
 
-  // Onboarding state
-  onboardingComplete?: boolean;
-  onboardingCompletedAt?: string; // ISO timestamp
-  onboardingVersion?: number;      // For future migrations
+    // Local user info (for offline mode)
+    localUserId: string;
+    localUserEmail: string;
 
-  // Global memory preferences (applied to new agents and synced to existing)
-  globalMemoryDefaults?: {
-    visual_preferences?: string[];    // e.g., ["Prefer dark mode", "16:9 aspect ratio"]
-    communication_style?: string[];   // e.g., ["Concise responses", "Use code blocks"]
-    workflow_patterns?: string[];
-  };
+    // App preferences
+    theme: "dark" | "light" | "system";
+    toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
+    dataPath?: string;
 
-  // Settings UI preferences
-  settingsExpandedSections?: string[]; // Remember which sections are expanded
+    // Onboarding state
+    onboardingComplete?: boolean;
+    onboardingCompletedAt?: string; // ISO timestamp
+    onboardingVersion?: number;      // For future migrations
+
+    // Global memory preferences (applied to new agents and synced to existing)
+    globalMemoryDefaults?: {
+        visual_preferences?: string[];    // e.g., ["Prefer dark mode", "16:9 aspect ratio"]
+        communication_style?: string[];   // e.g., ["Concise responses", "Use code blocks"]
+        workflow_patterns?: string[];
+    };
+
+    // Settings UI preferences
+    settingsExpandedSections?: string[]; // Remember which sections are expanded
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  llmProvider: "anthropic",
-  localUserId: crypto.randomUUID(),
-  localUserEmail: "local@zlutty.ai",
-  theme: "dark",
-  toolLoadingMode: "deferred",  // Default to token-efficient deferred loading
-  webScraperProvider: "firecrawl",
-  embeddingProvider: "openrouter",
-  vectorDBEnabled: false,
-  vectorSearchHybridEnabled: true,
-  vectorSearchTokenChunkingEnabled: true,
-  vectorSearchRerankingEnabled: true,
-  vectorSearchQueryExpansionEnabled: true,
-  vectorSearchLlmSynthesisEnabled: true,
-  vectorSearchV2Percentage: 100,
-  vectorSearchRrfK: 30,
-  vectorSearchDenseWeight: 1.5,
-  vectorSearchLexicalWeight: 0.2,
-  vectorSearchRerankModel: "models/ms-marco-MiniLM-L-6-v2.onnx",
-  vectorSearchRerankTopK: 20,
-  vectorSearchTokenChunkSize: 16,
-  vectorSearchTokenChunkStride: 8,
-  vectorSearchMaxFileLines: 3000,
-  vectorSearchMaxLineLength: 1000,
-  // Local Grep defaults
-  localGrepEnabled: true,
-  localGrepMaxResults: 100,
-  localGrepContextLines: 2,
-  localGrepRespectGitignore: true,
-  // ComfyUI defaults
-  imageGenerationProvider: "openrouter",
-  comfyuiEnabled: false,
-  comfyuiInstalled: false,
-  comfyuiAutoStart: false,
-  comfyuiPort: 8000,
-  comfyuiModelsDownloaded: false,
-  comfyuiBackendPath: "",
+    llmProvider: "anthropic",
+    localUserId: crypto.randomUUID(),
+    localUserEmail: "local@zlutty.ai",
+    theme: "dark",
+    toolLoadingMode: "deferred",  // Default to token-efficient deferred loading
+    webScraperProvider: "firecrawl",
+    embeddingProvider: "openrouter",
+    vectorDBEnabled: false,
+    vectorSearchHybridEnabled: true,
+    vectorSearchTokenChunkingEnabled: true,
+    vectorSearchRerankingEnabled: false,
+    vectorSearchQueryExpansionEnabled: true,
+    vectorSearchLlmSynthesisEnabled: true,
+    vectorSearchRrfK: 50,
+    vectorSearchDenseWeight: 1.0,
+    vectorSearchLexicalWeight: 2.0,
+    vectorSearchRerankModel: "models/ms-marco-MiniLM-L-6-v2.onnx",
+    vectorSearchRerankTopK: 20,
+    vectorSearchTokenChunkSize: 96,
+    vectorSearchTokenChunkStride: 48,
+    vectorSearchMaxFileLines: 3000,
+    vectorSearchMaxLineLength: 1000,
+    // Local Grep defaults
+    localGrepEnabled: true,
+    localGrepMaxResults: 100,
+    localGrepContextLines: 2,
+    localGrepRespectGitignore: true,
+    // ComfyUI defaults
+    imageGenerationProvider: "openrouter",
+    comfyuiEnabled: false,
+    comfyuiInstalled: false,
+    comfyuiAutoStart: false,
+    comfyuiPort: 8000,
+    comfyuiModelsDownloaded: false,
+    comfyuiBackendPath: "",
 };
 
 function getSettingsPath(): string {
-  // In Electron, LOCAL_DATA_PATH is set to userDataPath/data
-  if (process.env.LOCAL_DATA_PATH) {
-    return join(process.env.LOCAL_DATA_PATH, "settings.json");
-  }
-  const dataDir = join(process.cwd(), ".local-data");
-  return join(dataDir, "settings.json");
+    // In Electron, LOCAL_DATA_PATH is set to userDataPath/data
+    if (process.env.LOCAL_DATA_PATH) {
+        return join(process.env.LOCAL_DATA_PATH, "settings.json");
+    }
+    const dataDir = join(process.cwd(), ".local-data");
+    return join(dataDir, "settings.json");
 }
 
 let cachedSettings: AppSettings | null = null;
@@ -162,79 +176,79 @@ const SETTINGS_CACHE_TTL_MS = 1000;
  * The cache is automatically invalidated when saveSettings() is called.
  */
 export function loadSettings(): AppSettings {
-  const now = Date.now();
-  const cacheValid = cachedSettings !== null && (now - cachedSettingsTimestamp) < SETTINGS_CACHE_TTL_MS;
+    const now = Date.now();
+    const cacheValid = cachedSettings !== null && (now - cachedSettingsTimestamp) < SETTINGS_CACHE_TTL_MS;
 
-  if (cacheValid && cachedSettings) {
-    // Always update env vars even when returning cached settings
-    // This ensures API keys are available in process.env across all modules
-    updateEnvFromSettings(cachedSettings);
-    return cachedSettings;
-  }
-
-  const settingsPath = getSettingsPath();
-
-  if (existsSync(settingsPath)) {
-    try {
-      const data = readFileSync(settingsPath, "utf-8");
-      const loaded: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
-      cachedSettings = loaded;
-      cachedSettingsTimestamp = now;
-      // Update environment variables so providers pick up the configured API keys
-      updateEnvFromSettings(loaded);
-      return loaded;
-    } catch (error) {
-      console.error("[Settings] Error loading settings:", error);
+    if (cacheValid && cachedSettings) {
+        // Always update env vars even when returning cached settings
+        // This ensures API keys are available in process.env across all modules
+        updateEnvFromSettings(cachedSettings);
+        return cachedSettings;
     }
-  }
 
-  // Return defaults and save them
-  const defaults: AppSettings = { ...DEFAULT_SETTINGS };
-  cachedSettings = defaults;
-  cachedSettingsTimestamp = now;
-  saveSettings(defaults);
-  return defaults;
+    const settingsPath = getSettingsPath();
+
+    if (existsSync(settingsPath)) {
+        try {
+            const data = readFileSync(settingsPath, "utf-8");
+            const loaded: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+            cachedSettings = loaded;
+            cachedSettingsTimestamp = now;
+            // Update environment variables so providers pick up the configured API keys
+            updateEnvFromSettings(loaded);
+            return loaded;
+        } catch (error) {
+            console.error("[Settings] Error loading settings:", error);
+        }
+    }
+
+    // Return defaults and save them
+    const defaults: AppSettings = { ...DEFAULT_SETTINGS };
+    cachedSettings = defaults;
+    cachedSettingsTimestamp = now;
+    saveSettings(defaults);
+    return defaults;
 }
 
 /**
  * Save settings to disk
  */
 export function saveSettings(settings: AppSettings): void {
-  const settingsPath = getSettingsPath();
+    const settingsPath = getSettingsPath();
 
-  // Ensure directory exists
-  const dir = dirname(settingsPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+    // Ensure directory exists
+    const dir = dirname(settingsPath);
+    if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+    }
 
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  cachedSettings = settings;
-  cachedSettingsTimestamp = Date.now();
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    cachedSettings = settings;
+    cachedSettingsTimestamp = Date.now();
 
-  // Update environment variables for immediate use
-  updateEnvFromSettings(settings);
+    // Update environment variables for immediate use
+    updateEnvFromSettings(settings);
 }
 
 /**
  * Update a single setting
  */
 export function updateSetting<K extends keyof AppSettings>(
-  key: K,
-  value: AppSettings[K]
+    key: K,
+    value: AppSettings[K]
 ): AppSettings {
-  const settings = loadSettings();
-  settings[key] = value;
-  saveSettings(settings);
-  return settings;
+    const settings = loadSettings();
+    settings[key] = value;
+    saveSettings(settings);
+    return settings;
 }
 
 /**
  * Get a single setting value
  */
 export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {
-  const settings = loadSettings();
-  return settings[key];
+    const settings = loadSettings();
+    return settings[key];
 }
 
 /**
@@ -242,140 +256,142 @@ export function getSetting<K extends keyof AppSettings>(key: K): AppSettings[K] 
  * This allows the app to use settings values as if they were env vars
  */
 function updateEnvFromSettings(settings: AppSettings): void {
-  if (settings.anthropicApiKey) {
-    process.env.ANTHROPIC_API_KEY = settings.anthropicApiKey;
-  }
-  if (settings.openrouterApiKey) {
-    process.env.OPENROUTER_API_KEY = settings.openrouterApiKey;
-  }
-  if (settings.tavilyApiKey) {
-    process.env.TAVILY_API_KEY = settings.tavilyApiKey;
-  }
-  if (settings.firecrawlApiKey) {
-    process.env.FIRECRAWL_API_KEY = settings.firecrawlApiKey;
-  }
-  if (settings.webScraperProvider) {
-    process.env.WEB_SCRAPER_PROVIDER = settings.webScraperProvider;
-  }
-  if (settings.stylyAiApiKey) {
-    process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;
-  }
-  process.env.LLM_PROVIDER = settings.llmProvider;
+    if (settings.anthropicApiKey) {
+        process.env.ANTHROPIC_API_KEY = settings.anthropicApiKey;
+    }
+    if (settings.openrouterApiKey) {
+        process.env.OPENROUTER_API_KEY = settings.openrouterApiKey;
+    }
+    if (settings.tavilyApiKey) {
+        process.env.TAVILY_API_KEY = settings.tavilyApiKey;
+    }
+    if (settings.firecrawlApiKey) {
+        process.env.FIRECRAWL_API_KEY = settings.firecrawlApiKey;
+    }
+    if (settings.webScraperProvider) {
+        process.env.WEB_SCRAPER_PROVIDER = settings.webScraperProvider;
+    }
+    if (settings.stylyAiApiKey) {
+        process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;
+    }
+    process.env.LLM_PROVIDER = settings.llmProvider;
 
-  // Model settings
-  if (settings.chatModel) {
-    process.env.LLM_MODEL = settings.chatModel;
-  }
-  if (settings.embeddingModel) {
-    process.env.EMBEDDING_MODEL = settings.embeddingModel;
-  }
-  if (settings.embeddingProvider) {
-    process.env.EMBEDDING_PROVIDER = settings.embeddingProvider;
-  }
-  if (settings.researchModel) {
-    process.env.RESEARCH_MODEL = settings.researchModel;
-  }
-  if (settings.visionModel) {
-    process.env.VISION_MODEL = settings.visionModel;
-  }
-  if (settings.utilityModel) {
-    process.env.UTILITY_MODEL = settings.utilityModel;
-  }
+    // Model settings
+    if (settings.chatModel) {
+        process.env.LLM_MODEL = settings.chatModel;
+    }
+    if (settings.embeddingModel) {
+        process.env.EMBEDDING_MODEL = settings.embeddingModel;
+    }
+    if (settings.embeddingProvider) {
+        process.env.EMBEDDING_PROVIDER = settings.embeddingProvider;
+    }
+    if (settings.researchModel) {
+        process.env.RESEARCH_MODEL = settings.researchModel;
+    }
+    if (settings.visionModel) {
+        process.env.VISION_MODEL = settings.visionModel;
+    }
+    if (settings.utilityModel) {
+        process.env.UTILITY_MODEL = settings.utilityModel;
+    }
 
-  if (settings.vectorSearchHybridEnabled !== undefined) {
-    process.env.VECTOR_SEARCH_HYBRID = settings.vectorSearchHybridEnabled ? "true" : "false";
-  }
-  if (settings.vectorSearchTokenChunkingEnabled !== undefined) {
-    process.env.VECTOR_SEARCH_TOKEN_CHUNKING = settings.vectorSearchTokenChunkingEnabled ? "true" : "false";
-  }
-  if (settings.vectorSearchRerankingEnabled !== undefined) {
-    process.env.VECTOR_SEARCH_RERANKING = settings.vectorSearchRerankingEnabled ? "true" : "false";
-  }
-  if (settings.vectorSearchQueryExpansionEnabled !== undefined) {
-    process.env.VECTOR_SEARCH_QUERY_EXPANSION = settings.vectorSearchQueryExpansionEnabled ? "true" : "false";
-  }
-  if (settings.vectorSearchLlmSynthesisEnabled !== undefined) {
-    process.env.VECTOR_SEARCH_LLM_SYNTHESIS = settings.vectorSearchLlmSynthesisEnabled ? "true" : "false";
-  }
-  if (settings.vectorSearchV2Percentage !== undefined) {
-    process.env.VECTOR_SEARCH_V2_PERCENTAGE = String(settings.vectorSearchV2Percentage);
-  }
-  if (settings.vectorSearchRrfK !== undefined) {
-    process.env.VECTOR_SEARCH_RRF_K = String(settings.vectorSearchRrfK);
-  }
-  if (settings.vectorSearchDenseWeight !== undefined) {
-    process.env.VECTOR_SEARCH_DENSE_WEIGHT = String(settings.vectorSearchDenseWeight);
-  }
-  if (settings.vectorSearchLexicalWeight !== undefined) {
-    process.env.VECTOR_SEARCH_LEXICAL_WEIGHT = String(settings.vectorSearchLexicalWeight);
-  }
-  if (settings.vectorSearchRerankModel) {
-    process.env.VECTOR_SEARCH_RERANK_MODEL = settings.vectorSearchRerankModel;
-  }
-  if (settings.vectorSearchRerankTopK !== undefined) {
-    process.env.VECTOR_SEARCH_RERANK_TOPK = String(settings.vectorSearchRerankTopK);
-  }
-  if (settings.vectorSearchTokenChunkSize !== undefined) {
-    process.env.VECTOR_SEARCH_TOKEN_CHUNK_SIZE = String(settings.vectorSearchTokenChunkSize);
-  }
-  if (settings.vectorSearchTokenChunkStride !== undefined) {
-    process.env.VECTOR_SEARCH_TOKEN_CHUNK_STRIDE = String(settings.vectorSearchTokenChunkStride);
-  }
-  if (settings.vectorSearchMaxFileLines !== undefined) {
-    process.env.VECTOR_SEARCH_MAX_FILE_LINES = String(settings.vectorSearchMaxFileLines);
-  }
-  if (settings.vectorSearchMaxLineLength !== undefined) {
-    process.env.VECTOR_SEARCH_MAX_LINE_LENGTH = String(settings.vectorSearchMaxLineLength);
-  }
+    if (settings.vectorSearchHybridEnabled !== undefined) {
+        process.env.VECTOR_SEARCH_HYBRID = settings.vectorSearchHybridEnabled ? "true" : "false";
+    }
+    if (settings.vectorSearchTokenChunkingEnabled !== undefined) {
+        process.env.VECTOR_SEARCH_TOKEN_CHUNKING = settings.vectorSearchTokenChunkingEnabled ? "true" : "false";
+    }
+    if (settings.vectorSearchRerankingEnabled !== undefined) {
+        process.env.VECTOR_SEARCH_RERANKING = settings.vectorSearchRerankingEnabled ? "true" : "false";
+    }
+    if (settings.vectorSearchQueryExpansionEnabled !== undefined) {
+        process.env.VECTOR_SEARCH_QUERY_EXPANSION = settings.vectorSearchQueryExpansionEnabled ? "true" : "false";
+    }
+    if (settings.vectorSearchLlmSynthesisEnabled !== undefined) {
+        process.env.VECTOR_SEARCH_LLM_SYNTHESIS = settings.vectorSearchLlmSynthesisEnabled ? "true" : "false";
+    }
 
-  // ComfyUI settings
-  if (settings.imageGenerationProvider) {
-    process.env.IMAGE_GENERATION_PROVIDER = settings.imageGenerationProvider;
-  }
-  if (settings.comfyuiEnabled) {
-    process.env.COMFYUI_LOCAL_ENABLED = "true";
-  } else {
-    delete process.env.COMFYUI_LOCAL_ENABLED;
-  }
-  if (settings.comfyuiPort) {
-    process.env.COMFYUI_PORT = String(settings.comfyuiPort);
-  }
-  if (settings.comfyuiBackendPath) {
-    process.env.COMFYUI_BACKEND_PATH = settings.comfyuiBackendPath;
-  }
+    if (settings.vectorSearchRrfK !== undefined) {
+        process.env.VECTOR_SEARCH_RRF_K = String(settings.vectorSearchRrfK);
+    }
+    if (settings.vectorSearchDenseWeight !== undefined) {
+        process.env.VECTOR_SEARCH_DENSE_WEIGHT = String(settings.vectorSearchDenseWeight);
+    }
+    if (settings.vectorSearchLexicalWeight !== undefined) {
+        process.env.VECTOR_SEARCH_LEXICAL_WEIGHT = String(settings.vectorSearchLexicalWeight);
+    }
+    if (settings.vectorSearchRerankModel) {
+        process.env.VECTOR_SEARCH_RERANK_MODEL = settings.vectorSearchRerankModel;
+    }
+    if (settings.vectorSearchRerankTopK !== undefined) {
+        process.env.VECTOR_SEARCH_RERANK_TOPK = String(settings.vectorSearchRerankTopK);
+    }
+    if (settings.vectorSearchTokenChunkSize !== undefined) {
+        process.env.VECTOR_SEARCH_TOKEN_CHUNK_SIZE = String(settings.vectorSearchTokenChunkSize);
+    }
+    if (settings.vectorSearchTokenChunkStride !== undefined) {
+        process.env.VECTOR_SEARCH_TOKEN_CHUNK_STRIDE = String(settings.vectorSearchTokenChunkStride);
+    }
+    if (settings.vectorSearchMaxFileLines !== undefined) {
+        process.env.VECTOR_SEARCH_MAX_FILE_LINES = String(settings.vectorSearchMaxFileLines);
+    }
+    if (settings.vectorSearchMaxLineLength !== undefined) {
+        process.env.VECTOR_SEARCH_MAX_LINE_LENGTH = String(settings.vectorSearchMaxLineLength);
+    }
 
-  loadConfigFromEnv();
+    // ComfyUI settings
+    if (settings.imageGenerationProvider) {
+        process.env.IMAGE_GENERATION_PROVIDER = settings.imageGenerationProvider;
+    }
+    if (settings.comfyuiEnabled) {
+        process.env.COMFYUI_LOCAL_ENABLED = "true";
+    } else {
+        delete process.env.COMFYUI_LOCAL_ENABLED;
+    }
+    if (settings.comfyuiPort) {
+        process.env.COMFYUI_PORT = String(settings.comfyuiPort);
+    }
+    if (settings.comfyuiBackendPath) {
+        process.env.COMFYUI_BACKEND_PATH = settings.comfyuiBackendPath;
+    }
+
+    loadConfigFromEnv();
 }
 
 /**
  * Check if required API keys are configured
  */
 export function hasRequiredApiKeys(): boolean {
-  const settings = loadSettings();
+    const settings = loadSettings();
 
-  // Need at least one LLM provider key
-  if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
-    return false;
-  }
-  if (settings.llmProvider === "openrouter" && !settings.openrouterApiKey) {
-    return false;
-  }
-  // Antigravity requires OAuth authentication, not an API key
-  if (settings.llmProvider === "antigravity" && !settings.antigravityAuth?.isAuthenticated) {
-    return false;
-  }
+    // Need at least one LLM provider key
+    if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
+        return false;
+    }
+    if (settings.llmProvider === "openrouter" && !settings.openrouterApiKey) {
+        return false;
+    }
+    // Antigravity requires OAuth authentication, not an API key
+    if (settings.llmProvider === "antigravity" && !settings.antigravityAuth?.isAuthenticated) {
+        return false;
+    }
+    // Codex requires OAuth authentication, not an API key
+    if (settings.llmProvider === "codex" && !settings.codexAuth?.isAuthenticated) {
+        return false;
+    }
 
-  return true;
+    return true;
 }
 
 /**
  * Reset settings to defaults
  */
 export function resetSettings(): AppSettings {
-  cachedSettings = null;
-  const settings = { ...DEFAULT_SETTINGS, localUserId: crypto.randomUUID() };
-  saveSettings(settings);
-  return settings;
+    cachedSettings = null;
+    const settings = { ...DEFAULT_SETTINGS, localUserId: crypto.randomUUID() };
+    saveSettings(settings);
+    return settings;
 }
 
 /**
@@ -383,16 +399,16 @@ export function resetSettings(): AppSettings {
  * Call this when settings may have been modified by another process or request.
  */
 export function invalidateSettingsCache(): void {
-  cachedSettings = null;
-  cachedSettingsTimestamp = 0;
+    cachedSettings = null;
+    cachedSettingsTimestamp = 0;
 }
 
 /**
  * Initialize settings on app startup
  */
 export function initializeSettings(): void {
-  const settings = loadSettings();
-  updateEnvFromSettings(settings);
-  console.log("[Settings] Initialized with provider:", settings.llmProvider);
+    const settings = loadSettings();
+    updateEnvFromSettings(settings);
+    console.log("[Settings] Initialized with provider:", settings.llmProvider);
 }
 

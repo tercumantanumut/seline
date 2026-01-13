@@ -65,8 +65,8 @@ export const ANTIGRAVITY_CONFIG = {
   API_VERSION: "v1internal",
   // OAuth callback port for desktop apps (matches opencode plugin)
   OAUTH_CALLBACK_PORT: 36742,
-  // Token refresh threshold (refresh 5 minutes before expiry)
-  REFRESH_THRESHOLD_MS: 5 * 60 * 1000,
+  // Token refresh threshold (refresh 15 minutes before expiry)
+  REFRESH_THRESHOLD_MS: 15 * 60 * 1000,
   // Request headers for Antigravity API (matching opencode-antigravity-auth plugin)
   HEADERS: {
     "User-Agent": "antigravity/1.11.5 windows/amd64",
@@ -328,6 +328,65 @@ export function isAntigravityAuthenticated(): boolean {
   }
 
   return isAntigravityTokenValid();
+}
+
+/**
+ * Check if Antigravity is configured and authenticated asynchronously.
+ * This will attempt to refresh the token if it's expired but a refresh token exists.
+ */
+export async function isAntigravityAuthenticatedAsync(): Promise<boolean> {
+  const state = getAntigravityAuthState();
+  if (!state.isAuthenticated) {
+    return false;
+  }
+
+  // If token is valid, we're good
+  if (isAntigravityTokenValid()) {
+    return true;
+  }
+
+  // Token expired - try to refresh
+  const token = getAntigravityToken();
+  if (token?.refresh_token) {
+    console.log("[AntigravityAuth] Token expired, attempting refresh...");
+    const refreshed = await refreshAntigravityToken();
+    return refreshed;
+  }
+
+  return false;
+}
+
+let refreshIntervalId: NodeJS.Timeout | null = null;
+
+/**
+ * Start background token refresh (call on app startup)
+ */
+export function startBackgroundTokenRefresh(): void {
+  // Only start in browser environment
+  if (typeof window === "undefined") return;
+  if (refreshIntervalId) return; // Already running
+
+  const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+  refreshIntervalId = setInterval(async () => {
+    if (isAntigravityAuthenticated() && needsTokenRefresh()) {
+      console.log("[AntigravityAuth] Background refresh triggered");
+      await refreshAntigravityToken();
+    }
+  }, REFRESH_INTERVAL);
+
+  console.log("[AntigravityAuth] Background token refresh started");
+}
+
+/**
+ * Stop background token refresh
+ */
+export function stopBackgroundTokenRefresh(): void {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+    console.log("[AntigravityAuth] Background token refresh stopped");
+  }
 }
 
 /**

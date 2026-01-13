@@ -17,6 +17,7 @@ const DEFAULT_STATUS: GlobalSyncStatus = {
 // Polling intervals
 const ACTIVE_POLL_INTERVAL = 1000; // 1 second when syncing (for responsive UI)
 const IDLE_POLL_INTERVAL = 30000; // 30 seconds when idle
+const DISABLED_POLL_INTERVAL = 300000; // 5 minutes when vector DB is disabled
 
 interface VectorSyncContextType {
   status: GlobalSyncStatus;
@@ -86,11 +87,16 @@ export function useVectorSyncStatusInternal(): UseVectorSyncStatusInternalResult
 
   // Polling based on sync state - use active polling if syncing OR if there are pending/active syncs
   useEffect(() => {
+    if (!status.isEnabled) {
+      const timer = setInterval(fetchStatus, DISABLED_POLL_INTERVAL);
+      return () => clearInterval(timer);
+    }
+
     const hasActiveWork = status.isSyncing || status.pendingSyncs.length > 0 || status.activeSyncs.length > 0;
     const interval = hasActiveWork ? ACTIVE_POLL_INTERVAL : IDLE_POLL_INTERVAL;
     const timer = setInterval(fetchStatus, interval);
     return () => clearInterval(timer);
-  }, [status.isSyncing, status.pendingSyncs.length, status.activeSyncs.length, fetchStatus]);
+  }, [status.isEnabled, status.isSyncing, status.pendingSyncs.length, status.activeSyncs.length, fetchStatus]);
 
   return {
     status,

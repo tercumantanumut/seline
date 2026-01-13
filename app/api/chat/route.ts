@@ -46,6 +46,7 @@ interface ContextInjectionTrackingMetadata {
   tokensSinceLastInjection: number;
   messagesSinceLastInjection: number;
   lastInjectedAt?: string;
+  toolLoadingMode?: "deferred" | "always";
 }
 
 /**
@@ -72,10 +73,16 @@ const CONTEXT_INJECTION_MESSAGE_THRESHOLD = 7;
  */
 function shouldInjectContext(
   trackingMetadata: ContextInjectionTrackingMetadata | null,
-  isFirstMessage: boolean
+  isFirstMessage: boolean,
+  toolLoadingMode: "deferred" | "always"
 ): boolean {
   // Always inject on first message
   if (isFirstMessage || !trackingMetadata) {
+    return true;
+  }
+
+  // Inject if tool loading mode changed (prompt guidance differs)
+  if (!trackingMetadata.toolLoadingMode || trackingMetadata.toolLoadingMode !== toolLoadingMode) {
     return true;
   }
 
@@ -107,6 +114,7 @@ function getContextInjectionTracking(
     tokensSinceLastInjection: tracking.tokensSinceLastInjection ?? 0,
     messagesSinceLastInjection: tracking.messagesSinceLastInjection ?? 0,
     lastInjectedAt: tracking.lastInjectedAt,
+    toolLoadingMode: tracking.toolLoadingMode ?? undefined,
   };
 }
 
@@ -898,10 +906,13 @@ export async function POST(req: Request) {
       }
     }
 
+    const appSettings = loadSettings();
+    const toolLoadingMode = appSettings.toolLoadingMode ?? "deferred";
+
     // Determine if we should inject context (system prompt + tools)
     // This reduces token usage by only sending these on first message and periodically thereafter
     const contextTracking = getContextInjectionTracking(sessionMetadata);
-    const injectContext = shouldInjectContext(contextTracking, isNewSession);
+    const injectContext = shouldInjectContext(contextTracking, isNewSession, toolLoadingMode);
     console.log(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
 
     // Run auto-compaction if needed
@@ -1035,7 +1046,7 @@ export async function POST(req: Request) {
       const character = await getCharacterFull(characterId);
       if (character && character.userId === dbUser.id) {
         // Build character-specific system prompt (includes shared blocks)
-        systemPrompt = buildCharacterSystemPrompt(character);
+        systemPrompt = buildCharacterSystemPrompt(character, { toolLoadingMode });
 
         // Get character avatar and appearance for tool context
         characterAvatarUrl = getCharacterAvatarUrl(character);
@@ -1050,6 +1061,7 @@ export async function POST(req: Request) {
         // Character not found or doesn't belong to user, use default
         systemPrompt = getSystemPrompt({
           stylyApiEnabled: hasStylyApiKey(),
+          toolLoadingMode,
         });
         console.log(`[CHAT API] Character not found or unauthorized, using default prompt`);
       }
@@ -1057,6 +1069,7 @@ export async function POST(req: Request) {
       // No character specified, use default professional agent prompt
       systemPrompt = getSystemPrompt({
         stylyApiEnabled: hasStylyApiKey(),
+        toolLoadingMode,
       });
     }
 
@@ -1096,7 +1109,6 @@ export async function POST(req: Request) {
     ]);
 
     // Check user preference for tool loading mode
-    const appSettings = loadSettings();
     const useDeferredLoading = appSettings.toolLoadingMode !== "always";
 
     // Load tools needed for this request:
@@ -1418,6 +1430,7 @@ export async function POST(req: Request) {
               tokensSinceLastInjection: tokensUsedThisRequest,
               messagesSinceLastInjection: 1, // Count this message
               lastInjectedAt: new Date().toISOString(),
+              toolLoadingMode,
             };
           } else {
             // Increment existing counters
@@ -1429,6 +1442,7 @@ export async function POST(req: Request) {
               tokensSinceLastInjection: currentTracking.tokensSinceLastInjection + tokensUsedThisRequest,
               messagesSinceLastInjection: currentTracking.messagesSinceLastInjection + 1,
               lastInjectedAt: currentTracking.lastInjectedAt,
+              toolLoadingMode: currentTracking.toolLoadingMode ?? toolLoadingMode,
             };
           }
 
