@@ -32,6 +32,47 @@ const MODEL_ALIASES: Record<string, string> = {
 
 const ANTIGRAVITY_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 
+// Retry configuration for Antigravity quota/resource exhaustion errors
+const ANTIGRAVITY_RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffFactor: 2,
+};
+
+/**
+ * Check if an error message indicates a retryable quota/resource exhaustion error
+ */
+function isRetryableAntigravityError(errorText: string): boolean {
+  const lowerError = errorText.toLowerCase();
+  return (
+    lowerError.includes("resource exhausted") ||
+    lowerError.includes("quota") ||
+    lowerError.includes("rate limit") ||
+    lowerError.includes("429") ||
+    lowerError.includes("503") ||
+    lowerError.includes("temporarily unavailable")
+  );
+}
+
+/**
+ * Calculate delay for exponential backoff
+ */
+function calculateRetryDelay(attempt: number): number {
+  const delay = ANTIGRAVITY_RETRY_CONFIG.initialDelayMs *
+    Math.pow(ANTIGRAVITY_RETRY_CONFIG.backoffFactor, attempt);
+  // Add jitter (±20%) to prevent thundering herd
+  const jitter = delay * 0.2 * (Math.random() * 2 - 1);
+  return Math.min(delay + jitter, ANTIGRAVITY_RETRY_CONFIG.maxDelayMs);
+}
+
+/**
+ * Sleep for a given number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Generate a unique request ID
 function generateRequestId(): string {
   const timestamp = Date.now().toString(36);
@@ -239,86 +280,230 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
     console.log(`[Antigravity] Request: ${action} for model ${effectiveModel}`);
     console.log(`[Antigravity] URL: ${antigravityUrl}`);
 
-    // Make the request to Antigravity
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const clearTimeoutOnce = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
+    // Helper to make a single request attempt
+    const makeRequest = async (attempt: number): Promise<Response> => {
+      const controller = new AbortController();
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const clearTimeoutOnce = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+      timeoutId = setTimeout(() => {
+        clearTimeoutOnce();
+        controller.abort(new Error("Antigravity request timed out"));
+      }, ANTIGRAVITY_REQUEST_TIMEOUT_MS);
+
+      const upstreamSignal = init?.signal;
+      if (upstreamSignal) {
+        if (upstreamSignal.aborted) {
+          controller.abort(upstreamSignal.reason);
+        } else {
+          upstreamSignal.addEventListener("abort", () => controller.abort(upstreamSignal.reason), { once: true });
+        }
       }
-    };
-    timeoutId = setTimeout(() => {
-      clearTimeoutOnce();
-      controller.abort(new Error("Antigravity request timed out"));
-    }, ANTIGRAVITY_REQUEST_TIMEOUT_MS);
 
-    const upstreamSignal = init?.signal;
-    if (upstreamSignal) {
-      if (upstreamSignal.aborted) {
-        controller.abort(upstreamSignal.reason);
-      } else {
-        upstreamSignal.addEventListener("abort", () => controller.abort(upstreamSignal.reason), { once: true });
+      let response: Response;
+      try {
+        response = await fetch(antigravityUrl, {
+          ...init,
+          method: init?.method || "POST",
+          headers,
+          body: transformedBody,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeoutOnce();
+        throw error;
       }
-    }
 
-    let response: Response;
-    try {
-      response = await fetch(antigravityUrl, {
-        ...init,
-        method: init?.method || "POST",
-        headers,
-        body: transformedBody,
-        signal: controller.signal,
-      });
-    } catch (error) {
+      if (!response.ok) {
+        clearTimeoutOnce();
+        const errorText = await response.clone().text();
+        console.error(`[Antigravity] Error (attempt ${attempt + 1}): ${response.status} ${response.statusText}`);
+        console.error(`[Antigravity] Response: ${errorText.substring(0, 500)}`);
+
+        // Check if this is a retryable error and we have retries left
+        if (attempt < ANTIGRAVITY_RETRY_CONFIG.maxRetries && isRetryableAntigravityError(errorText)) {
+          const delay = calculateRetryDelay(attempt);
+          console.log(`[Antigravity] Retryable error detected, waiting ${Math.round(delay)}ms before retry...`);
+          await sleep(delay);
+          return makeRequest(attempt + 1);
+        }
+
+        return response;
+      }
+
+      // For streaming responses, transform SSE data with retry support
+      if (streaming && response.body) {
+        const streamBody = response.body
+          .pipeThrough(new TextDecoderStream())
+          .pipeThrough(createResponseTransformStreamWithRetry(
+            clearTimeoutOnce,
+            // Retry callback for mid-stream errors
+            async (errorText: string): Promise<ReadableStream<string> | null> => {
+              if (attempt >= ANTIGRAVITY_RETRY_CONFIG.maxRetries || !isRetryableAntigravityError(errorText)) {
+                console.error(`[Antigravity] Stream error not retryable or max retries exceeded`);
+                return null;
+              }
+              const delay = calculateRetryDelay(attempt);
+              console.log(`[Antigravity] Mid-stream quota error, retrying in ${Math.round(delay)}ms...`);
+              await sleep(delay);
+
+              // Make a new request and return its stream
+              try {
+                const retryResponse = await makeRequest(attempt + 1);
+                if (retryResponse.ok && retryResponse.body) {
+                  return retryResponse.body
+                    .pipeThrough(new TextDecoderStream());
+                }
+              } catch (retryError) {
+                console.error(`[Antigravity] Retry failed:`, retryError);
+              }
+              return null;
+            }
+          ))
+          .pipeThrough(new TextEncoderStream());
+
+        return new Response(streamBody, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      }
+
+      // For non-streaming, unwrap the response
+      const text = await response.text();
       clearTimeoutOnce();
-      throw error;
-    }
+      const unwrappedText = unwrapResponse(text);
 
-    if (!response.ok) {
-      clearTimeoutOnce();
-      const errorText = await response.clone().text();
-      console.error(`[Antigravity] Error: ${response.status} ${response.statusText}`);
-      console.error(`[Antigravity] Response: ${errorText.substring(0, 500)}`);
-      return response;
-    }
-
-    // For streaming responses, transform SSE data
-    if (streaming && response.body) {
-      const transformedBody = response.body
-        .pipeThrough(new TextDecoderStream())
-        .pipeThrough(createResponseTransformStream(clearTimeoutOnce))
-        .pipeThrough(new TextEncoderStream());
-
-      return new Response(transformedBody, {
+      return new Response(unwrappedText, {
         status: response.status,
         statusText: response.statusText,
         headers: response.headers,
       });
-    }
+    };
 
-    // For non-streaming, unwrap the response
-    const text = await response.text();
-    clearTimeoutOnce();
-    const unwrappedText = unwrapResponse(text);
-
-    return new Response(unwrappedText, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
+    // Start with attempt 0
+    return makeRequest(0);
   };
 }
 
 /**
- * Transform SSE stream to unwrap response objects
+ * Transform SSE stream to unwrap response objects with retry support for quota errors.
+ *
+ * This stream transformer detects quota/resource exhaustion errors in the SSE stream
+ * and can trigger a retry callback to get a new stream, transparently continuing
+ * the response to the client.
+ *
+ * @param onComplete - Called when stream completes successfully
+ * @param onRetryNeeded - Callback to get a new stream on retryable error, returns null if retry fails
  */
-function createResponseTransformStream(onComplete?: () => void): TransformStream<string, string> {
+function createResponseTransformStreamWithRetry(
+  onComplete?: () => void,
+  onRetryNeeded?: (errorText: string) => Promise<ReadableStream<string> | null>
+): TransformStream<string, string> {
   let buffer = "";
+  let retryStream: ReadableStream<string> | null = null;
+  let retryReader: ReadableStreamDefaultReader<string> | null = null;
+
+  /**
+   * Check if a parsed SSE data object contains a quota/resource error
+   */
+  const isQuotaError = (parsed: unknown): string | null => {
+    if (typeof parsed !== "object" || parsed === null) return null;
+
+    const obj = parsed as Record<string, unknown>;
+
+    // Check for error field
+    if (obj.error && typeof obj.error === "object") {
+      const error = obj.error as Record<string, unknown>;
+      const message = String(error.message || error.error || "");
+      if (isRetryableAntigravityError(message)) {
+        return message;
+      }
+    }
+
+    // Check for top-level error message
+    if (obj.message && typeof obj.message === "string") {
+      if (isRetryableAntigravityError(obj.message)) {
+        return obj.message;
+      }
+    }
+
+    // Check candidates for finishReason: "OTHER" which can indicate quota issues
+    if (obj.candidates && Array.isArray(obj.candidates)) {
+      for (const candidate of obj.candidates) {
+        if (candidate && typeof candidate === "object") {
+          const c = candidate as Record<string, unknown>;
+          if (c.finishReason === "OTHER" || c.finishReason === "RECITATION") {
+            // Check if there's an error message in the content
+            const content = c.content as Record<string, unknown> | undefined;
+            if (content?.parts && Array.isArray(content.parts)) {
+              for (const part of content.parts) {
+                if (part && typeof part === "object" && "text" in part) {
+                  const text = String((part as Record<string, unknown>).text || "");
+                  if (isRetryableAntigravityError(text)) {
+                    return text;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  };
+
+  /**
+   * Process accumulated retry stream data
+   */
+  const processRetryData = async (controller: TransformStreamDefaultController<string>) => {
+    if (!retryReader) return;
+
+    try {
+      while (true) {
+        const { done, value } = await retryReader.read();
+        if (done) break;
+
+        // Process the retry stream data through the same transform logic
+        buffer += value;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data:")) {
+            controller.enqueue(line + "\n");
+            continue;
+          }
+
+          const json = line.slice(5).trim();
+          if (!json) {
+            controller.enqueue(line + "\n");
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(json);
+            const unwrapped = parsed.response !== undefined ? parsed.response : parsed;
+            controller.enqueue(`data: ${JSON.stringify(unwrapped)}\n`);
+          } catch {
+            controller.enqueue(line + "\n");
+          }
+        }
+      }
+    } finally {
+      retryReader.releaseLock();
+      retryReader = null;
+      retryStream = null;
+    }
+  };
 
   return new TransformStream<string, string>({
-    transform(chunk, controller) {
+    async transform(chunk, controller) {
       buffer += chunk;
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
@@ -337,6 +522,26 @@ function createResponseTransformStream(onComplete?: () => void): TransformStream
 
         try {
           const parsed = JSON.parse(json);
+
+          // Check if this is a quota error that we should retry
+          const quotaErrorMsg = isQuotaError(parsed);
+          if (quotaErrorMsg && onRetryNeeded) {
+            console.log(`[Antigravity] Detected mid-stream quota error: ${quotaErrorMsg.substring(0, 100)}`);
+
+            // Attempt to get a retry stream
+            const newStream = await onRetryNeeded(quotaErrorMsg);
+            if (newStream) {
+              console.log(`[Antigravity] Got retry stream, continuing response...`);
+              retryStream = newStream;
+              retryReader = newStream.getReader();
+              // Process the retry stream
+              await processRetryData(controller);
+              return; // Stop processing current stream
+            } else {
+              console.log(`[Antigravity] Retry failed, forwarding error to client`);
+            }
+          }
+
           // Unwrap the response field if present
           const unwrapped = parsed.response !== undefined ? parsed.response : parsed;
           controller.enqueue(`data: ${JSON.stringify(unwrapped)}\n`);

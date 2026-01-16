@@ -64,8 +64,7 @@ const PREBUILT_TEMPLATES = [
         description: "Issue tracking & project management",
         config: {
             command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-linear"],
-            env: { "LINEAR_API_KEY": "" }
+            args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
         }
     },
     {

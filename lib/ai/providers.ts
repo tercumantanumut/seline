@@ -119,6 +119,15 @@ function getOpenRouterClient() {
  * Exported so it can be called from API routes before streaming.
  */
 export async function ensureAntigravityTokenValid(): Promise<boolean> {
+  // CRITICAL: Invalidate caches first to ensure we read fresh token state from disk
+  // This prevents issues where cached stale token data causes auth failures
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { invalidateSettingsCache } = require("@/lib/settings/settings-manager");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { invalidateAntigravityAuthCache } = require("@/lib/auth/antigravity-auth");
+  invalidateSettingsCache();
+  invalidateAntigravityAuthCache();
+
   if (!isAntigravityAuthenticated()) {
     return false;
   }
@@ -278,6 +287,15 @@ export function getConfiguredModel(): string {
   // Use environment model if set, otherwise use default for provider
   const model = envModel || DEFAULT_MODELS[provider];
 
+  // Validate model is compatible with the selected provider
+  // If the model doesn't match the provider, fall back to provider default
+  if (provider === "antigravity" && model && !isAntigravityModel(model)) {
+    console.warn(
+      `[PROVIDERS] Antigravity selected but model "${model}" is not an Antigravity model, falling back to ${DEFAULT_MODELS.antigravity}`
+    );
+    return DEFAULT_MODELS.antigravity;
+  }
+
   if (provider === "codex" && model && !isCodexModel(model)) {
     console.warn(
       `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
@@ -294,6 +312,14 @@ export function getConfiguredModel(): string {
 export function getLanguageModel(modelOverride?: string): LanguageModel {
   const provider = getConfiguredProvider();
   let model = modelOverride || getConfiguredModel();
+
+  // Validate model is compatible with the selected provider
+  if (provider === "antigravity" && model && !isAntigravityModel(model)) {
+    console.warn(
+      `[PROVIDERS] Antigravity selected but model "${model}" is not an Antigravity model, falling back to ${DEFAULT_MODELS.antigravity}`
+    );
+    model = DEFAULT_MODELS.antigravity;
+  }
 
   if (provider === "codex" && model && !isCodexModel(model)) {
     console.warn(
@@ -384,6 +410,9 @@ export function getModelByName(modelId: string): LanguageModel {
  * Get the chat model for conversations.
  * Reads directly from settings file to ensure latest configuration is used.
  * Falls back to provider default if no chat model is configured.
+ *
+ * IMPORTANT: When using a specific provider (e.g., Antigravity), validates that
+ * the saved model is compatible with that provider. If not, falls back to provider default.
  */
 export function getChatModel(): LanguageModel {
   // Import settings dynamically to avoid circular dependencies
@@ -391,7 +420,23 @@ export function getChatModel(): LanguageModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
-  const chatModel = settings.chatModel || process.env.LLM_MODEL;
+  const provider = getConfiguredProvider();
+  let chatModel = settings.chatModel || process.env.LLM_MODEL;
+
+  // Validate model is compatible with the selected provider
+  if (chatModel && provider === "antigravity" && !isAntigravityModel(chatModel)) {
+    console.warn(
+      `[PROVIDERS] Antigravity provider selected but chatModel "${chatModel}" is not an Antigravity model, using default`
+    );
+    chatModel = DEFAULT_MODELS.antigravity;
+  }
+
+  if (chatModel && provider === "codex" && !isCodexModel(chatModel)) {
+    console.warn(
+      `[PROVIDERS] Codex provider selected but chatModel "${chatModel}" is not a Codex model, using default`
+    );
+    chatModel = DEFAULT_MODELS.codex;
+  }
 
   if (chatModel) {
     console.log(`[PROVIDERS] Using configured chat model: ${chatModel}`);
@@ -406,6 +451,8 @@ export function getChatModel(): LanguageModel {
  * Get the research model for Deep Research mode.
  * Reads directly from settings file to ensure latest configuration is used.
  * Falls back to chat model if no research model is configured.
+ *
+ * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getResearchModel(): LanguageModel {
   // Import settings dynamically to avoid circular dependencies
@@ -413,7 +460,23 @@ export function getResearchModel(): LanguageModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
-  const researchModel = settings.researchModel || process.env.RESEARCH_MODEL;
+  const provider = getConfiguredProvider();
+  let researchModel = settings.researchModel || process.env.RESEARCH_MODEL;
+
+  // Validate model is compatible with the selected provider
+  if (researchModel && provider === "antigravity" && !isAntigravityModel(researchModel)) {
+    console.warn(
+      `[PROVIDERS] Antigravity provider selected but researchModel "${researchModel}" is not an Antigravity model, using chat model`
+    );
+    researchModel = null;
+  }
+
+  if (researchModel && provider === "codex" && !isCodexModel(researchModel)) {
+    console.warn(
+      `[PROVIDERS] Codex provider selected but researchModel "${researchModel}" is not a Codex model, using chat model`
+    );
+    researchModel = null;
+  }
 
   if (researchModel) {
     console.log(`[PROVIDERS] Using configured research model: ${researchModel}`);
@@ -429,6 +492,8 @@ export function getResearchModel(): LanguageModel {
  * Reads directly from settings file to ensure latest configuration is used.
  * Falls back to chat model if no vision model is configured.
  * Note: The fallback chat model (Claude) has native vision support.
+ *
+ * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getVisionModel(): LanguageModel {
   // Import settings dynamically to avoid circular dependencies
@@ -436,7 +501,23 @@ export function getVisionModel(): LanguageModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
-  const visionModel = settings.visionModel || process.env.VISION_MODEL;
+  const provider = getConfiguredProvider();
+  let visionModel = settings.visionModel || process.env.VISION_MODEL;
+
+  // Validate model is compatible with the selected provider
+  if (visionModel && provider === "antigravity" && !isAntigravityModel(visionModel)) {
+    console.warn(
+      `[PROVIDERS] Antigravity provider selected but visionModel "${visionModel}" is not an Antigravity model, using chat model`
+    );
+    visionModel = null;
+  }
+
+  if (visionModel && provider === "codex" && !isCodexModel(visionModel)) {
+    console.warn(
+      `[PROVIDERS] Codex provider selected but visionModel "${visionModel}" is not a Codex model, using chat model`
+    );
+    visionModel = null;
+  }
 
   if (visionModel) {
     console.log(`[PROVIDERS] Using configured vision model: ${visionModel}`);
@@ -454,19 +535,35 @@ export function getVisionModel(): LanguageModel {
  * - Anthropic: Claude Haiku 4.5
  * - OpenRouter: Gemini 2.5 Flash
  * - Antigravity: Gemini 3 Flash (free)
+ *
+ * IMPORTANT: Validates that any override model is compatible with the configured provider.
  */
 export function getUtilityModel(): LanguageModel {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
-  const overrideModel = settings.utilityModel || process.env.UTILITY_MODEL;
+  const provider = getConfiguredProvider();
+  let overrideModel = settings.utilityModel || process.env.UTILITY_MODEL;
+
+  // Validate override model is compatible with the selected provider
+  if (overrideModel && provider === "antigravity" && !isAntigravityModel(overrideModel)) {
+    console.warn(
+      `[PROVIDERS] Antigravity provider selected but utilityModel "${overrideModel}" is not an Antigravity model, using default`
+    );
+    overrideModel = null;
+  }
+
+  if (overrideModel && provider === "codex" && !isCodexModel(overrideModel)) {
+    console.warn(
+      `[PROVIDERS] Codex provider selected but utilityModel "${overrideModel}" is not a Codex model, using default`
+    );
+    overrideModel = null;
+  }
 
   if (overrideModel) {
     console.log(`[PROVIDERS] Using configured utility model: ${overrideModel}`);
     return getModelByName(overrideModel);
   }
-
-  const provider = getConfiguredProvider();
   const model = UTILITY_MODELS[provider];
 
   console.log(`[PROVIDERS] Using utility model: ${model} (provider: ${provider})`);

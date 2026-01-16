@@ -4,10 +4,18 @@ import {
     needsTokenRefresh,
     refreshAntigravityToken,
     getAntigravityToken,
+    invalidateAntigravityAuthCache,
 } from "@/lib/auth/antigravity-auth";
+import { invalidateSettingsCache } from "@/lib/settings/settings-manager";
 
 export async function POST() {
     try {
+        // CRITICAL: Invalidate all caches before reading token state
+        // This prevents race conditions where stale cached data causes
+        // incorrect auth state display on the Settings page
+        invalidateSettingsCache();
+        invalidateAntigravityAuthCache();
+
         const token = getAntigravityToken();
 
         if (!token) {
