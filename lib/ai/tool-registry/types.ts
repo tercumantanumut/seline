@@ -19,7 +19,8 @@ export type ToolCategory =
   | "analysis"
   | "knowledge"
   | "utility"
-  | "search";
+  | "search"
+  | "mcp";
 
 /**
  * Configuration for when a tool should be loaded

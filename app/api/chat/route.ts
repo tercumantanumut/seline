@@ -1217,14 +1217,43 @@ export async function POST(req: Request) {
       }),
     };
 
+    // Load MCP tools for this character (if configured)
+    let mcpTools: Record<string, Tool> = {};
+    try {
+      const { loadMCPToolsForCharacter } = await import("@/lib/mcp/chat-integration");
+      const character = characterId ? await getCharacterFull(characterId) : undefined;
+      mcpTools = await loadMCPToolsForCharacter(character || undefined);
+
+      if (Object.keys(mcpTools).length > 0) {
+        console.log(`[CHAT API] Loaded ${Object.keys(mcpTools).length} MCP tools: ${Object.keys(mcpTools).join(", ")}`);
+
+        // CRITICAL: Ensure MCP tools are strictly allowed in searchTools and listAllTools
+        // If enabledTools is configured (agent has specific tool list), we MUST add MCP tools to it
+        // otherwise they will be hidden from discovery.
+        if (toolSearchContext.enabledTools) {
+          Object.keys(mcpTools).forEach(name => toolSearchContext.enabledTools!.add(name));
+          console.log(`[CHAT API] Added ${Object.keys(mcpTools).length} MCP tools to enabledTools set for discovery`);
+        }
+      }
+    } catch (error) {
+      console.error("[CHAT API] Failed to load MCP tools:", error);
+    }
+
+    // Merge MCP tools with regular tools
+    const allToolsWithMCP = {
+      ...tools,
+      ...mcpTools,
+    };
+
+
     // Build the initial activeTools array (tool names that are active from the start)
     // When toolLoadingMode="always", ALL tools are active from step 0 (no discovery needed)
     // When toolLoadingMode="deferred", only non-deferred + previously discovered tools are active
     const initialActiveToolNames = useDeferredLoading
       ? [...new Set([...initialActiveTools, ...previouslyDiscoveredTools])]
-      : Object.keys(tools); // "Always Include" mode: all tools active immediately
+      : Object.keys(allToolsWithMCP); // "Always Include" mode: all tools active immediately
 
-    console.log(`[CHAT API] Loaded ${Object.keys(tools).length} tools: ${Object.keys(tools).join(", ")}`);
+    console.log(`[CHAT API] Loaded ${Object.keys(allToolsWithMCP).length} tools (including ${Object.keys(mcpTools).length} MCP tools): ${Object.keys(allToolsWithMCP).join(", ")}`);
     console.log(`[CHAT API] Tool loading mode: ${useDeferredLoading ? "deferred" : "always-include"}, initial active tools: ${initialActiveToolNames.length}`);
     if (useDeferredLoading) {
       console.log(`[CHAT API] Previously discovered (restored): ${previouslyDiscoveredTools.size > 0 ? [...previouslyDiscoveredTools].join(", ") : "none"}`);
@@ -1251,10 +1280,10 @@ export async function POST(req: Request) {
         ...(injectContext && { system: systemPrompt }),
         messages: coreMessages,
         // Tools MUST always be passed - they are function definitions required for actual invocation
-        tools,
+        tools: allToolsWithMCP,
         // Use activeTools to control which tools are visible to the model
         // Initially: non-deferred tools + previously discovered tools from session metadata
-        activeTools: initialActiveToolNames as (keyof typeof tools)[],
+        activeTools: initialActiveToolNames as (keyof typeof allToolsWithMCP)[],
         abortSignal: req.signal,
         stopWhen: stepCountIs(AI_CONFIG.maxSteps),
         // Use slightly lower temperature when tools are available to reduce
@@ -1289,7 +1318,7 @@ export async function POST(req: Request) {
             ]);
           } else {
             // "Always Include" mode: ALL available tools should be active from step 0
-            activeToolSet = new Set<string>(Object.keys(tools));
+            activeToolSet = new Set<string>(Object.keys(allToolsWithMCP));
           }
 
           // Dynamically inject retrieveFullContent if session has truncated content

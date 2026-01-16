@@ -58,6 +58,35 @@ export const agentMetadataSchema = z.object({
   enabledTools: z.array(z.string()).optional(),
   /** Agent's purpose/responsibilities description */
   purpose: z.string().max(2000).optional(),
+
+  /**
+   * Per-agent MCP configuration
+   * Can override or extend global MCP servers
+   */
+  mcpServers: z.object({
+    mcpServers: z.record(z.object({
+      type: z.enum(["http", "sse", "stdio"]).optional(),
+      url: z.string().optional(),
+      command: z.string().optional(),
+      args: z.array(z.string()).optional(),
+      env: z.record(z.string()).optional(),
+      headers: z.record(z.string()).optional(),
+      timeout: z.number().optional(),
+    })),
+  }).optional(),
+
+  /**
+   * Which MCP servers are enabled for this agent
+   * If not specified, all configured servers are enabled
+   */
+  enabledMcpServers: z.array(z.string()).optional(),
+
+  /**
+   * Which MCP tools are enabled for this agent
+   * Format: "serverName:toolName"
+   * If not specified, all tools from enabled servers are available
+   */
+  enabledMcpTools: z.array(z.string()).optional(),
 });
 
 // ============================================================================
