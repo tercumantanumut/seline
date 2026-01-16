@@ -63,6 +63,12 @@ interface ChatInterfaceProps {
 const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
     [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+// Combined state to ensure sessionId and messages always update atomically
+interface SessionState {
+    sessionId: string;
+    messages: UIMessage[];
+}
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -74,10 +80,16 @@ export default function ChatInterface({
     const t = useTranslations("chat");
     const tc = useTranslations("common");
 
-    const [sessionId, setSessionId] = useState(initialSessionId);
+    // Use combined state to prevent race conditions where sessionId changes
+    // but messages haven't updated yet, causing the ChatProvider to remount
+    // with stale message data (fixes intermittent last message not displaying)
+    const [sessionState, setSessionState] = useState<SessionState>(() => ({
+        sessionId: initialSessionId,
+        messages: initialMessages,
+    }));
+    const { sessionId, messages } = sessionState;
     // Sort initialSessions to ensure consistent ordering (most recent first)
     const [sessions, setSessions] = useState<SessionInfo[]>(() => sortSessionsByUpdatedAt(initialSessions));
-    const [messages, setMessages] = useState<UIMessage[]>(initialMessages);
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
@@ -123,8 +135,12 @@ export default function ChatInterface({
                     const data = await messagesResponse.json();
                     const dbMessages = (data.messages || []) as DBMessage[];
                     const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-                    setMessages(uiMessages);
-                    setSessionId(newSessionId);
+                    // CRITICAL: Update sessionId and messages atomically to prevent
+                    // race conditions where ChatProvider remounts with stale messages
+                    setSessionState({
+                        sessionId: newSessionId,
+                        messages: uiMessages,
+                    });
                     router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
                 }
             } catch (err) {
@@ -150,8 +166,11 @@ export default function ChatInterface({
                 });
                 if (response.ok) {
                     const { session } = await response.json();
-                    setSessionId(session.id);
-                    setMessages([]);
+                    // CRITICAL: Update sessionId and messages atomically
+                    setSessionState({
+                        sessionId: session.id,
+                        messages: [],
+                    });
                     await loadSessions();
                     router.replace(`/chat/${character.id}?sessionId=${session.id}`, { scroll: false });
                 }
