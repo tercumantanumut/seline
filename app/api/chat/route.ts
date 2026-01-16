@@ -1,5 +1,5 @@
 import { streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
-import { getLanguageModel, getProviderDisplayName } from "@/lib/ai/providers";
+import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -822,6 +822,18 @@ export async function POST(req: Request) {
     const userId = await requireAuth(req);
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
+
+    // CRITICAL: If using Antigravity provider, ensure token is valid/refreshed BEFORE making API calls
+    // This prevents authentication failures when token expires during normal usage
+    if (getConfiguredProvider() === "antigravity") {
+      const tokenValid = await ensureAntigravityTokenValid();
+      if (!tokenValid) {
+        return new Response(
+          JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     const body = await req.json();
     const { messages, sessionId: bodySessionId } = body as {
