@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { loadConfigFromEnv } from "@/lib/config/vector-search";
+import type { MCPConfig } from "@/lib/mcp/types";
 
 export interface AppSettings {
     // AI Provider settings
@@ -10,6 +11,19 @@ export interface AppSettings {
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+
+    // MCP (Model Context Protocol) settings
+    /**
+     * Global MCP server configurations
+     * These are available to all agents unless overridden
+     */
+    mcpServers?: MCPConfig;
+
+    /**
+     * Environment variables for MCP server URL/header substitution
+     * e.g., { "SUPABASE_PROJECT_REF": "abc123", "SUPABASE_ACCESS_TOKEN": "..." }
+     */
+    mcpEnvironment?: Record<string, string>;
 
     // Antigravity OAuth authentication (free models via Google OAuth)
     antigravityAuth?: {

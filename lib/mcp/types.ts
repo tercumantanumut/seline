@@ -1,0 +1,98 @@
+/**
+ * MCP (Model Context Protocol) Type Definitions
+ * 
+ * Defines types for MCP server configuration, tool discovery, and status tracking.
+ */
+
+/**
+ * MCP Server configuration as provided by user
+ * Supports HTTP/SSE URL-based transport OR stdio subprocess transport
+ */
+export interface MCPServerConfig {
+    /** Transport type - "http", "sse", or "stdio" (inferred if command is present) */
+    type?: "http" | "sse" | "stdio";
+
+    /** Server URL (for http/sse transport, can include ${VARIABLE} placeholders) */
+    url?: string;
+
+    /** Command to run (for stdio transport) */
+    command?: string;
+
+    /** Command arguments (for stdio transport) */
+    args?: string[];
+
+    /** Environment variables for subprocess (for stdio transport) */
+    env?: Record<string, string>;
+
+    /** Optional headers (for http/sse, can include ${VARIABLE} placeholders) */
+    headers?: Record<string, string>;
+
+    /** Optional timeout in milliseconds */
+    timeout?: number;
+}
+
+/**
+ * Full MCP configuration object (matches user's JSON format)
+ */
+export interface MCPConfig {
+    mcpServers: Record<string, MCPServerConfig>;
+}
+
+/**
+ * Resolved MCP server configuration (ready for connection)
+ */
+export interface ResolvedMCPServer {
+    name: string;
+    type: "http" | "sse" | "stdio";
+
+    // For HTTP/SSE transport
+    url?: string;
+    headers?: Record<string, string>;
+
+    // For stdio transport
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+
+    timeout: number;
+}
+
+/**
+ * MCP tool as discovered from server
+ */
+export interface MCPDiscoveredTool {
+    /** Tool name from MCP server */
+    name: string;
+
+    /** Tool description from MCP server */
+    description?: string;
+
+    /** JSON Schema for input parameters */
+    inputSchema: Record<string, unknown>;
+
+    /** Which MCP server this tool belongs to */
+    serverName: string;
+}
+
+/**
+ * MCP server connection status
+ */
+export interface MCPServerStatus {
+    serverName: string;
+    connected: boolean;
+    lastConnected?: Date;
+    lastError?: string;
+    toolCount: number;
+    tools: string[];
+}
+
+/**
+ * MCP tool for UI consumption
+ */
+export interface MCPTool {
+    id: string;
+    name: string;
+    description?: string;
+    serverName: string;
+    inputSchema: Record<string, unknown>;
+}

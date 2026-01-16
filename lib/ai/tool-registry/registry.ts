@@ -93,6 +93,55 @@ class ToolRegistry {
   }
 
   /**
+   * Unregister a single tool
+   */
+  unregister(name: string): boolean {
+    return this.tools.delete(name);
+  }
+
+  /**
+   * Unregister all tools in a category
+   * @returns Number of tools unregistered
+   */
+  unregisterByCategory(category: ToolCategory): number {
+    const toolsToRemove = this.getToolsByCategory(category);
+    let count = 0;
+
+    for (const tool of toolsToRemove) {
+      if (this.tools.delete(tool.name)) {
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      console.log(`[ToolRegistry] Unregistered ${count} tools in category "${category}"`);
+    }
+
+    return count;
+  }
+
+  /**
+   * Unregister tools matching a prefix (e.g., "mcp_serverName_")
+   * @returns Number of tools unregistered
+   */
+  unregisterByPrefix(prefix: string): number {
+    let count = 0;
+
+    for (const name of this.tools.keys()) {
+      if (name.startsWith(prefix)) {
+        this.tools.delete(name);
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      console.log(`[ToolRegistry] Unregistered ${count} tools with prefix "${prefix}"`);
+    }
+
+    return count;
+  }
+
+  /**
    * Check if a tool is enabled based on environment variables
    */
   isToolEnabled(name: string): boolean {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
@@ -14,6 +14,7 @@ import { getCodexModels } from "@/lib/auth/codex-models";
 import { ComfyUIInstaller } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
+import { MCPSettings } from "@/components/settings/mcp-settings";
 
 interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
@@ -63,7 +64,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -524,6 +525,7 @@ export default function SettingsPage() {
     { id: "models" as const, label: t("nav.models"), icon: CpuIcon },
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
     { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
+    { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];
@@ -1518,6 +1520,22 @@ function SettingsPanel({
 
   if (section === "memory") {
     return <MemorySection />;
+  }
+
+  if (section === "mcp") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">
+            MCP Servers
+          </h2>
+          <p className="mb-4 font-mono text-sm text-terminal-muted">
+            Connect to external MCP (Model Context Protocol) servers to extend your agent&apos;s capabilities.
+          </p>
+        </div>
+        <MCPSettings />
+      </div>
+    );
   }
 
   return null;
