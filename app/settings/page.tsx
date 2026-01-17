@@ -11,7 +11,7 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
-import { ComfyUIInstaller } from "@/components/comfyui";
+import { LocalModelsManager } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
@@ -24,6 +24,7 @@ interface AppSettings {
   firecrawlApiKey?: string;
   webScraperProvider?: "firecrawl" | "local";
   stylyAiApiKey?: string;
+  huggingFaceToken?: string;
   chatModel?: string;
   embeddingProvider?: "openrouter" | "local";
   embeddingModel?: string;
@@ -86,6 +87,7 @@ export default function SettingsPage() {
     firecrawlApiKey: "",
     webScraperProvider: "firecrawl" as "firecrawl" | "local",
     stylyAiApiKey: "",
+    huggingFaceToken: "",
     chatModel: "",
     embeddingProvider: "openrouter" as "openrouter" | "local",
     embeddingModel: "",
@@ -116,9 +118,13 @@ export default function SettingsPage() {
     localGrepMaxResults: 100,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
-    // ComfyUI settings
+    // Local image generation settings
     comfyuiEnabled: false,
     comfyuiBackendPath: "",
+    flux2Klein4bEnabled: false,
+    flux2Klein4bBackendPath: "",
+    flux2Klein9bEnabled: false,
+    flux2Klein9bBackendPath: "",
   });
 
   // Antigravity auth state (separate from form state, managed via OAuth)
@@ -158,6 +164,7 @@ export default function SettingsPage() {
         firecrawlApiKey: data.firecrawlApiKey || "",
         webScraperProvider: data.webScraperProvider || "firecrawl",
         stylyAiApiKey: data.stylyAiApiKey || "",
+        huggingFaceToken: data.huggingFaceToken || "",
         chatModel: data.chatModel || "",
         embeddingProvider: data.embeddingProvider || "openrouter",
         embeddingModel: data.embeddingModel || "",
@@ -188,9 +195,13 @@ export default function SettingsPage() {
         localGrepMaxResults: data.localGrepMaxResults ?? 100,
         localGrepContextLines: data.localGrepContextLines ?? 2,
         localGrepRespectGitignore: data.localGrepRespectGitignore ?? true,
-        // ComfyUI settings
+        // Local image generation settings
         comfyuiEnabled: data.comfyuiEnabled ?? false,
         comfyuiBackendPath: data.comfyuiBackendPath ?? "",
+        flux2Klein4bEnabled: data.flux2Klein4bEnabled ?? false,
+        flux2Klein4bBackendPath: data.flux2Klein4bBackendPath ?? "",
+        flux2Klein9bEnabled: data.flux2Klein9bEnabled ?? false,
+        flux2Klein9bBackendPath: data.flux2Klein9bBackendPath ?? "",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
@@ -616,6 +627,7 @@ interface FormState {
   firecrawlApiKey: string;
   webScraperProvider: "firecrawl" | "local";
   stylyAiApiKey: string;
+  huggingFaceToken: string;
   chatModel: string;
   embeddingProvider: "openrouter" | "local";
   embeddingModel: string;
@@ -646,9 +658,13 @@ interface FormState {
   localGrepMaxResults: number;
   localGrepContextLines: number;
   localGrepRespectGitignore: boolean;
-  // ComfyUI settings
+  // Local image generation settings
   comfyuiEnabled: boolean;
   comfyuiBackendPath: string;
+  flux2Klein4bEnabled: boolean;
+  flux2Klein4bBackendPath: string;
+  flux2Klein9bEnabled: boolean;
+  flux2Klein9bBackendPath: string;
 }
 
 // Supported local embedding models with their metadata
@@ -1503,16 +1519,49 @@ function SettingsPanel({
         <div>
           <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Local Image Generation</h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Generate images locally using ComfyUI with the Z-Image Turbo FP8 model.
+            Generate images locally using Docker-based backends.
             Requires Docker Desktop and an NVIDIA GPU.
           </p>
         </div>
 
-        <ComfyUIInstaller
-          backendPath={formState.comfyuiBackendPath}
-          onBackendPathChange={(path) => updateField("comfyuiBackendPath", path)}
-          enabled={formState.comfyuiEnabled}
-          onEnabledChange={(enabled) => updateField("comfyuiEnabled", enabled)}
+        {/* Hugging Face Token - Required for FLUX.2 Klein models */}
+        <div className="rounded-lg border border-terminal-border bg-white p-4">
+          <label className="mb-1 block font-mono text-sm font-medium text-terminal-dark">
+            Hugging Face Token
+          </label>
+          <p className="mb-2 font-mono text-xs text-terminal-muted">
+            Required for downloading FLUX.2 Klein models (gated access).{" "}
+            <a
+              href="https://huggingface.co/settings/tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-terminal-green underline hover:text-terminal-green/80"
+            >
+              Get your token here
+            </a>
+          </p>
+          <input
+            type="password"
+            value={formState.huggingFaceToken}
+            onChange={(e) => updateField("huggingFaceToken", e.target.value)}
+            placeholder="hf_..."
+            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+          />
+        </div>
+
+        <LocalModelsManager
+          zImageEnabled={formState.comfyuiEnabled}
+          zImageBackendPath={formState.comfyuiBackendPath}
+          onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
+          onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
+          flux4bEnabled={formState.flux2Klein4bEnabled}
+          flux4bBackendPath={formState.flux2Klein4bBackendPath}
+          onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
+          onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
+          flux9bEnabled={formState.flux2Klein9bEnabled}
+          flux9bBackendPath={formState.flux2Klein9bBackendPath}
+          onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
+          onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
         />
       </div>
     );

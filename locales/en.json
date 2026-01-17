@@ -181,6 +181,8 @@
         "webScraper": "Requires web scraper setup",
         "openrouterKey": "Requires OpenRouter API key",
         "comfyuiEnabled": "Requires ComfyUI enabled",
+        "flux2Klein4bEnabled": "Requires FLUX.2 Klein 4B enabled",
+        "flux2Klein9bEnabled": "Requires FLUX.2 Klein 9B enabled",
         "localGrepEnabled": "Requires Local Grep enabled"
       }
     },
@@ -316,6 +318,14 @@
       "generateImageZImage": {
         "name": "Generate (Z-Image Local)",
         "description": "Local image generation via ComfyUI (requires Docker)"
+      },
+      "generateImageFlux2Klein4B": {
+        "name": "Generate (FLUX.2 Klein 4B)",
+        "description": "Fast local FLUX.2 Klein 4B image generation (requires Docker)"
+      },
+      "generateImageFlux2Klein9B": {
+        "name": "Generate (FLUX.2 Klein 9B)",
+        "description": "High-quality local FLUX.2 Klein 9B image generation (requires Docker)"
       }
     }
   },
@@ -674,7 +684,11 @@
         "referenceImageGemini3Pro": "Reference (Gemini 3 Pro)",
         "referenceImageGemini3ProDesc": "Advanced style transfer with multiple reference images",
         "generateImageZImage": "Generate (Z-Image Local)",
-        "generateImageZImageDesc": "Local image generation via ComfyUI (requires Docker)"
+        "generateImageZImageDesc": "Local image generation via ComfyUI (requires Docker)",
+        "generateImageFlux2Klein4B": "Generate (FLUX.2 Klein 4B)",
+        "generateImageFlux2Klein4BDesc": "Fast local FLUX.2 Klein 4B image generation (requires Docker)",
+        "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
+        "generateImageFlux2Klein9BDesc": "High-quality local FLUX.2 Klein 9B image generation (requires Docker)"
       },
       "dependencyWarnings": {
         "syncedFolders": "Requires synced folders",
@@ -685,6 +699,8 @@
         "webScraper": "Requires web scraper setup",
         "openrouterKey": "Requires OpenRouter API key",
         "comfyuiEnabled": "Requires ComfyUI enabled",
+        "flux2Klein4bEnabled": "Requires FLUX.2 Klein 4B enabled",
+        "flux2Klein9bEnabled": "Requires FLUX.2 Klein 9B enabled",
         "localGrepEnabled": "Requires Local Grep enabled"
       },
       "back": "← Back",
@@ -702,6 +718,8 @@
           "description": "Run embeddings locally with bundled models."
         }
       },
+      "apiKeyLabel": "OpenRouter API Key",
+      "apiKeyRequired": "API Key required for OpenRouter",
       "selectModel": "Select an embedding model",
       "models": {
         "recommended": "Recommended"
@@ -709,6 +727,20 @@
       "downloading": "Downloading...",
       "back": "Back",
       "skip": "Skip",
+      "continue": "Continue"
+    },
+    "mcpTools": {
+      "loading": "Loading MCP tools...",
+      "title": "MCP Tools",
+      "description": "Select which MCP servers and tools to enable for this agent.",
+      "noServersTitle": "No MCP Servers Configured",
+      "noServersDescription": "Configure MCP servers in Settings → MCP Servers to enable external tools.",
+      "skipForNow": "Skip for Now",
+      "serversNotConnected": "MCP servers are configured but not connected. Connect to discover available tools.",
+      "connecting": "Connecting...",
+      "connectDiscover": "Connect & Discover Tools",
+      "connected": "Connected",
+      "toolsCount": "{enabled}/{total} tools",
       "continue": "Continue"
     },
     "style": {

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ComfyUI Backend Service with Z-Image Turbo FP8
   comfyui:
@@ -7,7 +5,7 @@ services:
       context: .
       dockerfile: build/Dockerfile
       args:
-        DOWNLOAD_MODELS: "true"  # Set to "false" if you already have models locally
+        DOWNLOAD_MODELS: "false"  # Models come from volume mount, no need to download
     image: z-image-turbo-fp8:latest
     container_name: comfyui-z-image
     ports:
@@ -15,22 +13,25 @@ services:
     volumes:
       # NOTE: Models are now included in the image during build
       # If you want to use external models, uncomment the line below:
-      - ./ComfyUI/models:/app/ComfyUI/models
+      - ./ComfyUI/models:/home/workspace/ComfyUI/models
       # Output directory - direct mount to host
-      - ./output:/app/ComfyUI/output
+      - ./output:/home/workspace/ComfyUI/output
       # Input directory for test images
-      - ./inputs:/app/ComfyUI/input
+      - ./inputs:/home/workspace/ComfyUI/input
       # Mount the workflow
-      - ./workflow_to_replace_z_image_fp8.json:/app/ComfyUI/workflow_api.json
+      - ./workflow_to_replace_z_image_fp8.json:/home/workspace/ComfyUI/workflow_api.json
     environment:
       - PYTHONUNBUFFERED=1
+      - DOWNLOAD_MODELS=${DOWNLOAD_MODELS:-true}  # Set to false if models are pre-placed
+      - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
+    runtime: nvidia
     networks:
       - z-image-network
     healthcheck:

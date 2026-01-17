@@ -46,6 +46,8 @@ type ToolDependency =
   | "webScraper"
   | "openrouterKey"
   | "comfyuiEnabled"
+  | "flux2Klein4bEnabled"
+  | "flux2Klein9bEnabled"
   | "localGrepEnabled";
 
 type ToolDefinition = {
@@ -85,6 +87,8 @@ const AVAILABLE_TOOLS: ToolDefinition[] = [
   { id: "referenceImageGemini3Pro", category: "image-generation", dependencies: ["openrouterKey"] },
   // Local ComfyUI Image Tools
   { id: "generateImageZImage", category: "image-generation", dependencies: ["comfyuiEnabled"] },
+  { id: "generateImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
+  { id: "generateImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
 ];
 
 interface CharacterSummary {
@@ -131,6 +135,8 @@ export function CharacterPicker() {
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
+    flux2Klein4bEnabled: boolean;
+    flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
   }>({
     syncedFolders: false,
@@ -140,6 +146,8 @@ export function CharacterPicker() {
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
+    flux2Klein4bEnabled: false,
+    flux2Klein9bEnabled: false,
     localGrepEnabled: true,
   });
 
@@ -270,6 +278,8 @@ export function CharacterPicker() {
           webScraper: webScraperReady,
           openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
           comfyuiEnabled: settingsData.comfyuiEnabled === true,
+          flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
+          flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
           localGrepEnabled: settingsData.localGrepEnabled !== false,
         });
       } catch (error) {
@@ -282,6 +292,8 @@ export function CharacterPicker() {
           webScraper: false,
           openrouterKey: false,
           comfyuiEnabled: false,
+          flux2Klein4bEnabled: false,
+          flux2Klein9bEnabled: false,
           localGrepEnabled: true,
         });
       }

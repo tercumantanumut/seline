@@ -281,7 +281,7 @@ export function EmbeddingSetupPage({
                                     className="mb-6"
                                 >
                                     <label className="block text-sm font-mono text-terminal-dark mb-2">
-                                        OpenRouter API Key
+                                        {t("apiKeyLabel")}
                                     </label>
                                     <div className="flex gap-2">
                                         <input
@@ -295,7 +295,7 @@ export function EmbeddingSetupPage({
                                     {!hasOpenRouterKey && !apiKey && (
                                         <p className="mt-1 text-xs font-mono text-terminal-amber flex items-center gap-1">
                                             <AlertCircleIcon className="w-3 h-3" />
-                                            API Key required for OpenRouter
+                                            {t("apiKeyRequired")}
                                         </p>
                                     )}
                                 </motion.div>

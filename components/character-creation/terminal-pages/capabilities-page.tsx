@@ -26,6 +26,8 @@ export interface ToolCapability {
     | "webScraper"
     | "openrouterKey"
     | "comfyuiEnabled"
+    | "flux2Klein4bEnabled"
+    | "flux2Klein9bEnabled"
     | "localGrepEnabled"
   )[];
 }
@@ -170,6 +172,20 @@ const AVAILABLE_TOOLS: ToolCapability[] = [
     category: "image-generation",
     dependencies: ["comfyuiEnabled"],
   },
+  {
+    id: "generateImageFlux2Klein4B",
+    nameKey: "generateImageFlux2Klein4B",
+    descKey: "generateImageFlux2Klein4BDesc",
+    category: "image-generation",
+    dependencies: ["flux2Klein4bEnabled"],
+  },
+  {
+    id: "generateImageFlux2Klein9B",
+    nameKey: "generateImageFlux2Klein9B",
+    descKey: "generateImageFlux2Klein9BDesc",
+    category: "image-generation",
+    dependencies: ["flux2Klein9bEnabled"],
+  },
 ];
 
 /** Category translation keys */
@@ -214,6 +230,8 @@ export function CapabilitiesPage({
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
+    flux2Klein4bEnabled: boolean;
+    flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
   }>({
     syncedFolders: false,
@@ -223,6 +241,8 @@ export function CapabilitiesPage({
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
+    flux2Klein4bEnabled: false,
+    flux2Klein9bEnabled: false,
     localGrepEnabled: true,
   });
 
@@ -255,6 +275,8 @@ export function CapabilitiesPage({
             webScraper: webScraperReady,
             openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
             comfyuiEnabled: settingsData.comfyuiEnabled === true,
+            flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
+            flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
             localGrepEnabled: settingsData.localGrepEnabled !== false,
           });
         })
@@ -267,6 +289,8 @@ export function CapabilitiesPage({
             webScraper: false,
             openrouterKey: false,
             comfyuiEnabled: false,
+            flux2Klein4bEnabled: false,
+            flux2Klein9bEnabled: false,
             localGrepEnabled: true,
           });
         });

@@ -1,0 +1,6 @@
+# Ignore volume directories
+/volume/
+/volumes/models/
+/volumes/ComfyUI/models/
+/volumes/input/
+/volumes/output/

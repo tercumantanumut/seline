@@ -181,6 +181,8 @@
         "webScraper": "Web tarayıcı kurulumu gerekli",
         "openrouterKey": "OpenRouter API anahtarı gerekli",
         "comfyuiEnabled": "ComfyUI etkin olmalı",
+        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
+        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
         "localGrepEnabled": "Yerel Grep etkin olmalı"
       }
     },
@@ -312,6 +314,14 @@
       "generateImageZImage": {
         "name": "Üret (Z-Image Yerel)",
         "description": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
+      },
+      "generateImageFlux2Klein4B": {
+        "name": "Üret (FLUX.2 Klein 4B)",
+        "description": "Hızlı yerel FLUX.2 Klein 4B görsel üretimi (Docker gerektirir)"
+      },
+      "generateImageFlux2Klein9B": {
+        "name": "Üret (FLUX.2 Klein 9B)",
+        "description": "Yüksek kaliteli yerel FLUX.2 Klein 9B görsel üretimi (Docker gerektirir)"
       },
       "localGrep": {
         "name": "Yerel Grep",
@@ -468,7 +478,9 @@
       "generateImageGemini3Pro": "Üret (Gemini 3 Pro)",
       "editImageGemini3Pro": "Düzenle (Gemini 3 Pro)",
       "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
-      "generateImageZImage": "Üret (Z-Image Yerel)"
+      "generateImageZImage": "Üret (Z-Image Yerel)",
+      "generateImageFlux2Klein4B": "Üret (FLUX.2 Klein 4B)",
+      "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)"
     }
   },
   "folderSync": {
@@ -673,6 +685,10 @@
         "referenceImageGemini3ProDesc": "Birden fazla referans görsel ile gelişmiş stil aktarımı",
         "generateImageZImage": "Üret (Z-Image Yerel)",
         "generateImageZImageDesc": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)",
+        "generateImageFlux2Klein4B": "Üret (FLUX.2 Klein 4B)",
+        "generateImageFlux2Klein4BDesc": "Hızlı yerel FLUX.2 Klein 4B görsel üretimi (Docker gerektirir)",
+        "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
+        "generateImageFlux2Klein9BDesc": "Yüksek kaliteli yerel FLUX.2 Klein 9B görsel üretimi (Docker gerektirir)",
         "localGrep": "Yerel Grep",
         "localGrepDesc": "ripgrep ile hızlı ve regex arama"
       },
@@ -687,6 +703,8 @@
         "webScraper": "Web tarayıcı kurulumu gerekli",
         "openrouterKey": "OpenRouter API anahtarı gerekli",
         "comfyuiEnabled": "ComfyUI etkin olmalı",
+        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
+        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
         "localGrepEnabled": "Yerel Grep etkin olmalı"
       }
     },
@@ -800,6 +818,8 @@
           "description": "Embeddingleri yerel olarak paketlenmiş modellerle çalıştırın."
         }
       },
+      "apiKeyLabel": "OpenRouter API Anahtarı",
+      "apiKeyRequired": "OpenRouter için API anahtarı gerekli",
       "selectModel": "Bir embedding modeli seçin",
       "models": {
         "recommended": "Önerilen"
@@ -807,6 +827,20 @@
       "downloading": "İndiriliyor...",
       "back": "Geri",
       "skip": "Atla",
+      "continue": "Devam"
+    },
+    "mcpTools": {
+      "loading": "MCP araçları yükleniyor...",
+      "title": "MCP Araçları",
+      "description": "Bu ajan için hangi MCP sunucularını ve araçlarını etkinleştireceğinizi seçin.",
+      "noServersTitle": "MCP Sunucusu Yapılandırılmadı",
+      "noServersDescription": "Harici araçları etkinleştirmek için Ayarlar → MCP Sunucuları'ndan MCP sunucularını yapılandırın.",
+      "skipForNow": "Şimdilik Atla",
+      "serversNotConnected": "MCP sunucuları yapılandırıldı ancak bağlı değil. Mevcut araçları keşfetmek için bağlanın.",
+      "connecting": "Bağlanıyor...",
+      "connectDiscover": "Bağlan ve Araçları Keşfet",
+      "connected": "Bağlı",
+      "toolsCount": "{enabled}/{total} araç",
       "continue": "Devam"
     }
   },
