@@ -91,6 +91,14 @@ models/**
 # Meilisearch data
 data.ms/
 
+# Redis data files
+*.rdb
+*.aof
+appendonlydir/
+
+# Docker volumes (runtime data)
+**/volumes/redis/
+
 # Misc large files
 *.zip
 *.tar

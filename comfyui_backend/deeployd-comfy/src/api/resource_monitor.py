@@ -29,9 +29,9 @@ class ResourceUsage:
 
     def is_within_limits(
         self,
-        max_cpu_percent: float = 90.0,
-        max_memory_percent: float = 85.0,
-        max_disk_percent: float = 95.0,
+        max_cpu_percent: float = 98.0,
+        max_memory_percent: float = 95.0,
+        max_disk_percent: float = 99.0,
     ) -> bool:
         """Check if resources are within safe limits."""
         if self.cpu_percent > max_cpu_percent:
@@ -76,16 +76,16 @@ class ResourceMonitor:
         self.output_dir = output_dir
         self.has_gpu = self._check_gpu_availability()
 
-        # Resource thresholds
+        # Resource thresholds - relaxed for GPU workloads
         self.thresholds = {
-            "cpu_critical": 95.0,
-            "cpu_warning": 80.0,
-            "memory_critical": 90.0,
-            "memory_warning": 75.0,
+            "cpu_critical": 99.0,
+            "cpu_warning": 95.0,
+            "memory_critical": 98.0,
+            "memory_warning": 90.0,
             "disk_critical": 99.0,
             "disk_warning": 95.0,
-            "gpu_memory_critical": 95.0,
-            "gpu_memory_warning": 85.0,
+            "gpu_memory_critical": 99.0,
+            "gpu_memory_warning": 95.0,
         }
 
         logger.info(f"ResourceMonitor initialized (GPU: {self.has_gpu})")

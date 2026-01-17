@@ -1741,16 +1741,61 @@ function setupIpcHandlers(): void {
         }
       }
 
-      // Check if models directory has content (models are downloaded during Docker build)
-      const modelsDir = path.join(effectivePath, "volumes", "models");
-      if (fs.existsSync(modelsDir)) {
-        const contents = fs.readdirSync(modelsDir);
-        status.modelsDownloaded = contents.length > 0;
-      }
+      // Check for FLUX.2 Klein models in the shared models directory
+      // Models are mounted from ../ComfyUI/models in docker-compose
+      const sharedModelsDir = path.join(effectivePath, "..", "ComfyUI", "models");
 
-      // If API is healthy, consider models as working
+      // Define required models for each variant
+      const requiredModels = {
+        "4b": {
+          vae: "flux2-vae.safetensors",
+          clip: "qwen_3_4b.safetensors",
+          diffusion: "flux-2-klein-base-4b-fp8.safetensors",
+        },
+        "9b": {
+          vae: "flux2-vae.safetensors",
+          clip: "qwen_3_4b.safetensors",
+          diffusion: "flux-2-klein-base-9b-fp8.safetensors",
+        },
+      };
+
+      const models = requiredModels[variant];
+      const vaePath = path.join(sharedModelsDir, "vae", models.vae);
+      const clipPath = path.join(sharedModelsDir, "clip", models.clip);
+      const diffusionPath = path.join(sharedModelsDir, "diffusion_models", models.diffusion);
+
+      const vaeExists = fs.existsSync(vaePath);
+      const clipExists = fs.existsSync(clipPath);
+      const diffusionExists = fs.existsSync(diffusionPath);
+
+      debugLog(`[FLUX.2 Klein ${variant}] Model check: vae=${vaeExists}, clip=${clipExists}, diffusion=${diffusionExists}`);
+
+      status.modelsDownloaded = vaeExists && clipExists && diffusionExists;
+
+      // If API is healthy, consider models as working (they might be baked into image)
       if (status.apiHealthy) {
         status.modelsDownloaded = true;
+      }
+
+      // If image is built, models should be available (either baked in or mounted)
+      // For FLUX.2 Klein, models are either baked into the image during build (DOWNLOAD_MODELS=true)
+      // or mounted from the shared models directory at runtime
+      if (status.imageBuilt && !status.modelsDownloaded) {
+        // Check if any models exist in the shared directory as a fallback
+        if (fs.existsSync(sharedModelsDir)) {
+          const vaeDir = path.join(sharedModelsDir, "vae");
+          const clipDir = path.join(sharedModelsDir, "clip");
+          const diffusionDir = path.join(sharedModelsDir, "diffusion_models");
+
+          const hasAnyVae = fs.existsSync(vaeDir) && fs.readdirSync(vaeDir).some((f: string) => f.endsWith(".safetensors"));
+          const hasAnyClip = fs.existsSync(clipDir) && fs.readdirSync(clipDir).some((f: string) => f.endsWith(".safetensors"));
+          const hasAnyDiffusion = fs.existsSync(diffusionDir) && fs.readdirSync(diffusionDir).some((f: string) => f.endsWith(".safetensors"));
+
+          if (hasAnyVae && hasAnyClip && hasAnyDiffusion) {
+            debugLog(`[FLUX.2 Klein ${variant}] Found models in shared directory (may have different filenames)`);
+            status.modelsDownloaded = true;
+          }
+        }
       }
     } catch (error) {
       debugError(`[${config.displayName}] Status check error:`, error);

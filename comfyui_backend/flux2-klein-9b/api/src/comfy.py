@@ -6,7 +6,9 @@ import requests
 import asyncio
 import base64
 import uuid
+import io
 from typing import List, Optional
+from PIL import Image
 from dotenv import load_dotenv
 from config import COMFYUI_SERVER, COMFYUI_OUTPUT_DIR, COMFYUI_INPUT_DIR
 
@@ -19,6 +21,8 @@ def save_reference_image(image_input: str, index: int) -> str:
     Supports:
     - Base64-encoded image data (with or without data URI prefix)
     - URL paths (starting with http://, https://, or /api/)
+
+    The image is always converted to PNG format to ensure compatibility.
     """
     # Generate unique filename
     filename = f"ref_{uuid.uuid4().hex}_{index}.png"
@@ -49,13 +53,30 @@ def save_reference_image(image_input: str, index: int) -> str:
                 image_input = image_input.split(",")[1]
             image_data = base64.b64decode(image_input)
 
-        with open(filepath, "wb") as f:
-            f.write(image_data)
-        print(f"Saved reference image {index} to: {filename}")
+        # Validate and convert image to PNG format
+        # This handles JPEG, WEBP, GIF, BMP, etc. and ensures valid PNG output
+        try:
+            img = Image.open(io.BytesIO(image_data))
+            # Convert to RGB if necessary (handles RGBA, P mode, etc.)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # Preserve alpha if present
+                img = img.convert('RGBA')
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            # Save as PNG
+            img.save(filepath, format='PNG')
+            print(f"Saved reference image {index} to: {filename} (converted from {img.format or 'unknown'} to PNG)")
+        except Exception as img_err:
+            print(f"Error processing image {index}: {img_err}")
+            raise ValueError(f"Invalid or corrupted image data for reference image {index}: {img_err}")
+
         return filename
     except requests.exceptions.RequestException as e:
         print(f"Error fetching reference image {index}: {e}")
         raise ValueError(f"Failed to fetch reference image {index} from URL: {e}")
+    except ValueError:
+        # Re-raise ValueError (from image processing above)
+        raise
     except Exception as e:
         print(f"Error saving reference image {index}: {e}")
         raise ValueError(f"Failed to decode and save reference image {index}: {e}")

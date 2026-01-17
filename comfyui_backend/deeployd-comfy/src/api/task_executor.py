@@ -59,13 +59,13 @@ class TaskExecutor:
         ] = {}  # Track resource usage per task
         self.executor = ThreadPoolExecutor(max_workers=max_concurrent_tasks)
 
-        # Resource thresholds
+        # Resource thresholds - allow higher usage for GPU workloads
         self.resource_limits = {
-            "max_cpu_percent": 90.0,
-            "max_memory_percent": 85.0,
+            "max_cpu_percent": 98.0,
+            "max_memory_percent": 95.0,
             "max_disk_percent": 99.0,
-            "min_memory_mb": 512,
-            "min_disk_mb": 1024,
+            "min_memory_mb": 256,
+            "min_disk_mb": 512,
         }
 
         logger.info(f"TaskExecutor initialized with {max_concurrent_tasks} workers")
