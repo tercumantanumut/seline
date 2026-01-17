@@ -12,8 +12,8 @@ import { tool, jsonSchema } from "ai";
 import {
     generateFlux2KleinWithPolling,
     checkFlux2KleinHealth,
-    base64ToDataUrl,
 } from "@/lib/comfyui";
+import { saveBase64Image } from "@/lib/storage/local-storage";
 
 interface Flux2Klein4BGenerateInput {
     prompt: string;
@@ -84,8 +84,9 @@ const flux2Klein4BInputSchema = jsonSchema<Flux2Klein4BGenerateInput>({
 
 /**
  * Create the FLUX.2 Klein 4B generation tool
+ * @param sessionId - Session ID for saving generated images to local storage
  */
-export function createFlux2Klein4BGenerateTool() {
+export function createFlux2Klein4BGenerateTool(sessionId: string) {
     return tool({
         description: `Generate or edit images using local FLUX.2 Klein 4B model via ComfyUI.
 
@@ -142,8 +143,17 @@ Requires Docker, NVIDIA GPU with ~12GB VRAM.
                     reference_images: input.reference_images,
                 });
 
-                // Convert base64 result to data URL
-                const imageUrl = result.result ? base64ToDataUrl(result.result) : undefined;
+                // Save base64 result to local storage and get URL
+                let imageUrl: string | undefined;
+                if (result.result) {
+                    const uploadResult = await saveBase64Image(
+                        result.result,
+                        sessionId,
+                        "generated",
+                        "png"
+                    );
+                    imageUrl = uploadResult.url;
+                }
 
                 return {
                     status: "completed",

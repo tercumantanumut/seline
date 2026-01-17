@@ -820,10 +820,10 @@ Supports dual modes:
 - Image editing: ~10-14 seconds
 - Requires ~12GB VRAM`,
       loading: { deferLoading: true },
-      requiresSession: false,
+      requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
     } satisfies ToolMetadata,
-    () => createFlux2Klein4BGenerateTool()
+    ({ sessionId }) => createFlux2Klein4BGenerateTool(sessionId!)
   );
 
   // FLUX.2 Klein 9B - Local Generation (Higher Quality)
@@ -859,10 +859,10 @@ Supports dual modes:
 - Image editing: ~14-18 seconds
 - Requires ~16GB+ VRAM`,
       loading: { deferLoading: true },
-      requiresSession: false,
+      requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
     } satisfies ToolMetadata,
-    () => createFlux2Klein9BGenerateTool()
+    ({ sessionId }) => createFlux2Klein9BGenerateTool(sessionId!)
   );
 
   // ============================================================================

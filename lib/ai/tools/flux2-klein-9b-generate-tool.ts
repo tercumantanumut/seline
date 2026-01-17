@@ -13,8 +13,8 @@ import { tool, jsonSchema } from "ai";
 import {
     generateFlux2KleinWithPolling,
     checkFlux2KleinHealth,
-    base64ToDataUrl,
 } from "@/lib/comfyui";
+import { saveBase64Image } from "@/lib/storage/local-storage";
 
 interface Flux2Klein9BGenerateInput {
     prompt: string;
@@ -85,8 +85,9 @@ const flux2Klein9BInputSchema = jsonSchema<Flux2Klein9BGenerateInput>({
 
 /**
  * Create the FLUX.2 Klein 9B generation tool
+ * @param sessionId - Session ID for saving generated images to local storage
  */
-export function createFlux2Klein9BGenerateTool() {
+export function createFlux2Klein9BGenerateTool(sessionId: string) {
     return tool({
         description: `Generate or edit images using local FLUX.2 Klein 9B model via ComfyUI.
 
@@ -144,8 +145,17 @@ Requires Docker, NVIDIA GPU with ~16GB+ VRAM.
                     reference_images: input.reference_images,
                 });
 
-                // Convert base64 result to data URL
-                const imageUrl = result.result ? base64ToDataUrl(result.result) : undefined;
+                // Save base64 result to local storage and get URL
+                let imageUrl: string | undefined;
+                if (result.result) {
+                    const uploadResult = await saveBase64Image(
+                        result.result,
+                        sessionId,
+                        "generated",
+                        "png"
+                    );
+                    imageUrl = uploadResult.url;
+                }
 
                 return {
                     status: "completed",

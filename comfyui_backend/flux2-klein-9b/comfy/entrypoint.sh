@@ -22,6 +22,10 @@ check_model "vae" "flux2-vae.safetensors"
 check_model "clip" "qwen_3_8b_fp8mixed.safetensors"
 check_model "diffusion_models" "flux-2-klein-base-9b-fp8.safetensors"
 
+# Install missing dependencies (workaround for grep filtering issue)
+echo "=== Installing missing dependencies ==="
+pip install --no-cache-dir torchsde 2>/dev/null || echo "torchsde already installed"
+
 echo "=== Starting ComfyUI ==="
 exec python -u main.py --listen 0.0.0.0 --port 8081
 

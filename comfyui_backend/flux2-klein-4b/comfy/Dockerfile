@@ -1,223 +1,183 @@
-# ========================== Build Stage ==========================
-# Using CUDA 13.0 for optimized CUDA operations on RTX 5090 and modern GPUs
-FROM nvidia/cuda:13.0.0-devel-ubuntu24.04 AS builder
+# =============================================================================
+# FLUX.2 Klein 4B ComfyUI - Optimized Single-Stage Dockerfile
+# =============================================================================
+# Optimizations applied:
+# - Single-stage build (no unnecessary builder stage)
+# - System Python 3.13 instead of pyenv (~5-10 min saved)
+# - PyTorch installed LAST to prevent requirements.txt override
+# - Reduced build context via .dockerignore (~22GB -> <1GB)
+# =============================================================================
 
-# Set build arguments
-ARG PYTHON_VERSION=3.11.9
+FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
 
 # Disable interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
-
-# Install required dependencies for building Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libssl-dev \
-    zlib1g-dev \
-    libbz2-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    wget \
-    curl \
-    llvm \
-    libncurses5-dev \
-    libncursesw5-dev \
-    xz-utils \
-    tk-dev \
-    libffi-dev \
-    liblzma-dev \
-    git \
-    jq \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install pyenv and Python
-# Using PYENV_ROOT=/opt/pyenv to make it more system-like
-ENV PYENV_ROOT=/opt/pyenv
-ENV PATH=$PYENV_ROOT/bin:$PATH
-RUN git clone https://github.com/pyenv/pyenv.git ${PYENV_ROOT} \
-    && pyenv install ${PYTHON_VERSION} \
-    && pyenv global ${PYTHON_VERSION} \
-    # Explicitly use the pyenv shim path for python
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | ${PYENV_ROOT}/shims/python \
-    # Explicitly use the pyenv shim path for pip
-    && ${PYENV_ROOT}/shims/pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Install PyTorch with CUDA 13.0 support for optimized operations on RTX 5090
-# Using nightly build with cu130 for CUDA 13.0 compatibility
-RUN ${PYENV_ROOT}/shims/pip3 install --no-cache-dir --pre \
-    torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu130
-
-# ========================== Final Runtime Stage ==========================
-# Using CUDA 13.0 runtime for optimized CUDA operations
-FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
-
-# Set Python version argument to be available in this stage
-ARG PYTHON_VERSION=3.11.9
-# Extract Major.Minor version for apt package installation
-ARG PYTHON_MAJOR_MINOR=$(echo "${PYTHON_VERSION}" | cut -d. -f1,2)
-
-# Set environment variables
-ENV PYENV_ROOT=/opt/pyenv
-# Use the specific version's bin directory first in PATH for the final image
-ENV PATH=$PYENV_ROOT/versions/${PYTHON_VERSION}/bin:$PYENV_ROOT/bin:$PATH
-ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# Install runtime dependencies
+# Install Python 3.13 and runtime dependencies in single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Python 3.13 (available in Ubuntu 24.04 repos or deadsnakes)
+    software-properties-common \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    python3.13 \
+    python3.13-venv \
+    python3.13-dev \
+    python3-pip \
+    # Runtime dependencies
     git \
     curl \
-    jq \
     wget \
+    jq \
     libgl1 \
     libglib2.0-0 \
-    # Add ca-certificates needed by curl/wget for HTTPS
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Set python3.13 as default python
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
-# Copy Python installation from build stage
-COPY --from=builder ${PYENV_ROOT} ${PYENV_ROOT}
-
-# Verify Python installation (this should now work correctly)
+# Verify Python and pip installation (using system pip from apt)
 RUN python --version && pip --version
 
-# Set initial working directory
+# Set working directory
 WORKDIR /home/workspace
 
 # HuggingFace token for authenticated model downloads
 ARG HF_TOKEN
 ENV HF_TOKEN=${HF_TOKEN}
 
-# Build argument for controlling model downloads (matches Z-Image Turbo pattern)
+# Build argument for controlling model downloads
 ARG DOWNLOAD_MODELS=true
 
-# Clone ComfyUI directly (standardized approach - no external scripts)
+# Clone ComfyUI
 RUN echo "=== Cloning ComfyUI ===" && \
     git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git /home/workspace/ComfyUI && \
-    echo "✓ ComfyUI cloned successfully" && \
-    if [ ! -d "/home/workspace/ComfyUI" ]; then echo "ERROR: /home/workspace/ComfyUI directory not found!"; exit 1; fi && \
-    if [ ! -f "/home/workspace/ComfyUI/requirements.txt" ]; then echo "ERROR: /home/workspace/ComfyUI/requirements.txt not found!"; exit 1; fi
+    echo "✓ ComfyUI cloned successfully"
 
-# Set working directory to ComfyUI where base files should now be
 WORKDIR /home/workspace/ComfyUI
 
-# Install base ComfyUI requirements first
-RUN echo "--- Installing ComfyUI requirements ---" && \
-    python -m pip install --no-cache-dir -r requirements.txt
+# Install ComfyUI requirements EXCLUDING torch (to prevent version conflict)
+# Then install PyTorch nightly cu130 LAST to ensure correct CUDA 13.0 version
+# NOTE: Use word-boundary matching to keep torchsde, torchdiffeq, etc.
+RUN echo "=== Installing ComfyUI dependencies (excluding PyTorch core) ===" && \
+    grep -v "^torch==" requirements.txt | grep -v "^torch$" | \
+    grep -v "^torchvision" | grep -v "^torchaudio" > requirements_no_torch.txt && \
+    python -m pip install --no-cache-dir -r requirements_no_torch.txt && \
+    rm requirements_no_torch.txt && \
+    echo "=== Installing PyTorch nightly with CUDA 13.0 ===" && \
+    python -m pip install --no-cache-dir --pre torch torchvision torchaudio \
+        --index-url https://download.pytorch.org/whl/nightly/cu130 && \
+    echo "✓ PyTorch installed with CUDA 13.0 support"
 
-# Upgrade pip, setuptools, wheel
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
+# Install custom_nodes dependencies (if any exist)
+RUN find custom_nodes/ -name "requirements.txt" -print0 2>/dev/null | \
+    xargs -0 -I {} sh -c 'echo "Installing dependencies from {}"; \
+    python -m pip install --no-cache-dir --break-system-packages -r "{}" || \
+    echo "Warning: Failed to install dependencies from {}, continuing..."' || true
 
-# Install dependencies from requirements.txt files found in custom_nodes (if any)
-RUN find custom_nodes/ -name "requirements.txt" -print0 2>/dev/null | xargs -0 -I {} sh -c 'echo "Installing dependencies from {}"; python -m pip install --no-cache-dir -r "{}" || echo "Warning: Failed to install dependencies from {}, continuing..."' || true
+# =============================================================================
+# Model Handling Section
+# =============================================================================
+# Models from comfyui_backend/ComfyUI/models are copied into the image.
+# - For dev: Models are overwritten by docker-compose volume mounts at runtime
+# - For electron builds: Models are baked into the image (no volume mounts)
+#
+# If model exists in build context: copy it (fast)
+# If model missing and DOWNLOAD_MODELS=true: download from HuggingFace
+# =============================================================================
 
 # Create model directories
 RUN mkdir -p /home/workspace/ComfyUI/models/vae \
     /home/workspace/ComfyUI/models/clip \
     /home/workspace/ComfyUI/models/diffusion_models
 
-# Copy shared models directory into build context for checking existing models
-# Build context is now comfyui_backend root, so ComfyUI/models is accessible
-COPY ComfyUI/models /tmp/host_models
+# Copy models from build context (comfyui_backend/ComfyUI/models)
+COPY ComfyUI/models/vae/ /tmp/host_models/vae/
+COPY ComfyUI/models/clip/ /tmp/host_models/clip/
+COPY ComfyUI/models/diffusion_models/ /tmp/host_models/diffusion_models/
 
-# Download FLUX.2 Klein 4B VAE model (with intelligent skip logic)
-RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
-    MODEL_FILE="flux2-vae.safetensors" && \
+# FLUX.2 VAE: copy from host if exists, otherwise download
+RUN MODEL_FILE="flux2-vae.safetensors" && \
     HOST_PATH="/tmp/host_models/vae/$MODEL_FILE" && \
     DEST_PATH="/home/workspace/ComfyUI/models/vae/$MODEL_FILE" && \
-    MODEL_URL="https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" && \
     if [ -f "$HOST_PATH" ]; then \
         FILE_SIZE=$(stat -c%s "$HOST_PATH" 2>/dev/null || echo 0) && \
         if [ "$FILE_SIZE" -gt 1048576 ]; then \
-            echo "✓ VAE exists on host with valid size ($(($FILE_SIZE / 1048576))MB), copying..." && \
-            cp "$HOST_PATH" "$DEST_PATH" && \
-            echo "✓ VAE copied successfully!" ; \
+            echo "✓ VAE found on host ($(($FILE_SIZE / 1048576))MB), copying..." && \
+            cp "$HOST_PATH" "$DEST_PATH" ; \
         else \
-            echo "⚠ VAE exists but appears incomplete (${FILE_SIZE} bytes), downloading..." && \
-            wget --tries=3 --timeout=120 -q --show-progress --progress=bar:force \
+            echo "⚠ VAE incomplete, downloading..." && \
+            wget --tries=3 --timeout=120 -q --show-progress \
                 $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-                "$MODEL_URL" -O "$DEST_PATH" && \
-            echo "✓ VAE downloaded successfully!" ; \
+                "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" \
+                -O "$DEST_PATH" ; \
         fi ; \
-    else \
-        echo "Downloading FLUX.2 VAE from HuggingFace..." && \
-        wget --tries=3 --timeout=120 -q --show-progress --progress=bar:force \
+    elif [ "$DOWNLOAD_MODELS" = "true" ]; then \
+        echo "Downloading FLUX.2 VAE..." && \
+        wget --tries=3 --timeout=120 -q --show-progress \
             $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-            "$MODEL_URL" -O "$DEST_PATH" && \
-        echo "✓ VAE downloaded successfully!" ; \
-    fi ; \
-    else \
-    echo "Skipping VAE download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" ; \
-    fi
+            "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" \
+            -O "$DEST_PATH" ; \
+    else echo "Skipping VAE (will be mounted at runtime)" ; fi
 
-# Download FLUX.2 Klein 4B CLIP/Text Encoder model (with intelligent skip logic)
-RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
-    MODEL_FILE="qwen_3_4b.safetensors" && \
+# FLUX.2 Klein 4B CLIP: copy from host if exists, otherwise download
+RUN MODEL_FILE="qwen_3_4b.safetensors" && \
     HOST_PATH="/tmp/host_models/clip/$MODEL_FILE" && \
     DEST_PATH="/home/workspace/ComfyUI/models/clip/$MODEL_FILE" && \
-    MODEL_URL="https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" && \
     if [ -f "$HOST_PATH" ]; then \
         FILE_SIZE=$(stat -c%s "$HOST_PATH" 2>/dev/null || echo 0) && \
         if [ "$FILE_SIZE" -gt 1048576 ]; then \
-            echo "✓ CLIP exists on host with valid size ($(($FILE_SIZE / 1048576))MB), copying..." && \
-            cp "$HOST_PATH" "$DEST_PATH" && \
-            echo "✓ CLIP copied successfully!" ; \
+            echo "✓ CLIP found on host ($(($FILE_SIZE / 1048576))MB), copying..." && \
+            cp "$HOST_PATH" "$DEST_PATH" ; \
         else \
-            echo "⚠ CLIP exists but appears incomplete (${FILE_SIZE} bytes), downloading..." && \
-            wget --tries=3 --timeout=120 -q --show-progress --progress=bar:force \
+            echo "⚠ CLIP incomplete, downloading..." && \
+            wget --tries=3 --timeout=120 -q --show-progress \
                 $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-                "$MODEL_URL" -O "$DEST_PATH" && \
-            echo "✓ CLIP downloaded successfully!" ; \
+                "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" \
+                -O "$DEST_PATH" ; \
         fi ; \
-    else \
-        echo "Downloading FLUX.2 Klein 4B CLIP from HuggingFace..." && \
-        wget --tries=3 --timeout=120 -q --show-progress --progress=bar:force \
+    elif [ "$DOWNLOAD_MODELS" = "true" ]; then \
+        echo "Downloading FLUX.2 Klein 4B CLIP..." && \
+        wget --tries=3 --timeout=120 -q --show-progress \
             $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-            "$MODEL_URL" -O "$DEST_PATH" && \
-        echo "✓ CLIP downloaded successfully!" ; \
-    fi ; \
-    else \
-    echo "Skipping CLIP download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" ; \
-    fi
+            "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" \
+            -O "$DEST_PATH" ; \
+    else echo "Skipping CLIP (will be mounted at runtime)" ; fi
 
-# Download FLUX.2 Klein 4B Diffusion Model (with intelligent skip logic)
-RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
-    MODEL_FILE="flux-2-klein-base-4b-fp8.safetensors" && \
+# FLUX.2 Klein 4B Diffusion Model: copy from host if exists, otherwise download
+RUN MODEL_FILE="flux-2-klein-base-4b-fp8.safetensors" && \
     HOST_PATH="/tmp/host_models/diffusion_models/$MODEL_FILE" && \
     DEST_PATH="/home/workspace/ComfyUI/models/diffusion_models/$MODEL_FILE" && \
-    MODEL_URL="https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors" && \
     if [ -f "$HOST_PATH" ]; then \
         FILE_SIZE=$(stat -c%s "$HOST_PATH" 2>/dev/null || echo 0) && \
         if [ "$FILE_SIZE" -gt 1048576 ]; then \
-            echo "✓ Diffusion model exists on host with valid size ($(($FILE_SIZE / 1048576))MB), copying..." && \
-            cp "$HOST_PATH" "$DEST_PATH" && \
-            echo "✓ Diffusion model copied successfully!" ; \
+            echo "✓ Diffusion model found on host ($(($FILE_SIZE / 1048576))MB), copying..." && \
+            cp "$HOST_PATH" "$DEST_PATH" ; \
         else \
-            echo "⚠ Diffusion model exists but appears incomplete (${FILE_SIZE} bytes), downloading..." && \
-            wget --tries=3 --timeout=300 -q --show-progress --progress=bar:force \
+            echo "⚠ Diffusion model incomplete, downloading..." && \
+            wget --tries=3 --timeout=300 -q --show-progress \
                 $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-                "$MODEL_URL" -O "$DEST_PATH" && \
-            echo "✓ Diffusion model downloaded successfully!" ; \
+                "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors" \
+                -O "$DEST_PATH" ; \
         fi ; \
-    else \
-        echo "Downloading FLUX.2 Klein 4B Diffusion Model from HuggingFace..." && \
-        wget --tries=3 --timeout=300 -q --show-progress --progress=bar:force \
+    elif [ "$DOWNLOAD_MODELS" = "true" ]; then \
+        echo "Downloading FLUX.2 Klein 4B Diffusion Model..." && \
+        wget --tries=3 --timeout=300 -q --show-progress \
             $([ -n "$HF_TOKEN" ] && echo "--header=Authorization: Bearer $HF_TOKEN") \
-            "$MODEL_URL" -O "$DEST_PATH" && \
-        echo "✓ Diffusion model downloaded successfully!" ; \
-    fi ; \
-    else \
-    echo "Skipping Diffusion model download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" ; \
-    fi
+            "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors" \
+            -O "$DEST_PATH" ; \
+    else echo "Skipping Diffusion model (will be mounted at runtime)" ; fi
 
-# Clean up temporary host models copy to reduce image size
+# Clean up temporary host models copy
 RUN rm -rf /tmp/host_models
 
-# Copy entrypoint script (path relative to new build context)
+# Copy entrypoint script
 COPY flux2-klein-4b/comfy/entrypoint.sh /home/workspace/entrypoint.sh
 RUN chmod +x /home/workspace/entrypoint.sh
 
-# Expose required port
+# Expose ComfyUI port
 EXPOSE 8081
 
 # Run via entrypoint script

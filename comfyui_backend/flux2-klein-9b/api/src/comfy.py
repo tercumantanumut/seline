@@ -13,23 +13,49 @@ from config import COMFYUI_SERVER, COMFYUI_OUTPUT_DIR, COMFYUI_INPUT_DIR
 load_dotenv()
 
 
-def save_reference_image(base64_data: str, index: int) -> str:
-    """Save a base64-encoded image to the input directory and return the filename."""
+def save_reference_image(image_input: str, index: int) -> str:
+    """Save an image to the input directory and return the filename.
+
+    Supports:
+    - Base64-encoded image data (with or without data URI prefix)
+    - URL paths (starting with http://, https://, or /api/)
+    """
     # Generate unique filename
     filename = f"ref_{uuid.uuid4().hex}_{index}.png"
     filepath = os.path.join(COMFYUI_INPUT_DIR, filename)
 
-    # Decode and save the image
     try:
-        # Handle data URI format if present
-        if "," in base64_data:
-            base64_data = base64_data.split(",")[1]
+        # Check if input is a URL (http://, https://, or relative /api/ path)
+        if image_input.startswith(('http://', 'https://')):
+            # Absolute URL - fetch directly
+            print(f"Fetching reference image {index} from URL: {image_input}")
+            response = requests.get(image_input, timeout=30)
+            response.raise_for_status()
+            image_data = response.content
+        elif image_input.startswith('/api/'):
+            # Relative API path - need to fetch from the main app server
+            # This is typically served by the Next.js frontend
+            # Try localhost:3000 (Next.js dev) or use environment variable
+            base_url = os.environ.get('FRONTEND_URL', 'http://host.docker.internal:3000')
+            full_url = f"{base_url}{image_input}"
+            print(f"Fetching reference image {index} from: {full_url}")
+            response = requests.get(full_url, timeout=30)
+            response.raise_for_status()
+            image_data = response.content
+        else:
+            # Assume base64-encoded data
+            # Handle data URI format if present
+            if "," in image_input:
+                image_input = image_input.split(",")[1]
+            image_data = base64.b64decode(image_input)
 
-        image_data = base64.b64decode(base64_data)
         with open(filepath, "wb") as f:
             f.write(image_data)
         print(f"Saved reference image {index} to: {filename}")
         return filename
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching reference image {index}: {e}")
+        raise ValueError(f"Failed to fetch reference image {index} from URL: {e}")
     except Exception as e:
         print(f"Error saving reference image {index}: {e}")
         raise ValueError(f"Failed to decode and save reference image {index}: {e}")
