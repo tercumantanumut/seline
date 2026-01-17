@@ -1,6 +1,6 @@
 /**
  * MCP Tools Page
- * 
+ *
  * Terminal wizard page for selecting MCP servers and tools for an agent.
  */
 
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plug, ChevronDown, ChevronRight } from "lucide-react";
 import type { MCPTool } from "@/lib/mcp/types";
+import { useTranslations } from "next-intl";
 
 interface MCPToolsPageProps {
     enabledMcpServers: string[];
@@ -37,6 +38,7 @@ export function MCPToolsPage({
     onUpdate,
     onComplete,
 }: MCPToolsPageProps) {
+    const t = useTranslations("characterCreation.mcpTools");
     const [tools, setTools] = useState<MCPTool[]>([]);
     const [status, setStatus] = useState<MCPServerStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -149,7 +151,7 @@ export function MCPToolsPage({
         return (
             <div className="flex items-center justify-center p-8">
                 <Loader2 className="h-6 w-6 animate-spin text-terminal-green" />
-                <span className="ml-2 font-mono text-sm text-terminal-muted">Loading MCP tools...</span>
+                <span className="ml-2 font-mono text-sm text-terminal-muted">{t("loading")}</span>
             </div>
         );
     }
@@ -163,10 +165,10 @@ export function MCPToolsPage({
                 <div className="rounded-lg border border-terminal-border bg-terminal-cream/50 p-6 text-center">
                     <Plug className="mx-auto h-12 w-12 text-terminal-muted" />
                     <h3 className="mt-4 font-mono text-lg font-semibold text-terminal-dark">
-                        No MCP Servers Configured
+                        {t("noServersTitle")}
                     </h3>
                     <p className="mt-2 font-mono text-sm text-terminal-muted">
-                        Configure MCP servers in Settings → MCP Servers to enable external tools.
+                        {t("noServersDescription")}
                     </p>
                 </div>
                 <div className="flex justify-center">
@@ -174,7 +176,7 @@ export function MCPToolsPage({
                         onClick={onComplete}
                         className="rounded bg-terminal-green px-6 py-2 font-mono text-sm text-white hover:bg-terminal-green/90"
                     >
-                        Skip for Now
+                        {t("skipForNow")}
                     </button>
                 </div>
             </div>
@@ -185,10 +187,10 @@ export function MCPToolsPage({
         <div className="space-y-6 p-4">
             <div>
                 <h2 className="font-mono text-lg font-semibold text-terminal-dark">
-                    MCP Tools
+                    {t("title")}
                 </h2>
                 <p className="mt-1 font-mono text-sm text-terminal-muted">
-                    Select which MCP servers and tools to enable for this agent.
+                    {t("description")}
                 </p>
             </div>
 
@@ -196,7 +198,7 @@ export function MCPToolsPage({
             {hasConfiguredServers && serverNames.length === 0 && (
                 <div className="rounded-lg border border-terminal-border bg-terminal-cream/50 p-4">
                     <p className="mb-3 font-mono text-sm text-terminal-muted">
-                        MCP servers are configured but not connected. Connect to discover available tools.
+                        {t("serversNotConnected")}
                     </p>
                     <button
                         onClick={connectServers}
@@ -206,10 +208,10 @@ export function MCPToolsPage({
                         {isConnecting ? (
                             <>
                                 <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                                Connecting...
+                                {t("connecting")}
                             </>
                         ) : (
-                            "Connect & Discover Tools"
+                            t("connectDiscover")
                         )}
                     </button>
                 </div>
@@ -250,12 +252,12 @@ export function MCPToolsPage({
                                             <Plug className="h-4 w-4 text-purple-500" />
                                             <span className="font-mono font-semibold text-terminal-dark">{serverName}</span>
                                             {serverStatus?.connected && (
-                                                <span className="text-xs text-terminal-green">● Connected</span>
+                                                <span className="text-xs text-terminal-green">● {t("connected")}</span>
                                             )}
                                         </div>
                                     </div>
                                     <Badge variant={isServerEnabled ? "default" : "secondary"} className="font-mono">
-                                        {enabledToolCount}/{serverTools.length} tools
+                                        {t("toolsCount", { enabled: enabledToolCount, total: serverTools.length })}
                                     </Badge>
                                 </div>
 
@@ -300,7 +302,7 @@ export function MCPToolsPage({
                     onClick={onComplete}
                     className="rounded bg-terminal-green px-6 py-2 font-mono text-sm text-white hover:bg-terminal-green/90"
                 >
-                    Continue
+                    {t("continue")}
                 </button>
             </div>
         </div>

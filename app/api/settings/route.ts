@@ -16,6 +16,7 @@ export async function GET() {
       tavilyApiKey: settings.tavilyApiKey ? maskApiKey(settings.tavilyApiKey) : undefined,
       firecrawlApiKey: settings.firecrawlApiKey ? maskApiKey(settings.firecrawlApiKey) : undefined,
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
+      huggingFaceToken: settings.huggingFaceToken ? maskApiKey(settings.huggingFaceToken) : undefined,
     };
     return NextResponse.json(maskedSettings);
   } catch (error) {
@@ -70,9 +71,15 @@ export async function PUT(request: NextRequest) {
       vectorSearchMaxLineLength: body.vectorSearchMaxLineLength !== undefined ? body.vectorSearchMaxLineLength : currentSettings.vectorSearchMaxLineLength,
       // Preferences
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
-      // ComfyUI
+      // ComfyUI / Local Image Generation
       comfyuiEnabled: body.comfyuiEnabled !== undefined ? body.comfyuiEnabled : currentSettings.comfyuiEnabled,
       comfyuiBackendPath: body.comfyuiBackendPath !== undefined ? body.comfyuiBackendPath : currentSettings.comfyuiBackendPath,
+      // FLUX.2 Klein 4B
+      flux2Klein4bEnabled: body.flux2Klein4bEnabled !== undefined ? body.flux2Klein4bEnabled : currentSettings.flux2Klein4bEnabled,
+      flux2Klein4bBackendPath: body.flux2Klein4bBackendPath !== undefined ? body.flux2Klein4bBackendPath : currentSettings.flux2Klein4bBackendPath,
+      // FLUX.2 Klein 9B
+      flux2Klein9bEnabled: body.flux2Klein9bEnabled !== undefined ? body.flux2Klein9bEnabled : currentSettings.flux2Klein9bEnabled,
+      flux2Klein9bBackendPath: body.flux2Klein9bBackendPath !== undefined ? body.flux2Klein9bBackendPath : currentSettings.flux2Klein9bBackendPath,
     };
 
     // Only update API keys if they're provided and not masked
@@ -91,6 +98,9 @@ export async function PUT(request: NextRequest) {
     }
     if (body.stylyAiApiKey && !body.stylyAiApiKey.includes("•")) {
       updatedSettings.stylyAiApiKey = body.stylyAiApiKey;
+    }
+    if (body.huggingFaceToken && !body.huggingFaceToken.includes("•")) {
+      updatedSettings.huggingFaceToken = body.huggingFaceToken;
     }
 
     const embeddingConfigChanged = (

@@ -56,6 +56,8 @@ import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
 import { createExecuteCommandTool } from "../tools/execute-command-tool";
 import { createZImageGenerateTool } from "../tools/zimage-generate-tool";
+import { createFlux2Klein4BGenerateTool } from "../tools/flux2-klein-4b-generate-tool";
+import { createFlux2Klein9BGenerateTool } from "../tools/flux2-klein-9b-generate-tool";
 
 /**
  * Register all tools with the registry
@@ -784,6 +786,83 @@ Generate high-quality images locally using the Z-Image Turbo FP8 model.
       enableEnvVar: "COMFYUI_LOCAL_ENABLED",
     } satisfies ToolMetadata,
     () => createZImageGenerateTool()
+  );
+
+  // FLUX.2 Klein 4B - Local Generation
+  registry.register(
+    "generateImageFlux2Klein4B",
+    {
+      displayName: "Generate Image (FLUX.2 Klein 4B Local)",
+      category: "image-generation",
+      keywords: [
+        "generate", "create", "image", "local", "comfyui", "flux", "flux2", "klein", "4b",
+        "text-to-image", "fast", "offline", "private", "local image", "generate locally",
+        "edit", "reference", "image-to-image",
+      ],
+      shortDescription: "Generate or edit images locally using FLUX.2 Klein 4B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 4B (Local ComfyUI)
+
+Generate or edit high-quality images locally using the FLUX.2 Klein 4B model.
+Supports dual modes:
+- **Text-to-Image**: No reference_images → generates from prompt
+- **Image Editing**: With reference_images → edits based on references
+
+### Parameters
+- **prompt** (required): Text description of the image or edit
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0
+- **reference_images** (optional): Array of base64 images for editing mode (max 10)
+
+### Performance
+- Text-to-image: ~7-8 seconds
+- Image editing: ~10-14 seconds
+- Requires ~12GB VRAM`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+      enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
+    } satisfies ToolMetadata,
+    () => createFlux2Klein4BGenerateTool()
+  );
+
+  // FLUX.2 Klein 9B - Local Generation (Higher Quality)
+  registry.register(
+    "generateImageFlux2Klein9B",
+    {
+      displayName: "Generate Image (FLUX.2 Klein 9B Local)",
+      category: "image-generation",
+      keywords: [
+        "generate", "create", "image", "local", "comfyui", "flux", "flux2", "klein", "9b",
+        "text-to-image", "high-quality", "detailed", "offline", "private", "local image",
+        "edit", "reference", "image-to-image", "premium",
+      ],
+      shortDescription: "Generate or edit high-quality images locally using FLUX.2 Klein 9B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 9B (Local ComfyUI)
+
+Generate or edit premium quality images locally using the FLUX.2 Klein 9B model.
+Higher quality and more detailed output compared to 4B variant.
+Supports dual modes:
+- **Text-to-Image**: No reference_images → generates from prompt
+- **Image Editing**: With reference_images → edits based on references
+
+### Parameters
+- **prompt** (required): Text description of the image or edit
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0
+- **reference_images** (optional): Array of base64 images for editing mode (max 10)
+
+### Performance
+- Text-to-image: ~10-12 seconds
+- Image editing: ~14-18 seconds
+- Requires ~16GB+ VRAM`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+      enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
+    } satisfies ToolMetadata,
+    () => createFlux2Klein9BGenerateTool()
   );
 
   // ============================================================================

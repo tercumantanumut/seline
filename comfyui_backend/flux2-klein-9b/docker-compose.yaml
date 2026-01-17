@@ -1,0 +1,78 @@
+services:
+  # Redis for async job queue
+  api-redis-1:
+    image: redis:7-alpine
+    container_name: flux2-klein-9b-redis
+    restart: always
+    networks:
+      - api_default
+    volumes:
+      - ./volumes/redis:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flux2-klein-9b-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: flux2-klein-9b-api
+    environment:
+    - COMFYUI_SERVER=http://flux2-klein-9b-comfy:8081
+    - COMFYUI_INPUT_DIR=/home/workspace/ComfyUI/input
+    - COMFYUI_OUTPUT_DIR=/home/workspace/ComfyUI/output
+    - API_KEY=${FLUX2_API_KEY:-internal-gateway-key}
+    - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-4}
+    - USE_PARALLEL_ROUTER=${USE_PARALLEL_ROUTER:-true}
+    - REDIS_URL=${REDIS_URL:-redis://api-redis-1:6379/0}
+    - JOB_TTL_SECONDS=${JOB_TTL_SECONDS:-3600}
+    volumes:
+      - ../inputs:/home/workspace/ComfyUI/input
+      - ../output:/home/workspace/ComfyUI/output
+    ports:
+     - 5052:5050
+    restart: always
+    networks:
+      - flux2_klein_9b_net
+      - api_default
+    depends_on:
+      api-redis-1:
+        condition: service_healthy
+      flux2-klein-9b-comfy:
+        condition: service_started
+
+  flux2-klein-9b-comfy:
+    build:
+      context: ..
+      dockerfile: flux2-klein-9b/comfy/Dockerfile
+      args:
+        - HF_TOKEN=${HF_TOKEN}
+        - DOWNLOAD_MODELS=${DOWNLOAD_MODELS:-true}
+    container_name: flux2-klein-9b-comfy
+    volumes:
+      - ../inputs:/home/workspace/ComfyUI/input
+      - ../output:/home/workspace/ComfyUI/output
+      - ../ComfyUI/models:/home/workspace/ComfyUI/models
+    ports:
+     - 8085:8081
+    restart: always
+    networks:
+      - flux2_klein_9b_net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia
+
+networks:
+  flux2_klein_9b_net:
+    driver: bridge
+  api_default:
+    name: api_default
+    driver: bridge

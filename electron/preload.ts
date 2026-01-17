@@ -141,6 +141,78 @@ const electronAPI = {
     },
   },
 
+  // FLUX.2 Klein 4B backend operations
+  flux2Klein4b: {
+    checkStatus: (backendPath?: string): Promise<{
+      dockerInstalled: boolean;
+      imageBuilt: boolean;
+      containerRunning: boolean;
+      apiHealthy: boolean;
+      modelsDownloaded: boolean;
+    }> => {
+      return ipcRenderer.invoke("flux2Klein4b:checkStatus", backendPath);
+    },
+    start: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein4b:start", backendPath);
+    },
+    stop: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein4b:stop", backendPath);
+    },
+    getDefaultPath: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein4b:getDefaultPath");
+    },
+    fullSetup: (): Promise<{ success: boolean; backendPath?: string; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein4b:fullSetup");
+    },
+    onInstallProgress: (callback: (data: {
+      stage: string;
+      progress: number;
+      message: string;
+      error?: string;
+    }) => void): void => {
+      ipcRenderer.on("flux2Klein4b:installProgress", (_event, data) => callback(data));
+    },
+    removeProgressListener: (): void => {
+      ipcRenderer.removeAllListeners("flux2Klein4b:installProgress");
+    },
+  },
+
+  // FLUX.2 Klein 9B backend operations
+  flux2Klein9b: {
+    checkStatus: (backendPath?: string): Promise<{
+      dockerInstalled: boolean;
+      imageBuilt: boolean;
+      containerRunning: boolean;
+      apiHealthy: boolean;
+      modelsDownloaded: boolean;
+    }> => {
+      return ipcRenderer.invoke("flux2Klein9b:checkStatus", backendPath);
+    },
+    start: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein9b:start", backendPath);
+    },
+    stop: (backendPath?: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein9b:stop", backendPath);
+    },
+    getDefaultPath: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein9b:getDefaultPath");
+    },
+    fullSetup: (): Promise<{ success: boolean; backendPath?: string; error?: string }> => {
+      return ipcRenderer.invoke("flux2Klein9b:fullSetup");
+    },
+    onInstallProgress: (callback: (data: {
+      stage: string;
+      progress: number;
+      message: string;
+      error?: string;
+    }) => void): void => {
+      ipcRenderer.on("flux2Klein9b:installProgress", (_event, data) => callback(data));
+    },
+    removeProgressListener: (): void => {
+      ipcRenderer.removeAllListeners("flux2Klein9b:installProgress");
+    },
+  },
+
   // Dev log streaming operations
   logs: {
     subscribe: (): void => {

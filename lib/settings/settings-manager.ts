@@ -11,6 +11,7 @@ export interface AppSettings {
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+  huggingFaceToken?: string; // For downloading gated models from Hugging Face
 
     // MCP (Model Context Protocol) settings
     /**
@@ -73,13 +74,27 @@ export interface AppSettings {
     stylyAiApiKey?: string;
     imageGenerationProvider?: "openrouter" | "local-comfyui"; // Image generation provider selection
 
-    // ComfyUI Local Backend Settings
+    // ComfyUI Local Backend Settings (Z-Image)
     comfyuiEnabled?: boolean;        // Enable local ComfyUI for image generation
     comfyuiInstalled?: boolean;      // Whether Docker image is built
     comfyuiAutoStart?: boolean;      // Auto-start container on app launch
     comfyuiPort?: number;            // API port (default: 8000)
     comfyuiModelsDownloaded?: boolean; // Whether Z-Image models are downloaded
     comfyuiBackendPath?: string;     // Path to comfyui_backend folder
+
+    // FLUX.2 Klein 4B Local Backend Settings
+    flux2Klein4bEnabled?: boolean;        // Enable FLUX.2 Klein 4B for image generation
+    flux2Klein4bInstalled?: boolean;      // Whether Docker image is built
+    flux2Klein4bAutoStart?: boolean;      // Auto-start container on app launch
+    flux2Klein4bModelsDownloaded?: boolean; // Whether models are downloaded
+    flux2Klein4bBackendPath?: string;     // Path to flux2-klein-4b folder
+
+    // FLUX.2 Klein 9B Local Backend Settings
+    flux2Klein9bEnabled?: boolean;        // Enable FLUX.2 Klein 9B for image generation
+    flux2Klein9bInstalled?: boolean;      // Whether Docker image is built
+    flux2Klein9bAutoStart?: boolean;      // Auto-start container on app launch
+    flux2Klein9bModelsDownloaded?: boolean; // Whether models are downloaded
+    flux2Klein9bBackendPath?: string;     // Path to flux2-klein-9b folder
 
     // Vector Database (LanceDB) - Advanced Semantic Search
     vectorDBEnabled?: boolean;  // Enable/disable LanceDB integration
@@ -160,7 +175,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     localGrepMaxResults: 100,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
-    // ComfyUI defaults
+    // ComfyUI defaults (Z-Image)
     imageGenerationProvider: "openrouter",
     comfyuiEnabled: false,
     comfyuiInstalled: false,
@@ -168,6 +183,18 @@ const DEFAULT_SETTINGS: AppSettings = {
     comfyuiPort: 8000,
     comfyuiModelsDownloaded: false,
     comfyuiBackendPath: "",
+    // FLUX.2 Klein 4B defaults
+    flux2Klein4bEnabled: false,
+    flux2Klein4bInstalled: false,
+    flux2Klein4bAutoStart: false,
+    flux2Klein4bModelsDownloaded: false,
+    flux2Klein4bBackendPath: "",
+    // FLUX.2 Klein 9B defaults
+    flux2Klein9bEnabled: false,
+    flux2Klein9bInstalled: false,
+    flux2Klein9bAutoStart: false,
+    flux2Klein9bModelsDownloaded: false,
+    flux2Klein9bBackendPath: "",
 };
 
 function getSettingsPath(): string {
@@ -287,6 +314,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.stylyAiApiKey) {
         process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;
+    }
+    if (settings.huggingFaceToken) {
+        process.env.HF_TOKEN = settings.huggingFaceToken;
     }
     process.env.LLM_PROVIDER = settings.llmProvider;
 

@@ -1,0 +1,9 @@
+uvicorn
+fastapi
+requests
+python-dotenv
+rich
+pillow
+prometheus-client
+asyncpg
+redis

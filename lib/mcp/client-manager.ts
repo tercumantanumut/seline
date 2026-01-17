@@ -29,6 +29,9 @@ class MCPClientManager {
     private status: Map<string, MCPServerStatus> = new Map();
     private transports: Map<string, StdioClientTransport | SSEClientTransport> = new Map();
 
+    /** Default timeout for tool calls in milliseconds (5 minutes) */
+    private readonly toolCallTimeoutMs: number = 300000;
+
     private constructor() { }
 
     static getInstance(): MCPClientManager {
@@ -162,7 +165,7 @@ class MCPClientManager {
     }
 
     /**
-     * Execute a tool on an MCP server
+     * Execute a tool on an MCP server with timeout protection
      */
     async executeTool(
         serverName: string,
@@ -176,12 +179,31 @@ class MCPClientManager {
 
         console.log(`[MCP] Executing ${serverName}:${toolName} with args:`, args);
 
-        const result = await client.callTool({
-            name: toolName,
-            arguments: args,
+        // Create timeout promise with cleanup
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(
+                    `MCP tool call timed out after ${this.toolCallTimeoutMs}ms: ${serverName}:${toolName}`
+                ));
+            }, this.toolCallTimeoutMs);
         });
 
-        return result;
+        try {
+            const result = await Promise.race([
+                client.callTool({
+                    name: toolName,
+                    arguments: args,
+                }),
+                timeoutPromise,
+            ]);
+            return result;
+        } finally {
+            // Clear timeout to prevent timer leaks
+            if (timeoutId !== undefined) {
+                clearTimeout(timeoutId);
+            }
+        }
     }
 
     /**

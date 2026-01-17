@@ -49,28 +49,71 @@ ARG DOWNLOAD_MODELS=true
 RUN mkdir -p /app/ComfyUI/models/checkpoints \
     /app/ComfyUI/models/loras
 
-# Download Z-Image Turbo FP8 models if DOWNLOAD_MODELS is true
-# Download checkpoint model
-RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
-    echo "Downloading Z-Image Turbo FP8 checkpoint from HuggingFace..." && \
-    wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
-        "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors?download=true" \
-        -O /app/ComfyUI/models/checkpoints/z-image-turbo-fp8-aio.safetensors && \
-    echo "Checkpoint model downloaded successfully!" \
-    ; else \
-    echo "Skipping checkpoint download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" \
-    ; fi
+# Copy shared models directory into build context for checking existing models
+# This allows us to skip downloads if models already exist on host
+COPY ComfyUI/models /tmp/host_models
 
-# Download detailer LoRA model (separate layer for better caching)
+# Download Z-Image Turbo FP8 checkpoint model (with intelligent skip logic)
+# Checks if model exists in shared models directory with valid size (>1MB) before downloading
 RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
-    echo "Downloading Z-Image Detailer LoRA from HuggingFace..." && \
-    wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
-        "https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors?download=true" \
-        -O /app/ComfyUI/models/loras/z-image-detailer.safetensors && \
-    echo "Detailer LoRA downloaded successfully!" \
-    ; else \
-    echo "Skipping detailer download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" \
-    ; fi
+    CHECKPOINT_FILE="z-image-turbo-fp8-aio.safetensors" && \
+    HOST_PATH="/tmp/host_models/checkpoints/$CHECKPOINT_FILE" && \
+    DEST_PATH="/app/ComfyUI/models/checkpoints/$CHECKPOINT_FILE" && \
+    if [ -f "$HOST_PATH" ]; then \
+        FILE_SIZE=$(stat -c%s "$HOST_PATH" 2>/dev/null || echo 0) && \
+        if [ "$FILE_SIZE" -gt 1048576 ]; then \
+            echo "✓ Checkpoint exists on host with valid size ($(($FILE_SIZE / 1048576))MB), copying..." && \
+            cp "$HOST_PATH" "$DEST_PATH" && \
+            echo "✓ Checkpoint copied successfully!" ; \
+        else \
+            echo "⚠ Checkpoint exists but appears incomplete (${FILE_SIZE} bytes), downloading..." && \
+            wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
+                "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors?download=true" \
+                -O "$DEST_PATH" && \
+            echo "✓ Checkpoint downloaded successfully!" ; \
+        fi ; \
+    else \
+        echo "Downloading Z-Image Turbo FP8 checkpoint from HuggingFace..." && \
+        wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
+            "https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors?download=true" \
+            -O "$DEST_PATH" && \
+        echo "✓ Checkpoint downloaded successfully!" ; \
+    fi ; \
+    else \
+    echo "Skipping checkpoint download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" ; \
+    fi
+
+# Download Z-Image Detailer LoRA model (with intelligent skip logic)
+RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
+    LORA_FILE="z-image-detailer.safetensors" && \
+    HOST_PATH="/tmp/host_models/loras/$LORA_FILE" && \
+    DEST_PATH="/app/ComfyUI/models/loras/$LORA_FILE" && \
+    if [ -f "$HOST_PATH" ]; then \
+        FILE_SIZE=$(stat -c%s "$HOST_PATH" 2>/dev/null || echo 0) && \
+        if [ "$FILE_SIZE" -gt 1048576 ]; then \
+            echo "✓ LoRA exists on host with valid size ($(($FILE_SIZE / 1048576))MB), copying..." && \
+            cp "$HOST_PATH" "$DEST_PATH" && \
+            echo "✓ LoRA copied successfully!" ; \
+        else \
+            echo "⚠ LoRA exists but appears incomplete (${FILE_SIZE} bytes), downloading..." && \
+            wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
+                "https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors?download=true" \
+                -O "$DEST_PATH" && \
+            echo "✓ LoRA downloaded successfully!" ; \
+        fi ; \
+    else \
+        echo "Downloading Z-Image Detailer LoRA from HuggingFace..." && \
+        wget --tries=3 --timeout=60 -q --show-progress --progress=bar:force \
+            "https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors?download=true" \
+            -O "$DEST_PATH" && \
+        echo "✓ LoRA downloaded successfully!" ; \
+    fi ; \
+    else \
+    echo "Skipping LoRA download (DOWNLOAD_MODELS=$DOWNLOAD_MODELS)" ; \
+    fi
+
+# Clean up temporary host models copy to reduce image size
+RUN rm -rf /tmp/host_models
 
 EXPOSE 8188
 
