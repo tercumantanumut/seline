@@ -22,7 +22,7 @@ services:
       - ./workflow_to_replace_z_image_fp8.json:/home/workspace/ComfyUI/workflow_api.json
     environment:
       - PYTHONUNBUFFERED=1
-      - DOWNLOAD_MODELS=${DOWNLOAD_MODELS:-true}  # Set to false if models are pre-placed
+      - DOWNLOAD_MODELS=${DOWNLOAD_MODELS:-true}  # Auto-download if missing
       - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
