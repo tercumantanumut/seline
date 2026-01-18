@@ -65,6 +65,69 @@ npm run electron:dist:mac
 ```
 For local packaging without creating installers, use `npm run electron:pack`. See `docs/BUILD.md` for the full pipeline.
 
+## 📦 Manual Model Placement
+
+If you prefer to download models manually (or have slow/no internet during Docker build), place them in the paths below. Models are mounted via Docker volumes at runtime.
+
+### Z-Image Turbo FP8
+
+**Base path:** `comfyui_backend/ComfyUI/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **Checkpoint** | `checkpoints/z-image-turbo-fp8-aio.safetensors` | [HuggingFace](https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors) |
+| **LoRA** | `loras/z-image-detailer.safetensors` | [HuggingFace](https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors) |
+
+### FLUX.2 Klein 4B
+
+**Base path:** `comfyui_backend/flux2-klein-4b/volumes/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **VAE** | `vae/flux2-vae.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| **CLIP** | `clip/qwen_3_4b.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) |
+| **Diffusion Model** | `diffusion_models/flux-2-klein-base-4b-fp8.safetensors` | [HuggingFace](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors) |
+
+### FLUX.2 Klein 9B
+
+**Base path:** `comfyui_backend/flux2-klein-9b/volumes/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **VAE** | `vae/flux2-vae.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| **CLIP** | `clip/qwen_3_8b_fp8mixed.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors) |
+| **Diffusion Model** | `diffusion_models/flux-2-klein-base-9b-fp8.safetensors` | [HuggingFace](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors) |
+
+### Example Directory Structure
+
+```
+comfyui_backend/
+├── ComfyUI/models/                          # Z-Image models
+│   ├── checkpoints/
+│   │   └── z-image-turbo-fp8-aio.safetensors
+│   └── loras/
+│       └── z-image-detailer.safetensors
+│
+├── flux2-klein-4b/volumes/models/           # FLUX.2 Klein 4B models
+│   ├── vae/
+│   │   └── flux2-vae.safetensors
+│   ├── clip/
+│   │   └── qwen_3_4b.safetensors
+│   └── diffusion_models/
+│       └── flux-2-klein-base-4b-fp8.safetensors
+│
+└── flux2-klein-9b/volumes/models/           # FLUX.2 Klein 9B models
+    ├── vae/
+    │   └── flux2-vae.safetensors
+    ├── clip/
+    │   └── qwen_3_8b_fp8mixed.safetensors
+    └── diffusion_models/
+        └── flux-2-klein-base-9b-fp8.safetensors
+```
+
+> **Note:** The VAE (`flux2-vae.safetensors`) is the same for both Klein 4B and 9B. You can download it once and copy to both locations.
+
+
 ## Troubleshooting
 - Native module errors (`better-sqlite3`, `onnxruntime-node`): run `npm run electron:rebuild-native` before building.
 - Black screen in packaged app: verify `.next/standalone` and `extraResources` are correct; see `docs/BUILD.md`.
