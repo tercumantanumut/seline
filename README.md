@@ -127,6 +127,42 @@ comfyui_backend/
 
 > **Note:** The VAE (`flux2-vae.safetensors`) is the same for both Klein 4B and 9B. You can download it once and copy to both locations.
 
+## 🔄 Swapping LoRAs (Z-Image)
+
+The Z-Image Turbo FP8 workflow uses a LoRA for detail enhancement. You can swap it with any compatible LoRA.
+
+### Step 1: Add Your LoRA File
+
+Place your LoRA file in:
+```
+comfyui_backend/ComfyUI/models/loras/your-lora-name.safetensors
+```
+
+### Step 2: Update the Workflow
+
+Edit `comfyui_backend/workflow_to_replace_z_image_fp8.json` and find node `41` (LoraLoader):
+
+```json
+"41": {
+  "inputs": {
+    "lora_name": "z-image-detailer.safetensors",  // ← Change this
+    "strength_model": 0.5,
+    "strength_clip": 1,
+    ...
+  },
+  "class_type": "LoraLoader"
+}
+```
+
+Change `lora_name` to your LoRA filename.
+
+### Step 3: Restart the Container
+
+The workflow JSON is mounted as a volume, so just restart:
+```bash
+cd comfyui_backend
+docker-compose restart comfyui workflow-api
+```
 
 ## Troubleshooting
 - Native module errors (`better-sqlite3`, `onnxruntime-node`): run `npm run electron:rebuild-native` before building.
