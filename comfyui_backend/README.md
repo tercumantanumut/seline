@@ -90,6 +90,132 @@ The services will be available at:
 - ComfyUI: `http://localhost:8188`
 - Frontend: `http://localhost:3000` (if running)
 
+---
+
+## 📦 Manual Model Placement
+
+If you prefer to download models manually (or have slow/no internet during Docker build), place them in the paths below. Models are mounted via Docker volumes at runtime.
+
+### Z-Image Turbo FP8
+
+**Base path:** `comfyui_backend/ComfyUI/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **Checkpoint** | `checkpoints/z-image-turbo-fp8-aio.safetensors` | [HuggingFace](https://huggingface.co/SeeSee21/Z-Image-Turbo-AIO/resolve/main/z-image-turbo-fp8-aio.safetensors) |
+| **LoRA** | `loras/z-image-detailer.safetensors` | [HuggingFace](https://huggingface.co/styly-agents/z-image-detailer/resolve/main/z-image-detailer.safetensors) |
+
+### FLUX.2 Klein 4B
+
+**Base path:** `comfyui_backend/flux2-klein-4b/volumes/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **VAE** | `vae/flux2-vae.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| **CLIP** | `clip/qwen_3_4b.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) |
+| **Diffusion Model** | `diffusion_models/flux-2-klein-base-4b-fp8.safetensors` | [HuggingFace](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors) |
+
+### FLUX.2 Klein 9B
+
+**Base path:** `comfyui_backend/flux2-klein-9b/volumes/models/`
+
+| Model | Path | Download |
+|-------|------|----------|
+| **VAE** | `vae/flux2-vae.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| **CLIP** | `clip/qwen_3_8b_fp8mixed.safetensors` | [HuggingFace](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors) |
+| **Diffusion Model** | `diffusion_models/flux-2-klein-base-9b-fp8.safetensors` | [HuggingFace](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors) |
+
+### Example Directory Structure
+
+```
+comfyui_backend/
+├── ComfyUI/models/                          # Z-Image models
+│   ├── checkpoints/
+│   │   └── z-image-turbo-fp8-aio.safetensors
+│   └── loras/
+│       └── z-image-detailer.safetensors
+│
+├── flux2-klein-4b/volumes/models/           # FLUX.2 Klein 4B models
+│   ├── vae/
+│   │   └── flux2-vae.safetensors
+│   ├── clip/
+│   │   └── qwen_3_4b.safetensors
+│   └── diffusion_models/
+│       └── flux-2-klein-base-4b-fp8.safetensors
+│
+└── flux2-klein-9b/volumes/models/           # FLUX.2 Klein 9B models
+    ├── vae/
+    │   └── flux2-vae.safetensors
+    ├── clip/
+    │   └── qwen_3_8b_fp8mixed.safetensors
+    └── diffusion_models/
+        └── flux-2-klein-base-9b-fp8.safetensors
+```
+
+> **Note:** The VAE (`flux2-vae.safetensors`) is the same for both Klein 4B and 9B. You can download it once and copy to both locations.
+
+---
+
+## 🔄 Swapping LoRAs (Z-Image)
+
+The Z-Image Turbo FP8 workflow uses a LoRA for detail enhancement. You can swap it with any compatible LoRA.
+
+### Step 1: Add Your LoRA File
+
+Place your LoRA file in:
+```
+comfyui_backend/ComfyUI/models/loras/your-lora-name.safetensors
+```
+
+### Step 2: Update the Workflow
+
+Edit `comfyui_backend/workflow_to_replace_z_image_fp8.json` and find node `41` (LoraLoader):
+
+```json
+"41": {
+  "inputs": {
+    "lora_name": "z-image-detailer.safetensors",  // ← Change this
+    "strength_model": 0.5,
+    "strength_clip": 1,
+    ...
+  },
+  "class_type": "LoraLoader"
+}
+```
+
+Change `lora_name` to your LoRA filename.
+
+### Step 3: Restart the Container
+
+The workflow JSON is mounted as a volume, so just restart:
+```bash
+cd comfyui_backend
+docker-compose restart comfyui workflow-api
+```
+
+> No rebuild needed - the workflow file is mounted at runtime, not baked into the image.
+
+### Adjusting LoRA Strength via API
+
+You can adjust LoRA strength per-request without editing the workflow:
+
+```bash
+curl -X POST http://localhost:8000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "positive_prompt": "a beautiful landscape",
+    "lora_strength": 0.7
+  }'
+```
+
+| Parameter | Description | Default | Range |
+|-----------|-------------|---------|-------|
+| `lora_strength` | Model strength (affects image) | 0.5 | 0.0 - 2.0 |
+
+> **Tip:** Start with 0.5 and adjust. Higher values = stronger LoRA effect but may cause artifacts.
+
+---
+
 ## 🎨 Transformation Capabilities
 
 ### Pre-trained Transformation Types
