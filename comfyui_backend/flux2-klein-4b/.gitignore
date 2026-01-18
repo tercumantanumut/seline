@@ -194,6 +194,7 @@ conversion_code/models/
 volumes/input
 volumes/output
 volumes/models
+volumes/redis/
 
 .env
 .aider*
