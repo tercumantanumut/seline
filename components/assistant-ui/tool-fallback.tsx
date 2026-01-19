@@ -3,6 +3,7 @@
 import { memo, useMemo, type FC } from "react";
 import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
@@ -156,7 +157,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
     if (rawResults !== undefined && !Array.isArray(rawResults)) {
       return (
-        <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           Unexpected tool search results format.
           <pre className="mt-2 overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
             {formatResultValue(rawResults)}
@@ -167,7 +168,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
     if (result.status === "no_results" || !searchResults || searchResults.length === 0) {
       return (
-        <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           No tools found matching &quot;{result.query}&quot;
         </div>
       );
@@ -175,7 +176,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
     const toolNames = searchResults.map(t => t.displayName || t.name).filter(Boolean);
     return (
-      <div className="text-sm font-mono animate-in fade-in duration-200">
+      <div className="text-sm font-mono transition-opacity duration-150">
         <p className="text-terminal-dark mb-2">
           Found {searchResults.length} tool{searchResults.length !== 1 ? "s" : ""}: {toolNames.join(", ")}
         </p>
@@ -199,7 +200,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   // Handle listAllTools results
   if (toolName === "listAllTools") {
     return (
-      <div className="text-sm text-terminal-dark font-mono animate-in fade-in duration-200">
+      <div className="text-sm text-terminal-dark font-mono transition-opacity duration-150">
         {result.message || "Tools listed successfully"}
       </div>
     );
@@ -210,7 +211,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     // Handle error/no_api_key states
     if (result.status === "no_api_key" || result.message) {
       return (
-        <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           {result.message || "Web search unavailable"}
         </div>
       );
@@ -220,14 +221,14 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     const sources = result.sources || [];
     if (sources.length === 0) {
       return (
-        <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           No results found for &quot;{result.query}&quot;
         </div>
       );
     }
 
     return (
-      <div className="text-sm font-mono space-y-3 animate-in fade-in duration-200">
+      <div className="text-sm font-mono space-y-3 transition-opacity duration-150">
         {/* Summary/Answer */}
         {result.answer && (
           <div className="text-terminal-dark bg-terminal-dark/5 rounded p-2">
@@ -273,7 +274,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     // Handle no_paths or disabled status
     if (grepResult.status === "no_paths" || grepResult.status === "disabled") {
       return (
-        <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           {grepResult.message || "No paths to search"}
         </div>
       );
@@ -282,7 +283,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     // Handle success with results
     if (grepResult.matchCount !== undefined) {
       return (
-        <div className="text-sm font-mono animate-in fade-in duration-200">
+        <div className="text-sm font-mono transition-opacity duration-150">
           <p className="text-terminal-dark mb-2">
             Found {grepResult.matchCount} match{grepResult.matchCount !== 1 ? "es" : ""} for &quot;{grepResult.pattern}&quot;
           </p>
@@ -297,7 +298,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
     // Fallback for other localGrep statuses
     return (
-      <div className="text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+      <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
         {grepResult.message || "Search completed"}
       </div>
     );
@@ -372,7 +373,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
   if (typeof result.stdout === "string" || typeof result.stderr === "string") {
     return (
-      <div className="mt-2 space-y-2 animate-in fade-in duration-200">
+      <div className="mt-2 space-y-2 transition-opacity duration-150">
         {result.stdout && (
           <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
             {result.stdout}
@@ -390,7 +391,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   // Show batch results
   if (Array.isArray(result.results) && result.results.length > 0) {
     return (
-      <div className="mt-2 space-y-4 animate-in fade-in duration-200">
+      <div className="mt-2 space-y-4 transition-opacity duration-150">
         {result.results.map((item, idx) => (
           <div key={idx} className="pt-4 first:pt-0">
             {item.prompt && (
@@ -433,7 +434,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
   if (result.results && !Array.isArray(result.results)) {
     return (
-      <div className="mt-2 text-sm text-terminal-muted font-mono animate-in fade-in duration-200">
+      <div className="mt-2 text-sm text-terminal-muted font-mono transition-opacity duration-150">
         <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
           {formatResultValue(result.results)}
         </pre>
@@ -467,7 +468,10 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   }, [argsText]);
 
   return (
-    <div className="my-2 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono transition-all duration-150 ease-in-out">
+    <div className={cn(
+      "my-2 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono transition-all duration-150 ease-in-out [contain:layout_style]",
+      isRunning && "min-h-[60px]"
+    )}>
       <div className="flex items-center gap-2 mb-2 transition-opacity duration-150">
         <ToolIcon toolName={toolName} isRunning={isRunning} result={parsedResult} />
         <span className="font-medium text-sm text-terminal-dark">

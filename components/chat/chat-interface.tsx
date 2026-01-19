@@ -110,6 +110,8 @@ export default function ChatInterface({
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const lastProgressSignatureRef = useRef<string>("");
     const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
+    const lastProgressTimeRef = useRef<number>(0);
+    const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
         setSessions((prev) => {
@@ -364,6 +366,13 @@ export default function ChatInterface({
             if (!detail.progressContent?.length && !detail.progressText) {
                 return;
             }
+
+            // Time-based throttle to reduce UI updates
+            const now = Date.now();
+            if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) {
+                return;
+            }
+            lastProgressTimeRef.current = now;
 
             // Compute signature to check if content meaningfully changed
             const contentSignature = detail.progressContent?.length
