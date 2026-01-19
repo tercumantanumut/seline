@@ -308,8 +308,8 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div className="flex-1">
             <div className="text-sm font-medium text-terminal-dark">Searching...</div>
-            <div className="text-xs text-terminal-muted mt-0.5">
-              &quot;{query.slice(0, 50)}{query.length > 50 ? "..." : ""}&quot;
+            <div className="text-xs text-terminal-muted mt-0.5 break-words">
+              &quot;{query}&quot;
             </div>
           </div>
         </div>
