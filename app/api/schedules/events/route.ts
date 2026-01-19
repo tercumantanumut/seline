@@ -66,11 +66,25 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      const handleProgress = (event: TaskEvent) => {
+        console.log(`[SSE] Sending task:progress event to user ${userId}:`, event.runId);
+        try {
+          const message = JSON.stringify({
+            type: "task:progress",
+            data: event,
+          });
+          controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+        } catch (err) {
+          console.error(`[SSE] Failed to send task:progress event:`, err);
+        }
+      };
+
       // Subscribe to user-specific events
       console.log(`[SSE] Subscribing to events for user: ${userId}`);
       cleanup = taskEvents.subscribeForUser(userId, {
         onStarted: handleStarted,
         onCompleted: handleCompleted,
+        onProgress: handleProgress,
       });
       console.log(`[SSE] Subscribed to events for user: ${userId}`);
 

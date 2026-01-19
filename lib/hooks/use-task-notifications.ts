@@ -47,6 +47,7 @@ export function useTaskNotifications() {
   // Use refs for handlers to avoid stale closures in EventSource callbacks
   const handleTaskStartedRef = useRef<(event: TaskEvent) => void>(() => {});
   const handleTaskCompletedRef = useRef<(event: TaskEvent) => void>(() => {});
+  const handleTaskProgressRef = useRef<(event: TaskEvent) => void>(() => {});
 
   // Update refs when dependencies change
   useEffect(() => {
@@ -105,6 +106,12 @@ export function useTaskNotifications() {
         });
       }
     };
+
+    handleTaskProgressRef.current = (event: TaskEvent) => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("scheduled-task-progress", { detail: event }));
+      }
+    };
   }, [addTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl, dispatchLifecycleEvent]);
 
   // Connect to SSE endpoint
@@ -151,6 +158,11 @@ export function useTaskNotifications() {
           case "task:completed":
             if (message.data) {
               handleTaskCompletedRef.current(message.data);
+            }
+            break;
+          case "task:progress":
+            if (message.data) {
+              handleTaskProgressRef.current(message.data);
             }
             break;
         }

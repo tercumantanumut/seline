@@ -19,11 +19,13 @@ export interface TaskEvent {
   characterId: string;
   status: "running" | "succeeded" | "failed" | "cancelled";
   sessionId?: string;      // The chat session created for this run
+  assistantMessageId?: string;
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
   error?: string;
   resultSummary?: string;
+  progressText?: string;
 }
 
 // Use globalThis to persist across Next.js hot reloads in development
@@ -116,6 +118,32 @@ class TaskEventEmitter extends EventEmitter {
   }
 
   /**
+   * Emit task progress event
+   */
+  emitTaskProgress(event: {
+    taskId: string;
+    taskName: string;
+    runId: string;
+    userId: string;
+    characterId: string;
+    sessionId?: string;
+    assistantMessageId?: string;
+    progressText: string;
+    startedAt: string;
+  }): void {
+    const fullEvent: TaskEvent = {
+      ...event,
+      type: "progress",
+      status: "running",
+    };
+
+    this.emit("task:progress", fullEvent);
+    this.emit(`task:progress:${event.userId}`, fullEvent);
+
+    console.log(`[TaskEvents] Task "${event.taskName}" progress update (run: ${event.runId})`);
+  }
+
+  /**
    * Subscribe to events for a specific user
    * Returns cleanup function
    */
@@ -124,6 +152,7 @@ class TaskEventEmitter extends EventEmitter {
     handlers: {
       onStarted?: (event: TaskEvent) => void;
       onCompleted?: (event: TaskEvent) => void;
+      onProgress?: (event: TaskEvent) => void;
     }
   ): () => void {
     if (handlers.onStarted) {
@@ -132,6 +161,9 @@ class TaskEventEmitter extends EventEmitter {
     if (handlers.onCompleted) {
       this.on(`task:completed:${userId}`, handlers.onCompleted);
     }
+    if (handlers.onProgress) {
+      this.on(`task:progress:${userId}`, handlers.onProgress);
+    }
 
     return () => {
       if (handlers.onStarted) {
@@ -139,6 +171,9 @@ class TaskEventEmitter extends EventEmitter {
       }
       if (handlers.onCompleted) {
         this.off(`task:completed:${userId}`, handlers.onCompleted);
+      }
+      if (handlers.onProgress) {
+        this.off(`task:progress:${userId}`, handlers.onProgress);
       }
     };
   }

@@ -240,6 +240,26 @@ export async function getMessages(sessionId: string) {
   });
 }
 
+export async function updateMessage(
+  messageId: string,
+  data: Partial<Pick<NewMessage, "content" | "metadata" | "model" | "tokenCount">>
+) {
+  const [updated] = await db
+    .update(messages)
+    .set(data)
+    .where(eq(messages.id, messageId))
+    .returning();
+
+  if (updated) {
+    await db
+      .update(sessions)
+      .set({ updatedAt: new Date().toISOString() })
+      .where(eq(sessions.id, updated.sessionId));
+  }
+
+  return updated;
+}
+
 /**
  * Get all tool results for a session, indexed by toolCallId.
  * This fetches results from both:
