@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { useTranslations, useFormatter } from "next-intl";
-import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import { convertDBMessagesToUIMessages, convertContentPartsToUIParts } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import type { TaskEvent } from "@/lib/scheduler/task-events";
 import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
@@ -335,19 +335,28 @@ export default function ChatInterface({
             if (!detail || detail.sessionId !== sessionId) {
                 return;
             }
-            if (!detail.progressText) {
-                return;
-            }
             const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
             setSessionState((prev) => {
                 if (prev.sessionId !== sessionId) {
                     return prev;
                 }
                 const existingIndex = prev.messages.findIndex((msg) => msg.id === messageId);
+                const baseMessage = existingIndex === -1 ? { id: messageId, role: "assistant", parts: [] as UIMessage["parts"] } : prev.messages[existingIndex];
+                const progressParts = detail.progressContent?.length
+                    ? convertContentPartsToUIParts(detail.progressContent)
+                    : detail.progressText
+                        ? ([{ type: "text", text: detail.progressText }] as UIMessage["parts"])
+                        : undefined;
+
+                if (!progressParts || progressParts.length === 0) {
+                    return prev;
+                }
+
                 const updatedMessage: UIMessage = {
+                    ...baseMessage,
                     id: messageId,
                     role: "assistant",
-                    parts: [{ type: "text", text: detail.progressText || "" }],
+                    parts: progressParts,
                 };
                 const nextMessages = [...prev.messages];
                 if (existingIndex === -1) {

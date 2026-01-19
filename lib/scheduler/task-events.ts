@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from "events";
+import type { DBContentPart } from "@/lib/messages/converter";
 
 export interface TaskEvent {
   type: "started" | "completed" | "progress";
@@ -26,6 +27,7 @@ export interface TaskEvent {
   error?: string;
   resultSummary?: string;
   progressText?: string;
+  progressContent?: DBContentPart[];
 }
 
 // Use globalThis to persist across Next.js hot reloads in development
@@ -130,6 +132,7 @@ class TaskEventEmitter extends EventEmitter {
     assistantMessageId?: string;
     progressText: string;
     startedAt: string;
+    progressContent?: DBContentPart[];
   }): void {
     const fullEvent: TaskEvent = {
       ...event,

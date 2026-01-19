@@ -8,7 +8,8 @@
 
 import { db } from "@/lib/db/sqlite-client";
 import { scheduledTaskRuns, scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
-import { eq } from "drizzle-orm";
+import { messages } from "@/lib/db/sqlite-schema";
+import { and, eq, sql } from "drizzle-orm";
 import type { ContextSource, DeliveryMethod, DeliveryConfig } from "@/lib/db/sqlite-schedule-schema";
 import { getContextSourceManager } from "./context-sources";
 import { getDeliveryRouter } from "./delivery";
@@ -433,16 +434,26 @@ export class TaskQueue {
       sessionId = session.id;
     }
 
-    // Create the user message (the scheduled prompt)
-    await createMessage({
-      sessionId,
-      role: "user",
-      content: [{ type: "text", text: task.prompt }],
-      metadata: {
-        isScheduledPrompt: true,
-        scheduledTaskId: task.taskId,
-      },
+    const existingPrompt = await db.query.messages.findFirst({
+      where: and(
+        eq(messages.sessionId, sessionId),
+        eq(messages.role, "user"),
+        sql`json_extract(${messages.metadata}, '$.scheduledRunId') = ${task.runId}`
+      ),
     });
+
+    if (!existingPrompt) {
+      await createMessage({
+        sessionId,
+        role: "user",
+        content: [{ type: "text", text: task.prompt }],
+        metadata: {
+          isScheduledPrompt: true,
+          scheduledTaskId: task.taskId,
+          scheduledRunId: task.runId,
+        },
+      });
+    }
 
     return sessionId;
   }
