@@ -479,6 +479,9 @@ export class TaskQueue {
         "X-Session-Id": sessionId,
         "X-Character-Id": task.characterId,
         "X-Scheduled-Run": "true",
+        "X-Scheduled-Run-Id": task.runId,
+        "X-Scheduled-Task-Id": task.taskId,
+        "X-Scheduled-Task-Name": task.taskName,
         // Internal auth bypass for scheduled tasks
         "X-Internal-Auth": process.env.INTERNAL_API_SECRET || "seline-internal-scheduler",
       },

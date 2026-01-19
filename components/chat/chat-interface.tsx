@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
@@ -187,7 +187,6 @@ export default function ChatInterface({
                     sessionId: newSessionId,
                     messages: uiMessages,
                 });
-                refreshSessionTimestamp(newSessionId);
                 router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
             } catch (err) {
                 console.error("Failed to switch session:", err);
@@ -326,6 +325,50 @@ export default function ChatInterface({
         };
     }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handleTaskProgress = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail || detail.sessionId !== sessionId) {
+                return;
+            }
+            if (!detail.progressText) {
+                return;
+            }
+            const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
+            setSessionState((prev) => {
+                if (prev.sessionId !== sessionId) {
+                    return prev;
+                }
+                const existingIndex = prev.messages.findIndex((msg) => msg.id === messageId);
+                const updatedMessage: UIMessage = {
+                    id: messageId,
+                    role: "assistant",
+                    parts: [{ type: "text", text: detail.progressText || "" }],
+                };
+                const nextMessages = [...prev.messages];
+                if (existingIndex === -1) {
+                    nextMessages.push(updatedMessage);
+                } else {
+                    nextMessages[existingIndex] = updatedMessage;
+                }
+                return {
+                    sessionId: prev.sessionId,
+                    messages: nextMessages,
+                };
+            });
+            refreshSessionTimestamp(detail.sessionId);
+        };
+
+        window.addEventListener("scheduled-task-progress", handleTaskProgress);
+        return () => {
+            window.removeEventListener("scheduled-task-progress", handleTaskProgress);
+        };
+    }, [refreshSessionTimestamp, sessionId]);
+
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
             const trimmed = newTitle.trim();
@@ -392,6 +435,23 @@ export default function ChatInterface({
         }));
     }, []);
 
+    const chatProviderKey = useMemo(() => {
+        const lastMessage = messages[messages.length - 1];
+        const lastMessageId = lastMessage?.id || "none";
+        const lastMessageRole = lastMessage?.role || "unknown";
+        const partsCount = Array.isArray((lastMessage as { parts?: unknown[] })?.parts)
+            ? ((lastMessage as { parts?: unknown[] }).parts?.length ?? 0)
+            : 0;
+        const textDigest =
+            lastMessage && "parts" in lastMessage && Array.isArray((lastMessage as { parts?: Array<{ type?: string; text?: string }> }).parts)
+                ? (lastMessage as { parts?: Array<{ type?: string; text?: string }> })
+                      .parts?.filter((part) => part?.type === "text")
+                      .map((part) => part?.text || "")
+                      .join("|")
+                : "";
+        return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
+    }, [messages, sessionId]);
+
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) {
             return;
@@ -430,7 +490,7 @@ export default function ChatInterface({
         >
             <CharacterProvider character={characterDisplay}>
                 <ChatProvider
-                    key={sessionId}
+                    key={chatProviderKey}
                     sessionId={sessionId}
                     characterId={character.id}
                     initialMessages={messages}

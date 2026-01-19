@@ -12,12 +12,13 @@ import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/char
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession, updateMessage } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
+import { taskEvents } from "@/lib/scheduler/task-events";
 import {
   withRunContext,
   createAgentRun,
@@ -825,6 +826,10 @@ export async function POST(req: Request) {
 
     let userId: string;
 
+    const scheduledRunId = isScheduledRun ? req.headers.get("X-Scheduled-Run-Id") : null;
+    const scheduledTaskId = isScheduledRun ? req.headers.get("X-Scheduled-Task-Id") : null;
+    const scheduledTaskName = isScheduledRun ? req.headers.get("X-Scheduled-Task-Name") : null;
+
     if (isScheduledRun && internalAuth === expectedSecret) {
       // Scheduled task execution - use provided session's user
       // The user ID will be extracted from the session
@@ -951,6 +956,67 @@ export async function POST(req: Request) {
 
     const appSettings = loadSettings();
     const toolLoadingMode = appSettings.toolLoadingMode ?? "deferred";
+    const eventCharacterId =
+      characterId ||
+      ((sessionMetadata?.characterId as string | undefined) ?? "");
+    const shouldEmitProgress =
+      Boolean(isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId);
+    const streamingState = shouldEmitProgress
+      ? {
+          text: "",
+          lastBroadcastText: "",
+          messageId: undefined as string | undefined,
+          lastBroadcastAt: 0,
+        }
+      : null;
+
+    const syncStreamingMessage = shouldEmitProgress
+      ? async (text: string, force = false) => {
+          if (!streamingState || !text) {
+            return;
+          }
+
+          streamingState.text = text;
+          const now = Date.now();
+          if (!force && now - streamingState.lastBroadcastAt < 400 && text === streamingState.lastBroadcastText) {
+            return;
+          }
+
+          if (!streamingState.messageId) {
+            const created = await createMessage({
+              sessionId,
+              role: "assistant",
+              content: [{ type: "text", text }],
+              metadata: {
+                isStreaming: true,
+                scheduledRunId,
+                scheduledTaskId,
+              },
+            });
+            streamingState.messageId = created?.id;
+          } else {
+            await updateMessage(streamingState.messageId, {
+              content: [{ type: "text", text }],
+            });
+          }
+
+          if (streamingState.messageId) {
+            streamingState.lastBroadcastText = text;
+            streamingState.lastBroadcastAt = now;
+            taskEvents.emitTaskProgress({
+              taskId: scheduledTaskId!,
+              taskName: scheduledTaskName!,
+              runId: scheduledRunId!,
+              userId: dbUser.id,
+              characterId: eventCharacterId,
+              sessionId,
+              assistantMessageId: streamingState.messageId,
+              progressText: text,
+              startedAt: new Date().toISOString(),
+            });
+          }
+        }
+      : undefined;
 
     // Determine if we should inject context (system prompt + tools)
     // This reduces token usage by only sending these on first message and periodically thereafter
@@ -982,7 +1048,7 @@ export async function POST(req: Request) {
     const userMessageCount = messages.filter((msg) => msg.role === "user").length;
     let savedUserMessageId: string | undefined;
 
-    if (lastMessage && lastMessage.role === 'user') {
+    if (!isScheduledRun && lastMessage && lastMessage.role === 'user') {
       // Extract content using the helper (handles parts array from assistant-ui)
       // Don't convert to base64 for DB storage (keeps URLs compact)
       const extractedContent = await extractContent(lastMessage);
@@ -1387,9 +1453,20 @@ export async function POST(req: Request) {
             activeTools: currentActiveTools as (keyof typeof tools)[],
           };
         },
+        onChunk: shouldEmitProgress
+          ? async ({ chunk }) => {
+              if (chunk.type === "text-delta" && streamingState && syncStreamingMessage) {
+                const nextText = streamingState.text + (chunk.text ?? "");
+                await syncStreamingMessage(nextText);
+              }
+            }
+          : undefined,
         onFinish: async ({ text, steps, usage }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (streamingState && syncStreamingMessage && streamingState.text) {
+            await syncStreamingMessage(streamingState.text, true);
+          }
           // Save assistant message to database
           // Build content by iterating through steps in order to preserve
           // the interleaved sequence: tool-call → tool-result → text per step
@@ -1457,20 +1534,37 @@ export async function POST(req: Request) {
             }
           }
 
-          await createMessage({
-            sessionId,
-            role: "assistant",
-            content: content,  // Always store as array for consistency
-            model: AI_CONFIG.model,
-            tokenCount: usage?.totalTokens,
-            metadata: usage ? {
-              usage: {
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                totalTokens: usage.totalTokens,
-              }
-            } : {},
-          });
+          if (shouldEmitProgress && streamingState?.messageId) {
+            await updateMessage(streamingState.messageId, {
+              content,
+              model: AI_CONFIG.model,
+              tokenCount: usage?.totalTokens,
+              metadata: usage
+                ? {
+                    usage: {
+                      inputTokens: usage.inputTokens,
+                      outputTokens: usage.outputTokens,
+                      totalTokens: usage.totalTokens,
+                    },
+                  }
+                : {},
+            });
+          } else {
+            await createMessage({
+              sessionId,
+              role: "assistant",
+              content: content,  // Always store as array for consistency
+              model: AI_CONFIG.model,
+              tokenCount: usage?.totalTokens,
+              metadata: usage ? {
+                usage: {
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens,
+                  totalTokens: usage.totalTokens,
+                }
+              } : {},
+            });
+          }
 
           // Trigger memory extraction in background (only for character-specific chats)
           if (characterId) {
@@ -1550,6 +1644,9 @@ export async function POST(req: Request) {
           runFinalized = true;
           try {
             const interruptionTimestamp = new Date();
+            if (streamingState && syncStreamingMessage && streamingState.text) {
+              await syncStreamingMessage(streamingState.text, true);
+            }
 
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
             // Build content from completed steps using the same logic as onFinish
@@ -1590,13 +1687,20 @@ export async function POST(req: Request) {
 
             // Save partial assistant message IF there was any content generated
             if (content.length > 0) {
-              await createMessage({
-                sessionId,
-                role: "assistant",
-                content: content,
-                model: AI_CONFIG.model,
-                metadata: { interrupted: true }, // Mark as partial/interrupted response
-              });
+              if (shouldEmitProgress && streamingState?.messageId) {
+                await updateMessage(streamingState.messageId, {
+                  content,
+                  metadata: { interrupted: true },
+                });
+              } else {
+                await createMessage({
+                  sessionId,
+                  role: "assistant",
+                  content: content,
+                  model: AI_CONFIG.model,
+                  metadata: { interrupted: true }, // Mark as partial/interrupted response
+                });
+              }
               console.log(`[CHAT API] Saved partial assistant message (${content.length} parts) before interruption`);
             }
             // === END FIX ===
