@@ -12,6 +12,7 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 import { db } from "@/lib/db/sqlite-client";
 import { scheduledTaskRuns } from "@/lib/db/sqlite-schedule-schema";
 import { eq } from "drizzle-orm";
+import { getScheduler, startScheduler } from "@/lib/scheduler/scheduler-service";
 
 export async function POST(
   req: NextRequest,
@@ -42,15 +43,25 @@ export async function POST(
       );
     }
 
-    // Get the task queue from scheduler and cancel
-    // Note: We need to access the internal queue - for now update status directly
-    // The actual cancel implementation is in the TaskQueue class
-    await db.update(scheduledTaskRuns)
-      .set({
-        status: "cancelled",
-        completedAt: new Date().toISOString(),
-      })
-      .where(eq(scheduledTaskRuns.id, runId));
+    await startScheduler();
+    const scheduler = getScheduler();
+    const cancelled = await scheduler.cancelRun(runId);
+
+    if (!cancelled) {
+      if (run.status === "pending") {
+        await db.update(scheduledTaskRuns)
+          .set({
+            status: "cancelled",
+            completedAt: new Date().toISOString(),
+          })
+          .where(eq(scheduledTaskRuns.id, runId));
+      } else {
+        return NextResponse.json(
+          { error: "Run is no longer active" },
+          { status: 400 }
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -64,4 +75,3 @@ export async function POST(
     );
   }
 }
-

@@ -74,7 +74,7 @@ export function ScheduleCard({
   };
 
   const handleViewChat = (sessionId: string) => {
-    router.push(`/chat/${sessionId}`);
+    router.push(`/chat/${schedule.characterId}?sessionId=${sessionId}`);
   };
 
   const getScheduleDescription = () => {
@@ -347,4 +347,3 @@ export function ScheduleCard({
     </AnimatedCard>
   );
 }
-

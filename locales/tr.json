@@ -1110,6 +1110,15 @@
       "untitled": "Başlıksız sohbet",
       "invalid": "Geçersiz tarih",
       "yesterday": "Dün"
+    },
+    "scheduledRun": {
+      "active": "'{taskName}' adlı zamanlanmış görev çalışıyor",
+      "description": "Çalışmayı canlı takip edebilir veya gerekirse ajanı durdurabilirsiniz.",
+      "stop": "Çalışmayı Durdur",
+      "stopping": "Durduruluyor...",
+      "cancelled": "Zamanlanmış görev iptal edildi",
+      "cancelError": "Görev iptal edilemedi",
+      "startedAt": "{time} itibarıyla başladı"
     }
   },
   "usage": {

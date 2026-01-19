@@ -1108,6 +1108,15 @@
       "untitled": "Untitled chat",
       "invalid": "Invalid date",
       "yesterday": "Yesterday"
+    },
+    "scheduledRun": {
+      "active": "Scheduled task '{taskName}' is running",
+      "description": "Follow the run live or stop it if you need to interrupt the agent.",
+      "stop": "Stop Run",
+      "stopping": "Stopping...",
+      "cancelled": "Scheduled run cancelled",
+      "cancelError": "Failed to cancel run",
+      "startedAt": "Started at {time}"
     }
   },
   "usage": {

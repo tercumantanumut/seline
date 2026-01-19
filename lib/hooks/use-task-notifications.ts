@@ -39,6 +39,10 @@ export function useTaskNotifications() {
     if (!event.characterId) return undefined;
     return `/agents/${event.characterId}/schedules?highlight=${event.taskId}&run=${event.runId}&expandHistory=true`;
   }, []);
+  const dispatchLifecycleEvent = useCallback((eventName: "scheduled-task-started" | "scheduled-task-completed", event: TaskEvent) => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent(eventName, { detail: event }));
+  }, []);
 
   // Use refs for handlers to avoid stale closures in EventSource callbacks
   const handleTaskStartedRef = useRef<(event: TaskEvent) => void>(() => {});
@@ -51,6 +55,7 @@ export function useTaskNotifications() {
 
       // Add to active tasks store
       addTask(event);
+      dispatchLifecycleEvent("scheduled-task-started", event);
 
       // Show toast notification
       toast.info(t("taskRunning", { taskName: event.taskName }), {
@@ -73,6 +78,7 @@ export function useTaskNotifications() {
 
       // Update active tasks store
       completeTask(event);
+      dispatchLifecycleEvent("scheduled-task-completed", event);
 
       // Show completion toast
       if (event.status === "succeeded") {
@@ -99,7 +105,7 @@ export function useTaskNotifications() {
         });
       }
     };
-  }, [addTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl]);
+  }, [addTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl, dispatchLifecycleEvent]);
 
   // Connect to SSE endpoint
   useEffect(() => {

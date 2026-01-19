@@ -342,6 +342,13 @@ export class SchedulerService {
       queueSize: this.taskQueue.getQueueSize(),
     };
   }
+
+  /**
+   * Cancel a queued or running run by ID
+   */
+  cancelRun(runId: string): Promise<boolean> {
+    return this.taskQueue.cancel(runId);
+  }
 }
 
 // Singleton instance
@@ -361,4 +368,3 @@ export function startScheduler(): Promise<void> {
 export function stopScheduler(): Promise<void> {
   return getScheduler().stop();
 }
-

@@ -10,7 +10,7 @@ import { CharacterProvider, type CharacterDisplayData } from "@/components/assis
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,8 @@ import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
+import type { TaskEvent } from "@/lib/scheduler/task-events";
+import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
 
 interface CharacterFullData {
     id: string;
@@ -69,6 +71,12 @@ interface SessionState {
     messages: UIMessage[];
 }
 
+interface ActiveRunState {
+    runId: string;
+    taskName: string;
+    startedAt: string;
+}
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -93,6 +101,10 @@ export default function ChatInterface({
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const activeTasks = useActiveTasksStore((state) => state.activeTasks);
+    const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
+    const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
+    const [isCancellingRun, setIsCancellingRun] = useState(false);
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
         setSessions((prev) => {
@@ -126,30 +138,64 @@ export default function ChatInterface({
         }
     }, [character.id]);
 
+    const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
+        try {
+            const response = await fetch(`/api/sessions/${targetSessionId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const dbMessages = (data.messages || []) as DBMessage[];
+                return convertDBMessagesToUIMessages(dbMessages);
+            }
+        } catch (err) {
+            console.error("Failed to fetch session messages:", err);
+        }
+        return null;
+    }, []);
+
+    const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
+        const uiMessages = await fetchSessionMessages(targetSessionId);
+        if (!uiMessages) return;
+
+        setSessionState((prev) => {
+            if (prev.sessionId !== targetSessionId) {
+                return prev;
+            }
+            return { sessionId: targetSessionId, messages: uiMessages };
+        });
+        refreshSessionTimestamp(targetSessionId);
+    }, [fetchSessionMessages, refreshSessionTimestamp]);
+
+    useEffect(() => {
+        if (activeTaskForSession) {
+            setActiveRun({
+                runId: activeTaskForSession.runId,
+                taskName: activeTaskForSession.taskName,
+                startedAt: activeTaskForSession.startedAt,
+            });
+        } else {
+            setActiveRun(null);
+        }
+    }, [activeTaskForSession]);
+
     const switchSession = useCallback(
         async (newSessionId: string) => {
             try {
                 setIsLoading(true);
-                const messagesResponse = await fetch(`/api/sessions/${newSessionId}`);
-                if (messagesResponse.ok) {
-                    const data = await messagesResponse.json();
-                    const dbMessages = (data.messages || []) as DBMessage[];
-                    const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-                    // CRITICAL: Update sessionId and messages atomically to prevent
-                    // race conditions where ChatProvider remounts with stale messages
-                    setSessionState({
-                        sessionId: newSessionId,
-                        messages: uiMessages,
-                    });
-                    router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
-                }
+                const uiMessages = await fetchSessionMessages(newSessionId);
+                if (!uiMessages) return;
+                setSessionState({
+                    sessionId: newSessionId,
+                    messages: uiMessages,
+                });
+                refreshSessionTimestamp(newSessionId);
+                router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
             } catch (err) {
                 console.error("Failed to switch session:", err);
             } finally {
                 setIsLoading(false);
             }
         },
-        [character.id, router]
+        [character.id, router, fetchSessionMessages, refreshSessionTimestamp]
     );
 
     const createNewSession = useCallback(
@@ -206,6 +252,79 @@ export default function ChatInterface({
         },
         [sessionId, sessions, switchSession, createNewSession, loadSessions]
     );
+
+    const handleCancelRun = useCallback(async () => {
+        if (!activeRun || !sessionId) {
+            return;
+        }
+        setIsCancellingRun(true);
+        try {
+            const response = await fetch(`/api/schedules/runs/${activeRun.runId}/cancel`, {
+                method: "POST",
+            });
+            if (!response.ok) {
+                throw new Error("Failed to cancel run");
+            }
+            toast.success(t("scheduledRun.cancelled"));
+            setActiveRun(null);
+        } catch (err) {
+            console.error("Failed to cancel scheduled run:", err);
+            toast.error(t("scheduledRun.cancelError"));
+        } finally {
+            setIsCancellingRun(false);
+        }
+    }, [activeRun, sessionId, t]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handleTaskCompleted = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail) return;
+
+            if (detail.sessionId && detail.sessionId === sessionId) {
+                void reloadSessionMessages(sessionId);
+                setActiveRun((current) => {
+                    if (current?.runId === detail.runId) {
+                        return null;
+                    }
+                    return current;
+                });
+            }
+
+            if (detail.characterId === character.id) {
+                void loadSessions();
+            }
+        };
+
+        const handleTaskStarted = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail) return;
+
+            if (detail.sessionId && detail.sessionId === sessionId) {
+                setActiveRun({
+                    runId: detail.runId,
+                    taskName: detail.taskName,
+                    startedAt: detail.startedAt,
+                });
+                void reloadSessionMessages(sessionId);
+            }
+
+            if (detail.characterId === character.id) {
+                void loadSessions();
+            }
+        };
+
+        window.addEventListener("scheduled-task-completed", handleTaskCompleted);
+        window.addEventListener("scheduled-task-started", handleTaskStarted);
+
+        return () => {
+            window.removeEventListener("scheduled-task-completed", handleTaskCompleted);
+            window.removeEventListener("scheduled-task-started", handleTaskStarted);
+        };
+    }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
 
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
@@ -316,7 +435,16 @@ export default function ChatInterface({
                     characterId={character.id}
                     initialMessages={messages}
                 >
-                    <Thread onSessionActivity={handleSessionActivity} />
+                    <div className="flex h-full flex-col gap-3">
+                        {activeRun && (
+                            <ScheduledRunBanner
+                                run={activeRun}
+                                onCancel={handleCancelRun}
+                                cancelling={isCancellingRun}
+                            />
+                        )}
+                        <Thread onSessionActivity={handleSessionActivity} />
+                    </div>
                 </ChatProvider>
             </CharacterProvider>
         </Shell>
@@ -714,6 +842,62 @@ function CharacterSidebar({
 
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-4 pb-4">
                     <DocumentsPanel agentId={character.id} agentName={character.name} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScheduledRunBanner({
+    run,
+    onCancel,
+    cancelling,
+}: {
+    run: ActiveRunState;
+    onCancel: () => void;
+    cancelling: boolean;
+}) {
+    const t = useTranslations("chat");
+
+    return (
+        <div className="rounded-lg border border-terminal-dark/15 bg-terminal-dark/5 p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                    <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin text-terminal-green" />
+                    <div className="space-y-1">
+                        <p className="font-mono text-sm text-terminal-dark">
+                            {t("scheduledRun.active", { taskName: run.taskName })}
+                        </p>
+                        <p className="text-xs text-terminal-muted">
+                            {t("scheduledRun.description")}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <span className="text-xs font-mono text-terminal-muted">
+                        {t("scheduledRun.startedAt", {
+                            time: new Date(run.startedAt).toLocaleTimeString(),
+                        })}
+                    </span>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        className="font-mono"
+                        onClick={onCancel}
+                        disabled={cancelling}
+                    >
+                        {cancelling ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {t("scheduledRun.stopping")}
+                            </>
+                        ) : (
+                            <>
+                                <CircleStop className="mr-2 h-4 w-4" />
+                                {t("scheduledRun.stop")}
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
         </div>
