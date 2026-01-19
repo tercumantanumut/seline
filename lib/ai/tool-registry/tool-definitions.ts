@@ -228,7 +228,7 @@ Intelligent code search across your indexed codebase folders. Uses a secondary A
 
 ### Parameters
 - **query** (required): Short, precise question describing what you're looking for (include filenames/functions directly in the question)
-- **maxResults** (optional): Maximum results to return (1-50, default: 15)
+- **maxResults** (optional): Maximum results to return (default 50 when unspecified; you may increase up to 150 only when the secondary LLM genuinely needs broader coverage)
 - **minScore** (optional): Minimum relevance score 0-1 (default: 0.3)
 - **folderIds** (optional): Limit search to specific synced folders
 
@@ -243,6 +243,7 @@ Returns organized findings with:
 ### Tips
 - Keep each question ≤ 2 sentences and include concrete identifiers when possible
 - Prefer multiple question-form searches (max 5) over a single unfocused query
+- Increase **maxResults** (up to 150) only when you need more raw snippets for synthesis; default 50 is fastest
 - Use follow-up questions to refine results
 - Check suggested refinements for better results
 - Higher minScore = more precise, fewer results`,

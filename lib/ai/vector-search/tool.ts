@@ -16,6 +16,7 @@ import { searchWithRouter, type VectorSearchHit, getSyncFolders } from "@/lib/ve
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getVectorSearchSession, addSearchHistory, getSearchHistory } from "./session-store";
 import { synthesizeSearchResults } from "./synthesizer";
+import { getFileTreeSummaryForSearch } from "./file-tree-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import type {
@@ -49,9 +50,9 @@ const vectorSearchSchema = jsonSchema<{
     maxResults: {
       type: "number",
       minimum: 1,
-      maximum: 100,
+      maximum: 150,
       default: 50,
-      description: "Maximum number of results to return (default: 50)",
+      description: "Maximum number of results to return (default: 50, may increase up to 150 when you need broader coverage)",
     },
     minScore: {
       type: "number",
@@ -149,7 +150,8 @@ async function executeVectorSearch(
   ).trim();
 
   // Normalize maxResults
-  const maxResults = Number(args.maxResults || rawArgs.limit || rawArgs.topK) || 50;
+  const requestedMaxResults = Number(args.maxResults || rawArgs.limit || rawArgs.topK) || 50;
+  const maxResults = Math.max(1, Math.min(requestedMaxResults, 150));
 
   // Normalize minScore
   const minScore = Number(args.minScore || rawArgs.threshold || rawArgs.minSimilarity) || 0.1;
@@ -288,6 +290,7 @@ async function executeVectorSearch(
   // Get synced folder paths for the readFile tool
   const syncedFolders = await getSyncFolders(characterId);
   const allowedFolderPaths = syncedFolders.map(f => f.folderPath);
+  const fileTreeSummary = await getFileTreeSummaryForSearch(characterId);
 
   // Synthesize results using secondary LLM
   const synthesisResult = await synthesizeSearchResults({
@@ -297,6 +300,7 @@ async function executeVectorSearch(
     rawResults,
     searchHistory,
     allowedFolderPaths,
+    fileTreeSummary,
   });
 
   if (!synthesisResult.success) {
@@ -402,6 +406,7 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
 - Prefer multi-term questions over generic prompts.
 - Technical phrases are encouraged (e.g., "OpenAI TTS stream", "Deno.serve POST", "maxRetries loop").
 - Avoid bare keywords or vague phrases like "database issue".
+- Default \`maxResults\` is 50. Increase it (up to 150) only when you explicitly need broader coverage for the secondary LLM.
 
 **Capabilities:**
 - Hybrid search: semantic understanding + keyword matching
