@@ -8,6 +8,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { GlobalSyncWrapper } from "@/components/vector-search";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { TaskNotificationProvider } from "@/components/schedules/task-notification-provider";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
 const inter = Inter({
@@ -74,7 +75,11 @@ export default async function RootLayout({
         <ThemeProvider initialTheme={initialTheme}>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <GlobalSyncWrapper>
-              <AuthProvider>{children}</AuthProvider>
+              <AuthProvider>
+                <TaskNotificationProvider>
+                  {children}
+                </TaskNotificationProvider>
+              </AuthProvider>
             </GlobalSyncWrapper>
             <Toaster
               position="bottom-right"

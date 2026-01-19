@@ -479,6 +479,91 @@ function initializeTables(sqlite: Database.Database): void {
       ON prompt_versions (template_id, content_hash)
   `);
 
+  // =========================================================================
+  // Scheduled Tasks Tables
+  // =========================================================================
+
+  // Scheduled tasks table - schedule definitions
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      schedule_type TEXT NOT NULL DEFAULT 'cron' CHECK(schedule_type IN ('cron', 'interval', 'once')),
+      cron_expression TEXT,
+      interval_minutes INTEGER,
+      scheduled_at TEXT,
+      timezone TEXT NOT NULL DEFAULT 'UTC',
+      initial_prompt TEXT NOT NULL,
+      prompt_variables TEXT NOT NULL DEFAULT '{}',
+      context_sources TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      max_retries INTEGER NOT NULL DEFAULT 3,
+      timeout_ms INTEGER NOT NULL DEFAULT 300000,
+      priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('high', 'normal', 'low')),
+      paused_at TEXT,
+      paused_until TEXT,
+      pause_reason TEXT,
+      delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook')),
+      delivery_config TEXT NOT NULL DEFAULT '{}',
+      result_session_id TEXT REFERENCES sessions(id),
+      create_new_session_per_run INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_run_at TEXT,
+      next_run_at TEXT
+    )
+  `);
+
+  // Scheduled task runs table - execution history
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+      agent_run_id TEXT,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
+      scheduled_for TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      duration_ms INTEGER,
+      attempt_number INTEGER NOT NULL DEFAULT 1,
+      result_summary TEXT,
+      error TEXT,
+      resolved_prompt TEXT,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Indexes for scheduled tasks
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_user
+      ON scheduled_tasks (user_id, enabled, created_at DESC)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_character
+      ON scheduled_tasks (character_id, enabled)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run
+      ON scheduled_tasks (enabled, next_run_at)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
+      ON scheduled_task_runs (task_id, created_at DESC)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
+      ON scheduled_task_runs (status, scheduled_for)
+  `);
+
   console.log("[SQLite] All tables initialized");
 
   // Run data migrations
@@ -547,6 +632,31 @@ function runDataMigrations(sqlite: Database.Database): void {
     }
   } catch (error) {
     console.warn("[SQLite Migration] Tool name migration failed:", error);
+    // Don't throw - this is a non-critical migration
+  }
+
+  // Migration: Add new columns to scheduled_tasks for pause/resume and delivery
+  try {
+    // Check if columns exist by trying to query them
+    const tableInfo = sqlite.prepare("PRAGMA table_info(scheduled_tasks)").all() as Array<{ name: string }>;
+    const existingColumns = new Set(tableInfo.map(c => c.name));
+
+    const columnsToAdd = [
+      { name: "paused_at", sql: "ALTER TABLE scheduled_tasks ADD COLUMN paused_at TEXT" },
+      { name: "paused_until", sql: "ALTER TABLE scheduled_tasks ADD COLUMN paused_until TEXT" },
+      { name: "pause_reason", sql: "ALTER TABLE scheduled_tasks ADD COLUMN pause_reason TEXT" },
+      { name: "delivery_method", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'session'" },
+      { name: "delivery_config", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_config TEXT NOT NULL DEFAULT '{}'" },
+    ];
+
+    for (const col of columnsToAdd) {
+      if (!existingColumns.has(col.name)) {
+        sqlite.exec(col.sql);
+        console.log(`[SQLite Migration] Added column ${col.name} to scheduled_tasks`);
+      }
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Scheduled tasks column migration failed:", error);
     // Don't throw - this is a non-critical migration
   }
 }

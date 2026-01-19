@@ -818,8 +818,39 @@ async function enhanceFrontendMessagesWithToolResults(
 
 export async function POST(req: Request) {
   try {
-    // Get local user for offline mode
-    const userId = await requireAuth(req);
+    // Check for internal scheduled task execution
+    const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
+    const internalAuth = req.headers.get("X-Internal-Auth");
+    const expectedSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+
+    let userId: string;
+
+    if (isScheduledRun && internalAuth === expectedSecret) {
+      // Scheduled task execution - use provided session's user
+      // The user ID will be extracted from the session
+      const headerSessionId = req.headers.get("X-Session-Id");
+      if (headerSessionId) {
+        const session = await getSession(headerSessionId);
+        if (session?.userId) {
+          userId = session.userId;
+          console.log(`[CHAT API] Scheduled task execution for user ${userId}`);
+        } else {
+          return new Response(
+            JSON.stringify({ error: "Invalid session for scheduled task" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Session ID required for scheduled task" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Normal authentication flow
+      userId = await requireAuth(req);
+    }
+
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 

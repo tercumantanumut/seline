@@ -10,7 +10,7 @@ import { CharacterProvider, type CharacterDisplayData } from "@/components/assis
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
@@ -548,6 +548,17 @@ function CharacterSidebar({
                             >
                                 <Link href={`/agents/${character.id}/memory`}>
                                     <Brain className="h-4 w-4" />
+                                </Link>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
+                                title={t("sidebar.schedules")}
+                            >
+                                <Link href={`/agents/${character.id}/schedules`}>
+                                    <Calendar className="h-4 w-4" />
                                 </Link>
                             </Button>
                             <Button
