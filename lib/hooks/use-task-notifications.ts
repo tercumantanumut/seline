@@ -16,7 +16,7 @@ import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
 import type { TaskEvent } from "@/lib/scheduler/task-events";
 
 interface SSEMessage {
-  type: "connected" | "heartbeat" | "task:started" | "task:completed";
+  type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
   data?: TaskEvent;
   timestamp?: string;
 }

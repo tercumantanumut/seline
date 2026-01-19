@@ -19,6 +19,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
+import type { DBContentPart, DBToolCallPart } from "@/lib/messages/converter";
 import {
   withRunContext,
   createAgentRun,
@@ -817,6 +818,117 @@ async function enhanceFrontendMessagesWithToolResults(
   return enhancedMessages;
 }
 
+interface StreamingMessageState {
+  parts: DBContentPart[];
+  toolCallParts: Map<string, DBToolCallPart>;
+  messageId?: string;
+  lastBroadcastAt: number;
+  lastBroadcastSignature: string;
+}
+
+function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
+  if (typeof structuredClone === "function") {
+    return structuredClone(parts);
+  }
+  return JSON.parse(JSON.stringify(parts));
+}
+
+function extractTextFromParts(parts: DBContentPart[]): string {
+  return parts
+    .filter((part): part is Extract<DBContentPart, { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+function appendTextPartToState(state: StreamingMessageState, delta: string | undefined): boolean {
+  if (!delta) {
+    return false;
+  }
+  const lastPart = state.parts[state.parts.length - 1];
+  if (lastPart?.type === "text") {
+    lastPart.text += delta;
+  } else {
+    state.parts.push({ type: "text", text: delta });
+  }
+  return true;
+}
+
+function ensureToolCallPart(state: StreamingMessageState, toolCallId: string, toolName?: string): DBToolCallPart {
+  let part = state.toolCallParts.get(toolCallId);
+  if (!part) {
+    part = {
+      type: "tool-call",
+      toolCallId,
+      toolName: toolName ?? "tool",
+      state: "input-streaming",
+    };
+    state.toolCallParts.set(toolCallId, part);
+    state.parts.push(part);
+  } else if (toolName && part.toolName !== toolName) {
+    part.toolName = toolName;
+  }
+  return part;
+}
+
+function recordToolInputStart(state: StreamingMessageState, toolCallId: string, toolName?: string): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId, toolName);
+  part.state = "input-streaming";
+  return true;
+}
+
+function recordToolInputDelta(state: StreamingMessageState, toolCallId: string, delta: string | undefined): boolean {
+  if (!toolCallId || !delta) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId);
+  part.argsText = `${part.argsText ?? ""}${delta}`;
+  part.state = part.state ?? "input-streaming";
+  return true;
+}
+
+function recordStructuredToolCall(
+  state: StreamingMessageState,
+  toolCallId: string,
+  toolName: string,
+  input: unknown,
+): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId, toolName);
+  part.state = "input-available";
+  part.args = input;
+  return true;
+}
+
+function recordToolResultChunk(
+  state: StreamingMessageState,
+  toolCallId: string,
+  toolName: string,
+  output: unknown,
+  preliminary?: boolean,
+): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
+  const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
+  callPart.state = "output-available";
+  state.parts.push({
+    type: "tool-result",
+    toolCallId,
+    toolName: normalizedName,
+    result: output,
+    state: "output-available",
+    preliminary,
+  });
+  return true;
+}
+
 export async function POST(req: Request) {
   try {
     // Check for internal scheduled task execution
@@ -961,24 +1073,27 @@ export async function POST(req: Request) {
       ((sessionMetadata?.characterId as string | undefined) ?? "");
     const shouldEmitProgress =
       Boolean(isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId);
-    const streamingState = shouldEmitProgress
+    const streamingState: StreamingMessageState | null = shouldEmitProgress
       ? {
-          text: "",
-          lastBroadcastText: "",
-          messageId: undefined as string | undefined,
+          parts: [],
+          toolCallParts: new Map<string, DBToolCallPart>(),
+          messageId: undefined,
           lastBroadcastAt: 0,
+          lastBroadcastSignature: "",
         }
       : null;
 
     const syncStreamingMessage = shouldEmitProgress
-      ? async (text: string, force = false) => {
-          if (!streamingState || !text) {
+      ? async (force = false) => {
+          if (!streamingState || streamingState.parts.length === 0) {
             return;
           }
 
-          streamingState.text = text;
+          const partsSnapshot = cloneContentParts(streamingState.parts);
           const now = Date.now();
-          if (!force && now - streamingState.lastBroadcastAt < 400 && text === streamingState.lastBroadcastText) {
+          const signature = JSON.stringify(partsSnapshot);
+
+          if (!force && now - streamingState.lastBroadcastAt < 400 && signature === streamingState.lastBroadcastSignature) {
             return;
           }
 
@@ -986,7 +1101,7 @@ export async function POST(req: Request) {
             const created = await createMessage({
               sessionId,
               role: "assistant",
-              content: [{ type: "text", text }],
+              content: partsSnapshot,
               metadata: {
                 isStreaming: true,
                 scheduledRunId,
@@ -996,12 +1111,12 @@ export async function POST(req: Request) {
             streamingState.messageId = created?.id;
           } else {
             await updateMessage(streamingState.messageId, {
-              content: [{ type: "text", text }],
+              content: partsSnapshot,
             });
           }
 
           if (streamingState.messageId) {
-            streamingState.lastBroadcastText = text;
+            streamingState.lastBroadcastSignature = signature;
             streamingState.lastBroadcastAt = now;
             taskEvents.emitTaskProgress({
               taskId: scheduledTaskId!,
@@ -1011,7 +1126,8 @@ export async function POST(req: Request) {
               characterId: eventCharacterId,
               sessionId,
               assistantMessageId: streamingState.messageId,
-              progressText: text,
+              progressText: extractTextFromParts(partsSnapshot),
+              progressContent: partsSnapshot,
               startedAt: new Date().toISOString(),
             });
           }
@@ -1455,17 +1571,34 @@ export async function POST(req: Request) {
         },
         onChunk: shouldEmitProgress
           ? async ({ chunk }) => {
-              if (chunk.type === "text-delta" && streamingState && syncStreamingMessage) {
-                const nextText = streamingState.text + (chunk.text ?? "");
-                await syncStreamingMessage(nextText);
+              if (!streamingState || !syncStreamingMessage) {
+                return;
+              }
+
+              let changed = false;
+
+              if (chunk.type === "text-delta") {
+                changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
+              } else if (chunk.type === "tool-input-start") {
+                changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
+              } else if (chunk.type === "tool-input-delta") {
+                changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
+              } else if (chunk.type === "tool-call") {
+                changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
+              } else if (chunk.type === "tool-result") {
+                changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+              }
+
+              if (changed) {
+                await syncStreamingMessage();
               }
             }
           : undefined,
         onFinish: async ({ text, steps, usage }) => {
           if (runFinalized) return;
           runFinalized = true;
-          if (streamingState && syncStreamingMessage && streamingState.text) {
-            await syncStreamingMessage(streamingState.text, true);
+          if (streamingState && syncStreamingMessage) {
+            await syncStreamingMessage(true);
           }
           // Save assistant message to database
           // Build content by iterating through steps in order to preserve
@@ -1644,8 +1777,8 @@ export async function POST(req: Request) {
           runFinalized = true;
           try {
             const interruptionTimestamp = new Date();
-            if (streamingState && syncStreamingMessage && streamingState.text) {
-              await syncStreamingMessage(streamingState.text, true);
+            if (streamingState && syncStreamingMessage) {
+              await syncStreamingMessage(true);
             }
 
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
