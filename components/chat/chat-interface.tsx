@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { useTranslations, useFormatter } from "next-intl";
-import { convertDBMessagesToUIMessages, convertContentPartsToUIParts } from "@/lib/messages/converter";
+import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import type { TaskEvent } from "@/lib/scheduler/task-events";
 import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
@@ -105,6 +105,11 @@ export default function ChatInterface({
     const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+
+    // Refs for debouncing and memoization to prevent UI flashing
+    const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const lastProgressSignatureRef = useRef<string>("");
+    const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
         setSessions((prev) => {
@@ -284,7 +289,16 @@ export default function ChatInterface({
             if (!detail) return;
 
             if (detail.sessionId && detail.sessionId === sessionId) {
-                void reloadSessionMessages(sessionId);
+                // Debounce the reload to allow final progress update to settle
+                if (reloadDebounceRef.current) {
+                    clearTimeout(reloadDebounceRef.current);
+                }
+
+                reloadDebounceRef.current = setTimeout(() => {
+                    void reloadSessionMessages(sessionId);
+                    reloadDebounceRef.current = null;
+                }, 150); // Small delay to let final state settle
+
                 setActiveRun((current) => {
                     if (current?.runId === detail.runId) {
                         return null;
@@ -325,6 +339,15 @@ export default function ChatInterface({
         };
     }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (reloadDebounceRef.current) {
+                clearTimeout(reloadDebounceRef.current);
+            }
+        };
+    }, []);
+
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
@@ -336,17 +359,37 @@ export default function ChatInterface({
                 return;
             }
             const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
+
+            // Early return if no progress content
+            if (!detail.progressContent?.length && !detail.progressText) {
+                return;
+            }
+
+            // Compute signature to check if content meaningfully changed
+            const contentSignature = detail.progressContent?.length
+                ? getContentPartsSignature(detail.progressContent as DBContentPart[])
+                : `text:${detail.progressText?.length || 0}`;
+
+            // Skip update if content hasn't meaningfully changed
+            if (contentSignature === lastProgressSignatureRef.current) {
+                return;
+            }
+            lastProgressSignatureRef.current = contentSignature;
+
+            // Only convert if we have new content
+            const progressParts = detail.progressContent?.length
+                ? convertContentPartsToUIParts(detail.progressContent as DBContentPart[])
+                : ([{ type: "text", text: detail.progressText }] as UIMessage["parts"]);
+
+            // Cache the converted parts
+            lastProgressPartsRef.current = progressParts;
+
             setSessionState((prev) => {
                 if (prev.sessionId !== sessionId) {
                     return prev;
                 }
                 const existingIndex = prev.messages.findIndex((msg) => msg.id === messageId);
                 const baseMessage = existingIndex === -1 ? { id: messageId, role: "assistant", parts: [] as UIMessage["parts"] } : prev.messages[existingIndex];
-                const progressParts = detail.progressContent?.length
-                    ? convertContentPartsToUIParts(detail.progressContent)
-                    : detail.progressText
-                        ? ([{ type: "text", text: detail.progressText }] as UIMessage["parts"])
-                        : undefined;
 
                 if (!progressParts || progressParts.length === 0) {
                     return prev;
@@ -375,6 +418,9 @@ export default function ChatInterface({
         window.addEventListener("scheduled-task-progress", handleTaskProgress);
         return () => {
             window.removeEventListener("scheduled-task-progress", handleTaskProgress);
+            // Reset memoization refs when effect cleans up
+            lastProgressSignatureRef.current = "";
+            lastProgressPartsRef.current = null;
         };
     }, [refreshSessionTimestamp, sessionId]);
 
@@ -454,9 +500,9 @@ export default function ChatInterface({
         const textDigest =
             lastMessage && "parts" in lastMessage && Array.isArray((lastMessage as { parts?: Array<{ type?: string; text?: string }> }).parts)
                 ? (lastMessage as { parts?: Array<{ type?: string; text?: string }> })
-                      .parts?.filter((part) => part?.type === "text")
-                      .map((part) => part?.text || "")
-                      .join("|")
+                    .parts?.filter((part) => part?.type === "text")
+                    .map((part) => part?.text || "")
+                    .join("|")
                 : "";
         return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
     }, [messages, sessionId]);

@@ -348,3 +348,27 @@ function convertUIMessageToThreadMessageLike(msg: UIMessage): ThreadMessageLike 
 export function convertToThreadMessageLike(messages: UIMessage[]): ThreadMessageLike[] {
   return messages.map(convertUIMessageToThreadMessageLike);
 }
+
+/**
+ * Generate a stable signature for content parts to detect meaningful changes.
+ * Used to prevent unnecessary re-renders during streaming.
+ */
+export function getContentPartsSignature(parts: DBContentPart[]): string {
+    if (!parts || parts.length === 0) return "";
+    
+    // Create a lightweight signature that captures meaningful changes
+    return parts.map(part => {
+        switch (part.type) {
+            case "text":
+                return `t:${part.text?.length || 0}:${part.text?.slice(-20) || ""}`;
+            case "tool-call":
+                return `tc:${part.toolCallId}:${part.state || "pending"}`;
+            case "tool-result":
+                return `tr:${part.toolCallId}:${part.state || "done"}`;
+            case "image":
+                return `i:${part.image?.slice(-20) || ""}`;
+            default:
+                return `u:${(part as any).type}`;
+        }
+    }).join("|");
+}

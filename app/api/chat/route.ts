@@ -19,7 +19,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
-import type { DBContentPart, DBToolCallPart } from "@/lib/messages/converter";
+import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
 import {
   withRunContext,
   createAgentRun,
@@ -824,6 +824,7 @@ interface StreamingMessageState {
   messageId?: string;
   lastBroadcastAt: number;
   lastBroadcastSignature: string;
+  pendingBroadcast?: boolean;
 }
 
 function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
@@ -918,14 +919,29 @@ function recordToolResultChunk(
   const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
   const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
   callPart.state = "output-available";
-  state.parts.push({
+
+  // Check if we already have a tool-result for this toolCallId
+  const existingResultIndex = state.parts.findIndex(
+    (part) => part.type === "tool-result" && (part as DBToolResultPart).toolCallId === toolCallId
+  );
+
+  const resultPart: DBToolResultPart = {
     type: "tool-result",
     toolCallId,
     toolName: normalizedName,
     result: output,
     state: "output-available",
     preliminary,
-  });
+  };
+
+  if (existingResultIndex !== -1) {
+    // Update existing result part instead of adding a new one
+    state.parts[existingResultIndex] = resultPart;
+  } else {
+    // Only add new part if one doesn't exist
+    state.parts.push(resultPart);
+  }
+
   return true;
 }
 
@@ -1075,63 +1091,93 @@ export async function POST(req: Request) {
       Boolean(isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId);
     const streamingState: StreamingMessageState | null = shouldEmitProgress
       ? {
-          parts: [],
-          toolCallParts: new Map<string, DBToolCallPart>(),
-          messageId: undefined,
-          lastBroadcastAt: 0,
-          lastBroadcastSignature: "",
-        }
+        parts: [],
+        toolCallParts: new Map<string, DBToolCallPart>(),
+        messageId: undefined,
+        lastBroadcastAt: 0,
+        lastBroadcastSignature: "",
+      }
       : null;
 
     const syncStreamingMessage = shouldEmitProgress
       ? async (force = false) => {
-          if (!streamingState || streamingState.parts.length === 0) {
+        if (!streamingState || streamingState.parts.length === 0) {
+          return;
+        }
+
+        const partsSnapshot = cloneContentParts(streamingState.parts);
+        const now = Date.now();
+        const signature = JSON.stringify(partsSnapshot);
+
+        // Skip if content hasn't changed
+        if (signature === streamingState.lastBroadcastSignature) {
+          return;
+        }
+
+        // For non-forced updates, use smarter throttling
+        if (!force) {
+          const timeSinceLastBroadcast = now - streamingState.lastBroadcastAt;
+
+          // Use shorter interval (200ms) for text-only updates
+          // Use longer interval (400ms) for tool state changes
+          const hasToolChanges = partsSnapshot.some(
+            (p) => p.type === "tool-call" || p.type === "tool-result"
+          );
+          const throttleInterval = hasToolChanges ? 400 : 200;
+
+          if (timeSinceLastBroadcast < throttleInterval) {
+            // Mark that we have a pending broadcast
+            if (!streamingState.pendingBroadcast) {
+              streamingState.pendingBroadcast = true;
+              // Schedule a delayed broadcast
+              setTimeout(() => {
+                if (streamingState.pendingBroadcast && syncStreamingMessage) {
+                  streamingState.pendingBroadcast = false;
+                  void syncStreamingMessage();
+                }
+              }, throttleInterval - timeSinceLastBroadcast);
+            }
             return;
-          }
-
-          const partsSnapshot = cloneContentParts(streamingState.parts);
-          const now = Date.now();
-          const signature = JSON.stringify(partsSnapshot);
-
-          if (!force && now - streamingState.lastBroadcastAt < 400 && signature === streamingState.lastBroadcastSignature) {
-            return;
-          }
-
-          if (!streamingState.messageId) {
-            const created = await createMessage({
-              sessionId,
-              role: "assistant",
-              content: partsSnapshot,
-              metadata: {
-                isStreaming: true,
-                scheduledRunId,
-                scheduledTaskId,
-              },
-            });
-            streamingState.messageId = created?.id;
-          } else {
-            await updateMessage(streamingState.messageId, {
-              content: partsSnapshot,
-            });
-          }
-
-          if (streamingState.messageId) {
-            streamingState.lastBroadcastSignature = signature;
-            streamingState.lastBroadcastAt = now;
-            taskEvents.emitTaskProgress({
-              taskId: scheduledTaskId!,
-              taskName: scheduledTaskName!,
-              runId: scheduledRunId!,
-              userId: dbUser.id,
-              characterId: eventCharacterId,
-              sessionId,
-              assistantMessageId: streamingState.messageId,
-              progressText: extractTextFromParts(partsSnapshot),
-              progressContent: partsSnapshot,
-              startedAt: new Date().toISOString(),
-            });
           }
         }
+
+        streamingState.pendingBroadcast = false;
+
+        if (!streamingState.messageId) {
+          const created = await createMessage({
+            sessionId,
+            role: "assistant",
+            content: partsSnapshot,
+            metadata: {
+              isStreaming: true,
+              scheduledRunId,
+              scheduledTaskId,
+            },
+          });
+          streamingState.messageId = created?.id;
+        } else {
+          await updateMessage(streamingState.messageId, {
+            content: partsSnapshot,
+          });
+        }
+
+        if (streamingState.messageId) {
+          streamingState.lastBroadcastSignature = signature;
+          streamingState.lastBroadcastAt = now;
+          taskEvents.emitTaskProgress({
+            taskId: scheduledTaskId!,
+            taskName: scheduledTaskName!,
+            runId: scheduledRunId!,
+            userId: dbUser.id,
+            characterId: eventCharacterId,
+            sessionId,
+            assistantMessageId: streamingState.messageId,
+            progressText: extractTextFromParts(partsSnapshot),
+            progressContent: partsSnapshot,
+            startedAt: new Date().toISOString(),
+          });
+        }
+      }
       : undefined;
 
     // Determine if we should inject context (system prompt + tools)
@@ -1571,28 +1617,28 @@ export async function POST(req: Request) {
         },
         onChunk: shouldEmitProgress
           ? async ({ chunk }) => {
-              if (!streamingState || !syncStreamingMessage) {
-                return;
-              }
-
-              let changed = false;
-
-              if (chunk.type === "text-delta") {
-                changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
-              } else if (chunk.type === "tool-input-start") {
-                changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
-              } else if (chunk.type === "tool-input-delta") {
-                changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
-              } else if (chunk.type === "tool-call") {
-                changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
-              } else if (chunk.type === "tool-result") {
-                changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
-              }
-
-              if (changed) {
-                await syncStreamingMessage();
-              }
+            if (!streamingState || !syncStreamingMessage) {
+              return;
             }
+
+            let changed = false;
+
+            if (chunk.type === "text-delta") {
+              changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
+            } else if (chunk.type === "tool-input-start") {
+              changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
+            } else if (chunk.type === "tool-input-delta") {
+              changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
+            } else if (chunk.type === "tool-call") {
+              changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
+            } else if (chunk.type === "tool-result") {
+              changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+            }
+
+            if (changed) {
+              await syncStreamingMessage();
+            }
+          }
           : undefined,
         onFinish: async ({ text, steps, usage }) => {
           if (runFinalized) return;
@@ -1674,12 +1720,12 @@ export async function POST(req: Request) {
               tokenCount: usage?.totalTokens,
               metadata: usage
                 ? {
-                    usage: {
-                      inputTokens: usage.inputTokens,
-                      outputTokens: usage.outputTokens,
-                      totalTokens: usage.totalTokens,
-                    },
-                  }
+                  usage: {
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                    totalTokens: usage.totalTokens,
+                  },
+                }
                 : {},
             });
           } else {
