@@ -1095,6 +1095,7 @@
       "changeAvatar": "Avatarı değiştirmek için tıklayın",
       "history": "Sohbet Geçmişi",
       "agentMemory": "Ajan Hafızası",
+      "schedules": "Zamanlanmış Görevler",
       "usage": "Kullanım ve Analitik",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
@@ -1109,6 +1110,15 @@
       "untitled": "Başlıksız sohbet",
       "invalid": "Geçersiz tarih",
       "yesterday": "Dün"
+    },
+    "scheduledRun": {
+      "active": "'{taskName}' adlı zamanlanmış görev çalışıyor",
+      "description": "Çalışmayı canlı takip edebilir veya gerekirse ajanı durdurabilirsiniz.",
+      "stop": "Çalışmayı Durdur",
+      "stopping": "Durduruluyor...",
+      "cancelled": "Zamanlanmış görev iptal edildi",
+      "cancelError": "Görev iptal edilemedi",
+      "startedAt": "{time} itibarıyla başladı"
     }
   },
   "usage": {
@@ -1326,6 +1336,191 @@
         "runNotFound": "Çalıştırma bulunamadı",
         "failedToLoad": "Çalıştırma yüklenemedi"
       }
+    }
+  },
+  "schedules": {
+    "title": "Zamanlanmış Görevler",
+    "description": "{name} için otomatik görevler oluşturun",
+    "create": "Yeni Zamanlama",
+    "retry": "Tekrar Dene",
+    "empty": {
+      "title": "Henüz zamanlanmış görev yok",
+      "description": "Ajanınızı otomatikleştirmek için bir zamanlama oluşturun",
+      "action": "Zamanlama Oluştur"
+    },
+    "card": {
+      "enabled": "Aktif",
+      "disabled": "Duraklatıldı",
+      "priority": {
+        "high": "Yüksek",
+        "normal": "Normal",
+        "low": "Düşük"
+      },
+      "cronDefault": "Özel zamanlama",
+      "intervalMinutes": "Her {minutes} dakikada",
+      "onceDefault": "Tek seferlik",
+      "lastRun": "Son çalışma",
+      "runNow": "Şimdi Çalıştır",
+      "history": "Geçmiş",
+      "recentRuns": "Son Çalışmalar",
+      "viewChat": "Sohbeti Görüntüle",
+      "continueChat": "Devam Et",
+      "noSession": "Oturum oluşturulmadı"
+    },
+    "form": {
+      "createTitle": "Zamanlama Oluştur",
+      "editTitle": "Zamanlamayı Düzenle",
+      "name": "Ad",
+      "namePlaceholder": "örn., Günlük Rapor",
+      "description": "Açıklama",
+      "descriptionPlaceholder": "Bu zamanlama ne yapıyor?",
+      "scheduleType": "Zamanlama Türü",
+      "types": {
+        "cron": "Cron İfadesi",
+        "interval": "Sabit Aralık",
+        "once": "Tek Seferlik"
+      },
+      "intervalMinutes": "Aralık (dakika)",
+      "scheduledAt": "Çalışma Zamanı",
+      "timezone": "Saat Dilimi",
+      "timezoneLocal": "Yerel Saat ({timezone})",
+      "timezoneDetected": "Cihazınızdan algılandı",
+      "timezoneLocalNote": "Görev mevcut saat diliminizde bu saatte çalışacak",
+      "timezoneExplicitNote": "Görev konumunuzdan bağımsız olarak her zaman {timezone} saatinde çalışacak",
+      "timezoneChanged": "Saat diliminiz {oldTimezone}'den {newTimezone}'e değişti. Bu zamanlamayı güncellemek ister misiniz?",
+      "prompt": "Komut",
+      "promptPlaceholder": "Zamanlama tetiklendiğinde ajan ne yapmalı?",
+      "promptHint": "Bu komut zamanlama tetiklendiğinde ajana gönderilecek",
+      "priority": "Öncelik",
+      "priorities": {
+        "high": "Yüksek",
+        "normal": "Normal",
+        "low": "Düşük"
+      },
+      "maxRetries": "Maks Deneme",
+      "create": "Zamanlama Oluştur",
+      "save": "Değişiklikleri Kaydet",
+      "validation": {
+        "required": "Ad ve komut gereklidir",
+        "failed": "Zamanlama kaydedilemedi"
+      }
+    },
+    "cron": {
+      "label": "Zamanlama",
+      "expression": "İfade",
+      "presets": {
+        "everyMinute": "Her dakika",
+        "everyHour": "Her saat",
+        "daily": "Her gün saat 9'da",
+        "weekly": "Her Pazartesi",
+        "monthly": "Her ayın 1'inde",
+        "custom": "Özel"
+      },
+      "parts": {
+        "minute": "Dk",
+        "hour": "Saat",
+        "dayOfMonth": "Gün",
+        "month": "Ay",
+        "dayOfWeek": "Hafta"
+      },
+      "readable": {
+        "everyMinute": "Her dakika çalışır",
+        "everyHour": "Her saat başı çalışır",
+        "dailyAt": "Her gün saat {hour}:00'da çalışır",
+        "weeklyAt": "Her {day} saat {hour}:00'da çalışır",
+        "monthlyAt": "Her ayın {day}. günü saat {hour}:00'da çalışır",
+        "custom": "Özel zamanlama"
+      }
+    },
+    "presets": {
+      "title": "Hızlı Başlangıç Şablonları",
+      "subtitle": "Hızlıca başlamak için bir şablon seçin",
+      "useTemplate": "Şablonu Kullan",
+      "requiresIntegration": "{integration} entegrasyonu gerektirir",
+      "estimatedTime": "~{duration}",
+      "categories": {
+        "productivity": "Verimlilik",
+        "development": "Geliştirme",
+        "communication": "İletişim",
+        "analytics": "Analitik"
+      }
+    },
+    "pause": {
+      "title": "Zamanlamayı Duraklat",
+      "resumeAt": "Otomatik devam etme tarihi",
+      "indefinite": "Süresiz duraklatmak için boş bırakın",
+      "reason": "Sebep (isteğe bağlı)",
+      "reasonPlaceholder": "örn., Tatildeyim",
+      "button": "Zamanlamayı Duraklat",
+      "success": "Zamanlama duraklatıldı",
+      "resumeSuccess": "Zamanlama devam ettirildi"
+    },
+    "bulk": {
+      "selected": "{count} seçildi",
+      "enableAll": "Tümünü Etkinleştir",
+      "disableAll": "Tümünü Devre Dışı Bırak",
+      "runAll": "Tümünü Şimdi Çalıştır",
+      "deleteAll": "Tümünü Sil",
+      "confirmDelete": "{count} zamanlamayı silmek istediğinizden emin misiniz?"
+    },
+    "cancel": {
+      "button": "İptal",
+      "confirm": "Bu çalıştırmayı iptal et?",
+      "success": "Çalıştırma iptal edildi"
+    },
+    "delivery": {
+      "title": "Sonuçları Gönder",
+      "methods": {
+        "session": "Yalnızca Sohbet Oturumu",
+        "email": "E-posta",
+        "slack": "Slack",
+        "webhook": "Webhook"
+      },
+      "email": {
+        "recipients": "Alıcılar",
+        "recipientsPlaceholder": "eposta@ornek.com",
+        "subject": "Konu (isteğe bağlı)",
+        "includeTranscript": "Tam konuşmayı dahil et"
+      },
+      "slack": {
+        "webhookUrl": "Webhook URL",
+        "webhookPlaceholder": "https://hooks.slack.com/...",
+        "mentionUsers": "Kullanıcıları etiketle (isteğe bağlı)",
+        "mentionPlaceholder": "U123ABC"
+      },
+      "webhook": {
+        "url": "Webhook URL",
+        "urlPlaceholder": "https://api.ornek.com/webhook",
+        "method": "HTTP Metodu",
+        "headers": "Özel Başlıklar (JSON)",
+        "includeMetadata": "Metadata dahil et"
+      }
+    },
+    "contextSources": {
+      "title": "Bağlam Kaynakları",
+      "addSource": "Kaynak Ekle",
+      "types": {
+        "linear": "Linear Biletleri",
+        "github": "GitHub Sorunlar/PR",
+        "api": "Özel API"
+      },
+      "injectAs": {
+        "label": "Ekle şeklinde",
+        "prepend": "Komutun başına ekle",
+        "append": "Komutun sonuna ekle",
+        "variable": "Şablon değişkeni"
+      },
+      "variableName": "Değişken adı"
+    },
+    "notifications": {
+      "taskRunning": "Zamanlanmış görev '{taskName}' çalışıyor",
+      "taskStartedAt": "{time} başladı",
+      "taskCompleted": "'{taskName}' görevi tamamlandı",
+      "taskFailed": "'{taskName}' görevi başarısız oldu",
+      "viewTask": "Görevi Görüntüle",
+      "viewDetails": "Detayları Görüntüle",
+      "activeTasks": "{count} aktif görev",
+      "startedAgo": "{time} önce başladı"
     }
   }
 }

@@ -64,12 +64,17 @@ interface ThreadProps {
 }
 
 export const Thread: FC<ThreadProps> = ({ onSessionActivity }) => {
+  const isRunning = useThread((t) => t.isRunning);
+
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root className="flex h-full flex-col bg-terminal-cream">
         <SessionActivityWatcher onSessionActivity={onSessionActivity} />
         <GalleryWrapper>
-          <ThreadPrimitive.Viewport className="flex flex-1 flex-col items-center overflow-y-auto scroll-smooth px-4 pt-8">
+          <ThreadPrimitive.Viewport className={cn(
+            "flex flex-1 flex-col items-center overflow-y-auto px-4 pt-8 [overflow-anchor:auto]",
+            !isRunning && "scroll-smooth"
+          )}>
             <ThreadWelcome />
             <ThreadPrimitive.Messages
               components={{
@@ -79,7 +84,7 @@ export const Thread: FC<ThreadProps> = ({ onSessionActivity }) => {
                 EditComposer,
               }}
             />
-            <div className="min-h-8 flex-shrink-0" />
+            <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
@@ -819,10 +824,12 @@ const ComposerAttachment: FC = () => {
 
 const UserMessage: FC = () => {
   const messageRef = useRef<HTMLDivElement>(null);
+  const hasAnimatedRef = useRef(false);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion) return;
+    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
+    hasAnimatedRef.current = true;
 
     animate(messageRef.current, {
       opacity: [0, 1],
@@ -836,7 +843,10 @@ const UserMessage: FC = () => {
     <MessagePrimitive.Root
       ref={messageRef}
       className="relative mb-6 flex w-full max-w-[80rem] flex-col items-end gap-2 pl-8 transform-gpu"
-      style={{ opacity: prefersReducedMotion ? 1 : 0 }}
+      style={{
+        opacity: prefersReducedMotion ? 1 : 0,
+        contain: 'layout style'
+      }}
     >
       <div className="flex items-start gap-3">
         <UserActionBar />
@@ -888,10 +898,12 @@ const UserAttachment: FC = () => {
 
 const SystemMessage: FC = () => {
   const messageRef = useRef<HTMLDivElement>(null);
+  const hasAnimatedRef = useRef(false);
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion) return;
+    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
+    hasAnimatedRef.current = true;
 
     animate(messageRef.current, {
       opacity: [0, 1],
@@ -905,7 +917,10 @@ const SystemMessage: FC = () => {
     <MessagePrimitive.Root
       ref={messageRef}
       className="relative mb-6 flex w-full max-w-[80rem] justify-center px-4 transform-gpu"
-      style={{ opacity: prefersReducedMotion ? 1 : 0 }}
+      style={{
+        opacity: prefersReducedMotion ? 1 : 0,
+        contain: 'layout style'
+      }}
     >
       <div className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-mono text-red-700 shadow-sm">
         <CircleStopIcon className="size-3" />
@@ -974,6 +989,7 @@ const AssistantMessage: FC = () => {
   const { character } = useCharacter();
   const displayChar = character || DEFAULT_CHARACTER;
   const messageRef = useRef<HTMLDivElement>(null);
+  const hasAnimatedRef = useRef(false);
   const prefersReducedMotion = useReducedMotion();
 
   // Access message metadata for token usage
@@ -1000,7 +1016,8 @@ const AssistantMessage: FC = () => {
   }, [message?.content]);
 
   useEffect(() => {
-    if (!messageRef.current || prefersReducedMotion) return;
+    if (!messageRef.current || prefersReducedMotion || hasAnimatedRef.current) return;
+    hasAnimatedRef.current = true;
 
     animate(messageRef.current, {
       opacity: [0, 1],
@@ -1014,7 +1031,10 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root
       ref={messageRef}
       className="relative mb-6 flex w-full max-w-[80rem] gap-3 pr-8 transform-gpu"
-      style={{ opacity: prefersReducedMotion ? 1 : 0 }}
+      style={{
+        opacity: prefersReducedMotion ? 1 : 0,
+        contain: 'layout style'
+      }}
     >
       <Avatar className="size-8 shrink-0 shadow-sm">
         {displayChar.avatarUrl || displayChar.primaryImageUrl ? (

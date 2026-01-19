@@ -1,8 +1,9 @@
 "use client";
 
-import type { FC } from "react";
+import { memo, useMemo, type FC } from "react";
 import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
@@ -70,104 +71,66 @@ interface ToolResult {
   iterationPerformed?: boolean;
 }
 
-export const ToolFallback: ToolCallContentPartComponent = ({
-  toolName,
-  argsText,
-  result,
-}) => {
-  const t = useTranslations("assistantUi.tools");
-  const isRunning = result === undefined;
-  const parsedResult = result as ToolResult | undefined;
-
-  // Get translated tool name, fallback to toolName if not found
-  const getToolDisplayName = (name: string): string => {
-    // Check if translation exists by trying to get it
-    // If the key doesn't exist, next-intl returns the key itself
-    const translated = t.has(name) ? t(name) : name;
-    return translated;
-  };
-
-  return (
-    <div className="my-2 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono">
-      <div className="flex items-center gap-2 mb-2">
-        <ToolIcon toolName={toolName} isRunning={isRunning} result={parsedResult} />
-        <span className="font-medium text-sm text-terminal-dark">
-          {getToolDisplayName(toolName)}
-        </span>
-        <ToolStatus isRunning={isRunning} result={parsedResult} />
-      </div>
-
-      {/* Show args summary */}
-      {argsText && (
-        <details className="text-xs text-terminal-muted mb-2">
-          <summary className="cursor-pointer hover:text-terminal-dark">
-            View parameters
-          </summary>
-          <pre className="mt-2 overflow-y-auto max-h-48 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
-            {formatArgs(argsText)}
-          </pre>
-        </details>
-      )}
-
-      {/* Show result */}
-      {parsedResult && <ToolResultDisplay toolName={toolName} result={parsedResult} />}
-    </div>
-  );
-};
-
+// Memoized Icon Component
 const ToolIcon: FC<{
   toolName: string;
   isRunning: boolean;
   result?: ToolResult;
-}> = ({ toolName, isRunning, result }) => {
+}> = memo(({ toolName, isRunning, result }) => {
+  const iconClass = "size-4 transition-all duration-150";
+
   if (isRunning) {
-    return <Loader2Icon className="size-4 animate-spin text-terminal-green" />;
+    return <Loader2Icon className={`${iconClass} animate-spin text-terminal-green`} />;
   }
 
   if (result?.status === "error") {
-    return <XCircleIcon className="size-4 text-red-600" />;
+    return <XCircleIcon className={`${iconClass} text-red-600`} />;
   }
 
   if (toolName === "searchTools" || toolName === "listAllTools" || toolName === "webSearch") {
-    return <SearchIcon className="size-4 text-terminal-green" />;
+    return <SearchIcon className={`${iconClass} text-terminal-green`} />;
   }
 
   if (toolName.includes("Video") || toolName.includes("video")) {
-    return <VideoIcon className="size-4 text-terminal-green" />;
+    return <VideoIcon className={`${iconClass} text-terminal-green`} />;
   }
 
   if (toolName.includes("Image") || toolName.includes("image")) {
-    return <ImageIcon className="size-4 text-terminal-green" />;
+    return <ImageIcon className={`${iconClass} text-terminal-green`} />;
   }
 
-  return <CheckCircleIcon className="size-4 text-terminal-green" />;
-};
+  return <CheckCircleIcon className={`${iconClass} text-terminal-green`} />;
+});
+ToolIcon.displayName = "ToolIcon";
 
-const ToolStatus: FC<{ isRunning: boolean; result?: ToolResult }> = ({
+// Memoized Status Component
+const ToolStatus: FC<{ isRunning: boolean; result?: ToolResult }> = memo(({
   isRunning,
   result,
 }) => {
   if (isRunning) {
     return (
-      <span className="text-xs text-terminal-muted font-mono">Processing...</span>
+      <span className="text-xs text-terminal-muted font-mono transition-opacity duration-150">Processing...</span>
     );
   }
 
   if (result?.status === "error") {
-    return <span className="text-xs text-red-600 font-mono">Failed</span>;
+    return <span className="text-xs text-red-600 font-mono transition-opacity duration-150">Failed</span>;
   }
 
   if (result?.status === "processing") {
-    return <span className="text-xs text-terminal-amber font-mono">Queued</span>;
+    return <span className="text-xs text-terminal-amber font-mono transition-opacity duration-150">Queued</span>;
   }
 
-  return <span className="text-xs text-terminal-green font-mono">Completed</span>;
-};
+  return <span className="text-xs text-terminal-green font-mono transition-opacity duration-150">Completed</span>;
+});
+ToolStatus.displayName = "ToolStatus";
 
-const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolName, result }) => {
+// Memoized Result Display Component
+const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ toolName, result }) => {
   if (result.status === "error") {
     return (
-      <div className="text-sm text-red-600 bg-red-50 rounded p-2 font-mono">
+      <div className="text-sm text-red-600 bg-red-50 rounded p-2 font-mono transition-all duration-150">
         {result.error || "An error occurred"}
       </div>
     );
@@ -175,7 +138,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
   if (result.status === "processing") {
     return (
-      <div className="text-sm text-terminal-muted font-mono">
+      <div className="text-sm text-terminal-muted font-mono transition-all duration-150">
         Generation has been queued. Job ID: {result.jobId}
       </div>
     );
@@ -194,7 +157,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
     if (rawResults !== undefined && !Array.isArray(rawResults)) {
       return (
-        <div className="text-sm text-terminal-muted font-mono">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           Unexpected tool search results format.
           <pre className="mt-2 overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
             {formatResultValue(rawResults)}
@@ -205,7 +168,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
     if (result.status === "no_results" || !searchResults || searchResults.length === 0) {
       return (
-        <div className="text-sm text-terminal-muted font-mono">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           No tools found matching &quot;{result.query}&quot;
         </div>
       );
@@ -213,7 +176,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
     const toolNames = searchResults.map(t => t.displayName || t.name).filter(Boolean);
     return (
-      <div className="text-sm font-mono">
+      <div className="text-sm font-mono transition-opacity duration-150">
         <p className="text-terminal-dark mb-2">
           Found {searchResults.length} tool{searchResults.length !== 1 ? "s" : ""}: {toolNames.join(", ")}
         </p>
@@ -237,7 +200,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
   // Handle listAllTools results
   if (toolName === "listAllTools") {
     return (
-      <div className="text-sm text-terminal-dark font-mono">
+      <div className="text-sm text-terminal-dark font-mono transition-opacity duration-150">
         {result.message || "Tools listed successfully"}
       </div>
     );
@@ -248,7 +211,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     // Handle error/no_api_key states
     if (result.status === "no_api_key" || result.message) {
       return (
-        <div className="text-sm text-terminal-muted font-mono">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           {result.message || "Web search unavailable"}
         </div>
       );
@@ -258,14 +221,14 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     const sources = result.sources || [];
     if (sources.length === 0) {
       return (
-        <div className="text-sm text-terminal-muted font-mono">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           No results found for &quot;{result.query}&quot;
         </div>
       );
     }
 
     return (
-      <div className="text-sm font-mono space-y-3">
+      <div className="text-sm font-mono space-y-3 transition-opacity duration-150">
         {/* Summary/Answer */}
         {result.answer && (
           <div className="text-terminal-dark bg-terminal-dark/5 rounded p-2">
@@ -311,7 +274,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     // Handle no_paths or disabled status
     if (grepResult.status === "no_paths" || grepResult.status === "disabled") {
       return (
-        <div className="text-sm text-terminal-muted font-mono">
+        <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
           {grepResult.message || "No paths to search"}
         </div>
       );
@@ -320,7 +283,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
     // Handle success with results
     if (grepResult.matchCount !== undefined) {
       return (
-        <div className="text-sm font-mono">
+        <div className="text-sm font-mono transition-opacity duration-150">
           <p className="text-terminal-dark mb-2">
             Found {grepResult.matchCount} match{grepResult.matchCount !== 1 ? "es" : ""} for &quot;{grepResult.pattern}&quot;
           </p>
@@ -335,7 +298,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
     // Fallback for other localGrep statuses
     return (
-      <div className="text-sm text-terminal-muted font-mono">
+      <div className="text-sm text-terminal-muted font-mono transition-opacity duration-150">
         {grepResult.message || "Search completed"}
       </div>
     );
@@ -344,7 +307,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
   // Show generated videos
   if (result.videos && result.videos.length > 0) {
     return (
-      <div className="mt-2">
+      <div className="mt-2 animate-in fade-in zoom-in-95 duration-200">
         <div className="space-y-4">
           {result.videos.map((video, idx) => (
             <div key={idx} className="relative">
@@ -383,7 +346,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
   // Show generated images
   if (result.images && result.images.length > 0) {
     return (
-      <div className="mt-2">
+      <div className="mt-2 animate-in fade-in zoom-in-95 duration-200">
         <div className="image-grid">
           {result.images.map((img, idx) => (
             <a
@@ -410,7 +373,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
   if (typeof result.stdout === "string" || typeof result.stderr === "string") {
     return (
-      <div className="mt-2 space-y-2">
+      <div className="mt-2 space-y-2 transition-opacity duration-150">
         {result.stdout && (
           <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
             {result.stdout}
@@ -428,7 +391,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
   // Show batch results
   if (Array.isArray(result.results) && result.results.length > 0) {
     return (
-      <div className="mt-2 space-y-4">
+      <div className="mt-2 space-y-4 transition-opacity duration-150">
         {result.results.map((item, idx) => (
           <div key={idx} className="pt-4 first:pt-0">
             {item.prompt && (
@@ -471,7 +434,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
 
   if (result.results && !Array.isArray(result.results)) {
     return (
-      <div className="mt-2 text-sm text-terminal-muted font-mono">
+      <div className="mt-2 text-sm text-terminal-muted font-mono transition-opacity duration-150">
         <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
           {formatResultValue(result.results)}
         </pre>
@@ -480,7 +443,61 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = ({ toolN
   }
 
   return null;
-};
+});
+ToolResultDisplay.displayName = "ToolResultDisplay";
+
+// Main component with memo
+export const ToolFallback: ToolCallContentPartComponent = memo(({
+  toolName,
+  argsText,
+  result,
+}) => {
+  const t = useTranslations("assistantUi.tools");
+  const isRunning = result === undefined;
+  const parsedResult = result as ToolResult | undefined;
+
+  // Memoize the display name lookup
+  const displayName = useMemo(() => {
+    return t.has(toolName) ? t(toolName) : toolName;
+  }, [t, toolName]);
+
+  // Memoize formatted args
+  const formattedArgs = useMemo(() => {
+    if (!argsText) return null;
+    return formatArgs(argsText);
+  }, [argsText]);
+
+  return (
+    <div className={cn(
+      "my-2 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono transition-all duration-150 ease-in-out [contain:layout_style]",
+      isRunning && "min-h-[60px]"
+    )}>
+      <div className="flex items-center gap-2 mb-2 transition-opacity duration-150">
+        <ToolIcon toolName={toolName} isRunning={isRunning} result={parsedResult} />
+        <span className="font-medium text-sm text-terminal-dark">
+          {displayName}
+        </span>
+        <ToolStatus isRunning={isRunning} result={parsedResult} />
+      </div>
+
+      {/* Show args summary */}
+      {formattedArgs && (
+        <details className="text-xs text-terminal-muted mb-2">
+          <summary className="cursor-pointer hover:text-terminal-dark">
+            View parameters
+          </summary>
+          <pre className="mt-2 overflow-y-auto max-h-48 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
+            {formattedArgs}
+          </pre>
+        </details>
+      )}
+
+      {/* Show result */}
+      {parsedResult && <ToolResultDisplay toolName={toolName} result={parsedResult} />}
+    </div>
+  );
+});
+ToolFallback.displayName = "ToolFallback";
 
 function formatArgs(argsText: string): string {
   try {

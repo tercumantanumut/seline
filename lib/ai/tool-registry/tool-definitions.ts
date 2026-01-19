@@ -215,15 +215,20 @@ Intelligent code search across your indexed codebase folders. Uses a secondary A
 - **Contextual Refinement**: Learns from your search history in this session
 - **Organized Findings**: Groups results by file with explanations
 
+### Question-First Queries (Required)
+- Always phrase **query** as a short, precise question that contains the relevant keywords (e.g., "Where is habit reminders cron completed today timezone handled?").
+- Ask about flows, handlers, or files rather than listing comma-separated keywords.
+- You may run up to **five** question-form searches per user request; stop once you have enough context.
+
 ### When to Use
-- Finding functionality: "show me authentication logic"
-- Locating definitions: "where is getUserById implemented"
-- Pattern discovery: "error handling patterns in API routes"
-- Code exploration: "functions that interact with the database"
+- Finding functionality: "Where is authentication logic handled?"
+- Locating definitions: "Where is getUserById implemented?"
+- Pattern discovery: "How are errors handled in API routes?"
+- Code exploration: "Which functions interact with the database?"
 
 ### Parameters
-- **query** (required): Natural language description of what you're looking for
-- **maxResults** (optional): Maximum results to return (1-50, default: 15)
+- **query** (required): Short, precise question describing what you're looking for (include filenames/functions directly in the question)
+- **maxResults** (optional): Maximum results to return (default 50 when unspecified; you may increase up to 150 only when the secondary LLM genuinely needs broader coverage)
 - **minScore** (optional): Minimum relevance score 0-1 (default: 0.3)
 - **folderIds** (optional): Limit search to specific synced folders
 
@@ -236,8 +241,10 @@ Returns organized findings with:
 - Suggested refinements
 
 ### Tips
-- Be specific but natural: "payment processing logic" not "payment"
-- Use follow-up queries to refine results
+- Keep each question ≤ 2 sentences and include concrete identifiers when possible
+- Prefer multiple question-form searches (max 5) over a single unfocused query
+- Increase **maxResults** (up to 150) only when you need more raw snippets for synthesis; default 50 is fastest
+- Use follow-up questions to refine results
 - Check suggested refinements for better results
 - Higher minScore = more precise, fewer results`,
       loading: { deferLoading: true },
@@ -1884,4 +1891,3 @@ showProductImages({
     `[ToolRegistry] Registered ${registry.getToolNames().length} tools`
   );
 }
-

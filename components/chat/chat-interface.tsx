@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
@@ -10,7 +10,7 @@ import { CharacterProvider, type CharacterDisplayData } from "@/components/assis
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
@@ -18,8 +18,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { useTranslations, useFormatter } from "next-intl";
-import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
+import type { TaskEvent } from "@/lib/scheduler/task-events";
+import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
 
 interface CharacterFullData {
     id: string;
@@ -69,6 +71,12 @@ interface SessionState {
     messages: UIMessage[];
 }
 
+interface ActiveRunState {
+    runId: string;
+    taskName: string;
+    startedAt: string;
+}
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -93,6 +101,17 @@ export default function ChatInterface({
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const activeTasks = useActiveTasksStore((state) => state.activeTasks);
+    const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
+    const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
+    const [isCancellingRun, setIsCancellingRun] = useState(false);
+
+    // Refs for debouncing and memoization to prevent UI flashing
+    const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const lastProgressSignatureRef = useRef<string>("");
+    const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
+    const lastProgressTimeRef = useRef<number>(0);
+    const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
         setSessions((prev) => {
@@ -126,30 +145,63 @@ export default function ChatInterface({
         }
     }, [character.id]);
 
+    const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
+        try {
+            const response = await fetch(`/api/sessions/${targetSessionId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const dbMessages = (data.messages || []) as DBMessage[];
+                return convertDBMessagesToUIMessages(dbMessages);
+            }
+        } catch (err) {
+            console.error("Failed to fetch session messages:", err);
+        }
+        return null;
+    }, []);
+
+    const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
+        const uiMessages = await fetchSessionMessages(targetSessionId);
+        if (!uiMessages) return;
+
+        setSessionState((prev) => {
+            if (prev.sessionId !== targetSessionId) {
+                return prev;
+            }
+            return { sessionId: targetSessionId, messages: uiMessages };
+        });
+        refreshSessionTimestamp(targetSessionId);
+    }, [fetchSessionMessages, refreshSessionTimestamp]);
+
+    useEffect(() => {
+        if (activeTaskForSession) {
+            setActiveRun({
+                runId: activeTaskForSession.runId,
+                taskName: activeTaskForSession.taskName,
+                startedAt: activeTaskForSession.startedAt,
+            });
+        } else {
+            setActiveRun(null);
+        }
+    }, [activeTaskForSession]);
+
     const switchSession = useCallback(
         async (newSessionId: string) => {
             try {
                 setIsLoading(true);
-                const messagesResponse = await fetch(`/api/sessions/${newSessionId}`);
-                if (messagesResponse.ok) {
-                    const data = await messagesResponse.json();
-                    const dbMessages = (data.messages || []) as DBMessage[];
-                    const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-                    // CRITICAL: Update sessionId and messages atomically to prevent
-                    // race conditions where ChatProvider remounts with stale messages
-                    setSessionState({
-                        sessionId: newSessionId,
-                        messages: uiMessages,
-                    });
-                    router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
-                }
+                const uiMessages = await fetchSessionMessages(newSessionId);
+                if (!uiMessages) return;
+                setSessionState({
+                    sessionId: newSessionId,
+                    messages: uiMessages,
+                });
+                router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
             } catch (err) {
                 console.error("Failed to switch session:", err);
             } finally {
                 setIsLoading(false);
             }
         },
-        [character.id, router]
+        [character.id, router, fetchSessionMessages, refreshSessionTimestamp]
     );
 
     const createNewSession = useCallback(
@@ -206,6 +258,180 @@ export default function ChatInterface({
         },
         [sessionId, sessions, switchSession, createNewSession, loadSessions]
     );
+
+    const handleCancelRun = useCallback(async () => {
+        if (!activeRun || !sessionId) {
+            return;
+        }
+        setIsCancellingRun(true);
+        try {
+            const response = await fetch(`/api/schedules/runs/${activeRun.runId}/cancel`, {
+                method: "POST",
+            });
+            if (!response.ok) {
+                throw new Error("Failed to cancel run");
+            }
+            toast.success(t("scheduledRun.cancelled"));
+            setActiveRun(null);
+        } catch (err) {
+            console.error("Failed to cancel scheduled run:", err);
+            toast.error(t("scheduledRun.cancelError"));
+        } finally {
+            setIsCancellingRun(false);
+        }
+    }, [activeRun, sessionId, t]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handleTaskCompleted = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail) return;
+
+            if (detail.sessionId && detail.sessionId === sessionId) {
+                // Debounce the reload to allow final progress update to settle
+                if (reloadDebounceRef.current) {
+                    clearTimeout(reloadDebounceRef.current);
+                }
+
+                reloadDebounceRef.current = setTimeout(() => {
+                    void reloadSessionMessages(sessionId);
+                    reloadDebounceRef.current = null;
+                }, 150); // Small delay to let final state settle
+
+                setActiveRun((current) => {
+                    if (current?.runId === detail.runId) {
+                        return null;
+                    }
+                    return current;
+                });
+            }
+
+            if (detail.characterId === character.id) {
+                void loadSessions();
+            }
+        };
+
+        const handleTaskStarted = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail) return;
+
+            if (detail.sessionId && detail.sessionId === sessionId) {
+                setActiveRun({
+                    runId: detail.runId,
+                    taskName: detail.taskName,
+                    startedAt: detail.startedAt,
+                });
+                void reloadSessionMessages(sessionId);
+            }
+
+            if (detail.characterId === character.id) {
+                void loadSessions();
+            }
+        };
+
+        window.addEventListener("scheduled-task-completed", handleTaskCompleted);
+        window.addEventListener("scheduled-task-started", handleTaskStarted);
+
+        return () => {
+            window.removeEventListener("scheduled-task-completed", handleTaskCompleted);
+            window.removeEventListener("scheduled-task-started", handleTaskStarted);
+        };
+    }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (reloadDebounceRef.current) {
+                clearTimeout(reloadDebounceRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handleTaskProgress = (event: Event) => {
+            const detail = (event as CustomEvent<TaskEvent>).detail;
+            if (!detail || detail.sessionId !== sessionId) {
+                return;
+            }
+            const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
+
+            // Early return if no progress content
+            if (!detail.progressContent?.length && !detail.progressText) {
+                return;
+            }
+
+            // Time-based throttle to reduce UI updates
+            const now = Date.now();
+            if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) {
+                return;
+            }
+            lastProgressTimeRef.current = now;
+
+            // Compute signature to check if content meaningfully changed
+            const contentSignature = detail.progressContent?.length
+                ? getContentPartsSignature(detail.progressContent as DBContentPart[])
+                : `text:${detail.progressText?.length || 0}`;
+
+            // Skip update if content hasn't meaningfully changed
+            if (contentSignature === lastProgressSignatureRef.current) {
+                return;
+            }
+            lastProgressSignatureRef.current = contentSignature;
+
+            // Only convert if we have new content
+            const progressParts = detail.progressContent?.length
+                ? convertContentPartsToUIParts(detail.progressContent as DBContentPart[])
+                : ([{ type: "text", text: detail.progressText }] as UIMessage["parts"]);
+
+            // Cache the converted parts
+            lastProgressPartsRef.current = progressParts;
+
+            setSessionState((prev) => {
+                if (prev.sessionId !== sessionId) {
+                    return prev;
+                }
+                const existingIndex = prev.messages.findIndex((msg) => msg.id === messageId);
+                const baseMessage = existingIndex === -1 ? { id: messageId, role: "assistant", parts: [] as UIMessage["parts"] } : prev.messages[existingIndex];
+
+                if (!progressParts || progressParts.length === 0) {
+                    return prev;
+                }
+
+                const updatedMessage: UIMessage = {
+                    ...baseMessage,
+                    id: messageId,
+                    role: "assistant",
+                    parts: progressParts,
+                };
+                const nextMessages = [...prev.messages];
+                if (existingIndex === -1) {
+                    nextMessages.push(updatedMessage);
+                } else {
+                    nextMessages[existingIndex] = updatedMessage;
+                }
+                return {
+                    sessionId: prev.sessionId,
+                    messages: nextMessages,
+                };
+            });
+            refreshSessionTimestamp(detail.sessionId);
+        };
+
+        window.addEventListener("scheduled-task-progress", handleTaskProgress);
+        return () => {
+            window.removeEventListener("scheduled-task-progress", handleTaskProgress);
+            // Reset memoization refs when effect cleans up
+            lastProgressSignatureRef.current = "";
+            lastProgressPartsRef.current = null;
+        };
+    }, [refreshSessionTimestamp, sessionId]);
 
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
@@ -273,6 +499,23 @@ export default function ChatInterface({
         }));
     }, []);
 
+    const chatProviderKey = useMemo(() => {
+        const lastMessage = messages[messages.length - 1];
+        const lastMessageId = lastMessage?.id || "none";
+        const lastMessageRole = lastMessage?.role || "unknown";
+        const partsCount = Array.isArray((lastMessage as { parts?: unknown[] })?.parts)
+            ? ((lastMessage as { parts?: unknown[] }).parts?.length ?? 0)
+            : 0;
+        const textDigest =
+            lastMessage && "parts" in lastMessage && Array.isArray((lastMessage as { parts?: Array<{ type?: string; text?: string }> }).parts)
+                ? (lastMessage as { parts?: Array<{ type?: string; text?: string }> })
+                    .parts?.filter((part) => part?.type === "text")
+                    .map((part) => part?.text || "")
+                    .join("|")
+                : "";
+        return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
+    }, [messages, sessionId]);
+
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) {
             return;
@@ -311,12 +554,21 @@ export default function ChatInterface({
         >
             <CharacterProvider character={characterDisplay}>
                 <ChatProvider
-                    key={sessionId}
+                    key={chatProviderKey}
                     sessionId={sessionId}
                     characterId={character.id}
                     initialMessages={messages}
                 >
-                    <Thread onSessionActivity={handleSessionActivity} />
+                    <div className="flex h-full flex-col gap-3">
+                        {activeRun && (
+                            <ScheduledRunBanner
+                                run={activeRun}
+                                onCancel={handleCancelRun}
+                                cancelling={isCancellingRun}
+                            />
+                        )}
+                        <Thread onSessionActivity={handleSessionActivity} />
+                    </div>
                 </ChatProvider>
             </CharacterProvider>
         </Shell>
@@ -555,6 +807,17 @@ function CharacterSidebar({
                                 size="sm"
                                 asChild
                                 className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
+                                title={t("sidebar.schedules")}
+                            >
+                                <Link href={`/agents/${character.id}/schedules`}>
+                                    <Calendar className="h-4 w-4" />
+                                </Link>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
                                 title={t("sidebar.usage")}
                             >
                                 <Link href="/usage">
@@ -703,6 +966,62 @@ function CharacterSidebar({
 
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-4 pb-4">
                     <DocumentsPanel agentId={character.id} agentName={character.name} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScheduledRunBanner({
+    run,
+    onCancel,
+    cancelling,
+}: {
+    run: ActiveRunState;
+    onCancel: () => void;
+    cancelling: boolean;
+}) {
+    const t = useTranslations("chat");
+
+    return (
+        <div className="rounded-lg border border-terminal-dark/15 bg-terminal-dark/5 p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                    <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin text-terminal-green" />
+                    <div className="space-y-1">
+                        <p className="font-mono text-sm text-terminal-dark">
+                            {t("scheduledRun.active", { taskName: run.taskName })}
+                        </p>
+                        <p className="text-xs text-terminal-muted">
+                            {t("scheduledRun.description")}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <span className="text-xs font-mono text-terminal-muted">
+                        {t("scheduledRun.startedAt", {
+                            time: new Date(run.startedAt).toLocaleTimeString(),
+                        })}
+                    </span>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        className="font-mono"
+                        onClick={onCancel}
+                        disabled={cancelling}
+                    >
+                        {cancelling ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {t("scheduledRun.stopping")}
+                            </>
+                        ) : (
+                            <>
+                                <CircleStop className="mr-2 h-4 w-4" />
+                                {t("scheduledRun.stop")}
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
         </div>

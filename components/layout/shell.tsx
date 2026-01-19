@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useDesktopSidebarState } from "@/hooks/use-desktop-sidebar-state";
 import { useTranslations } from "next-intl";
 import { DevLogsViewer } from "@/components/dev/dev-logs-viewer";
+import { ActiveTasksIndicator } from "@/components/schedules/active-tasks-indicator";
 
 // Context to share sidebar collapsed state with children
 interface SidebarContextValue {
@@ -266,7 +267,10 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
               </div>
 
               {/* Right zone: User menu */}
-              <div className={cn("flex items-center justify-end min-w-[80px]", isElectronApp && "webkit-app-region-no-drag")}>
+              <div className={cn("flex items-center justify-end gap-2 min-w-[80px]", isElectronApp && "webkit-app-region-no-drag")}>
+                {/* Active Tasks Indicator */}
+                <ActiveTasksIndicator />
+
                 {user && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

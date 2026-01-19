@@ -157,7 +157,8 @@ function getCodeLanguage(filePath: string): string {
 function formatResultsForContext(
   query: string,
   results: RawSearchResult[],
-  searchHistorySummary: string
+  searchHistorySummary: string,
+  fileTreeSummary?: string | null
 ): string {
   const parts: string[] = [];
 
@@ -165,6 +166,10 @@ function formatResultsForContext(
 
   if (searchHistorySummary) {
     parts.push(`## Recent Search Context\n${searchHistorySummary}\n`);
+  }
+
+  if (fileTreeSummary) {
+    parts.push(`## Workspace Structure\n${fileTreeSummary}\n`);
   }
 
   parts.push(`## Raw Search Results (${results.length} chunks)\n`);
@@ -485,7 +490,7 @@ Returns the file content with line numbers.`,
 export async function synthesizeSearchResults(
   request: SynthesisRequest
 ): Promise<SynthesisResult> {
-  const { query, rawResults, searchHistory, allowedFolderPaths } = request;
+  const { query, rawResults, searchHistory, allowedFolderPaths, fileTreeSummary } = request;
 
   try {
     if (rawResults.length === 0) {
@@ -507,7 +512,12 @@ export async function synthesizeSearchResults(
       : "";
 
     // Format results for the LLM
-    const contextPrompt = formatResultsForContext(query, rawResults, searchHistorySummary);
+    const contextPrompt = formatResultsForContext(
+      query,
+      rawResults,
+      searchHistorySummary,
+      fileTreeSummary
+    );
 
     const synthesisStartTime = Date.now();
     console.log(

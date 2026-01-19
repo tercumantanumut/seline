@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, type ErrorInfo, type FC, type ReactNode } from "react";
+import { Component, type ErrorInfo, type FC, type ReactNode, useMemo } from "react";
 import {
   AssistantRuntimeProvider,
   type AttachmentAdapter,
@@ -11,7 +11,6 @@ import {
   useChatRuntime,
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
-import { useMemo } from "react";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
 import { Loader2 } from "lucide-react";

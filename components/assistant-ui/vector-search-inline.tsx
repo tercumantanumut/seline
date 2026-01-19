@@ -92,8 +92,8 @@ const cardVariants = {
 };
 
 const expandVariants = {
-  collapsed: { height: 0, opacity: 0 },
-  expanded: { height: "auto", opacity: 1, transition: { duration: 0.2 } },
+  collapsed: { opacity: 0 },
+  expanded: { opacity: 1, transition: { duration: 0.15 } },
 };
 
 // ============================================================================
@@ -294,13 +294,12 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
     }
   };
 
-  // Loading state
   if (isRunning) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono"
+        className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono min-h-[60px] [contain:layout_style]"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-terminal-green/10">
@@ -308,8 +307,8 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div className="flex-1">
             <div className="text-sm font-medium text-terminal-dark">Searching...</div>
-            <div className="text-xs text-terminal-muted mt-0.5">
-              &quot;{query.slice(0, 50)}{query.length > 50 ? "..." : ""}&quot;
+            <div className="text-xs text-terminal-muted mt-0.5 break-words">
+              &quot;{query}&quot;
             </div>
           </div>
         </div>

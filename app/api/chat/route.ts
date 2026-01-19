@@ -12,12 +12,14 @@ import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/char
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession, updateMessage } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
+import { taskEvents } from "@/lib/scheduler/task-events";
+import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
 import {
   withRunContext,
   createAgentRun,
@@ -816,10 +818,172 @@ async function enhanceFrontendMessagesWithToolResults(
   return enhancedMessages;
 }
 
+interface StreamingMessageState {
+  parts: DBContentPart[];
+  toolCallParts: Map<string, DBToolCallPart>;
+  messageId?: string;
+  lastBroadcastAt: number;
+  lastBroadcastSignature: string;
+  pendingBroadcast?: boolean;
+}
+
+function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
+  if (typeof structuredClone === "function") {
+    return structuredClone(parts);
+  }
+  return JSON.parse(JSON.stringify(parts));
+}
+
+function extractTextFromParts(parts: DBContentPart[]): string {
+  return parts
+    .filter((part): part is Extract<DBContentPart, { type: "text" }> => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+}
+
+function appendTextPartToState(state: StreamingMessageState, delta: string | undefined): boolean {
+  if (!delta) {
+    return false;
+  }
+  const lastPart = state.parts[state.parts.length - 1];
+  if (lastPart?.type === "text") {
+    lastPart.text += delta;
+  } else {
+    state.parts.push({ type: "text", text: delta });
+  }
+  return true;
+}
+
+function ensureToolCallPart(state: StreamingMessageState, toolCallId: string, toolName?: string): DBToolCallPart {
+  let part = state.toolCallParts.get(toolCallId);
+  if (!part) {
+    part = {
+      type: "tool-call",
+      toolCallId,
+      toolName: toolName ?? "tool",
+      state: "input-streaming",
+    };
+    state.toolCallParts.set(toolCallId, part);
+    state.parts.push(part);
+  } else if (toolName && part.toolName !== toolName) {
+    part.toolName = toolName;
+  }
+  return part;
+}
+
+function recordToolInputStart(state: StreamingMessageState, toolCallId: string, toolName?: string): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId, toolName);
+  part.state = "input-streaming";
+  return true;
+}
+
+function recordToolInputDelta(state: StreamingMessageState, toolCallId: string, delta: string | undefined): boolean {
+  if (!toolCallId || !delta) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId);
+  part.argsText = `${part.argsText ?? ""}${delta}`;
+  part.state = part.state ?? "input-streaming";
+  return true;
+}
+
+function recordStructuredToolCall(
+  state: StreamingMessageState,
+  toolCallId: string,
+  toolName: string,
+  input: unknown,
+): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const part = ensureToolCallPart(state, toolCallId, toolName);
+  part.state = "input-available";
+  part.args = input;
+  return true;
+}
+
+function recordToolResultChunk(
+  state: StreamingMessageState,
+  toolCallId: string,
+  toolName: string,
+  output: unknown,
+  preliminary?: boolean,
+): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
+  const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
+  callPart.state = "output-available";
+
+  // Check if we already have a tool-result for this toolCallId
+  const existingResultIndex = state.parts.findIndex(
+    (part) => part.type === "tool-result" && (part as DBToolResultPart).toolCallId === toolCallId
+  );
+
+  const resultPart: DBToolResultPart = {
+    type: "tool-result",
+    toolCallId,
+    toolName: normalizedName,
+    result: output,
+    state: "output-available",
+    preliminary,
+  };
+
+  if (existingResultIndex !== -1) {
+    // Update existing result part instead of adding a new one
+    state.parts[existingResultIndex] = resultPart;
+  } else {
+    // Only add new part if one doesn't exist
+    state.parts.push(resultPart);
+  }
+
+  return true;
+}
+
 export async function POST(req: Request) {
   try {
-    // Get local user for offline mode
-    const userId = await requireAuth(req);
+    // Check for internal scheduled task execution
+    const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
+    const internalAuth = req.headers.get("X-Internal-Auth");
+    const expectedSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+
+    let userId: string;
+
+    const scheduledRunId = isScheduledRun ? req.headers.get("X-Scheduled-Run-Id") : null;
+    const scheduledTaskId = isScheduledRun ? req.headers.get("X-Scheduled-Task-Id") : null;
+    const scheduledTaskName = isScheduledRun ? req.headers.get("X-Scheduled-Task-Name") : null;
+
+    if (isScheduledRun && internalAuth === expectedSecret) {
+      // Scheduled task execution - use provided session's user
+      // The user ID will be extracted from the session
+      const headerSessionId = req.headers.get("X-Session-Id");
+      if (headerSessionId) {
+        const session = await getSession(headerSessionId);
+        if (session?.userId) {
+          userId = session.userId;
+          console.log(`[CHAT API] Scheduled task execution for user ${userId}`);
+        } else {
+          return new Response(
+            JSON.stringify({ error: "Invalid session for scheduled task" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Session ID required for scheduled task" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Normal authentication flow
+      userId = await requireAuth(req);
+    }
+
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
@@ -920,6 +1084,101 @@ export async function POST(req: Request) {
 
     const appSettings = loadSettings();
     const toolLoadingMode = appSettings.toolLoadingMode ?? "deferred";
+    const eventCharacterId =
+      characterId ||
+      ((sessionMetadata?.characterId as string | undefined) ?? "");
+    const shouldEmitProgress =
+      Boolean(isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId);
+    const streamingState: StreamingMessageState | null = shouldEmitProgress
+      ? {
+        parts: [],
+        toolCallParts: new Map<string, DBToolCallPart>(),
+        messageId: undefined,
+        lastBroadcastAt: 0,
+        lastBroadcastSignature: "",
+      }
+      : null;
+
+    const syncStreamingMessage = shouldEmitProgress
+      ? async (force = false) => {
+        if (!streamingState || streamingState.parts.length === 0) {
+          return;
+        }
+
+        const partsSnapshot = cloneContentParts(streamingState.parts);
+        const now = Date.now();
+        const signature = JSON.stringify(partsSnapshot);
+
+        // Skip if content hasn't changed
+        if (signature === streamingState.lastBroadcastSignature) {
+          return;
+        }
+
+        // For non-forced updates, use smarter throttling
+        if (!force) {
+          const timeSinceLastBroadcast = now - streamingState.lastBroadcastAt;
+
+          // Use shorter interval (200ms) for text-only updates
+          // Use longer interval (400ms) for tool state changes
+          const hasToolChanges = partsSnapshot.some(
+            (p) => p.type === "tool-call" || p.type === "tool-result"
+          );
+          const throttleInterval = hasToolChanges ? 400 : 200;
+
+          if (timeSinceLastBroadcast < throttleInterval) {
+            // Mark that we have a pending broadcast
+            if (!streamingState.pendingBroadcast) {
+              streamingState.pendingBroadcast = true;
+              // Schedule a delayed broadcast
+              setTimeout(() => {
+                if (streamingState.pendingBroadcast && syncStreamingMessage) {
+                  streamingState.pendingBroadcast = false;
+                  void syncStreamingMessage();
+                }
+              }, throttleInterval - timeSinceLastBroadcast);
+            }
+            return;
+          }
+        }
+
+        streamingState.pendingBroadcast = false;
+
+        if (!streamingState.messageId) {
+          const created = await createMessage({
+            sessionId,
+            role: "assistant",
+            content: partsSnapshot,
+            metadata: {
+              isStreaming: true,
+              scheduledRunId,
+              scheduledTaskId,
+            },
+          });
+          streamingState.messageId = created?.id;
+        } else {
+          await updateMessage(streamingState.messageId, {
+            content: partsSnapshot,
+          });
+        }
+
+        if (streamingState.messageId) {
+          streamingState.lastBroadcastSignature = signature;
+          streamingState.lastBroadcastAt = now;
+          taskEvents.emitTaskProgress({
+            taskId: scheduledTaskId!,
+            taskName: scheduledTaskName!,
+            runId: scheduledRunId!,
+            userId: dbUser.id,
+            characterId: eventCharacterId,
+            sessionId,
+            assistantMessageId: streamingState.messageId,
+            progressText: extractTextFromParts(partsSnapshot),
+            progressContent: partsSnapshot,
+            startedAt: new Date().toISOString(),
+          });
+        }
+      }
+      : undefined;
 
     // Determine if we should inject context (system prompt + tools)
     // This reduces token usage by only sending these on first message and periodically thereafter
@@ -951,7 +1210,7 @@ export async function POST(req: Request) {
     const userMessageCount = messages.filter((msg) => msg.role === "user").length;
     let savedUserMessageId: string | undefined;
 
-    if (lastMessage && lastMessage.role === 'user') {
+    if (!isScheduledRun && lastMessage && lastMessage.role === 'user') {
       // Extract content using the helper (handles parts array from assistant-ui)
       // Don't convert to base64 for DB storage (keeps URLs compact)
       const extractedContent = await extractContent(lastMessage);
@@ -1356,9 +1615,37 @@ export async function POST(req: Request) {
             activeTools: currentActiveTools as (keyof typeof tools)[],
           };
         },
+        onChunk: shouldEmitProgress
+          ? async ({ chunk }) => {
+            if (!streamingState || !syncStreamingMessage) {
+              return;
+            }
+
+            let changed = false;
+
+            if (chunk.type === "text-delta") {
+              changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
+            } else if (chunk.type === "tool-input-start") {
+              changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
+            } else if (chunk.type === "tool-input-delta") {
+              changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
+            } else if (chunk.type === "tool-call") {
+              changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
+            } else if (chunk.type === "tool-result") {
+              changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+            }
+
+            if (changed) {
+              await syncStreamingMessage();
+            }
+          }
+          : undefined,
         onFinish: async ({ text, steps, usage }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (streamingState && syncStreamingMessage) {
+            await syncStreamingMessage(true);
+          }
           // Save assistant message to database
           // Build content by iterating through steps in order to preserve
           // the interleaved sequence: tool-call → tool-result → text per step
@@ -1426,20 +1713,37 @@ export async function POST(req: Request) {
             }
           }
 
-          await createMessage({
-            sessionId,
-            role: "assistant",
-            content: content,  // Always store as array for consistency
-            model: AI_CONFIG.model,
-            tokenCount: usage?.totalTokens,
-            metadata: usage ? {
-              usage: {
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                totalTokens: usage.totalTokens,
-              }
-            } : {},
-          });
+          if (shouldEmitProgress && streamingState?.messageId) {
+            await updateMessage(streamingState.messageId, {
+              content,
+              model: AI_CONFIG.model,
+              tokenCount: usage?.totalTokens,
+              metadata: usage
+                ? {
+                  usage: {
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                    totalTokens: usage.totalTokens,
+                  },
+                }
+                : {},
+            });
+          } else {
+            await createMessage({
+              sessionId,
+              role: "assistant",
+              content: content,  // Always store as array for consistency
+              model: AI_CONFIG.model,
+              tokenCount: usage?.totalTokens,
+              metadata: usage ? {
+                usage: {
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens,
+                  totalTokens: usage.totalTokens,
+                }
+              } : {},
+            });
+          }
 
           // Trigger memory extraction in background (only for character-specific chats)
           if (characterId) {
@@ -1519,6 +1823,9 @@ export async function POST(req: Request) {
           runFinalized = true;
           try {
             const interruptionTimestamp = new Date();
+            if (streamingState && syncStreamingMessage) {
+              await syncStreamingMessage(true);
+            }
 
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
             // Build content from completed steps using the same logic as onFinish
@@ -1559,13 +1866,20 @@ export async function POST(req: Request) {
 
             // Save partial assistant message IF there was any content generated
             if (content.length > 0) {
-              await createMessage({
-                sessionId,
-                role: "assistant",
-                content: content,
-                model: AI_CONFIG.model,
-                metadata: { interrupted: true }, // Mark as partial/interrupted response
-              });
+              if (shouldEmitProgress && streamingState?.messageId) {
+                await updateMessage(streamingState.messageId, {
+                  content,
+                  metadata: { interrupted: true },
+                });
+              } else {
+                await createMessage({
+                  sessionId,
+                  role: "assistant",
+                  content: content,
+                  model: AI_CONFIG.model,
+                  metadata: { interrupted: true }, // Mark as partial/interrupted response
+                });
+              }
               console.log(`[CHAT API] Saved partial assistant message (${content.length} parts) before interruption`);
             }
             // === END FIX ===

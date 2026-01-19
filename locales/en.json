@@ -1093,6 +1093,7 @@
       "changeAvatar": "Click to change avatar",
       "history": "Chat History",
       "agentMemory": "Agent Memory",
+      "schedules": "Scheduled Tasks",
       "usage": "Usage & Analytics",
       "startNew": "Start new chat",
       "new": "New",
@@ -1107,6 +1108,15 @@
       "untitled": "Untitled chat",
       "invalid": "Invalid date",
       "yesterday": "Yesterday"
+    },
+    "scheduledRun": {
+      "active": "Scheduled task '{taskName}' is running",
+      "description": "Follow the run live or stop it if you need to interrupt the agent.",
+      "stop": "Stop Run",
+      "stopping": "Stopping...",
+      "cancelled": "Scheduled run cancelled",
+      "cancelError": "Failed to cancel run",
+      "startedAt": "Started at {time}"
     }
   },
   "usage": {
@@ -1324,6 +1334,191 @@
         "runNotFound": "Run not found",
         "failedToLoad": "Failed to load run"
       }
+    }
+  },
+  "schedules": {
+    "title": "Scheduled Tasks",
+    "description": "Automate {name} to run tasks on a schedule",
+    "create": "New Schedule",
+    "retry": "Retry",
+    "empty": {
+      "title": "No scheduled tasks yet",
+      "description": "Create a schedule to automate your agent",
+      "action": "Create Schedule"
+    },
+    "card": {
+      "enabled": "Active",
+      "disabled": "Paused",
+      "priority": {
+        "high": "High",
+        "normal": "Normal",
+        "low": "Low"
+      },
+      "cronDefault": "Custom schedule",
+      "intervalMinutes": "Every {minutes} minutes",
+      "onceDefault": "One-time",
+      "lastRun": "Last run",
+      "runNow": "Run Now",
+      "history": "History",
+      "recentRuns": "Recent Runs",
+      "viewChat": "View Chat",
+      "continueChat": "Continue",
+      "noSession": "No session created"
+    },
+    "form": {
+      "createTitle": "Create Schedule",
+      "editTitle": "Edit Schedule",
+      "name": "Name",
+      "namePlaceholder": "e.g., Daily Report",
+      "description": "Description",
+      "descriptionPlaceholder": "What does this schedule do?",
+      "scheduleType": "Schedule Type",
+      "types": {
+        "cron": "Cron Expression",
+        "interval": "Fixed Interval",
+        "once": "One-time"
+      },
+      "intervalMinutes": "Interval (minutes)",
+      "scheduledAt": "Run At",
+      "timezone": "Timezone",
+      "timezoneLocal": "Local Time ({timezone})",
+      "timezoneDetected": "Detected from your device",
+      "timezoneLocalNote": "Task will run at this time in your current timezone",
+      "timezoneExplicitNote": "Task will always run in {timezone}, regardless of your location",
+      "timezoneChanged": "Your timezone has changed from {oldTimezone} to {newTimezone}. Update this schedule?",
+      "prompt": "Prompt",
+      "promptPlaceholder": "What should the agent do when this schedule runs?",
+      "promptHint": "This prompt will be sent to the agent when the schedule triggers",
+      "priority": "Priority",
+      "priorities": {
+        "high": "High",
+        "normal": "Normal",
+        "low": "Low"
+      },
+      "maxRetries": "Max Retries",
+      "create": "Create Schedule",
+      "save": "Save Changes",
+      "validation": {
+        "required": "Name and prompt are required",
+        "failed": "Failed to save schedule"
+      }
+    },
+    "cron": {
+      "label": "Schedule",
+      "expression": "Expression",
+      "presets": {
+        "everyMinute": "Every minute",
+        "everyHour": "Every hour",
+        "daily": "Daily at 9 AM",
+        "weekly": "Weekly on Monday",
+        "monthly": "Monthly on the 1st",
+        "custom": "Custom"
+      },
+      "parts": {
+        "minute": "Min",
+        "hour": "Hour",
+        "dayOfMonth": "Day",
+        "month": "Month",
+        "dayOfWeek": "Weekday"
+      },
+      "readable": {
+        "everyMinute": "Runs every minute",
+        "everyHour": "Runs every hour at minute 0",
+        "dailyAt": "Runs daily at {hour}:00",
+        "weeklyAt": "Runs every {day} at {hour}:00",
+        "monthlyAt": "Runs on day {day} of each month at {hour}:00",
+        "custom": "Custom schedule"
+      }
+    },
+    "presets": {
+      "title": "Quick Start Templates",
+      "subtitle": "Choose a template to get started quickly",
+      "useTemplate": "Use Template",
+      "requiresIntegration": "Requires {integration} integration",
+      "estimatedTime": "~{duration}",
+      "categories": {
+        "productivity": "Productivity",
+        "development": "Development",
+        "communication": "Communication",
+        "analytics": "Analytics"
+      }
+    },
+    "pause": {
+      "title": "Pause Schedule",
+      "resumeAt": "Resume automatically on",
+      "indefinite": "Leave empty to pause indefinitely",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "e.g., On vacation",
+      "button": "Pause Schedule",
+      "success": "Schedule paused",
+      "resumeSuccess": "Schedule resumed"
+    },
+    "bulk": {
+      "selected": "{count} selected",
+      "enableAll": "Enable All",
+      "disableAll": "Disable All",
+      "runAll": "Run All Now",
+      "deleteAll": "Delete All",
+      "confirmDelete": "Are you sure you want to delete {count} schedules?"
+    },
+    "cancel": {
+      "button": "Cancel",
+      "confirm": "Cancel this run?",
+      "success": "Run cancelled"
+    },
+    "delivery": {
+      "title": "Deliver Results To",
+      "methods": {
+        "session": "Chat Session Only",
+        "email": "Email",
+        "slack": "Slack",
+        "webhook": "Webhook"
+      },
+      "email": {
+        "recipients": "Recipients",
+        "recipientsPlaceholder": "email@example.com",
+        "subject": "Subject (optional)",
+        "includeTranscript": "Include full conversation"
+      },
+      "slack": {
+        "webhookUrl": "Webhook URL",
+        "webhookPlaceholder": "https://hooks.slack.com/...",
+        "mentionUsers": "Mention users (optional)",
+        "mentionPlaceholder": "U123ABC"
+      },
+      "webhook": {
+        "url": "Webhook URL",
+        "urlPlaceholder": "https://api.example.com/webhook",
+        "method": "HTTP Method",
+        "headers": "Custom Headers (JSON)",
+        "includeMetadata": "Include metadata"
+      }
+    },
+    "contextSources": {
+      "title": "Context Sources",
+      "addSource": "Add Source",
+      "types": {
+        "linear": "Linear Tickets",
+        "github": "GitHub Issues/PRs",
+        "api": "Custom API"
+      },
+      "injectAs": {
+        "label": "Inject as",
+        "prepend": "Prepend to prompt",
+        "append": "Append to prompt",
+        "variable": "Template variable"
+      },
+      "variableName": "Variable name"
+    },
+    "notifications": {
+      "taskRunning": "Scheduled task '{taskName}' is running",
+      "taskStartedAt": "Started at {time}",
+      "taskCompleted": "Task '{taskName}' completed",
+      "taskFailed": "Task '{taskName}' failed",
+      "viewTask": "View Task",
+      "viewDetails": "View Details",
+      "activeTasks": "{count} active task(s)",
+      "startedAgo": "Started {time}"
     }
   }
 }

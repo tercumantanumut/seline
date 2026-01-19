@@ -133,6 +133,8 @@ export interface SynthesisRequest {
   searchHistory: SearchHistoryEntry[];
   /** Allowed folder paths for the readFile tool (synced folders) */
   allowedFolderPaths: string[];
+  /** Optional file tree summary to help the LLM understand workspace structure */
+  fileTreeSummary?: string | null;
 }
 
 export interface RawSearchResult {

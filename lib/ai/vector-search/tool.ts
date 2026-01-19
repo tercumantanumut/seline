@@ -16,6 +16,7 @@ import { searchWithRouter, type VectorSearchHit, getSyncFolders } from "@/lib/ve
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getVectorSearchSession, addSearchHistory, getSearchHistory } from "./session-store";
 import { synthesizeSearchResults } from "./synthesizer";
+import { getFileTreeSummaryForSearch } from "./file-tree-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import type {
@@ -49,9 +50,9 @@ const vectorSearchSchema = jsonSchema<{
     maxResults: {
       type: "number",
       minimum: 1,
-      maximum: 100,
+      maximum: 150,
       default: 50,
-      description: "Maximum number of results to return (default: 50)",
+      description: "Maximum number of results to return (default: 50, may increase up to 150 when you need broader coverage)",
     },
     minScore: {
       type: "number",
@@ -149,7 +150,8 @@ async function executeVectorSearch(
   ).trim();
 
   // Normalize maxResults
-  const maxResults = Number(args.maxResults || rawArgs.limit || rawArgs.topK) || 50;
+  const requestedMaxResults = Number(args.maxResults || rawArgs.limit || rawArgs.topK) || 50;
+  const maxResults = Math.max(1, Math.min(requestedMaxResults, 150));
 
   // Normalize minScore
   const minScore = Number(args.minScore || rawArgs.threshold || rawArgs.minSimilarity) || 0.1;
@@ -288,6 +290,7 @@ async function executeVectorSearch(
   // Get synced folder paths for the readFile tool
   const syncedFolders = await getSyncFolders(characterId);
   const allowedFolderPaths = syncedFolders.map(f => f.folderPath);
+  const fileTreeSummary = await getFileTreeSummaryForSearch(characterId);
 
   // Synthesize results using secondary LLM
   const synthesisResult = await synthesizeSearchResults({
@@ -297,6 +300,7 @@ async function executeVectorSearch(
     rawResults,
     searchHistory,
     allowedFolderPaths,
+    fileTreeSummary,
   });
 
   if (!synthesisResult.success) {
@@ -384,19 +388,25 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
   return tool({
     description: `Intelligent semantic + keyword hybrid search across your indexed codebase folders.
 
-**How to craft effective queries:**
-- **Exact file/folder names:** Include the exact name, e.g., "generate-lesson-with-audio index.ts"
-- **Function/class names:** Use the identifier, e.g., "searchVectorDB function"
-- **Code patterns:** Describe the pattern, e.g., "Deno.serve async request handler"
-- **Semantic concepts:** Describe what it does, e.g., "retry logic for failed audio generation"
-- **Error messages:** Include error text, e.g., "4096 character limit string too long"
-- **Combine terms:** Mix keywords + concepts, e.g., "supabase edge function audio generation TTS"
+**Question-first queries (required):**
+- Always format \`query\` as a short, precise question containing the important keywords (e.g., "Where is habit reminders cron completed today timezone handled?").
+- Ask for flows, handlers, files, or explanations rather than listing single words or comma-separated terms.
+- You may run multiple question-form searches to cover different angles, but limit yourself to 5 per user request and stop once you have the needed context.
+
+**How to craft effective question queries:**
+- **Exact file/folder names:** "Which file defines generate-lesson-with-audio index.ts?"
+- **Function/class names:** "Where is the searchVectorDB function implemented?"
+- **Code patterns:** "How does the Deno.serve async request handler work for uploads?"
+- **Semantic concepts:** "Why does the retry logic for failed audio generation run 3 times?"
+- **Error messages:** "Where is the \"4096 character limit string too long\" error thrown?"
+- **Combined terms:** "Show me how the supabase edge function handles audio generation TTS."
 
 **Query tips:**
-- More specific = better results (include file names, function names, error messages)
-- Use multiple related terms together
-- Technical terms work well (e.g., "OpenAI TTS", "Deno.serve", "maxRetries")
-- Don't use single generic words alone
+- Keep each question <= 1–2 sentences, including concrete identifiers.
+- Prefer multi-term questions over generic prompts.
+- Technical phrases are encouraged (e.g., "OpenAI TTS stream", "Deno.serve POST", "maxRetries loop").
+- Avoid bare keywords or vague phrases like "database issue".
+- Default \`maxResults\` is 50. Increase it (up to 150) only when you explicitly need broader coverage for the secondary LLM.
 
 **Capabilities:**
 - Hybrid search: semantic understanding + keyword matching
@@ -404,10 +414,10 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
 - Organized findings with confidence scores
 
 **Example queries:**
-- "generate-lesson-with-audio edge function" (exact folder name)
-- "client.audio.speech.create TTS API call" (API pattern)
-- "retry 3 times after failure audio generation" (implementation detail)
-- "prompts table lesson audio script generation" (database schema)
+- "Where is the generate-lesson-with-audio edge function defined?"
+- "How does client.audio.speech.create call the TTS API?"
+- "Where is the retry 3 times after failure logic for audio generation?"
+- "Which file builds the prompts table for lesson audio script generation?"
 
 **Returns:** Organized findings with file locations, explanations, and confidence scores.`,
 

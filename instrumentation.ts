@@ -46,6 +46,17 @@ export async function register() {
       }
     }, 3000);
 
+    // Start scheduled task scheduler
+    setTimeout(async () => {
+      try {
+        const { startScheduler } = await import("@/lib/scheduler/scheduler-service");
+        await startScheduler();
+        console.log("[Instrumentation] Scheduler service started");
+      } catch (error) {
+        console.error("[Instrumentation] Error starting scheduler:", error);
+      }
+    }, 4000);
+
     console.log("[Instrumentation] Server-side services initialized");
   }
 }

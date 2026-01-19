@@ -54,6 +54,13 @@ export async function middleware(request: NextRequest) {
 
   // Detect locale and prepare to set header for i18n/request.ts
   const locale = detectLocale(request);
+  const schedulerSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+  const internalAuthHeader = request.headers.get("x-internal-auth");
+  const isScheduledRunHeader = request.headers.get("x-scheduled-run") === "true";
+  const isInternalSchedulerRequest =
+    pathname.startsWith("/api/") &&
+    internalAuthHeader === schedulerSecret &&
+    isScheduledRunHeader;
 
   // Check for session cookie
   const sessionId = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -62,7 +69,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 
   // If no session and trying to access protected route
-  if (!sessionId && !isPublicRoute) {
+  if (!sessionId && !isPublicRoute && !isInternalSchedulerRequest) {
     // For API routes, return 401
     if (pathname.startsWith("/api/")) {
       const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });

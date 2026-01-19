@@ -1,11 +1,42 @@
 import type { UIMessage } from "ai";
 
+type ToolInvocationState = "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
+
+export interface DBTextContentPart {
+  type: "text";
+  text: string;
+}
+
+export interface DBImageContentPart {
+  type: "image";
+  image: string;
+}
+
+export interface DBToolCallPart {
+  type: "tool-call";
+  toolCallId: string;
+  toolName: string;
+  args?: unknown;
+  argsText?: string;
+  state?: ToolInvocationState;
+}
+
+export interface DBToolResultPart {
+  type: "tool-result";
+  toolCallId: string;
+  toolName?: string;
+  result: unknown;
+  state?: Extract<ToolInvocationState, "output-available" | "output-error" | "output-denied">;
+  errorText?: string;
+  preliminary?: boolean;
+}
+
 // Database content part types
-type DBContentPart =
-  | { type: "text"; text: string }
-  | { type: "image"; image: string }
-  | { type: "tool-call"; toolCallId: string; toolName: string; args: unknown }
-  | { type: "tool-result"; toolCallId: string; toolName?: string; result: unknown };
+export type DBContentPart =
+  | DBTextContentPart
+  | DBImageContentPart
+  | DBToolCallPart
+  | DBToolResultPart;
 
 interface DBMessage {
   id: string;
@@ -25,7 +56,100 @@ interface DBMessage {
 type SimplePart =
   | { type: "text"; text: string }
   | { type: "file"; mediaType: string; url: string }
-  | { type: `tool-${string}`; toolCallId: string; state: "output-available"; input: unknown; output: unknown };
+  | {
+      type: `tool-${string}`;
+      toolCallId: string;
+      state: ToolInvocationState;
+      input?: unknown;
+      output?: unknown;
+      errorText?: string;
+      preliminary?: boolean;
+    };
+
+type ToolResultInfo = {
+  result?: unknown;
+  state?: ToolInvocationState;
+  errorText?: string;
+  toolName?: string;
+  preliminary?: boolean;
+};
+
+function cloneToolResultInfo(info: ToolResultInfo): ToolResultInfo {
+  return {
+    result: info.result,
+    state: info.state,
+    errorText: info.errorText,
+    toolName: info.toolName,
+    preliminary: info.preliminary,
+  };
+}
+
+function buildUIPartsFromDBContent(
+  content: DBContentPart[],
+  fallbackResults?: Map<string, ToolResultInfo>
+): SimplePart[] {
+  if (!Array.isArray(content) || content.length === 0) {
+    return [];
+  }
+
+  const toolResults = new Map<string, ToolResultInfo>();
+  if (fallbackResults) {
+    for (const [id, info] of fallbackResults) {
+      toolResults.set(id, cloneToolResultInfo(info));
+    }
+  }
+
+  for (const part of content) {
+    if (part.type === "tool-result") {
+      toolResults.set(part.toolCallId, {
+        result: part.result,
+        state: part.state ?? (part.errorText ? "output-error" : "output-available"),
+        errorText: part.errorText,
+        toolName: part.toolName,
+        preliminary: part.preliminary,
+      });
+    }
+  }
+
+  const parts: SimplePart[] = [];
+
+  for (const part of content) {
+    if (part.type === "text" && part.text?.trim()) {
+      parts.push({ type: "text", text: part.text });
+    } else if (part.type === "image" && part.image) {
+      parts.push({
+        type: "file",
+        mediaType: "image/jpeg",
+        url: part.image,
+      });
+    } else if (part.type === "tool-call") {
+      const toolResult = toolResults.get(part.toolCallId);
+      const inferredState: ToolInvocationState =
+        toolResult?.state ||
+        part.state ||
+        (toolResult?.result !== undefined || toolResult?.errorText
+          ? "output-available"
+          : "input-available");
+
+      parts.push({
+        type: `tool-${part.toolName}` as `tool-${string}`,
+        toolCallId: part.toolCallId,
+        state: inferredState,
+        input: part.args ?? part.argsText,
+        output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
+        errorText: toolResult?.errorText,
+        preliminary: toolResult?.preliminary,
+      });
+    }
+  }
+
+  return parts;
+}
+
+export function convertContentPartsToUIParts(content: DBContentPart[]): UIMessage["parts"] {
+  const parts = buildUIPartsFromDBContent(content);
+  return parts as UIMessage["parts"];
+}
 
 /**
  * Convert a database message to UIMessage format for assistant-ui
@@ -41,39 +165,7 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
     return null;
   }
 
-  const parts: SimplePart[] = [];
-  const toolResults: Map<string, unknown> = new Map();
-
-  // First pass: collect tool results
-  for (const part of content) {
-    if (part.type === "tool-result") {
-      toolResults.set(part.toolCallId, part.result);
-    }
-  }
-
-  // Second pass: build parts
-  for (const part of content) {
-    if (part.type === "text" && part.text?.trim()) {
-      parts.push({ type: "text", text: part.text });
-    } else if (part.type === "image" && part.image) {
-      parts.push({
-        type: "file",
-        mediaType: "image/jpeg",
-        url: part.image,
-      });
-    } else if (part.type === "tool-call") {
-      const result = toolResults.get(part.toolCallId);
-      // Use typed tool format (tool-{toolName}) to match AI SDK streaming format
-      // This ensures AISDKMessageConverter extracts toolName correctly via type.replace("tool-", "")
-      parts.push({
-        type: `tool-${part.toolName}` as `tool-${string}`,
-        toolCallId: part.toolCallId,
-        state: "output-available",
-        input: part.args,
-        output: result ?? null,
-      });
-    }
-  }
+  const parts = buildUIPartsFromDBContent(content);
 
   if (parts.length === 0) {
     return null;
@@ -119,14 +211,20 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
 
   // First pass: collect all tool results from role="tool" messages
   // These are stored separately from the assistant message that made the tool call
-  const globalToolResults = new Map<string, unknown>();
+  const globalToolResults = new Map<string, ToolResultInfo>();
   for (const dbMsg of sortedMessages) {
     if (dbMsg.role === "tool") {
       const content = dbMsg.content as DBContentPart[];
       if (Array.isArray(content)) {
         for (const part of content) {
           if (part.type === "tool-result" && part.toolCallId) {
-            globalToolResults.set(part.toolCallId, part.result);
+            globalToolResults.set(part.toolCallId, {
+              result: part.result,
+              state: part.state,
+              errorText: part.errorText,
+              toolName: part.toolName,
+              preliminary: part.preliminary,
+            });
           }
         }
       }
@@ -134,7 +232,13 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
       if (dbMsg.toolCallId && Array.isArray(content) && content.length > 0) {
         const firstPart = content[0];
         if (firstPart.type === "tool-result") {
-          globalToolResults.set(dbMsg.toolCallId, firstPart.result);
+          globalToolResults.set(dbMsg.toolCallId, {
+            result: firstPart.result,
+            state: firstPart.state,
+            errorText: firstPart.errorText,
+            toolName: firstPart.toolName,
+            preliminary: firstPart.preliminary,
+          });
         }
       }
     }
@@ -155,44 +259,9 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
       continue;
     }
 
-    const parts: SimplePart[] = [];
+    const inlineParts = buildUIPartsFromDBContent(content, globalToolResults);
 
-    // Collect tool results within the same message (inline pattern)
-    const inlineToolResults = new Map<string, unknown>();
-    for (const part of content) {
-      if (part.type === "tool-result" && part.toolCallId) {
-        inlineToolResults.set(part.toolCallId, part.result);
-      }
-    }
-
-    // Build parts
-    for (const part of content) {
-      if (part.type === "text" && part.text?.trim()) {
-        parts.push({ type: "text", text: part.text });
-      } else if (part.type === "image" && part.image) {
-        parts.push({
-          type: "file",
-          mediaType: "image/jpeg",
-          url: part.image,
-        });
-      } else if (part.type === "tool-call") {
-        // Look up result: first check inline (same message), then global (separate tool message)
-        const result = inlineToolResults.get(part.toolCallId) ??
-                       globalToolResults.get(part.toolCallId) ??
-                       null;
-        // Use typed tool format (tool-{toolName}) to match AI SDK streaming format
-        // This ensures AISDKMessageConverter extracts toolName correctly via type.replace("tool-", "")
-        parts.push({
-          type: `tool-${part.toolName}` as `tool-${string}`,
-          toolCallId: part.toolCallId,
-          state: "output-available",
-          input: part.args,
-          output: result,
-        });
-      }
-    }
-
-    if (parts.length === 0) {
+    if (inlineParts.length === 0) {
       continue;
     }
 
@@ -210,7 +279,7 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
     result.push({
       id: dbMsg.id,
       role: dbMsg.role as "user" | "assistant",
-      parts: parts as UIMessage["parts"],
+      parts: inlineParts as UIMessage["parts"],
       metadata: Object.keys(customMetadata).length > 0 ? { custom: customMetadata } : undefined,
     } as UIMessage);
   }
@@ -278,4 +347,28 @@ function convertUIMessageToThreadMessageLike(msg: UIMessage): ThreadMessageLike 
  */
 export function convertToThreadMessageLike(messages: UIMessage[]): ThreadMessageLike[] {
   return messages.map(convertUIMessageToThreadMessageLike);
+}
+
+/**
+ * Generate a stable signature for content parts to detect meaningful changes.
+ * Used to prevent unnecessary re-renders during streaming.
+ */
+export function getContentPartsSignature(parts: DBContentPart[]): string {
+    if (!parts || parts.length === 0) return "";
+    
+    // Create a lightweight signature that captures meaningful changes
+    return parts.map(part => {
+        switch (part.type) {
+            case "text":
+                return `t:${part.text?.length || 0}:${part.text?.slice(-20) || ""}`;
+            case "tool-call":
+                return `tc:${part.toolCallId}:${part.state || "pending"}`;
+            case "tool-result":
+                return `tr:${part.toolCallId}:${part.state || "done"}`;
+            case "image":
+                return `i:${part.image?.slice(-20) || ""}`;
+            default:
+                return `u:${(part as any).type}`;
+        }
+    }).join("|");
 }
