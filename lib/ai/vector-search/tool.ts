@@ -384,19 +384,24 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
   return tool({
     description: `Intelligent semantic + keyword hybrid search across your indexed codebase folders.
 
-**How to craft effective queries:**
-- **Exact file/folder names:** Include the exact name, e.g., "generate-lesson-with-audio index.ts"
-- **Function/class names:** Use the identifier, e.g., "searchVectorDB function"
-- **Code patterns:** Describe the pattern, e.g., "Deno.serve async request handler"
-- **Semantic concepts:** Describe what it does, e.g., "retry logic for failed audio generation"
-- **Error messages:** Include error text, e.g., "4096 character limit string too long"
-- **Combine terms:** Mix keywords + concepts, e.g., "supabase edge function audio generation TTS"
+**Question-first queries (required):**
+- Always format \`query\` as a short, precise question containing the important keywords (e.g., "Where is habit reminders cron completed today timezone handled?").
+- Ask for flows, handlers, files, or explanations rather than listing single words or comma-separated terms.
+- You may run multiple question-form searches to cover different angles, but limit yourself to 5 per user request and stop once you have the needed context.
+
+**How to craft effective question queries:**
+- **Exact file/folder names:** "Which file defines generate-lesson-with-audio index.ts?"
+- **Function/class names:** "Where is the searchVectorDB function implemented?"
+- **Code patterns:** "How does the Deno.serve async request handler work for uploads?"
+- **Semantic concepts:** "Why does the retry logic for failed audio generation run 3 times?"
+- **Error messages:** "Where is the \"4096 character limit string too long\" error thrown?"
+- **Combined terms:** "Show me how the supabase edge function handles audio generation TTS."
 
 **Query tips:**
-- More specific = better results (include file names, function names, error messages)
-- Use multiple related terms together
-- Technical terms work well (e.g., "OpenAI TTS", "Deno.serve", "maxRetries")
-- Don't use single generic words alone
+- Keep each question <= 1–2 sentences, including concrete identifiers.
+- Prefer multi-term questions over generic prompts.
+- Technical phrases are encouraged (e.g., "OpenAI TTS stream", "Deno.serve POST", "maxRetries loop").
+- Avoid bare keywords or vague phrases like "database issue".
 
 **Capabilities:**
 - Hybrid search: semantic understanding + keyword matching
@@ -404,10 +409,10 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
 - Organized findings with confidence scores
 
 **Example queries:**
-- "generate-lesson-with-audio edge function" (exact folder name)
-- "client.audio.speech.create TTS API call" (API pattern)
-- "retry 3 times after failure audio generation" (implementation detail)
-- "prompts table lesson audio script generation" (database schema)
+- "Where is the generate-lesson-with-audio edge function defined?"
+- "How does client.audio.speech.create call the TTS API?"
+- "Where is the retry 3 times after failure logic for audio generation?"
+- "Which file builds the prompts table for lesson audio script generation?"
 
 **Returns:** Organized findings with file locations, explanations, and confidence scores.`,
 
