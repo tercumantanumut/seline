@@ -7,6 +7,7 @@
 export { ScheduleList } from "./schedule-list";
 export { ScheduleCard } from "./schedule-card";
 export { ScheduleForm } from "./schedule-form";
+export { FilterBar, type StatusFilter, type PriorityFilter } from "./filter-bar";
 export { CronBuilder } from "./cron-builder";
 export { PresetSelector } from "./preset-selector";
 export { PresetCard } from "./preset-card";

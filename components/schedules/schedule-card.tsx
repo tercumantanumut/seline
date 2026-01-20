@@ -5,10 +5,6 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   Clock,
-  Play,
-  Pause,
-  Pencil,
-  Trash2,
   PlayCircle,
   CheckCircle,
   XCircle,
@@ -18,11 +14,13 @@ import {
   ChevronUp,
   MessageSquare,
   ExternalLink,
-  Globe
+  Globe,
+  Pencil,
+  Trash2,
+  History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { AnimatedCard } from "@/components/ui/animated-card";
 import { cn } from "@/lib/utils";
 import { parseTimezoneValue, formatTimezoneDisplay } from "@/lib/hooks/use-local-timezone";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
@@ -128,50 +126,51 @@ export function ScheduleCard({
 
   const lastRun = schedule.runs?.[0];
   const recentRuns = schedule.runs?.slice(0, 5) || [];
+  const isInactive = !schedule.enabled;
 
   return (
-    <AnimatedCard
+    <div
       className={cn(
-        "bg-terminal-cream transition-all duration-500",
-        isHighlighted && "ring-2 ring-terminal-green ring-offset-2 shadow-lg"
+        "group bg-terminal-cream rounded-lg border border-terminal-border/30 hover:border-terminal-green/50 transition-all duration-200 overflow-hidden",
+        isHighlighted && "ring-2 ring-terminal-green ring-offset-2 shadow-lg",
+        isInactive && "opacity-75"
       )}
     >
-      <div className="p-4">
-        {/* Header */}
+      {/* Main Content */}
+      <div className="p-6">
+        {/* Header: Title + Badges + Toggle */}
         <div className="flex items-start justify-between gap-4 mb-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold font-mono text-terminal-dark truncate">
-                {schedule.name}
-              </h3>
-              <span
-                className={cn(
-                  "px-2 py-0.5 text-xs font-mono rounded",
-                  schedule.enabled
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-500"
-                )}
-              >
-                {schedule.enabled ? t("enabled") : t("disabled")}
-              </span>
-              <span
-                className={cn(
-                  "px-2 py-0.5 text-xs font-mono rounded",
-                  schedule.priority === "high"
-                    ? "bg-red-100 text-red-700"
-                    : schedule.priority === "low"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-100 text-gray-600"
-                )}
-              >
-                {t(`priority.${schedule.priority}`)}
-              </span>
-            </div>
-            {schedule.description && (
-              <p className="text-sm font-mono text-terminal-muted mt-1 line-clamp-2">
-                {schedule.description}
-              </p>
-            )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3
+              className={cn(
+                "text-lg font-semibold font-mono tracking-tight",
+                isInactive ? "text-terminal-muted" : "text-terminal-dark"
+              )}
+            >
+              {schedule.name}
+            </h3>
+            <span
+              className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded text-xs font-mono",
+                schedule.enabled
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+              )}
+            >
+              {schedule.enabled ? t("enabled") : t("disabled")}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border border-terminal-border/30",
+                schedule.priority === "high"
+                  ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                  : schedule.priority === "low"
+                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+              )}
+            >
+              {t(`priority.${schedule.priority}`)}
+            </span>
           </div>
           <Switch
             checked={schedule.enabled}
@@ -180,116 +179,153 @@ export function ScheduleCard({
           />
         </div>
 
+        {/* Description */}
+        {schedule.description && (
+          <p
+            className={cn(
+              "text-sm mb-4",
+              isInactive ? "text-terminal-muted/70" : "text-terminal-muted"
+            )}
+          >
+            {schedule.description}
+          </p>
+        )}
+
         {/* Schedule Info */}
-        <div className="flex items-center gap-4 text-sm font-mono text-terminal-muted mb-3">
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4" />
-            <span>{getScheduleDescription()}</span>
-          </div>
+        <div
+          className={cn(
+            "flex items-center gap-2 text-xs font-mono mb-4",
+            isInactive ? "text-terminal-muted/60" : "text-terminal-muted"
+          )}
+        >
+          <Clock className="h-4 w-4" />
+          <span>{getScheduleDescription()}</span>
           {schedule.timezone && schedule.timezone !== "UTC" && (
-            <span className="flex items-center gap-1 text-xs">
-              {isLocalTimezone && <Globe className="h-3 w-3 text-blue-500" />}
-              ({getTimezoneDisplay()})
-            </span>
+            <>
+              {isLocalTimezone && <Globe className="h-3 w-3 text-blue-500 ml-2" />}
+              <span>({getTimezoneDisplay()})</span>
+            </>
           )}
         </div>
 
-        {/* Prompt Preview */}
-        <div className="bg-terminal-dark/5 rounded p-3 mb-3">
-          <p className="text-sm font-mono text-terminal-dark line-clamp-2">
+        {/* Code Block - Prompt Preview */}
+        <div
+          className={cn(
+            "bg-terminal-dark/5 dark:bg-terminal-dark/20 rounded-md p-3 mb-4 border border-terminal-border/20 overflow-x-auto custom-code-scrollbar",
+            isInactive && "opacity-70"
+          )}
+        >
+          <code
+            className={cn(
+              "text-xs font-mono whitespace-pre-wrap break-words line-clamp-3",
+              isInactive ? "text-terminal-muted" : "text-terminal-dark dark:text-terminal-text"
+            )}
+          >
             {schedule.initialPrompt}
-          </p>
+          </code>
         </div>
 
         {/* Last Run Status */}
-        {lastRun && (
-          <div className="flex items-center justify-between text-sm font-mono mb-3">
-            <div className="flex items-center gap-2">
-              {getStatusIcon(lastRun.status)}
-              <span className="text-terminal-muted">
-                {t("lastRun")}: {new Date(lastRun.createdAt).toLocaleString()}
-              </span>
-              {lastRun.durationMs && (
-                <span className="text-xs text-terminal-muted/70">
-                  ({formatDuration(lastRun.durationMs)})
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-terminal-border/20">
+          <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
+            {lastRun ? (
+              <>
+                {getStatusIcon(lastRun.status)}
+                <span>
+                  {t("lastRun")}: {new Date(lastRun.createdAt).toLocaleString()}
                 </span>
-              )}
-            </div>
-            {lastRun.sessionId && (lastRun.status === "succeeded" || lastRun.status === "running") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleViewChat(lastRun.sessionId!)}
-                className="gap-1.5 font-mono text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-7 px-2"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                {t("viewChat")}
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-terminal-border">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTrigger}
-              disabled={triggering}
-              className="gap-1.5 font-mono"
-            >
-              {triggering ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <PlayCircle className="h-3.5 w-3.5" />
-              )}
-              {t("runNow")}
-            </Button>
-            {recentRuns.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHistory(!showHistory)}
-                className="gap-1.5 font-mono text-terminal-muted"
-              >
-                {showHistory ? (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
+                {lastRun.durationMs && (
+                  <span className="text-terminal-muted/70">
+                    ({formatDuration(lastRun.durationMs)})
+                  </span>
                 )}
-                {t("history")}
-              </Button>
+              </>
+            ) : (
+              <>
+                <History className="h-4 w-4 text-terminal-muted/50" />
+                <span className="text-terminal-muted/70">{t("neverRun")}</span>
+              </>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          {lastRun?.sessionId && (lastRun.status === "succeeded" || lastRun.status === "running") && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={onEdit}
-              className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-dark"
+              onClick={() => handleViewChat(lastRun.sessionId!)}
+              className="gap-1.5 font-mono text-terminal-green hover:text-terminal-green/80 hover:bg-terminal-green/10 h-7 px-2 text-xs"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <MessageSquare className="h-3.5 w-3.5" />
+              {t("viewChat")}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              className="h-8 w-8 p-0 text-terminal-muted hover:text-red-500"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Run History */}
-        {showHistory && recentRuns.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-terminal-border">
-            <p className="text-xs font-mono text-terminal-muted mb-2">{t("recentRuns")}</p>
-            <div className="space-y-2">
-              {recentRuns.map((run) => {
-                const isRunHighlighted = highlightRunId === run.id;
-                return (
+      {/* Footer Action Bar */}
+      <div className="bg-terminal-cream-dark/30 dark:bg-terminal-dark/10 px-6 py-2 border-t border-terminal-border/20 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTrigger}
+            disabled={triggering || isInactive}
+            className={cn(
+              "gap-1.5 font-mono text-xs h-8",
+              isInactive && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {triggering ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PlayCircle className="h-3.5 w-3.5" />
+            )}
+            {t("runNow")}
+          </Button>
+          {recentRuns.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHistory(!showHistory)}
+              className="gap-1.5 font-mono text-xs h-8 text-terminal-muted hover:text-terminal-dark"
+            >
+              <History className="h-3.5 w-3.5" />
+              {t("history")}
+              {showHistory ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className="h-8 w-8 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Run History (Expandable) */}
+      {showHistory && recentRuns.length > 0 && (
+        <div className="px-6 py-4 border-t border-terminal-border/20 bg-terminal-cream/50">
+          <p className="text-xs font-mono text-terminal-muted mb-3">{t("recentRuns")}</p>
+          <div className="space-y-2">
+            {recentRuns.map((run) => {
+              const isRunHighlighted = highlightRunId === run.id;
+              return (
                 <div
                   key={run.id}
                   className={cn(
@@ -322,7 +358,7 @@ export function ScheduleCard({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewChat(run.sessionId!)}
-                          className="gap-1 font-mono text-blue-600 hover:text-blue-700 hover:bg-blue-100 h-6 px-2 text-xs"
+                          className="gap-1 font-mono text-terminal-green hover:text-terminal-green/80 hover:bg-terminal-green/10 h-6 px-2 text-xs"
                         >
                           <MessageSquare className="h-3 w-3" />
                           {t("viewChat")}
@@ -339,11 +375,10 @@ export function ScheduleCard({
                   )}
                 </div>
               );
-              })}
-            </div>
+            })}
           </div>
-        )}
-      </div>
-    </AnimatedCard>
+        </div>
+      )}
+    </div>
   );
 }

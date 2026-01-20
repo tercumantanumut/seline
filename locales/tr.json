@@ -1352,8 +1352,19 @@
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",
+    "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Tekrar Dene",
+    "filters": {
+      "search": "Zamanlamalarda ara...",
+      "allStatuses": "Tüm Durumlar",
+      "active": "Aktif",
+      "inactive": "Pasif",
+      "allPriorities": "Tüm Öncelikler",
+      "high": "Yüksek",
+      "normal": "Normal",
+      "low": "Düşük"
+    },
     "empty": {
       "title": "Henüz zamanlanmış görev yok",
       "description": "Ajanınızı otomatikleştirmek için bir zamanlama oluşturun",
@@ -1376,7 +1387,8 @@
       "recentRuns": "Son Çalışmalar",
       "viewChat": "Sohbeti Görüntüle",
       "continueChat": "Devam Et",
-      "noSession": "Oturum oluşturulmadı"
+      "noSession": "Oturum oluşturulmadı",
+      "neverRun": "Hiç çalıştırılmadı"
     },
     "form": {
       "createTitle": "Zamanlama Oluştur",

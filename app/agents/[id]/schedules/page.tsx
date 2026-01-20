@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertCircle, Calendar } from "lucide-react";
+import { Loader2, AlertCircle, Plus } from "lucide-react";
 import { ScheduleList } from "@/components/schedules/schedule-list";
 import { useTranslations } from "next-intl";
 
@@ -27,6 +27,7 @@ export default function AgentSchedulesPage({
   const [character, setCharacter] = useState<CharacterBasic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   // Load character info
   useEffect(() => {
@@ -77,30 +78,44 @@ export default function AgentSchedulesPage({
     );
   }
 
+  const agentName = character?.displayName || character?.name || "Agent";
+
   return (
     <Shell>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-terminal-border bg-terminal-cream/80 backdrop-blur-sm px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-terminal-green" />
-            <h1 className="text-lg font-semibold font-mono text-terminal-dark">
-              {t("title")}
-            </h1>
-            {character && (
-              <span className="text-terminal-muted font-mono">
-                - {character.displayName || character.name}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
+        {/* Content with Header */}
         <ScrollArea className="flex-1">
-          <div className="p-6">
+          <div className="px-6 py-8">
+            {/* Header */}
+            <header className="mb-8">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  {/* Title */}
+                  <h1 className="text-2xl font-mono font-bold text-terminal-dark">
+                    {t("title")}
+                  </h1>
+                  {/* Description */}
+                  <p className="mt-1 text-sm text-terminal-muted max-w-2xl">
+                    {t("pageDescription", { name: agentName })}
+                  </p>
+                </div>
+                {/* New Schedule Button */}
+                <Button
+                  onClick={() => setShowForm(true)}
+                  className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t("create")}
+                </Button>
+              </div>
+            </header>
+
+            {/* Schedule List */}
             <ScheduleList
               characterId={characterId}
-              characterName={character?.displayName || character?.name}
+              characterName={agentName}
+              showForm={showForm}
+              onFormClose={() => setShowForm(false)}
             />
           </div>
         </ScrollArea>
@@ -108,4 +123,3 @@ export default function AgentSchedulesPage({
     </Shell>
   );
 }
-

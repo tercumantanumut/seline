@@ -1350,8 +1350,19 @@
   "schedules": {
     "title": "Scheduled Tasks",
     "description": "Automate {name} to run tasks on a schedule",
+    "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",
+    "filters": {
+      "search": "Search schedules...",
+      "allStatuses": "All Statuses",
+      "active": "Active",
+      "inactive": "Inactive",
+      "allPriorities": "All Priorities",
+      "high": "High",
+      "normal": "Normal",
+      "low": "Low"
+    },
     "empty": {
       "title": "No scheduled tasks yet",
       "description": "Create a schedule to automate your agent",
@@ -1374,7 +1385,8 @@
       "recentRuns": "Recent Runs",
       "viewChat": "View Chat",
       "continueChat": "Continue",
-      "noSession": "No session created"
+      "noSession": "No session created",
+      "neverRun": "Never run"
     },
     "form": {
       "createTitle": "Create Schedule",
