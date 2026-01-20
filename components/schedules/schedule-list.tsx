@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { ScheduleCard } from "./schedule-card";
 import { ScheduleForm } from "./schedule-form";
+import { PresetSelector } from "./preset-selector";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
+import { SchedulePreset } from "@/lib/scheduler/presets/types";
 
 interface ScheduleListProps {
   characterId: string;
@@ -32,6 +34,8 @@ export function ScheduleList({ characterId, characterName }: ScheduleListProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [creationStep, setCreationStep] = useState<"preset" | "form">("preset");
+  const [prefilledData, setPrefilledData] = useState<Partial<ScheduledTask> | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleWithRuns | null>(null);
 
   // URL params for highlighting
@@ -128,6 +132,29 @@ export function ScheduleList({ characterId, characterName }: ScheduleListProps) 
     await handleUpdate(id, { enabled });
   };
 
+  const handleStartCreate = () => {
+    setCreationStep("preset");
+    setPrefilledData(null);
+    setShowForm(true);
+  };
+
+  const handlePresetSelect = (preset: SchedulePreset) => {
+    setPrefilledData({
+      name: preset.name,
+      description: preset.description,
+      cronExpression: preset.defaults.cronExpression,
+      timezone: preset.defaults.timezone || undefined,
+      initialPrompt: preset.defaults.initialPrompt,
+      scheduleType: "cron",
+    });
+    setCreationStep("form");
+  };
+
+  const handleSkipPresets = () => {
+    setPrefilledData(null);
+    setCreationStep("form");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -161,7 +188,7 @@ export function ScheduleList({ characterId, characterName }: ScheduleListProps) 
           </p>
         </div>
         <Button
-          onClick={() => setShowForm(true)}
+          onClick={handleStartCreate}
           className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-terminal-cream font-mono"
         >
           <Plus className="h-4 w-4" />
@@ -169,13 +196,33 @@ export function ScheduleList({ characterId, characterName }: ScheduleListProps) 
         </Button>
       </div>
 
-      {/* Create Form */}
+      {/* Create Flow */}
       {showForm && (
-        <ScheduleForm
-          characterId={characterId}
-          onSubmit={handleCreate}
-          onCancel={() => setShowForm(false)}
-        />
+        <div className="space-y-6">
+          {creationStep === "preset" ? (
+            <div className="bg-terminal-cream/50 p-6 rounded-xl border border-border">
+              <PresetSelector
+                onSelectPreset={handlePresetSelect}
+                onSkip={handleSkipPresets}
+              />
+              <div className="mt-6 flex justify-center">
+                <Button variant="ghost" onClick={() => setShowForm(false)} className="font-mono text-sm">
+                  {t("form.cancel") || "Cancel"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <ScheduleForm
+              characterId={characterId}
+              schedule={prefilledData || undefined}
+              onSubmit={handleCreate}
+              onCancel={() => {
+                setShowForm(false);
+                setCreationStep("preset");
+              }}
+            />
+          )}
+        </div>
       )}
 
       {/* Edit Form */}
@@ -198,7 +245,7 @@ export function ScheduleList({ characterId, characterName }: ScheduleListProps) 
               <p className="text-sm font-mono text-terminal-muted">{t("empty.description")}</p>
             </div>
             <Button
-              onClick={() => setShowForm(true)}
+              onClick={handleStartCreate}
               variant="outline"
               className="gap-2 font-mono"
             >

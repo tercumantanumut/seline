@@ -1400,6 +1400,7 @@
       "maxRetries": "Maks Deneme",
       "create": "Zamanlama Oluştur",
       "save": "Değişiklikleri Kaydet",
+      "cancel": "İptal",
       "validation": {
         "required": "Ad ve komut gereklidir",
         "failed": "Zamanlama kaydedilemedi"
@@ -1436,9 +1437,19 @@
       "title": "Hızlı Başlangıç Şablonları",
       "subtitle": "Hızlıca başlamak için bir şablon seçin",
       "useTemplate": "Şablonu Kullan",
+      "createFromScratch": "Veya sıfırdan oluşturun →",
       "requiresIntegration": "{integration} entegrasyonu gerektirir",
+      "alternativeAvailable": "Bunun yerine {method} kullanılacak",
       "estimatedTime": "~{duration}",
+      "help": {
+        "whatArePresets": "Zamanlama şablonları nedir?",
+        "explanation": "Şablonlar, yaygın iş akışları için tasarlanmış önceden yapılandırılmış zamanlamalardır. Optimize edilmiş zamanlama, komutlar ve ayarlar içerirler.",
+        "benefit1": "En iyi sonuçlar için önceden yapılandırılmış zamanlama",
+        "benefit2": "Uzmanlarca hazırlanmış yapay zeka komutları",
+        "benefit3": "Seçimden sonra tamamen özelleştirilebilir"
+      },
       "categories": {
+        "all": "Tüm Şablonlar",
         "productivity": "Verimlilik",
         "development": "Geliştirme",
         "communication": "İletişim",

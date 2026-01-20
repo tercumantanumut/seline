@@ -1398,6 +1398,7 @@
       "maxRetries": "Max Retries",
       "create": "Create Schedule",
       "save": "Save Changes",
+      "cancel": "Cancel",
       "validation": {
         "required": "Name and prompt are required",
         "failed": "Failed to save schedule"
@@ -1434,9 +1435,19 @@
       "title": "Quick Start Templates",
       "subtitle": "Choose a template to get started quickly",
       "useTemplate": "Use Template",
+      "createFromScratch": "Or create from scratch →",
       "requiresIntegration": "Requires {integration} integration",
+      "alternativeAvailable": "Will use {method} instead",
       "estimatedTime": "~{duration}",
+      "help": {
+        "whatArePresets": "What are schedule presets?",
+        "explanation": "Presets are pre-configured schedule templates designed for common workflows. They include optimized timing, prompts, and settings.",
+        "benefit1": "Pre-configured timing for optimal results",
+        "benefit2": "Expertly crafted AI prompts",
+        "benefit3": "Fully customizable after selection"
+      },
       "categories": {
+        "all": "All Templates",
         "productivity": "Productivity",
         "development": "Development",
         "communication": "Communication",
