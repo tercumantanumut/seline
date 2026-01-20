@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Save, X, Plus, Loader2, Globe, ArrowLeft, CalendarClock } from "lucide-react";
+import { Save, X, Plus, Loader2, Globe, ArrowLeft, CalendarClock, HelpCircle, ChevronRight, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,17 @@ import { ScheduleSummaryCard } from "./schedule-summary-card";
 import { CronBuilder } from "./cron-builder";
 import { useLocalTimezone, parseTimezoneValue, formatTimezoneDisplay } from "@/lib/hooks/use-local-timezone";
 import { buildCronExpression, parseCronExpression } from "@/lib/utils/cron-helpers";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { TEMPLATE_VARIABLES } from "@/lib/scheduler/template-variables";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
 
 interface ScheduleFormFullPageProps {
@@ -89,6 +100,8 @@ export function ScheduleFormFullPage({
     );
     const [maxRetries, setMaxRetries] = useState(schedule?.maxRetries ?? 3);
 
+    const [showVariableHelp, setShowVariableHelp] = useState(false);
+
     // Check if current selection is a local timezone
     const isLocalTimezone = timezone.startsWith("local::");
     const { timezone: parsedTz } = parseTimezoneValue(timezone);
@@ -108,6 +121,34 @@ export function ScheduleFormFullPage({
             setCronExpression(buildCronFromUI());
         }
     }, [scheduleType, time, selectedDays, buildCronFromUI]);
+
+    const [isDirty, setIsDirty] = useState(false);
+    const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+
+    // Track changes
+    useEffect(() => {
+        const hasChanges =
+            name !== (schedule?.name ?? "") ||
+            description !== (schedule?.description ?? "") ||
+            prompt !== (schedule?.initialPrompt ?? "") ||
+            priority !== ((schedule?.priority as any) ?? "normal") ||
+            timezone !== (schedule?.timezone ?? (localValue ?? "UTC")) ||
+            effectiveCron !== (schedule?.cronExpression ?? existingCron);
+
+        setIsDirty(hasChanges);
+    }, [name, description, prompt, priority, timezone, effectiveCron, schedule, localValue, existingCron]);
+
+    // Prevent browser back with unsaved changes
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = "";
+            }
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [isDirty]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -148,7 +189,11 @@ export function ScheduleFormFullPage({
     };
 
     const handleCancel = () => {
-        router.push(`/agents/${characterId}/schedules`);
+        if (isDirty) {
+            setShowDiscardDialog(true);
+        } else {
+            router.push(`/agents/${characterId}/schedules`);
+        }
     };
 
     return (
@@ -159,11 +204,11 @@ export function ScheduleFormFullPage({
                     <button
                         type="button"
                         onClick={handleCancel}
-                        className="p-2 -ml-2 rounded-lg hover:bg-terminal-dark/10 text-terminal-muted transition-colors"
+                        className="p-2 -ml-2 rounded-lg hover:bg-terminal-dark/10 text-terminal-muted transition-colors translate-x-[10px] translate-y-[4px]"
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div>
+                    <div className="pl-[30px]">
                         <h2 className="text-xl font-bold tracking-tight font-mono text-terminal-dark">
                             {isEditing ? t("editTitle") : t("createTitle")}
                         </h2>
@@ -320,9 +365,55 @@ export function ScheduleFormFullPage({
                     <div className="p-6 md:p-8 flex-1 flex flex-col space-y-6">
                         {/* Section 3: Agent Instructions */}
                         <section className="flex-1 flex flex-col space-y-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <SectionHeader number={3} title={t("sections.instructions")} />
-                                <VariableChips onInsert={handleVariableInsert} />
+                            <div className="flex flex-col space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <SectionHeader number={3} title={t("sections.instructions")} />
+                                    <VariableChips onInsert={handleVariableInsert} />
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowVariableHelp(!showVariableHelp)}
+                                        className="flex items-center gap-1.5 text-xs text-terminal-muted hover:text-terminal-green transition-colors w-fit ml-8"
+                                    >
+                                        <HelpCircle className="w-3 h-3" />
+                                        <span>{t("variables.helpTitle")}</span>
+                                        {showVariableHelp ? (
+                                            <ChevronDown className="w-3 h-3" />
+                                        ) : (
+                                            <ChevronRight className="w-3 h-3" />
+                                        )}
+                                    </button>
+
+                                    {showVariableHelp && (
+                                        <div className="ml-8 p-4 bg-terminal-cream/50 rounded-lg border border-terminal-border space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold text-terminal-dark">{t("variables.helpTitle")}</p>
+                                                <p className="text-[11px] text-muted-foreground">{t("variables.helpDescription")}</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Categorize variables */}
+                                                {(["time", "context"] as const).map((category) => (
+                                                    <div key={category} className="space-y-2">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-terminal-muted border-b border-terminal-border/50 pb-1">
+                                                            {t(`variables.categories.${category}`)}
+                                                        </p>
+                                                        <div className="space-y-2">
+                                                            {TEMPLATE_VARIABLES.filter(v => v.category === category).map(v => (
+                                                                <div key={v.syntax} className="flex flex-col gap-0.5">
+                                                                    <code className="text-[11px] font-mono text-terminal-green">{v.syntax}</code>
+                                                                    <span className="text-[10px] text-muted-foreground leading-tight">{v.description}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex-1 min-h-[300px]">
@@ -404,6 +495,26 @@ export function ScheduleFormFullPage({
                     </Button>
                 </div>
             </div>
+            {/* Discard Changes Confirmation */}
+            <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
+                <AlertDialogContent className="font-mono">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">Unsaved Changes</AlertDialogTitle>
+                        <AlertDialogDescription className="text-terminal-muted">
+                            You have unsaved changes in this schedule. Are you sure you want to discard them and leave?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="font-mono">Stay and Edit</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => router.push(`/agents/${characterId}/schedules`)}
+                            className="bg-red-500 hover:bg-red-600 text-white font-mono"
+                        >
+                            Discard & Leave
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </form>
     );
 }

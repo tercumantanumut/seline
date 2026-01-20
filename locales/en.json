@@ -1480,7 +1480,13 @@
         "customSchedule": "Custom schedule"
       },
       "variables": {
-        "label": "Variables"
+        "label": "Variables",
+        "helpTitle": "How to use variables",
+        "helpDescription": "Variables are replaced with actual values when your schedule runs.",
+        "categories": {
+          "time": "Time Variables",
+          "context": "Context Variables"
+        }
       },
       "editor": {
         "prompt": "Prompt",

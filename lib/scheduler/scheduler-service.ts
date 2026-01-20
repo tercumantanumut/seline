@@ -63,9 +63,9 @@ export class SchedulerService {
    */
   async stop(): Promise<void> {
     if (!this.isRunning) return;
-    
+
     console.log("[Scheduler] Stopping scheduler service");
-    
+
     // Stop all cron jobs
     for (const [, job] of this.jobs) {
       job.stop();
@@ -80,7 +80,7 @@ export class SchedulerService {
 
     // Stop task queue
     await this.taskQueue.stop();
-    
+
     this.isRunning = false;
   }
 
@@ -164,6 +164,9 @@ export class SchedulerService {
   async triggerTask(taskId: string): Promise<void> {
     const task = await db.query.scheduledTasks.findFirst({
       where: eq(scheduledTasks.id, taskId),
+      with: {
+        character: true,
+      },
     });
 
     if (!task || !task.enabled) {
@@ -180,7 +183,11 @@ export class SchedulerService {
       scheduledFor: new Date().toISOString(),
       resolvedPrompt: this.resolvePromptVariables(
         task.initialPrompt,
-        (task.promptVariables as Record<string, string>) || {}
+        (task.promptVariables as Record<string, string>) || {},
+        {
+          agentName: task.character?.name || task.character?.displayName || "Agent",
+          lastRunAt: task.lastRunAt || undefined,
+        }
       ),
     }).returning();
 
@@ -211,7 +218,8 @@ export class SchedulerService {
    */
   private resolvePromptVariables(
     prompt: string,
-    variables: Record<string, string>
+    variables: Record<string, string>,
+    context: { agentName?: string; lastRunAt?: string } = {}
   ): string {
     const now = new Date();
     const yesterday = new Date(now);
@@ -225,6 +233,8 @@ export class SchedulerService {
       "{{LAST_30_DAYS}}": `${new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]} to ${now.toISOString().split("T")[0]}`,
       "{{WEEKDAY}}": now.toLocaleDateString("en-US", { weekday: "long" }),
       "{{MONTH}}": now.toLocaleDateString("en-US", { month: "long" }),
+      "{{AGENT_NAME}}": context.agentName || "Agent",
+      "{{LAST_RUN}}": context.lastRunAt || "Never",
     };
 
     let resolved = prompt;
