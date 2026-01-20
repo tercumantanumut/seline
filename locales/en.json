@@ -148,6 +148,8 @@
     "startNew": "Start new chat",
     "folders": "Folders",
     "configureTools": "Configure tools",
+    "mcpTools": "MCP Tools",
+    "mcpToolsTitle": "Configure MCP Tools",
     "toolsEnabled": "{count, plural, one {# tool enabled} other {# tools enabled}}",
     "empty": "No agents yet. Configure your first agent to get started.",
     "emptyTitle": "Create Your First Agent",
@@ -554,7 +556,9 @@
       "intro": "Start",
       "identity": "Identity",
       "capabilities": "Capabilities",
+      "mcpTools": "MCP Tools",
       "knowledge": "Knowledge",
+      "embeddingSetup": "Embeddings",
       "vectorSearch": "Vector Search",
       "preview": "Preview"
     },
@@ -741,7 +745,14 @@
       "connectDiscover": "Connect & Discover Tools",
       "connected": "Connected",
       "toolsCount": "{enabled}/{total} tools",
-      "continue": "Continue"
+      "continue": "Continue",
+      "loadingMode": {
+        "label": "Loading Mode",
+        "always": "Always",
+        "deferred": "Deferred",
+        "alwaysTooltip": "Tool loads immediately with every request (uses more tokens)",
+        "deferredTooltip": "Tool is discovered on-demand via searchTools (saves tokens)"
+      }
     },
     "style": {
       "question": "Choose a visual style for your agent...",

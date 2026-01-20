@@ -148,6 +148,8 @@
     "startNew": "Yeni sohbet başlat",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
+    "mcpTools": "MCP Araçları",
+    "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "toolsEnabled": "{count, plural, one {# araç etkin} other {# araç etkin}}",
     "empty": "Henüz ajan yok. Başlamak için ilk ajanınızı yapılandırın.",
     "emptyTitle": "İlk Ajanınızı Oluşturun",
@@ -556,7 +558,9 @@
       "intro": "Başla",
       "identity": "Kimlik",
       "capabilities": "Yetenekler",
+      "mcpTools": "MCP Araçları",
       "knowledge": "Bilgi",
+      "embeddingSetup": "Gömme Ayarları",
       "vectorSearch": "Vektör Arama",
       "preview": "Önizleme"
     },
@@ -841,7 +845,14 @@
       "connectDiscover": "Bağlan ve Araçları Keşfet",
       "connected": "Bağlı",
       "toolsCount": "{enabled}/{total} araç",
-      "continue": "Devam"
+      "continue": "Devam",
+      "loadingMode": {
+        "label": "Yükleme Modu",
+        "always": "Her Zaman",
+        "deferred": "Gerektiğinde",
+        "alwaysTooltip": "Araç her istekte hemen yüklenir (daha fazla token kullanır)",
+        "deferredTooltip": "Araç gerektiğinde searchTools ile keşfedilir (token tasarrufu)"
+      }
     }
   },
   "errors": {

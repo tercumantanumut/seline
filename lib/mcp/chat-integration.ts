@@ -1,11 +1,6 @@
-/**
- * MCP Chat Integration
- * 
- * Helper functions for loading and integrating MCP tools into the chat route.
- */
-
 import type { Tool } from "ai";
 import type { Character } from "@/lib/db/schema";
+import type { AgentMetadata } from "@/lib/characters/validation";
 import { MCPClientManager, resolveMCPConfig } from "@/lib/mcp/client-manager";
 import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
 import {
@@ -13,18 +8,31 @@ import {
     getMCPToolId,
     getMCPToolsForAgent,
     mcpToolToMetadata,
+    type MCPToolLoadingPreference,
 } from "@/lib/ai/tool-registry/mcp-tool-adapter";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
 /**
- * Load MCP tools for a specific character/agent
+ * Result structure for MCP tool loading with loading mode separation
+ */
+export interface MCPToolLoadResult {
+    /** All enabled MCP tools (both alwaysLoad and deferred) */
+    allTools: Record<string, Tool>;
+    /** Tool IDs that should be in initialActiveTools (alwaysLoad: true) */
+    alwaysLoadToolIds: string[];
+    /** Tool IDs that are deferred (discoverable via searchTools) */
+    deferredToolIds: string[];
+}
+
+/**
+ * Load MCP tools for a specific character/agent with loading mode support
  * Connects to configured MCP servers and creates AI SDK tool wrappers.
  * Also syncs with current config - disconnects servers no longer in config
  * and clears their tools from the registry.
  */
 export async function loadMCPToolsForCharacter(
     character?: Character
-): Promise<Record<string, Tool>> {
+): Promise<MCPToolLoadResult> {
     const settings = loadSettings();
     const manager = MCPClientManager.getInstance();
     const registry = ToolRegistry.getInstance();
@@ -32,12 +40,16 @@ export async function loadMCPToolsForCharacter(
 
     // Combine global and per-agent MCP configs
     const globalConfig = settings.mcpServers?.mcpServers || {};
-    const agentConfig = (character?.metadata as { mcpServers?: { mcpServers: Record<string, unknown> } })?.mcpServers?.mcpServers || {};
+    const metadata = character?.metadata as AgentMetadata | undefined;
+    const agentConfig = metadata?.mcpServers?.mcpServers || {};
     const combinedConfig = { ...globalConfig, ...agentConfig };
 
-    // Get enabled servers for this agent
-    const enabledServers = (character?.metadata as { enabledMcpServers?: string[] })?.enabledMcpServers;
-    const enabledTools = (character?.metadata as { enabledMcpTools?: string[] })?.enabledMcpTools;
+    // Get enabled servers and tools for this agent
+    const enabledServers = metadata?.enabledMcpServers;
+    const enabledTools = metadata?.enabledMcpTools;
+
+    // NEW: Get per-tool preferences
+    const mcpToolPreferences = metadata?.mcpToolPreferences ?? {};
 
     // Build set of servers that should be connected based on current config
     const configuredServerNames = new Set<string>(Object.keys(combinedConfig));
@@ -85,25 +97,44 @@ export async function loadMCPToolsForCharacter(
     // Get filtered MCP tools for this agent
     const mcpTools = getMCPToolsForAgent(enabledServers, enabledTools);
 
-    // Convert to AI SDK tools and register them
-    const tools: Record<string, Tool> = {};
+    // Convert to AI SDK tools with loading mode awareness
+    const allTools: Record<string, Tool> = {};
+    const alwaysLoadToolIds: string[] = [];
+    const deferredToolIds: string[] = [];
+
     for (const mcpTool of mcpTools) {
+        const toolKey = `${mcpTool.serverName}:${mcpTool.name}`;
         const toolId = getMCPToolId(mcpTool.serverName, mcpTool.name);
 
-        // Register with ToolRegistry for discovery (searchTools)
-        const metadata = mcpToolToMetadata(mcpTool);
-        // Factory that returns the wrapper
+        // Get per-tool preference (default: enabled with deferred loading)
+        const preference = mcpToolPreferences[toolKey] ?? {
+            enabled: true,
+            loadingMode: "deferred" as const,
+        };
+
+        // Skip disabled tools
+        if (!preference.enabled) {
+            continue;
+        }
+
+        // Register with ToolRegistry using preference-aware metadata
+        const metadata = mcpToolToMetadata(mcpTool, preference);
         const factory = () => createMCPToolWrapper(mcpTool);
         registry.register(toolId, metadata, factory);
 
-        tools[toolId] = createMCPToolWrapper(mcpTool);
+        allTools[toolId] = createMCPToolWrapper(mcpTool);
+
+        // Track by loading mode
+        if (preference.loadingMode === "always") {
+            alwaysLoadToolIds.push(toolId);
+        } else {
+            deferredToolIds.push(toolId);
+        }
     }
 
-    if (Object.keys(tools).length > 0) {
-        console.log(`[MCP] Loaded ${Object.keys(tools).length} MCP tools for character ${character?.name || "default"}`);
-    } else if (configuredServerNames.size === 0) {
-        console.log("[MCP] No MCP servers configured, no tools loaded");
+    if (Object.keys(allTools).length > 0) {
+        console.log(`[MCP] Loaded ${Object.keys(allTools).length} MCP tools (${alwaysLoadToolIds.length} always-load, ${deferredToolIds.length} deferred)`);
     }
 
-    return tools;
+    return { allTools, alwaysLoadToolIds, deferredToolIds };
 }

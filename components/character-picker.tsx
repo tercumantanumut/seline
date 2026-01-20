@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight, Plug } from "lucide-react";
 import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AnimatedCard } from "@/components/ui/animated-card";
@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
+import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -231,6 +232,12 @@ export function CharacterPicker() {
   const [folderManagerCharacter, setFolderManagerCharacter] = useState<CharacterSummary | null>(null);
   const [vectorDBEnabled, setVectorDBEnabled] = useState(false);
 
+  // MCP tools editor state
+  const [mcpToolEditorOpen, setMcpToolEditorOpen] = useState(false);
+  const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>>({});
+  const [mcpServers, setMcpServers] = useState<string[]>([]);
+  const [mcpTools, setMcpTools] = useState<string[]>([]);
+
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -379,6 +386,45 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save tools:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Open MCP tool editor for a character
+  const openMcpToolEditor = async (character: CharacterSummary) => {
+    setEditingCharacter(character);
+
+    // Load existing MCP preferences from character metadata
+    const metadata = character.metadata as any;
+    setMcpServers(metadata?.enabledMcpServers || []);
+    setMcpTools(metadata?.enabledMcpTools || []);
+    setMcpToolPreferences(metadata?.mcpToolPreferences || {});
+    setMcpToolEditorOpen(true);
+  };
+
+  // Save MCP tool selections
+  const saveMcpTools = async () => {
+    if (!editingCharacter) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/characters/${editingCharacter.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: {
+            enabledMcpServers: mcpServers,
+            enabledMcpTools: mcpTools,
+            mcpToolPreferences: mcpToolPreferences,
+          },
+        }),
+      });
+      if (response.ok) {
+        setMcpToolEditorOpen(false);
+        loadCharacters();
+      }
+    } catch (error) {
+      console.error("Failed to save MCP tools:", error);
     } finally {
       setIsSaving(false);
     }
@@ -563,6 +609,14 @@ export function CharacterPicker() {
                     <span>{t("folders")}</span>
                   </button>
                 )}
+                <button
+                  onClick={() => openMcpToolEditor(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-purple-500 transition-colors cursor-pointer"
+                  title={t("mcpToolsTitle")}
+                >
+                  <Plug className="w-3 h-3" />
+                  <span>{t("mcpTools")}</span>
+                </button>
               </div>
 
               <div className="px-4 pb-4 pt-0 flex gap-2">
@@ -711,41 +765,41 @@ export function CharacterPicker() {
                           const canToggle = dependenciesMet || isSelected;
 
                           return (
-                        <div
-                          key={tool.id}
-                          onClick={() => {
-                            if (!canToggle) return;
-                            toggleTool(tool.id);
-                          }}
-                          className={`flex items-start gap-2 p-2 rounded transition-colors ${canToggle ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${isSelected
-                            ? "bg-terminal-green/10 border border-terminal-green/30"
-                            : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"
-                            } ${warning ? "border border-terminal-amber/30" : ""}`}
-                        >
-                          <Checkbox
-                            id={`tool-${tool.id}`}
-                            checked={isSelected}
-                            onCheckedChange={() => toggleTool(tool.id)}
-                            disabled={!canToggle}
-                            className="mt-0.5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <Label
-                              htmlFor={`tool-${tool.id}`}
-                              className="font-mono text-xs text-terminal-dark cursor-pointer block truncate"
+                            <div
+                              key={tool.id}
+                              onClick={() => {
+                                if (!canToggle) return;
+                                toggleTool(tool.id);
+                              }}
+                              className={`flex items-start gap-2 p-2 rounded transition-colors ${canToggle ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${isSelected
+                                ? "bg-terminal-green/10 border border-terminal-green/30"
+                                : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"
+                                } ${warning ? "border border-terminal-amber/30" : ""}`}
                             >
-                              {t(`tools.${tool.id}.name`)}
-                            </Label>
-                            <p className="text-[10px] font-mono text-terminal-muted line-clamp-1">
-                              {t(`tools.${tool.id}.description`)}
-                            </p>
-                            {warning && (
-                              <div className="mt-1">
-                                <ToolDependencyBadge warning={warning} />
+                              <Checkbox
+                                id={`tool-${tool.id}`}
+                                checked={isSelected}
+                                onCheckedChange={() => toggleTool(tool.id)}
+                                disabled={!canToggle}
+                                className="mt-0.5"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <Label
+                                  htmlFor={`tool-${tool.id}`}
+                                  className="font-mono text-xs text-terminal-dark cursor-pointer block truncate"
+                                >
+                                  {t(`tools.${tool.id}.name`)}
+                                </Label>
+                                <p className="text-[10px] font-mono text-terminal-muted line-clamp-1">
+                                  {t(`tools.${tool.id}.description`)}
+                                </p>
+                                {warning && (
+                                  <div className="mt-1">
+                                    <ToolDependencyBadge warning={warning} />
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
+                            </div>
                           );
                         })()
                       ))}
@@ -816,6 +870,39 @@ export function CharacterPicker() {
             >
               {tc("close")}
             </AnimatedButton>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MCP Tools Editor Dialog */}
+      <Dialog open={mcpToolEditorOpen} onOpenChange={setMcpToolEditorOpen}>
+        <DialogContent className="sm:max-w-4xl bg-terminal-cream h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <Plug className="w-5 h-5 text-purple-500" />
+              {t("mcpToolsTitle")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {editingCharacter?.displayName || editingCharacter?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 relative">
+            {editingCharacter && (
+              <div className="absolute inset-0">
+                <MCPToolsPage
+                  enabledMcpServers={mcpServers}
+                  enabledMcpTools={mcpTools}
+                  mcpToolPreferences={mcpToolPreferences}
+                  onUpdate={(servers, tools, prefs) => {
+                    setMcpServers(servers);
+                    setMcpTools(tools);
+                    setMcpToolPreferences(prefs);
+                  }}
+                  onComplete={saveMcpTools}
+                />
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

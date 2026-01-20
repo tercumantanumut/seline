@@ -13,11 +13,22 @@ import { Loader2, Plug, ChevronDown, ChevronRight } from "lucide-react";
 import type { MCPTool } from "@/lib/mcp/types";
 import { useTranslations } from "next-intl";
 
+interface MCPToolPreference {
+    enabled: boolean;
+    loadingMode: "always" | "deferred";
+}
+
 interface MCPToolsPageProps {
     enabledMcpServers: string[];
     enabledMcpTools: string[];
-    onUpdate: (servers: string[], tools: string[]) => void;
+    mcpToolPreferences: Record<string, MCPToolPreference>;
+    onUpdate: (
+        servers: string[],
+        tools: string[],
+        preferences: Record<string, MCPToolPreference>
+    ) => void;
     onComplete: () => void;
+    onBack?: () => void;
 }
 
 interface GroupedTools {
@@ -35,8 +46,10 @@ interface MCPServerStatus {
 export function MCPToolsPage({
     enabledMcpServers,
     enabledMcpTools,
+    mcpToolPreferences,
     onUpdate,
     onComplete,
+    onBack,
 }: MCPToolsPageProps) {
     const t = useTranslations("characterCreation.mcpTools");
     const [tools, setTools] = useState<MCPTool[]>([]);
@@ -50,6 +63,16 @@ export function MCPToolsPage({
         new Set(enabledMcpTools)
     );
     const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
+
+    // NEW: Track per-tool preferences
+    const [toolPreferences, setToolPreferences] = useState<Record<string, MCPToolPreference>>(
+        mcpToolPreferences
+    );
+
+    // Sync preferences when prop changes
+    useEffect(() => {
+        setToolPreferences(mcpToolPreferences);
+    }, [mcpToolPreferences]);
 
     useEffect(() => {
         loadData();
@@ -65,7 +88,38 @@ export function MCPToolsPage({
             // Load tools
             const toolsRes = await fetch("/api/mcp/tools");
             const toolsData = await toolsRes.json();
-            setTools(toolsData.tools || []);
+            const loadedTools = toolsData.tools || [];
+            setTools(loadedTools);
+
+            // Initialize preferences for all discovered tools if not already set
+            const newPreferences = { ...toolPreferences };
+            const newSelectedServers = new Set(selectedServers);
+            const newSelectedTools = new Set(selectedTools);
+            let hasChanges = false;
+
+            loadedTools.forEach((tool: MCPTool) => {
+                const toolKey = `${tool.serverName}:${tool.name}`;
+
+                // If no preference exists, default to enabled with deferred loading
+                if (!(toolKey in newPreferences)) {
+                    newPreferences[toolKey] = { enabled: true, loadingMode: "deferred" };
+                    newSelectedTools.add(toolKey);
+                    newSelectedServers.add(tool.serverName);
+                    hasChanges = true;
+                }
+            });
+
+            if (hasChanges) {
+                setToolPreferences(newPreferences);
+                setSelectedServers(newSelectedServers);
+                setSelectedTools(newSelectedTools);
+                // Propagate to parent immediately
+                onUpdate(
+                    Array.from(newSelectedServers),
+                    Array.from(newSelectedTools),
+                    newPreferences
+                );
+            }
         } catch (error) {
             console.error("Failed to load MCP data:", error);
         } finally {
@@ -103,38 +157,81 @@ export function MCPToolsPage({
     const toggleServer = (serverName: string) => {
         const newServers = new Set(selectedServers);
         const newTools = new Set(selectedTools);
+        const newPreferences = { ...toolPreferences };
 
         if (newServers.has(serverName)) {
             // Disable server and all its tools
             newServers.delete(serverName);
             groupedTools[serverName].forEach(tool => {
-                newTools.delete(`${serverName}:${tool.name}`);
+                const toolKey = `${serverName}:${tool.name}`;
+                newTools.delete(toolKey);
+                // Mark as disabled in preferences
+                newPreferences[toolKey] = {
+                    ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                    enabled: false,
+                };
             });
         } else {
             // Enable server and all its tools
             newServers.add(serverName);
             groupedTools[serverName].forEach(tool => {
-                newTools.add(`${serverName}:${tool.name}`);
+                const toolKey = `${serverName}:${tool.name}`;
+                newTools.add(toolKey);
+                // Mark as enabled in preferences
+                newPreferences[toolKey] = {
+                    ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                    enabled: true,
+                };
             });
         }
 
         setSelectedServers(newServers);
         setSelectedTools(newTools);
-        onUpdate(Array.from(newServers), Array.from(newTools));
+        setToolPreferences(newPreferences);
+        onUpdate(Array.from(newServers), Array.from(newTools), newPreferences);
     };
 
     const toggleTool = (serverName: string, toolName: string) => {
-        const toolId = `${serverName}:${toolName}`;
+        const toolKey = `${serverName}:${toolName}`;
         const newTools = new Set(selectedTools);
+        const newPreferences = { ...toolPreferences };
 
-        if (newTools.has(toolId)) {
-            newTools.delete(toolId);
+        if (newTools.has(toolKey)) {
+            newTools.delete(toolKey);
+            // Mark as disabled in preferences
+            newPreferences[toolKey] = {
+                ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                enabled: false,
+            };
         } else {
-            newTools.add(toolId);
+            newTools.add(toolKey);
+            // Mark as enabled in preferences
+            newPreferences[toolKey] = {
+                ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                enabled: true,
+            };
         }
 
         setSelectedTools(newTools);
-        onUpdate(Array.from(selectedServers), Array.from(newTools));
+        setToolPreferences(newPreferences);
+        onUpdate(Array.from(selectedServers), Array.from(newTools), newPreferences);
+    };
+
+    // NEW: Toggle individual tool's loading mode
+    const toggleToolLoadingMode = (serverName: string, toolName: string) => {
+        const toolKey = `${serverName}:${toolName}`;
+        const currentPref = toolPreferences[toolKey] ?? { enabled: true, loadingMode: "deferred" as const };
+
+        const newPreferences = {
+            ...toolPreferences,
+            [toolKey]: {
+                ...currentPref,
+                loadingMode: currentPref.loadingMode === "always" ? "deferred" as const : "always" as const,
+            },
+        };
+
+        setToolPreferences(newPreferences);
+        onUpdate(Array.from(selectedServers), Array.from(selectedTools), newPreferences);
     };
 
     const toggleServerExpanded = (serverName: string) => {
@@ -184,126 +281,170 @@ export function MCPToolsPage({
     }
 
     return (
-        <div className="space-y-6 p-4">
-            <div>
-                <h2 className="font-mono text-lg font-semibold text-terminal-dark">
-                    {t("title")}
-                </h2>
-                <p className="mt-1 font-mono text-sm text-terminal-muted">
-                    {t("description")}
-                </p>
-            </div>
-
-            {/* Connect button if servers aren't connected */}
-            {hasConfiguredServers && serverNames.length === 0 && (
-                <div className="rounded-lg border border-terminal-border bg-terminal-cream/50 p-4">
-                    <p className="mb-3 font-mono text-sm text-terminal-muted">
-                        {t("serversNotConnected")}
+        <div className="flex h-full min-h-full flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8">
+            <div className="flex w-full max-w-4xl flex-1 flex-col gap-6 min-h-0">
+                {/* Header */}
+                <div className="space-y-2">
+                    <h2 className="font-mono text-lg font-semibold text-terminal-dark">
+                        {t("title")}
+                    </h2>
+                    <p className="font-mono text-sm text-terminal-muted">
+                        {t("description")}
                     </p>
-                    <button
-                        onClick={connectServers}
-                        disabled={isConnecting}
-                        className="rounded bg-terminal-green px-4 py-2 font-mono text-sm text-white hover:bg-terminal-green/90 disabled:opacity-50"
-                    >
-                        {isConnecting ? (
-                            <>
-                                <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                                {t("connecting")}
-                            </>
-                        ) : (
-                            t("connectDiscover")
-                        )}
-                    </button>
                 </div>
-            )}
 
-            {/* Server/Tool list */}
-            {serverNames.length > 0 && (
-                <div className="space-y-3">
-                    {serverNames.map((serverName) => {
-                        const serverTools = groupedTools[serverName];
-                        const isServerEnabled = selectedServers.has(serverName);
-                        const isExpanded = expandedServers.has(serverName);
-                        const enabledToolCount = serverTools.filter(t =>
-                            selectedTools.has(`${serverName}:${t.name}`)
-                        ).length;
-                        const serverStatus = status.find(s => s.serverName === serverName);
-
-                        return (
-                            <div key={serverName} className="rounded-lg border border-terminal-border bg-terminal-cream/50 overflow-hidden">
-                                {/* Server Header */}
-                                <div
-                                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-terminal-cream"
-                                    onClick={() => toggleServerExpanded(serverName)}
+                {/* Content Area - Scrollable */}
+                <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-5 pr-3">
+                        {/* Connect button if servers aren't connected */}
+                        {hasConfiguredServers && serverNames.length === 0 && (
+                            <div className="rounded-lg border border-terminal-border bg-terminal-cream/50 p-4 mb-4">
+                                <p className="mb-3 font-mono text-sm text-terminal-muted">
+                                    {t("serversNotConnected")}
+                                </p>
+                                <button
+                                    onClick={connectServers}
+                                    disabled={isConnecting}
+                                    className="rounded bg-terminal-green px-4 py-2 font-mono text-sm text-white hover:bg-terminal-green/90 disabled:opacity-50"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        {isExpanded ? (
-                                            <ChevronDown className="h-4 w-4 text-terminal-muted" />
-                                        ) : (
-                                            <ChevronRight className="h-4 w-4 text-terminal-muted" />
-                                        )}
-                                        <Checkbox
-                                            checked={isServerEnabled}
-                                            onCheckedChange={() => toggleServer(serverName)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="border-terminal-border"
-                                        />
-                                        <div className="flex items-center gap-2">
-                                            <Plug className="h-4 w-4 text-purple-500" />
-                                            <span className="font-mono font-semibold text-terminal-dark">{serverName}</span>
-                                            {serverStatus?.connected && (
-                                                <span className="text-xs text-terminal-green">● {t("connected")}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <Badge variant={isServerEnabled ? "default" : "secondary"} className="font-mono">
-                                        {t("toolsCount", { enabled: enabledToolCount, total: serverTools.length })}
-                                    </Badge>
-                                </div>
+                                    {isConnecting ? (
+                                        <>
+                                            <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                                            {t("connecting")}
+                                        </>
+                                    ) : (
+                                        t("connectDiscover")
+                                    )}
+                                </button>
+                            </div>
+                        )}
 
-                                {/* Tools List */}
-                                {isExpanded && isServerEnabled && (
-                                    <div className="border-t border-terminal-border bg-white p-3 space-y-2">
-                                        {serverTools.map((tool) => {
-                                            const toolId = `${serverName}:${tool.name}`;
-                                            const isToolEnabled = selectedTools.has(toolId);
+                        {/* Server/Tool list */}
+                        {serverNames.length > 0 && (
+                            <div className="space-y-3">
+                                {serverNames.map((serverName) => {
+                                    const serverTools = groupedTools[serverName];
+                                    const isServerEnabled = selectedServers.has(serverName);
+                                    const isExpanded = expandedServers.has(serverName);
+                                    const enabledToolCount = serverTools.filter(t =>
+                                        selectedTools.has(`${serverName}:${t.name}`)
+                                    ).length;
+                                    const serverStatus = status.find(s => s.serverName === serverName);
 
-                                            return (
-                                                <div key={tool.name} className="flex items-start gap-3 pl-8">
+                                    return (
+                                        <div key={serverName} className="rounded-lg border border-terminal-border bg-terminal-cream/50 overflow-hidden">
+                                            {/* Server Header */}
+                                            <div
+                                                className="flex items-center justify-between p-3 cursor-pointer hover:bg-terminal-cream"
+                                                onClick={() => toggleServerExpanded(serverName)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {isExpanded ? (
+                                                        <ChevronDown className="h-4 w-4 text-terminal-muted" />
+                                                    ) : (
+                                                        <ChevronRight className="h-4 w-4 text-terminal-muted" />
+                                                    )}
                                                     <Checkbox
-                                                        checked={isToolEnabled}
-                                                        onCheckedChange={() => toggleTool(serverName, tool.name)}
-                                                        className="mt-0.5 border-terminal-border"
+                                                        checked={isServerEnabled}
+                                                        onCheckedChange={() => toggleServer(serverName)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="border-terminal-border"
                                                     />
-                                                    <div>
-                                                        <div className="font-mono text-sm font-medium text-terminal-dark">
-                                                            {tool.name}
-                                                        </div>
-                                                        {tool.description && (
-                                                            <div className="font-mono text-xs text-terminal-muted">
-                                                                {tool.description}
-                                                            </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Plug className="h-4 w-4 text-purple-500" />
+                                                        <span className="font-mono font-semibold text-terminal-dark">{serverName}</span>
+                                                        {serverStatus?.connected && (
+                                                            <span className="text-xs text-terminal-green">● {t("connected")}</span>
                                                         )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+                                                <Badge variant={isServerEnabled ? "default" : "secondary"} className="font-mono">
+                                                    {t("toolsCount", { enabled: enabledToolCount, total: serverTools.length })}
+                                                </Badge>
+                                            </div>
 
-            {/* Continue button */}
-            <div className="flex justify-end pt-4">
-                <button
-                    onClick={onComplete}
-                    className="rounded bg-terminal-green px-6 py-2 font-mono text-sm text-white hover:bg-terminal-green/90"
-                >
-                    {t("continue")}
-                </button>
+                                            {/* Tools List */}
+                                            {isExpanded && (
+                                                <div className="border-t border-terminal-border bg-white p-3 space-y-2">
+                                                    {serverTools.map((tool) => {
+                                                        const toolKey = `${serverName}:${tool.name}`;
+                                                        const isToolEnabled = selectedTools.has(toolKey);
+                                                        const toolPref = toolPreferences[toolKey] ?? { enabled: true, loadingMode: "deferred" as const };
+
+                                                        return (
+                                                            <div key={tool.name} className="flex items-start justify-between gap-3 pl-8">
+                                                                <div className="flex items-start gap-3">
+                                                                    <Checkbox
+                                                                        checked={isToolEnabled}
+                                                                        onCheckedChange={() => toggleTool(serverName, tool.name)}
+                                                                        className="mt-0.5 border-terminal-border"
+                                                                    />
+                                                                    <div>
+                                                                        <div className="font-mono text-sm font-medium text-terminal-dark">
+                                                                            {tool.name}
+                                                                        </div>
+                                                                        {tool.description && (
+                                                                            <div className="font-mono text-xs text-terminal-muted">
+                                                                                {tool.description}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Loading mode toggle */}
+                                                                {isToolEnabled && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button
+                                                                            onClick={() => toggleToolLoadingMode(serverName, tool.name)}
+                                                                            className={`
+                                                                                rounded px-2 py-1 font-mono text-xs transition-colors
+                                                                                ${toolPref.loadingMode === "always"
+                                                                                    ? "bg-terminal-green text-white"
+                                                                                    : "bg-terminal-cream text-terminal-muted border border-terminal-border"
+                                                                                }
+                                                                            `}
+                                                                            title={toolPref.loadingMode === "always"
+                                                                                ? t("loadingMode.alwaysTooltip")
+                                                                                : t("loadingMode.deferredTooltip")
+                                                                            }
+                                                                        >
+                                                                            {toolPref.loadingMode === "always"
+                                                                                ? t("loadingMode.always")
+                                                                                : t("loadingMode.deferred")
+                                                                            }
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Navigation - Fixed at bottom */}
+                    <div className="flex flex-col gap-3 border-t border-terminal-border/50 bg-terminal-cream/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="order-2 text-sm font-mono text-terminal-dark/60 transition-colors hover:text-terminal-dark sm:order-1"
+                            >
+                                ← Back
+                            </button>
+                        )}
+                        <button
+                            onClick={onComplete}
+                            className="order-1 w-full rounded bg-terminal-dark px-4 py-2 text-sm font-mono text-terminal-cream transition-colors hover:bg-terminal-dark/90 sm:order-2 sm:w-auto"
+                        >
+                            {t("continue")}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

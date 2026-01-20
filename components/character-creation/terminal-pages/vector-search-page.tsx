@@ -45,8 +45,8 @@ export function VectorSearchPage({
   }, [onBack]);
 
   return (
-    <div className="h-screen overflow-y-auto flex flex-col items-center p-6 bg-terminal-cream">
-      <div className="w-full max-w-2xl space-y-6 my-auto">
+    <div className="flex h-full min-h-full flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8">
+      <div className="flex w-full max-w-2xl flex-1 flex-col gap-6 min-h-0">
         {/* Compact Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -68,49 +68,45 @@ export function VectorSearchPage({
           </div>
         </motion.div>
 
-        {/* Folder Manager */}
+        {/* Folder Manager - Scrollable Container */}
         {showContent && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: 0.1 }}
-            className="bg-terminal-bg/20 rounded-lg border border-terminal-border p-4"
+            className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/20"
           >
-            <FolderSyncManager characterId={agentId} />
-          </motion.div>
-        )}
+            {/* Scrollable content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <FolderSyncManager characterId={agentId} />
+            </div>
 
-        {/* Navigation */}
-        {showContent && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: 0.2 }}
-            className="flex justify-between items-center"
-          >
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 font-mono text-terminal-muted hover:text-terminal-dark transition-colors"
-            >
-              <ArrowLeftIcon className="w-4 h-4" />
-              {t("back")}
-            </button>
+            {/* Navigation - Fixed at bottom */}
+            <div className="flex flex-col gap-3 border-t border-terminal-border/50 bg-terminal-cream/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <button
+                onClick={onBack}
+                className="order-2 flex items-center gap-2 font-mono text-terminal-muted hover:text-terminal-dark transition-colors sm:order-1"
+              >
+                <ArrowLeftIcon className="w-4 h-4" />
+                {t("back")}
+              </button>
 
-            <div className="flex gap-3">
-              <button
-                onClick={onSkip}
-                className="flex items-center gap-2 font-mono text-terminal-muted hover:text-terminal-dark transition-colors"
-              >
-                <SkipForwardIcon className="w-4 h-4" />
-                {t("skip")}
-              </button>
-              <button
-                onClick={onSubmit}
-                className="flex items-center gap-2 px-4 py-2 bg-terminal-green text-white font-mono rounded hover:bg-terminal-green/90 transition-colors"
-              >
-                {t("continue")}
-                <ArrowRightIcon className="w-4 h-4" />
-              </button>
+              <div className="flex gap-3 order-1 sm:order-2">
+                <button
+                  onClick={onSkip}
+                  className="flex items-center gap-2 font-mono text-terminal-muted hover:text-terminal-dark transition-colors"
+                >
+                  <SkipForwardIcon className="w-4 h-4" />
+                  {t("skip")}
+                </button>
+                <button
+                  onClick={onSubmit}
+                  className="flex items-center gap-2 px-4 py-2 bg-terminal-green text-white font-mono rounded hover:bg-terminal-green/90 transition-colors"
+                >
+                  {t("continue")}
+                  <ArrowRightIcon className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

@@ -64,8 +64,8 @@ export function IdentityPage({
   };
 
   return (
-    <div className="h-screen overflow-y-auto flex flex-col items-center p-8 bg-terminal-cream">
-      <div className="w-full max-w-2xl space-y-8 my-auto">
+    <div className="flex h-full min-h-full flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8">
+      <div className="flex w-full max-w-2xl flex-1 flex-col gap-6 min-h-0">
         {/* Header */}
         <div className="flex items-start gap-8">
           <motion.div
@@ -100,67 +100,70 @@ export function IdentityPage({
           </div>
         </div>
 
-        {/* Form Section */}
+        {/* Form Section - Scrollable Container */}
         {showForm && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-            className="bg-terminal-bg/30 rounded-lg border border-terminal-border p-6 space-y-6"
+            className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30"
           >
-            {/* Name Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-mono text-terminal-dark/70">{t("nameLabel")}</label>
-              <TerminalInput
-                value={name}
-                onChange={setName}
-                onSubmit={() => {}}
-                placeholder={t("namePlaceholder")}
-                autoFocusOnMount
-                className="text-terminal-dark placeholder:text-terminal-dark/50"
-              />
-              {errors.name && <div className="text-red-500 text-xs font-mono">! {errors.name}</div>}
+            {/* Scrollable content area */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+              {/* Name Field */}
+              <div className="space-y-2">
+                <label className="text-sm font-mono text-terminal-dark/70">{t("nameLabel")}</label>
+                <TerminalInput
+                  value={name}
+                  onChange={setName}
+                  onSubmit={() => { }}
+                  placeholder={t("namePlaceholder")}
+                  autoFocusOnMount
+                  className="text-terminal-dark placeholder:text-terminal-dark/50"
+                />
+                {errors.name && <div className="text-red-500 text-xs font-mono">! {errors.name}</div>}
+              </div>
+
+              {/* Tagline Field */}
+              <div className="space-y-2">
+                <label className="text-sm font-mono text-terminal-dark/70">{t("taglineLabel")}</label>
+                <TerminalInput
+                  value={tagline}
+                  onChange={setTagline}
+                  onSubmit={() => { }}
+                  placeholder={t("taglinePlaceholder")}
+                  className="text-terminal-dark placeholder:text-terminal-dark/50"
+                />
+                {errors.tagline && <div className="text-red-500 text-xs font-mono">! {errors.tagline}</div>}
+              </div>
+
+              {/* Purpose Field */}
+              <div className="space-y-2">
+                <label className="text-sm font-mono text-terminal-dark/70">{t("purposeLabel")}</label>
+                <TerminalTextArea
+                  value={purpose}
+                  onChange={setPurpose}
+                  onSubmit={handleSubmit}
+                  placeholder={t("purposePlaceholder")}
+                  rows={4}
+                  className="text-terminal-dark placeholder:text-terminal-dark/50"
+                />
+                {errors.purpose && <div className="text-red-500 text-xs font-mono">! {errors.purpose}</div>}
+              </div>
             </div>
 
-            {/* Tagline Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-mono text-terminal-dark/70">{t("taglineLabel")}</label>
-              <TerminalInput
-                value={tagline}
-                onChange={setTagline}
-                onSubmit={() => {}}
-                placeholder={t("taglinePlaceholder")}
-                className="text-terminal-dark placeholder:text-terminal-dark/50"
-              />
-              {errors.tagline && <div className="text-red-500 text-xs font-mono">! {errors.tagline}</div>}
-            </div>
-
-            {/* Purpose Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-mono text-terminal-dark/70">{t("purposeLabel")}</label>
-              <TerminalTextArea
-                value={purpose}
-                onChange={setPurpose}
-                onSubmit={handleSubmit}
-                placeholder={t("purposePlaceholder")}
-                rows={4}
-                className="text-terminal-dark placeholder:text-terminal-dark/50"
-              />
-              {errors.purpose && <div className="text-red-500 text-xs font-mono">! {errors.purpose}</div>}
-            </div>
-
-            {/* Navigation */}
-            <div className="flex items-center justify-between pt-4 border-t border-terminal-border/50">
+            {/* Navigation - Fixed at bottom */}
+            <div className="flex flex-col gap-3 border-t border-terminal-border/50 bg-terminal-cream/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={onBack}
-                className="text-sm font-mono text-terminal-dark/60 hover:text-terminal-dark transition-colors"
+                className="order-2 text-sm font-mono text-terminal-dark/60 transition-colors hover:text-terminal-dark sm:order-1"
               >
-                {t("back")}
+                ← {t("back")}
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={!name.trim() || !purpose.trim()}
-                className="px-4 py-2 bg-terminal-dark text-terminal-cream font-mono text-sm rounded hover:bg-terminal-dark/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="order-1 w-full rounded bg-terminal-dark px-4 py-2 text-sm font-mono text-terminal-cream transition-colors hover:bg-terminal-dark/90 disabled:opacity-50 disabled:cursor-not-allowed sm:order-2 sm:w-auto"
               >
                 {t("continue")}
               </button>

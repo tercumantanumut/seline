@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Check, Sparkles, User, Wrench, BookOpen, Database, Eye } from "lucide-react";
+import { Check, Sparkles, User, Wrench, BookOpen, Database, Eye, Plug } from "lucide-react";
 import { useReducedMotion } from "@/components/character-creation/hooks/use-reduced-motion";
 
 export interface WizardStep {
@@ -26,6 +26,7 @@ export const WIZARD_STEPS: WizardStep[] = [
   { id: "embeddingSetup", label: "Embeddings", icon: <Database className="w-4 h-4" /> },
   { id: "vectorSearch", label: "Vector Search", icon: <Database className="w-4 h-4" /> },
   { id: "capabilities", label: "Capabilities", icon: <Wrench className="w-4 h-4" /> },
+  { id: "mcpTools", label: "MCP Tools", icon: <Plug className="w-4 h-4" /> },
   { id: "preview", label: "Preview", icon: <Eye className="w-4 h-4" /> },
 ];
 
