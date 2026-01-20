@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,11 +24,11 @@ export default function AgentSchedulesPage({
   const { id: characterId } = use(params);
   const t = useTranslations("schedules");
   const tc = useTranslations("common");
+  const router = useRouter();
 
   const [character, setCharacter] = useState<CharacterBasic | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
 
   // Load character info
   useEffect(() => {
@@ -51,6 +52,10 @@ export default function AgentSchedulesPage({
     }
     loadCharacter();
   }, [characterId]);
+
+  const handleCreateNew = () => {
+    router.push(`/agents/${characterId}/schedules/new`);
+  };
 
   if (isLoading) {
     return (
@@ -101,7 +106,7 @@ export default function AgentSchedulesPage({
                 </div>
                 {/* New Schedule Button */}
                 <Button
-                  onClick={() => setShowForm(true)}
+                  onClick={handleCreateNew}
                   className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono shadow-sm"
                 >
                   <Plus className="h-4 w-4" />
@@ -114,8 +119,6 @@ export default function AgentSchedulesPage({
             <ScheduleList
               characterId={characterId}
               characterName={agentName}
-              showForm={showForm}
-              onFormClose={() => setShowForm(false)}
             />
           </div>
         </ScrollArea>
