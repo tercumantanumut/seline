@@ -876,7 +876,7 @@ export function CharacterPicker() {
 
       {/* MCP Tools Editor Dialog */}
       <Dialog open={mcpToolEditorOpen} onOpenChange={setMcpToolEditorOpen}>
-        <DialogContent className="sm:max-w-4xl bg-terminal-cream h-[90vh] flex flex-col p-0 overflow-hidden [&>button]:hidden">
+        <DialogContent className="sm:max-w-4xl bg-terminal-cream h-[90vh] flex flex-col p-0 overflow-hidden [&>button:has(.sr-only)]:hidden">
           {/* Header with explicit close button */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0 border-b border-terminal-border/20">
             <div>
