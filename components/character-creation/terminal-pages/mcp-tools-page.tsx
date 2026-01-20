@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plug, ChevronDown, ChevronRight } from "lucide-react";
 import type { MCPTool } from "@/lib/mcp/types";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 
 interface MCPToolPreference {
     enabled: boolean;
@@ -29,6 +30,7 @@ interface MCPToolsPageProps {
     ) => void;
     onComplete: () => void;
     onBack?: () => void;
+    embedded?: boolean; // When true, used inside a dialog (don't use h-full)
 }
 
 interface GroupedTools {
@@ -50,6 +52,7 @@ export function MCPToolsPage({
     onUpdate,
     onComplete,
     onBack,
+    embedded = false,
 }: MCPToolsPageProps) {
     const t = useTranslations("characterCreation.mcpTools");
     const [tools, setTools] = useState<MCPTool[]>([]);
@@ -281,7 +284,10 @@ export function MCPToolsPage({
     }
 
     return (
-        <div className="flex h-full min-h-full flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8">
+        <div className={cn(
+            "flex flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8",
+            !embedded && "h-full min-h-full"
+        )}>
             <div className="flex w-full max-w-4xl flex-1 flex-col gap-6 min-h-0">
                 {/* Header */}
                 <div className="space-y-2">

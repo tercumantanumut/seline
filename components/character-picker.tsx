@@ -876,32 +876,42 @@ export function CharacterPicker() {
 
       {/* MCP Tools Editor Dialog */}
       <Dialog open={mcpToolEditorOpen} onOpenChange={setMcpToolEditorOpen}>
-        <DialogContent className="sm:max-w-4xl bg-terminal-cream h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
-            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
-              <Plug className="w-5 h-5 text-purple-500" />
-              {t("mcpToolsTitle")}
-            </DialogTitle>
-            <DialogDescription className="font-mono text-terminal-muted">
-              {editingCharacter?.displayName || editingCharacter?.name}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-4xl bg-terminal-cream h-[90vh] flex flex-col p-0 overflow-hidden [&>button]:hidden">
+          {/* Header with explicit close button */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0 border-b border-terminal-border/20">
+            <div>
+              <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+                <Plug className="w-5 h-5 text-purple-500" />
+                {t("mcpToolsTitle")}
+              </DialogTitle>
+              <DialogDescription className="font-mono text-terminal-muted mt-1">
+                {editingCharacter?.displayName || editingCharacter?.name}
+              </DialogDescription>
+            </div>
+            <button
+              onClick={() => setMcpToolEditorOpen(false)}
+              className="rounded-sm p-1.5 opacity-70 hover:opacity-100 hover:bg-terminal-border/30 transition-all"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5 text-terminal-dark" />
+            </button>
+          </div>
 
-          <div className="flex-1 min-h-0 relative">
+          {/* Scrollable content - no absolute positioning */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {editingCharacter && (
-              <div className="absolute inset-0">
-                <MCPToolsPage
-                  enabledMcpServers={mcpServers}
-                  enabledMcpTools={mcpTools}
-                  mcpToolPreferences={mcpToolPreferences}
-                  onUpdate={(servers, tools, prefs) => {
-                    setMcpServers(servers);
-                    setMcpTools(tools);
-                    setMcpToolPreferences(prefs);
-                  }}
-                  onComplete={saveMcpTools}
-                />
-              </div>
+              <MCPToolsPage
+                embedded
+                enabledMcpServers={mcpServers}
+                enabledMcpTools={mcpTools}
+                mcpToolPreferences={mcpToolPreferences}
+                onUpdate={(servers, tools, prefs) => {
+                  setMcpServers(servers);
+                  setMcpTools(tools);
+                  setMcpToolPreferences(prefs);
+                }}
+                onComplete={saveMcpTools}
+              />
             )}
           </div>
         </DialogContent>
