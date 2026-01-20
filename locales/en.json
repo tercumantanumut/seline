@@ -1427,6 +1427,72 @@
         "failed": "Failed to save schedule"
       }
     },
+    "newForm": {
+      "createTitle": "Create New Schedule",
+      "editTitle": "Edit Schedule",
+      "subtitle": "Configure automation triggers and AI instructions.",
+      "systemActive": "SYSTEM ACTIVE",
+      "saveDraft": "Save Draft",
+      "createSchedule": "Create Schedule",
+      "updateSchedule": "Update Schedule",
+      "sections": {
+        "basicInfo": "Basic Information",
+        "frequency": "Frequency & Timing",
+        "instructions": "Agent Instructions"
+      },
+      "fields": {
+        "name": "Schedule Name",
+        "description": "Description",
+        "atTime": "At Time",
+        "timezone": "Timezone",
+        "priority": "Priority",
+        "maxRetries": "Max Retries"
+      },
+      "placeholders": {
+        "name": "Daily Content Digest",
+        "description": "Briefly describe the purpose of this task...",
+        "prompt": "# Weekly Progress Digest\nGenerate a summary covering '{'LAST_7_DAYS'}'.\n\n## Sections Required:\n1. Key Accomplishments\n   - List completed tasks\n   - Highlight high-priority items\n2. Metrics Analysis\n   - Compare vs previous week\n   - Identify blockers\n3. Next Steps\n   - Generate 3 action items for Monday"
+      },
+      "frequency": {
+        "everyDay": "Every Day",
+        "specificDays": "Specific Days",
+        "advanced": "Advanced",
+        "repeatsOn": "Repeats On"
+      },
+      "days": {
+        "repeatsOn": "Repeats On",
+        "mon": "M",
+        "tue": "T",
+        "wed": "W",
+        "thu": "T",
+        "fri": "F",
+        "sat": "S",
+        "sun": "S"
+      },
+      "priority": {
+        "low": "Low",
+        "normal": "Normal",
+        "high": "High"
+      },
+      "summary": {
+        "runsEvery": "Runs {days} at {time}",
+        "nextRun": "Next run: {date}",
+        "customSchedule": "Custom schedule"
+      },
+      "variables": {
+        "label": "Variables"
+      },
+      "editor": {
+        "prompt": "Prompt",
+        "copy": "Copy",
+        "lines": "lines",
+        "validSyntax": "Valid"
+      },
+      "validation": {
+        "required": "Name and prompt are required",
+        "failed": "Failed to save schedule"
+      }
+    },
     "cron": {
       "label": "Schedule",
       "expression": "Expression",

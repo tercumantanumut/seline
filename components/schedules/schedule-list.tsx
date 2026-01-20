@@ -2,23 +2,17 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, Calendar, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { ScheduleCard } from "./schedule-card";
-import { ScheduleForm } from "./schedule-form";
-import { PresetSelector } from "./preset-selector";
 import { FilterBar, StatusFilter, PriorityFilter } from "./filter-bar";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
-import { SchedulePreset } from "@/lib/scheduler/presets/types";
 
 interface ScheduleListProps {
   characterId: string;
   characterName?: string;
-  onNewScheduleClick?: () => void;
-  showForm?: boolean;
-  onFormClose?: () => void;
 }
 
 interface ScheduleWithRuns extends ScheduledTask {
@@ -34,30 +28,18 @@ interface ScheduleWithRuns extends ScheduledTask {
 export function ScheduleList({
   characterId,
   characterName,
-  onNewScheduleClick,
-  showForm: externalShowForm,
-  onFormClose
 }: ScheduleListProps) {
   const t = useTranslations("schedules");
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [schedules, setSchedules] = useState<ScheduleWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [internalShowForm, setInternalShowForm] = useState(false);
-  const [creationStep, setCreationStep] = useState<"preset" | "form">("preset");
-  const [prefilledData, setPrefilledData] = useState<Partial<ScheduledTask> | null>(null);
-  const [editingSchedule, setEditingSchedule] = useState<ScheduleWithRuns | null>(null);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
-
-  // Determine if form should be shown (external control takes precedence)
-  const showForm = externalShowForm ?? internalShowForm;
-  const setShowForm = onFormClose
-    ? (show: boolean) => { if (!show) onFormClose(); }
-    : setInternalShowForm;
 
   // URL params for highlighting
   const highlightTaskId = searchParams.get("highlight");
@@ -119,22 +101,6 @@ export function ScheduleList({
     });
   }, [schedules, searchQuery, statusFilter, priorityFilter]);
 
-  const handleCreate = async (data: Partial<ScheduledTask>) => {
-    try {
-      const res = await fetch("/api/schedules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, characterId }),
-      });
-      if (!res.ok) throw new Error("Failed to create schedule");
-      setShowForm(false);
-      await loadSchedules();
-    } catch (err) {
-      console.error("Failed to create schedule:", err);
-      throw err;
-    }
-  };
-
   const handleUpdate = async (id: string, data: Partial<ScheduledTask>) => {
     try {
       const res = await fetch(`/api/schedules/${id}`, {
@@ -143,7 +109,6 @@ export function ScheduleList({
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update schedule");
-      setEditingSchedule(null);
       await loadSchedules();
     } catch (err) {
       console.error("Failed to update schedule:", err);
@@ -175,31 +140,12 @@ export function ScheduleList({
     await handleUpdate(id, { enabled });
   };
 
+  const handleEdit = (scheduleId: string) => {
+    router.push(`/agents/${characterId}/schedules/${scheduleId}/edit`);
+  };
+
   const handleStartCreate = () => {
-    setCreationStep("preset");
-    setPrefilledData(null);
-    if (onNewScheduleClick) {
-      onNewScheduleClick();
-    } else {
-      setInternalShowForm(true);
-    }
-  };
-
-  const handlePresetSelect = (preset: SchedulePreset) => {
-    setPrefilledData({
-      name: preset.name,
-      description: preset.description,
-      cronExpression: preset.defaults.cronExpression,
-      timezone: preset.defaults.timezone || undefined,
-      initialPrompt: preset.defaults.initialPrompt,
-      scheduleType: "cron",
-    });
-    setCreationStep("form");
-  };
-
-  const handleSkipPresets = () => {
-    setPrefilledData(null);
-    setCreationStep("form");
+    router.push(`/agents/${characterId}/schedules/new`);
   };
 
   if (loading) {
@@ -224,47 +170,8 @@ export function ScheduleList({
 
   return (
     <div className="space-y-6">
-      {/* Create Flow */}
-      {showForm && (
-        <div className="space-y-6">
-          {creationStep === "preset" ? (
-            <div className="bg-terminal-cream/50 p-6 rounded-xl border border-border">
-              <PresetSelector
-                onSelectPreset={handlePresetSelect}
-                onSkip={handleSkipPresets}
-              />
-              <div className="mt-6 flex justify-center">
-                <Button variant="ghost" onClick={() => setShowForm(false)} className="font-mono text-sm">
-                  {t("form.cancel") || "Cancel"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <ScheduleForm
-              characterId={characterId}
-              schedule={prefilledData || undefined}
-              onSubmit={handleCreate}
-              onCancel={() => {
-                setShowForm(false);
-                setCreationStep("preset");
-              }}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Edit Form */}
-      {editingSchedule && (
-        <ScheduleForm
-          characterId={characterId}
-          schedule={editingSchedule}
-          onSubmit={(data) => handleUpdate(editingSchedule.id, data)}
-          onCancel={() => setEditingSchedule(null)}
-        />
-      )}
-
       {/* Filter Bar - Only show when there are schedules */}
-      {schedules.length > 0 && !showForm && !editingSchedule && (
+      {schedules.length > 0 && (
         <FilterBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -276,7 +183,7 @@ export function ScheduleList({
       )}
 
       {/* Schedule List */}
-      {schedules.length === 0 && !showForm ? (
+      {schedules.length === 0 ? (
         <AnimatedCard className="bg-terminal-cream/50">
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <Calendar className="h-12 w-12 text-terminal-muted" />
@@ -319,7 +226,7 @@ export function ScheduleList({
               >
                 <ScheduleCard
                   schedule={schedule}
-                  onEdit={() => setEditingSchedule(schedule)}
+                  onEdit={() => handleEdit(schedule.id)}
                   onDelete={() => handleDelete(schedule.id)}
                   onTrigger={() => handleTrigger(schedule.id)}
                   onToggle={(enabled) => handleToggle(schedule.id, enabled)}
