@@ -70,6 +70,20 @@ const PREBUILT_TEMPLATES = [
         }
     },
     {
+        id: "supabase",
+        name: "Supabase",
+        description: "Database & API management",
+        config: {
+            command: "npx",
+            args: ["-y", "mcp-remote", "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}"],
+            env: {
+                "SUPABASE_PROJECT_REF": "",
+                "SUPABASE_ACCESS_TOKEN": "",
+                "MCP_REMOTE_HEADERS": "{\"Authorization\": \"Bearer ${SUPABASE_ACCESS_TOKEN}\"}"
+            }
+        }
+    },
+    {
         id: "assistant-ui",
         name: "Assistant UI Docs",
         description: "Documentation for Assistant UI",
