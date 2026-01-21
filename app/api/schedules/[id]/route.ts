@@ -25,7 +25,7 @@ export async function GET(
   try {
     const userId = await requireAuth(req);
     const { id } = await params;
-    
+
     const schedule = await db.query.scheduledTasks.findFirst({
       where: and(
         eq(scheduledTasks.id, id),
@@ -87,8 +87,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
     }
 
-    // Reload in scheduler
-    await getScheduler().reloadSchedule(id);
+    // Reload in scheduler - only if active and enabled
+    if (updated.status === "active" && updated.enabled) {
+      await getScheduler().reloadSchedule(id);
+    } else {
+      // If it became draft, paused, or disabled, make sure it's removed from active jobs
+      await getScheduler().reloadSchedule(id);
+    }
 
     return NextResponse.json({ schedule: updated });
   } catch (error) {

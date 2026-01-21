@@ -25,29 +25,51 @@
     --terminal-muted: 0 0% 53%;
     --terminal-border: 0 0% 20%;
 
-    --background: 32 55% 89%; /* terminal-cream */
-    --foreground: 0 0% 10%; /* terminal-dark */
-    --card: 32 55% 89%; /* terminal-cream */
-    --card-foreground: 0 0% 10%; /* terminal-dark */
-    --popover: 32 55% 89%; /* terminal-cream */
-    --popover-foreground: 0 0% 10%; /* terminal-dark */
-    --primary: 0 0% 10%; /* terminal-dark */
-    --primary-foreground: 32 55% 89%; /* terminal-cream */
-    --secondary: 32 40% 85%; /* lighter cream */
-    --secondary-foreground: 0 0% 10%; /* terminal-dark */
-    --muted: 32 30% 82%; /* muted cream */
-    --muted-foreground: 0 0% 53%; /* terminal-muted */
-    --accent: 18 49% 54%; /* terracotta */
-    --accent-foreground: 0 0% 100%; /* white for contrast */
-    --destructive: 0 84% 60%; /* red */
-    --destructive-foreground: 32 55% 89%; /* terminal-cream */
-    --border: 0 0% 75%; /* light border for light mode */
-    --input: 0 0% 75%; /* light input border */
-    --ring: 18 49% 54%; /* terracotta for focus */
+    --background: 32 55% 89%;
+    /* terminal-cream */
+    --foreground: 0 0% 10%;
+    /* terminal-dark */
+    --card: 32 55% 89%;
+    /* terminal-cream */
+    --card-foreground: 0 0% 10%;
+    /* terminal-dark */
+    --popover: 32 55% 89%;
+    /* terminal-cream */
+    --popover-foreground: 0 0% 10%;
+    /* terminal-dark */
+    --primary: 0 0% 10%;
+    /* terminal-dark */
+    --primary-foreground: 32 55% 89%;
+    /* terminal-cream */
+    --secondary: 32 40% 85%;
+    /* lighter cream */
+    --secondary-foreground: 0 0% 10%;
+    /* terminal-dark */
+    --muted: 32 30% 82%;
+    /* muted cream */
+    --muted-foreground: 0 0% 53%;
+    /* terminal-muted */
+    --accent: 18 49% 54%;
+    /* terracotta */
+    --accent-foreground: 0 0% 100%;
+    /* white for contrast */
+    --destructive: 0 84% 60%;
+    /* red */
+    --destructive-foreground: 32 55% 89%;
+    /* terminal-cream */
+    --border: 0 0% 75%;
+    /* light border for light mode */
+    --input: 0 0% 75%;
+    /* light input border */
+    --ring: 18 49% 54%;
+    /* terracotta for focus */
     --radius: 0.5rem;
-    --chart-1: 18 49% 54%; /* terracotta */
-    --chart-2: 41 100% 50%; /* terminal-amber */
-    --chart-3: 0 0% 53%; /* terminal-muted */
+    --chart-1: 18 49% 54%;
+    /* terracotta */
+    --chart-2: 41 100% 50%;
+    /* terminal-amber */
+    --chart-3: 0 0% 53%;
+    /* terminal-muted */
     --chart-4: 32 55% 70%;
     --chart-5: 0 0% 30%;
   }
@@ -94,6 +116,7 @@
   * {
     @apply border-transparent;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -187,11 +210,31 @@
   @apply animate-pulse bg-terminal-dark/10 rounded;
 }
 
+/* Custom scrollbar for code blocks */
+.custom-code-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.custom-code-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-code-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--terminal-muted) / 0.4);
+  border-radius: 4px;
+}
+
+.custom-code-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--terminal-muted) / 0.6);
+}
+
 /* Shimmer animation for progress bar */
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
   }
@@ -221,6 +264,7 @@
 }
 
 @layer utilities {
+
   .dark .bg-white,
   .dark .bg-white\/50,
   .dark .bg-white\/70,

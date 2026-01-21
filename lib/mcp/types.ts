@@ -29,6 +29,13 @@ export interface MCPServerConfig {
 
     /** Optional timeout in milliseconds */
     timeout?: number;
+
+    /**
+     * Whether this server is enabled.
+     * Disabled servers retain their configuration but are not connected.
+     * @default true (undefined treated as enabled for backward compatibility)
+     */
+    enabled?: boolean;
 }
 
 /**

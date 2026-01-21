@@ -8,6 +8,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { MCPServerConfig } from "@/lib/mcp/types";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 interface MCPServerStatus {
     serverName: string;
@@ -88,6 +90,7 @@ const PREBUILT_TEMPLATES = [
 ];
 
 export function MCPSettings() {
+    const t = useTranslations("settings.mcp");
     const [mcpServers, setMcpServers] = useState<Record<string, MCPServerConfig>>({});
     const [environment, setEnvironment] = useState<Record<string, string>>({});
     const [status, setStatus] = useState<MCPServerStatus[]>([]);
@@ -256,6 +259,31 @@ export function MCPSettings() {
         loadConfig();
     };
 
+    /**
+     * Toggle server enabled/disabled state
+     * Disconnects server immediately when disabled
+     */
+    const handleToggleServer = async (serverName: string, enabled: boolean) => {
+        const updatedServers = {
+            ...mcpServers,
+            [serverName]: {
+                ...mcpServers[serverName],
+                enabled,
+            },
+        };
+
+        await saveAll(updatedServers);
+
+        // If disabling, the API will handle disconnection
+        // Load config to refresh status badges
+        if (!enabled) {
+            toast.success(`${serverName} ${t("serverDisabled")}`);
+            await loadConfig();
+        } else {
+            toast.success(`${serverName} ${t("serverEnabled")}`);
+        }
+    };
+
     const getStatusDisplay = (serverName: string) => {
         const s = status.find(st => st.serverName === serverName);
         if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: "Not Connected" };
@@ -403,7 +431,15 @@ export function MCPSettings() {
                             const currentStatus = status.find(st => st.serverName === name);
 
                             return (
-                                <div key={name} className="flex items-center justify-between p-4 rounded-lg border border-terminal-border bg-white shadow-sm hover:shadow-md transition-all">
+                                <div
+                                    key={name}
+                                    className={cn(
+                                        "flex items-center justify-between p-4 rounded-lg border bg-white shadow-sm hover:shadow-md transition-all",
+                                        config.enabled === false
+                                            ? "border-terminal-border/50 opacity-60"
+                                            : "border-terminal-border"
+                                    )}
+                                >
                                     <div className="flex items-center gap-4">
                                         <div className={cn("p-2 rounded-full", s.badge)}>
                                             <StatusIcon className="h-4 w-4" />
@@ -414,6 +450,15 @@ export function MCPSettings() {
                                                 <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal text-terminal-muted">
                                                     {config.type || (config.command ? "stdio" : "sse")}
                                                 </Badge>
+                                                {config.enabled === false && (
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="text-[10px] h-5 px-1.5 font-normal bg-yellow-100 text-yellow-700"
+                                                        title={t("disabledTooltip")}
+                                                    >
+                                                        {t("disabledBadge")}
+                                                    </Badge>
+                                                )}
                                             </div>
 
                                             {currentStatus?.lastError ? (
@@ -436,12 +481,20 @@ export function MCPSettings() {
                                     </div>
 
                                     <div className="flex items-center gap-2">
+                                        <Switch
+                                            checked={config.enabled !== false}
+                                            onCheckedChange={(checked) => handleToggleServer(name, checked)}
+                                            className="data-[state=checked]:bg-terminal-green"
+                                            aria-label={config.enabled !== false ? t("disableServer") : t("enableServer")}
+                                            disabled={isSaving}
+                                        />
+
                                         <Button
                                             size="sm"
                                             variant="ghost"
                                             className={cn("h-8 px-2", isConnecting && "animate-pulse")}
                                             onClick={() => connectServer(name)}
-                                            disabled={isConnecting}
+                                            disabled={isConnecting || config.enabled === false}
                                         >
                                             {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />}
                                         </Button>

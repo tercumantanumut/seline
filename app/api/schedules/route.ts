@@ -16,13 +16,13 @@ import { getScheduler } from "@/lib/scheduler/scheduler-service";
 export async function GET(req: NextRequest) {
   try {
     const userId = await requireAuth(req);
-    
+
     const characterId = req.nextUrl.searchParams.get("characterId");
-    
+
     const conditions = characterId
       ? and(eq(scheduledTasks.userId, userId), eq(scheduledTasks.characterId, characterId))
       : eq(scheduledTasks.userId, userId);
-    
+
     const schedules = await db.query.scheduledTasks.findMany({
       where: conditions,
       with: {
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       maxRetries,
       timeoutMs,
       priority,
+      status,
       createNewSessionPerRun,
     } = body;
 
@@ -85,14 +86,14 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    
+
     if (scheduleType === "interval" && !intervalMinutes) {
       return NextResponse.json(
         { error: "intervalMinutes required for interval schedule type" },
         { status: 400 }
       );
     }
-    
+
     if (scheduleType === "once" && !scheduledAt) {
       return NextResponse.json(
         { error: "scheduledAt required for once schedule type" },
@@ -116,12 +117,15 @@ export async function POST(req: NextRequest) {
       enabled: enabled ?? true,
       maxRetries: maxRetries ?? 3,
       timeoutMs: timeoutMs ?? 300000,
-      priority: priority || "normal",
+      priority,
+      status: status || "active",
       createNewSessionPerRun: createNewSessionPerRun ?? true,
     }).returning();
 
-    // Register with scheduler
-    await getScheduler().reloadSchedule(schedule.id);
+    // Register with scheduler - only if active and enabled
+    if (schedule.status === "active" && schedule.enabled) {
+      await getScheduler().reloadSchedule(schedule.id);
+    }
 
     return NextResponse.json({ schedule }, { status: 201 });
   } catch (error) {

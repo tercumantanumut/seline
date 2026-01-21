@@ -148,6 +148,8 @@
     "startNew": "Start new chat",
     "folders": "Folders",
     "configureTools": "Configure tools",
+    "mcpTools": "MCP Tools",
+    "mcpToolsTitle": "Configure MCP Tools",
     "toolsEnabled": "{count, plural, one {# tool enabled} other {# tools enabled}}",
     "empty": "No agents yet. Configure your first agent to get started.",
     "emptyTitle": "Create Your First Agent",
@@ -554,7 +556,9 @@
       "intro": "Start",
       "identity": "Identity",
       "capabilities": "Capabilities",
+      "mcpTools": "MCP Tools",
       "knowledge": "Knowledge",
+      "embeddingSetup": "Embeddings",
       "vectorSearch": "Vector Search",
       "preview": "Preview"
     },
@@ -741,7 +745,14 @@
       "connectDiscover": "Connect & Discover Tools",
       "connected": "Connected",
       "toolsCount": "{enabled}/{total} tools",
-      "continue": "Continue"
+      "continue": "Continue",
+      "loadingMode": {
+        "label": "Loading Mode",
+        "always": "Always",
+        "deferred": "Deferred",
+        "alwaysTooltip": "Tool loads immediately with every request (uses more tokens)",
+        "deferredTooltip": "Tool is discovered on-demand via searchTools (saves tokens)"
+      }
     },
     "style": {
       "question": "Choose a visual style for your agent...",
@@ -920,6 +931,14 @@
           "helper": "Required for image/video generation"
         }
       }
+    },
+    "mcp": {
+      "serverEnabled": "Server enabled",
+      "serverDisabled": "Server disabled",
+      "enableServer": "Enable server",
+      "disableServer": "Disable server",
+      "disabledBadge": "Disabled",
+      "disabledTooltip": "This server is disabled and will not connect. Toggle to enable."
     },
     "models": {
       "title": "Model Selection",
@@ -1339,8 +1358,20 @@
   "schedules": {
     "title": "Scheduled Tasks",
     "description": "Automate {name} to run tasks on a schedule",
+    "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",
+    "filters": {
+      "search": "Search schedules...",
+      "allStatuses": "All Statuses",
+      "active": "Active",
+      "inactive": "Inactive",
+      "draft": "Draft",
+      "allPriorities": "All Priorities",
+      "high": "High",
+      "normal": "Normal",
+      "low": "Low"
+    },
     "empty": {
       "title": "No scheduled tasks yet",
       "description": "Create a schedule to automate your agent",
@@ -1349,6 +1380,7 @@
     "card": {
       "enabled": "Active",
       "disabled": "Paused",
+      "draft": "Draft",
       "priority": {
         "high": "High",
         "normal": "Normal",
@@ -1363,7 +1395,8 @@
       "recentRuns": "Recent Runs",
       "viewChat": "View Chat",
       "continueChat": "Continue",
-      "noSession": "No session created"
+      "noSession": "No session created",
+      "neverRun": "Never run"
     },
     "form": {
       "createTitle": "Create Schedule",
@@ -1398,6 +1431,81 @@
       "maxRetries": "Max Retries",
       "create": "Create Schedule",
       "save": "Save Changes",
+      "cancel": "Cancel",
+      "validation": {
+        "required": "Name and prompt are required",
+        "failed": "Failed to save schedule"
+      }
+    },
+    "newForm": {
+      "createTitle": "Create New Schedule",
+      "editTitle": "Edit Schedule",
+      "subtitle": "Configure automation triggers and AI instructions.",
+      "systemActive": "SYSTEM ACTIVE",
+      "saveDraft": "Save Draft",
+      "untitledDraft": "Untitled Draft",
+      "draftSaved": "Draft saved successfully",
+      "createSchedule": "Create Schedule",
+      "updateSchedule": "Update Schedule",
+      "sections": {
+        "basicInfo": "Basic Information",
+        "frequency": "Frequency & Timing",
+        "instructions": "Agent Instructions"
+      },
+      "fields": {
+        "name": "Schedule Name",
+        "description": "Description",
+        "atTime": "At Time",
+        "timezone": "Timezone",
+        "priority": "Priority",
+        "maxRetries": "Max Retries"
+      },
+      "placeholders": {
+        "name": "Daily Content Digest",
+        "description": "Briefly describe the purpose of this task...",
+        "prompt": "# Weekly Progress Digest\nGenerate a summary covering '{'LAST_7_DAYS'}'.\n\n## Sections Required:\n1. Key Accomplishments\n   - List completed tasks\n   - Highlight high-priority items\n2. Metrics Analysis\n   - Compare vs previous week\n   - Identify blockers\n3. Next Steps\n   - Generate 3 action items for Monday"
+      },
+      "frequency": {
+        "everyDay": "Every Day",
+        "specificDays": "Specific Days",
+        "advanced": "Advanced",
+        "repeatsOn": "Repeats On"
+      },
+      "days": {
+        "repeatsOn": "Repeats On",
+        "mon": "M",
+        "tue": "T",
+        "wed": "W",
+        "thu": "T",
+        "fri": "F",
+        "sat": "S",
+        "sun": "S"
+      },
+      "priority": {
+        "low": "Low",
+        "normal": "Normal",
+        "high": "High"
+      },
+      "summary": {
+        "runsEvery": "Runs {days} at {time}",
+        "nextRun": "Next run: {date}",
+        "customSchedule": "Custom schedule"
+      },
+      "variables": {
+        "label": "Variables",
+        "helpTitle": "How to use variables",
+        "helpDescription": "Variables are replaced with actual values when your schedule runs.",
+        "categories": {
+          "time": "Time Variables",
+          "context": "Context Variables"
+        }
+      },
+      "editor": {
+        "prompt": "Prompt",
+        "copy": "Copy",
+        "lines": "lines",
+        "validSyntax": "Valid"
+      },
       "validation": {
         "required": "Name and prompt are required",
         "failed": "Failed to save schedule"
@@ -1434,9 +1542,19 @@
       "title": "Quick Start Templates",
       "subtitle": "Choose a template to get started quickly",
       "useTemplate": "Use Template",
+      "createFromScratch": "Or create from scratch →",
       "requiresIntegration": "Requires {integration} integration",
+      "alternativeAvailable": "Will use {method} instead",
       "estimatedTime": "~{duration}",
+      "help": {
+        "whatArePresets": "What are schedule presets?",
+        "explanation": "Presets are pre-configured schedule templates designed for common workflows. They include optimized timing, prompts, and settings.",
+        "benefit1": "Pre-configured timing for optimal results",
+        "benefit2": "Expertly crafted AI prompts",
+        "benefit3": "Fully customizable after selection"
+      },
       "categories": {
+        "all": "All Templates",
         "productivity": "Productivity",
         "development": "Development",
         "communication": "Communication",

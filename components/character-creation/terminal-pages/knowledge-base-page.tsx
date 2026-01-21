@@ -115,8 +115,8 @@ export function KnowledgeBasePage({
   };
 
   return (
-    <div className="h-screen overflow-y-auto flex flex-col items-center p-8 bg-terminal-cream">
-      <div className="w-full max-w-2xl space-y-8 my-auto">
+    <div className="flex h-full min-h-full flex-col items-center bg-terminal-cream px-4 py-6 sm:px-8">
+      <div className="flex w-full max-w-2xl flex-1 flex-col gap-6 min-h-0">
         {/* Header */}
         <div className="flex items-start gap-8">
           <motion.div
@@ -151,90 +151,93 @@ export function KnowledgeBasePage({
           </div>
         </div>
 
-        {/* Upload Section */}
+        {/* Upload Section - Scrollable Container */}
         {showForm && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
-            className="bg-terminal-bg/30 rounded-lg border border-terminal-border p-6 space-y-6"
+            className="flex min-h-0 flex-1 flex-col rounded-lg border border-terminal-border bg-terminal-bg/30"
           >
-            {/* Upload Area */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-terminal-border/50 rounded-lg p-8 text-center cursor-pointer hover:border-terminal-amber transition-colors"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.txt,.md,.html,.htm"
-                onChange={(e) => handleFileSelect(e.target.files)}
-                className="hidden"
-              />
-              <div className="font-mono text-terminal-dark/70">
-                {uploading ? (
-                  <span className="text-terminal-amber">{t("uploading")}</span>
-                ) : (
-                  <>
-                    <span className="text-terminal-amber">{t("clickToUpload")}</span> {t("orDragFiles")}
-                  </>
-                )}
+            {/* Scrollable content area */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+              {/* Upload Area */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-terminal-border/50 rounded-lg p-8 text-center cursor-pointer hover:border-terminal-amber transition-colors"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.txt,.md,.html,.htm"
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                  className="hidden"
+                />
+                <div className="font-mono text-terminal-dark/70">
+                  {uploading ? (
+                    <span className="text-terminal-amber">{t("uploading")}</span>
+                  ) : (
+                    <>
+                      <span className="text-terminal-amber">{t("clickToUpload")}</span> {t("orDragFiles")}
+                    </>
+                  )}
+                </div>
+                <div className="text-xs font-mono text-terminal-dark/50 mt-2">
+                  {t("supportedFormats")}
+                </div>
               </div>
-              <div className="text-xs font-mono text-terminal-dark/50 mt-2">
-                {t("supportedFormats")}
-              </div>
-            </div>
 
-            {error && (
-              <div className="text-red-500 text-sm font-mono">! {error}</div>
-            )}
+              {error && (
+                <div className="text-red-500 text-sm font-mono">! {error}</div>
+              )}
 
-            {/* Document List */}
-            {documents.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-mono text-terminal-amber">{t("uploadedDocuments")}</h3>
-                {documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between p-3 bg-terminal-bg/20 rounded border border-terminal-border/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono text-sm text-terminal-dark truncate">
-                        {doc.title || doc.originalFilename}
-                      </div>
-                      <div className="font-mono text-xs text-terminal-dark/50">
-                        {formatSize(doc.sizeBytes)} • {doc.status}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="ml-2 text-red-500/70 hover:text-red-500 text-sm font-mono"
+              {/* Document List */}
+              {documents.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-mono text-terminal-amber">{t("uploadedDocuments")}</h3>
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 bg-terminal-bg/20 rounded border border-terminal-border/30"
                     >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-sm text-terminal-dark truncate">
+                          {doc.title || doc.originalFilename}
+                        </div>
+                        <div className="font-mono text-xs text-terminal-dark/50">
+                          {formatSize(doc.sizeBytes)} • {doc.status}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="ml-2 text-red-500/70 hover:text-red-500 text-sm font-mono"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            {/* Skip hint */}
-            <div className="text-xs font-mono text-terminal-dark/50 text-center">
-              {t("skipHint")}
+              {/* Skip hint */}
+              <div className="text-xs font-mono text-terminal-dark/50 text-center">
+                {t("skipHint")}
+              </div>
             </div>
 
-            {/* Navigation */}
-            <div className="flex items-center justify-between pt-4 border-t border-terminal-border/50">
+            {/* Navigation - Fixed at bottom */}
+            <div className="flex flex-col gap-3 border-t border-terminal-border/50 bg-terminal-cream/90 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={onBack}
-                className="text-sm font-mono text-terminal-dark/60 hover:text-terminal-dark transition-colors"
+                className="order-2 text-sm font-mono text-terminal-dark/60 transition-colors hover:text-terminal-dark sm:order-1"
               >
-                {t("back")}
+                ← {t("back")}
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={uploading}
-                className="px-4 py-2 bg-terminal-dark text-terminal-cream font-mono text-sm rounded hover:bg-terminal-dark/90 transition-colors disabled:opacity-50"
+                className="order-1 w-full rounded bg-terminal-dark px-4 py-2 text-sm font-mono text-terminal-cream transition-colors hover:bg-terminal-dark/90 disabled:opacity-50 sm:order-2 sm:w-auto"
               >
                 {documents.length > 0 ? t("continue") : t("skip")}
               </button>

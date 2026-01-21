@@ -12,6 +12,7 @@ import {
   KnowledgeBasePage,
   VectorSearchPage,
   EmbeddingSetupPage,
+  MCPToolsPage,
 } from "./terminal-pages";
 import { useReducedMotion } from "./hooks/use-reduced-motion";
 import { useAgentExpansion } from "@/lib/characters/hooks";
@@ -26,6 +27,7 @@ type WizardPage =
   | "intro"
   | "identity"
   | "capabilities"
+  | "mcpTools"
   | "knowledge"
   | "embeddingSetup"
   | "vectorSearch"
@@ -34,13 +36,16 @@ type WizardPage =
   | "success";
 
 /** Pages that should show the progress bar */
-const PROGRESS_PAGES: WizardPage[] = ["identity", "knowledge", "embeddingSetup", "vectorSearch", "capabilities", "preview"];
+const PROGRESS_PAGES: WizardPage[] = ["identity", "knowledge", "embeddingSetup", "vectorSearch", "capabilities", "mcpTools", "preview"];
 
 interface WizardState {
   identity: AgentIdentity;
   enabledTools: string[];
   documents: UploadedDocument[];
   createdCharacterId: string | null;
+  enabledMcpServers: string[];
+  enabledMcpTools: string[];
+  mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>;
 }
 
 const initialState: WizardState = {
@@ -48,6 +53,9 @@ const initialState: WizardState = {
   enabledTools: ["docsSearch"],
   documents: [],
   createdCharacterId: null,
+  enabledMcpServers: [],
+  enabledMcpTools: [],
+  mcpToolPreferences: {},
 };
 
 const pageVariants = {
@@ -94,7 +102,7 @@ export function TerminalWizard() {
     );
     return baseSteps.map((step) => ({
       ...step,
-      label: t(step.id as "intro" | "identity" | "capabilities" | "knowledge" | "vectorSearch" | "preview"),
+      label: t(step.id as "intro" | "identity" | "capabilities" | "mcpTools" | "knowledge" | "embeddingSetup" | "vectorSearch" | "preview"),
     }));
   }, [vectorDBEnabled, t]);
 
@@ -151,6 +159,17 @@ export function TerminalWizard() {
   // Handle capabilities submission
   const handleCapabilitiesSubmit = (enabledTools: string[]) => {
     setState((prev) => ({ ...prev, enabledTools }));
+    navigateTo("mcpTools");
+  };
+
+  // Handle MCP tools submission
+  const handleMCPToolsSubmit = (servers: string[], tools: string[], preferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>) => {
+    setState((prev) => ({
+      ...prev,
+      enabledMcpServers: servers,
+      enabledMcpTools: tools,
+      mcpToolPreferences: preferences,
+    }));
     navigateTo("preview");
   };
 
@@ -249,6 +268,9 @@ export function TerminalWizard() {
           metadata: {
             purpose: state.identity.purpose,
             enabledTools: state.enabledTools,
+            enabledMcpServers: state.enabledMcpServers,
+            enabledMcpTools: state.enabledMcpTools,
+            mcpToolPreferences: state.mcpToolPreferences,
           },
         }),
       });
@@ -336,6 +358,16 @@ export function TerminalWizard() {
                 onBack={() => navigateTo(vectorDBEnabled ? "vectorSearch" : "embeddingSetup", -1)}
               />
             )}
+            {currentPage === "mcpTools" && (
+              <MCPToolsPage
+                enabledMcpServers={state.enabledMcpServers}
+                enabledMcpTools={state.enabledMcpTools}
+                mcpToolPreferences={state.mcpToolPreferences}
+                onUpdate={handleMCPToolsSubmit}
+                onComplete={() => navigateTo("preview")}
+                onBack={() => navigateTo("capabilities", -1)}
+              />
+            )}
             {currentPage === "knowledge" && draftAgentId && (
               <KnowledgeBasePage
                 agentId={draftAgentId}
@@ -387,7 +419,7 @@ export function TerminalWizard() {
                 enabledTools={state.enabledTools}
                 documents={state.documents}
                 onConfirm={handleFinalizeAgent}
-                onBack={() => navigateTo("capabilities", -1)}
+                onBack={() => navigateTo("mcpTools", -1)}
                 isSubmitting={isSubmitting}
               />
             )}

@@ -30,7 +30,19 @@ export async function POST(request: NextRequest) {
         const env = settings.mcpEnvironment || {};
 
         const mcpConfig = settings.mcpServers?.mcpServers || {};
-        const serversToConnect = serverNames || Object.keys(mcpConfig);
+
+        // Filter to only enabled servers (undefined or true = enabled)
+        const enabledServers = Object.entries(mcpConfig)
+            .filter(([_, config]) => config.enabled !== false)
+            .map(([name]) => name);
+
+        // If specific servers requested, intersect with enabled list
+        const serversToConnect = serverNames
+            ? serverNames.filter(name => {
+                const config = mcpConfig[name];
+                return config && config.enabled !== false;
+            })
+            : enabledServers;
 
         // If forceReauth is true, clear the OAuth cache for the specified servers
         // This forces mcp-remote to re-authenticate with the OAuth provider

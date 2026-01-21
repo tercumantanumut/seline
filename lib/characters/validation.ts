@@ -87,6 +87,20 @@ export const agentMetadataSchema = z.object({
    * If not specified, all tools from enabled servers are available
    */
   enabledMcpTools: z.array(z.string()).optional(),
+
+  /**
+   * Per-MCP-tool preferences for loading behavior
+   * Key format: "serverName:toolName"
+   */
+  mcpToolPreferences: z.record(
+    z.string(),  // Key: "serverName:toolName"
+    z.object({
+      /** Whether this specific tool is enabled (overrides server-level enablement) */
+      enabled: z.boolean().default(true),
+      /** Loading mode: "always" loads immediately, "deferred" requires discovery */
+      loadingMode: z.enum(["always", "deferred"]).default("deferred"),
+    })
+  ).optional(),
 });
 
 // ============================================================================

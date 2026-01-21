@@ -16,9 +16,27 @@ import { MCPClientManager, type MCPDiscoveredTool } from "@/lib/mcp/client-manag
 export const MCP_TOOL_CATEGORY = "mcp" as const;
 
 /**
- * Convert an MCP tool to Seline's ToolMetadata format
+ * Per-tool loading preference from agent settings
  */
-export function mcpToolToMetadata(mcpTool: MCPDiscoveredTool): ToolMetadata {
+export interface MCPToolLoadingPreference {
+    enabled: boolean;
+    loadingMode: "always" | "deferred";
+}
+
+/**
+ * Convert an MCP tool to Seline's ToolMetadata format
+ * @param mcpTool - The MCP tool from the server
+ * @param preference - Optional per-tool loading preference from agent settings
+ */
+export function mcpToolToMetadata(
+    mcpTool: MCPDiscoveredTool,
+    preference?: MCPToolLoadingPreference
+): ToolMetadata {
+    // Determine loading configuration based on preference
+    const loadingConfig = preference?.loadingMode === "always"
+        ? { alwaysLoad: true, deferLoading: false }
+        : { alwaysLoad: false, deferLoading: true };  // Default to deferred
+
     return {
         displayName: `${mcpTool.name} (${mcpTool.serverName})`,
         category: MCP_TOOL_CATEGORY,
@@ -31,9 +49,7 @@ export function mcpToolToMetadata(mcpTool: MCPDiscoveredTool): ToolMetadata {
         ],
         shortDescription: mcpTool.description || `MCP tool from ${mcpTool.serverName}`,
         fullInstructions: mcpTool.description,
-        loading: {
-            deferLoading: true, // MCP tools are always deferred
-        },
+        loading: loadingConfig,  // Now dynamic based on preference
         requiresSession: false,
     };
 }

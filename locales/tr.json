@@ -148,6 +148,8 @@
     "startNew": "Yeni sohbet başlat",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
+    "mcpTools": "MCP Araçları",
+    "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "toolsEnabled": "{count, plural, one {# araç etkin} other {# araç etkin}}",
     "empty": "Henüz ajan yok. Başlamak için ilk ajanınızı yapılandırın.",
     "emptyTitle": "İlk Ajanınızı Oluşturun",
@@ -556,7 +558,9 @@
       "intro": "Başla",
       "identity": "Kimlik",
       "capabilities": "Yetenekler",
+      "mcpTools": "MCP Araçları",
       "knowledge": "Bilgi",
+      "embeddingSetup": "Gömme Ayarları",
       "vectorSearch": "Vektör Arama",
       "preview": "Önizleme"
     },
@@ -841,7 +845,14 @@
       "connectDiscover": "Bağlan ve Araçları Keşfet",
       "connected": "Bağlı",
       "toolsCount": "{enabled}/{total} araç",
-      "continue": "Devam"
+      "continue": "Devam",
+      "loadingMode": {
+        "label": "Yükleme Modu",
+        "always": "Her Zaman",
+        "deferred": "Gerektiğinde",
+        "alwaysTooltip": "Araç her istekte hemen yüklenir (daha fazla token kullanır)",
+        "deferredTooltip": "Araç gerektiğinde searchTools ile keşfedilir (token tasarrufu)"
+      }
     }
   },
   "errors": {
@@ -1341,8 +1352,19 @@
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",
+    "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Tekrar Dene",
+    "filters": {
+      "search": "Zamanlamalarda ara...",
+      "allStatuses": "Tüm Durumlar",
+      "active": "Aktif",
+      "inactive": "Pasif",
+      "allPriorities": "Tüm Öncelikler",
+      "high": "Yüksek",
+      "normal": "Normal",
+      "low": "Düşük"
+    },
     "empty": {
       "title": "Henüz zamanlanmış görev yok",
       "description": "Ajanınızı otomatikleştirmek için bir zamanlama oluşturun",
@@ -1365,7 +1387,8 @@
       "recentRuns": "Son Çalışmalar",
       "viewChat": "Sohbeti Görüntüle",
       "continueChat": "Devam Et",
-      "noSession": "Oturum oluşturulmadı"
+      "noSession": "Oturum oluşturulmadı",
+      "neverRun": "Hiç çalıştırılmadı"
     },
     "form": {
       "createTitle": "Zamanlama Oluştur",
@@ -1400,6 +1423,7 @@
       "maxRetries": "Maks Deneme",
       "create": "Zamanlama Oluştur",
       "save": "Değişiklikleri Kaydet",
+      "cancel": "İptal",
       "validation": {
         "required": "Ad ve komut gereklidir",
         "failed": "Zamanlama kaydedilemedi"
@@ -1436,9 +1460,19 @@
       "title": "Hızlı Başlangıç Şablonları",
       "subtitle": "Hızlıca başlamak için bir şablon seçin",
       "useTemplate": "Şablonu Kullan",
+      "createFromScratch": "Veya sıfırdan oluşturun →",
       "requiresIntegration": "{integration} entegrasyonu gerektirir",
+      "alternativeAvailable": "Bunun yerine {method} kullanılacak",
       "estimatedTime": "~{duration}",
+      "help": {
+        "whatArePresets": "Zamanlama şablonları nedir?",
+        "explanation": "Şablonlar, yaygın iş akışları için tasarlanmış önceden yapılandırılmış zamanlamalardır. Optimize edilmiş zamanlama, komutlar ve ayarlar içerirler.",
+        "benefit1": "En iyi sonuçlar için önceden yapılandırılmış zamanlama",
+        "benefit2": "Uzmanlarca hazırlanmış yapay zeka komutları",
+        "benefit3": "Seçimden sonra tamamen özelleştirilebilir"
+      },
       "categories": {
+        "all": "Tüm Şablonlar",
         "productivity": "Verimlilik",
         "development": "Geliştirme",
         "communication": "İletişim",
