@@ -12,6 +12,18 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import type { MCPServerConfig, ResolvedMCPServer, MCPDiscoveredTool, MCPServerStatus } from "./types";
 import { getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
 import { onFolderChange } from "@/lib/vectordb/folder-events";
+import path from "path";
+
+function validateFolderPath(folderPath: string): boolean {
+    const resolved = path.resolve(folderPath);
+    const allowedBases = [
+        process.env.USER_DATA_DIR,
+        "/app/data",
+        process.env.HOME // For local development compatibility
+    ].filter(Boolean) as string[];
+
+    return allowedBases.some(base => resolved.startsWith(path.resolve(base)));
+}
 
 // Re-export types for convenience
 export type { MCPDiscoveredTool, MCPServerStatus };
@@ -542,12 +554,18 @@ export async function resolveMCPConfig(
 
         // Handle ${SYNCED_FOLDER} - primary folder only
         if (resolved.includes("${SYNCED_FOLDER}") && characterId) {
-            // Simplify: Just get the first folder, ignoring isPrimary complexity for reliability
-            const folders = await getSyncFolders(characterId);
-            const primaryPath = folders[0]?.folderPath || "";
+            const primaryFolder = await getPrimarySyncFolder(characterId);
+            const primaryPath = primaryFolder?.folderPath || "";
 
             if (!primaryPath) {
-                console.warn(`[MCP] No synced folders found for character ${characterId}`);
+                throw new Error(
+                    `Cannot resolve \${SYNCED_FOLDER}: No synced folders for character ${characterId}. ` +
+                    `Please sync a folder in Settings → Vector Search.`
+                );
+            }
+
+            if (!validateFolderPath(primaryPath)) {
+                throw new Error(`Invalid folder path: ${primaryPath}`);
             }
 
             resolved = resolved.replace(/\$\{SYNCED_FOLDER\}/g, primaryPath);
@@ -556,12 +574,20 @@ export async function resolveMCPConfig(
         // Handle ${SYNCED_FOLDERS} - all folders, comma-separated (for single-arg tools)
         if (resolved.includes("${SYNCED_FOLDERS}") && characterId) {
             const folders = await getSyncFolders(characterId);
-            const allPaths = folders.map(f => f.folderPath).join(",");
 
-            if (!allPaths) {
-                console.warn(`[MCP] No synced folders found for character ${characterId}`);
+            if (folders.length === 0) {
+                throw new Error(
+                    `Cannot resolve \${SYNCED_FOLDERS}: No synced folders for character ${characterId}.`
+                );
             }
 
+            for (const folder of folders) {
+                if (!validateFolderPath(folder.folderPath)) {
+                    throw new Error(`Invalid folder path in list: ${folder.folderPath}`);
+                }
+            }
+
+            const allPaths = folders.map(f => f.folderPath).join(",");
             resolved = resolved.replace(/\$\{SYNCED_FOLDERS\}/g, allPaths);
         }
 
@@ -591,13 +617,20 @@ export async function resolveMCPConfig(
             for (const arg of config.args) {
                 if (arg === "${SYNCED_FOLDERS_ARRAY}" && characterId) {
                     const folders = await getSyncFolders(characterId);
-                    const paths = folders.map(f => f.folderPath);
-                    if (paths.length === 0) {
-                        console.warn(`[MCP] No synced folders found for ${arg}`);
-                    } else {
-                        console.log(`[MCP] Expanding ${arg} to ${paths.length} directories`);
-                        resolvedArgs.push(...paths); // Multi-arg expansion!
+
+                    if (folders.length === 0) {
+                        throw new Error(`Cannot resolve \${SYNCED_FOLDERS_ARRAY}: No synced folders for character ${characterId}.`);
                     }
+
+                    for (const folder of folders) {
+                        if (!validateFolderPath(folder.folderPath)) {
+                            throw new Error(`Invalid folder path in expansion: ${folder.folderPath}`);
+                        }
+                    }
+
+                    const paths = folders.map(f => f.folderPath);
+                    console.log(`[MCP] Expanding ${arg} to ${paths.length} directories`);
+                    resolvedArgs.push(...paths); // Multi-arg expansion!
                 } else {
                     resolvedArgs.push(await resolveValue(arg));
                 }

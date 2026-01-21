@@ -16,7 +16,7 @@ describe("MCP Synced Folders Variable Resolution", () => {
 
     it("should resolve ${SYNCED_FOLDER} to the primary folder path", async () => {
         const characterId = "char-123";
-        const primaryPath = "/path/to/primary";
+        const primaryPath = "/app/data/primary";
 
         (syncService.getPrimarySyncFolder as any).mockResolvedValue({
             folderPath: primaryPath,
@@ -34,7 +34,7 @@ describe("MCP Synced Folders Variable Resolution", () => {
 
     it("should resolve ${SYNCED_FOLDERS} to all folder paths comma-separated", async () => {
         const characterId = "char-123";
-        const paths = ["/path/1", "/path/2"];
+        const paths = ["/app/data/1", "/app/data/2"];
 
         (syncService.getSyncFolders as any).mockResolvedValue([
             { folderPath: paths[0], isPrimary: true },
@@ -50,9 +50,29 @@ describe("MCP Synced Folders Variable Resolution", () => {
         expect(resolved.args).toContain(paths.join(","));
     });
 
+    it("should expand ${SYNCED_FOLDERS_ARRAY} into multiple arguments", async () => {
+        const characterId = "char-123";
+        const paths = ["/app/data/1", "/app/data/2", "/app/data/3"];
+
+        (syncService.getSyncFolders as any).mockResolvedValue(
+            paths.map((p, i) => ({ folderPath: p, isPrimary: i === 0 }))
+        );
+
+        const config = {
+            command: "ls",
+            args: ["${SYNCED_FOLDERS_ARRAY}"]
+        };
+
+        const resolved = await resolveMCPConfig("test", config as any, {}, characterId);
+
+        // Should expand to 3 separate args
+        expect(resolved.args).toEqual(paths);
+        expect(resolved.args.length).toBe(3);
+    });
+
     it("should resolve environment variables alongside synced folder variables", async () => {
         const characterId = "char-123";
-        const primaryPath = "/path/to/primary";
+        const primaryPath = "/app/data/primary";
         const apiKey = "sk-12345";
 
         (syncService.getPrimarySyncFolder as any).mockResolvedValue({

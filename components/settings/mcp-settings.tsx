@@ -132,12 +132,14 @@ function ConfigPreview({
 
     const resolveArg = (arg: string) => {
         if (arg === "${SYNCED_FOLDER}") return primaryFolder || "<no-primary-folder>";
-        if (arg === "${SYNCED_FOLDERS_ARRAY}") return syncedFolders.map(f => f.folderPath).join(" ") || "<no-folders>";
+        // Return array for SYNCED_FOLDERS_ARRAY to match actual execution
+        if (arg === "${SYNCED_FOLDERS_ARRAY}") return syncedFolders.length > 0 ? syncedFolders.map(f => f.folderPath) : ["<no-folders>"];
         if (arg === "${SYNCED_FOLDERS}") return syncedFolders.map(f => f.folderPath).join(",") || "<no-folders>";
         return arg;
     };
 
     const resolvedArgs = config.args?.map(resolveArg) || [];
+    const flatArgs = resolvedArgs.flatMap(arg => Array.isArray(arg) ? arg : [arg]);
 
     return (
         <div className="mt-2 p-3 rounded bg-terminal-bg/50 border border-terminal-border font-mono text-[10px] space-y-1">
@@ -147,7 +149,7 @@ function ConfigPreview({
             </div>
             <div className="text-terminal-dark break-all">
                 <span className="text-terminal-green">{config.command}</span>{" "}
-                {resolvedArgs.map((arg, i) => (
+                {flatArgs.map((arg, i) => (
                     <span key={i} className={cn(
                         "mr-1.5",
                         arg.includes("/") ? "text-blue-600" : "text-terminal-dark"

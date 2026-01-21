@@ -30,6 +30,12 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 
  Updates: - 3rd provider added. now can use antigravity models and google antigravity subscription 
 
+## MCP Dynamic Configuration
+Seline supports dynamic variables in MCP server configurations:
+- `${SYNCED_FOLDER}`: Resolves to the path of the primary synced folder for the current character.
+- `${SYNCED_FOLDERS}`: Resolves to a comma-separated list of all synced folders.
+- `${SYNCED_FOLDERS_ARRAY}`: Resolves to multiple arguments, one for each synced folder (useful for servers like `filesystem`). 
+
 ## Supported Platforms
 - Windows (installer builds are available).
 - macOS is supported today; DMG distribution is coming soon. You can build macOS packages from source in the meantime.
