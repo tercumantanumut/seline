@@ -21,6 +21,10 @@ import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
 
+import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
+export { onFolderChange, notifyFolderChange };
+export type { FolderChangeEvent };
+
 /**
  * Parallel processing configuration
  */
@@ -234,6 +238,10 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
   // Normalize extensions to ensure consistent format (without dots)
   const normalizedExtensions = normalizeExtensions(includeExtensions);
 
+  // Check if this is the first folder for this character
+  const existingFolders = await getSyncFolders(characterId);
+  const isPrimary = existingFolders.length === 0;
+
   const [folder] = await db
     .insert(agentSyncFolders)
     .values({
@@ -241,6 +249,7 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
       characterId,
       folderPath,
       displayName: displayName || folderPath.split("/").pop(),
+      isPrimary,
       recursive,
       // Note: Drizzle handles JSON serialization automatically for mode: "json" columns
       // Do NOT use JSON.stringify here
@@ -250,18 +259,79 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     })
     .returning();
 
-  console.log(`[SyncService] Added sync folder: ${folderPath} for agent ${characterId}`);
+  console.log(`[SyncService] Added sync folder: ${folderPath} for agent ${characterId} (primary: ${isPrimary})`);
+
+  notifyFolderChange(characterId, {
+    type: "added",
+    folderId: folder.id,
+  });
+
   return folder.id;
 }
 
 /**
- * Get all sync folders for an agent
+ * Get all sync folders for all agents
+ */
+export async function getAllSyncFolders() {
+  return db
+    .select()
+    .from(agentSyncFolders)
+    .orderBy(sql`is_primary DESC, created_at ASC`);
+}
+
+/**
+ * Get all sync folders for an agent, primary first
  */
 export async function getSyncFolders(characterId: string) {
   return db
     .select()
     .from(agentSyncFolders)
-    .where(eq(agentSyncFolders.characterId, characterId));
+    .where(eq(agentSyncFolders.characterId, characterId))
+    .orderBy(sql`is_primary DESC, created_at ASC`);
+}
+
+/**
+ * Get primary synced folder for a character
+ */
+export async function getPrimarySyncFolder(characterId: string) {
+  const [folder] = await db
+    .select()
+    .from(agentSyncFolders)
+    .where(
+      and(
+        eq(agentSyncFolders.characterId, characterId),
+        eq(agentSyncFolders.isPrimary, true)
+      )
+    )
+    .limit(1);
+
+  return folder || null;
+}
+
+/**
+ * Set a folder as primary (unsets others for the same character)
+ */
+export async function setPrimaryFolder(folderId: string, characterId: string) {
+  await db.transaction(async (tx) => {
+    // Unset all primary flags for this character
+    await tx
+      .update(agentSyncFolders)
+      .set({ isPrimary: false })
+      .where(eq(agentSyncFolders.characterId, characterId));
+
+    // Set the specified folder as primary
+    await tx
+      .update(agentSyncFolders)
+      .set({ isPrimary: true })
+      .where(eq(agentSyncFolders.id, folderId));
+  });
+
+  console.log(`[SyncService] Set folder ${folderId} as primary for character ${characterId}`);
+
+  notifyFolderChange(characterId, {
+    type: "primary_changed",
+    folderId,
+  });
 }
 
 /**
@@ -307,8 +377,26 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
   }
 
   // Delete folder (cascade deletes files)
+  const wasPrimary = folder.isPrimary;
+  const characterId = folder.characterId;
+
   await db.delete(agentSyncFolders).where(eq(agentSyncFolders.id, folderId));
   console.log(`[SyncService] Removed sync folder: ${folderId}`);
+
+  // If it was primary, promote the next folder if available
+  if (wasPrimary) {
+    const remainingFolders = await getSyncFolders(characterId);
+    if (remainingFolders.length > 0) {
+      await setPrimaryFolder(remainingFolders[0].id, characterId);
+      console.log(`[SyncService] Promoted folder ${remainingFolders[0].id} to primary`);
+    }
+  }
+
+  notifyFolderChange(characterId, {
+    type: "removed",
+    folderId,
+    wasPrimary,
+  });
 }
 
 /**

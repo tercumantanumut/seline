@@ -58,6 +58,8 @@ import { animate } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
+import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
+
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -320,6 +322,9 @@ const Composer: FC = () => {
   const t = useTranslations("assistantUi");
   const te = useTranslations("errors");
 
+  // MCP reload status
+  const { status: mcpStatus } = useMCPReloadStatus();
+
   // Deep Research mode (optional - may not be available)
   const deepResearch = useOptionalDeepResearch();
   const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
@@ -553,8 +558,25 @@ const Composer: FC = () => {
   const getPlaceholder = () => {
     if (isDeepResearchMode) return t("composer.placeholderResearch");
     if (isRunning) return t("composer.placeholderQueue");
+    if (mcpStatus.isReloading) return t("composer.placeholderInitializing");
     return t("composer.placeholderDefault");
   };
+
+  // Determine status message and icon
+  const getStatusMessage = () => {
+    if (mcpStatus.isReloading) {
+      return `Initializing tools... ${mcpStatus.progress.toFixed(0)}%`;
+    }
+    if (isDeepResearchLoading) {
+      return "Researching...";
+    }
+    if (isRunning) {
+      return "Responding...";
+    }
+    return null;
+  };
+
+  const statusMessage = getStatusMessage();
 
   return (
     <div className="relative w-full">
@@ -608,6 +630,18 @@ const Composer: FC = () => {
         )}
         onFocus={handleFocus}
       >
+        {/* Status indicator above composer */}
+        {statusMessage && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-mono text-terminal-muted border-b border-terminal-dark/10">
+            <Loader2Icon className="size-3 animate-spin flex-shrink-0" />
+            <span>{statusMessage}</span>
+            {mcpStatus.isReloading && mcpStatus.estimatedTimeRemaining > 0 && (
+              <span className="text-terminal-muted/70">
+                (~{Math.ceil(mcpStatus.estimatedTimeRemaining / 1000)}s remaining)
+              </span>
+            )}
+          </div>
+        )}
         {/* Deep Research Mode Indicator */}
         {isDeepResearchMode && (
           <div className="flex items-center gap-2 px-4 pt-2 text-xs font-mono text-purple-600">
@@ -651,7 +685,7 @@ const Composer: FC = () => {
                     variant="destructive"
                     size="sm"
                     onClick={handleCancel}
-                    disabled={isCancelling}
+                    disabled={isCancelling || mcpStatus.isReloading}
                     className="h-8 px-2 text-xs font-mono"
                   >
                     {isCancelling ? (
@@ -659,11 +693,13 @@ const Composer: FC = () => {
                     ) : (
                       <CircleStopIcon className="size-3" />
                     )}
-                    {t("composer.stop")}
+                    {mcpStatus.isReloading ? t("composer.initializing") : t("composer.stop")}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
-                  {t("tooltips.stopResponse")}
+                  {mcpStatus.isReloading
+                    ? t("tooltips.toolsInitializing")
+                    : t("tooltips.stopResponse")}
                 </TooltipContent>
               </Tooltip>
             )}

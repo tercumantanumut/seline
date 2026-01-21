@@ -10,6 +10,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { MCPServerConfig, ResolvedMCPServer, MCPDiscoveredTool, MCPServerStatus } from "./types";
+import { getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
+import { onFolderChange } from "@/lib/vectordb/folder-events";
 
 // Re-export types for convenience
 export type { MCPDiscoveredTool, MCPServerStatus };
@@ -28,11 +30,31 @@ class MCPClientManager {
     private tools: Map<string, MCPDiscoveredTool[]> = new Map();
     private status: Map<string, MCPServerStatus> = new Map();
     private transports: Map<string, StdioClientTransport | SSEClientTransport> = new Map();
+    private characterMcpServers: Map<string, string[]> = new Map(); // Track which servers belong to which character
+    private serverCharacterContext: Map<string, string | undefined> = new Map(); // Track characterId used for each server connection
 
     /** Default timeout for tool calls in milliseconds (5 minutes) */
     private readonly toolCallTimeoutMs: number = 300000;
 
-    private constructor() { }
+    /** Track reload state per character */
+    private reloadState: Map<string, {
+        isReloading: boolean;
+        startedAt: Date | null;
+        totalServers: number;
+        completedServers: number;
+        failedServers: string[];
+    }> = new Map();
+
+    private constructor() {
+        // Register folder change listener for auto-reconnection
+        onFolderChange(async (characterId, event) => {
+            console.log(`[MCP] Folder change detected for character ${characterId}:`, event);
+
+            // Reconnect on any change (added, removed, or primary_changed) 
+            // because SYNCED_FOLDERS_ARRAY and SYNCED_FOLDERS change on any folder update.
+            await this.reconnectForCharacter(characterId);
+        });
+    }
 
     static getInstance(): MCPClientManager {
         if (!globalForMCP.mcpClientManager) {
@@ -44,7 +66,19 @@ class MCPClientManager {
     /**
      * Connect to an MCP server and discover its tools
      */
-    async connect(serverName: string, config: ResolvedMCPServer): Promise<MCPServerStatus> {
+    async connect(
+        serverName: string,
+        config: ResolvedMCPServer,
+        characterId?: string
+    ): Promise<MCPServerStatus> {
+        // Track character association
+        if (characterId) {
+            const servers = this.characterMcpServers.get(characterId) || [];
+            if (!servers.includes(serverName)) {
+                servers.push(serverName);
+                this.characterMcpServers.set(characterId, servers);
+            }
+        }
         // Disconnect existing connection if any
         await this.disconnect(serverName);
 
@@ -62,6 +96,7 @@ class MCPClientManager {
                 }
 
                 console.log(`[MCP] Starting stdio transport: ${config.command} ${config.args?.join(" ") || ""}`);
+                console.log(`[MCP] Working directory access/arguments:`, config.args); // NEW: Debug log
 
                 transport = new StdioClientTransport({
                     command: config.command,
@@ -84,6 +119,20 @@ class MCPClientManager {
                 });
             }
 
+            // Validate filesystem args if applicable
+            if (config.command && (serverName === "filesystem" || serverName === "filesystem-multi")) {
+                const hasValidPath = config.args?.some(arg =>
+                    arg && arg.length > 0 && arg !== "<no-primary-folder>" && arg !== "<no-folders>"
+                );
+
+                if (!hasValidPath) {
+                    throw new Error(
+                        `Filesystem MCP server requires synced folder paths. ` +
+                        `Please sync a folder in Settings → Vector Search before enabling this server.`
+                    );
+                }
+            }
+
             // Create and connect client
             const client = new Client({
                 name: "seline-mcp-client",
@@ -103,10 +152,11 @@ class MCPClientManager {
                 serverName,
             }));
 
-            // Store client, transport, and tools
+            // Store client, transport, tools, and context
             this.clients.set(serverName, client);
             this.transports.set(serverName, transport);
             this.tools.set(serverName, discoveredTools);
+            this.serverCharacterContext.set(serverName, characterId);
 
             const status: MCPServerStatus = {
                 serverName,
@@ -160,8 +210,125 @@ class MCPClientManager {
             this.transports.delete(serverName);
         }
 
+        this.serverCharacterContext.delete(serverName);
         this.tools.delete(serverName);
         this.status.delete(serverName);
+
+        // Clean up character tracking
+        for (const [characterId, servers] of this.characterMcpServers.entries()) {
+            const index = servers.indexOf(serverName);
+            if (index > -1) {
+                servers.splice(index, 1);
+                if (servers.length === 0) {
+                    this.characterMcpServers.delete(characterId);
+                }
+            }
+        }
+    }
+
+    /**
+     * Reconnect all MCP servers for a specific character
+     */
+    private async reconnectForCharacter(characterId: string): Promise<void> {
+        const serverNames = this.characterMcpServers.get(characterId) || [];
+
+        if (serverNames.length === 0) {
+            console.log(`[MCP] No servers to reconnect for character ${characterId}`);
+            return;
+        }
+
+        // Initialize reload state
+        this.reloadState.set(characterId, {
+            isReloading: true,
+            startedAt: new Date(),
+            totalServers: serverNames.length,
+            completedServers: 0,
+            failedServers: [],
+        });
+
+        // Emit reload started event
+        const { notifyFolderChange } = await import("@/lib/vectordb/folder-events");
+        notifyFolderChange(characterId, {
+            type: "mcp_reload_started",
+            folderId: "", // Not folder-specific
+            totalServers: serverNames.length,
+            estimatedDuration: serverNames.length * 5000, // 5s per server estimate
+        });
+
+        console.log(`[MCP] Reconnecting ${serverNames.length} servers for character ${characterId} due to folder change...`);
+
+        // Dynamic imports to avoid circular dependencies
+        const { loadSettings } = await import("@/lib/settings/settings-manager");
+        const { getCharacter } = await import("@/lib/characters");
+
+        const settings = loadSettings();
+        const character = await getCharacter(characterId);
+
+        if (!character) {
+            console.warn(`[MCP] Character ${characterId} not found for reconnection`);
+            return;
+        }
+
+        const metadata = character.metadata as any;
+        const globalConfig = settings.mcpServers?.mcpServers || {};
+        const agentConfig = metadata?.mcpServers?.mcpServers || {};
+        const combinedConfig = { ...globalConfig, ...agentConfig };
+        const env = settings.mcpEnvironment || {};
+
+        for (const serverName of serverNames) {
+            try {
+                // Disconnect existing
+                await this.disconnect(serverName);
+
+                // Reconnect with updated config
+                const config = combinedConfig[serverName];
+                if (config) {
+                    const resolved = await resolveMCPConfig(serverName, config, env, characterId);
+                    await this.connect(serverName, resolved, characterId);
+                    console.log(`[MCP] Successfully reconnected ${serverName} for ${characterId}`);
+
+                    // Update progress
+                    const state = this.reloadState.get(characterId);
+                    if (state) {
+                        state.completedServers++;
+
+                        // Emit progress update
+                        notifyFolderChange(characterId, {
+                            type: "mcp_reload_started", // Use same type for progress updates
+                            folderId: "",
+                            serverName,
+                            totalServers: state.totalServers,
+                            completedServers: state.completedServers,
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(`[MCP] Failed to reconnect ${serverName}:`, error);
+
+                // Track failed servers
+                const state = this.reloadState.get(characterId);
+                if (state) {
+                    state.failedServers.push(serverName);
+                    state.completedServers++; // Count as completed (failed)
+                }
+            }
+        }
+
+        // Mark reload as complete
+        const state = this.reloadState.get(characterId);
+        if (state) {
+            state.isReloading = false;
+
+            notifyFolderChange(characterId, {
+                type: state.failedServers.length > 0 ? "mcp_reload_failed" : "mcp_reload_completed",
+                folderId: "",
+                totalServers: state.totalServers,
+                completedServers: state.completedServers,
+                error: state.failedServers.length > 0
+                    ? `Failed to reload: ${state.failedServers.join(", ")}`
+                    : undefined,
+            });
+        }
     }
 
     /**
@@ -246,6 +413,67 @@ class MCPClientManager {
     }
 
     /**
+     * Get the character ID a server was connected for
+     */
+    getConnectedCharacterId(serverName: string): string | undefined {
+        return this.serverCharacterContext.get(serverName);
+    }
+
+    /**
+     * Get current reload status for a character
+     */
+    getReloadStatus(characterId: string): {
+        isReloading: boolean;
+        progress: number; // 0-100
+        estimatedTimeRemaining: number; // milliseconds
+        failedServers: string[];
+        totalServers: number;
+        completedServers: number;
+    } {
+        const state = this.reloadState.get(characterId);
+        if (!state || !state.isReloading) {
+            return {
+                isReloading: false,
+                progress: 100,
+                estimatedTimeRemaining: 0,
+                failedServers: [],
+                totalServers: 0,
+                completedServers: 0,
+            };
+        }
+
+        const progress = state.totalServers > 0
+            ? (state.completedServers / state.totalServers) * 100
+            : 0;
+
+        const elapsed = Date.now() - (state.startedAt?.getTime() || 0);
+        const avgTimePerServer = state.completedServers > 0
+            ? elapsed / state.completedServers
+            : 5000; // Default 5s per server
+
+        const remaining = (state.totalServers - state.completedServers) * avgTimePerServer;
+
+        return {
+            isReloading: true,
+            progress: Math.min(progress, 100),
+            estimatedTimeRemaining: Math.max(remaining, 0),
+            failedServers: state.failedServers,
+            totalServers: state.totalServers,
+            completedServers: state.completedServers,
+        };
+    }
+
+    /**
+     * Check if ANY character is currently reloading (for global indicator)
+     */
+    isAnyReloading(): boolean {
+        for (const state of this.reloadState.values()) {
+            if (state.isReloading) return true;
+        }
+        return false;
+    }
+
+    /**
      * Disconnect all MCP servers and clear all cached tools/status
      */
     async disconnectAll(): Promise<void> {
@@ -296,20 +524,54 @@ export { MCPClientManager };
 
 /**
  * Resolve environment variables and determine transport type in MCP config
+ * Supports ${SYNCED_FOLDER} (primary) and ${SYNCED_FOLDERS} (all, comma-separated)
  */
-export function resolveMCPConfig(
+export async function resolveMCPConfig(
     serverName: string,
     config: MCPServerConfig,
-    env: Record<string, string>
-): ResolvedMCPServer {
-    const resolveValue = (value: string): string => {
-        return value.replace(/\$\{([^}]+)\}/g, (_, varName) => {
+    env: Record<string, string>,
+    characterId?: string
+): Promise<ResolvedMCPServer> {
+    console.log(`[MCP] Resolving config for ${serverName}:`, {
+        hasCharacterId: !!characterId,
+        configArgs: config.args,
+    });
+
+    const resolveValue = async (value: string): Promise<string> => {
+        let resolved = value;
+
+        // Handle ${SYNCED_FOLDER} - primary folder only
+        if (resolved.includes("${SYNCED_FOLDER}") && characterId) {
+            // Simplify: Just get the first folder, ignoring isPrimary complexity for reliability
+            const folders = await getSyncFolders(characterId);
+            const primaryPath = folders[0]?.folderPath || "";
+
+            if (!primaryPath) {
+                console.warn(`[MCP] No synced folders found for character ${characterId}`);
+            }
+
+            resolved = resolved.replace(/\$\{SYNCED_FOLDER\}/g, primaryPath);
+        }
+
+        // Handle ${SYNCED_FOLDERS} - all folders, comma-separated (for single-arg tools)
+        if (resolved.includes("${SYNCED_FOLDERS}") && characterId) {
+            const folders = await getSyncFolders(characterId);
+            const allPaths = folders.map(f => f.folderPath).join(",");
+
+            if (!allPaths) {
+                console.warn(`[MCP] No synced folders found for character ${characterId}`);
+            }
+
+            resolved = resolved.replace(/\$\{SYNCED_FOLDERS\}/g, allPaths);
+        }
+
+        // Handle standard environment variables
+        return resolved.replace(/\$\{([^}]+)\}/g, (_, varName) => {
             return env[varName] || "";
         });
     };
 
     // Determine transport type
-    // If command is present, it's stdio; otherwise use specified type or default to sse
     const transportType: "http" | "sse" | "stdio" = config.command
         ? "stdio"
         : (config.type || "sse");
@@ -319,15 +581,40 @@ export function resolveMCPConfig(
         const resolvedEnv: Record<string, string> = {};
         if (config.env) {
             for (const [key, value] of Object.entries(config.env)) {
-                resolvedEnv[key] = resolveValue(value);
+                resolvedEnv[key] = await resolveValue(value);
             }
         }
+
+        // Resolve arguments with special handling for ${SYNCED_FOLDERS_ARRAY}
+        const resolvedArgs: string[] = [];
+        if (config.args) {
+            for (const arg of config.args) {
+                if (arg === "${SYNCED_FOLDERS_ARRAY}" && characterId) {
+                    const folders = await getSyncFolders(characterId);
+                    const paths = folders.map(f => f.folderPath);
+                    if (paths.length === 0) {
+                        console.warn(`[MCP] No synced folders found for ${arg}`);
+                    } else {
+                        console.log(`[MCP] Expanding ${arg} to ${paths.length} directories`);
+                        resolvedArgs.push(...paths); // Multi-arg expansion!
+                    }
+                } else {
+                    resolvedArgs.push(await resolveValue(arg));
+                }
+            }
+        }
+
+        console.log(`[MCP] ✅ Resolved ${serverName}:`, {
+            command: config.command,
+            args: resolvedArgs,
+            env: Object.keys(resolvedEnv),
+        });
 
         return {
             name: serverName,
             type: "stdio",
-            command: config.command ? resolveValue(config.command) : undefined,
-            args: config.args?.map(arg => resolveValue(arg)) || [],
+            command: config.command ? await resolveValue(config.command) : undefined,
+            args: resolvedArgs,
             env: resolvedEnv,
             timeout: config.timeout || 30000,
         };
@@ -337,14 +624,14 @@ export function resolveMCPConfig(
     const resolvedHeaders: Record<string, string> = {};
     if (config.headers) {
         for (const [key, value] of Object.entries(config.headers)) {
-            resolvedHeaders[key] = resolveValue(value);
+            resolvedHeaders[key] = await resolveValue(value);
         }
     }
 
     return {
         name: serverName,
         type: transportType,
-        url: config.url ? resolveValue(config.url) : undefined,
+        url: config.url ? await resolveValue(config.url) : undefined,
         headers: resolvedHeaders,
         timeout: config.timeout || 30000,
     };
