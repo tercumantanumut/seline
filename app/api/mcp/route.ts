@@ -65,8 +65,11 @@ export async function PUT(request: NextRequest) {
         // This disconnects servers that were removed and clears their tools
         const manager = MCPClientManager.getInstance();
         const registry = ToolRegistry.getInstance();
+        const mcpConfig = mcpServers?.mcpServers || settings.mcpServers?.mcpServers || {};
         const configuredServers = new Set<string>(
-            Object.keys(mcpServers?.mcpServers || settings.mcpServers?.mcpServers || {})
+            Object.entries(mcpConfig)
+                .filter(([_, config]) => config.enabled !== false)
+                .map(([name]) => name)
         );
 
         const disconnectedServers = await manager.syncWithConfig(configuredServers);

@@ -57,6 +57,7 @@ export function MCPToolsPage({
     const t = useTranslations("characterCreation.mcpTools");
     const [tools, setTools] = useState<MCPTool[]>([]);
     const [status, setStatus] = useState<MCPServerStatus[]>([]);
+    const [config, setConfig] = useState<{ mcpServers?: Record<string, { enabled?: boolean }> } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isConnecting, setIsConnecting] = useState(false);
     const [selectedServers, setSelectedServers] = useState<Set<string>>(
@@ -87,6 +88,7 @@ export function MCPToolsPage({
             const configRes = await fetch("/api/mcp");
             const configData = await configRes.json();
             setStatus(configData.status || []);
+            setConfig(configData.config || null);
 
             // Load tools
             const toolsRes = await fetch("/api/mcp/tools");
@@ -256,8 +258,11 @@ export function MCPToolsPage({
         );
     }
 
-    // Check if there are any configured servers (from status)
-    const hasConfiguredServers = status.length > 0;
+    // Check if there are any configured AND enabled servers (from config, not just status)
+    const configuredServerNames = Object.entries(config?.mcpServers || {})
+        .filter(([_, serverConfig]) => serverConfig?.enabled !== false)
+        .map(([name]) => name);
+    const hasConfiguredServers = configuredServerNames.length > 0;
 
     if (!hasConfiguredServers && serverNames.length === 0) {
         return (

@@ -932,6 +932,14 @@
         }
       }
     },
+    "mcp": {
+      "serverEnabled": "Server enabled",
+      "serverDisabled": "Server disabled",
+      "enableServer": "Enable server",
+      "disableServer": "Disable server",
+      "disabledBadge": "Disabled",
+      "disabledTooltip": "This server is disabled and will not connect. Toggle to enable."
+    },
     "models": {
       "title": "Model Selection",
       "subtitle": "Configure different models for different tasks. Leave empty to use provider defaults.",
@@ -1358,6 +1366,7 @@
       "allStatuses": "All Statuses",
       "active": "Active",
       "inactive": "Inactive",
+      "draft": "Draft",
       "allPriorities": "All Priorities",
       "high": "High",
       "normal": "Normal",
@@ -1371,6 +1380,7 @@
     "card": {
       "enabled": "Active",
       "disabled": "Paused",
+      "draft": "Draft",
       "priority": {
         "high": "High",
         "normal": "Normal",
@@ -1433,6 +1443,8 @@
       "subtitle": "Configure automation triggers and AI instructions.",
       "systemActive": "SYSTEM ACTIVE",
       "saveDraft": "Save Draft",
+      "untitledDraft": "Untitled Draft",
+      "draftSaved": "Draft saved successfully",
       "createSchedule": "Create Schedule",
       "updateSchedule": "Update Schedule",
       "sections": {
