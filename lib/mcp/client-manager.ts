@@ -316,12 +316,19 @@ export function resolveMCPConfig(
 
     if (transportType === "stdio") {
         // Stdio transport
+        const resolvedEnv: Record<string, string> = {};
+        if (config.env) {
+            for (const [key, value] of Object.entries(config.env)) {
+                resolvedEnv[key] = resolveValue(value);
+            }
+        }
+
         return {
             name: serverName,
             type: "stdio",
-            command: config.command!,
-            args: config.args || [],
-            env: config.env,
+            command: config.command ? resolveValue(config.command) : undefined,
+            args: config.args?.map(arg => resolveValue(arg)) || [],
+            env: resolvedEnv,
             timeout: config.timeout || 30000,
         };
     }
