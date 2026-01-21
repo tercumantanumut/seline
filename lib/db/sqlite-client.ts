@@ -503,6 +503,7 @@ function initializeTables(sqlite: Database.Database): void {
       max_retries INTEGER NOT NULL DEFAULT 3,
       timeout_ms INTEGER NOT NULL DEFAULT 300000,
       priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('high', 'normal', 'low')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'paused', 'archived')),
       paused_at TEXT,
       paused_until TEXT,
       pause_reason TEXT,
@@ -645,6 +646,7 @@ function runDataMigrations(sqlite: Database.Database): void {
       { name: "paused_at", sql: "ALTER TABLE scheduled_tasks ADD COLUMN paused_at TEXT" },
       { name: "paused_until", sql: "ALTER TABLE scheduled_tasks ADD COLUMN paused_until TEXT" },
       { name: "pause_reason", sql: "ALTER TABLE scheduled_tasks ADD COLUMN pause_reason TEXT" },
+      { name: "status", sql: "ALTER TABLE scheduled_tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'paused', 'archived'))" },
       { name: "delivery_method", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'session'" },
       { name: "delivery_config", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_config TEXT NOT NULL DEFAULT '{}'" },
     ];

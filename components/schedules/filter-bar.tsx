@@ -11,7 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
-export type StatusFilter = "all" | "active" | "inactive";
+export type StatusFilter = "all" | "active" | "inactive" | "draft";
 export type PriorityFilter = "all" | "high" | "normal" | "low";
 
 interface FilterBarProps {
@@ -62,6 +62,7 @@ export function FilterBar({
                     <SelectItem value="all">{t("allStatuses")}</SelectItem>
                     <SelectItem value="active">{t("active")}</SelectItem>
                     <SelectItem value="inactive">{t("inactive")}</SelectItem>
+                    <SelectItem value="draft">{t("draft")}</SelectItem>
                 </SelectContent>
             </Select>
 

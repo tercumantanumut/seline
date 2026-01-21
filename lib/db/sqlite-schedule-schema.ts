@@ -27,30 +27,31 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
   characterId: text("character_id")
     .references(() => characters.id, { onDelete: "cascade" })
     .notNull(),
-  
+
   // === Basic Info ===
   name: text("name").notNull(),
   description: text("description"),
-  
+
   // === Schedule Configuration ===
-  scheduleType: text("schedule_type", { 
-    enum: ["cron", "interval", "once"] 
+  scheduleType: text("schedule_type", {
+    enum: ["cron", "interval", "once"]
   }).default("cron").notNull(),
   cronExpression: text("cron_expression"), // e.g., "0 9 * * 1-5" (9am weekdays)
   intervalMinutes: integer("interval_minutes"), // For interval-based schedules
   scheduledAt: text("scheduled_at"), // For one-time schedules (ISO timestamp)
   timezone: text("timezone").default("UTC").notNull(),
-  
+
   // === Task Definition ===
   initialPrompt: text("initial_prompt").notNull(),
   promptVariables: text("prompt_variables", { mode: "json" }).default("{}").notNull(),
   contextSources: text("context_sources", { mode: "json" }).default("[]").notNull(),
-  
+
   // === Execution Settings ===
   enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
   maxRetries: integer("max_retries").default(3).notNull(),
   timeoutMs: integer("timeout_ms").default(300000).notNull(), // 5 min default
   priority: text("priority", { enum: ["high", "normal", "low"] }).default("normal").notNull(),
+  status: text("status", { enum: ["draft", "active", "paused", "archived"] }).default("active").notNull(),
 
   // === Pause/Resume ===
   pausedAt: text("paused_at"),       // When was it paused
@@ -83,29 +84,29 @@ export const scheduledTaskRuns = sqliteTable("scheduled_task_runs", {
   taskId: text("task_id")
     .references(() => scheduledTasks.id, { onDelete: "cascade" })
     .notNull(),
-  
+
   // Link to observability
   agentRunId: text("agent_run_id"),
   sessionId: text("session_id").references(() => sessions.id, { onDelete: "set null" }),
-  
+
   // === Execution State ===
-  status: text("status", { 
-    enum: ["pending", "queued", "running", "succeeded", "failed", "cancelled", "timeout"] 
+  status: text("status", {
+    enum: ["pending", "queued", "running", "succeeded", "failed", "cancelled", "timeout"]
   }).default("pending").notNull(),
-  
+
   // === Timing ===
   scheduledFor: text("scheduled_for").notNull(),
   startedAt: text("started_at"),
   completedAt: text("completed_at"),
   durationMs: integer("duration_ms"),
-  
+
   // === Retry Tracking ===
   attemptNumber: integer("attempt_number").default(1).notNull(),
-  
+
   // === Results ===
   resultSummary: text("result_summary"),
   error: text("error"),
-  
+
   // === Metadata ===
   resolvedPrompt: text("resolved_prompt"),
   metadata: text("metadata", { mode: "json" }).default("{}").notNull(),

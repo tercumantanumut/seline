@@ -89,7 +89,7 @@ export class SchedulerService {
    */
   async loadSchedules(): Promise<void> {
     const schedules = await db.query.scheduledTasks.findMany({
-      where: eq(scheduledTasks.enabled, true),
+      where: and(eq(scheduledTasks.enabled, true), eq(scheduledTasks.status, 'active')),
     });
 
     for (const schedule of schedules) {
@@ -109,7 +109,7 @@ export class SchedulerService {
       this.jobs.delete(schedule.id);
     }
 
-    if (!schedule.enabled) return;
+    if (!schedule.enabled || schedule.status !== "active") return;
 
     // Resolve timezone - handles "local::America/New_York" format
     // This extracts the concrete timezone for server-side execution
@@ -169,8 +169,8 @@ export class SchedulerService {
       },
     });
 
-    if (!task || !task.enabled) {
-      console.log(`[Scheduler] Task ${taskId} not found or disabled, skipping`);
+    if (!task || !task.enabled || task.status !== "active") {
+      console.log(`[Scheduler] Task ${taskId} not found, disabled, or not active (status: ${task?.status}), skipping`);
       return;
     }
 
@@ -265,6 +265,7 @@ export class SchedulerService {
     const dueTasks = await db.query.scheduledTasks.findMany({
       where: and(
         eq(scheduledTasks.enabled, true),
+        eq(scheduledTasks.status, 'active'),
         eq(scheduledTasks.scheduleType, "interval"),
         or(
           isNull(scheduledTasks.nextRunAt),

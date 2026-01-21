@@ -149,6 +149,11 @@ export function ScheduleCard({
             >
               {schedule.name}
             </h3>
+            {schedule.status === "draft" && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                {t("draft")}
+              </span>
+            )}
             <span
               className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded text-xs font-mono",

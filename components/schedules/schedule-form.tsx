@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Save, X, Plus, Loader2, Globe, ArrowLeft, CalendarClock } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,8 +131,34 @@ export function ScheduleForm({
         initialPrompt: prompt.trim(),
         priority,
         maxRetries,
+        status: "active",
       });
-      router.push(`/agents/${characterId}/schedules`);
+      router.replace(`/agents/${characterId}/schedules`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("validation.failed"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({
+        name: name.trim() || t("untitledDraft"),
+        description: description.trim() || undefined,
+        scheduleType: "cron",
+        cronExpression: effectiveCron,
+        timezone,
+        initialPrompt: prompt.trim() || "",
+        priority,
+        maxRetries,
+        status: "draft",
+        enabled: false,
+      });
+      toast.success(t("draftSaved"));
+      router.replace(`/agents/${characterId}/schedules`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("validation.failed"));
     } finally {
@@ -148,7 +175,7 @@ export function ScheduleForm({
   };
 
   const handleCancel = () => {
-    router.push(`/agents/${characterId}/schedules`);
+    router.replace(`/agents/${characterId}/schedules`);
   };
 
   return (
@@ -373,8 +400,18 @@ export function ScheduleForm({
 
       {/* Footer */}
       <div className="px-6 md:px-8 py-4 border-t border-terminal-border bg-terminal-cream/50 flex items-center justify-between shrink-0">
-        <Button type="button" variant="ghost" disabled={isSubmitting} className="hidden sm:flex font-mono">
-          <Save className="w-4 h-4 mr-2" />
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleSaveDraft}
+          disabled={isSubmitting}
+          className="hidden sm:flex font-mono"
+        >
+          {isSubmitting ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
           {t("saveDraft")}
         </Button>
 

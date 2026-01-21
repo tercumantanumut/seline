@@ -90,8 +90,9 @@ export function ScheduleList({
 
       // Status filter
       const matchesStatus = statusFilter === "all" ||
-        (statusFilter === "active" && schedule.enabled) ||
-        (statusFilter === "inactive" && !schedule.enabled);
+        (statusFilter === "active" && schedule.status === "active" && schedule.enabled) ||
+        (statusFilter === "inactive" && (schedule.status === "paused" || schedule.status === "archived" || !schedule.enabled)) ||
+        (statusFilter === "draft" && schedule.status === "draft");
 
       // Priority filter
       const matchesPriority = priorityFilter === "all" ||
