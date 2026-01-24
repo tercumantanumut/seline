@@ -391,10 +391,12 @@
       "placeholderDefault": "What's on your mind?",
       "placeholderQueue": "Type to queue message...",
       "placeholderResearch": "Enter your research question...",
+      "placeholderInitializing": "Tools are initializing...",
       "editPlaceholder": "Edit your message...",
       "cancel": "Cancel",
       "save": "Save",
-      "stop": "Stop"
+      "stop": "Stop",
+      "initializing": "Initializing..."
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued"
@@ -418,6 +420,7 @@
       "sendMessage": "Send message",
       "queueMessage": "Queue message",
       "stopResponse": "Stop response",
+      "toolsInitializing": "Tools are being initialized. Please wait...",
       "startResearch": "Start Research",
       "edit": "Edit",
       "copy": "Copy",
@@ -938,7 +941,16 @@
       "enableServer": "Enable server",
       "disableServer": "Disable server",
       "disabledBadge": "Disabled",
-      "disabledTooltip": "This server is disabled and will not connect. Toggle to enable."
+      "disabledTooltip": "This server is disabled and will not connect. Toggle to enable.",
+      "syncedFolderVariable": "Primary synced folder",
+      "syncedFoldersArrayVariable": "All synced folders (separate arguments)",
+      "filesystemRequiresSyncedFolder": "Filesystem MCP server requires at least one synced folder. Please add a folder in Settings → Vector Search.",
+      "variablePreview": "Preview",
+      "noFoldersSynced": "No folders synced yet",
+      "variableHelp": "Use ${SYNCED_FOLDER} for single-folder access or ${SYNCED_FOLDERS_ARRAY} for multi-folder access",
+      "insertVariable": "Insert Variable",
+      "resolvedCommand": "Resolved command:",
+      "configWarning": "Configuration Warning"
     },
     "models": {
       "title": "Model Selection",

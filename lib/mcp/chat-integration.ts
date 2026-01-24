@@ -80,14 +80,21 @@ export async function loadMCPToolsForCharacter(
             continue;
         }
 
-        if (!manager.isConnected(serverName)) {
+        // Reconnect if not connected OR if connected for a different character
+        // (to ensure variables like ${SYNCED_FOLDER} are resolved correctly for the current agent)
+        const isConnected = manager.isConnected(serverName);
+        const connectedContext = manager.getConnectedCharacterId(serverName);
+        const needsReconnect = !isConnected || connectedContext !== character?.id;
+
+        if (needsReconnect) {
             try {
-                const resolved = resolveMCPConfig(
+                const resolved = await resolveMCPConfig(
                     serverName,
-                    config as { type: "http" | "sse"; url: string; headers?: Record<string, string>; timeout?: number },
-                    env
+                    config as any,
+                    env,
+                    character?.id
                 );
-                await manager.connect(serverName, resolved);
+                await manager.connect(serverName, resolved, character?.id);
             } catch (error) {
                 console.error(`[MCP] Failed to connect to ${serverName}:`, error);
             }

@@ -16,7 +16,9 @@ import {
   FileIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  StarIcon,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -33,6 +35,7 @@ interface SyncFolder {
   fileCount: number | null;
   chunkCount: number | null;
   embeddingModel: string | null;
+  isPrimary: boolean;
 }
 
 interface FolderAnalysis {
@@ -266,6 +269,25 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     }
   };
 
+  const handleSetPrimary = async (folderId: string) => {
+    try {
+      const response = await fetch("/api/vector-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-primary", folderId, characterId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to set primary folder");
+      }
+
+      await loadFolders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set primary folder");
+    }
+  };
+
   const handleReindexAll = async () => {
     if (!window.confirm(t("reindexConfirm"))) {
       return;
@@ -348,9 +370,16 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
               <div className="flex items-center gap-3">
                 <FolderIcon className="w-5 h-5 text-terminal-green flex-shrink-0" />
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <p className="font-mono text-sm text-terminal-dark truncate">
-                    {folder.displayName || folder.folderPath.split(/[/\\]/).pop()}
-                  </p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-mono text-sm text-terminal-dark truncate">
+                      {folder.displayName || folder.folderPath.split(/[/\\]/).pop()}
+                    </p>
+                    {folder.isPrimary && (
+                      <span className="text-[10px] bg-terminal-green/10 text-terminal-green border border-terminal-green/20 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider">
+                        Primary
+                      </span>
+                    )}
+                  </div>
                   <p className="font-mono text-xs text-terminal-muted truncate" title={folder.folderPath}>
                     {folder.folderPath}
                   </p>
@@ -368,6 +397,17 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                         <ChevronDownIcon className="w-4 h-4 text-terminal-muted" />
                       )}
                     </button>
+                  )}
+                  {!folder.isPrimary && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleSetPrimary(folder.id)}
+                      title="Set as primary folder"
+                      className="h-8 w-8 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
+                    >
+                      <StarIcon className="w-4 h-4" />
+                    </Button>
                   )}
                   <Button
                     variant="ghost"

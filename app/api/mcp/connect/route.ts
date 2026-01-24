@@ -20,9 +20,10 @@ import { clearMCPAuthCache, clearMCPAuthCacheForServer } from "@/lib/mcp/auth-ca
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { serverNames, forceReauth } = body as {
+        const { serverNames, forceReauth, characterId } = body as {
             serverNames?: string[];
             forceReauth?: boolean;
+            characterId?: string;
         };
 
         const settings = loadSettings();
@@ -80,8 +81,8 @@ export async function POST(request: NextRequest) {
                     await manager.disconnect(serverName);
                 }
 
-                const resolved = resolveMCPConfig(serverName, config, env);
-                const status = await manager.connect(serverName, resolved);
+                const resolved = await resolveMCPConfig(serverName, config, env, characterId);
+                const status = await manager.connect(serverName, resolved, characterId);
                 results[serverName] = {
                     success: status.connected,
                     error: status.lastError,

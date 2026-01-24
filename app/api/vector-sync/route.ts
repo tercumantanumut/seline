@@ -8,6 +8,7 @@ import {
   reindexAllFolders,
   reindexAllCharacters,
   forceCleanupStuckFolders,
+  setPrimaryFolder,
 } from "@/lib/vectordb/sync-service";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
@@ -28,14 +29,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const characterId = searchParams.get("characterId");
 
-    if (!characterId) {
-      return NextResponse.json(
-        { error: "characterId is required" },
-        { status: 400 }
-      );
-    }
+    const folders = characterId
+      ? await getSyncFolders(characterId)
+      : await (await import("@/lib/vectordb/sync-service")).getAllSyncFolders();
 
-    const folders = await getSyncFolders(characterId);
     return NextResponse.json({ folders });
   } catch (error) {
     console.error("[VectorSync] Error getting folders:", error);
@@ -147,6 +144,19 @@ export async function POST(request: NextRequest) {
         pendingCleaned: result.pendingCleaned,
         message: `Cleaned ${result.syncingCleaned} syncing and ${result.pendingCleaned} pending folders`
       });
+    }
+
+    if (action === "set-primary") {
+      const { folderId, characterId } = body;
+      if (!folderId || !characterId) {
+        return NextResponse.json(
+          { error: "folderId and characterId are required" },
+          { status: 400 }
+        );
+      }
+
+      await setPrimaryFolder(folderId, characterId);
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json(

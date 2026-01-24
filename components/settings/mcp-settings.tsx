@@ -16,12 +16,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
     Loader2, Check, X, RefreshCw, Plus, Trash2, Plug,
-    Terminal, Globe, AlertCircle, Play, Square
+    Terminal, Globe, AlertCircle, Play, Square, Info,
+    PlusCircle, AlertTriangle, ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MCPServerConfig } from "@/lib/mcp/types";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface MCPServerStatus {
     serverName: string;
@@ -38,7 +42,16 @@ const PREBUILT_TEMPLATES = [
         description: "Read/write files safely",
         config: {
             command: "npx",
-            args: ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+            args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDER}"]
+        }
+    },
+    {
+        id: "filesystem-multi",
+        name: "Filesystem (All Folders)",
+        description: "Access all synced folders",
+        config: {
+            command: "npx",
+            args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDERS_ARRAY}"]
         }
     },
     {
@@ -70,6 +83,20 @@ const PREBUILT_TEMPLATES = [
         }
     },
     {
+        id: "supabase",
+        name: "Supabase",
+        description: "Database & API management",
+        config: {
+            command: "npx",
+            args: ["-y", "mcp-remote", "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}"],
+            env: {
+                "SUPABASE_PROJECT_REF": "",
+                "SUPABASE_ACCESS_TOKEN": "",
+                "MCP_REMOTE_HEADERS": "{\"Authorization\": \"Bearer ${SUPABASE_ACCESS_TOKEN}\"}"
+            }
+        }
+    },
+    {
         id: "assistant-ui",
         name: "Assistant UI Docs",
         description: "Documentation for Assistant UI",
@@ -88,6 +115,81 @@ const PREBUILT_TEMPLATES = [
         }
     },
 ];
+
+/**
+ * Helper to show a preview of how path variables will be resolved
+ */
+function ConfigPreview({
+    config,
+    syncedFolders,
+    t
+}: {
+    config: MCPServerConfig,
+    syncedFolders: Array<{ folderPath: string, isPrimary: boolean }>,
+    t: any
+}) {
+    const primaryFolder = syncedFolders.find(f => f.isPrimary)?.folderPath || syncedFolders[0]?.folderPath || "";
+
+    const resolveArg = (arg: string) => {
+        if (arg === "${SYNCED_FOLDER}") return primaryFolder || "<no-primary-folder>";
+        // Return array for SYNCED_FOLDERS_ARRAY to match actual execution
+        if (arg === "${SYNCED_FOLDERS_ARRAY}") return syncedFolders.length > 0 ? syncedFolders.map(f => f.folderPath) : ["<no-folders>"];
+        if (arg === "${SYNCED_FOLDERS}") return syncedFolders.map(f => f.folderPath).join(",") || "<no-folders>";
+        return arg;
+    };
+
+    const resolvedArgs = config.args?.map(resolveArg) || [];
+    const flatArgs = resolvedArgs.flatMap(arg => Array.isArray(arg) ? arg : [arg]);
+
+    return (
+        <div className="mt-2 p-3 rounded bg-terminal-bg/50 border border-terminal-border font-mono text-[10px] space-y-1">
+            <div className="text-terminal-muted flex items-center gap-1.5 mb-1">
+                <Info className="h-3 w-3" />
+                {t("variablePreview")}
+            </div>
+            <div className="text-terminal-dark break-all">
+                <span className="text-terminal-green">{config.command}</span>{" "}
+                {flatArgs.map((arg, i) => (
+                    <span key={i} className={cn(
+                        "mr-1.5",
+                        arg.includes("/") ? "text-blue-600" : "text-terminal-dark"
+                    )}>
+                        {arg}
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Validation logic for MCP configuration
+ */
+function validateMCPConfig(
+    config: MCPServerConfig,
+    syncedFolders: Array<{ folderPath: string }>
+): string[] {
+    const warnings: string[] = [];
+
+    const hasPathVariable = config.args?.some(arg =>
+        arg.includes("${SYNCED_FOLDER}") ||
+        arg.includes("${SYNCED_FOLDERS_ARRAY}") ||
+        arg.includes("${SYNCED_FOLDERS}")
+    );
+
+    if (hasPathVariable && syncedFolders.length === 0) {
+        warnings.push("Contains path variables, but no folders are synced yet.");
+    }
+
+    if (config.command === "npx" && config.args?.some(a => a.includes("@modelcontextprotocol/server-filesystem"))) {
+        const hasDirectoryArg = (config.args?.length || 0) > 2; // npx -y pkg [dir]
+        if (!hasDirectoryArg) {
+            warnings.push("Filesystem server usually requires at least one directory argument.");
+        }
+    }
+
+    return warnings;
+}
 
 export function MCPSettings() {
     const t = useTranslations("settings.mcp");
@@ -112,9 +214,25 @@ export function MCPSettings() {
     const [newEnvKey, setNewEnvKey] = useState("");
     const [showNewEnvInput, setShowNewEnvInput] = useState(false);
 
+    // Synced folders for path preview/documentation
+    const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean }>>([]);
+
     useEffect(() => {
         loadConfig();
+        loadSyncedFolders();
     }, []);
+
+    const loadSyncedFolders = async () => {
+        try {
+            const res = await fetch("/api/vector-sync");
+            if (res.ok) {
+                const data = await res.json();
+                setSyncedFolders(data.folders || []);
+            }
+        } catch (error) {
+            console.error("Failed to load synced folders:", error);
+        }
+    };
 
     const loadConfig = async () => {
         setIsLoading(true);
@@ -388,24 +506,89 @@ export function MCPSettings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Arguments (one per line)</Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Arguments (one per line)</Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 px-2 border-terminal-border">
+                                                    <PlusCircle className="h-3 w-3" />
+                                                    {t("insertVariable")}
+                                                </Button>
+                                            </PopoverTrigger>
+
+
+                                            <PopoverContent className="w-64 p-2" align="end">
+                                                <div className="space-y-1">
+                                                    <button
+                                                        onClick={() => setNewServerArgs(prev => prev + (prev ? "\n" : "") + "${SYNCED_FOLDER}")}
+                                                        className="w-full text-left p-1.5 hover:bg-terminal-bg rounded text-xs transition-colors flex flex-col"
+                                                    >
+                                                        <code className="text-terminal-green font-bold">${"{SYNCED_FOLDER}"}</code>
+                                                        <span className="text-[10px] text-terminal-muted">{t("syncedFolderVariable")}</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setNewServerArgs(prev => prev + (prev ? "\n" : "") + "${SYNCED_FOLDERS_ARRAY}")}
+                                                        className="w-full text-left p-1.5 hover:bg-terminal-bg rounded text-xs transition-colors flex flex-col"
+                                                    >
+                                                        <code className="text-terminal-green font-bold">${"{SYNCED_FOLDERS_ARRAY}"}</code>
+                                                        <span className="text-[10px] text-terminal-muted">{t("syncedFoldersArrayVariable")}</span>
+                                                    </button>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
                                     <Textarea
                                         value={newServerArgs}
                                         onChange={(e) => setNewServerArgs(e.target.value)}
                                         placeholder="-y\n@modelcontextprotocol/server-example"
-                                        className="font-mono h-24"
+                                        className="font-mono h-24 text-sm"
                                     />
+
+                                    {/* Warnings and Preview */}
+                                    {newServerCommand && (
+                                        <div className="space-y-2 mt-2">
+                                            {validateMCPConfig(
+                                                { command: newServerCommand, args: newServerArgs.split("\n").filter(a => a.trim()) },
+                                                syncedFolders
+                                            ).map((warning, i) => (
+                                                <Alert key={i} variant="default" className="bg-amber-50 border-amber-200 py-2 px-3 h-auto">
+                                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                                                    <AlertDescription className="text-[10px] text-amber-800 ml-1">
+                                                        {warning}
+                                                    </AlertDescription>
+                                                </Alert>
+                                            ))}
+
+                                            <ConfigPreview
+                                                config={{
+                                                    command: newServerCommand,
+                                                    args: newServerArgs.split("\n").filter(a => a.trim())
+                                                }}
+                                                syncedFolders={syncedFolders}
+                                                t={t}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
                             <div className="space-y-2">
                                 <Label>Server URL</Label>
-                                <Input
-                                    value={newServerUrl}
-                                    onChange={(e) => setNewServerUrl(e.target.value)}
-                                    placeholder="https://api.example.com/sse"
-                                    className="font-mono"
-                                />
+                                <div className="space-y-2">
+                                    <Input
+                                        value={newServerUrl}
+                                        onChange={(e) => setNewServerUrl(e.target.value)}
+                                        placeholder="https://api.example.com/sse"
+                                        className="font-mono"
+                                    />
+                                    {newServerUrl && (
+                                        <ConfigPreview
+                                            config={{ url: newServerUrl, type: "sse" } as any}
+                                            syncedFolders={syncedFolders}
+                                            t={t}
+                                        />
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -519,6 +702,9 @@ export function MCPSettings() {
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
                     Environment Variables
                 </h3>
+
+                {/* 📁 Available Variables Section */}
+
 
                 <div className="space-y-2">
                     {Object.keys(environment).length === 0 && (
