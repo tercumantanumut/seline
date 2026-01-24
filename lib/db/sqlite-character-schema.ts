@@ -2,6 +2,7 @@ import {
   sqliteTable,
   text,
   integer,
+  index,
 } from "drizzle-orm/sqlite-core";
 import { relations, sql } from "drizzle-orm";
 import { users } from "./sqlite-schema";
@@ -117,28 +118,37 @@ export const agentDocumentChunks = sqliteTable("agent_document_chunks", {
 // AGENT SYNC FOLDERS TABLE
 // ============================================================================
 
-export const agentSyncFolders = sqliteTable("agent_sync_folders", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  characterId: text("character_id")
-    .references(() => characters.id, { onDelete: "cascade" })
-    .notNull(),
-  folderPath: text("folder_path").notNull(),
-  displayName: text("display_name"),
-  recursive: integer("recursive", { mode: "boolean" }).default(true).notNull(),
-  includeExtensions: text("include_extensions", { mode: "json" }).default('["md","txt","pdf","html"]').notNull(),
-  excludePatterns: text("exclude_patterns", { mode: "json" }).default('["node_modules",".*",".git"]').notNull(),
-  status: text("status", { enum: ["pending", "syncing", "synced", "error", "paused"] }).default("pending").notNull(),
-  lastSyncedAt: text("last_synced_at"),
-  lastError: text("last_error"),
-  fileCount: integer("file_count").default(0),
-  chunkCount: integer("chunk_count").default(0),
-  embeddingModel: text("embedding_model"), // Track which embedding model was used for sync
-  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
-});
+export const agentSyncFolders = sqliteTable(
+  "agent_sync_folders",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    characterId: text("character_id")
+      .references(() => characters.id, { onDelete: "cascade" })
+      .notNull(),
+    folderPath: text("folder_path").notNull(),
+    displayName: text("display_name"),
+    isPrimary: integer("is_primary", { mode: "boolean" }).default(false).notNull(),
+    recursive: integer("recursive", { mode: "boolean" }).default(true).notNull(),
+    includeExtensions: text("include_extensions", { mode: "json" }).default('["md","txt","pdf","html"]').notNull(),
+    excludePatterns: text("exclude_patterns", { mode: "json" }).default('["node_modules",".*",".git"]').notNull(),
+    status: text("status", { enum: ["pending", "syncing", "synced", "error", "paused"] }).default("pending").notNull(),
+    lastSyncedAt: text("last_synced_at"),
+    lastError: text("last_error"),
+    fileCount: integer("file_count").default(0),
+    chunkCount: integer("chunk_count").default(0),
+    embeddingModel: text("embedding_model"), // Track which embedding model was used for sync
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+    updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    userIdx: index("agent_sync_folders_user_idx").on(table.userId),
+    characterIdx: index("agent_sync_folders_character_idx").on(table.characterId),
+    primaryIdx: index("agent_sync_folders_primary_idx").on(table.characterId, table.isPrimary),
+  })
+);
 
 // ============================================================================
 // AGENT SYNC FILES TABLE

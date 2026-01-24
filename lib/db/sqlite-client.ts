@@ -294,6 +294,7 @@ function initializeTables(sqlite: Database.Database): void {
       character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
       folder_path TEXT NOT NULL,
       display_name TEXT,
+      is_primary INTEGER NOT NULL DEFAULT 0,
       recursive INTEGER NOT NULL DEFAULT 1,
       include_extensions TEXT NOT NULL DEFAULT '["md","txt","pdf","html"]',
       exclude_patterns TEXT NOT NULL DEFAULT '["node_modules",".*",".git","package-lock.json","pnpm-lock.yaml","yarn.lock","*.lock"]',
@@ -349,6 +350,44 @@ function initializeTables(sqlite: Database.Database): void {
     console.log("[SQLite Migration] Added embedding_model column to agent_sync_folders");
   } catch {
     // Column already exists, ignore error
+  }
+
+  // Migration: Add is_primary column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0`);
+    console.log("[SQLite Migration] Added is_primary column to agent_sync_folders");
+
+    // Set the first folder of each character as primary if none are primary
+    sqlite.exec(`
+      UPDATE agent_sync_folders
+      SET is_primary = 1
+      WHERE id IN (
+        SELECT id FROM agent_sync_folders asf1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM agent_sync_folders asf2
+          WHERE asf2.character_id = asf1.character_id
+          AND asf2.is_primary = 1
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_sync_folders asf3
+          WHERE asf3.character_id = asf1.character_id
+          AND asf3.created_at < asf1.created_at
+        )
+      )
+    `);
+    console.log("[SQLite Migration] Initialized primary folders for existing characters");
+  } catch (error) {
+    // Column already exists or other error, ignore error
+  }
+
+  // Create index for primary flag after ensuring column exists
+  try {
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS agent_sync_folders_primary_idx 
+      ON agent_sync_folders(character_id, is_primary)
+    `);
+  } catch (error) {
+    console.error("[SQLite Migration] Failed to create primary index:", error);
   }
 
   // =========================================================================
