@@ -1105,7 +1105,26 @@ export async function POST(req: Request) {
           return;
         }
 
-        const partsSnapshot = cloneContentParts(streamingState.parts);
+        // Filter out incomplete tool calls before persisting to database
+        // This prevents corrupted state from being saved during streaming interruptions
+        const filteredParts = streamingState.parts.filter(part => {
+          if (part.type === "tool-call") {
+            // Only persist tool calls that have complete args or are beyond input-streaming state
+            const hasCompleteArgs = part.args !== undefined;
+            const isStillStreaming = part.state === "input-streaming";
+
+            if (isStillStreaming && !hasCompleteArgs) {
+              console.log(
+                `[CHAT API] Filtering incomplete tool call ${part.toolCallId} (${part.toolName}) ` +
+                `from streaming persistence - state: ${part.state}, has args: ${hasCompleteArgs}`
+              );
+              return false; // Don't persist incomplete streaming tool calls
+            }
+          }
+          return true; // Keep all other parts
+        });
+
+        const partsSnapshot = cloneContentParts(filteredParts);
         const now = Date.now();
         const signature = JSON.stringify(partsSnapshot);
 
@@ -1304,6 +1323,32 @@ export async function POST(req: Request) {
         } as ModelMessage;
       })
     );
+
+    // Validate tool call inputs before sending to AI SDK
+    // This helps detect if any invalid tool calls made it through the converter
+    coreMessages.forEach((msg, idx) => {
+      if (Array.isArray(msg.content)) {
+        msg.content.forEach((part: any, partIdx) => {
+          if (part.type === 'tool-use' && part.input !== undefined) {
+            // Validate that tool input is valid (not a string that should be parsed)
+            if (typeof part.input === 'string') {
+              try {
+                JSON.parse(part.input);
+                console.warn(
+                  `[CHAT API] Tool input at message ${idx}, part ${partIdx} is a JSON string instead of object. ` +
+                  `This may cause API errors. Tool: ${part.toolName}`
+                );
+              } catch (e) {
+                console.error(
+                  `[CHAT API] Invalid tool input at message ${idx}, part ${partIdx}: ` +
+                  `Tool: ${part.toolName}, Input: ${part.input?.toString().substring(0, 100)}`
+                );
+              }
+            }
+          }
+        });
+      }
+    });
 
     // Build system prompt and get character context for tools
     // NOTE: Tool instructions are now embedded in tool descriptions (fullInstructions)
@@ -1742,6 +1787,10 @@ export async function POST(req: Request) {
                 }
                 : {},
             });
+            console.log(
+              `[CHAT API] Final message updated with ${content.filter(p => p.type === 'tool-call').length} tool calls, ` +
+              `${content.filter(p => p.type === 'tool-result').length} tool results`
+            );
           } else {
             await createMessage({
               sessionId,
@@ -1757,6 +1806,10 @@ export async function POST(req: Request) {
                 }
               } : {},
             });
+            console.log(
+              `[CHAT API] Final message created with ${content.filter(p => p.type === 'tool-call').length} tool calls, ` +
+              `${content.filter(p => p.type === 'tool-result').length} tool results`
+            );
           }
 
           // Trigger memory extraction in background (only for character-specific chats)

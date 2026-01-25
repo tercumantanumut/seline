@@ -131,15 +131,49 @@ function buildUIPartsFromDBContent(
           ? "output-available"
           : "input-available");
 
-      parts.push({
-        type: `tool-${part.toolName}` as `tool-${string}`,
-        toolCallId: part.toolCallId,
-        state: inferredState,
-        input: part.args ?? part.argsText,
-        output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
-        errorText: toolResult?.errorText,
-        preliminary: toolResult?.preliminary,
-      });
+      // Validate and parse tool call input to prevent malformed data from being sent to AI providers
+      // This fixes the issue where incomplete argsText from streaming interruptions causes API errors
+      let validInput: unknown;
+
+      if (part.args !== undefined) {
+        // Structured args are already available (from completed tool calls)
+        validInput = part.args;
+      } else if (part.argsText) {
+        // Fallback to argsText, but validate it's complete JSON first
+        try {
+          validInput = JSON.parse(part.argsText);
+        } catch (e) {
+          // argsText is incomplete or malformed JSON - skip this tool call
+          console.warn(
+            `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid argsText. ` +
+            `State: ${part.state}, argsText preview: ${part.argsText?.substring(0, 50)}...`
+          );
+          continue; // Skip this tool call entirely
+        }
+      } else if (part.state === "input-streaming") {
+        // Tool call is still streaming (should not happen in persisted messages)
+        console.warn(
+          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with state "input-streaming" - likely a streaming interruption`
+        );
+        continue; // Skip incomplete streaming tool calls
+      }
+
+      // Only add tool call if we have valid input
+      if (validInput !== undefined) {
+        parts.push({
+          type: `tool-${part.toolName}` as `tool-${string}`,
+          toolCallId: part.toolCallId,
+          state: inferredState,
+          input: validInput,
+          output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
+          errorText: toolResult?.errorText,
+          preliminary: toolResult?.preliminary,
+        });
+      } else {
+        console.warn(
+          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) - no valid input available`
+        );
+      }
     }
   }
 
