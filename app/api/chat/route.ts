@@ -8,7 +8,11 @@ import { createLocalGrepTool } from "@/lib/ai/ripgrep";
 import { createExecuteCommandTool } from "@/lib/ai/tools/execute-command-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
-import { buildCharacterSystemPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
+import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
+import { shouldUseCache, getCacheConfig } from "@/lib/ai/cache/config";
+import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-prompt";
+import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
+import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
@@ -1353,7 +1357,13 @@ export async function POST(req: Request) {
     // Build system prompt and get character context for tools
     // NOTE: Tool instructions are now embedded in tool descriptions (fullInstructions)
     // and discovered via searchTools. No need to concatenate them to system prompt.
-    let systemPrompt: string;
+    //
+    // Prompt caching: If enabled (Anthropic only), system prompt is built as cacheable blocks
+    // with cache_control markers to reduce costs by 70-85% on multi-turn conversations.
+    const useCaching = shouldUseCache();
+    const cacheConfig = getCacheConfig();
+
+    let systemPromptValue: string | CacheableSystemBlock[];
     let characterAvatarUrl: string | null = null;
     let characterAppearanceDescription: string | null = null;
     let enabledTools: string[] | undefined;
@@ -1362,7 +1372,13 @@ export async function POST(req: Request) {
       const character = await getCharacterFull(characterId);
       if (character && character.userId === dbUser.id) {
         // Build character-specific system prompt (includes shared blocks)
-        systemPrompt = buildCharacterSystemPrompt(character, { toolLoadingMode });
+        systemPromptValue = useCaching
+          ? buildCacheableCharacterPrompt(character, {
+              toolLoadingMode,
+              enableCaching: true,
+              cacheTtl: cacheConfig.defaultTtl,
+            })
+          : buildCharacterSystemPrompt(character, { toolLoadingMode });
 
         // Get character avatar and appearance for tool context
         characterAvatarUrl = getCharacterAvatarUrl(character);
@@ -1375,18 +1391,32 @@ export async function POST(req: Request) {
         console.log(`[CHAT API] Using character: ${character.name} (${characterId}), avatar: ${characterAvatarUrl || "none"}, enabledTools: ${enabledTools?.join(", ") || "all"}`);
       } else {
         // Character not found or doesn't belong to user, use default
-        systemPrompt = getSystemPrompt({
-          stylyApiEnabled: hasStylyApiKey(),
-          toolLoadingMode,
-        });
+        systemPromptValue = useCaching
+          ? buildDefaultCacheableSystemPrompt({
+              includeToolDiscovery: hasStylyApiKey(),
+              toolLoadingMode,
+              enableCaching: true,
+              cacheTtl: cacheConfig.defaultTtl,
+            })
+          : getSystemPrompt({
+              stylyApiEnabled: hasStylyApiKey(),
+              toolLoadingMode,
+            });
         console.log(`[CHAT API] Character not found or unauthorized, using default prompt`);
       }
     } else {
       // No character specified, use default professional agent prompt
-      systemPrompt = getSystemPrompt({
-        stylyApiEnabled: hasStylyApiKey(),
-        toolLoadingMode,
-      });
+      systemPromptValue = useCaching
+        ? buildDefaultCacheableSystemPrompt({
+            includeToolDiscovery: hasStylyApiKey(),
+            toolLoadingMode,
+            enableCaching: true,
+            cacheTtl: cacheConfig.defaultTtl,
+          })
+        : getSystemPrompt({
+            stylyApiEnabled: hasStylyApiKey(),
+            toolLoadingMode,
+          });
     }
 
     // Create tools via the centralized Tool Registry
@@ -1589,12 +1619,44 @@ export async function POST(req: Request) {
       console.log(`[CHAT API] Previously discovered (restored): ${previouslyDiscoveredTools.size > 0 ? [...previouslyDiscoveredTools].join(", ") : "none"}`);
     }
 
+    // Apply caching to message history
+    // Strategy: Cache all messages except the last 2 (leave recent user/assistant exchange uncached)
+    const cachedMessages = useCaching
+      ? applyCacheToMessages(coreMessages, {
+          uncachedRecentCount: 2,
+          minHistorySize: 5,
+          cacheTtl: cacheConfig.defaultTtl,
+        })
+      : coreMessages;
+
+    // Log cache savings estimate (if caching enabled and context injected)
+    let estimatedSavings = { totalCacheableTokens: 0, estimatedSavings: 0 };
+    if (useCaching && injectContext) {
+      estimatedSavings = estimateCacheSavings(
+        Array.isArray(systemPromptValue) ? systemPromptValue : [],
+        cachedMessages
+      );
+      console.log(
+        `[CACHE] Estimated savings: ${estimatedSavings.totalCacheableTokens} tokens cacheable, ` +
+        `~$${estimatedSavings.estimatedSavings.toFixed(4)} saved per hit`
+      );
+    }
+
     // Stream the response using the configured provider
     // Wrap with run context for observability (tool events will be linked to this run)
     // System prompt is conditionally included to reduce token usage (first message + periodic re-injection)
     // NOTE: Tools MUST always be passed - unlike system prompt, tools are function definitions
     // that must be present for the AI to actually invoke them. Without tools, AI just outputs fake tool calls.
-    console.log(`[CHAT API] Using LLM: ${getProviderDisplayName()}, system prompt injected: ${injectContext}`);
+    const provider = getConfiguredProvider();
+    const cachingStatus = useCaching
+      ? `enabled (${cacheConfig.defaultTtl} TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
+      : "disabled";
+
+    console.log(
+      `[CHAT API] Using LLM: ${getProviderDisplayName()}, ` +
+      `system prompt injected: ${injectContext}, ` +
+      `caching: ${cachingStatus}`
+    );
     let runFinalized = false;
     const result = await withRunContext(
       {
@@ -1607,8 +1669,9 @@ export async function POST(req: Request) {
         model: getLanguageModel(),
         // Conditionally include system prompt to reduce token usage
         // It's sent on first message, then periodically based on token/message thresholds
-        ...(injectContext && { system: systemPrompt }),
-        messages: coreMessages,
+        // Use cacheable blocks if caching is enabled (Anthropic only)
+        ...(injectContext && { system: systemPromptValue }),
+        messages: cachedMessages,
         // Tools MUST always be passed - they are function definitions required for actual invocation
         tools: allToolsWithMCP,
         // Use activeTools to control which tools are visible to the model
@@ -1829,6 +1892,32 @@ export async function POST(req: Request) {
               totalTokens: usage.totalTokens,
             } : undefined,
           });
+
+          // Log cache performance metrics (if caching enabled)
+          if (useCaching && usage) {
+            const cacheCreation = (usage as any).cache_creation_input_tokens || 0;
+            const cacheRead = (usage as any).cache_read_input_tokens || 0;
+
+            if (cacheCreation > 0 || cacheRead > 0) {
+              const systemBlocksCached = Array.isArray(systemPromptValue) ? systemPromptValue.filter(b => b.experimental_providerOptions?.anthropic?.cacheControl).length : 0;
+              const messagesCached = cachedMessages.filter(m => (m as any).experimental_cache_control).length;
+
+              console.log(
+                `[CACHE] Performance: ${cacheRead} tokens read (hits), ` +
+                `${cacheCreation} tokens written (new cache), ` +
+                `${systemBlocksCached} system blocks cached, ` +
+                `${messagesCached} messages cached`
+              );
+
+              // Calculate actual savings
+              const basePricePerToken = 3 / 1_000_000; // $3 per million for Sonnet 4.5
+              const actualSavings = 0.9 * basePricePerToken * cacheRead;
+
+              if (cacheRead > 0) {
+                console.log(`[CACHE] Cost savings: ~$${actualSavings.toFixed(4)} (90% discount on ${cacheRead} tokens)`);
+              }
+            }
+          }
 
           // Update context injection tracking in session metadata
           // If we injected context (system prompt + tools), reset the counters
