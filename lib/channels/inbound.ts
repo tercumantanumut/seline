@@ -44,6 +44,18 @@ export async function handleInboundMessage(message: ChannelInboundMessage): Prom
 }
 
 async function processInboundMessage(message: ChannelInboundMessage): Promise<void> {
+  if (message.fromSelf) {
+    const outbound = await findChannelMessageByExternalId({
+      connectionId: message.connectionId,
+      channelType: message.channelType,
+      externalMessageId: message.messageId,
+      direction: "outbound",
+    });
+    if (outbound) {
+      return;
+    }
+  }
+
   const existing = await findChannelMessageByExternalId({
     connectionId: message.connectionId,
     channelType: message.channelType,
@@ -65,7 +77,7 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   }
 
   const settings = loadSettings();
-  const dbUser = await getOrCreateLocalUser(settings.localUserId, settings.localUserEmail);
+  const dbUser = await getOrCreateLocalUser(connection.userId, settings.localUserEmail);
 
   let conversation = await findChannelConversation({
     connectionId: message.connectionId,
@@ -124,16 +136,17 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
     sessionId,
     role: "user",
     content: contentParts,
-    metadata: {
-      channel: {
-        connectionId: message.connectionId,
-        channelType: message.channelType,
-        peerId: message.peerId,
-        threadId: message.threadId,
-        externalMessageId: message.messageId,
+      metadata: {
+        channel: {
+          connectionId: message.connectionId,
+          channelType: message.channelType,
+          peerId: message.peerId,
+          threadId: message.threadId,
+          externalMessageId: message.messageId,
+          fromSelf: message.fromSelf ?? false,
+        },
       },
-    },
-  });
+    });
 
   if (createdMessage?.id) {
     await createChannelMessage({
@@ -150,6 +163,7 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   const uiMessages = convertDBMessagesToUIMessages(dbMessages);
 
   await invokeChatApi({
+    userId: connection.userId,
     sessionId,
     characterId: character.id,
     messages: uiMessages.map((msg) => ({
@@ -193,6 +207,7 @@ function buildConversationTitle(channelType: string, peerName?: string | null, p
 }
 
 async function invokeChatApi(params: {
+  userId: string;
   sessionId: string;
   characterId: string;
   messages: Array<{
@@ -203,13 +218,13 @@ async function invokeChatApi(params: {
 }) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const settings = loadSettings();
-  await getOrCreateLocalUser(settings.localUserId, settings.localUserEmail);
+  await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
   const response = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${settings.localUserId}`,
+      Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
       "X-Session-Id": params.sessionId,
       "X-Character-Id": params.characterId,
     },

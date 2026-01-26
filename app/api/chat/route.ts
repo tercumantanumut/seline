@@ -1837,21 +1837,42 @@ export async function POST(req: Request) {
           }
 
           let finalMessageId: string | undefined;
+          const cacheCreation = useCaching && usage ? (usage as any).cache_creation_input_tokens || 0 : 0;
+          const cacheRead = useCaching && usage ? (usage as any).cache_read_input_tokens || 0 : 0;
+          const systemBlocksCached = useCaching && Array.isArray(systemPromptValue)
+            ? systemPromptValue.filter((block) => block.experimental_providerOptions?.anthropic?.cacheControl).length
+            : 0;
+          const messagesCached = useCaching
+            ? cachedMessages.filter((msg) => (msg as any).experimental_cache_control).length
+            : 0;
+          const basePricePerToken = 3 / 1_000_000; // $3 per million for Sonnet 4.5 input tokens
+          const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;
+          const cacheMetrics = useCaching && usage
+            ? {
+              cacheReadTokens: cacheRead,
+              cacheWriteTokens: cacheCreation,
+              estimatedSavingsUsd,
+              systemBlocksCached,
+              messagesCached,
+            }
+            : undefined;
+          const messageMetadata = usage
+            ? {
+              usage: {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                totalTokens: usage.totalTokens,
+              },
+              ...(cacheMetrics ? { cache: cacheMetrics } : {}),
+            }
+            : {};
 
           if (shouldEmitProgress && streamingState?.messageId) {
             const updated = await updateMessage(streamingState.messageId, {
               content,
               model: AI_CONFIG.model,
               tokenCount: usage?.totalTokens,
-              metadata: usage
-                ? {
-                  usage: {
-                    inputTokens: usage.inputTokens,
-                    outputTokens: usage.outputTokens,
-                    totalTokens: usage.totalTokens,
-                  },
-                }
-                : {},
+              metadata: messageMetadata,
             });
             finalMessageId = updated?.id ?? streamingState.messageId;
             console.log(
@@ -1865,13 +1886,7 @@ export async function POST(req: Request) {
               content: content,  // Always store as array for consistency
               model: AI_CONFIG.model,
               tokenCount: usage?.totalTokens,
-              metadata: usage ? {
-                usage: {
-                  inputTokens: usage.inputTokens,
-                  outputTokens: usage.outputTokens,
-                  totalTokens: usage.totalTokens,
-                }
-              } : {},
+              metadata: messageMetadata,
             });
             finalMessageId = created?.id;
             console.log(
@@ -1909,31 +1924,20 @@ export async function POST(req: Request) {
               outputTokens: usage.outputTokens,
               totalTokens: usage.totalTokens,
             } : undefined,
+            ...(cacheMetrics ? { cache: cacheMetrics } : {}),
           });
 
           // Log cache performance metrics (if caching enabled)
-          if (useCaching && usage) {
-            const cacheCreation = (usage as any).cache_creation_input_tokens || 0;
-            const cacheRead = (usage as any).cache_read_input_tokens || 0;
+          if (useCaching && usage && (cacheCreation > 0 || cacheRead > 0)) {
+            console.log(
+              `[CACHE] Performance: ${cacheRead} tokens read (hits), ` +
+              `${cacheCreation} tokens written (new cache), ` +
+              `${systemBlocksCached} system blocks cached, ` +
+              `${messagesCached} messages cached`
+            );
 
-            if (cacheCreation > 0 || cacheRead > 0) {
-              const systemBlocksCached = Array.isArray(systemPromptValue) ? systemPromptValue.filter(b => b.experimental_providerOptions?.anthropic?.cacheControl).length : 0;
-              const messagesCached = cachedMessages.filter(m => (m as any).experimental_cache_control).length;
-
-              console.log(
-                `[CACHE] Performance: ${cacheRead} tokens read (hits), ` +
-                `${cacheCreation} tokens written (new cache), ` +
-                `${systemBlocksCached} system blocks cached, ` +
-                `${messagesCached} messages cached`
-              );
-
-              // Calculate actual savings
-              const basePricePerToken = 3 / 1_000_000; // $3 per million for Sonnet 4.5
-              const actualSavings = 0.9 * basePricePerToken * cacheRead;
-
-              if (cacheRead > 0) {
-                console.log(`[CACHE] Cost savings: ~$${actualSavings.toFixed(4)} (90% discount on ${cacheRead} tokens)`);
-              }
+            if (cacheRead > 0) {
+              console.log(`[CACHE] Cost savings: ~$${estimatedSavingsUsd.toFixed(4)} (90% discount on ${cacheRead} tokens)`);
             }
           }
 
@@ -2097,6 +2101,10 @@ export async function POST(req: Request) {
       messageMetadata: ({ part }) => {
         // finish-step includes usage: LanguageModelUsage
         if (part.type === 'finish-step' && part.usage) {
+          const cacheRead = (part.usage as any).cache_read_input_tokens || 0;
+          const cacheWrite = (part.usage as any).cache_creation_input_tokens || 0;
+          const basePricePerToken = 3 / 1_000_000;
+          const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;
           return {
             custom: {
               usage: {
@@ -2104,6 +2112,13 @@ export async function POST(req: Request) {
                 outputTokens: part.usage.outputTokens,
                 totalTokens: part.usage.totalTokens,
               },
+              ...(cacheRead > 0 || cacheWrite > 0 ? {
+                cache: {
+                  cacheReadTokens: cacheRead,
+                  cacheWriteTokens: cacheWrite,
+                  estimatedSavingsUsd,
+                },
+              } : {}),
             },
           };
         }

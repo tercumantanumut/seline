@@ -1,4 +1,4 @@
-import { Bot, InputFile } from "grammy";
+import { Bot, InputFile, GrammyError } from "grammy";
 import type { Context } from "grammy";
 import { ChannelConnector, ChannelInboundMessage, ChannelSendPayload, ChannelSendResult, TelegramConnectionConfig } from "../types";
 import { normalizeChannelText } from "../utils";
@@ -21,6 +21,11 @@ export class TelegramConnector implements ChannelConnector {
   private onStatus: TelegramConnectorOptions["onStatus"];
   private characterId: string;
   private botToken: string;
+  private started = false;
+  private connecting = false;
+  private handlersAttached = false;
+  private startPromise: Promise<void> | null = null;
+  private pollingBlocked = false;
 
   constructor(options: TelegramConnectorOptions) {
     this.connectionId = options.connectionId;
@@ -32,22 +37,88 @@ export class TelegramConnector implements ChannelConnector {
   }
 
   async connect(): Promise<void> {
+    if (this.status === "connected" || this.connecting) {
+      return;
+    }
+
+    this.connecting = true;
     this.status = "connecting";
     this.onStatus(this.status);
 
-    this.bot.catch((error) => {
-      console.error("[Channels] Telegram bot error:", error);
-      this.status = "error";
-      this.onStatus(this.status, String(error));
-    });
+    this.attachHandlers();
 
     try {
       await this.bot.api.getMe();
     } catch (error) {
       this.status = "error";
       this.onStatus(this.status, String(error));
+      this.connecting = false;
       throw error;
     }
+
+    if (this.pollingBlocked || this.started || this.startPromise) {
+      this.status = "connected";
+      this.onStatus(this.status);
+      this.connecting = false;
+      return;
+    }
+
+    this.started = true;
+    const startPromise = this.bot.start({ drop_pending_updates: true });
+    this.startPromise = startPromise;
+
+    startPromise
+      .then(() => {
+        this.startPromise = null;
+        this.started = false;
+      })
+      .catch((error) => {
+        this.startPromise = null;
+        this.started = false;
+        this.handleTelegramError(error);
+      });
+
+    this.status = "connected";
+    this.onStatus(this.status);
+    this.connecting = false;
+  }
+
+  async disconnect(): Promise<void> {
+    this.connecting = false;
+    this.started = false;
+    this.startPromise = null;
+    await this.bot.stop();
+    this.status = "disconnected";
+    this.onStatus(this.status);
+  }
+
+  async sendMessage(payload: ChannelSendPayload): Promise<ChannelSendResult> {
+    const chatId = Number(payload.peerId);
+    const text = payload.text || "";
+    const attachment = payload.attachments?.[0];
+
+    if (attachment && attachment.type === "image") {
+      const sent = await this.bot.api.sendPhoto(chatId, new InputFile(attachment.data, attachment.filename), {
+        caption: text || undefined,
+        message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+      });
+      return { externalMessageId: String(sent.message_id) };
+    }
+
+    const sent = await this.bot.api.sendMessage(chatId, text || " ", {
+      message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+    });
+    return { externalMessageId: String(sent.message_id) };
+  }
+
+  private attachHandlers(): void {
+    if (this.handlersAttached) {
+      return;
+    }
+
+    this.bot.catch((error) => {
+      this.handleTelegramError(error);
+    });
 
     this.bot.on("message", async (ctx) => {
       if (ctx.from?.is_bot) {
@@ -76,38 +147,44 @@ export class TelegramConnector implements ChannelConnector {
       await this.onMessage(inbound);
     });
 
-    this.bot.start().catch((error) => {
-      this.status = "error";
-      this.onStatus(this.status, String(error));
-    });
-    this.status = "connected";
-    this.onStatus(this.status);
+    this.handlersAttached = true;
   }
 
-  async disconnect(): Promise<void> {
-    await this.bot.stop();
-    this.status = "disconnected";
-    this.onStatus(this.status);
-  }
-
-  async sendMessage(payload: ChannelSendPayload): Promise<ChannelSendResult> {
-    const chatId = Number(payload.peerId);
-    const text = payload.text || "";
-    const attachment = payload.attachments?.[0];
-
-    if (attachment && attachment.type === "image") {
-      const sent = await this.bot.api.sendPhoto(chatId, new InputFile(attachment.data, attachment.filename), {
-        caption: text || undefined,
-        message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
-      });
-      return { externalMessageId: String(sent.message_id) };
+  private handleTelegramError(error: unknown): void {
+    if (this.status === "disconnected") {
+      return;
     }
 
-    const sent = await this.bot.api.sendMessage(chatId, text || " ", {
-      message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
-    });
-    return { externalMessageId: String(sent.message_id) };
+    if (isConflictError(error)) {
+      const message = "Telegram polling conflict: another instance is already running";
+      this.pollingBlocked = true;
+      console.warn("[Channels] Telegram polling conflict detected; marking as connected.", message);
+      this.status = "connected";
+      this.onStatus(this.status);
+      return;
+    }
+
+    console.error("[Channels] Telegram bot error:", error);
+    this.status = "error";
+    this.onStatus(this.status, formatTelegramError(error));
   }
+}
+
+function isConflictError(error: unknown): boolean {
+  if (error instanceof GrammyError) {
+    return error.error_code === 409;
+  }
+  if (error instanceof Error) {
+    return error.message.includes("409") && error.message.includes("getUpdates");
+  }
+  return false;
+}
+
+function formatTelegramError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 async function extractTelegramAttachments(ctx: Context, botToken: string): Promise<ChannelInboundMessage["attachments"]> {

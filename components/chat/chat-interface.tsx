@@ -80,6 +80,49 @@ interface ChatInterfaceProps {
 const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
     [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+const getSessionSignature = (session: SessionInfo) =>
+    [
+        session.id,
+        session.updatedAt,
+        session.title ?? "",
+        session.metadata?.channelType ?? "",
+        session.metadata?.channelPeerId ?? "",
+        session.metadata?.channelPeerName ?? "",
+    ].join("|");
+
+const areSessionsEquivalent = (prev: SessionInfo[], next: SessionInfo[]) => {
+    if (prev.length !== next.length) {
+        return false;
+    }
+    for (let index = 0; index < prev.length; index += 1) {
+        if (getSessionSignature(prev[index]) !== getSessionSignature(next[index])) {
+            return false;
+        }
+    }
+    return true;
+};
+
+const getMessageSignature = (message: UIMessage) => {
+    const parts = Array.isArray(message.parts) ? message.parts : [];
+    const partTypes = parts.map((part) => (part?.type ? String(part.type) : "text")).join(",");
+    const textDigest = parts
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => {
+            const text = part.text || "";
+            return `${text.length}:${text.slice(0, 80)}`;
+        })
+        .join("|");
+    return `${message.id || ""}:${message.role}:${partTypes}:${textDigest}`;
+};
+
+const getMessagesSignature = (messages: UIMessage[]) => {
+    if (!messages.length) {
+        return "0";
+    }
+    const lastMessage = messages[messages.length - 1];
+    return `${messages.length}:${getMessageSignature(lastMessage)}`;
+};
+
 const CHANNEL_TYPE_ICONS = {
     whatsapp: Phone,
     telegram: Send,
@@ -126,12 +169,18 @@ export default function ChatInterface({
     const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+    const activeSessionMeta = useMemo(
+        () => sessions.find((session) => session.id === sessionId)?.metadata,
+        [sessions, sessionId]
+    );
+    const isChannelSession = Boolean(activeSessionMeta?.channelType);
 
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const lastProgressSignatureRef = useRef<string>("");
     const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const lastProgressTimeRef = useRef<number>(0);
+    const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
@@ -151,18 +200,24 @@ export default function ChatInterface({
         });
     }, []);
 
-    const loadSessions = useCallback(async () => {
+    const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
+        const silent = options?.silent ?? false;
         try {
-            setLoadingSessions(true);
+            if (!silent) {
+                setLoadingSessions(true);
+            }
             const response = await fetch(`/api/sessions?characterId=${character.id}`);
             if (response.ok) {
                 const data = await response.json();
-                setSessions(sortSessionsByUpdatedAt(data.sessions || []));
+                const nextSessions = sortSessionsByUpdatedAt(data.sessions || []);
+                setSessions((prev) => (areSessionsEquivalent(prev, nextSessions) ? prev : nextSessions));
             }
         } catch (err) {
             console.error("Failed to load sessions:", err);
         } finally {
-            setLoadingSessions(false);
+            if (!silent) {
+                setLoadingSessions(false);
+            }
         }
     }, [character.id]);
 
@@ -183,6 +238,13 @@ export default function ChatInterface({
     const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
         const uiMessages = await fetchSessionMessages(targetSessionId);
         if (!uiMessages) return;
+        if (sessionId && sessionId !== targetSessionId) {
+            return;
+        }
+        const nextSignature = getMessagesSignature(uiMessages);
+        if (nextSignature === lastSessionSignatureRef.current) {
+            return;
+        }
 
         setSessionState((prev) => {
             if (prev.sessionId !== targetSessionId) {
@@ -190,8 +252,9 @@ export default function ChatInterface({
             }
             return { sessionId: targetSessionId, messages: uiMessages };
         });
+        lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
-    }, [fetchSessionMessages, refreshSessionTimestamp]);
+    }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
 
     useEffect(() => {
         if (activeTaskForSession) {
@@ -361,6 +424,21 @@ export default function ChatInterface({
             window.removeEventListener("scheduled-task-started", handleTaskStarted);
         };
     }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
+
+    useEffect(() => {
+        if (!sessionId) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            void loadSessions({ silent: true });
+            if (isChannelSession) {
+                void reloadSessionMessages(sessionId);
+            }
+        }, 6000);
+
+        return () => clearInterval(interval);
+    }, [isChannelSession, loadSessions, reloadSessionMessages, sessionId]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -536,6 +614,10 @@ export default function ChatInterface({
                 : "";
         return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
     }, [messages, sessionId]);
+
+    useEffect(() => {
+        lastSessionSignatureRef.current = getMessagesSignature(messages);
+    }, [messages]);
 
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) {

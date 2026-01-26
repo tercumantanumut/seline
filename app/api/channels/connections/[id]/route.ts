@@ -21,11 +21,25 @@ function buildConfig(
   config: Record<string, unknown> | undefined,
   label?: string | null
 ): ChannelConnectionConfig {
+  const normalizeBool = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    if (typeof value === "number") {
+      if (value === 1) return true;
+      if (value === 0) return false;
+    }
+    return undefined;
+  };
+
   if (channelType === "whatsapp") {
     return {
       type: "whatsapp",
       label: typeof label === "string" ? label : undefined,
       authPath: typeof config?.authPath === "string" ? config.authPath : undefined,
+      selfChatMode: normalizeBool(config?.selfChatMode),
     };
   }
 
@@ -108,6 +122,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const connection = result.connection;
+    const previousSelfChatMode = (connection.config as Record<string, unknown> | null)?.selfChatMode;
     const mergedConfig = {
       ...(connection.config as Record<string, unknown>),
       ...(parsed.data.config ?? {}),
@@ -132,6 +147,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       displayName: resolvedDisplayName ?? null,
       config: normalizedConfig,
     });
+
+    const nextSelfChatMode = normalizedConfig.type === "whatsapp" ? normalizedConfig.selfChatMode : undefined;
+    if (connection.channelType === "whatsapp" && previousSelfChatMode !== nextSelfChatMode) {
+      await getChannelManager().disconnect(connection.id);
+      await getChannelManager().connect(connection.id);
+    }
 
     return NextResponse.json({ connection: updated });
   } catch (error) {

@@ -25,6 +25,11 @@ interface AnalyticsData {
     avgDurationMs: number;
     periodDays: number;
   };
+  cacheMetrics: {
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    estimatedSavingsUsd: number;
+  };
   runsByPipeline: Array<{ pipeline: string; count: number }>;
   toolStats: Array<{ toolName: string; callCount: number; avgDurationMs: number }>;
   errorStats: Array<{ toolName: string; errorCount: number }>;
@@ -80,7 +85,7 @@ export function AnalyticsView() {
     );
   }
 
-  const { overview, runsByPipeline, toolStats, errorStats, dailyTrends } = data;
+  const { overview, cacheMetrics, runsByPipeline, toolStats, errorStats, dailyTrends } = data;
 
   return (
     <div className="h-full overflow-auto bg-terminal-cream p-4">
@@ -106,7 +111,7 @@ export function AnalyticsView() {
       </div>
 
       {/* Overview Cards */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <MetricCard
           icon={<BarChart3Icon className="size-5 text-blue-500" />}
           label={t("totalRuns")}
@@ -132,6 +137,19 @@ export function AnalyticsView() {
           label={t("avgDuration")}
           value={formatDuration(overview.avgDurationMs)}
           subtext={t("perSuccessfulRun")}
+        />
+        <MetricCard
+          icon={<TrendingUpIcon className="size-5 text-emerald-500" />}
+          label={t("cacheSavings")}
+          value={`$${cacheMetrics.estimatedSavingsUsd.toFixed(4)}`}
+          subtext={t("cacheReadTokens", { count: cacheMetrics.cacheReadTokens.toLocaleString() })}
+          valueClassName={cacheMetrics.estimatedSavingsUsd > 0 ? "text-emerald-600" : "text-terminal-dark"}
+        />
+        <MetricCard
+          icon={<BarChart3Icon className="size-5 text-indigo-500" />}
+          label={t("cacheWrites")}
+          value={cacheMetrics.cacheWriteTokens.toLocaleString()}
+          subtext={t("tokens")}
         />
       </div>
 
@@ -270,4 +288,3 @@ function MetricCard({
     </div>
   );
 }
-

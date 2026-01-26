@@ -11,6 +11,11 @@ export interface WhatsAppConnectionConfig {
    * Defaults to ${LOCAL_DATA_PATH}/channels/whatsapp/<connectionId>
    */
   authPath?: string;
+  /**
+   * Allow self-chat (messages sent from the linked WhatsApp account).
+   * Useful for testing with "Message yourself".
+   */
+  selfChatMode?: boolean;
   /** Friendly label shown in the UI. */
   label?: string;
 }
@@ -53,6 +58,7 @@ export interface ChannelInboundMessage {
   messageId: string;
   text?: string | null;
   attachments?: ChannelAttachment[];
+  fromSelf?: boolean;
   timestamp?: string;
 }
 

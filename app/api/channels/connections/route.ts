@@ -22,11 +22,25 @@ function buildConfig(
   config: Record<string, unknown> | undefined,
   label?: string | null
 ): ChannelConnectionConfig {
+  const normalizeBool = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    if (typeof value === "number") {
+      if (value === 1) return true;
+      if (value === 0) return false;
+    }
+    return undefined;
+  };
+
   if (channelType === "whatsapp") {
     return {
       type: "whatsapp",
       label: typeof label === "string" ? label : undefined,
       authPath: typeof config?.authPath === "string" ? config.authPath : undefined,
+      selfChatMode: normalizeBool(config?.selfChatMode),
     };
   }
 

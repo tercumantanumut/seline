@@ -214,7 +214,7 @@ function UsagePageContent() {
 
                 {analytics && !loadingAnalytics && !analyticsError && (
                   <div className="flex flex-col gap-4">
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-4">
                       <div className="rounded-lg border border-terminal-border bg-terminal-cream/80 p-3">
                         <p className="font-mono text-[11px] text-terminal-muted">{t("analytics.cards.tokens.title")}</p>
                         <div className="mt-2 flex items-baseline gap-2 font-mono">
@@ -264,6 +264,21 @@ function UsagePageContent() {
                             })}
                           </p>
                         )}
+                      </div>
+
+                      <div className="rounded-lg border border-terminal-border bg-terminal-cream/80 p-3">
+                        <p className="font-mono text-[11px] text-terminal-muted">{t("analytics.cards.cache.title")}</p>
+                        <div className="mt-2 flex items-baseline gap-2 font-mono">
+                          <span className="text-lg font-semibold text-terminal-dark">
+                            {formatUsd(analytics.cache.estimatedSavingsUsd, 4)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] font-mono text-terminal-muted/80">
+                          {t("analytics.cards.cache.detail", {
+                            read: analytics.cache.cacheReadTokens.toLocaleString(),
+                            write: analytics.cache.cacheWriteTokens.toLocaleString(),
+                          })}
+                        </p>
                       </div>
                     </div>
 
