@@ -73,6 +73,15 @@ const nextConfig: NextConfig = {
     "puppeteer",
     // ripgrep binary for fast pattern search
     "@vscode/ripgrep",
+    // Channel connectors (Baileys/Slack/Telegram) - keep server-only
+    "@whiskeysockets/baileys",
+    "@hapi/boom",
+    "pino",
+    "jimp",
+    "sharp",
+    "grammy",
+    "@slack/bolt",
+    "qrcode",
   ],
   images: {
     remotePatterns: [

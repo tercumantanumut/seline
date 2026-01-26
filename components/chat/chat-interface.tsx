@@ -8,15 +8,17 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop, Plug, Hash, Phone, Send } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
+import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
@@ -51,7 +53,20 @@ interface SessionInfo {
     title: string | null;
     createdAt: string;
     updatedAt: string;
-    metadata: { characterId?: string; characterName?: string };
+    metadata: {
+        characterId?: string;
+        characterName?: string;
+        channelType?: "whatsapp" | "telegram" | "slack";
+        channelPeerName?: string | null;
+        channelPeerId?: string | null;
+    };
+}
+
+interface ChannelConnectionSummary {
+    id: string;
+    channelType: "whatsapp" | "telegram" | "slack";
+    status: "disconnected" | "connecting" | "connected" | "error";
+    displayName?: string | null;
 }
 
 interface ChatInterfaceProps {
@@ -64,6 +79,12 @@ interface ChatInterfaceProps {
 
 const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
     [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+const CHANNEL_TYPE_ICONS = {
+    whatsapp: Phone,
+    telegram: Send,
+    slack: Hash,
+};
 
 // Combined state to ensure sessionId and messages always update atomically
 interface SessionState {
@@ -626,7 +647,11 @@ function CharacterSidebar({
     const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
     const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
     const t = useTranslations("chat");
+    const tChannels = useTranslations("channels");
     const formatter = useFormatter();
+    const [channelsOpen, setChannelsOpen] = useState(false);
+    const [channelConnections, setChannelConnections] = useState<ChannelConnectionSummary[]>([]);
+    const [channelsLoading, setChannelsLoading] = useState(false);
 
     const stopEditing = useCallback(() => {
         setEditingSessionId(null);
@@ -733,6 +758,27 @@ function CharacterSidebar({
         }
     };
 
+    const loadChannelConnections = useCallback(async () => {
+        try {
+            setChannelsLoading(true);
+            const response = await fetch(`/api/channels/connections?characterId=${character.id}`);
+            if (response.ok) {
+                const data = await response.json();
+                setChannelConnections((data.connections || []) as ChannelConnectionSummary[]);
+            }
+        } catch (error) {
+            console.error("Failed to load channel connections:", error);
+        } finally {
+            setChannelsLoading(false);
+        }
+    }, [character.id]);
+
+    useEffect(() => {
+        void loadChannelConnections();
+    }, [loadChannelConnections]);
+
+    const connectedCount = channelConnections.filter((connection) => connection.status === "connected").length;
+
     return (
         <div className="flex h-full flex-col overflow-hidden">
             <AvatarSelectionDialog
@@ -745,6 +791,13 @@ function CharacterSidebar({
                     onAvatarChange(url);
                     setAvatarDialogOpen(false);
                 }}
+            />
+            <ChannelConnectionsDialog
+                open={channelsOpen}
+                onOpenChange={setChannelsOpen}
+                characterId={character.id}
+                characterName={character.displayName || character.name}
+                onConnectionsChange={setChannelConnections}
             />
 
             <div className="shrink-0 px-4 pt-3 pb-3">
@@ -779,6 +832,53 @@ function CharacterSidebar({
                             <p className="text-xs text-terminal-muted/80 font-mono mt-1.5 line-clamp-2 leading-relaxed">
                                 {character.tagline}
                             </p>
+                        )}
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setChannelsOpen(true)}
+                            className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+                        >
+                            <Plug className="mr-1 h-3.5 w-3.5" />
+                            <span className="text-xs font-mono">{t("sidebar.channels")}</span>
+                        </Button>
+                        <div className="flex flex-wrap items-center justify-center gap-1">
+                            {channelsLoading ? (
+                                <span className="text-[11px] font-mono text-terminal-muted">
+                                    {tChannels("connections.loading")}
+                                </span>
+                            ) : channelConnections.length === 0 ? (
+                                <span className="text-[11px] font-mono text-terminal-muted">
+                                    {tChannels("connections.empty")}
+                                </span>
+                            ) : (
+                                channelConnections.map((connection) => {
+                                    const Icon = CHANNEL_TYPE_ICONS[connection.channelType];
+                                    const badgeClass = connection.status === "connected"
+                                        ? "bg-emerald-500/15 text-emerald-700"
+                                        : connection.status === "connecting"
+                                            ? "bg-amber-500/15 text-amber-700"
+                                            : connection.status === "error"
+                                                ? "bg-red-500/15 text-red-700"
+                                                : "bg-terminal-dark/10 text-terminal-muted";
+                                    return (
+                                        <Badge
+                                            key={connection.id}
+                                            className={cn("border border-transparent px-2 py-0.5 text-[10px] font-mono", badgeClass)}
+                                        >
+                                            <Icon className="mr-1 h-3 w-3" />
+                                            {tChannels(`types.${connection.channelType}`)}
+                                        </Badge>
+                                    );
+                                })
+                            )}
+                        </div>
+                        {connectedCount > 0 && (
+                            <span className="text-[11px] font-mono text-terminal-muted">
+                                {tChannels("connections.connectedCount", { count: connectedCount })}
+                            </span>
                         )}
                     </div>
                 </div>
@@ -923,10 +1023,25 @@ function CharacterSidebar({
                                                         {session.title || t("session.untitled")}
                                                     </p>
                                                 )}
-                                                <p className="text-xs text-terminal-muted/70 font-mono flex items-center gap-1 mt-0.5">
-                                                    <Clock className="h-3 w-3" />
-                                                    {formatSessionDate(session.updatedAt)}
-                                                </p>
+                                                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70">
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        {formatSessionDate(session.updatedAt)}
+                                                    </span>
+                                                    {session.metadata?.channelType && (
+                                                        <Badge className="border border-terminal-dark/10 bg-terminal-cream/80 px-2 py-0.5 text-[10px] font-mono text-terminal-dark">
+                                                            {(() => {
+                                                                const Icon = CHANNEL_TYPE_ICONS[session.metadata.channelType];
+                                                                return (
+                                                                    <>
+                                                                        <Icon className="mr-1 h-3 w-3" />
+                                                                        {tChannels(`types.${session.metadata.channelType}`)}
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                             {!isEditing && (
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">

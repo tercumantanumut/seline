@@ -39,6 +39,7 @@
     "vitest.config.ts",
     "vitest.integration.config.ts",
     "tests/**/*",
+    "tmp-clawdbot/**/*",
     "electron/**/*",
     "dist-electron/**/*"
   ]

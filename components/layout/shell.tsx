@@ -64,6 +64,18 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
     setElectronPlatform(electronAPI?.platform ?? null);
   }, []);
 
+  useEffect(() => {
+    const bootstrapChannels = async () => {
+      try {
+        await fetch("/api/channels/bootstrap", { method: "POST" });
+      } catch (error) {
+        console.error("[Channels] Bootstrap failed:", error);
+      }
+    };
+
+    void bootstrapChannels();
+  }, []);
+
   // Ambient logo animation
   useEffect(() => {
     if (prefersReducedMotion) return;

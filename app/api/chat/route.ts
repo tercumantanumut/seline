@@ -23,6 +23,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
+import { deliverChannelReply } from "@/lib/channels/delivery";
 import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
 import {
   withRunContext,
@@ -1835,8 +1836,10 @@ export async function POST(req: Request) {
             }
           }
 
+          let finalMessageId: string | undefined;
+
           if (shouldEmitProgress && streamingState?.messageId) {
-            await updateMessage(streamingState.messageId, {
+            const updated = await updateMessage(streamingState.messageId, {
               content,
               model: AI_CONFIG.model,
               tokenCount: usage?.totalTokens,
@@ -1850,12 +1853,13 @@ export async function POST(req: Request) {
                 }
                 : {},
             });
+            finalMessageId = updated?.id ?? streamingState.messageId;
             console.log(
               `[CHAT API] Final message updated with ${content.filter(p => p.type === 'tool-call').length} tool calls, ` +
               `${content.filter(p => p.type === 'tool-result').length} tool results`
             );
           } else {
-            await createMessage({
+            const created = await createMessage({
               sessionId,
               role: "assistant",
               content: content,  // Always store as array for consistency
@@ -1869,10 +1873,24 @@ export async function POST(req: Request) {
                 }
               } : {},
             });
+            finalMessageId = created?.id;
             console.log(
               `[CHAT API] Final message created with ${content.filter(p => p.type === 'tool-call').length} tool calls, ` +
               `${content.filter(p => p.type === 'tool-result').length} tool results`
             );
+          }
+
+          if (finalMessageId) {
+            try {
+              await deliverChannelReply({
+                sessionId,
+                messageId: finalMessageId,
+                content: content as DBContentPart[],
+                sessionMetadata,
+              });
+            } catch (error) {
+              console.error("[CHAT API] Channel delivery error:", error);
+            }
           }
 
           // Trigger memory extraction in background (only for character-specific chats)

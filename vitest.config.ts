@@ -6,7 +6,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["**/*.test.ts", "**/*.spec.ts"],
-    exclude: ["**/node_modules/**", "**/.next/**", "**/integration/**"],
+    exclude: ["**/node_modules/**", "**/.next/**", "**/integration/**", "**/tmp-clawdbot/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -21,4 +21,3 @@ export default defineConfig({
     },
   },
 });
-

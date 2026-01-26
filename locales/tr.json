@@ -1108,6 +1108,7 @@
       "agentMemory": "Ajan Hafızası",
       "schedules": "Zamanlanmış Görevler",
       "usage": "Kullanım ve Analitik",
+      "channels": "Kanallar",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
       "empty": "Henüz sohbet geçmişi yok",
@@ -1130,6 +1131,71 @@
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
       "startedAt": "{time} itibarıyla başladı"
+    }
+  },
+  "channels": {
+    "title": "{name} için kanal gelen kutusu",
+    "description": "Bu ajanı dış mesajlaşma kanallarına bağlayarak tüm gelen kutularınızda yanıt vermesini sağlayın.",
+    "securityNote": "Kimlik bilgileri bu cihazda kalır ve yalnızca kanal bağlantısını doğrulamak için kullanılır.",
+    "confirmDelete": "Bu kanal bağlantısını kaldırılsın mı? Ajan bu kanaldan ayrılır.",
+    "types": {
+      "whatsapp": "WhatsApp",
+      "telegram": "Telegram",
+      "slack": "Slack"
+    },
+    "status": {
+      "connected": "Bağlı",
+      "connecting": "Bağlanıyor",
+      "disconnected": "Bağlı değil",
+      "error": "Hata"
+    },
+    "actions": {
+      "edit": "Düzenle",
+      "connect": "Bağlan",
+      "disconnect": "Bağlantıyı Kes"
+    },
+    "connections": {
+      "title": "Aktif Bağlantılar",
+      "empty": "Henüz kanal bağlanmadı.",
+      "loading": "Kanallar yükleniyor...",
+      "connectedCount": "{count} bağlı"
+    },
+    "form": {
+      "createTitle": "Kanal Ekle",
+      "createDescription": "Bir kanal seçin ve gerekli bilgileri girin.",
+      "editTitle": "Bağlantıyı Güncelle",
+      "editDescription": "Bağlantı ayrıntılarını düzenleyin veya kimlik bilgilerini yenileyin.",
+      "channelType": "Kanal türü",
+      "displayName": "Görünen ad",
+      "displayNamePlaceholder": "Bu bağlantı için isteğe bağlı etiket",
+      "telegramToken": "Telegram bot tokenı",
+      "telegramTokenPlaceholder": "123456:ABCDEF...",
+      "slackBotToken": "Slack bot tokenı",
+      "slackBotTokenPlaceholder": "xoxb-...",
+      "slackAppToken": "Slack app tokenı",
+      "slackAppTokenPlaceholder": "xapp-...",
+      "slackSigningSecret": "Slack imza sırrı",
+      "slackSigningSecretPlaceholder": "İmza sırrınız",
+      "keepExisting": "Boş bırakırsanız mevcut bilgiler korunur.",
+      "create": "Oluştur ve bağlan",
+      "update": "Güncelle"
+    },
+    "whatsapp": {
+      "connectHint": "WhatsApp QR ile giriş yapar. Bağlanın ve QR kodunu WhatsApp mobil uygulamasıyla tarayın.",
+      "qrAlt": "WhatsApp QR kodu",
+      "qrHelp": "Telefonunuzdan WhatsApp'ta Bağlı Cihazlar bölümüne gidip bu kodu tarayın."
+    },
+    "errors": {
+      "load": "Kanal bağlantıları yüklenemedi.",
+      "create": "Bağlantı oluşturulamadı.",
+      "update": "Bağlantı güncellenemedi.",
+      "delete": "Bağlantı silinemedi.",
+      "save": "Bağlantı kaydedilemedi."
+    },
+    "notices": {
+      "created": "Kanal bağlandı.",
+      "updated": "Bağlantı güncellendi.",
+      "deleted": "Bağlantı kaldırıldı."
     }
   },
   "usage": {

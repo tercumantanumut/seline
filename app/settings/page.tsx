@@ -177,6 +177,8 @@ export default function SettingsPage() {
         utilityModel: data.utilityModel || "",
         theme: data.theme || "dark",
         toolLoadingMode: data.toolLoadingMode || "deferred",
+        promptCachingEnabled: data.promptCachingEnabled ?? true,
+        promptCachingTtl: data.promptCachingTtl ?? "5m",
         embeddingReindexRequired: data.embeddingReindexRequired ?? false,
         vectorDBEnabled: data.vectorDBEnabled || false,
         vectorSearchHybridEnabled: data.vectorSearchHybridEnabled ?? false,
@@ -640,6 +642,8 @@ interface FormState {
   utilityModel: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
+  promptCachingEnabled: boolean;
+  promptCachingTtl: "5m" | "1h";
   embeddingReindexRequired: boolean;
   vectorDBEnabled: boolean;
   vectorSearchHybridEnabled: boolean;
