@@ -25,6 +25,14 @@ export interface TokenUsageSummary {
   totalTokens: number;
 }
 
+export interface CacheUsageSummary {
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  estimatedSavingsUsd: number;
+  systemBlocksCached: number;
+  messagesCached: number;
+}
+
 export interface ToolUsageEntry {
   toolName: string;
   callCount: number;
@@ -62,6 +70,7 @@ export interface SessionStats {
 export interface SessionAnalytics {
   sessionId: string;
   tokenUsage: TokenUsageSummary;
+  cache: CacheUsageSummary;
   cost: ClaudeCostBreakdown;
   tools: ToolUsageSummary;
   media: MediaGenerationSummary;
@@ -77,6 +86,34 @@ function parseUsage(message: MessageInput) {
   const totalFromTokenCount = typeof message.tokenCount === "number" ? message.tokenCount : undefined;
   const totalTokens = totalFromUsage ?? totalFromTokenCount ?? inputTokens + outputTokens;
   return { inputTokens, outputTokens, totalTokens };
+}
+
+function parseCache(message: MessageInput) {
+  const metadata = (message.metadata ?? {}) as {
+    cache?: {
+      cacheReadTokens?: number | string;
+      cacheWriteTokens?: number | string;
+      estimatedSavingsUsd?: number | string;
+      systemBlocksCached?: number | string;
+      messagesCached?: number | string;
+    };
+  };
+  const cache = metadata.cache ?? {};
+  const toNumber = (value: unknown) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+  return {
+    cacheReadTokens: toNumber(cache.cacheReadTokens),
+    cacheWriteTokens: toNumber(cache.cacheWriteTokens),
+    estimatedSavingsUsd: toNumber(cache.estimatedSavingsUsd),
+    systemBlocksCached: toNumber(cache.systemBlocksCached),
+    messagesCached: toNumber(cache.messagesCached),
+  };
 }
 
 function toTimestamp(value: string | Date | undefined, fallback?: string): string | null {
@@ -101,6 +138,11 @@ export function computeSessionAnalytics(
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  let estimatedSavingsUsd = 0;
+  let systemBlocksCached = 0;
+  let messagesCached = 0;
 
   let messageCount = messages.length;
   let assistantMessageCount = 0;
@@ -129,6 +171,12 @@ export function computeSessionAnalytics(
       totalInputTokens += usage.inputTokens;
       totalOutputTokens += usage.outputTokens;
       totalTokens += usage.totalTokens;
+      const cache = parseCache(msg);
+      cacheReadTokens += cache.cacheReadTokens;
+      cacheWriteTokens += cache.cacheWriteTokens;
+      estimatedSavingsUsd += cache.estimatedSavingsUsd;
+      systemBlocksCached += cache.systemBlocksCached;
+      messagesCached += cache.messagesCached;
     } else if (msg.role === "user") {
       userMessageCount += 1;
     }
@@ -207,6 +255,14 @@ export function computeSessionAnalytics(
     totalTokens,
   };
 
+  const cache: CacheUsageSummary = {
+    cacheReadTokens,
+    cacheWriteTokens,
+    estimatedSavingsUsd,
+    systemBlocksCached,
+    messagesCached,
+  };
+
   const cost = calculateClaudeSonnet45Cost(totalInputTokens, totalOutputTokens);
 
   const tools: ToolUsageEntry[] = Array.from(toolAgg.values()).map((entry) => ({
@@ -236,6 +292,7 @@ export function computeSessionAnalytics(
   return {
     sessionId: session.id,
     tokenUsage,
+    cache,
     cost,
     tools: {
       totalToolCalls,

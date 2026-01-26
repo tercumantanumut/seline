@@ -1200,6 +1200,7 @@
     },
     "whatsapp": {
       "connectHint": "WhatsApp uses QR login. Connect, then scan the QR code with the WhatsApp mobile app.",
+      "selfChat": "Allow self-chat (Message yourself from the linked phone).",
       "qrAlt": "WhatsApp QR code",
       "qrHelp": "Open WhatsApp on your phone, go to Linked Devices, and scan this code."
     },
@@ -1251,6 +1252,10 @@
           "messages": "{count} messages",
           "breakdown": "{assistant} assistant • {user} user",
           "duration": "Duration ~{seconds}s"
+        },
+        "cache": {
+          "title": "Cache savings",
+          "detail": "{read} read • {write} write"
         }
       },
       "tools": {
@@ -1371,6 +1376,7 @@
           "duration": "Duration",
           "tools": "Tools",
           "tokens": "Tokens",
+          "cache": "Cache",
           "session": "Session",
           "actions": "Actions"
         },
@@ -1393,6 +1399,10 @@
         "totalFailures": "Total failures",
         "avgDuration": "Avg Duration",
         "perSuccessfulRun": "Per successful run",
+        "cacheSavings": "Cache savings",
+        "cacheReadTokens": "{count} tokens read",
+        "cacheWrites": "Cache writes",
+        "tokens": "tokens",
         "runsByPipeline": "Runs by Pipeline",
         "noData": "No data",
         "toolUsage": "Tool Usage",
@@ -1420,6 +1430,10 @@
         "inputTokens": "Input Tokens",
         "outputTokens": "Output Tokens",
         "total": "Total",
+        "cacheUsage": "Cache Usage",
+        "cacheReadTokens": "Cache Read Tokens",
+        "cacheWriteTokens": "Cache Write Tokens",
+        "cacheSavings": "Cache Savings",
         "executionStats": "Execution Stats",
         "messages": "Messages",
         "steps": "Steps",

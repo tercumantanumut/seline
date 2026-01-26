@@ -1182,6 +1182,7 @@
     },
     "whatsapp": {
       "connectHint": "WhatsApp QR ile giriş yapar. Bağlanın ve QR kodunu WhatsApp mobil uygulamasıyla tarayın.",
+      "selfChat": "Kendi hesabınla sohbeti aç (Bağlı telefondan kendine mesaj).",
       "qrAlt": "WhatsApp QR kodu",
       "qrHelp": "Telefonunuzdan WhatsApp'ta Bağlı Cihazlar bölümüne gidip bu kodu tarayın."
     },
@@ -1233,6 +1234,10 @@
           "messages": "{count} mesaj",
           "breakdown": "{assistant} asistan • {user} kullanıcı",
           "duration": "Süre ~{seconds}sn"
+        },
+        "cache": {
+          "title": "Önbellek tasarrufu",
+          "detail": "{read} okunan • {write} yazılan"
         }
       },
       "tools": {
@@ -1353,6 +1358,7 @@
           "duration": "Süre",
           "tools": "Araçlar",
           "tokens": "Tokenlar",
+          "cache": "Önbellek",
           "session": "Oturum",
           "actions": "İşlemler"
         },
@@ -1375,6 +1381,10 @@
         "totalFailures": "Toplam başarısızlık",
         "avgDuration": "Ort. Süre",
         "perSuccessfulRun": "Başarılı çalıştırma başına",
+        "cacheSavings": "Önbellek tasarrufu",
+        "cacheReadTokens": "{count} okunan token",
+        "cacheWrites": "Önbellek yazımı",
+        "tokens": "token",
         "runsByPipeline": "Pipeline'a Göre Çalıştırmalar",
         "noData": "Veri yok",
         "toolUsage": "Araç Kullanımı",
@@ -1402,6 +1412,10 @@
         "inputTokens": "Giriş Tokenları",
         "outputTokens": "Çıkış Tokenları",
         "total": "Toplam",
+        "cacheUsage": "Önbellek Kullanımı",
+        "cacheReadTokens": "Okunan Tokenlar",
+        "cacheWriteTokens": "Yazılan Tokenlar",
+        "cacheSavings": "Önbellek Tasarrufu",
         "executionStats": "Yürütme İstatistikleri",
         "messages": "Mesajlar",
         "steps": "Adımlar",

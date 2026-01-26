@@ -207,12 +207,15 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
 
   // Build metadata for assistant-ui format
   // assistant-ui expects custom data in metadata.custom
-  const dbMeta = dbMessage.metadata as { usage?: Record<string, unknown> } | undefined;
+  const dbMeta = dbMessage.metadata as { usage?: Record<string, unknown>; cache?: Record<string, unknown> } | undefined;
   const customMetadata: Record<string, unknown> = {};
 
   // Pass through usage from database metadata
   if (dbMeta?.usage) {
     customMetadata.usage = dbMeta.usage;
+  }
+  if (dbMeta?.cache) {
+    customMetadata.cache = dbMeta.cache;
   }
 
   // Also include tokenCount for convenience
@@ -300,11 +303,14 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
     }
 
     // Build metadata for assistant-ui format
-    const dbMeta = dbMsg.metadata as { usage?: Record<string, unknown> } | undefined;
+    const dbMeta = dbMsg.metadata as { usage?: Record<string, unknown>; cache?: Record<string, unknown> } | undefined;
     const customMetadata: Record<string, unknown> = {};
 
     if (dbMeta?.usage) {
       customMetadata.usage = dbMeta.usage;
+    }
+    if (dbMeta?.cache) {
+      customMetadata.cache = dbMeta.cache;
     }
     if (dbMsg.tokenCount) {
       customMetadata.tokenCount = dbMsg.tokenCount;

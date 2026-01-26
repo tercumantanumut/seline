@@ -33,6 +33,10 @@ export class WhatsAppConnector implements ChannelConnector {
   private onQr: WhatsAppConnectorOptions["onQr"];
   private characterId: string;
   private reconnecting = false;
+  private config: WhatsAppConnectionConfig;
+  private readyPromise: Promise<void> | null = null;
+  private readyResolve: (() => void) | null = null;
+  private readyReject: ((error: Error) => void) | null = null;
 
   constructor(options: WhatsAppConnectorOptions) {
     this.connectionId = options.connectionId;
@@ -41,6 +45,7 @@ export class WhatsAppConnector implements ChannelConnector {
     this.onStatus = options.onStatus;
     this.onQr = options.onQr;
     this.authPath = options.config.authPath || getWhatsAppAuthPath(options.connectionId);
+    this.config = options.config;
   }
 
   async connect(): Promise<void> {
@@ -51,6 +56,7 @@ export class WhatsAppConnector implements ChannelConnector {
     const { state, saveCreds } = await useMultiFileAuthState(this.authPath);
     const { version } = await fetchLatestBaileysVersion();
     const logger = pino({ level: "silent" });
+    this.resetReadyPromise();
 
     const sock = makeWASocket({
       auth: {
@@ -80,17 +86,22 @@ export class WhatsAppConnector implements ChannelConnector {
         this.status = "connected";
         this.onQr(null);
         this.onStatus(this.status);
+        this.readyResolve?.();
       }
 
       if (connection === "close") {
         const reason = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
         const loggedOut = reason === DisconnectReason.loggedOut;
         const restartRequired = reason === DisconnectReason.restartRequired;
+        const errorMessage = String(lastDisconnect?.error || "Connection closed");
+        this.readyReject?.(new Error(errorMessage));
+        this.resetReadyPromise();
 
         if (loggedOut) {
           this.status = "disconnected";
           this.onStatus(this.status, "Logged out");
           this.onQr(null);
+          this.resetReadyPromise();
           void fs.rm(this.authPath, { recursive: true, force: true });
           return;
         }
@@ -109,14 +120,17 @@ export class WhatsAppConnector implements ChannelConnector {
         }
 
         this.status = "error";
-        const error = String(lastDisconnect?.error || "Connection closed");
-        this.onStatus(this.status, error);
+        this.onStatus(this.status, errorMessage);
       }
     });
 
     sock.ev.on("messages.upsert", async ({ messages }) => {
       for (const msg of messages) {
-        if (!msg.message || msg.key.fromMe) {
+        if (!msg.message) {
+          continue;
+        }
+        const fromSelf = Boolean(msg.key.fromMe);
+        if (fromSelf && !this.config.selfChatMode) {
           continue;
         }
 
@@ -135,6 +149,7 @@ export class WhatsAppConnector implements ChannelConnector {
           messageId: msg.key.id || `${peerId}:${Date.now()}`,
           text: normalizeChannelText(text),
           attachments,
+          fromSelf,
           timestamp: msg.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000).toISOString() : undefined,
         };
 
@@ -151,6 +166,7 @@ export class WhatsAppConnector implements ChannelConnector {
         // Ignore teardown errors.
       }
     }
+    this.readyReject?.(new Error("Disconnected"));
     this.status = "disconnected";
     this.onStatus(this.status);
   }
@@ -159,6 +175,7 @@ export class WhatsAppConnector implements ChannelConnector {
     if (!this.sock) {
       throw new Error("WhatsApp socket not connected");
     }
+    await this.waitForReady(15000);
 
     const text = payload.text || "";
     const attachment = payload.attachments?.[0];
@@ -179,6 +196,26 @@ export class WhatsAppConnector implements ChannelConnector {
 
   getQrCode(): string | null {
     return null;
+  }
+
+  private resetReadyPromise() {
+    this.readyPromise = new Promise((resolve, reject) => {
+      this.readyResolve = resolve;
+      this.readyReject = reject;
+    });
+  }
+
+  private async waitForReady(timeoutMs: number) {
+    if (this.status === "connected") {
+      return;
+    }
+    if (!this.readyPromise) {
+      throw new Error("WhatsApp connection not initialized");
+    }
+    const timeout = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error("WhatsApp connection timed out")), timeoutMs);
+    });
+    await Promise.race([this.readyPromise, timeout]);
   }
 }
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -46,6 +47,19 @@ const STATUS_STYLES: Record<ChannelStatus, string> = {
   error: "bg-red-500/15 text-red-700 border border-red-500/30",
 };
 
+const normalizeBool = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  return false;
+};
+
 export function ChannelConnectionsDialog({
   open,
   onOpenChange,
@@ -65,6 +79,7 @@ export function ChannelConnectionsDialog({
   const [slackBotToken, setSlackBotToken] = useState("");
   const [slackAppToken, setSlackAppToken] = useState("");
   const [slackSigningSecret, setSlackSigningSecret] = useState("");
+  const [whatsappSelfChat, setWhatsappSelfChat] = useState(false);
   const [qrCodes, setQrCodes] = useState<Record<string, string | null>>({});
 
   const isEditing = Boolean(editingConnection);
@@ -77,6 +92,7 @@ export function ChannelConnectionsDialog({
     setSlackBotToken("");
     setSlackAppToken("");
     setSlackSigningSecret("");
+    setWhatsappSelfChat(false);
   }, []);
 
   const loadConnections = useCallback(async () => {
@@ -160,12 +176,13 @@ export function ChannelConnectionsDialog({
     setSlackBotToken("");
     setSlackAppToken("");
     setSlackSigningSecret("");
+    setWhatsappSelfChat(normalizeBool(connection.config?.selfChatMode));
   }, []);
 
   const handleSubmit = useCallback(async () => {
     setIsSaving(true);
     try {
-      const config: Record<string, string> = {};
+      const config: Record<string, unknown> = {};
       if (formType === "telegram" && telegramToken.trim()) {
         config.botToken = telegramToken.trim();
       }
@@ -174,14 +191,16 @@ export function ChannelConnectionsDialog({
         if (slackAppToken.trim()) config.appToken = slackAppToken.trim();
         if (slackSigningSecret.trim()) config.signingSecret = slackSigningSecret.trim();
       }
-
       if (isEditing && editingConnection) {
         const response = await fetch(`/api/channels/connections/${editingConnection.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             displayName: displayName.trim() || null,
-            config,
+            config: {
+              ...config,
+              ...(formType === "whatsapp" ? { selfChatMode: whatsappSelfChat } : {}),
+            },
           }),
         });
         if (!response.ok) {
@@ -197,7 +216,10 @@ export function ChannelConnectionsDialog({
             characterId,
             channelType: formType,
             displayName: displayName.trim() || null,
-            config,
+            config: {
+              ...config,
+              ...(formType === "whatsapp" ? { selfChatMode: whatsappSelfChat } : {}),
+            },
           }),
         });
         if (!response.ok) {
@@ -490,11 +512,18 @@ export function ChannelConnectionsDialog({
                 )}
 
                 {formType === "whatsapp" && (
-                  <div className="rounded-md border border-terminal-border/30 bg-terminal-cream/70 p-3 text-xs font-mono text-terminal-muted">
+                  <div className="space-y-3 rounded-md border border-terminal-border/30 bg-terminal-cream/70 p-3 text-xs font-mono text-terminal-muted">
                     <div className="flex items-start gap-2">
                       <MessageCircle className="mt-0.5 h-4 w-4 text-terminal-green" />
                       <div>{t("whatsapp.connectHint")}</div>
                     </div>
+                    <label className="flex items-center gap-2 text-xs font-mono text-terminal-dark">
+                      <Checkbox
+                        checked={whatsappSelfChat}
+                        onCheckedChange={(value) => setWhatsappSelfChat(Boolean(value))}
+                      />
+                      {t("whatsapp.selfChat")}
+                    </label>
                   </div>
                 )}
 

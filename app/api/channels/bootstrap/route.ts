@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    await getChannelManager().bootstrap();
+    await getChannelManager().bootstrap(userId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
