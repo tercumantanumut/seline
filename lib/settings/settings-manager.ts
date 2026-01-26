@@ -131,6 +131,10 @@ export interface AppSettings {
     toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
     dataPath?: string;
 
+    // Prompt Caching (Anthropic only)
+    promptCachingEnabled?: boolean;           // Enable/disable prompt caching (default: true)
+    promptCachingTtl?: "5m" | "1h";          // Cache TTL: 5m (standard) or 1h (premium) (default: 5m)
+
     // Onboarding state
     onboardingComplete?: boolean;
     onboardingCompletedAt?: string; // ISO timestamp
