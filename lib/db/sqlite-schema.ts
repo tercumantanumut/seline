@@ -216,4 +216,3 @@ export type WebBrowseEntry = typeof webBrowseEntries.$inferSelect;
 export type NewWebBrowseEntry = typeof webBrowseEntries.$inferInsert;
 export type Image = typeof images.$inferSelect;
 export type NewImage = typeof images.$inferInsert;
-

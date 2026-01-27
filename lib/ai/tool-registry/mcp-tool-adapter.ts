@@ -9,6 +9,7 @@ import type { Tool } from "ai";
 import type { ToolMetadata, ToolFactory } from "@/lib/ai/tool-registry/types";
 import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
 import { MCPClientManager, type MCPDiscoveredTool } from "@/lib/mcp/client-manager";
+import { formatMCPToolResult } from "@/lib/mcp/result-formatter";
 
 /**
  * Category for MCP tools - they get their own category
@@ -74,23 +75,21 @@ export function createMCPToolWrapper(mcpTool: MCPDiscoveredTool): Tool {
                     args
                 );
 
-                // Format result according to Seline's conventions
-                return {
-                    status: "success" as const,
-                    source: "mcp",
-                    server: mcpTool.serverName,
-                    tool: mcpTool.name,
+                // Format result according to Seline's conventions (strip base64 payloads)
+                return await formatMCPToolResult(
+                    mcpTool.serverName,
+                    mcpTool.name,
                     result,
-                };
+                    false
+                );
             } catch (error) {
                 console.error(`[MCP Tool] Error executing ${mcpTool.serverName}:${mcpTool.name}:`, error);
-                return {
-                    status: "error" as const,
-                    source: "mcp",
-                    server: mcpTool.serverName,
-                    tool: mcpTool.name,
-                    error: error instanceof Error ? error.message : String(error),
-                };
+                return await formatMCPToolResult(
+                    mcpTool.serverName,
+                    mcpTool.name,
+                    error instanceof Error ? error.message : String(error),
+                    true
+                );
             }
         },
     });

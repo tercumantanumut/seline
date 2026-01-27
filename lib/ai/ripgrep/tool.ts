@@ -108,8 +108,6 @@ function formatResults(searchResult: RipgrepSearchResult, query: string): string
  */
 const localGrepSchema = jsonSchema<LocalGrepInput>({
     type: "object",
-    title: "LocalGrepInput",
-    description: "Input schema for fast pattern searching using ripgrep",
     properties: {
         pattern: {
             type: "string",

@@ -51,7 +51,7 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
   const [isElectronApp, setIsElectronApp] = useState(false);
   const [electronPlatform, setElectronPlatform] = useState<string | null>(null);
   const { isCollapsed: desktopCollapsed, toggle: toggleDesktopSidebar, isHydrated } = useDesktopSidebarState();
-  const { user, signOut } = useAuth();
+  const { user, isLoading, signOut } = useAuth();
   const logoRef = useRef<HTMLDivElement>(null);
   const mobileLogoRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -63,6 +63,22 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
     setIsElectronApp(!!electronAPI);
     setElectronPlatform(electronAPI?.platform ?? null);
   }, []);
+
+  useEffect(() => {
+    if (isLoading || !user) {
+      return;
+    }
+
+    const bootstrapChannels = async () => {
+      try {
+        await fetch("/api/channels/bootstrap", { method: "POST" });
+      } catch (error) {
+        console.error("[Channels] Bootstrap failed:", error);
+      }
+    };
+
+    void bootstrapChannels();
+  }, [isLoading, user?.id]);
 
   // Ambient logo animation
   useEffect(() => {

@@ -2,6 +2,7 @@
 node_modules
 .pnpm-store
 
+tmp-clawdbot/
 # Next.js
 .next
 out

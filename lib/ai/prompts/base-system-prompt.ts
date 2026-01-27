@@ -17,6 +17,7 @@ import {
   MULTI_IMAGE_TOOL_USAGE,
   combineBlocks,
 } from "./shared-blocks";
+import type { CacheableSystemBlock } from "../cache/types";
 
 export interface BaseSystemPromptOptions {
   /** Agent's display name */
@@ -33,6 +34,10 @@ export interface BaseSystemPromptOptions {
   toolLoadingMode?: "deferred" | "always";
   /** Additional context to append (e.g., character memories, custom instructions) */
   additionalContext?: string;
+  /** Enable prompt caching for system blocks (Anthropic only) */
+  enableCaching?: boolean;
+  /** Cache TTL (5m or 1h) */
+  cacheTtl?: "5m" | "1h";
 }
 
 /**
@@ -117,5 +122,119 @@ export function buildDefaultSystemPrompt(
     ...DEFAULT_AGENT_CONFIG,
     includeToolDiscovery: options.includeToolDiscovery ?? true,
     toolLoadingMode: options.toolLoadingMode ?? "deferred",
+  });
+}
+
+/**
+ * Build system prompt as cacheable blocks for Anthropic prompt caching.
+ * Returns array format with cache_control markers.
+ *
+ * Cache structure:
+ * 1. Temporal context (changes daily, not cached)
+ * 2. Core identity + response rules (static, highly cacheable)
+ * 3. Tool discovery (optional, changes with mode)
+ * 4. Additional context (character memories, etc., cacheable)
+ *
+ * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+ */
+export function buildCacheableSystemPrompt(
+  options: BaseSystemPromptOptions
+): CacheableSystemBlock[] {
+  const {
+    agentName,
+    agentRole,
+    agentVibe,
+    personalityTraits,
+    includeToolDiscovery = true,
+    toolLoadingMode = "deferred",
+    additionalContext,
+    enableCaching = false,
+    cacheTtl = "5m",
+  } = options;
+
+  const blocks: CacheableSystemBlock[] = [];
+
+  // Build core identity section
+  const identityParts: string[] = [`You are ${agentName}, ${agentRole}.`];
+
+  if (agentVibe) {
+    identityParts.push(`**Vibe:** ${agentVibe}`);
+  }
+
+  if (personalityTraits && personalityTraits.length > 0) {
+    identityParts.push(`**Personality:** ${personalityTraits.join(", ")}`);
+  }
+
+  const coreIdentity = identityParts.join("\n");
+
+  // Block 1: Temporal context (changes daily, not cached)
+  blocks.push({
+    role: "system",
+    content: getTemporalContextBlock(),
+  });
+
+  // Block 2: Core identity + response rules (static, highly cacheable)
+  const staticBlocks = combineBlocks(
+    coreIdentity,
+    RESPONSE_STYLE,
+    LANGUAGE_HANDLING,
+    MEDIA_DISPLAY_RULES,
+    TOOL_INVOCATION_FORMAT,
+    MULTI_IMAGE_TOOL_USAGE
+  );
+
+  blocks.push({
+    role: "system",
+    content: staticBlocks,
+    // Cache this block if caching is enabled
+    ...(enableCaching && {
+      experimental_providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+      },
+    }),
+  });
+
+  // Block 3: Tool discovery (optional, changes with mode)
+  if (includeToolDiscovery) {
+    blocks.push({
+      role: "system",
+      content: toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL,
+    });
+  }
+
+  // Block 4: Additional context (character memories, etc.)
+  if (additionalContext) {
+    blocks.push({
+      role: "system",
+      content: additionalContext,
+      // Cache additional context if enabled (character instructions are stable)
+      ...(enableCaching && {
+        experimental_providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+        },
+      }),
+    });
+  }
+
+  return blocks;
+}
+
+/**
+ * Build the default Seline agent system prompt as cacheable blocks
+ */
+export function buildDefaultCacheableSystemPrompt(
+  options: {
+    includeToolDiscovery?: boolean;
+    toolLoadingMode?: "deferred" | "always";
+    enableCaching?: boolean;
+    cacheTtl?: "5m" | "1h";
+  } = {}
+): CacheableSystemBlock[] {
+  return buildCacheableSystemPrompt({
+    ...DEFAULT_AGENT_CONFIG,
+    includeToolDiscovery: options.includeToolDiscovery ?? true,
+    toolLoadingMode: options.toolLoadingMode ?? "deferred",
+    enableCaching: options.enableCaching ?? false,
+    cacheTtl: options.cacheTtl ?? "5m",
   });
 }

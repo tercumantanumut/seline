@@ -8,15 +8,27 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop, Plug, Hash, Phone, Send, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
+import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
@@ -51,7 +63,20 @@ interface SessionInfo {
     title: string | null;
     createdAt: string;
     updatedAt: string;
-    metadata: { characterId?: string; characterName?: string };
+    metadata: {
+        characterId?: string;
+        characterName?: string;
+        channelType?: "whatsapp" | "telegram" | "slack";
+        channelPeerName?: string | null;
+        channelPeerId?: string | null;
+    };
+}
+
+interface ChannelConnectionSummary {
+    id: string;
+    channelType: "whatsapp" | "telegram" | "slack";
+    status: "disconnected" | "connecting" | "connected" | "error";
+    displayName?: string | null;
 }
 
 interface ChatInterfaceProps {
@@ -64,6 +89,63 @@ interface ChatInterfaceProps {
 
 const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
     [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+const getSessionSignature = (session: SessionInfo) =>
+    [
+        session.id,
+        session.updatedAt,
+        session.title ?? "",
+        session.metadata?.channelType ?? "",
+        session.metadata?.channelPeerId ?? "",
+        session.metadata?.channelPeerName ?? "",
+    ].join("|");
+
+const areSessionsEquivalent = (prev: SessionInfo[], next: SessionInfo[]) => {
+    if (prev.length !== next.length) {
+        return false;
+    }
+    for (let index = 0; index < prev.length; index += 1) {
+        if (getSessionSignature(prev[index]) !== getSessionSignature(next[index])) {
+            return false;
+        }
+    }
+    return true;
+};
+
+const isTextPart = (part: UIMessage["parts"][number] | undefined | null): part is { type: "text"; text: string } => {
+    return Boolean(
+        part &&
+        part.type === "text" &&
+        typeof (part as { text?: unknown }).text === "string"
+    );
+};
+
+const getMessageSignature = (message: UIMessage) => {
+    const parts = Array.isArray(message.parts) ? message.parts : [];
+    const partTypes = parts.map((part) => (part?.type ? String(part.type) : "text")).join(",");
+    const textDigest = parts
+        .filter(isTextPart)
+        .map((part) => {
+            const text = part.text || "";
+            return `${text.length}:${text.slice(0, 80)}`;
+        })
+        .join("|");
+    return `${message.id || ""}:${message.role}:${partTypes}:${textDigest}`;
+};
+
+const getMessagesSignature = (messages: UIMessage[]) => {
+    if (!messages.length) {
+        return "0";
+    }
+    const lastMessage = messages[messages.length - 1];
+    return `${messages.length}:${getMessageSignature(lastMessage)}`;
+};
+
+const CHANNEL_TYPE_ICONS = {
+    whatsapp: Phone,
+    telegram: Send,
+    slack: Hash,
+};
 
 // Combined state to ensure sessionId and messages always update atomically
 interface SessionState {
@@ -105,12 +187,18 @@ export default function ChatInterface({
     const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+    const activeSessionMeta = useMemo(
+        () => sessions.find((session) => session.id === sessionId)?.metadata,
+        [sessions, sessionId]
+    );
+    const isChannelSession = Boolean(activeSessionMeta?.channelType);
 
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const lastProgressSignatureRef = useRef<string>("");
     const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const lastProgressTimeRef = useRef<number>(0);
+    const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
@@ -130,18 +218,24 @@ export default function ChatInterface({
         });
     }, []);
 
-    const loadSessions = useCallback(async () => {
+    const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
+        const silent = options?.silent ?? false;
         try {
-            setLoadingSessions(true);
+            if (!silent) {
+                setLoadingSessions(true);
+            }
             const response = await fetch(`/api/sessions?characterId=${character.id}`);
             if (response.ok) {
                 const data = await response.json();
-                setSessions(sortSessionsByUpdatedAt(data.sessions || []));
+                const nextSessions = sortSessionsByUpdatedAt(data.sessions || []);
+                setSessions((prev) => (areSessionsEquivalent(prev, nextSessions) ? prev : nextSessions));
             }
         } catch (err) {
             console.error("Failed to load sessions:", err);
         } finally {
-            setLoadingSessions(false);
+            if (!silent) {
+                setLoadingSessions(false);
+            }
         }
     }, [character.id]);
 
@@ -162,6 +256,13 @@ export default function ChatInterface({
     const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
         const uiMessages = await fetchSessionMessages(targetSessionId);
         if (!uiMessages) return;
+        if (sessionId && sessionId !== targetSessionId) {
+            return;
+        }
+        const nextSignature = getMessagesSignature(uiMessages);
+        if (nextSignature === lastSessionSignatureRef.current) {
+            return;
+        }
 
         setSessionState((prev) => {
             if (prev.sessionId !== targetSessionId) {
@@ -169,8 +270,9 @@ export default function ChatInterface({
             }
             return { sessionId: targetSessionId, messages: uiMessages };
         });
+        lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
-    }, [fetchSessionMessages, refreshSessionTimestamp]);
+    }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
 
     useEffect(() => {
         if (activeTaskForSession) {
@@ -233,6 +335,33 @@ export default function ChatInterface({
             }
         },
         [character.id, character.name, loadSessions, router]
+    );
+
+    const resetChannelSession = useCallback(
+        async (sessionToResetId: string, options?: { archiveOld?: boolean }) => {
+            try {
+                setIsLoading(true);
+                const response = await fetch(`/api/sessions/${sessionToResetId}/reset-channel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ archiveOld: options?.archiveOld ?? false }),
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to reset channel session");
+                }
+                const { session } = await response.json();
+                if (session?.id) {
+                    await loadSessions();
+                    await switchSession(session.id);
+                }
+            } catch (err) {
+                console.error("Failed to reset channel session:", err);
+                toast.error(t("channelSession.resetError"));
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [loadSessions, switchSession, t]
     );
 
     const deleteSession = useCallback(
@@ -340,6 +469,21 @@ export default function ChatInterface({
             window.removeEventListener("scheduled-task-started", handleTaskStarted);
         };
     }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
+
+    useEffect(() => {
+        if (!sessionId) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            void loadSessions({ silent: true });
+            if (isChannelSession) {
+                void reloadSessionMessages(sessionId);
+            }
+        }, 6000);
+
+        return () => clearInterval(interval);
+    }, [isChannelSession, loadSessions, reloadSessionMessages, sessionId]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -516,6 +660,10 @@ export default function ChatInterface({
         return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
     }, [messages, sessionId]);
 
+    useEffect(() => {
+        lastSessionSignatureRef.current = getMessagesSignature(messages);
+    }, [messages]);
+
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) {
             return;
@@ -547,6 +695,7 @@ export default function ChatInterface({
                     onNewSession={createNewSession}
                     onSwitchSession={switchSession}
                     onDeleteSession={deleteSession}
+                    onResetChannelSession={resetChannelSession}
                     onRenameSession={renameSession}
                     onAvatarChange={handleAvatarChange}
                 />
@@ -604,6 +753,7 @@ function CharacterSidebar({
     onNewSession,
     onSwitchSession,
     onDeleteSession,
+    onResetChannelSession,
     onRenameSession,
     onAvatarChange,
 }: {
@@ -615,6 +765,7 @@ function CharacterSidebar({
     onNewSession: () => void;
     onSwitchSession: (sessionId: string) => void;
     onDeleteSession: (sessionId: string) => void;
+    onResetChannelSession: (sessionId: string, options?: { archiveOld?: boolean }) => Promise<void>;
     onRenameSession: (sessionId: string, title: string) => Promise<boolean>;
     onAvatarChange: (newAvatarUrl: string | null) => void;
 }) {
@@ -626,7 +777,13 @@ function CharacterSidebar({
     const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
     const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
     const t = useTranslations("chat");
+    const tChannels = useTranslations("channels");
     const formatter = useFormatter();
+    const [channelsOpen, setChannelsOpen] = useState(false);
+    const [channelConnections, setChannelConnections] = useState<ChannelConnectionSummary[]>([]);
+    const [channelsLoading, setChannelsLoading] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [pendingDeleteSession, setPendingDeleteSession] = useState<SessionInfo | null>(null);
 
     const stopEditing = useCallback(() => {
         setEditingSessionId(null);
@@ -657,6 +814,44 @@ function CharacterSidebar({
             stopEditing();
         }
     }, [editTitle, editingSessionId, onRenameSession, stopEditing]);
+
+    const closeDeleteDialog = useCallback(() => {
+        setDeleteDialogOpen(false);
+        setPendingDeleteSession(null);
+    }, []);
+
+    const isChannelBoundSession = useCallback(
+        (session: SessionInfo) => Boolean(session.metadata?.channelType),
+        []
+    );
+
+    const handleDeleteRequest = useCallback(
+        (session: SessionInfo) => {
+            if (isChannelBoundSession(session)) {
+                setPendingDeleteSession(session);
+                setDeleteDialogOpen(true);
+                return;
+            }
+            onDeleteSession(session.id);
+        },
+        [isChannelBoundSession, onDeleteSession]
+    );
+
+    const handleArchiveAndReset = useCallback(async () => {
+        if (!pendingDeleteSession) {
+            return;
+        }
+        await onResetChannelSession(pendingDeleteSession.id, { archiveOld: true });
+        closeDeleteDialog();
+    }, [closeDeleteDialog, onResetChannelSession, pendingDeleteSession]);
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (!pendingDeleteSession) {
+            return;
+        }
+        await onDeleteSession(pendingDeleteSession.id);
+        closeDeleteDialog();
+    }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
 
     const handleInputBlur = useCallback(() => {
         if (skipBlurRef.current) {
@@ -733,6 +928,27 @@ function CharacterSidebar({
         }
     };
 
+    const loadChannelConnections = useCallback(async () => {
+        try {
+            setChannelsLoading(true);
+            const response = await fetch(`/api/channels/connections?characterId=${character.id}`);
+            if (response.ok) {
+                const data = await response.json();
+                setChannelConnections((data.connections || []) as ChannelConnectionSummary[]);
+            }
+        } catch (error) {
+            console.error("Failed to load channel connections:", error);
+        } finally {
+            setChannelsLoading(false);
+        }
+    }, [character.id]);
+
+    useEffect(() => {
+        void loadChannelConnections();
+    }, [loadChannelConnections]);
+
+    const connectedCount = channelConnections.filter((connection) => connection.status === "connected").length;
+
     return (
         <div className="flex h-full flex-col overflow-hidden">
             <AvatarSelectionDialog
@@ -746,6 +962,51 @@ function CharacterSidebar({
                     setAvatarDialogOpen(false);
                 }}
             />
+            <ChannelConnectionsDialog
+                open={channelsOpen}
+                onOpenChange={setChannelsOpen}
+                characterId={character.id}
+                characterName={character.displayName || character.name}
+                onConnectionsChange={setChannelConnections}
+            />
+            <AlertDialog
+                open={deleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeDeleteDialog();
+                    } else {
+                        setDeleteDialogOpen(true);
+                    }
+                }}
+            >
+                <AlertDialogContent className="font-mono">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">
+                            {t("channelSession.deleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-terminal-muted">
+                            {t("channelSession.deleteDescription")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="font-mono">
+                            {t("sidebar.cancel")}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            className="font-mono bg-terminal-green text-terminal-cream hover:bg-terminal-green/90"
+                            onClick={() => void handleArchiveAndReset()}
+                        >
+                            {t("channelSession.archiveReset")}
+                        </AlertDialogAction>
+                        <AlertDialogAction
+                            className="font-mono bg-red-600 text-white hover:bg-red-600/90"
+                            onClick={() => void handleConfirmDelete()}
+                        >
+                            {t("channelSession.deleteAnyway")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <div className="shrink-0 px-4 pt-3 pb-3">
                 <div
@@ -779,6 +1040,53 @@ function CharacterSidebar({
                             <p className="text-xs text-terminal-muted/80 font-mono mt-1.5 line-clamp-2 leading-relaxed">
                                 {character.tagline}
                             </p>
+                        )}
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setChannelsOpen(true)}
+                            className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+                        >
+                            <Plug className="mr-1 h-3.5 w-3.5" />
+                            <span className="text-xs font-mono">{t("sidebar.channels")}</span>
+                        </Button>
+                        <div className="flex flex-wrap items-center justify-center gap-1">
+                            {channelsLoading ? (
+                                <span className="text-[11px] font-mono text-terminal-muted">
+                                    {tChannels("connections.loading")}
+                                </span>
+                            ) : channelConnections.length === 0 ? (
+                                <span className="text-[11px] font-mono text-terminal-muted">
+                                    {tChannels("connections.empty")}
+                                </span>
+                            ) : (
+                                channelConnections.map((connection) => {
+                                    const Icon = CHANNEL_TYPE_ICONS[connection.channelType];
+                                    const badgeClass = connection.status === "connected"
+                                        ? "bg-emerald-500/15 text-emerald-700"
+                                        : connection.status === "connecting"
+                                            ? "bg-amber-500/15 text-amber-700"
+                                            : connection.status === "error"
+                                                ? "bg-red-500/15 text-red-700"
+                                                : "bg-terminal-dark/10 text-terminal-muted";
+                                    return (
+                                        <Badge
+                                            key={connection.id}
+                                            className={cn("border border-transparent px-2 py-0.5 text-[10px] font-mono", badgeClass)}
+                                        >
+                                            <Icon className="mr-1 h-3 w-3" />
+                                            {tChannels(`types.${connection.channelType}`)}
+                                        </Badge>
+                                    );
+                                })
+                            )}
+                        </div>
+                        {connectedCount > 0 && (
+                            <span className="text-[11px] font-mono text-terminal-muted">
+                                {tChannels("connections.connectedCount", { count: connectedCount })}
+                            </span>
                         )}
                     </div>
                 </div>
@@ -923,10 +1231,25 @@ function CharacterSidebar({
                                                         {session.title || t("session.untitled")}
                                                     </p>
                                                 )}
-                                                <p className="text-xs text-terminal-muted/70 font-mono flex items-center gap-1 mt-0.5">
-                                                    <Clock className="h-3 w-3" />
-                                                    {formatSessionDate(session.updatedAt)}
-                                                </p>
+                                                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70">
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        {formatSessionDate(session.updatedAt)}
+                                                    </span>
+                                                    {session.metadata?.channelType && (
+                                                        <Badge className="border border-terminal-dark/10 bg-terminal-cream/80 px-2 py-0.5 text-[10px] font-mono text-terminal-dark">
+                                                            {(() => {
+                                                                const Icon = CHANNEL_TYPE_ICONS[session.metadata.channelType];
+                                                                return (
+                                                                    <>
+                                                                        <Icon className="mr-1 h-3 w-3" />
+                                                                        {tChannels(`types.${session.metadata.channelType}`)}
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                             {!isEditing && (
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -942,13 +1265,27 @@ function CharacterSidebar({
                                                     >
                                                         <Pencil className="h-3.5 w-3.5" />
                                                     </Button>
+                                                    {session.metadata?.channelType && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 rounded hover:shadow-sm"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                onResetChannelSession(session.id);
+                                                            }}
+                                                            title={t("sidebar.resetChannel")}
+                                                        >
+                                                            <RotateCcw className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
                                                         className="h-7 w-7 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 rounded hover:shadow-sm"
                                                         onClick={(event) => {
                                                             event.stopPropagation();
-                                                            onDeleteSession(session.id);
+                                                            handleDeleteRequest(session);
                                                         }}
                                                         title={t("sidebar.delete")}
                                                     >

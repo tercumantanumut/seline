@@ -35,6 +35,8 @@ interface AppSettings {
   theme: "dark" | "light" | "system";
   localUserId: string;
   localUserEmail: string;
+  promptCachingEnabled?: boolean;
+  promptCachingTtl?: "5m" | "1h";
   vectorDBEnabled?: boolean;
   vectorSearchHybridEnabled?: boolean;
   vectorSearchTokenChunkingEnabled?: boolean;
@@ -96,6 +98,8 @@ export default function SettingsPage() {
     utilityModel: "",
     theme: "dark" as "dark" | "light" | "system",
     toolLoadingMode: "deferred" as "deferred" | "always",
+    promptCachingEnabled: true,
+    promptCachingTtl: "5m" as "5m" | "1h",
     embeddingReindexRequired: false,
     vectorDBEnabled: false,
     vectorSearchHybridEnabled: false,
@@ -173,6 +177,8 @@ export default function SettingsPage() {
         utilityModel: data.utilityModel || "",
         theme: data.theme || "dark",
         toolLoadingMode: data.toolLoadingMode || "deferred",
+        promptCachingEnabled: data.promptCachingEnabled ?? true,
+        promptCachingTtl: data.promptCachingTtl ?? "5m",
         embeddingReindexRequired: data.embeddingReindexRequired ?? false,
         vectorDBEnabled: data.vectorDBEnabled || false,
         vectorSearchHybridEnabled: data.vectorSearchHybridEnabled ?? false,
@@ -636,6 +642,8 @@ interface FormState {
   utilityModel: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
+  promptCachingEnabled: boolean;
+  promptCachingTtl: "5m" | "1h";
   embeddingReindexRequired: boolean;
   vectorDBEnabled: boolean;
   vectorSearchHybridEnabled: boolean;
@@ -1681,6 +1689,77 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             </div>
           </label>
         </div>
+      </div>
+
+      {/* Prompt Caching */}
+      <div className="space-y-4">
+        <h3 className="font-mono text-base font-semibold text-terminal-dark">
+          Prompt Caching
+        </h3>
+        <p className="font-mono text-xs text-terminal-muted">
+          Cache system prompts and conversation history to reduce costs by 70-85%. Works with Anthropic (direct) and OpenRouter (Anthropic, OpenAI, Gemini, and more).
+        </p>
+
+        {/* Enable/Disable Toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="font-mono text-sm text-terminal-dark">
+              Enable Prompt Caching
+            </label>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              Save up to 90% on input tokens for multi-turn conversations
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={formState.promptCachingEnabled ?? true}
+            onChange={(e) => updateField("promptCachingEnabled", e.target.checked)}
+            className="size-5 accent-terminal-green"
+          />
+        </div>
+
+        {/* TTL Selection */}
+        {formState.promptCachingEnabled !== false && (
+          <div>
+            <label className="mb-2 block font-mono text-sm text-terminal-dark">
+              Cache Duration
+            </label>
+            <div className="space-y-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="promptCachingTtl"
+                  value="5m"
+                  checked={formState.promptCachingTtl === "5m" || !formState.promptCachingTtl}
+                  onChange={() => updateField("promptCachingTtl", "5m")}
+                  className="mt-1 size-4 accent-terminal-green"
+                />
+                <div>
+                  <span className="font-mono text-terminal-dark">5 minutes (Recommended)</span>
+                  <p className="font-mono text-xs text-terminal-muted">
+                    Standard cache duration. 1.25x write cost, auto-refreshes on use. Best for frequent conversations.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="promptCachingTtl"
+                  value="1h"
+                  checked={formState.promptCachingTtl === "1h"}
+                  onChange={() => updateField("promptCachingTtl", "1h")}
+                  className="mt-1 size-4 accent-terminal-green"
+                />
+                <div>
+                  <span className="font-mono text-terminal-dark">1 hour (Premium)</span>
+                  <p className="font-mono text-xs text-terminal-muted">
+                    Extended cache duration. 2x write cost. Best for infrequent or long-running sessions.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

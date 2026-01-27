@@ -29,6 +29,8 @@ export interface DBToolResultPart {
   state?: Extract<ToolInvocationState, "output-available" | "output-error" | "output-denied">;
   errorText?: string;
   preliminary?: boolean;
+  status?: string;
+  timestamp?: string;
 }
 
 // Database content part types
@@ -131,15 +133,65 @@ function buildUIPartsFromDBContent(
           ? "output-available"
           : "input-available");
 
-      parts.push({
-        type: `tool-${part.toolName}` as `tool-${string}`,
-        toolCallId: part.toolCallId,
-        state: inferredState,
-        input: part.args ?? part.argsText,
-        output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
-        errorText: toolResult?.errorText,
-        preliminary: toolResult?.preliminary,
-      });
+      // Validate and parse tool call input to prevent malformed data from being sent to AI providers
+      // This fixes the issue where incomplete argsText from streaming interruptions causes API errors
+      let validInput: unknown;
+
+      if (part.args !== undefined) {
+        if (typeof part.args === "string") {
+          try {
+            validInput = JSON.parse(part.args);
+          } catch (e) {
+            console.warn(
+              `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid args JSON. ` +
+              `State: ${part.state}, args preview: ${part.args.substring(0, 50)}...`
+            );
+            continue; // Skip invalid tool call input
+          }
+        } else {
+          validInput = part.args;
+        }
+      } else if (part.argsText) {
+        // Fallback to argsText, but validate it's complete JSON first
+        try {
+          validInput = JSON.parse(part.argsText);
+        } catch (e) {
+          // argsText is incomplete or malformed JSON - skip this tool call
+          console.warn(
+            `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid argsText. ` +
+            `State: ${part.state}, argsText preview: ${part.argsText?.substring(0, 50)}...`
+          );
+          continue; // Skip this tool call entirely
+        }
+      } else if (part.state === "input-streaming") {
+        // Tool call is still streaming (should not happen in persisted messages)
+        console.warn(
+          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with state "input-streaming" - likely a streaming interruption`
+        );
+        continue; // Skip incomplete streaming tool calls
+      }
+
+      const isValidInputObject =
+        validInput !== undefined &&
+        typeof validInput === "object" &&
+        !Array.isArray(validInput);
+
+      // Only add tool call if we have valid input
+      if (isValidInputObject) {
+        parts.push({
+          type: `tool-${part.toolName}` as `tool-${string}`,
+          toolCallId: part.toolCallId,
+          state: inferredState,
+          input: validInput,
+          output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
+          errorText: toolResult?.errorText,
+          preliminary: toolResult?.preliminary,
+        });
+      } else {
+        console.warn(
+          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) - invalid tool input`
+        );
+      }
     }
   }
 
@@ -173,12 +225,15 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
 
   // Build metadata for assistant-ui format
   // assistant-ui expects custom data in metadata.custom
-  const dbMeta = dbMessage.metadata as { usage?: Record<string, unknown> } | undefined;
+  const dbMeta = dbMessage.metadata as { usage?: Record<string, unknown>; cache?: Record<string, unknown> } | undefined;
   const customMetadata: Record<string, unknown> = {};
 
   // Pass through usage from database metadata
   if (dbMeta?.usage) {
     customMetadata.usage = dbMeta.usage;
+  }
+  if (dbMeta?.cache) {
+    customMetadata.cache = dbMeta.cache;
   }
 
   // Also include tokenCount for convenience
@@ -266,11 +321,14 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
     }
 
     // Build metadata for assistant-ui format
-    const dbMeta = dbMsg.metadata as { usage?: Record<string, unknown> } | undefined;
+    const dbMeta = dbMsg.metadata as { usage?: Record<string, unknown>; cache?: Record<string, unknown> } | undefined;
     const customMetadata: Record<string, unknown> = {};
 
     if (dbMeta?.usage) {
       customMetadata.usage = dbMeta.usage;
+    }
+    if (dbMeta?.cache) {
+      customMetadata.cache = dbMeta.cache;
     }
     if (dbMsg.tokenCount) {
       customMetadata.tokenCount = dbMsg.tokenCount;

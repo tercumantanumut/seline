@@ -1108,9 +1108,11 @@
       "agentMemory": "Ajan Hafızası",
       "schedules": "Zamanlanmış Görevler",
       "usage": "Kullanım ve Analitik",
+      "channels": "Kanallar",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
       "empty": "Henüz sohbet geçmişi yok",
+      "resetChannel": "Kanal oturumunu sıfırla",
       "delete": "Sohbeti sil",
       "rename": "Sohbeti yeniden adlandır",
       "edit": "Başlığı düzenle",
@@ -1122,6 +1124,13 @@
       "invalid": "Geçersiz tarih",
       "yesterday": "Dün"
     },
+    "channelSession": {
+      "deleteTitle": "Kanal oturumu silinsin mi?",
+      "deleteDescription": "Bu sohbet bir kanala bağlı. Silerseniz gelecekteki mesajlar uygulamada görünmez. Kanala bağlı kalırken yeni bir oturum başlatmak için arşivleyip sıfırlayabilirsiniz.",
+      "archiveReset": "Arşivle ve sıfırla",
+      "deleteAnyway": "Yine de sil",
+      "resetError": "Kanal oturumu sıfırlanamadı"
+    },
     "scheduledRun": {
       "active": "'{taskName}' adlı zamanlanmış görev çalışıyor",
       "description": "Çalışmayı canlı takip edebilir veya gerekirse ajanı durdurabilirsiniz.",
@@ -1130,6 +1139,72 @@
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
       "startedAt": "{time} itibarıyla başladı"
+    }
+  },
+  "channels": {
+    "title": "{name} için kanal gelen kutusu",
+    "description": "Bu ajanı dış mesajlaşma kanallarına bağlayarak tüm gelen kutularınızda yanıt vermesini sağlayın.",
+    "securityNote": "Kimlik bilgileri bu cihazda kalır ve yalnızca kanal bağlantısını doğrulamak için kullanılır.",
+    "confirmDelete": "Bu kanal bağlantısını kaldırılsın mı? Ajan bu kanaldan ayrılır.",
+    "types": {
+      "whatsapp": "WhatsApp",
+      "telegram": "Telegram",
+      "slack": "Slack"
+    },
+    "status": {
+      "connected": "Bağlı",
+      "connecting": "Bağlanıyor",
+      "disconnected": "Bağlı değil",
+      "error": "Hata"
+    },
+    "actions": {
+      "edit": "Düzenle",
+      "connect": "Bağlan",
+      "disconnect": "Bağlantıyı Kes"
+    },
+    "connections": {
+      "title": "Aktif Bağlantılar",
+      "empty": "Henüz kanal bağlanmadı.",
+      "loading": "Kanallar yükleniyor...",
+      "connectedCount": "{count} bağlı"
+    },
+    "form": {
+      "createTitle": "Kanal Ekle",
+      "createDescription": "Bir kanal seçin ve gerekli bilgileri girin.",
+      "editTitle": "Bağlantıyı Güncelle",
+      "editDescription": "Bağlantı ayrıntılarını düzenleyin veya kimlik bilgilerini yenileyin.",
+      "channelType": "Kanal türü",
+      "displayName": "Görünen ad",
+      "displayNamePlaceholder": "Bu bağlantı için isteğe bağlı etiket",
+      "telegramToken": "Telegram bot tokenı",
+      "telegramTokenPlaceholder": "123456:ABCDEF...",
+      "slackBotToken": "Slack bot tokenı",
+      "slackBotTokenPlaceholder": "xoxb-...",
+      "slackAppToken": "Slack app tokenı",
+      "slackAppTokenPlaceholder": "xapp-...",
+      "slackSigningSecret": "Slack imza sırrı",
+      "slackSigningSecretPlaceholder": "İmza sırrınız",
+      "keepExisting": "Boş bırakırsanız mevcut bilgiler korunur.",
+      "create": "Oluştur ve bağlan",
+      "update": "Güncelle"
+    },
+    "whatsapp": {
+      "connectHint": "WhatsApp QR ile giriş yapar. Bağlanın ve QR kodunu WhatsApp mobil uygulamasıyla tarayın.",
+      "selfChat": "Kendi hesabınla sohbeti aç (Bağlı telefondan kendine mesaj).",
+      "qrAlt": "WhatsApp QR kodu",
+      "qrHelp": "Telefonunuzdan WhatsApp'ta Bağlı Cihazlar bölümüne gidip bu kodu tarayın."
+    },
+    "errors": {
+      "load": "Kanal bağlantıları yüklenemedi.",
+      "create": "Bağlantı oluşturulamadı.",
+      "update": "Bağlantı güncellenemedi.",
+      "delete": "Bağlantı silinemedi.",
+      "save": "Bağlantı kaydedilemedi."
+    },
+    "notices": {
+      "created": "Kanal bağlandı.",
+      "updated": "Bağlantı güncellendi.",
+      "deleted": "Bağlantı kaldırıldı."
     }
   },
   "usage": {
@@ -1167,6 +1242,10 @@
           "messages": "{count} mesaj",
           "breakdown": "{assistant} asistan • {user} kullanıcı",
           "duration": "Süre ~{seconds}sn"
+        },
+        "cache": {
+          "title": "Önbellek tasarrufu",
+          "detail": "{read} okunan • {write} yazılan"
         }
       },
       "tools": {
@@ -1287,6 +1366,7 @@
           "duration": "Süre",
           "tools": "Araçlar",
           "tokens": "Tokenlar",
+          "cache": "Önbellek",
           "session": "Oturum",
           "actions": "İşlemler"
         },
@@ -1309,6 +1389,10 @@
         "totalFailures": "Toplam başarısızlık",
         "avgDuration": "Ort. Süre",
         "perSuccessfulRun": "Başarılı çalıştırma başına",
+        "cacheSavings": "Önbellek tasarrufu",
+        "cacheReadTokens": "{count} okunan token",
+        "cacheWrites": "Önbellek yazımı",
+        "tokens": "token",
         "runsByPipeline": "Pipeline'a Göre Çalıştırmalar",
         "noData": "Veri yok",
         "toolUsage": "Araç Kullanımı",
@@ -1336,6 +1420,10 @@
         "inputTokens": "Giriş Tokenları",
         "outputTokens": "Çıkış Tokenları",
         "total": "Toplam",
+        "cacheUsage": "Önbellek Kullanımı",
+        "cacheReadTokens": "Okunan Tokenlar",
+        "cacheWriteTokens": "Yazılan Tokenlar",
+        "cacheSavings": "Önbellek Tasarrufu",
         "executionStats": "Yürütme İstatistikleri",
         "messages": "Mesajlar",
         "steps": "Adımlar",

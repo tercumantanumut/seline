@@ -143,6 +143,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     stepCount?: number;
     toolCallCount?: number;
     usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+    cache?: { cacheReadTokens?: number; cacheWriteTokens?: number; estimatedSavingsUsd?: number };
   } | null;
 
   return (
@@ -234,6 +235,31 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     <div className="flex justify-between border-t border-terminal-border pt-2">
                       <dt className="text-terminal-muted font-medium">{t("total")}</dt>
                       <dd className="font-medium text-terminal-dark">{(metadata.usage.totalTokens || 0).toLocaleString()}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
+              {metadata?.cache && (
+                <div className="rounded-lg border border-terminal-border bg-white p-4">
+                  <h2 className="mb-3 flex items-center gap-2 font-mono text-sm font-medium text-terminal-muted">
+                    <CoinsIcon className="size-4" />
+                    {t("cacheUsage")}
+                  </h2>
+                  <dl className="space-y-2 font-mono text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-terminal-muted">{t("cacheReadTokens")}</dt>
+                      <dd className="text-emerald-600">{(metadata.cache.cacheReadTokens || 0).toLocaleString()}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-terminal-muted">{t("cacheWriteTokens")}</dt>
+                      <dd className="text-indigo-600">{(metadata.cache.cacheWriteTokens || 0).toLocaleString()}</dd>
+                    </div>
+                    <div className="flex justify-between border-t border-terminal-border pt-2">
+                      <dt className="text-terminal-muted font-medium">{t("cacheSavings")}</dt>
+                      <dd className="font-medium text-terminal-dark">
+                        ${Number(metadata.cache.estimatedSavingsUsd || 0).toFixed(4)}
+                      </dd>
                     </div>
                   </dl>
                 </div>
@@ -347,4 +373,3 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     </Shell>
   );
 }
-

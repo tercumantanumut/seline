@@ -5,7 +5,7 @@ import {
   index,
 } from "drizzle-orm/sqlite-core";
 import { relations, sql } from "drizzle-orm";
-import { users } from "./sqlite-schema";
+import { users, sessions, messages } from "./sqlite-schema";
 
 // ============================================================================
 // MAIN CHARACTERS TABLE
@@ -176,6 +176,99 @@ export const agentSyncFiles = sqliteTable("agent_sync_files", {
 });
 
 // ============================================================================
+// CHANNEL CONNECTIONS TABLE
+// ============================================================================
+
+export const channelConnections = sqliteTable(
+  "channel_connections",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    characterId: text("character_id")
+      .references(() => characters.id, { onDelete: "cascade" })
+      .notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    displayName: text("display_name"),
+    config: text("config", { mode: "json" }).default("{}").notNull(),
+    status: text("status", { enum: ["disconnected", "connecting", "connected", "error"] })
+      .default("disconnected")
+      .notNull(),
+    lastError: text("last_error"),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+    updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    userIdx: index("channel_connections_user_idx").on(table.userId),
+    characterIdx: index("channel_connections_character_idx").on(table.characterId),
+    typeIdx: index("channel_connections_type_idx").on(table.channelType),
+  })
+);
+
+// ============================================================================
+// CHANNEL CONVERSATIONS TABLE
+// ============================================================================
+
+export const channelConversations = sqliteTable(
+  "channel_conversations",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    connectionId: text("connection_id")
+      .references(() => channelConnections.id, { onDelete: "cascade" })
+      .notNull(),
+    characterId: text("character_id")
+      .references(() => characters.id, { onDelete: "cascade" })
+      .notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    peerId: text("peer_id").notNull(),
+    peerName: text("peer_name"),
+    threadId: text("thread_id"),
+    sessionId: text("session_id")
+      .references(() => sessions.id, { onDelete: "cascade" })
+      .notNull(),
+    lastMessageAt: text("last_message_at"),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+    updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    connectionIdx: index("channel_conversations_connection_idx").on(table.connectionId),
+    characterIdx: index("channel_conversations_character_idx").on(table.characterId),
+    peerIdx: index("channel_conversations_peer_idx").on(table.channelType, table.peerId, table.threadId),
+    sessionIdx: index("channel_conversations_session_idx").on(table.sessionId),
+  })
+);
+
+// ============================================================================
+// CHANNEL MESSAGE MAP TABLE
+// ============================================================================
+
+export const channelMessages = sqliteTable(
+  "channel_messages",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    connectionId: text("connection_id")
+      .references(() => channelConnections.id, { onDelete: "cascade" })
+      .notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    externalMessageId: text("external_message_id").notNull(),
+    sessionId: text("session_id")
+      .references(() => sessions.id, { onDelete: "cascade" })
+      .notNull(),
+    messageId: text("message_id")
+      .references(() => messages.id, { onDelete: "cascade" })
+      .notNull(),
+    direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    connectionIdx: index("channel_messages_connection_idx").on(table.connectionId),
+    externalIdx: index("channel_messages_external_idx").on(table.channelType, table.externalMessageId, table.direction),
+    sessionIdx: index("channel_messages_session_idx").on(table.sessionId),
+  })
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -246,6 +339,50 @@ export const agentSyncFilesRelations = relations(agentSyncFiles, ({ one }) => ({
   }),
 }));
 
+export const channelConnectionsRelations = relations(channelConnections, ({ one, many }) => ({
+  user: one(users, {
+    fields: [channelConnections.userId],
+    references: [users.id],
+  }),
+  character: one(characters, {
+    fields: [channelConnections.characterId],
+    references: [characters.id],
+  }),
+  conversations: many(channelConversations),
+  messages: many(channelMessages),
+}));
+
+export const channelConversationsRelations = relations(channelConversations, ({ one, many }) => ({
+  connection: one(channelConnections, {
+    fields: [channelConversations.connectionId],
+    references: [channelConnections.id],
+  }),
+  character: one(characters, {
+    fields: [channelConversations.characterId],
+    references: [characters.id],
+  }),
+  session: one(sessions, {
+    fields: [channelConversations.sessionId],
+    references: [sessions.id],
+  }),
+  messages: many(channelMessages),
+}));
+
+export const channelMessagesRelations = relations(channelMessages, ({ one }) => ({
+  connection: one(channelConnections, {
+    fields: [channelMessages.connectionId],
+    references: [channelConnections.id],
+  }),
+  session: one(sessions, {
+    fields: [channelMessages.sessionId],
+    references: [sessions.id],
+  }),
+  message: one(messages, {
+    fields: [channelMessages.messageId],
+    references: [messages.id],
+  }),
+}));
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -265,10 +402,16 @@ export type NewAgentSyncFolder = typeof agentSyncFolders.$inferInsert;
 export type AgentSyncFile = typeof agentSyncFiles.$inferSelect;
 export type NewAgentSyncFile = typeof agentSyncFiles.$inferInsert;
 
+export type ChannelConnection = typeof channelConnections.$inferSelect;
+export type NewChannelConnection = typeof channelConnections.$inferInsert;
+export type ChannelConversation = typeof channelConversations.$inferSelect;
+export type NewChannelConversation = typeof channelConversations.$inferInsert;
+export type ChannelMessage = typeof channelMessages.$inferSelect;
+export type NewChannelMessage = typeof channelMessages.$inferInsert;
+
 export interface CharacterFull extends Character {
   images: CharacterImage[];
 }
 
 export type CharacterStatus = "draft" | "active" | "archived";
 export type CharacterImageType = "portrait" | "full_body" | "expression" | "outfit" | "scene" | "avatar";
-

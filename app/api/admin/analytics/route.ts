@@ -45,6 +45,15 @@ export async function GET(request: Request) {
       .from(agentRuns)
       .where(and(gte(agentRuns.startedAt, startDateStr), eq(agentRuns.status, "succeeded")));
 
+    const [cacheMetricsResult] = await db
+      .select({
+        cacheReadTokens: sql<number>`sum(coalesce(json_extract(${agentRuns.metadata}, '$.cache.cacheReadTokens'), 0))`.as("cacheReadTokens"),
+        cacheWriteTokens: sql<number>`sum(coalesce(json_extract(${agentRuns.metadata}, '$.cache.cacheWriteTokens'), 0))`.as("cacheWriteTokens"),
+        estimatedSavingsUsd: sql<number>`sum(coalesce(json_extract(${agentRuns.metadata}, '$.cache.estimatedSavingsUsd'), 0))`.as("estimatedSavingsUsd"),
+      })
+      .from(agentRuns)
+      .where(gte(agentRuns.startedAt, startDateStr));
+
     // Get runs by pipeline
     const runsByPipeline = await db
       .select({
@@ -112,6 +121,11 @@ export async function GET(request: Request) {
         avgDurationMs: avgDurationResult?.avg ? Math.round(Number(avgDurationResult.avg)) : 0,
         periodDays: days,
       },
+      cacheMetrics: {
+        cacheReadTokens: Number(cacheMetricsResult?.cacheReadTokens) || 0,
+        cacheWriteTokens: Number(cacheMetricsResult?.cacheWriteTokens) || 0,
+        estimatedSavingsUsd: Number(cacheMetricsResult?.estimatedSavingsUsd) || 0,
+      },
       runsByPipeline: runsByPipeline.map(r => ({
         pipeline: r.pipeline,
         count: r.count,
@@ -140,4 +154,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

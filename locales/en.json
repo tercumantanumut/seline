@@ -1126,9 +1126,11 @@
       "agentMemory": "Agent Memory",
       "schedules": "Scheduled Tasks",
       "usage": "Usage & Analytics",
+      "channels": "Channels",
       "startNew": "Start new chat",
       "new": "New",
       "empty": "No chat history yet",
+      "resetChannel": "Reset channel session",
       "delete": "Delete chat",
       "rename": "Rename chat",
       "edit": "Edit title",
@@ -1140,6 +1142,13 @@
       "invalid": "Invalid date",
       "yesterday": "Yesterday"
     },
+    "channelSession": {
+      "deleteTitle": "Delete channel session?",
+      "deleteDescription": "This chat is linked to a channel. Deleting it will hide future messages in the app. You can archive and reset to start a fresh session while keeping the channel connected.",
+      "archiveReset": "Archive & reset",
+      "deleteAnyway": "Delete anyway",
+      "resetError": "Failed to reset channel session"
+    },
     "scheduledRun": {
       "active": "Scheduled task '{taskName}' is running",
       "description": "Follow the run live or stop it if you need to interrupt the agent.",
@@ -1148,6 +1157,72 @@
       "cancelled": "Scheduled run cancelled",
       "cancelError": "Failed to cancel run",
       "startedAt": "Started at {time}"
+    }
+  },
+  "channels": {
+    "title": "Channel inbox for {name}",
+    "description": "Connect external messaging channels so this agent can respond across your inboxes.",
+    "securityNote": "Credentials stay on this device and are only used to authenticate the channel connection.",
+    "confirmDelete": "Remove this channel connection? This will disconnect the agent from the channel.",
+    "types": {
+      "whatsapp": "WhatsApp",
+      "telegram": "Telegram",
+      "slack": "Slack"
+    },
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting",
+      "disconnected": "Disconnected",
+      "error": "Error"
+    },
+    "actions": {
+      "edit": "Edit",
+      "connect": "Connect",
+      "disconnect": "Disconnect"
+    },
+    "connections": {
+      "title": "Active Connections",
+      "empty": "No channels connected yet.",
+      "loading": "Loading channels...",
+      "connectedCount": "{count} connected"
+    },
+    "form": {
+      "createTitle": "Add Channel",
+      "createDescription": "Choose a channel and provide the required credentials.",
+      "editTitle": "Update Connection",
+      "editDescription": "Adjust connection details or replace credentials.",
+      "channelType": "Channel type",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "Optional label for this connection",
+      "telegramToken": "Telegram bot token",
+      "telegramTokenPlaceholder": "123456:ABCDEF...",
+      "slackBotToken": "Slack bot token",
+      "slackBotTokenPlaceholder": "xoxb-...",
+      "slackAppToken": "Slack app token",
+      "slackAppTokenPlaceholder": "xapp-...",
+      "slackSigningSecret": "Slack signing secret",
+      "slackSigningSecretPlaceholder": "Your signing secret",
+      "keepExisting": "Leave blank to keep existing credentials.",
+      "create": "Create & connect",
+      "update": "Update"
+    },
+    "whatsapp": {
+      "connectHint": "WhatsApp uses QR login. Connect, then scan the QR code with the WhatsApp mobile app.",
+      "selfChat": "Allow self-chat (Message yourself from the linked phone).",
+      "qrAlt": "WhatsApp QR code",
+      "qrHelp": "Open WhatsApp on your phone, go to Linked Devices, and scan this code."
+    },
+    "errors": {
+      "load": "Failed to load channel connections.",
+      "create": "Failed to create connection.",
+      "update": "Failed to update connection.",
+      "delete": "Failed to delete connection.",
+      "save": "Failed to save connection."
+    },
+    "notices": {
+      "created": "Channel connected.",
+      "updated": "Connection updated.",
+      "deleted": "Connection removed."
     }
   },
   "usage": {
@@ -1185,6 +1260,10 @@
           "messages": "{count} messages",
           "breakdown": "{assistant} assistant • {user} user",
           "duration": "Duration ~{seconds}s"
+        },
+        "cache": {
+          "title": "Cache savings",
+          "detail": "{read} read • {write} write"
         }
       },
       "tools": {
@@ -1305,6 +1384,7 @@
           "duration": "Duration",
           "tools": "Tools",
           "tokens": "Tokens",
+          "cache": "Cache",
           "session": "Session",
           "actions": "Actions"
         },
@@ -1327,6 +1407,10 @@
         "totalFailures": "Total failures",
         "avgDuration": "Avg Duration",
         "perSuccessfulRun": "Per successful run",
+        "cacheSavings": "Cache savings",
+        "cacheReadTokens": "{count} tokens read",
+        "cacheWrites": "Cache writes",
+        "tokens": "tokens",
         "runsByPipeline": "Runs by Pipeline",
         "noData": "No data",
         "toolUsage": "Tool Usage",
@@ -1354,6 +1438,10 @@
         "inputTokens": "Input Tokens",
         "outputTokens": "Output Tokens",
         "total": "Total",
+        "cacheUsage": "Cache Usage",
+        "cacheReadTokens": "Cache Read Tokens",
+        "cacheWriteTokens": "Cache Write Tokens",
+        "cacheSavings": "Cache Savings",
         "executionStats": "Execution Stats",
         "messages": "Messages",
         "steps": "Steps",

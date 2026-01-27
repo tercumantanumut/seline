@@ -97,16 +97,17 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         let child: ChildProcess;
 
         try {
-            // Spawn process with shell enabled
-            // shell: true uses cmd.exe on Windows, /bin/sh on Unix
-            // Security is provided by command validation (blocklist), path validation,
-            // and the fact that args are passed as an array (prevents injection via args)
+            // Spawn process
+            // - Unix: shell: false to pass arguments directly (avoids quote/special char issues)
+            // - Windows: shell: true for PATH resolution and .bat/.cmd support
+            // Security is provided by command validation (blocklist) and path validation.
             //
-            // Note for AI: On Windows use 'dir' instead of 'ls', 'cd' instead of 'pwd'
+            // Note for AI: On Windows use 'dir' instead of 'ls', 'type' instead of 'cat'
+            const isWindows = process.platform === "win32";
             child = spawn(command, args, {
                 cwd,
                 timeout, // Built-in timeout
-                shell: true,
+                shell: isWindows, // Only use shell on Windows
                 windowsHide: true, // Hide console window on Windows
                 env: buildSafeEnvironment() as NodeJS.ProcessEnv,
             });

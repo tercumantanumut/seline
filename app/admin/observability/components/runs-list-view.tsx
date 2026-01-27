@@ -13,10 +13,12 @@ import {
   SearchIcon,
   WrenchIcon,
   CoinsIcon,
+  TrendingUpIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type { AgentRun, AgentRunStatus } from "@/lib/db/sqlite-schema";
+import { formatUsd } from "@/lib/analytics/cost";
 
 interface RunsResponse {
   runs: AgentRun[];
@@ -95,6 +97,11 @@ export function RunsListView() {
   const getTokenUsage = (run: AgentRun) => {
     const metadata = run.metadata as { usage?: { totalTokens?: number } } | null;
     return metadata?.usage?.totalTokens || 0;
+  };
+
+  const getCacheSavings = (run: AgentRun) => {
+    const metadata = run.metadata as { cache?: { estimatedSavingsUsd?: number } } | null;
+    return metadata?.cache?.estimatedSavingsUsd || 0;
   };
 
   const clearFilters = () => {
@@ -236,6 +243,12 @@ export function RunsListView() {
                       {tr("table.tokens")}
                     </div>
                   </th>
+                  <th className="p-3 font-medium text-terminal-muted">
+                    <div className="flex items-center gap-1">
+                      <TrendingUpIcon className="size-3" />
+                      {tr("table.cache")}
+                    </div>
+                  </th>
                   <th className="p-3 font-medium text-terminal-muted">{tr("table.session")}</th>
                   <th className="p-3 font-medium text-terminal-muted">{tr("table.actions")}</th>
                 </tr>
@@ -266,6 +279,11 @@ export function RunsListView() {
                     <td className="p-3">
                       <span className="text-xs text-terminal-muted">
                         {getTokenUsage(run).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="text-xs text-terminal-muted">
+                        {getCacheSavings(run) > 0 ? formatUsd(getCacheSavings(run), 4) : "-"}
                       </span>
                     </td>
                     <td className="p-3">
@@ -321,4 +339,3 @@ export function RunsListView() {
     </div>
   );
 }
-
