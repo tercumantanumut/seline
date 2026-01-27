@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop, Plug, Hash, Phone, Send } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop, Plug, Hash, Phone, Send, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import type { UIMessage } from "ai";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
@@ -325,6 +335,33 @@ export default function ChatInterface({
             }
         },
         [character.id, character.name, loadSessions, router]
+    );
+
+    const resetChannelSession = useCallback(
+        async (sessionToResetId: string, options?: { archiveOld?: boolean }) => {
+            try {
+                setIsLoading(true);
+                const response = await fetch(`/api/sessions/${sessionToResetId}/reset-channel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ archiveOld: options?.archiveOld ?? false }),
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to reset channel session");
+                }
+                const { session } = await response.json();
+                if (session?.id) {
+                    await loadSessions();
+                    await switchSession(session.id);
+                }
+            } catch (err) {
+                console.error("Failed to reset channel session:", err);
+                toast.error(t("channelSession.resetError"));
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [loadSessions, switchSession, t]
     );
 
     const deleteSession = useCallback(
@@ -658,6 +695,7 @@ export default function ChatInterface({
                     onNewSession={createNewSession}
                     onSwitchSession={switchSession}
                     onDeleteSession={deleteSession}
+                    onResetChannelSession={resetChannelSession}
                     onRenameSession={renameSession}
                     onAvatarChange={handleAvatarChange}
                 />
@@ -715,6 +753,7 @@ function CharacterSidebar({
     onNewSession,
     onSwitchSession,
     onDeleteSession,
+    onResetChannelSession,
     onRenameSession,
     onAvatarChange,
 }: {
@@ -726,6 +765,7 @@ function CharacterSidebar({
     onNewSession: () => void;
     onSwitchSession: (sessionId: string) => void;
     onDeleteSession: (sessionId: string) => void;
+    onResetChannelSession: (sessionId: string, options?: { archiveOld?: boolean }) => Promise<void>;
     onRenameSession: (sessionId: string, title: string) => Promise<boolean>;
     onAvatarChange: (newAvatarUrl: string | null) => void;
 }) {
@@ -742,6 +782,8 @@ function CharacterSidebar({
     const [channelsOpen, setChannelsOpen] = useState(false);
     const [channelConnections, setChannelConnections] = useState<ChannelConnectionSummary[]>([]);
     const [channelsLoading, setChannelsLoading] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [pendingDeleteSession, setPendingDeleteSession] = useState<SessionInfo | null>(null);
 
     const stopEditing = useCallback(() => {
         setEditingSessionId(null);
@@ -772,6 +814,44 @@ function CharacterSidebar({
             stopEditing();
         }
     }, [editTitle, editingSessionId, onRenameSession, stopEditing]);
+
+    const closeDeleteDialog = useCallback(() => {
+        setDeleteDialogOpen(false);
+        setPendingDeleteSession(null);
+    }, []);
+
+    const isChannelBoundSession = useCallback(
+        (session: SessionInfo) => Boolean(session.metadata?.channelType),
+        []
+    );
+
+    const handleDeleteRequest = useCallback(
+        (session: SessionInfo) => {
+            if (isChannelBoundSession(session)) {
+                setPendingDeleteSession(session);
+                setDeleteDialogOpen(true);
+                return;
+            }
+            onDeleteSession(session.id);
+        },
+        [isChannelBoundSession, onDeleteSession]
+    );
+
+    const handleArchiveAndReset = useCallback(async () => {
+        if (!pendingDeleteSession) {
+            return;
+        }
+        await onResetChannelSession(pendingDeleteSession.id, { archiveOld: true });
+        closeDeleteDialog();
+    }, [closeDeleteDialog, onResetChannelSession, pendingDeleteSession]);
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (!pendingDeleteSession) {
+            return;
+        }
+        await onDeleteSession(pendingDeleteSession.id);
+        closeDeleteDialog();
+    }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
 
     const handleInputBlur = useCallback(() => {
         if (skipBlurRef.current) {
@@ -889,6 +969,44 @@ function CharacterSidebar({
                 characterName={character.displayName || character.name}
                 onConnectionsChange={setChannelConnections}
             />
+            <AlertDialog
+                open={deleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeDeleteDialog();
+                    } else {
+                        setDeleteDialogOpen(true);
+                    }
+                }}
+            >
+                <AlertDialogContent className="font-mono">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">
+                            {t("channelSession.deleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-terminal-muted">
+                            {t("channelSession.deleteDescription")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="font-mono">
+                            {t("sidebar.cancel")}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            className="font-mono bg-terminal-green text-terminal-cream hover:bg-terminal-green/90"
+                            onClick={() => void handleArchiveAndReset()}
+                        >
+                            {t("channelSession.archiveReset")}
+                        </AlertDialogAction>
+                        <AlertDialogAction
+                            className="font-mono bg-red-600 text-white hover:bg-red-600/90"
+                            onClick={() => void handleConfirmDelete()}
+                        >
+                            {t("channelSession.deleteAnyway")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <div className="shrink-0 px-4 pt-3 pb-3">
                 <div
@@ -1147,13 +1265,27 @@ function CharacterSidebar({
                                                     >
                                                         <Pencil className="h-3.5 w-3.5" />
                                                     </Button>
+                                                    {session.metadata?.channelType && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 rounded hover:shadow-sm"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                onResetChannelSession(session.id);
+                                                            }}
+                                                            title={t("sidebar.resetChannel")}
+                                                        >
+                                                            <RotateCcw className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
                                                         className="h-7 w-7 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 rounded hover:shadow-sm"
                                                         onClick={(event) => {
                                                             event.stopPropagation();
-                                                            onDeleteSession(session.id);
+                                                            handleDeleteRequest(session);
                                                         }}
                                                         title={t("sidebar.delete")}
                                                     >

@@ -1112,6 +1112,7 @@
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
       "empty": "Henüz sohbet geçmişi yok",
+      "resetChannel": "Kanal oturumunu sıfırla",
       "delete": "Sohbeti sil",
       "rename": "Sohbeti yeniden adlandır",
       "edit": "Başlığı düzenle",
@@ -1122,6 +1123,13 @@
       "untitled": "Başlıksız sohbet",
       "invalid": "Geçersiz tarih",
       "yesterday": "Dün"
+    },
+    "channelSession": {
+      "deleteTitle": "Kanal oturumu silinsin mi?",
+      "deleteDescription": "Bu sohbet bir kanala bağlı. Silerseniz gelecekteki mesajlar uygulamada görünmez. Kanala bağlı kalırken yeni bir oturum başlatmak için arşivleyip sıfırlayabilirsiniz.",
+      "archiveReset": "Arşivle ve sıfırla",
+      "deleteAnyway": "Yine de sil",
+      "resetError": "Kanal oturumu sıfırlanamadı"
     },
     "scheduledRun": {
       "active": "'{taskName}' adlı zamanlanmış görev çalışıyor",

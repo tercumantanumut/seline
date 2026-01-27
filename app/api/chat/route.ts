@@ -560,36 +560,41 @@ async function extractContent(
         }
       } else if (part.type.startsWith("tool-")) {
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
-        // These come with result property instead of output
+        // These may include output (AI SDK) or result (legacy format)
         const toolName = part.type.replace("tool-", "");
-        const partWithResult = part as typeof part & { result?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string } };
-        console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(partWithResult.result, null, 2));
+        const partWithOutput = part as typeof part & {
+          input?: unknown;
+          output?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
+          result?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
+        };
+        const toolOutput = partWithOutput.output ?? partWithOutput.result;
+        console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(toolOutput, null, 2));
 
-        if (partWithResult.result?.images && partWithResult.result.images.length > 0) {
+        if (toolOutput?.images && toolOutput.images.length > 0) {
           // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
-          const urlList = partWithResult.result.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
+          const urlList = toolOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
-            text: `Previously generated ${partWithResult.result.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
+            text: `Previously generated ${toolOutput.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
-        } else if (partWithResult.result?.videos && partWithResult.result.videos.length > 0) {
+        } else if (toolOutput?.videos && toolOutput.videos.length > 0) {
           // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
-          const urlList = partWithResult.result.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
+          const urlList = toolOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
-            text: `Previously generated ${partWithResult.result.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
+            text: `Previously generated ${toolOutput.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
           });
         } else if (useToolSummaries) {
-          const summary = getToolSummaryFromOutput(toolName, partWithResult.result);
+          const summary = getToolSummaryFromOutput(toolName, toolOutput, partWithOutput.input);
           contentParts.push({
             type: "text",
             text: `Previous ${toolName} summary: ${summary}`,
           });
-        } else if (partWithResult.result?.text) {
+        } else if (toolOutput?.text) {
           // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
-          let resultText = partWithResult.result.text;
+          let resultText = toolOutput.text;
           if (EPHEMERAL_TOOLS.includes(toolName) && resultText.length > MAX_EPHEMERAL_TOOL_RESULT_LENGTH) {
             resultText = resultText.substring(0, MAX_EPHEMERAL_TOOL_RESULT_LENGTH) + "... [truncated - full result was used in original response]";
           }
@@ -599,7 +604,7 @@ async function extractContent(
           });
         } else if (toolName === "searchTools") {
           // Preserve searchTools results so AI remembers discovered tools
-          const searchResult = partWithResult.result as { status?: string; query?: string; results?: Array<{ name?: string; displayName?: string; isAvailable?: boolean }> } | undefined;
+          const searchResult = toolOutput as { status?: string; query?: string; results?: Array<{ name?: string; displayName?: string; isAvailable?: boolean }> } | undefined;
           if (searchResult?.results && searchResult.results.length > 0) {
             const toolNames = searchResult.results
               .filter((t) => t.isAvailable)
@@ -610,7 +615,7 @@ async function extractContent(
           }
         } else if (toolName === "webSearch") {
           // Preserve webSearch results from streaming format
-          const webSearchResult = partWithResult.result as {
+          const webSearchResult = toolOutput as {
             status?: string;
             query?: string;
             sources?: Array<{ url: string; title: string; snippet: string }>;
@@ -623,7 +628,7 @@ async function extractContent(
           }
         } else if (toolName === "webBrowse") {
           // Preserve webBrowse synthesis from streaming format
-          const webBrowseResult = partWithResult.result as {
+          const webBrowseResult = toolOutput as {
             status?: string;
             synthesis?: string;
             fetchedUrls?: string[];
@@ -637,7 +642,7 @@ async function extractContent(
           }
         } else if (toolName === "vectorSearch") {
           // Preserve vectorSearch results from streaming format
-          const vectorSearchResult = partWithResult.result as {
+          const vectorSearchResult = toolOutput as {
             status?: string;
             strategy?: string;
             reasoning?: string;
@@ -652,7 +657,7 @@ async function extractContent(
           }
         } else if (toolName === "showProductImages") {
           // Preserve showProductImages results so AI can reference displayed products
-          const productGalleryResult = partWithResult.result as {
+          const productGalleryResult = toolOutput as {
             status?: string;
             query?: string;
             products?: Array<{
@@ -671,7 +676,7 @@ async function extractContent(
           }
         } else {
           console.log(`[EXTRACT] tool-${toolName} has no images, videos, or text in result, adding generic summary`);
-          const resultText = partWithResult.result ? JSON.stringify(partWithResult.result) : "null";
+          const resultText = toolOutput ? JSON.stringify(toolOutput) : "null";
           contentParts.push({
             type: "text",
             text: `Previous ${toolName} result: ${resultText}`,
@@ -777,6 +782,10 @@ interface FrontendMessagePart {
   args?: unknown;
   argsText?: string;
   result?: unknown;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+  errorText?: string;
 }
 
 // Frontend message type (from assistant-ui / AssistantChatTransport)
@@ -830,7 +839,10 @@ function shouldUseToolSummaries(
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
 }
 
-function safeParseToolArgs(part: FrontendMessagePart): unknown {
+export function safeParseToolArgs(part: FrontendMessagePart): unknown {
+  if (part.input !== undefined) {
+    return part.input;
+  }
   if (part.args !== undefined) {
     if (typeof part.args === "string") {
       try {
@@ -897,7 +909,7 @@ async function persistToolResultMessage(params: {
  *
  * This respects edits (frontend has correct truncated state) while getting tool results.
  */
-async function enhanceFrontendMessagesWithToolResults(
+export async function enhanceFrontendMessagesWithToolResults(
   frontendMessages: FrontendMessage[],
   sessionId: string,
   options: ToolResultEnhancementOptions = {}
@@ -911,6 +923,7 @@ async function enhanceFrontendMessagesWithToolResults(
   const refetchTools = options.refetchTools ?? {};
   const maxRefetch = options.maxRefetch ?? MAX_TOOL_REFETCH;
   const missingToolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }> = [];
+  const persistedToolResults = new Set<string>();
 
   for (const msg of frontendMessages) {
     if (msg.role !== "assistant" || !Array.isArray(msg.parts)) {
@@ -918,15 +931,46 @@ async function enhanceFrontendMessagesWithToolResults(
     }
 
     for (const part of msg.parts) {
-      if (part.type !== "tool-call" || !part.toolCallId) continue;
+      if (!part.toolCallId) continue;
+
+      const isToolCallPart = part.type === "tool-call";
+      const isDynamicToolPart = part.type === "dynamic-tool";
+      const isToolUIPart = part.type.startsWith("tool-");
+      if (!isToolCallPart && !isDynamicToolPart && !isToolUIPart) continue;
+
+      const toolName =
+        part.toolName ||
+        (isToolUIPart ? part.type.replace("tool-", "") : "tool");
+      const args = safeParseToolArgs(part);
+      const partOutput =
+        (part.output !== undefined ? part.output : undefined) ??
+        (part.result !== undefined ? part.result : undefined);
       const existing = resolvedToolResults.get(part.toolCallId);
+
+      if (!isMissingToolResult(partOutput)) {
+        if (isMissingToolResult(existing)) {
+          const normalized = normalizeToolResultOutput(toolName, partOutput, args);
+          resolvedToolResults.set(part.toolCallId, normalized.output);
+          if (!persistedToolResults.has(part.toolCallId)) {
+            await persistToolResultMessage({
+              sessionId,
+              toolCallId: part.toolCallId,
+              toolName,
+              result: normalized.output,
+              status: normalized.status,
+            });
+            persistedToolResults.add(part.toolCallId);
+          }
+        }
+        continue;
+      }
+
       if (!isMissingToolResult(existing)) continue;
 
-      const toolName = part.toolName || "tool";
       missingToolCalls.push({
         toolCallId: part.toolCallId,
         toolName,
-        args: safeParseToolArgs(part),
+        args,
       });
     }
   }
@@ -1041,6 +1085,16 @@ async function enhanceFrontendMessagesWithToolResults(
     }
   }
 
+  const getOutputState = (result: unknown) => {
+    if (result && typeof result === "object") {
+      const status = String((result as { status?: string }).status || "").toLowerCase();
+      if (status === "error" || status === "failed") {
+        return "output-error";
+      }
+    }
+    return "output-available";
+  };
+
   // Enhance each assistant message with tool results
   const enhancedMessages = frontendMessages.map(msg => {
     // Only enhance assistant messages
@@ -1064,6 +1118,30 @@ async function enhanceFrontendMessagesWithToolResults(
           hasEnhancements = true;
           console.log(`[CHAT API] Enhanced tool call ${part.toolCallId} (${part.toolName}) with DB result`);
           return { ...part, result };
+        }
+      }
+      // Handle AI SDK tool UI parts (tool-*)
+      if (part.type.startsWith("tool-") && part.toolCallId) {
+        const result = resolvedToolResults.get(part.toolCallId);
+        if (!isMissingToolResult(result) && part.output === undefined) {
+          hasEnhancements = true;
+          return {
+            ...part,
+            output: result,
+            state: part.state?.startsWith("output") ? part.state : getOutputState(result),
+          };
+        }
+      }
+      // Handle dynamic-tool parts (historical tool calls)
+      if (part.type === "dynamic-tool" && part.toolCallId) {
+        const result = resolvedToolResults.get(part.toolCallId);
+        if (!isMissingToolResult(result) && part.output === undefined) {
+          hasEnhancements = true;
+          return {
+            ...part,
+            output: result,
+            state: part.state?.startsWith("output") ? part.state : getOutputState(result),
+          };
         }
       }
       return part;

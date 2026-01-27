@@ -1130,6 +1130,7 @@
       "startNew": "Start new chat",
       "new": "New",
       "empty": "No chat history yet",
+      "resetChannel": "Reset channel session",
       "delete": "Delete chat",
       "rename": "Rename chat",
       "edit": "Edit title",
@@ -1140,6 +1141,13 @@
       "untitled": "Untitled chat",
       "invalid": "Invalid date",
       "yesterday": "Yesterday"
+    },
+    "channelSession": {
+      "deleteTitle": "Delete channel session?",
+      "deleteDescription": "This chat is linked to a channel. Deleting it will hide future messages in the app. You can archive and reset to start a fresh session while keeping the channel connected.",
+      "archiveReset": "Archive & reset",
+      "deleteAnyway": "Delete anyway",
+      "resetError": "Failed to reset channel session"
     },
     "scheduledRun": {
       "active": "Scheduled task '{taskName}' is running",

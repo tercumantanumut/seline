@@ -11,6 +11,7 @@ import {
   findChannelMessageByExternalId,
   getChannelConnection,
   getMessages,
+  getSession,
   getOrCreateLocalUser,
   touchChannelConversation,
   updateChannelConversation,
@@ -19,6 +20,7 @@ import {
 import { getCharacter } from "@/lib/characters/queries";
 import type { ChannelInboundMessage } from "./types";
 import { buildConversationKey, normalizeChannelText } from "./utils";
+import { getChannelManager } from "./manager";
 
 const conversationQueues = new Map<string, Promise<void>>();
 
@@ -79,51 +81,86 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   const settings = loadSettings();
   const dbUser = await getOrCreateLocalUser(connection.userId, settings.localUserEmail);
 
+  const normalizedText = normalizeChannelText(message.text);
+  const wantsNewSession = isNewSessionCommand(normalizedText);
+
   let conversation = await findChannelConversation({
     connectionId: message.connectionId,
     peerId: message.peerId,
     threadId: message.threadId,
   });
 
-  let sessionId: string;
-  if (!conversation) {
+  const sessionMetadata = {
+    characterId: character.id,
+    characterName: character.name,
+    channelType: message.channelType,
+    channelConnectionId: message.connectionId,
+    channelPeerId: message.peerId,
+    channelPeerName: message.peerName ?? null,
+    channelThreadId: message.threadId ?? null,
+  };
+
+  const createSessionForConversation = async () => {
     const session = await createSession({
       title: buildConversationTitle(message.channelType, message.peerName, message.peerId),
       userId: dbUser.id,
-      metadata: {
+      metadata: sessionMetadata,
+    });
+
+    if (!conversation) {
+      conversation = await createChannelConversation({
+        connectionId: message.connectionId,
         characterId: character.id,
-        characterName: character.name,
         channelType: message.channelType,
-        channelConnectionId: message.connectionId,
-        channelPeerId: message.peerId,
-        channelPeerName: message.peerName ?? null,
-        channelThreadId: message.threadId ?? null,
-      },
-    });
-    sessionId = session.id;
+        peerId: message.peerId,
+        peerName: message.peerName ?? null,
+        threadId: message.threadId ?? null,
+        sessionId: session.id,
+        lastMessageAt: message.timestamp ?? new Date().toISOString(),
+      });
+    } else {
+      const updated = await updateChannelConversation(conversation.id, {
+        sessionId: session.id,
+        peerName: message.peerName ?? conversation.peerName ?? null,
+        lastMessageAt: message.timestamp ?? new Date().toISOString(),
+      });
+      conversation = updated ?? conversation;
+    }
 
-    conversation = await createChannelConversation({
-      connectionId: message.connectionId,
-      characterId: character.id,
-      channelType: message.channelType,
-      peerId: message.peerId,
-      peerName: message.peerName ?? null,
-      threadId: message.threadId ?? null,
-      sessionId,
-      lastMessageAt: message.timestamp ?? new Date().toISOString(),
-    });
-
-    await updateSession(sessionId, {
+    const updatedSession = await updateSession(session.id, {
       metadata: {
         ...(session.metadata as Record<string, unknown>),
         channelConversationId: conversation.id,
       },
     });
+
+    return { session: updatedSession ?? session };
+  };
+
+  if (wantsNewSession) {
+    await createSessionForConversation();
+    await sendNewSessionConfirmation(message);
+    return;
+  }
+
+  let sessionId: string;
+  if (!conversation) {
+    const created = await createSessionForConversation();
+    sessionId = created.session.id;
   } else {
-    sessionId = conversation.sessionId;
-    if (message.peerName && message.peerName !== conversation.peerName) {
-      await updateChannelConversation(conversation.id, { peerName: message.peerName });
+    const existingSession = await getSession(conversation.sessionId);
+    if (!existingSession || existingSession.status !== "active") {
+      const created = await createSessionForConversation();
+      sessionId = created.session.id;
+    } else {
+      sessionId = existingSession.id;
+      if (message.peerName && message.peerName !== conversation.peerName) {
+        await updateChannelConversation(conversation.id, { peerName: message.peerName });
+      }
     }
+  }
+
+  if (conversation) {
     await touchChannelConversation(conversation.id, message.timestamp);
   }
 
@@ -206,6 +243,27 @@ function buildConversationTitle(channelType: string, peerName?: string | null, p
   return `${label} conversation`;
 }
 
+function isNewSessionCommand(text: string): boolean {
+  if (!text) return false;
+  return /^\/new(?:@[\w_]+)?$/i.test(text.trim());
+}
+
+async function sendNewSessionConfirmation(message: ChannelInboundMessage): Promise<void> {
+  if (message.channelType === "whatsapp") {
+    return;
+  }
+  try {
+    const manager = getChannelManager();
+    await manager.sendMessage(message.connectionId, {
+      peerId: message.peerId,
+      threadId: message.threadId,
+      text: "Started a new session. Send your next message to begin.",
+    });
+  } catch (error) {
+    console.warn("[Channels] Failed to send /new confirmation:", error);
+  }
+}
+
 async function invokeChatApi(params: {
   userId: string;
   sessionId: string;
@@ -221,7 +279,8 @@ async function invokeChatApi(params: {
   await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
   const controller = new AbortController();
-  const timeoutMs = 30000;
+  const configuredTimeoutMs = Number(process.env.CHANNEL_CHAT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 300000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
