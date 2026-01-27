@@ -138,8 +138,19 @@ function buildUIPartsFromDBContent(
       let validInput: unknown;
 
       if (part.args !== undefined) {
-        // Structured args are already available (from completed tool calls)
-        validInput = part.args;
+        if (typeof part.args === "string") {
+          try {
+            validInput = JSON.parse(part.args);
+          } catch (e) {
+            console.warn(
+              `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid args JSON. ` +
+              `State: ${part.state}, args preview: ${part.args.substring(0, 50)}...`
+            );
+            continue; // Skip invalid tool call input
+          }
+        } else {
+          validInput = part.args;
+        }
       } else if (part.argsText) {
         // Fallback to argsText, but validate it's complete JSON first
         try {
@@ -160,8 +171,13 @@ function buildUIPartsFromDBContent(
         continue; // Skip incomplete streaming tool calls
       }
 
+      const isValidInputObject =
+        validInput !== undefined &&
+        typeof validInput === "object" &&
+        !Array.isArray(validInput);
+
       // Only add tool call if we have valid input
-      if (validInput !== undefined) {
+      if (isValidInputObject) {
         parts.push({
           type: `tool-${part.toolName}` as `tool-${string}`,
           toolCallId: part.toolCallId,
@@ -173,7 +189,7 @@ function buildUIPartsFromDBContent(
         });
       } else {
         console.warn(
-          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) - no valid input available`
+          `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) - invalid tool input`
         );
       }
     }
