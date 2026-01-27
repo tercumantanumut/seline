@@ -102,7 +102,7 @@ export async function POST(
         connectionId: channelConnectionId,
         characterId:
           (metadata.characterId as string | undefined) ?? connection.characterId,
-        channelType,
+        channelType: channelType as "whatsapp" | "telegram" | "slack",
         peerId: channelPeerId,
         peerName: channelPeerName,
         threadId: channelThreadId,

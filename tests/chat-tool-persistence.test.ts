@@ -18,7 +18,7 @@ vi.mock("@/lib/db/queries", () => ({
 import {
   enhanceFrontendMessagesWithToolResults,
   safeParseToolArgs,
-} from "@/app/api/chat/route";
+} from "@/lib/messages/tool-enhancement";
 
 describe("enhanceFrontendMessagesWithToolResults", () => {
   beforeEach(() => {

@@ -151,13 +151,12 @@ function extractImageUrlsFromToolResult(result: unknown): string[] {
         urls.push(item);
       } else if (item && typeof item === "object") {
         const imageRecord = item as Record<string, unknown>;
+        const nestedUrl = (imageRecord.image_url as Record<string, unknown> | undefined)?.url;
         const imageUrl =
           (typeof imageRecord.url === "string" && imageRecord.url) ||
           (typeof imageRecord.imageUrl === "string" && imageRecord.imageUrl) ||
           (typeof imageRecord.image_url === "string" && imageRecord.image_url) ||
-          (typeof (imageRecord.image_url as Record<string, unknown> | undefined)?.url === "string"
-            ? (imageRecord.image_url as Record<string, unknown>).url
-            : undefined);
+          (typeof nestedUrl === "string" ? nestedUrl : undefined);
         if (imageUrl) {
           urls.push(imageUrl);
         }

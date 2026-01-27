@@ -16,7 +16,7 @@ import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, getToolResultsForSession, updateMessage } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
@@ -25,8 +25,12 @@ import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
 import { deliverChannelReply } from "@/lib/channels/delivery";
 import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
+import {
+  enhanceFrontendMessagesWithToolResults,
+  type FrontendMessage,
+} from "@/lib/messages/tool-enhancement";
 import { estimateMessageTokens } from "@/lib/utils";
-import { getToolSummaryFromOutput, isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { getToolSummaryFromOutput, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import {
   withRunContext,
   createAgentRun,
@@ -245,18 +249,6 @@ const TOOL_SUMMARY_TOKEN_THRESHOLD = 120000;
 
 // Limit how many missing tool results we attempt to re-fetch per request
 const MAX_TOOL_REFETCH = 6;
-
-// Only re-fetch deterministic, read-only tools to avoid side effects
-const TOOL_REFETCH_ALLOWLIST = new Set([
-  "readFile",
-  "localGrep",
-  "vectorSearch",
-  "docsSearch",
-  "webSearch",
-  "webBrowse",
-  "webQuery",
-  "retrieveFullContent",
-]);
 
 // Import the truncated content store for smart truncation
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
@@ -770,38 +762,6 @@ async function extractContent(
   return "[Message content not available]";
 }
 
-// Frontend message part type (from assistant-ui)
-interface FrontendMessagePart {
-  type: string;
-  text?: string;
-  image?: string;
-  url?: string;
-  // Tool call parts (from assistant-ui streaming format)
-  toolName?: string;
-  toolCallId?: string;
-  args?: unknown;
-  argsText?: string;
-  result?: unknown;
-  input?: unknown;
-  output?: unknown;
-  state?: string;
-  errorText?: string;
-}
-
-// Frontend message type (from assistant-ui / AssistantChatTransport)
-interface FrontendMessage {
-  id?: string;
-  role: string;
-  content?: string | unknown;
-  parts?: FrontendMessagePart[];
-  experimental_attachments?: Array<{ name?: string; contentType?: string; url?: string }>;
-}
-
-interface ToolResultEnhancementOptions {
-  refetchTools?: Record<string, Tool>;
-  maxRefetch?: number;
-}
-
 function estimateFrontendMessageTokens(
   messages: FrontendMessage[],
   sessionSummary?: string | null
@@ -839,53 +799,6 @@ function shouldUseToolSummaries(
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
 }
 
-export function safeParseToolArgs(part: FrontendMessagePart): unknown {
-  if (part.input !== undefined) {
-    if (typeof part.input === "object" && part.input !== null && !Array.isArray(part.input)) {
-      return part.input;
-    }
-    if (typeof part.input === "string") {
-      try {
-        const parsed = JSON.parse(part.input);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          return parsed;
-        }
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
-  }
-  if (part.args !== undefined) {
-    if (typeof part.args === "string") {
-      try {
-        const parsed = JSON.parse(part.args);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          return parsed;
-        }
-        return undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    if (typeof part.args === "object" && part.args !== null && !Array.isArray(part.args)) {
-      return part.args;
-    }
-    return undefined;
-  }
-  if (typeof part.argsText === "string" && part.argsText.trim()) {
-    try {
-      const parsed = JSON.parse(part.argsText);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed;
-      }
-    } catch (error) {
-      console.warn(`[CHAT API] Failed to parse tool argsText for ${part.toolName}:`, error);
-    }
-  }
-  return undefined;
-}
-
 function normalizeToolCallInput(
   input: unknown,
   toolName: string,
@@ -911,300 +824,6 @@ function normalizeToolCallInput(
     `[CHAT API] Skipping tool call ${toolName} (${toolCallId}) with non-object input`
   );
   return null;
-}
-
-async function persistToolResultMessage(params: {
-  sessionId: string;
-  toolCallId: string;
-  toolName: string;
-  result: unknown;
-  status: string;
-}) {
-  const resultPart: DBToolResultPart = {
-    type: "tool-result",
-    toolCallId: params.toolCallId,
-    toolName: params.toolName,
-    result: params.result,
-    status: params.status,
-    timestamp: new Date().toISOString(),
-    state: params.status === "error" || params.status === "failed" ? "output-error" : "output-available",
-  };
-
-  await createMessage({
-    sessionId: params.sessionId,
-    role: "tool",
-    toolName: params.toolName,
-    toolCallId: params.toolCallId,
-    content: [resultPart],
-    metadata: { syntheticToolResult: true },
-  });
-}
-
-/**
- * HYBRID APPROACH: Enhance frontend messages with tool results from database.
- *
- * This solves the ID mismatch problem between frontend (runtime IDs) and database (UUIDs).
- *
- * The frontend's messages are the source of truth for:
- * - Conversation structure (which messages exist, in what order)
- * - Message content (especially important for EDITED messages)
- *
- * The database provides:
- * - Tool results (which the frontend's streaming messages may not have properly)
- *
- * How it works:
- * 1. Start with the frontend messages exactly as sent
- * 2. For assistant messages with tool-call parts, look up results from DB
- * 3. Add tool results to the parts array
- *
- * This respects edits (frontend has correct truncated state) while getting tool results.
- */
-export async function enhanceFrontendMessagesWithToolResults(
-  frontendMessages: FrontendMessage[],
-  sessionId: string,
-  options: ToolResultEnhancementOptions = {}
-): Promise<FrontendMessage[]> {
-  // Fetch all tool results from the database for this session
-  const toolResults = await getToolResultsForSession(sessionId);
-
-  console.log(`[CHAT API] Hybrid approach: ${frontendMessages.length} frontend messages, ${toolResults.size} tool results from DB`);
-
-  const resolvedToolResults = new Map(toolResults);
-  const refetchTools = options.refetchTools ?? {};
-  const maxRefetch = options.maxRefetch ?? MAX_TOOL_REFETCH;
-  const missingToolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }> = [];
-  const persistedToolResults = new Set<string>();
-
-  for (const msg of frontendMessages) {
-    if (msg.role !== "assistant" || !Array.isArray(msg.parts)) {
-      continue;
-    }
-
-    for (const part of msg.parts) {
-      if (!part.toolCallId) continue;
-
-      const isToolCallPart = part.type === "tool-call";
-      const isDynamicToolPart = part.type === "dynamic-tool";
-      const isToolUIPart = part.type.startsWith("tool-");
-      if (!isToolCallPart && !isDynamicToolPart && !isToolUIPart) continue;
-
-      const toolName =
-        part.toolName ||
-        (isToolUIPart ? part.type.replace("tool-", "") : "tool");
-      const args = safeParseToolArgs(part);
-      const partOutput =
-        (part.output !== undefined ? part.output : undefined) ??
-        (part.result !== undefined ? part.result : undefined);
-      const existing = resolvedToolResults.get(part.toolCallId);
-
-      if (!isMissingToolResult(partOutput)) {
-        if (isMissingToolResult(existing)) {
-          const normalized = normalizeToolResultOutput(toolName, partOutput, args);
-          resolvedToolResults.set(part.toolCallId, normalized.output);
-          if (!persistedToolResults.has(part.toolCallId)) {
-            await persistToolResultMessage({
-              sessionId,
-              toolCallId: part.toolCallId,
-              toolName,
-              result: normalized.output,
-              status: normalized.status,
-            });
-            persistedToolResults.add(part.toolCallId);
-          }
-        }
-        continue;
-      }
-
-      if (!isMissingToolResult(existing)) continue;
-
-      missingToolCalls.push({
-        toolCallId: part.toolCallId,
-        toolName,
-        args,
-      });
-    }
-  }
-
-  if (missingToolCalls.length > 0) {
-    console.warn(`[CHAT API] Missing ${missingToolCalls.length} tool results; attempting refetch`);
-  }
-
-  let refetchCount = 0;
-  for (const call of missingToolCalls) {
-    const { toolCallId, toolName, args } = call;
-    const normalizedToolName = toolName || "tool";
-
-    if (refetchCount >= maxRefetch) {
-      console.warn(`[CHAT API] Refetch limit reached (${maxRefetch}), storing fallback errors for remaining missing tool results`);
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Refetch skipped due to per-request limit." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    if (!TOOL_REFETCH_ALLOWLIST.has(normalizedToolName)) {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Tool result missing and refetch is disabled for this tool." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    const tool = refetchTools[normalizedToolName] as Tool & { execute?: (input: any) => Promise<unknown> };
-    if (!tool || typeof tool.execute !== "function") {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Tool not available for refetch." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    if (args === undefined) {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Missing tool input; unable to refetch." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    refetchCount += 1;
-    try {
-      const refetchOutput = await tool.execute(args);
-      const normalized = normalizeToolResultOutput(normalizedToolName, refetchOutput, args);
-      resolvedToolResults.set(toolCallId, normalized.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: normalized.output,
-        status: normalized.status,
-      });
-      console.log(`[CHAT API] Refetched tool result for ${normalizedToolName} (${toolCallId})`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: `Refetch failed: ${message}` },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-    }
-  }
-
-  const getOutputState = (result: unknown) => {
-    if (result && typeof result === "object") {
-      const status = String((result as { status?: string }).status || "").toLowerCase();
-      if (status === "error" || status === "failed") {
-        return "output-error";
-      }
-    }
-    return "output-available";
-  };
-
-  // Enhance each assistant message with tool results
-  const enhancedMessages = frontendMessages.map(msg => {
-    // Only enhance assistant messages
-    if (msg.role !== 'assistant') {
-      return msg;
-    }
-
-    // Check if this message has tool-call parts that need results
-    if (!msg.parts || !Array.isArray(msg.parts)) {
-      return msg;
-    }
-
-    // Look for tool-call parts and enhance with results from DB
-    let hasEnhancements = false;
-    const enhancedParts = msg.parts.map(part => {
-      // Handle tool-call parts (from assistant-ui streaming format)
-      // These have type like "tool-call" with toolCallId
-      if (part.type === 'tool-call' && part.toolCallId) {
-        const result = resolvedToolResults.get(part.toolCallId);
-        if (!isMissingToolResult(result) && part.result === undefined) {
-          hasEnhancements = true;
-          console.log(`[CHAT API] Enhanced tool call ${part.toolCallId} (${part.toolName}) with DB result`);
-          return { ...part, result };
-        }
-      }
-      // Handle AI SDK tool UI parts (tool-*)
-      if (part.type.startsWith("tool-") && part.toolCallId) {
-        const result = resolvedToolResults.get(part.toolCallId);
-        if (!isMissingToolResult(result) && part.output === undefined) {
-          hasEnhancements = true;
-          return {
-            ...part,
-            output: result,
-            state: part.state?.startsWith("output") ? part.state : getOutputState(result),
-          };
-        }
-      }
-      // Handle dynamic-tool parts (historical tool calls)
-      if (part.type === "dynamic-tool" && part.toolCallId) {
-        const result = resolvedToolResults.get(part.toolCallId);
-        if (!isMissingToolResult(result) && part.output === undefined) {
-          hasEnhancements = true;
-          return {
-            ...part,
-            output: result,
-            state: part.state?.startsWith("output") ? part.state : getOutputState(result),
-          };
-        }
-      }
-      return part;
-    });
-
-    if (hasEnhancements) {
-      return { ...msg, parts: enhancedParts };
-    }
-
-    return msg;
-  });
-
-  return enhancedMessages;
 }
 
 interface StreamingMessageState {
@@ -1741,15 +1360,15 @@ export async function POST(req: Request) {
 
     // Convert to core format for the AI SDK
     // includeUrlHelpers=true so Claude gets URL text like [Image URL: /api/media/...] for tool calls
-    // convertUserImagesToBase64=false - DON'T send base64 to Claude (wastes ~200k tokens per image!)
+    // convertUserImagesToBase64=true - Send base64 images so Claude can actually SEE user uploads
+    // (Without this, Claude hallucinates URLs when asked about images from channels like Telegram)
     // sessionId enables smart truncation - long content is truncated but full version is retrievable
-    // Tools like editRoomImage, describeImage handle base64 conversion themselves when needed
     const coreMessages: ModelMessage[] = await Promise.all(
       enhancedMessages.map(async (msg, idx) => {
         const content = await extractContent(
           msg as Parameters<typeof extractContent>[0],
           true,   // includeUrlHelpers - Claude needs URL text for tool calls
-          false,  // convertUserImagesToBase64 - DON'T send base64 to Claude (tools handle it)
+          true,   // convertUserImagesToBase64 - send actual image data so Claude can see it
           sessionId,  // sessionId - enables smart truncation with full content retrieval
           useToolSummaries
         );
