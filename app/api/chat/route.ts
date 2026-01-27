@@ -841,26 +841,76 @@ function shouldUseToolSummaries(
 
 export function safeParseToolArgs(part: FrontendMessagePart): unknown {
   if (part.input !== undefined) {
-    return part.input;
+    if (typeof part.input === "object" && part.input !== null && !Array.isArray(part.input)) {
+      return part.input;
+    }
+    if (typeof part.input === "string") {
+      try {
+        const parsed = JSON.parse(part.input);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
   }
   if (part.args !== undefined) {
     if (typeof part.args === "string") {
       try {
-        return JSON.parse(part.args);
+        const parsed = JSON.parse(part.args);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed;
+        }
+        return undefined;
       } catch {
-        return part.args;
+        return undefined;
       }
     }
-    return part.args;
+    if (typeof part.args === "object" && part.args !== null && !Array.isArray(part.args)) {
+      return part.args;
+    }
+    return undefined;
   }
   if (typeof part.argsText === "string" && part.argsText.trim()) {
     try {
-      return JSON.parse(part.argsText);
+      const parsed = JSON.parse(part.argsText);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
     } catch (error) {
       console.warn(`[CHAT API] Failed to parse tool argsText for ${part.toolName}:`, error);
     }
   }
   return undefined;
+}
+
+function normalizeToolCallInput(
+  input: unknown,
+  toolName: string,
+  toolCallId: string
+): Record<string, unknown> | null {
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    return input as Record<string, unknown>;
+  }
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn(
+        `[CHAT API] Invalid tool call input for ${toolName} (${toolCallId}): ${String(error)}`
+      );
+      return null;
+    }
+  }
+  console.warn(
+    `[CHAT API] Skipping tool call ${toolName} (${toolCallId}) with non-object input`
+  );
+  return null;
 }
 
 async function persistToolResultMessage(params: {
@@ -2169,15 +2219,23 @@ export async function POST(req: Request) {
               // Add tool calls from this step (if any)
               if (step.toolCalls) {
                 for (const call of step.toolCalls) {
+                  const normalizedInput = normalizeToolCallInput(
+                    call.input,
+                    call.toolName,
+                    call.toolCallId
+                  );
+                  if (!normalizedInput) {
+                    continue;
+                  }
                   content.push({
                     type: "tool-call",
                     toolCallId: call.toolCallId,
                     toolName: call.toolName,
-                    args: call.input,
+                    args: normalizedInput,
                   });
                   toolCallMetadata.set(call.toolCallId, {
                     toolName: call.toolName,
-                    input: call.input,
+                    input: normalizedInput,
                   });
                 }
               }
