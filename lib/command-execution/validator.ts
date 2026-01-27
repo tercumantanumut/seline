@@ -50,6 +50,13 @@ const NETWORK_COMMANDS = [
 const DANGEROUS_COMMAND_PATTERN = /[;&|`$()\[\]<>'"]/;
 
 /**
+ * Path traversal pattern - matches ".." only as a path segment
+ * Catches: ../foo, foo/../bar, ..\\windows
+ * Does NOT match: hello..world, SKILLS.md, ... (ellipsis)
+ */
+const PATH_TRAVERSAL_PATTERN = /(?:^|[/\\])\.\.(?:[/\\]|$)/;
+
+/**
  * Validate that a directory is within allowed synced folders
  */
 export async function validateExecutionDirectory(
@@ -167,20 +174,25 @@ export function validateCommand(
     for (const arg of args) {
         // Check for path traversal inside the argument (including flag values)
         // We check before normalization because normalization resolves '..'
-        if (arg.includes("..")) {
+        // Match ".." only when it appears as a path segment (not just anywhere in text)
+        // This catches: ../foo, foo/../bar, ..\\windows, but NOT: hello..world, SKILLS.md, ...
+        if (PATH_TRAVERSAL_PATTERN.test(arg)) {
             return {
                 valid: false,
-                error: `Argument '${arg}' contains path traversal pattern.`,
+                error: `Argument contains path traversal pattern.`,
             };
         }
 
         // Also check if it's a flag with a value that might be suspicious
         // e.g. --output=../../passwd
-        if (arg.includes("=") && arg.split("=")[1]?.includes("..")) {
-            return {
-                valid: false,
-                error: `Argument '${arg}' contains path traversal pattern.`,
-            };
+        if (arg.includes("=")) {
+            const flagValue = arg.split("=")[1];
+            if (flagValue && PATH_TRAVERSAL_PATTERN.test(flagValue)) {
+                return {
+                    valid: false,
+                    error: `Argument contains path traversal pattern.`,
+                };
+            }
         }
     }
 
