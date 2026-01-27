@@ -2170,8 +2170,13 @@ export async function POST(req: Request) {
           const systemBlocksCached = useCaching && Array.isArray(systemPromptValue)
             ? systemPromptValue.filter((block) => block.experimental_providerOptions?.anthropic?.cacheControl).length
             : 0;
-          const messagesCached = useCaching
-            ? cachedMessages.filter((msg) => (msg as any).experimental_cache_control).length
+          const messagesCached = useCaching && cachedMessages.length > 0
+            ? (() => {
+              const cacheMarkerIndex = cachedMessages.findIndex(
+                (msg) => (msg as any).experimental_cache_control
+              );
+              return cacheMarkerIndex > 0 ? cacheMarkerIndex : 0;
+            })()
             : 0;
           const basePricePerToken = 3 / 1_000_000; // $3 per million for Sonnet 4.5 input tokens
           const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;

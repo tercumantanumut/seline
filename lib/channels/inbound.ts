@@ -220,33 +220,57 @@ async function invokeChatApi(params: {
   const settings = loadSettings();
   await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
-      "X-Session-Id": params.sessionId,
-      "X-Character-Id": params.characterId,
-    },
-    body: JSON.stringify({
-      sessionId: params.sessionId,
-      messages: params.messages,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutMs = 30000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("[Channels] Chat API error:", response.status, errorText);
+  try {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
+        "X-Session-Id": params.sessionId,
+        "X-Character-Id": params.characterId,
+      },
+      body: JSON.stringify({
+        sessionId: params.sessionId,
+        messages: params.messages,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Channels] Chat API error:", response.status, errorText);
+      return;
+    }
+
+    reader = response.body?.getReader();
+    if (!reader) {
+      return;
+    }
+
+    while (true) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn(`[Channels] Chat API request timed out after ${timeoutMs}ms`);
+    } else {
+      console.error("[Channels] Chat API invocation error:", error);
+    }
+    if (reader) {
+      try {
+        await reader.cancel();
+      } catch (cancelError) {
+        console.warn("[Channels] Failed to cancel chat stream reader:", cancelError);
+      }
+    }
     return;
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return;
-  }
-
-  while (true) {
-    const { done } = await reader.read();
-    if (done) break;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

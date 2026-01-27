@@ -83,10 +83,14 @@ class ChannelManager {
       await updateChannelConnection(connectionId, { status: "connecting", lastError: null });
 
       const updateStatus = async (status: ChannelStatus, error?: string | null) => {
-        await updateChannelConnection(connectionId, {
-          status,
-          lastError: error ?? null,
-        });
+        try {
+          await updateChannelConnection(connectionId, {
+            status,
+            lastError: error ?? null,
+          });
+        } catch (err) {
+          console.error("[Channels] Failed to update connection status", connectionId, err);
+        }
       };
 
       const handleQr = (qr: string | null) => {

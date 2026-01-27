@@ -75,9 +75,10 @@ export function shouldUseCache(): boolean {
  * Get minimum tokens required for caching based on model
  *
  * Anthropic models:
- * - Opus 4.5 / Haiku 4.5: 4096 tokens
- * - Haiku 3.x: 2048 tokens
- * - Sonnet 4 / Opus 4.1 / Opus 4: 1024 tokens
+ * - Opus 4.5: 4096 tokens
+ * - Haiku 4.5: 4096 tokens
+ * - Haiku 3.5 / Haiku 3: 2048 tokens
+ * - Opus 4.1 / Opus 4 / Sonnet 4.5 / Sonnet 4 / Sonnet 3.7: 1024 tokens
  *
  * OpenRouter providers:
  * - OpenAI: 1024 tokens
@@ -87,8 +88,14 @@ export function shouldUseCache(): boolean {
  */
 export function getMinTokensForModel(model: string): number {
   // Anthropic models
-  if (model.includes("opus-4-5") || model.includes("haiku-4-5")) {
+  if (model.includes("opus-4-5")) {
     return 4096;
+  }
+  if (model.includes("haiku-4-5")) {
+    return 4096;
+  }
+  if (model.includes("haiku-3-5")) {
+    return 2048;
   }
   if (model.includes("haiku-3")) {
     return 2048;

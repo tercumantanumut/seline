@@ -79,10 +79,13 @@ export function estimateCacheSavings(
     0
   );
 
-  const cachedMessages = messages.filter(
+  const cacheMarkerIndex = messages.findIndex(
     (m) => (m as any).experimental_cache_control
   );
-  const messageTokens = cachedMessages.reduce(
+  const cachedRange = cacheMarkerIndex > 0
+    ? messages.slice(0, cacheMarkerIndex)
+    : [];
+  const messageTokens = cachedRange.reduce(
     (sum, msg) => sum + estimateMessageTokens(msg),
     0
   );
