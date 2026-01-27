@@ -102,11 +102,19 @@ const areSessionsEquivalent = (prev: SessionInfo[], next: SessionInfo[]) => {
     return true;
 };
 
+const isTextPart = (part: UIMessage["parts"][number] | undefined | null): part is { type: "text"; text: string } => {
+    return Boolean(
+        part &&
+        part.type === "text" &&
+        typeof (part as { text?: unknown }).text === "string"
+    );
+};
+
 const getMessageSignature = (message: UIMessage) => {
     const parts = Array.isArray(message.parts) ? message.parts : [];
     const partTypes = parts.map((part) => (part?.type ? String(part.type) : "text")).join(",");
     const textDigest = parts
-        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .filter(isTextPart)
         .map((part) => {
             const text = part.text || "";
             return `${text.length}:${text.slice(0, 80)}`;

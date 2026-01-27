@@ -25,6 +25,8 @@ import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
 import { deliverChannelReply } from "@/lib/channels/delivery";
 import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
+import { estimateMessageTokens } from "@/lib/utils";
+import { getToolSummaryFromOutput, isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import {
   withRunContext,
   createAgentRun,
@@ -238,6 +240,24 @@ const MAX_TEXT_CONTENT_LENGTH = 10000;
 const MAX_EPHEMERAL_TOOL_RESULT_LENGTH = 300;
 const EPHEMERAL_TOOLS = ["webSearch", "webBrowse", "webQuery"];
 
+// When the conversation nears context limits, switch tool results to deterministic summaries
+const TOOL_SUMMARY_TOKEN_THRESHOLD = 120000;
+
+// Limit how many missing tool results we attempt to re-fetch per request
+const MAX_TOOL_REFETCH = 6;
+
+// Only re-fetch deterministic, read-only tools to avoid side effects
+const TOOL_REFETCH_ALLOWLIST = new Set([
+  "readFile",
+  "localGrep",
+  "vectorSearch",
+  "docsSearch",
+  "webSearch",
+  "webBrowse",
+  "webQuery",
+  "retrieveFullContent",
+]);
+
 // Import the truncated content store for smart truncation
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
 
@@ -313,6 +333,7 @@ function sanitizeTextContent(text: string, context: string, sessionId?: string):
 // includeUrlHelpers: when true, adds [Image URL: ...] text for AI context (not for DB storage)
 // convertUserImagesToBase64: when true, converts USER-uploaded image URLs to base64 (not tool-generated images)
 // sessionId: when provided, enables smart truncation with full content retrieval
+// toolSummaryMode: when true, replace tool outputs with deterministic summaries to reduce context bloat
 async function extractContent(
   msg: {
     role?: string;
@@ -341,7 +362,8 @@ async function extractContent(
   },
   includeUrlHelpers = false,
   convertUserImagesToBase64 = false,
-  sessionId?: string
+  sessionId?: string,
+  toolSummaryMode = false
 ): Promise<string | Array<{ type: string; text?: string; image?: string }>> {
   // If content exists and is a string, use it directly (with sanitization)
   if (typeof msg.content === "string" && msg.content) {
@@ -350,6 +372,7 @@ async function extractContent(
 
   // Determine if this is a user message (only user images should be converted to base64)
   const isUserMessage = msg.role === "user";
+  const useToolSummaries = Boolean(toolSummaryMode);
 
   // If parts array exists (assistant-ui format), convert it
   if (msg.parts && Array.isArray(msg.parts)) {
@@ -410,7 +433,8 @@ async function extractContent(
       } else if (part.type === "dynamic-tool" && part.toolName) {
         // Handle historical tool calls from DB - include result as text so AI can reference it
         // This is crucial for the AI to remember previous image/video generation results
-        console.log(`[EXTRACT] Found dynamic-tool: ${part.toolName}, output:`, JSON.stringify(part.output, null, 2));
+        const toolName = part.toolName || "tool";
+        console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
         if (output?.images && output.images.length > 0) {
           // Include generated image URLs so AI can reference them
@@ -419,7 +443,7 @@ async function extractContent(
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
-            text: `Previously generated ${output.images.length} image(s) using ${part.toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
+            text: `Previously generated ${output.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
         } else if (output?.videos && output.videos.length > 0) {
           // Include generated video URLs so AI can reference them
@@ -428,19 +452,25 @@ async function extractContent(
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
-            text: `Previously generated ${output.videos.length} video(s) using ${part.toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
+            text: `Previously generated ${output.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
+          });
+        } else if (useToolSummaries) {
+          const summary = getToolSummaryFromOutput(toolName, output, part.input);
+          contentParts.push({
+            type: "text",
+            text: `Previous ${toolName} summary: ${summary}`,
           });
         } else if (output?.text) {
           // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
           let resultText = output.text;
-          if (EPHEMERAL_TOOLS.includes(part.toolName) && resultText.length > MAX_EPHEMERAL_TOOL_RESULT_LENGTH) {
+          if (EPHEMERAL_TOOLS.includes(toolName) && resultText.length > MAX_EPHEMERAL_TOOL_RESULT_LENGTH) {
             resultText = resultText.substring(0, MAX_EPHEMERAL_TOOL_RESULT_LENGTH) + "... [truncated - full result was used in original response]";
           }
           contentParts.push({
             type: "text",
-            text: `Previous ${part.toolName} result: ${resultText}`,
+            text: `Previous ${toolName} result: ${resultText}`,
           });
-        } else if (part.toolName === "searchTools") {
+        } else if (toolName === "searchTools") {
           // Preserve searchTools results so AI remembers discovered tools
           const searchOutput = output as { status?: string; query?: string; results?: Array<{ name?: string; displayName?: string; isAvailable?: boolean }> } | null;
           if (searchOutput?.results && searchOutput.results.length > 0) {
@@ -452,7 +482,7 @@ async function extractContent(
             // Just log for debugging
             console.log(`[EXTRACT] searchTools found: ${toolNames}`);
           }
-        } else if (part.toolName === "webSearch") {
+        } else if (toolName === "webSearch") {
           // Preserve webSearch results so AI remembers search findings
           // This is CRITICAL for preventing redundant searches in virtual try-on workflows
           const webSearchOutput = output as {
@@ -467,7 +497,7 @@ async function extractContent(
             // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] webSearch completed: ${webSearchOutput.query} (${webSearchOutput.sources.length} sources)`);
           }
-        } else if (part.toolName === "webBrowse") {
+        } else if (toolName === "webBrowse") {
           // Preserve webBrowse synthesis - contains product details for virtual try-on
           const webBrowseOutput = output as {
             status?: string;
@@ -481,7 +511,7 @@ async function extractContent(
             const urls = webBrowseOutput.fetchedUrls || webBrowseOutput.sourcesUsed;
             console.log(`[EXTRACT] webBrowse completed: fetched ${urls?.length || 0} URLs`);
           }
-        } else if (part.toolName === "vectorSearch") {
+        } else if (toolName === "vectorSearch") {
           // Preserve vectorSearch results so AI remembers code search findings
           const vectorSearchOutput = output as {
             status?: string;
@@ -496,7 +526,7 @@ async function extractContent(
             // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] vectorSearch completed: ${vectorSearchOutput.findings.length} findings`);
           }
-        } else if (part.toolName === "showProductImages") {
+        } else if (toolName === "showProductImages") {
           // Preserve showProductImages results so AI can reference displayed products
           const productGalleryOutput = output as {
             status?: string;
@@ -516,7 +546,7 @@ async function extractContent(
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryOutput.products.length} products for "${productGalleryOutput.query}"`);
           }
         } else {
-          console.log(`[EXTRACT] dynamic-tool ${part.toolName} has no images, videos, or text in output, adding generic summary`);
+          console.log(`[EXTRACT] dynamic-tool ${toolName} has no images, videos, or text in output, adding generic summary`);
           // Provide fallback so AI knows the tool was called and what it returned
           // This prevents "memory gaps" and satisfying Anthropic's non-empty requirement
           const stringifiedOutput = typeof part.output === "string"
@@ -525,7 +555,7 @@ async function extractContent(
 
           contentParts.push({
             type: "text",
-            text: `Previous ${part.toolName} result: ${stringifiedOutput}`,
+            text: `Previous ${toolName} result: ${stringifiedOutput}`,
           });
         }
       } else if (part.type.startsWith("tool-")) {
@@ -550,6 +580,12 @@ async function extractContent(
           contentParts.push({
             type: "text",
             text: `Previously generated ${partWithResult.result.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
+          });
+        } else if (useToolSummaries) {
+          const summary = getToolSummaryFromOutput(toolName, partWithResult.result);
+          contentParts.push({
+            type: "text",
+            text: `Previous ${toolName} summary: ${summary}`,
           });
         } else if (partWithResult.result?.text) {
           // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
@@ -752,6 +788,96 @@ interface FrontendMessage {
   experimental_attachments?: Array<{ name?: string; contentType?: string; url?: string }>;
 }
 
+interface ToolResultEnhancementOptions {
+  refetchTools?: Record<string, Tool>;
+  maxRefetch?: number;
+}
+
+function estimateFrontendMessageTokens(
+  messages: FrontendMessage[],
+  sessionSummary?: string | null
+): number {
+  let total = 0;
+
+  if (sessionSummary) {
+    total += estimateMessageTokens({ content: sessionSummary });
+  }
+
+  for (const msg of messages) {
+    if (Array.isArray(msg.content)) {
+      total += estimateMessageTokens({ content: msg.content });
+      continue;
+    }
+    if (typeof msg.content === "string") {
+      total += estimateMessageTokens({ content: msg.content });
+      continue;
+    }
+    if (Array.isArray(msg.parts)) {
+      total += estimateMessageTokens({ content: msg.parts });
+      continue;
+    }
+    total += 10;
+  }
+
+  return total;
+}
+
+function shouldUseToolSummaries(
+  messages: FrontendMessage[],
+  sessionSummary?: string | null
+): boolean {
+  const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
+  return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
+}
+
+function safeParseToolArgs(part: FrontendMessagePart): unknown {
+  if (part.args !== undefined) {
+    if (typeof part.args === "string") {
+      try {
+        return JSON.parse(part.args);
+      } catch {
+        return part.args;
+      }
+    }
+    return part.args;
+  }
+  if (typeof part.argsText === "string" && part.argsText.trim()) {
+    try {
+      return JSON.parse(part.argsText);
+    } catch (error) {
+      console.warn(`[CHAT API] Failed to parse tool argsText for ${part.toolName}:`, error);
+    }
+  }
+  return undefined;
+}
+
+async function persistToolResultMessage(params: {
+  sessionId: string;
+  toolCallId: string;
+  toolName: string;
+  result: unknown;
+  status: string;
+}) {
+  const resultPart: DBToolResultPart = {
+    type: "tool-result",
+    toolCallId: params.toolCallId,
+    toolName: params.toolName,
+    result: params.result,
+    status: params.status,
+    timestamp: new Date().toISOString(),
+    state: params.status === "error" || params.status === "failed" ? "output-error" : "output-available",
+  };
+
+  await createMessage({
+    sessionId: params.sessionId,
+    role: "tool",
+    toolName: params.toolName,
+    toolCallId: params.toolCallId,
+    content: [resultPart],
+    metadata: { syntheticToolResult: true },
+  });
+}
+
 /**
  * HYBRID APPROACH: Enhance frontend messages with tool results from database.
  *
@@ -773,16 +899,146 @@ interface FrontendMessage {
  */
 async function enhanceFrontendMessagesWithToolResults(
   frontendMessages: FrontendMessage[],
-  sessionId: string
+  sessionId: string,
+  options: ToolResultEnhancementOptions = {}
 ): Promise<FrontendMessage[]> {
   // Fetch all tool results from the database for this session
   const toolResults = await getToolResultsForSession(sessionId);
 
   console.log(`[CHAT API] Hybrid approach: ${frontendMessages.length} frontend messages, ${toolResults.size} tool results from DB`);
 
-  // If no tool results, just return frontend messages as-is
-  if (toolResults.size === 0) {
-    return frontendMessages;
+  const resolvedToolResults = new Map(toolResults);
+  const refetchTools = options.refetchTools ?? {};
+  const maxRefetch = options.maxRefetch ?? MAX_TOOL_REFETCH;
+  const missingToolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }> = [];
+
+  for (const msg of frontendMessages) {
+    if (msg.role !== "assistant" || !Array.isArray(msg.parts)) {
+      continue;
+    }
+
+    for (const part of msg.parts) {
+      if (part.type !== "tool-call" || !part.toolCallId) continue;
+      const existing = resolvedToolResults.get(part.toolCallId);
+      if (!isMissingToolResult(existing)) continue;
+
+      const toolName = part.toolName || "tool";
+      missingToolCalls.push({
+        toolCallId: part.toolCallId,
+        toolName,
+        args: safeParseToolArgs(part),
+      });
+    }
+  }
+
+  if (missingToolCalls.length > 0) {
+    console.warn(`[CHAT API] Missing ${missingToolCalls.length} tool results; attempting refetch`);
+  }
+
+  let refetchCount = 0;
+  for (const call of missingToolCalls) {
+    const { toolCallId, toolName, args } = call;
+    const normalizedToolName = toolName || "tool";
+
+    if (refetchCount >= maxRefetch) {
+      console.warn(`[CHAT API] Refetch limit reached (${maxRefetch}), storing fallback errors for remaining missing tool results`);
+      const fallback = normalizeToolResultOutput(
+        normalizedToolName,
+        { status: "error", error: "Refetch skipped due to per-request limit." },
+        args
+      );
+      resolvedToolResults.set(toolCallId, fallback.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: fallback.output,
+        status: fallback.status,
+      });
+      continue;
+    }
+
+    if (!TOOL_REFETCH_ALLOWLIST.has(normalizedToolName)) {
+      const fallback = normalizeToolResultOutput(
+        normalizedToolName,
+        { status: "error", error: "Tool result missing and refetch is disabled for this tool." },
+        args
+      );
+      resolvedToolResults.set(toolCallId, fallback.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: fallback.output,
+        status: fallback.status,
+      });
+      continue;
+    }
+
+    const tool = refetchTools[normalizedToolName] as Tool & { execute?: (input: any) => Promise<unknown> };
+    if (!tool || typeof tool.execute !== "function") {
+      const fallback = normalizeToolResultOutput(
+        normalizedToolName,
+        { status: "error", error: "Tool not available for refetch." },
+        args
+      );
+      resolvedToolResults.set(toolCallId, fallback.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: fallback.output,
+        status: fallback.status,
+      });
+      continue;
+    }
+
+    if (args === undefined) {
+      const fallback = normalizeToolResultOutput(
+        normalizedToolName,
+        { status: "error", error: "Missing tool input; unable to refetch." },
+        args
+      );
+      resolvedToolResults.set(toolCallId, fallback.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: fallback.output,
+        status: fallback.status,
+      });
+      continue;
+    }
+
+    refetchCount += 1;
+    try {
+      const refetchOutput = await tool.execute(args);
+      const normalized = normalizeToolResultOutput(normalizedToolName, refetchOutput, args);
+      resolvedToolResults.set(toolCallId, normalized.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: normalized.output,
+        status: normalized.status,
+      });
+      console.log(`[CHAT API] Refetched tool result for ${normalizedToolName} (${toolCallId})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const fallback = normalizeToolResultOutput(
+        normalizedToolName,
+        { status: "error", error: `Refetch failed: ${message}` },
+        args
+      );
+      resolvedToolResults.set(toolCallId, fallback.output);
+      await persistToolResultMessage({
+        sessionId,
+        toolCallId,
+        toolName: normalizedToolName,
+        result: fallback.output,
+        status: fallback.status,
+      });
+    }
   }
 
   // Enhance each assistant message with tool results
@@ -803,8 +1059,8 @@ async function enhanceFrontendMessagesWithToolResults(
       // Handle tool-call parts (from assistant-ui streaming format)
       // These have type like "tool-call" with toolCallId
       if (part.type === 'tool-call' && part.toolCallId) {
-        const result = toolResults.get(part.toolCallId);
-        if (result !== undefined && part.result === undefined) {
+        const result = resolvedToolResults.get(part.toolCallId);
+        if (!isMissingToolResult(result) && part.result === undefined) {
           hasEnhancements = true;
           console.log(`[CHAT API] Enhanced tool call ${part.toolCallId} (${part.toolName}) with DB result`);
           return { ...part, result };
@@ -923,7 +1179,10 @@ function recordToolResultChunk(
   }
   const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
   const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
-  callPart.state = "output-available";
+  const normalized = normalizeToolResultOutput(normalizedName, output, callPart.args);
+  const status = normalized.status.toLowerCase();
+  const isErrorStatus = status === "error" || status === "failed";
+  callPart.state = isErrorStatus ? "output-error" : "output-available";
 
   // Check if we already have a tool-result for this toolCallId
   const existingResultIndex = state.parts.findIndex(
@@ -934,9 +1193,11 @@ function recordToolResultChunk(
     type: "tool-result",
     toolCallId,
     toolName: normalizedName,
-    result: output,
-    state: "output-available",
+    result: normalized.output,
+    state: callPart.state,
     preliminary,
+    status: normalized.status,
+    timestamp: new Date().toISOString(),
   };
 
   if (existingResultIndex !== -1) {
@@ -1054,6 +1315,7 @@ export async function POST(req: Request) {
     let sessionId = providedSessionId;
     let isNewSession = false;
     let sessionMetadata: Record<string, unknown> = {};
+    let sessionSummary: string | null = null;
 
     if (!sessionId) {
       const session = await createSession({
@@ -1084,6 +1346,7 @@ export async function POST(req: Request) {
       } else {
         // Session exists and belongs to user - extract metadata for system prompt tracking
         sessionMetadata = (session.metadata as Record<string, unknown>) || {};
+        sessionSummary = session.summary ?? null;
       }
     }
 
@@ -1292,14 +1555,61 @@ export async function POST(req: Request) {
 
     console.log(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
 
+    const refetchTools: Record<string, Tool> = {
+      readFile: createReadFileTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      localGrep: createLocalGrepTool({
+        sessionId,
+        characterId: characterId || null,
+      }),
+      vectorSearch: createVectorSearchToolV2({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      docsSearch: createDocsSearchTool({
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      webSearch: createWebSearchTool({
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      webBrowse: createWebBrowseTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      webQuery: createWebQueryTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || null,
+      }),
+      retrieveFullContent: createRetrieveFullContentTool({
+        sessionId,
+      }),
+    };
+
     // Enhance frontend messages with tool results from database
     // This adds tool results to assistant messages that have tool-call parts
     const enhancedMessages = await enhanceFrontendMessagesWithToolResults(
       messages as FrontendMessage[],
-      sessionId
+      sessionId,
+      {
+        refetchTools,
+        maxRefetch: MAX_TOOL_REFETCH,
+      }
     );
 
     console.log(`[CHAT API] Enhanced ${enhancedMessages.length} messages with DB tool results`);
+
+    const useToolSummaries = shouldUseToolSummaries(enhancedMessages, sessionSummary);
+    if (useToolSummaries) {
+      console.log(`[CHAT API] Tool summary mode enabled (context nearing limit)`);
+    }
 
     // Convert to core format for the AI SDK
     // includeUrlHelpers=true so Claude gets URL text like [Image URL: /api/media/...] for tool calls
@@ -1312,7 +1622,8 @@ export async function POST(req: Request) {
           msg as Parameters<typeof extractContent>[0],
           true,   // includeUrlHelpers - Claude needs URL text for tool calls
           false,  // convertUserImagesToBase64 - DON'T send base64 to Claude (tools handle it)
-          sessionId  // sessionId - enables smart truncation with full content retrieval
+          sessionId,  // sessionId - enables smart truncation with full content retrieval
+          useToolSummaries
         );
         // DEBUG: Log what we're sending to Claude (avoid logging full content to prevent log spam)
         console.log(`[CHAT API] Message ${idx} (${msg.role}):`, JSON.stringify({
@@ -1772,7 +2083,8 @@ export async function POST(req: Request) {
           // Save assistant message to database
           // Build content by iterating through steps in order to preserve
           // the interleaved sequence: tool-call → tool-result → text per step
-          const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown }> = [];
+          const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
+          const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
 
           if (steps && steps.length > 0) {
             for (const step of steps) {
@@ -1785,16 +2097,32 @@ export async function POST(req: Request) {
                     toolName: call.toolName,
                     args: call.input,
                   });
+                  toolCallMetadata.set(call.toolCallId, {
+                    toolName: call.toolName,
+                    input: call.input,
+                  });
                 }
               }
 
               // Add tool results from this step (if any)
               if (step.toolResults) {
                 for (const res of step.toolResults) {
+                  const meta = toolCallMetadata.get(res.toolCallId);
+                  const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
+                  const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
+                  const status = normalized.status.toLowerCase();
+                  const state =
+                    status === "error" || status === "failed"
+                      ? "output-error"
+                      : "output-available";
                   content.push({
                     type: "tool-result",
                     toolCallId: res.toolCallId,
-                    result: res.output,
+                    toolName,
+                    result: normalized.output,
+                    status: normalized.status,
+                    timestamp: new Date().toISOString(),
+                    state,
                   });
                 }
               }
@@ -2008,7 +2336,8 @@ export async function POST(req: Request) {
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
             // Build content from completed steps using the same logic as onFinish
             // This preserves the partial response so AI has context on subsequent messages
-            const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown }> = [];
+            const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
+            const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
 
             if (steps && steps.length > 0) {
               for (const step of steps) {
@@ -2021,16 +2350,32 @@ export async function POST(req: Request) {
                       toolName: call.toolName,
                       args: call.input,
                     });
+                    toolCallMetadata.set(call.toolCallId, {
+                      toolName: call.toolName,
+                      input: call.input,
+                    });
                   }
                 }
 
                 // Add tool results from this step (if any)
                 if (step.toolResults) {
                   for (const res of step.toolResults) {
+                    const meta = toolCallMetadata.get(res.toolCallId);
+                    const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
+                    const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
+                    const status = normalized.status.toLowerCase();
+                    const state =
+                      status === "error" || status === "failed"
+                        ? "output-error"
+                        : "output-available";
                     content.push({
                       type: "tool-result",
                       toolCallId: res.toolCallId,
-                      result: res.output,
+                      toolName,
+                      result: normalized.output,
+                      status: normalized.status,
+                      timestamp: new Date().toISOString(),
+                      state,
                     });
                   }
                 }

@@ -29,6 +29,8 @@ export interface DBToolResultPart {
   state?: Extract<ToolInvocationState, "output-available" | "output-error" | "output-denied">;
   errorText?: string;
   preliminary?: boolean;
+  status?: string;
+  timestamp?: string;
 }
 
 // Database content part types
