@@ -200,6 +200,21 @@ export default function ChatInterface({
     const lastProgressTimeRef = useRef<number>(0);
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
+
+    // Sync server-provided initial data when props change (e.g., after navigation)
+    // This handles the case where the component is reused but props are different
+    useEffect(() => {
+        // Only update if the sessionId from props is different from current state
+        // This prevents unnecessary updates when user has manually switched sessions
+        if (initialSessionId && initialSessionId !== sessionState.sessionId) {
+            setSessionState({
+                sessionId: initialSessionId,
+                messages: initialMessages,
+            });
+            lastSessionSignatureRef.current = getMessagesSignature(initialMessages);
+        }
+    }, [initialSessionId]); // Only depend on initialSessionId to avoid infinite loops
+
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
         setSessions((prev) => {
