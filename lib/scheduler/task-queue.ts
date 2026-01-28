@@ -46,7 +46,7 @@ export class TaskQueue {
 
   constructor(config: TaskQueueConfig = {}) {
     this.config = {
-      maxConcurrent: config.maxConcurrent ?? 3,
+      maxConcurrent: config.maxConcurrent ?? 1, // Default to 1 for sequential execution
       retryDelayMs: config.retryDelayMs ?? 5000,
     };
   }
@@ -107,7 +107,7 @@ export class TaskQueue {
 
     // Process queue every second
     this.processInterval = setInterval(() => this.processQueue(), 1000);
-    console.log("[TaskQueue] Started processing");
+    console.log(`[TaskQueue] Started processing (maxConcurrent: ${this.config.maxConcurrent})`);
   }
 
   /**

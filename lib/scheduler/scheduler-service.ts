@@ -28,7 +28,7 @@ export class SchedulerService {
   constructor(config: SchedulerConfig = {}) {
     this.config = {
       checkIntervalMs: config.checkIntervalMs ?? 60_000,
-      maxConcurrentTasks: config.maxConcurrentTasks ?? 3,
+      maxConcurrentTasks: config.maxConcurrentTasks ?? 1, // Default to 1 for sequential execution
       enabled: config.enabled ?? true,
     };
     this.taskQueue = new TaskQueue({
@@ -40,10 +40,17 @@ export class SchedulerService {
    * Start the scheduler service
    */
   async start(): Promise<void> {
-    if (this.isRunning || !this.config.enabled) return;
+    if (this.isRunning) {
+      console.log("[Scheduler] Already running, skipping start");
+      return;
+    }
+    if (!this.config.enabled) {
+      console.log("[Scheduler] Scheduler disabled, skipping start");
+      return;
+    }
     this.isRunning = true;
 
-    console.log("[Scheduler] Starting scheduler service");
+    console.log("[Scheduler] Starting scheduler service...");
 
     // Load all enabled schedules
     await this.loadSchedules();
@@ -362,18 +369,33 @@ export class SchedulerService {
   }
 }
 
-// Singleton instance
-let schedulerInstance: SchedulerService | null = null;
+// Singleton instance using global to survive HMR in dev mode
+const globalForScheduler = globalThis as typeof globalThis & {
+  schedulerInstance?: SchedulerService;
+  schedulerStarting?: boolean; // Prevent race conditions
+};
 
 export function getScheduler(): SchedulerService {
-  if (!schedulerInstance) {
-    schedulerInstance = new SchedulerService();
+  if (!globalForScheduler.schedulerInstance) {
+    console.log("[Scheduler] Creating new SchedulerService instance");
+    globalForScheduler.schedulerInstance = new SchedulerService();
   }
-  return schedulerInstance;
+  return globalForScheduler.schedulerInstance;
 }
 
-export function startScheduler(): Promise<void> {
-  return getScheduler().start();
+export async function startScheduler(): Promise<void> {
+  // Double-check at the global level to prevent race conditions
+  if (globalForScheduler.schedulerStarting) {
+    console.log("[Scheduler] Start already in progress, skipping");
+    return;
+  }
+  globalForScheduler.schedulerStarting = true;
+
+  try {
+    await getScheduler().start();
+  } finally {
+    // Keep the flag true after successful start (don't reset)
+  }
 }
 
 export function stopScheduler(): Promise<void> {
