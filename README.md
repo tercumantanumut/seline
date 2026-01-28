@@ -28,7 +28,9 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 - Run vector search locally with LanceDB for fast, private retrieval.
 - Run commands in your synced/indexed folders
 
- Updates: - 3rd provider added. now can use antigravity models and google antigravity subscription 
+**Updates:**
+- Prompt caching enabled by default for Anthropic models (direct + OpenRouter)
+- 3rd provider added - now supports Antigravity models and Google Antigravity subscription
 
 ## MCP Dynamic Configuration
 Seline supports dynamic variables in MCP server configurations:

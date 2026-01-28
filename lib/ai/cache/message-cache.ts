@@ -145,12 +145,20 @@ export function findOptimalCacheBreakpoint(
 
 /**
  * Parse cache metrics from AI SDK usage response
+ * AI SDK v6: Cache metrics are in providerMetadata.anthropic (camelCase)
+ * Also supports legacy snake_case fields as fallback
  */
-export function parseCacheMetrics(usage: any): CacheMetrics {
+export function parseCacheMetrics(
+  usage: any,
+  providerMetadata?: { anthropic?: { cacheCreationInputTokens?: number; cacheReadInputTokens?: number } }
+): CacheMetrics {
+  const anthropicMeta = providerMetadata?.anthropic || {};
   return {
-    cacheCreationTokens: usage?.cache_creation_input_tokens || 0,
-    cacheReadTokens: usage?.cache_read_input_tokens || 0,
-    inputTokens: usage?.input_tokens || 0,
+    cacheCreationTokens: anthropicMeta.cacheCreationInputTokens ||
+      usage?.cache_creation_input_tokens || 0,
+    cacheReadTokens: anthropicMeta.cacheReadInputTokens ||
+      usage?.cache_read_input_tokens || 0,
+    inputTokens: usage?.input_tokens || usage?.inputTokens || 0,
     estimatedSavings: 0, // Will be calculated separately
     systemBlocksCached: 0,
     messagesCached: 0,

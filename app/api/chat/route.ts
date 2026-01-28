@@ -1821,7 +1821,7 @@ export async function POST(req: Request) {
             }
           }
           : undefined,
-        onFinish: async ({ text, steps, usage }) => {
+        onFinish: async ({ text, steps, usage, providerMetadata }) => {
           if (runFinalized) return;
           runFinalized = true;
           if (streamingState && syncStreamingMessage) {
@@ -1920,8 +1920,19 @@ export async function POST(req: Request) {
           }
 
           let finalMessageId: string | undefined;
-          const cacheCreation = useCaching && usage ? (usage as any).cache_creation_input_tokens || 0 : 0;
-          const cacheRead = useCaching && usage ? (usage as any).cache_read_input_tokens || 0 : 0;
+          // AI SDK v6: Cache metrics are in providerMetadata.anthropic (camelCase)
+          // Also check usage for snake_case fields as fallback (OpenRouter may use different format)
+          const anthropicMeta = (providerMetadata as any)?.anthropic || {};
+          const cacheCreation = useCaching ? (
+            anthropicMeta.cacheCreationInputTokens ||
+            (usage as any)?.cache_creation_input_tokens ||
+            0
+          ) : 0;
+          const cacheRead = useCaching ? (
+            anthropicMeta.cacheReadInputTokens ||
+            (usage as any)?.cache_read_input_tokens ||
+            0
+          ) : 0;
           const systemBlocksCached = useCaching && Array.isArray(systemPromptValue)
             ? systemPromptValue.filter((block) => block.experimental_providerOptions?.anthropic?.cacheControl).length
             : 0;
@@ -2016,16 +2027,24 @@ export async function POST(req: Request) {
           });
 
           // Log cache performance metrics (if caching enabled)
-          if (useCaching && usage && (cacheCreation > 0 || cacheRead > 0)) {
-            console.log(
-              `[CACHE] Performance: ${cacheRead} tokens read (hits), ` +
-              `${cacheCreation} tokens written (new cache), ` +
-              `${systemBlocksCached} system blocks cached, ` +
-              `${messagesCached} messages cached`
-            );
+          if (useCaching && usage) {
+            if (cacheCreation > 0 || cacheRead > 0) {
+              console.log(
+                `[CACHE] Performance: ${cacheRead} tokens read (hits), ` +
+                `${cacheCreation} tokens written (new cache), ` +
+                `${systemBlocksCached} system blocks cached, ` +
+                `${messagesCached} messages cached`
+              );
 
-            if (cacheRead > 0) {
-              console.log(`[CACHE] Cost savings: ~$${estimatedSavingsUsd.toFixed(4)} (90% discount on ${cacheRead} tokens)`);
+              if (cacheRead > 0) {
+                console.log(`[CACHE] Cost savings: ~$${estimatedSavingsUsd.toFixed(4)} (90% discount on ${cacheRead} tokens)`);
+              }
+            } else if (systemBlocksCached > 0 || messagesCached > 0) {
+              // Cache markers were applied but no cache metrics returned - debug log
+              console.log(
+                `[CACHE] Debug: Cache markers applied (${systemBlocksCached} system blocks, ${messagesCached} messages) ` +
+                `but no cache metrics returned. Provider metadata: ${JSON.stringify(anthropicMeta)}`
+              );
             }
           }
 
@@ -2204,10 +2223,15 @@ export async function POST(req: Request) {
     // messageMetadata extracts token usage from finish-step events to send to client
     const response = result.toUIMessageStreamResponse({
       messageMetadata: ({ part }) => {
-        // finish-step includes usage: LanguageModelUsage
+        // finish-step includes usage: LanguageModelUsage + providerMetadata
         if (part.type === 'finish-step' && part.usage) {
-          const cacheRead = (part.usage as any).cache_read_input_tokens || 0;
-          const cacheWrite = (part.usage as any).cache_creation_input_tokens || 0;
+          // AI SDK v6: Cache metrics in providerMetadata.anthropic (camelCase)
+          // Also check usage for snake_case fields as fallback
+          const anthropicMeta = (part as any).providerMetadata?.anthropic || {};
+          const cacheRead = anthropicMeta.cacheReadInputTokens ||
+            (part.usage as any).cache_read_input_tokens || 0;
+          const cacheWrite = anthropicMeta.cacheCreationInputTokens ||
+            (part.usage as any).cache_creation_input_tokens || 0;
           const basePricePerToken = 3 / 1_000_000;
           const estimatedSavingsUsd = cacheRead > 0 ? 0.9 * basePricePerToken * cacheRead : 0;
           return {
