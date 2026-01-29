@@ -23,11 +23,12 @@ import {
 } from "@/lib/auth/antigravity-auth";
 import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
+import { KIMI_MODEL_IDS, KIMI_CONFIG } from "@/lib/auth/kimi-models";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
 import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
 
 // Provider types
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
 export type EmbeddingProvider = "openrouter" | "local";
 
 // Provider configuration
@@ -50,6 +51,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   openrouter: "x-ai/grok-4.1-fast",
   antigravity: "claude-sonnet-4-5", // Free via Antigravity
   codex: "gpt-5.1-codex",
+  kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
 };
 
 // Utility models - fast/cheap models for background tasks (compaction, memory extraction)
@@ -58,6 +60,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   openrouter: "google/gemini-2.5-flash",
   antigravity: "gemini-3-flash", // Free via Antigravity
   codex: "gpt-5.1-codex-mini",
+  kimi: "kimi-k2-turbo-preview", // Fast Kimi model for utility tasks
 };
 
 // Claude model prefixes - models that should use Anthropic provider
@@ -72,6 +75,11 @@ const CODEX_MODEL_ID_SET = new Set(
   CODEX_MODEL_IDS.map((modelId) => modelId.toLowerCase())
 );
 
+// Kimi model ID set for routing
+const KIMI_MODEL_ID_SET = new Set(
+  KIMI_MODEL_IDS.map((modelId) => modelId.toLowerCase())
+);
+
 // Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
 let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
 let _openrouterClientApiKey: string | undefined = undefined;
@@ -82,6 +90,10 @@ let _antigravityProviderToken: string | undefined = undefined;
 
 // Lazy-initialized Codex provider
 let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
+
+// Lazy-initialized Kimi client (OpenAI-compatible)
+let _kimiClient: ReturnType<typeof createOpenAICompatible> | null = null;
+let _kimiClientApiKey: string | undefined = undefined;
 
 // Cache for local embedding model instance
 let _localEmbeddingModel: EmbeddingModel | null = null;
@@ -110,6 +122,60 @@ function getOpenRouterClient() {
     });
   }
   return _openrouterClient;
+}
+
+// Helper to get Kimi API key dynamically
+function getKimiApiKey(): string | undefined {
+  return process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY;
+}
+
+/**
+ * Custom fetch wrapper for Kimi API.
+ * Disables thinking mode and enforces required parameter values
+ * per Kimi K2.5 docs (non-thinking mode requires specific fixed values).
+ */
+async function kimiCustomFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (init?.body && typeof init.body === "string") {
+    try {
+      const body = JSON.parse(init.body);
+      // Disable thinking mode — reasoning outputs should not persist in history
+      body.thinking = { type: "disabled" };
+      // Non-thinking mode requires these fixed values per Kimi K2.5 docs
+      body.temperature = 0.6;
+      body.top_p = 0.95;
+      body.n = 1;
+      body.presence_penalty = 0.0;
+      body.frequency_penalty = 0.0;
+      init = { ...init, body: JSON.stringify(body) };
+    } catch {
+      // Not JSON, pass through unchanged
+    }
+  }
+  return globalThis.fetch(url, init);
+}
+
+function getKimiClient() {
+  const apiKey = getKimiApiKey();
+
+  // Recreate client if API key changed
+  if (_kimiClient && _kimiClientApiKey !== apiKey) {
+    _kimiClient = null;
+  }
+
+  if (!_kimiClient) {
+    _kimiClientApiKey = apiKey;
+    _kimiClient = createOpenAICompatible({
+      name: "kimi",
+      baseURL: KIMI_CONFIG.BASE_URL,
+      apiKey: apiKey || "",
+      headers: {
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        "X-Title": "Seline Agent",
+      },
+      fetch: kimiCustomFetch,
+    });
+  }
+  return _kimiClient;
 }
 
 /**
@@ -218,6 +284,28 @@ function isCodexModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model ID is a Kimi model (should use Moonshot provider)
+ */
+function isKimiModel(modelId: string): boolean {
+  const lowerModel = modelId.toLowerCase();
+  return KIMI_MODEL_ID_SET.has(lowerModel) ||
+         lowerModel.startsWith("kimi-") ||
+         lowerModel.startsWith("moonshot-");
+}
+
+/**
+ * Get the appropriate temperature for the current provider
+ * Kimi K2.5 models require temperature=1 (fixed value)
+ */
+export function getProviderTemperature(requestedTemp: number): number {
+  const provider = getConfiguredProvider();
+  if (provider === "kimi") {
+    return 1; // Kimi K2.5 fixed value; custom fetch overrides to 0.6 for non-thinking mode
+  }
+  return requestedTemp;
+}
+
+/**
  * Invalidate cached provider clients (call when settings change)
  */
 export function invalidateProviderCache(): void {
@@ -226,6 +314,8 @@ export function invalidateProviderCache(): void {
   _antigravityProvider = null;
   _antigravityProviderToken = undefined;
   _codexProvider = null;
+  _kimiClient = null;
+  _kimiClientApiKey = undefined;
 }
 
 /**
@@ -280,6 +370,15 @@ export function getConfiguredProvider(): LLMProvider {
     return "openrouter";
   }
 
+  if (provider === "kimi") {
+    const apiKey = getKimiApiKey();
+    if (!apiKey) {
+      console.warn("[PROVIDERS] Kimi selected but KIMI_API_KEY is not set, falling back to anthropic");
+      return "anthropic";
+    }
+    return "kimi";
+  }
+
   // Default to anthropic
   return "anthropic";
 }
@@ -300,30 +399,7 @@ export function getConfiguredModel(): string {
   // Use environment model if set, otherwise use default for provider
   const model = envModel || DEFAULT_MODELS[provider];
 
-  // Validate model is compatible with the selected provider
-  // If the model doesn't match the provider, fall back to provider default
-  if (provider === "antigravity" && model && !isAntigravityModel(model)) {
-    console.warn(
-      `[PROVIDERS] Antigravity selected but model "${model}" is not an Antigravity model, falling back to ${DEFAULT_MODELS.antigravity}`
-    );
-    return DEFAULT_MODELS.antigravity;
-  }
-
-  if (provider === "codex" && model && !isCodexModel(model)) {
-    console.warn(
-      `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
-    );
-    return DEFAULT_MODELS.codex;
-  }
-
-  if (provider === "anthropic" && model && !isClaudeModel(model)) {
-    console.warn(
-      `[PROVIDERS] Anthropic selected but model "${model}" is not a Claude model, falling back to ${DEFAULT_MODELS.anthropic}`
-    );
-    return DEFAULT_MODELS.anthropic;
-  }
-
-  return model;
+  return validateModelForProvider(model, provider, DEFAULT_MODELS[provider], "model") || DEFAULT_MODELS[provider];
 }
 
 /**
@@ -331,29 +407,12 @@ export function getConfiguredModel(): string {
  */
 export function getLanguageModel(modelOverride?: string): LanguageModel {
   const provider = getConfiguredProvider();
-  let model = modelOverride || getConfiguredModel();
-
-  // Validate model is compatible with the selected provider
-  if (provider === "antigravity" && model && !isAntigravityModel(model)) {
-    console.warn(
-      `[PROVIDERS] Antigravity selected but model "${model}" is not an Antigravity model, falling back to ${DEFAULT_MODELS.antigravity}`
-    );
-    model = DEFAULT_MODELS.antigravity;
-  }
-
-  if (provider === "codex" && model && !isCodexModel(model)) {
-    console.warn(
-      `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
-    );
-    model = DEFAULT_MODELS.codex;
-  }
-
-  if (provider === "anthropic" && model && !isClaudeModel(model)) {
-    console.warn(
-      `[PROVIDERS] Anthropic selected but model "${model}" is not a Claude model, falling back to ${DEFAULT_MODELS.anthropic}`
-    );
-    model = DEFAULT_MODELS.anthropic;
-  }
+  const model = validateModelForProvider(
+    modelOverride || getConfiguredModel(),
+    provider,
+    DEFAULT_MODELS[provider],
+    "model",
+  ) || DEFAULT_MODELS[provider];
 
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
 
@@ -373,6 +432,14 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
         _codexProvider = createCodexProvider();
       }
       return _codexProvider(model);
+    }
+
+    case "kimi": {
+      const apiKey = getKimiApiKey();
+      if (!apiKey) {
+        throw new Error("KIMI_API_KEY environment variable is not configured");
+      }
+      return getKimiClient()(model);
     }
 
     case "openrouter": {
@@ -398,6 +465,40 @@ function isClaudeModel(modelId: string): boolean {
 }
 
 /**
+ * Check if a model is compatible with the given provider.
+ * Returns true if the model belongs to (or is valid for) that provider.
+ */
+function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
+  switch (provider) {
+    case "antigravity": return isAntigravityModel(model);
+    case "codex": return isCodexModel(model);
+    case "kimi": return isKimiModel(model);
+    case "anthropic": return isClaudeModel(model);
+    case "openrouter": return true; // OpenRouter accepts any model
+  }
+}
+
+/**
+ * Validate that a model is compatible with the current provider.
+ * If incompatible, logs a single warning and returns the fallback.
+ * If the model is empty/null, returns null (caller decides the fallback behavior).
+ */
+function validateModelForProvider(
+  model: string | null | undefined,
+  provider: LLMProvider,
+  fallback: string,
+  fieldName: string,
+): string | null {
+  if (!model) return null;
+  if (isModelCompatibleWithProvider(model, provider)) return model;
+
+  console.warn(
+    `[PROVIDERS] ${provider} selected but ${fieldName} "${model}" is incompatible, using ${fallback}`
+  );
+  return fallback;
+}
+
+/**
  * Get a language model instance for a specific model ID.
  * Automatically routes to the correct provider based on model ID:
  * - Antigravity models (gemini-3-*, claude-sonnet-4-5, etc.) -> Antigravity provider (if authenticated)
@@ -417,6 +518,16 @@ export function getModelByName(modelId: string): LanguageModel {
       _codexProvider = createCodexProvider();
     }
     return _codexProvider(modelId);
+  }
+
+  // Check if model should use Kimi (Moonshot)
+  if (isKimiModel(modelId)) {
+    const apiKey = getKimiApiKey();
+    if (apiKey) {
+      console.log(`[PROVIDERS] Using Kimi for model: ${modelId}`);
+      return getKimiClient()(modelId);
+    }
+    // Fall through to OpenRouter if no Kimi key
   }
 
   if (isClaudeModel(modelId)) {
@@ -448,29 +559,12 @@ export function getChatModel(): LanguageModel {
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  let chatModel = settings.chatModel || process.env.LLM_MODEL;
-
-  // Validate model is compatible with the selected provider
-  if (chatModel && provider === "antigravity" && !isAntigravityModel(chatModel)) {
-    console.warn(
-      `[PROVIDERS] Antigravity provider selected but chatModel "${chatModel}" is not an Antigravity model, using default`
-    );
-    chatModel = DEFAULT_MODELS.antigravity;
-  }
-
-  if (chatModel && provider === "codex" && !isCodexModel(chatModel)) {
-    console.warn(
-      `[PROVIDERS] Codex provider selected but chatModel "${chatModel}" is not a Codex model, using default`
-    );
-    chatModel = DEFAULT_MODELS.codex;
-  }
-
-  if (chatModel && provider === "anthropic" && !isClaudeModel(chatModel)) {
-    console.warn(
-      `[PROVIDERS] Anthropic provider selected but chatModel "${chatModel}" is not a Claude model, using default`
-    );
-    chatModel = DEFAULT_MODELS.anthropic;
-  }
+  const chatModel = validateModelForProvider(
+    settings.chatModel || process.env.LLM_MODEL,
+    provider,
+    DEFAULT_MODELS[provider],
+    "chatModel",
+  );
 
   if (chatModel) {
     console.log(`[PROVIDERS] Using configured chat model: ${chatModel}`);
@@ -495,29 +589,12 @@ export function getResearchModel(): LanguageModel {
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  let researchModel = settings.researchModel || process.env.RESEARCH_MODEL;
-
-  // Validate model is compatible with the selected provider
-  if (researchModel && provider === "antigravity" && !isAntigravityModel(researchModel)) {
-    console.warn(
-      `[PROVIDERS] Antigravity provider selected but researchModel "${researchModel}" is not an Antigravity model, using chat model`
-    );
-    researchModel = null;
-  }
-
-  if (researchModel && provider === "codex" && !isCodexModel(researchModel)) {
-    console.warn(
-      `[PROVIDERS] Codex provider selected but researchModel "${researchModel}" is not a Codex model, using chat model`
-    );
-    researchModel = null;
-  }
-
-  if (researchModel && provider === "anthropic" && !isClaudeModel(researchModel)) {
-    console.warn(
-      `[PROVIDERS] Anthropic provider selected but researchModel "${researchModel}" is not a Claude model, using chat model`
-    );
-    researchModel = null;
-  }
+  const researchModel = validateModelForProvider(
+    settings.researchModel || process.env.RESEARCH_MODEL,
+    provider,
+    DEFAULT_MODELS[provider],
+    "researchModel",
+  );
 
   if (researchModel) {
     console.log(`[PROVIDERS] Using configured research model: ${researchModel}`);
@@ -543,29 +620,12 @@ export function getVisionModel(): LanguageModel {
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  let visionModel = settings.visionModel || process.env.VISION_MODEL;
-
-  // Validate model is compatible with the selected provider
-  if (visionModel && provider === "antigravity" && !isAntigravityModel(visionModel)) {
-    console.warn(
-      `[PROVIDERS] Antigravity provider selected but visionModel "${visionModel}" is not an Antigravity model, using chat model`
-    );
-    visionModel = null;
-  }
-
-  if (visionModel && provider === "codex" && !isCodexModel(visionModel)) {
-    console.warn(
-      `[PROVIDERS] Codex provider selected but visionModel "${visionModel}" is not a Codex model, using chat model`
-    );
-    visionModel = null;
-  }
-
-  if (visionModel && provider === "anthropic" && !isClaudeModel(visionModel)) {
-    console.warn(
-      `[PROVIDERS] Anthropic provider selected but visionModel "${visionModel}" is not a Claude model, using chat model`
-    );
-    visionModel = null;
-  }
+  const visionModel = validateModelForProvider(
+    settings.visionModel || process.env.VISION_MODEL,
+    provider,
+    DEFAULT_MODELS[provider],
+    "visionModel",
+  );
 
   if (visionModel) {
     console.log(`[PROVIDERS] Using configured vision model: ${visionModel}`);
@@ -591,29 +651,12 @@ export function getUtilityModel(): LanguageModel {
   const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
-  let overrideModel = settings.utilityModel || process.env.UTILITY_MODEL;
-
-  // Validate override model is compatible with the selected provider
-  if (overrideModel && provider === "antigravity" && !isAntigravityModel(overrideModel)) {
-    console.warn(
-      `[PROVIDERS] Antigravity provider selected but utilityModel "${overrideModel}" is not an Antigravity model, using default`
-    );
-    overrideModel = null;
-  }
-
-  if (overrideModel && provider === "codex" && !isCodexModel(overrideModel)) {
-    console.warn(
-      `[PROVIDERS] Codex provider selected but utilityModel "${overrideModel}" is not a Codex model, using default`
-    );
-    overrideModel = null;
-  }
-
-  if (overrideModel && provider === "anthropic" && !isClaudeModel(overrideModel)) {
-    console.warn(
-      `[PROVIDERS] Anthropic provider selected but utilityModel "${overrideModel}" is not a Claude model, using default`
-    );
-    overrideModel = null;
-  }
+  const overrideModel = validateModelForProvider(
+    settings.utilityModel || process.env.UTILITY_MODEL,
+    provider,
+    UTILITY_MODELS[provider],
+    "utilityModel",
+  );
 
   if (overrideModel) {
     console.log(`[PROVIDERS] Using configured utility model: ${overrideModel}`);
@@ -639,6 +682,14 @@ export function getUtilityModel(): LanguageModel {
         _codexProvider = createCodexProvider();
       }
       return _codexProvider(model);
+    }
+
+    case "kimi": {
+      const apiKey = getKimiApiKey();
+      if (!apiKey) {
+        throw new Error("KIMI_API_KEY environment variable is not configured");
+      }
+      return getKimiClient()(model);
     }
 
     case "openrouter": {
@@ -808,6 +859,8 @@ export function getProviderDisplayName(): string {
       return `Antigravity (${model}) [Free]`;
     case "codex":
       return `Codex (${model})`;
+    case "kimi":
+      return `Kimi (${model})`;
     case "openrouter":
       return `OpenRouter (${model})`;
     case "anthropic":
@@ -828,6 +881,7 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
     openrouter: { tools: true, streaming: true, images: true },
     antigravity: { tools: true, streaming: true, images: true },
     codex: { tools: true, streaming: true, images: true },
+    kimi: { tools: true, streaming: true, images: true },
   };
 
   return featureSupport[provider]?.[feature] ?? false;

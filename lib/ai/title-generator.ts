@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { getUtilityModel } from "@/lib/ai/providers";
+import { getUtilityModel, getProviderTemperature } from "@/lib/ai/providers";
 import { updateSession } from "@/lib/db/queries";
 
 const MAX_PROMPT_SNIPPET = 400;
@@ -44,7 +44,7 @@ export async function generateSessionTitle(sessionId: string, firstMessageConten
     const { text } = await generateText({
       model: getUtilityModel(),
       prompt: buildPrompt(firstMessageContent),
-      temperature: 0.4,
+      temperature: getProviderTemperature(0.4),
       maxOutputTokens: 60,
     });
 

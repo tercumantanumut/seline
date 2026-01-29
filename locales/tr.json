@@ -48,6 +48,10 @@
         "openrouter": {
           "title": "OpenRouter",
           "desc": "OpenRouter üzerinden birden fazla modele erişin"
+        },
+        "kimi": {
+          "title": "Moonshot Kimi",
+          "desc": "256K bağlam ve görüntü desteği ile Kimi K2.5 kullanın"
         }
       }
     },
@@ -891,6 +895,7 @@
       "title": "LLM Sağlayıcısı",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
+      "kimi": "Moonshot Kimi",
       "keysTitle": "API Anahtarları",
       "fields": {
         "anthropic": {
@@ -902,6 +907,11 @@
           "label": "OpenRouter API Anahtarı",
           "placeholder": "sk-or-...",
           "helper": "Alternatif LLM sağlayıcısı ve embeddingler"
+        },
+        "kimi": {
+          "label": "Moonshot API Anahtarı",
+          "placeholder": "sk-...",
+          "helper": "API anahtarınızı platform.moonshot.cn'den alın"
         },
         "tavily": {
           "label": "Tavily API Anahtarı",

@@ -48,6 +48,10 @@
         "openrouter": {
           "title": "OpenRouter",
           "desc": "Access multiple models through OpenRouter"
+        },
+        "kimi": {
+          "title": "Moonshot Kimi",
+          "desc": "Use Moonshot's Kimi K2.5 with 256K context and vision"
         }
       }
     },
@@ -905,6 +909,7 @@
       "title": "LLM Provider",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
+      "kimi": "Moonshot Kimi",
       "keysTitle": "API Keys",
       "fields": {
         "anthropic": {
@@ -916,6 +921,11 @@
           "label": "OpenRouter API Key",
           "placeholder": "sk-or-...",
           "helper": "Alternative LLM provider & embeddings"
+        },
+        "kimi": {
+          "label": "Moonshot API Key",
+          "placeholder": "sk-...",
+          "helper": "Get your API key from platform.moonshot.cn"
         },
         "tavily": {
           "label": "Tavily API Key",

@@ -11,15 +11,17 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
+import { getKimiModels } from "@/lib/auth/kimi-models";
 import { LocalModelsManager } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
 
 interface AppSettings {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
+  kimiApiKey?: string;
   tavilyApiKey?: string;
   firecrawlApiKey?: string;
   webScraperProvider?: "firecrawl" | "local";
@@ -82,9 +84,10 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState({
-    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex",
+    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi",
     anthropicApiKey: "",
     openrouterApiKey: "",
+    kimiApiKey: "",
     tavilyApiKey: "",
     firecrawlApiKey: "",
     webScraperProvider: "firecrawl" as "firecrawl" | "local",
@@ -164,6 +167,7 @@ export default function SettingsPage() {
         llmProvider: data.llmProvider || "anthropic",
         anthropicApiKey: data.anthropicApiKey || "",
         openrouterApiKey: data.openrouterApiKey || "",
+        kimiApiKey: data.kimiApiKey || "",
         tavilyApiKey: data.tavilyApiKey || "",
         firecrawlApiKey: data.firecrawlApiKey || "",
         webScraperProvider: data.webScraperProvider || "firecrawl",
@@ -626,9 +630,10 @@ export default function SettingsPage() {
 }
 
 interface FormState {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
   anthropicApiKey: string;
   openrouterApiKey: string;
+  kimiApiKey: string;
   tavilyApiKey: string;
   firecrawlApiKey: string;
   webScraperProvider: "firecrawl" | "local";
@@ -685,6 +690,7 @@ const LOCAL_EMBEDDING_MODELS = [
 
 const ANTIGRAVITY_MODELS = getAntigravityModels();
 const CODEX_MODELS = getCodexModels();
+const KIMI_MODELS = getKimiModels();
 
 interface LocalEmbeddingModelSelectorProps {
   formState: FormState;
@@ -898,7 +904,13 @@ function SettingsPanel({
                 name="llmProvider"
                 value="anthropic"
                 checked={formState.llmProvider === "anthropic"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.anthropic")}</span>
@@ -909,7 +921,13 @@ function SettingsPanel({
                 name="llmProvider"
                 value="openrouter"
                 checked={formState.llmProvider === "openrouter"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
                 className="size-4 accent-terminal-green"
               />
               <span className="font-mono text-terminal-dark">{t("api.openrouter")}</span>
@@ -918,9 +936,32 @@ function SettingsPanel({
               <input
                 type="radio"
                 name="llmProvider"
+                value="kimi"
+                checked={formState.llmProvider === "kimi"}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
+                className="size-4 accent-terminal-green"
+              />
+              <span className="font-mono text-terminal-dark">{t("api.kimi")}</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="radio"
+                name="llmProvider"
                 value="codex"
                 checked={formState.llmProvider === "codex"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
                 disabled={!codexAuth?.isAuthenticated}
                 className="size-4 accent-terminal-green disabled:opacity-50"
               />
@@ -940,7 +981,13 @@ function SettingsPanel({
                 name="llmProvider"
                 value="antigravity"
                 checked={formState.llmProvider === "antigravity"}
-                onChange={(e) => updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex")}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
                 disabled={!antigravityAuth?.isAuthenticated}
                 className="size-4 accent-terminal-green disabled:opacity-50"
               />
@@ -1058,6 +1105,18 @@ function SettingsPanel({
               className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.openrouter.helper")}</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.kimi.label")}</label>
+            <input
+              type="password"
+              value={formState.kimiApiKey}
+              onChange={(e) => updateField("kimiApiKey", e.target.value)}
+              placeholder={t("api.fields.kimi.placeholder")}
+              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+            <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.kimi.helper")}</p>
           </div>
 
           <div>
@@ -1180,6 +1239,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "kimi" ? (
+              <select
+                value={formState.chatModel || "kimi-k2.5"}
+                onChange={(e) => updateField("chatModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {KIMI_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <input
                 type="text"
@@ -1218,6 +1289,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "kimi" ? (
+              <select
+                value={formState.researchModel || "kimi-k2-thinking"}
+                onChange={(e) => updateField("researchModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>
@@ -1266,6 +1349,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "kimi" ? (
+              <select
+                value={formState.visionModel || "kimi-k2.5"}
+                onChange={(e) => updateField("visionModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {KIMI_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <input
                 type="text"
@@ -1304,6 +1399,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "kimi" ? (
+              <select
+                value={formState.utilityModel || "kimi-k2-turbo-preview"}
+                onChange={(e) => updateField("utilityModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>

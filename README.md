@@ -29,8 +29,14 @@ Seline is an AI assistant that blends chat, visual tools, and a local knowledge 
 - Run commands in your synced/indexed folders
 
 **Updates:**
-- Prompt caching enabled by default for Anthropic models (direct + OpenRouter)
+- **Fix:** Prompt caching now works correctly with AI SDK v6 (`providerOptions` replaces deprecated `experimental_providerOptions`). Cache creation and read metrics are properly reported in the observability dashboard.
+- Prompt caching enabled by default for supported providers:
+  - **Anthropic** (direct) - explicit cache breakpoints with configurable TTL (5m default, 1h premium)
+  - **OpenRouter** - passes cache breakpoints to Anthropic/Gemini models; OpenAI, Grok, Moonshot, Groq, and DeepSeek use provider-side automatic caching (no TTL config)
+  - **Kimi** - provider-side automatic context caching (no TTL config)
+  - **Antigravity / Codex** - no prompt caching support
 - 3rd provider added - now supports Antigravity models and Google Antigravity subscription
+- **New:** Moonshot Kimi K2.5 provider with 256K context, native vision, and thinking mode
 
 ## MCP Dynamic Configuration
 Seline supports dynamic variables in MCP server configurations:
@@ -175,7 +181,7 @@ docker-compose restart comfyui workflow-api
 ## Troubleshooting
 - Native module errors (`better-sqlite3`, `onnxruntime-node`): run `npm run electron:rebuild-native` before building.
 - Black screen in packaged app: verify `.next/standalone` and `extraResources` are correct; see `docs/BUILD.md`.
-- Missing provider keys: ensure `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` is configured in settings or `.env`.
+- Missing provider keys: ensure `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `KIMI_API_KEY` is configured in settings or `.env`.
 - Embeddings mismatch errors: reindex Vector Search from Settings or run `POST /api/vector-sync` with `action: "reindex-all"`.
 
 ## Documentation

@@ -77,7 +77,7 @@ describe("estimateCacheSavings", () => {
       {
         role: "system",
         content: "You are a helpful assistant. " + "x".repeat(1000),
-        experimental_providerOptions: {
+        providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral", ttl: "5m" } },
         },
       },
@@ -99,8 +99,10 @@ describe("estimateCacheSavings", () => {
       {
         role: "assistant",
         content: "Hi " + "x".repeat(1000),
-        experimental_cache_control: { type: "ephemeral" as const, ttl: "5m" as const },
-      } as ModelMessage,
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" as const, ttl: "5m" as const } },
+        },
+      } as unknown as ModelMessage,
     ];
 
     const result = estimateCacheSavings(systemBlocks, messages);
@@ -125,7 +127,7 @@ describe("estimateCacheSavings", () => {
       {
         role: "system",
         content: "x".repeat(1000),
-        experimental_providerOptions: {
+        providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral", ttl: "5m" } },
         },
       },
