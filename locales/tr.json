@@ -253,6 +253,10 @@
         "name": "Komut Çalıştır",
         "description": "Senkronize klasörlerde güvenli kabuk komutları çalıştır"
       },
+      "scheduleTask": {
+        "name": "Görev Zamanla",
+        "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
+      },
       "generateImageFlux2Flex": {
         "name": "Üret (Flux.2 Flex)",
         "description": "Flux.2 Flex ile görsel üretin"
@@ -465,6 +469,7 @@
       "showProductImages": "Ürün Galerisi",
       "localGrep": "Yerel Grep",
       "executeCommand": "Komut Çalıştır",
+      "scheduleTask": "Görev Zamanla",
       "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
       "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
@@ -657,6 +662,8 @@
         "showProductImagesDesc": "Alışveriş sorguları için görsellerle ve satın alma bağlantılarıyla ürünleri görüntüle",
         "executeCommand": "Komut Çalıştır",
         "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
+        "scheduleTask": "Görev Zamanla",
+        "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",

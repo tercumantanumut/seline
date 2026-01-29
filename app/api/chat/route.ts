@@ -1000,9 +1000,11 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    // CRITICAL: If using Antigravity provider, ensure token is valid/refreshed BEFORE making API calls
+    const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
+
+    // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
     // This prevents authentication failures when token expires during normal usage
-    if (getConfiguredProvider() === "antigravity") {
+    if (selectedProvider === "antigravity") {
       const tokenValid = await ensureAntigravityTokenValid();
       if (!tokenValid) {
         return new Response(
@@ -1497,6 +1499,8 @@ export async function POST(req: Request) {
     // 'agentEnabledTools' filter still ensures only authorized tools are candidates.
     const nonDeferredTools = registry.getTools({
       sessionId,
+      userId: dbUser.id,
+      characterId: characterId || undefined,
       characterAvatarUrl: characterAvatarUrl || undefined,
       characterAppearanceDescription: characterAppearanceDescription || undefined,
       includeDeferredTools: false, // Only non-deferred tools for initial active set
@@ -1527,6 +1531,8 @@ export async function POST(req: Request) {
     // strictly controlled by 'activeTools'. This ensures discovered tools have schemas.
     const allTools = registry.getTools({
       sessionId,
+      userId: dbUser.id,
+      characterId: characterId || undefined,
       characterAvatarUrl: characterAvatarUrl || undefined,
       characterAppearanceDescription: characterAppearanceDescription || undefined,
       // agentEnabledTools filter handles which tools can actually be used

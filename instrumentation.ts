@@ -57,6 +57,42 @@ export async function register() {
       }
     }, 4000);
 
+    // Auto-connect to configured MCP servers
+    setTimeout(async () => {
+      try {
+        const { loadSettings } = await import("@/lib/settings/settings-manager");
+        const { MCPClientManager, resolveMCPConfig } = await import("@/lib/mcp/client-manager");
+
+        const settings = loadSettings();
+        const mcpConfig = settings.mcpServers?.mcpServers || {};
+        const enabledServers = Object.entries(mcpConfig)
+          .filter(([_, config]) => (config as any).enabled !== false)
+          .map(([name]) => name);
+
+        if (enabledServers.length > 0) {
+          console.log(`[Instrumentation] Auto-connecting to ${enabledServers.length} MCP server(s)...`);
+          const manager = MCPClientManager.getInstance();
+          const env = settings.mcpEnvironment || {};
+
+          for (const serverName of enabledServers) {
+            const config = mcpConfig[serverName];
+            if (!config) continue;
+
+            try {
+              const resolved = await resolveMCPConfig(serverName, config, env);
+              await manager.connect(serverName, resolved);
+              console.log(`[Instrumentation] MCP server "${serverName}" connected`);
+            } catch (error) {
+              console.warn(`[Instrumentation] MCP server "${serverName}" failed to connect:`, error);
+            }
+          }
+          console.log("[Instrumentation] MCP auto-connect complete");
+        }
+      } catch (error) {
+        console.error("[Instrumentation] Error auto-connecting MCP servers:", error);
+      }
+    }, 5000);
+
     console.log("[Instrumentation] Server-side services initialized");
   }
 }

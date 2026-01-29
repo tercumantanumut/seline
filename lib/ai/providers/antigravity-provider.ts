@@ -84,6 +84,44 @@ function generateSessionId(): string {
   return `session-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
 }
 
+function normalizeAntigravityToolSchemas(tools: unknown): void {
+  if (!Array.isArray(tools)) {
+    return;
+  }
+
+  for (const [index, toolEntry] of tools.entries()) {
+    if (!toolEntry || typeof toolEntry !== "object") {
+      continue;
+    }
+
+    const entry = toolEntry as Record<string, unknown>;
+
+    if (entry.custom && typeof entry.custom === "object") {
+      const custom = entry.custom as Record<string, unknown>;
+      if (!("input_schema" in custom) || !custom.input_schema) {
+        custom.input_schema = { type: "object", properties: {} };
+        const name = typeof custom.name === "string" ? custom.name : `#${index}`;
+        console.warn(`[Antigravity] Tool "${name}" missing input_schema; injecting empty schema`);
+      }
+    }
+
+    if (Array.isArray(entry.functionDeclarations)) {
+      for (const [fnIndex, fnEntry] of entry.functionDeclarations.entries()) {
+        if (!fnEntry || typeof fnEntry !== "object") {
+          continue;
+        }
+
+        const fn = fnEntry as Record<string, unknown>;
+        if (!("parameters" in fn) || !fn.parameters) {
+          fn.parameters = { type: "object", properties: {} };
+          const name = typeof fn.name === "string" ? fn.name : `#${index}.${fnIndex}`;
+          console.warn(`[Antigravity] Function "${name}" missing parameters; injecting empty schema`);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Get the effective model name for Antigravity API
  */
@@ -201,6 +239,9 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
 
         // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
         const isClaudeModel = effectiveModel.includes("claude");
+        if (isClaudeModel && parsedBody.tools) {
+          normalizeAntigravityToolSchemas(parsedBody.tools);
+        }
         if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
           // Track functionCall IDs by name+index for matching with functionResponse
           const functionCallIds = new Map<string, string[]>();

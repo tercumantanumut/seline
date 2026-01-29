@@ -20,6 +20,7 @@ export type ToolCategory =
   | "knowledge"
   | "utility"
   | "search"
+  | "scheduling"
   | "mcp";
 
 /**
@@ -81,6 +82,12 @@ export interface ToolFactoryOptions {
   /** Session ID for database tracking */
   sessionId?: string;
 
+  /** User ID for authorization and ownership */
+  userId?: string;
+
+  /** Character ID for agent-specific context */
+  characterId?: string;
+
   /** Character avatar URL for character-aware tools */
   characterAvatarUrl?: string;
 
@@ -113,6 +120,12 @@ export interface RegisteredTool {
 export interface ToolContext {
   /** Current session ID */
   sessionId: string;
+
+  /** User ID for authorization */
+  userId?: string;
+
+  /** Character ID for agent-specific context */
+  characterId?: string;
 
   /** Character context (optional) */
   characterAvatarUrl?: string;

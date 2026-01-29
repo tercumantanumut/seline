@@ -128,24 +128,37 @@ export async function ensureAntigravityTokenValid(): Promise<boolean> {
   invalidateSettingsCache();
   invalidateAntigravityAuthCache();
 
-  if (!isAntigravityAuthenticated()) {
+  let token = getAntigravityToken();
+  if (!token) {
     return false;
   }
 
-  if (needsTokenRefresh()) {
+  const isExpired = token.expires_at <= Date.now();
+  const needsRefresh = needsTokenRefresh() || isExpired;
+
+  if (needsRefresh) {
+    if (!token.refresh_token) {
+      return false;
+    }
+
     console.log("[PROVIDERS] Antigravity token needs refresh, attempting...");
     const refreshed = await refreshAntigravityToken();
-    if (refreshed) {
-      // Invalidate provider so it picks up new token
-      _antigravityProvider = null;
-      _antigravityProviderToken = undefined;
-    } else {
+    if (!refreshed) {
+      return false;
+    }
+
+    // Invalidate provider so it picks up new token
+    _antigravityProvider = null;
+    _antigravityProviderToken = undefined;
+
+    // Reload token after refresh
+    token = getAntigravityToken();
+    if (!token) {
       return false;
     }
   }
 
   // Fetch project ID if missing (required for API calls)
-  const token = getAntigravityToken();
   if (token && !token.project_id) {
     console.log("[PROVIDERS] Fetching Antigravity project ID...");
     const projectId = await fetchAntigravityProjectId();
@@ -303,6 +316,13 @@ export function getConfiguredModel(): string {
     return DEFAULT_MODELS.codex;
   }
 
+  if (provider === "anthropic" && model && !isClaudeModel(model)) {
+    console.warn(
+      `[PROVIDERS] Anthropic selected but model "${model}" is not a Claude model, falling back to ${DEFAULT_MODELS.anthropic}`
+    );
+    return DEFAULT_MODELS.anthropic;
+  }
+
   return model;
 }
 
@@ -326,6 +346,13 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
       `[PROVIDERS] Codex selected but model "${model}" is not a Codex model, falling back to ${DEFAULT_MODELS.codex}`
     );
     model = DEFAULT_MODELS.codex;
+  }
+
+  if (provider === "anthropic" && model && !isClaudeModel(model)) {
+    console.warn(
+      `[PROVIDERS] Anthropic selected but model "${model}" is not a Claude model, falling back to ${DEFAULT_MODELS.anthropic}`
+    );
+    model = DEFAULT_MODELS.anthropic;
   }
 
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
@@ -438,6 +465,13 @@ export function getChatModel(): LanguageModel {
     chatModel = DEFAULT_MODELS.codex;
   }
 
+  if (chatModel && provider === "anthropic" && !isClaudeModel(chatModel)) {
+    console.warn(
+      `[PROVIDERS] Anthropic provider selected but chatModel "${chatModel}" is not a Claude model, using default`
+    );
+    chatModel = DEFAULT_MODELS.anthropic;
+  }
+
   if (chatModel) {
     console.log(`[PROVIDERS] Using configured chat model: ${chatModel}`);
     return getModelByName(chatModel);
@@ -474,6 +508,13 @@ export function getResearchModel(): LanguageModel {
   if (researchModel && provider === "codex" && !isCodexModel(researchModel)) {
     console.warn(
       `[PROVIDERS] Codex provider selected but researchModel "${researchModel}" is not a Codex model, using chat model`
+    );
+    researchModel = null;
+  }
+
+  if (researchModel && provider === "anthropic" && !isClaudeModel(researchModel)) {
+    console.warn(
+      `[PROVIDERS] Anthropic provider selected but researchModel "${researchModel}" is not a Claude model, using chat model`
     );
     researchModel = null;
   }
@@ -519,6 +560,13 @@ export function getVisionModel(): LanguageModel {
     visionModel = null;
   }
 
+  if (visionModel && provider === "anthropic" && !isClaudeModel(visionModel)) {
+    console.warn(
+      `[PROVIDERS] Anthropic provider selected but visionModel "${visionModel}" is not a Claude model, using chat model`
+    );
+    visionModel = null;
+  }
+
   if (visionModel) {
     console.log(`[PROVIDERS] Using configured vision model: ${visionModel}`);
     return getModelByName(visionModel);
@@ -556,6 +604,13 @@ export function getUtilityModel(): LanguageModel {
   if (overrideModel && provider === "codex" && !isCodexModel(overrideModel)) {
     console.warn(
       `[PROVIDERS] Codex provider selected but utilityModel "${overrideModel}" is not a Codex model, using default`
+    );
+    overrideModel = null;
+  }
+
+  if (overrideModel && provider === "anthropic" && !isClaudeModel(overrideModel)) {
+    console.warn(
+      `[PROVIDERS] Anthropic provider selected but utilityModel "${overrideModel}" is not a Claude model, using default`
     );
     overrideModel = null;
   }
@@ -777,4 +832,3 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
 
   return featureSupport[provider]?.[feature] ?? false;
 }
-
