@@ -70,6 +70,7 @@ const AVAILABLE_TOOLS: ToolDefinition[] = [
   { id: "describeImage", category: "analysis" },
   { id: "showProductImages", category: "utility" },
   { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
+  { id: "scheduleTask", category: "utility" },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },

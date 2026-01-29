@@ -257,6 +257,10 @@
         "name": "Execute Command",
         "description": "Run shell commands safely within synced directories"
       },
+      "scheduleTask": {
+        "name": "Schedule Task",
+        "description": "Schedule tasks for future execution (one-time, recurring, or interval)"
+      },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
         "description": "Generate images with Flux.2 Flex via OpenRouter"
@@ -468,6 +472,7 @@
       "assembleVideo": "Video Assembly",
       "showProductImages": "Product Gallery",
       "executeCommand": "Execute Command",
+      "scheduleTask": "Schedule Task",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -660,6 +665,8 @@
         "showProductImagesDesc": "Display products with images and purchase links for shopping queries",
         "executeCommand": "Execute Command",
         "executeCommandDesc": "Run shell commands safely within synced directories",
+        "scheduleTask": "Schedule Task",
+        "scheduleTaskDesc": "Schedule tasks for future execution (one-time, recurring, or interval)",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",

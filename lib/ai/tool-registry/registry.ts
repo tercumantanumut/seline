@@ -294,6 +294,8 @@ class ToolRegistry {
       try {
         tools[name] = factory({
           sessionId,
+          userId: context.userId,
+          characterId: context.characterId,
           characterAvatarUrl: context.characterAvatarUrl,
           characterAppearanceDescription: context.characterAppearanceDescription,
         });
