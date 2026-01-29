@@ -188,7 +188,7 @@ export function buildCacheableSystemPrompt(
     content: staticBlocks,
     // Cache this block if caching is enabled
     ...(enableCaching && {
-      experimental_providerOptions: {
+      providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
       },
     }),
@@ -209,7 +209,7 @@ export function buildCacheableSystemPrompt(
       content: additionalContext,
       // Cache additional context if enabled (character instructions are stable)
       ...(enableCaching && {
-        experimental_providerOptions: {
+        providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
         },
       }),

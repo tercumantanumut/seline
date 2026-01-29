@@ -48,6 +48,10 @@
         "openrouter": {
           "title": "OpenRouter",
           "desc": "OpenRouter üzerinden birden fazla modele erişin"
+        },
+        "kimi": {
+          "title": "Moonshot Kimi",
+          "desc": "256K bağlam ve görüntü desteği ile Kimi K2.5 kullanın"
         }
       }
     },
@@ -252,6 +256,10 @@
       "executeCommand": {
         "name": "Komut Çalıştır",
         "description": "Senkronize klasörlerde güvenli kabuk komutları çalıştır"
+      },
+      "scheduleTask": {
+        "name": "Görev Zamanla",
+        "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
       },
       "generateImageFlux2Flex": {
         "name": "Üret (Flux.2 Flex)",
@@ -465,6 +473,7 @@
       "showProductImages": "Ürün Galerisi",
       "localGrep": "Yerel Grep",
       "executeCommand": "Komut Çalıştır",
+      "scheduleTask": "Görev Zamanla",
       "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
       "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
@@ -657,6 +666,8 @@
         "showProductImagesDesc": "Alışveriş sorguları için görsellerle ve satın alma bağlantılarıyla ürünleri görüntüle",
         "executeCommand": "Komut Çalıştır",
         "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
+        "scheduleTask": "Görev Zamanla",
+        "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
@@ -884,6 +895,7 @@
       "title": "LLM Sağlayıcısı",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
+      "kimi": "Moonshot Kimi",
       "keysTitle": "API Anahtarları",
       "fields": {
         "anthropic": {
@@ -895,6 +907,11 @@
           "label": "OpenRouter API Anahtarı",
           "placeholder": "sk-or-...",
           "helper": "Alternatif LLM sağlayıcısı ve embeddingler"
+        },
+        "kimi": {
+          "label": "Moonshot API Anahtarı",
+          "placeholder": "sk-...",
+          "helper": "API anahtarınızı platform.moonshot.cn'den alın"
         },
         "tavily": {
           "label": "Tavily API Anahtarı",

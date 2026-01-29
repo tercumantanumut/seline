@@ -101,6 +101,24 @@ export const agentMetadataSchema = z.object({
       loadingMode: z.enum(["always", "deferred"]).default("deferred"),
     })
   ).optional(),
+
+  /**
+   * Whether task scheduling is enabled for this agent
+   * When enabled, the agent can use the scheduleTask tool
+   */
+  schedulingEnabled: z.boolean().optional().default(false),
+
+  /**
+   * Scheduling preferences for this agent
+   */
+  schedulingPreferences: z.object({
+    /** Tool loading mode: "always" includes scheduleTask in initial context, "deferred" requires discovery */
+    loadingMode: z.enum(["always", "deferred"]).default("deferred"),
+    /** Maximum concurrent scheduled tasks for this agent */
+    maxConcurrent: z.number().min(1).max(10).default(1),
+    /** Default timezone for scheduled tasks */
+    defaultTimezone: z.string().default("UTC"),
+  }).optional(),
 });
 
 // ============================================================================

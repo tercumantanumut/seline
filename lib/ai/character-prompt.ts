@@ -173,7 +173,7 @@ export function buildCacheableCharacterPrompt(
     content: identityParts.join("\n\n"),
     // Cache character identity (stable, rarely changes)
     ...(enableCaching && {
-      experimental_providerOptions: {
+      providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
       },
     }),
@@ -189,7 +189,7 @@ export function buildCacheableCharacterPrompt(
       content: memoryMarkdown,
       // Cache memories (they update periodically, not every request)
       ...(enableCaching && {
-        experimental_providerOptions: {
+        providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
         },
       }),
@@ -214,7 +214,7 @@ export function buildCacheableCharacterPrompt(
     content: guidelines,
     // Cache guidelines (never change)
     ...(enableCaching && {
-      experimental_providerOptions: {
+      providerOptions: {
         anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
       },
     }),

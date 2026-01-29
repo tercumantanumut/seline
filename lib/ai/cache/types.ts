@@ -6,31 +6,13 @@
  * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
  */
 
-/**
- * Cache control block for Anthropic prompt caching
- * Marks content blocks to be cached with specified TTL
- */
-export interface CacheControlBlock {
-  type: "ephemeral";
-  /** Cache duration: 5m (default, 1.25x write cost) or 1h (premium, 2x write cost) */
-  ttl?: "5m" | "1h";
-}
+import type { SystemModelMessage } from "@ai-sdk/provider-utils";
 
 /**
- * System prompt block with optional cache control
- * Used for building cacheable system prompts
- *
- * Compatible with AI SDK's SystemModelMessage format
+ * System prompt block with optional cache control.
+ * Alias for AI SDK's SystemModelMessage to ensure type compatibility.
  */
-export interface CacheableSystemBlock {
-  role: "system";
-  content: string;
-  experimental_providerOptions?: {
-    anthropic?: {
-      cacheControl?: CacheControlBlock;
-    };
-  };
-}
+export type CacheableSystemBlock = SystemModelMessage;
 
 /**
  * Global cache configuration settings

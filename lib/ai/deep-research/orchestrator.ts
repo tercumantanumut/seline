@@ -6,7 +6,7 @@
  */
 
 import { generateText } from 'ai';
-import { getResearchModel } from '../providers';
+import { getResearchModel, getProviderTemperature } from '../providers';
 import { executeSearches, isSearchAvailable } from './search';
 import {
   RESEARCH_PLANNER_PROMPT,
@@ -90,7 +90,7 @@ async function planResearch(
     model: getResearchModel(),
     system: systemPrompt,
     prompt: `User Query: ${state.userQuery}\n\nCreate a comprehensive research plan.`,
-    temperature: 0.7,
+    temperature: getProviderTemperature(0.7),
     abortSignal,
   });
 
@@ -128,7 +128,7 @@ async function generateSearchQueries(
       model: getResearchModel(),
       system: systemPrompt,
       prompt: `Research Question: ${question}\n\nGenerate optimized search queries.`,
-      temperature: 0.5,
+      temperature: getProviderTemperature(0.5),
       abortSignal,
     });
 
@@ -216,7 +216,7 @@ Research Findings:
 ${findingsContext}
 
 Write a comprehensive draft report based on these findings.`,
-    temperature: 0.7,
+    temperature: getProviderTemperature(0.7),
     abortSignal,
   });
 
@@ -253,7 +253,7 @@ Draft Report:
 ${draft.content}
 
 Analyze this draft and identify gaps and areas for improvement.`,
-    temperature: 0.5,
+    temperature: getProviderTemperature(0.5),
     abortSignal,
   });
 
@@ -311,7 +311,7 @@ Available Sources:
 ${uniqueSources.map((s) => `- [${s.title}](${s.url})`).join('\n')}
 
 Create the final, polished version of this research report.`,
-    temperature: 0.7,
+    temperature: getProviderTemperature(0.7),
     abortSignal,
   });
 

@@ -5,9 +5,10 @@ import type { MCPConfig } from "@/lib/mcp/types";
 
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
+    kimiApiKey?: string;      // For Moonshot Kimi models
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
@@ -210,6 +211,35 @@ function getSettingsPath(): string {
     return join(dataDir, "settings.json");
 }
 
+// Prefix-based compatibility check to clear stale model values after a provider switch.
+// Uses simple prefixes to avoid circular dependencies with providers.ts.
+const MODEL_PREFIXES: Record<string, string[]> = {
+  anthropic: ["claude-", "claude3", "claude4"],
+  kimi: ["kimi-", "moonshot-"],
+  codex: ["gpt-5", "codex"],
+  antigravity: ["gemini-3", "claude-sonnet-4-5", "claude-haiku-4-5"],
+  openrouter: [], // accepts anything
+};
+
+function normalizeModelsForProvider(settings: AppSettings): void {
+  const provider = settings.llmProvider;
+  if (!provider || provider === "openrouter") return;
+
+  const prefixes = MODEL_PREFIXES[provider];
+  if (!prefixes || prefixes.length === 0) return;
+
+  const isCompatible = (model: string) =>
+    prefixes.some((p) => model.toLowerCase().startsWith(p));
+
+  const fields: (keyof AppSettings)[] = ["chatModel", "researchModel", "visionModel", "utilityModel"];
+  for (const field of fields) {
+    const val = settings[field];
+    if (typeof val === "string" && val && !isCompatible(val)) {
+      (settings as unknown as Record<string, unknown>)[field] = "";
+    }
+  }
+}
+
 let cachedSettings: AppSettings | null = null;
 let cachedSettingsTimestamp: number = 0;
 // Cache settings for 1 second to reduce disk reads while ensuring changes propagate quickly
@@ -237,6 +267,9 @@ export function loadSettings(): AppSettings {
         try {
             const data = readFileSync(settingsPath, "utf-8");
             const loaded: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+            // Clear model fields that are incompatible with the current provider
+            // This prevents stale values from a previous provider from causing fallback warnings
+            normalizeModelsForProvider(loaded);
             cachedSettings = loaded;
             cachedSettingsTimestamp = now;
             // Update environment variables so providers pick up the configured API keys
@@ -306,6 +339,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.openrouterApiKey) {
         process.env.OPENROUTER_API_KEY = settings.openrouterApiKey;
+    }
+    if (settings.kimiApiKey) {
+        process.env.KIMI_API_KEY = settings.kimiApiKey;
     }
     if (settings.tavilyApiKey) {
         process.env.TAVILY_API_KEY = settings.tavilyApiKey;
@@ -426,6 +462,10 @@ export function hasRequiredApiKeys(): boolean {
     }
     // Codex requires OAuth authentication, not an API key
     if (settings.llmProvider === "codex" && !settings.codexAuth?.isAuthenticated) {
+        return false;
+    }
+    // Kimi requires an API key from Moonshot
+    if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
         return false;
     }
 

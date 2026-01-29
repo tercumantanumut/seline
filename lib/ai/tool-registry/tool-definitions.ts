@@ -58,6 +58,7 @@ import { createExecuteCommandTool } from "../tools/execute-command-tool";
 import { createZImageGenerateTool } from "../tools/zimage-generate-tool";
 import { createFlux2Klein4BGenerateTool } from "../tools/flux2-klein-4b-generate-tool";
 import { createFlux2Klein9BGenerateTool } from "../tools/flux2-klein-9b-generate-tool";
+import { createScheduleTaskTool } from "../tools/schedule-task-tool";
 
 /**
  * Register all tools with the registry
@@ -455,6 +456,110 @@ localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
       createExecuteCommandTool({
         sessionId: sessionId || "UNSCOPED",
         characterId: null,
+      })
+  );
+
+  // Schedule Task Tool - Schedule tasks for future execution
+  registry.register(
+    "scheduleTask",
+    {
+      displayName: "Schedule Task",
+      category: "scheduling",
+      keywords: [
+        "schedule",
+        "task",
+        "cron",
+        "timer",
+        "reminder",
+        "future",
+        "recurring",
+        "automation",
+        "daily",
+        "weekly",
+        "hourly",
+        "interval",
+        "scheduled",
+        "job",
+        "automate",
+      ],
+      shortDescription:
+        "Schedule tasks for future execution (one-time, recurring, or interval-based)",
+      fullInstructions: `## Schedule Task Tool
+
+Schedule tasks to be executed at a future time. The task runs with the agent's full context and tools.
+
+### Schedule Types
+
+**1. Cron (Recurring)**
+Execute on a cron schedule for complex recurring patterns.
+\`\`\`
+scheduleTask({
+  name: "Daily Standup Reminder",
+  scheduleType: "cron",
+  cronExpression: "0 9 * * 1-5",  // 9am weekdays
+  timezone: "America/New_York",
+  prompt: "Remind the team about the daily standup meeting"
+})
+\`\`\`
+
+**2. Interval (Periodic)**
+Execute every N minutes.
+\`\`\`
+scheduleTask({
+  name: "Check Server Health",
+  scheduleType: "interval",
+  intervalMinutes: 30,
+  prompt: "Check the server status and report any issues"
+})
+\`\`\`
+
+**3. Once (One-Time)**
+Execute once at a specific time.
+\`\`\`
+scheduleTask({
+  name: "Birthday Reminder",
+  scheduleType: "once",
+  scheduledAt: "2026-02-15T09:00:00Z",
+  prompt: "Remind about the team birthday celebration"
+})
+\`\`\`
+
+### Common Cron Patterns
+- \`0 9 * * 1-5\` - 9:00 AM on weekdays (Mon-Fri)
+- \`0 0 * * *\` - Midnight daily
+- \`0 17 * * 2,3,4,5\` - 5:00 PM on Tue-Fri
+- \`*/30 * * * *\` - Every 30 minutes
+- \`0 8 * * 1,3,5\` - 8:00 AM on Mon, Wed, Fri
+- \`0 0 1 * *\` - First day of each month at midnight
+
+### Template Variables for Prompts
+Use these in the prompt to include dynamic values at execution time:
+- \`{{NOW}}\` - Current ISO timestamp
+- \`{{TODAY}}\` - Today's date (YYYY-MM-DD)
+- \`{{YESTERDAY}}\` - Yesterday's date
+- \`{{WEEKDAY}}\` - Current day name (Monday, etc.)
+- \`{{MONTH}}\` - Current month name
+- \`{{LAST_7_DAYS}}\` - Date range for last 7 days
+- \`{{LAST_30_DAYS}}\` - Date range for last 30 days
+
+### Parameters
+- **name** (required): Human-readable name for the task
+- **scheduleType** (required): "cron", "interval", or "once"
+- **cronExpression**: Cron expression (required for cron type)
+- **intervalMinutes**: Interval in minutes (required for interval type)
+- **scheduledAt**: ISO timestamp (required for once type)
+- **timezone**: Timezone (default: UTC)
+- **prompt** (required): Instruction to execute when task runs
+- **priority**: "high", "normal", or "low" (default: normal)
+- **enabled**: Whether task is active (default: true)`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId, characterId }) =>
+      createScheduleTaskTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
       })
   );
 

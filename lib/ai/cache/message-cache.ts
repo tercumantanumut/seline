@@ -51,8 +51,10 @@ export function applyCacheToMessages(
     if (idx === cacheBreakpointIndex - 1) {
       return {
         ...msg,
-        // Use experimental_cache_control for AI SDK compatibility
-        experimental_cache_control: { type: "ephemeral" as const, ttl: cacheTtl },
+        // AI SDK v6: cache control goes through providerOptions
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" as const, ttl: cacheTtl } },
+        },
       } as unknown as ModelMessage;
     }
     return msg;
@@ -80,7 +82,7 @@ export function estimateCacheSavings(
   );
 
   const cacheMarkerIndex = messages.findIndex(
-    (m) => (m as any).experimental_cache_control
+    (m) => (m as any).providerOptions?.anthropic?.cacheControl
   );
   const cachedRange = cacheMarkerIndex > 0
     ? messages.slice(0, cacheMarkerIndex)

@@ -82,7 +82,7 @@ export function MCPToolsPage({
         loadData();
     }, []);
 
-    const loadData = async () => {
+    const loadData = async (autoConnectIfNeeded = true) => {
         try {
             // Load config and status
             const configRes = await fetch("/api/mcp");
@@ -95,6 +95,30 @@ export function MCPToolsPage({
             const toolsData = await toolsRes.json();
             const loadedTools = toolsData.tools || [];
             setTools(loadedTools);
+
+            // Auto-connect if: servers are configured but no tools discovered yet
+            // This handles the case where the app restarted and servers need reconnection
+            const hasConfiguredServers = configData.config?.mcpServers &&
+                Object.keys(configData.config.mcpServers).length > 0;
+            const hasNoTools = loadedTools.length === 0;
+
+            if (autoConnectIfNeeded && hasConfiguredServers && hasNoTools) {
+                console.log("[MCPToolsPage] Auto-connecting to configured MCP servers...");
+                setIsConnecting(true);
+                try {
+                    await fetch("/api/mcp/connect", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({}),
+                    });
+                    // Reload data after connection (without auto-connect to prevent loop)
+                    return loadData(false);
+                } catch (connectError) {
+                    console.error("[MCPToolsPage] Auto-connect failed:", connectError);
+                } finally {
+                    setIsConnecting(false);
+                }
+            }
 
             // Initialize preferences for all discovered tools if not already set
             const newPreferences = { ...toolPreferences };

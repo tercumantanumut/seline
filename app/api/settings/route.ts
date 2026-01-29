@@ -13,6 +13,7 @@ export async function GET() {
       ...settings,
       anthropicApiKey: settings.anthropicApiKey ? maskApiKey(settings.anthropicApiKey) : undefined,
       openrouterApiKey: settings.openrouterApiKey ? maskApiKey(settings.openrouterApiKey) : undefined,
+      kimiApiKey: settings.kimiApiKey ? maskApiKey(settings.kimiApiKey) : undefined,
       tavilyApiKey: settings.tavilyApiKey ? maskApiKey(settings.tavilyApiKey) : undefined,
       firecrawlApiKey: settings.firecrawlApiKey ? maskApiKey(settings.firecrawlApiKey) : undefined,
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
@@ -71,6 +72,8 @@ export async function PUT(request: NextRequest) {
       vectorSearchMaxLineLength: body.vectorSearchMaxLineLength !== undefined ? body.vectorSearchMaxLineLength : currentSettings.vectorSearchMaxLineLength,
       // Preferences
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
+      promptCachingEnabled: body.promptCachingEnabled !== undefined ? body.promptCachingEnabled : currentSettings.promptCachingEnabled,
+      promptCachingTtl: body.promptCachingTtl !== undefined ? body.promptCachingTtl : currentSettings.promptCachingTtl,
       // ComfyUI / Local Image Generation
       comfyuiEnabled: body.comfyuiEnabled !== undefined ? body.comfyuiEnabled : currentSettings.comfyuiEnabled,
       comfyuiBackendPath: body.comfyuiBackendPath !== undefined ? body.comfyuiBackendPath : currentSettings.comfyuiBackendPath,
@@ -89,6 +92,9 @@ export async function PUT(request: NextRequest) {
 
     if (body.openrouterApiKey && !body.openrouterApiKey.includes("•")) {
       updatedSettings.openrouterApiKey = body.openrouterApiKey;
+    }
+    if (body.kimiApiKey && !body.kimiApiKey.includes("•")) {
+      updatedSettings.kimiApiKey = body.kimiApiKey;
     }
     if (body.tavilyApiKey && !body.tavilyApiKey.includes("•")) {
       updatedSettings.tavilyApiKey = body.tavilyApiKey;

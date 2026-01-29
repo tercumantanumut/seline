@@ -58,25 +58,25 @@ describe("buildCacheableCharacterPrompt", () => {
 
     // First block (temporal) should NOT be cached
     expect(blocks[0].role).toBe("system");
-    expect(blocks[0].experimental_providerOptions).toBeUndefined();
+    expect(blocks[0].providerOptions).toBeUndefined();
 
     // Identity block should be cached
     expect(blocks[1].role).toBe("system");
-    expect(blocks[1].experimental_providerOptions?.anthropic?.cacheControl).toEqual({
+    expect(blocks[1].providerOptions?.anthropic?.cacheControl).toEqual({
       type: "ephemeral",
       ttl: "5m",
     });
 
     // Memories block should be cached
     expect(blocks[2].role).toBe("system");
-    expect(blocks[2].experimental_providerOptions?.anthropic?.cacheControl).toEqual({
+    expect(blocks[2].providerOptions?.anthropic?.cacheControl).toEqual({
       type: "ephemeral",
       ttl: "5m",
     });
 
     // Guidelines block should be cached
     expect(blocks[3].role).toBe("system");
-    expect(blocks[3].experimental_providerOptions?.anthropic?.cacheControl).toEqual({
+    expect(blocks[3].providerOptions?.anthropic?.cacheControl).toEqual({
       type: "ephemeral",
       ttl: "5m",
     });
@@ -87,8 +87,8 @@ describe("buildCacheableCharacterPrompt", () => {
       enableCaching: false,
     });
 
-    // No blocks should have experimental_providerOptions
-    expect(blocks.every((b) => !b.experimental_providerOptions)).toBe(true);
+    // No blocks should have providerOptions
+    expect(blocks.every((b) => !b.providerOptions)).toBe(true);
   });
 
   it("should use correct TTL (1h)", () => {
@@ -98,10 +98,10 @@ describe("buildCacheableCharacterPrompt", () => {
     });
 
     // Cached blocks should have 1h TTL
-    const cachedBlocks = blocks.filter((b) => b.experimental_providerOptions?.anthropic?.cacheControl);
+    const cachedBlocks = blocks.filter((b) => b.providerOptions?.anthropic?.cacheControl);
     expect(cachedBlocks.length).toBeGreaterThan(0);
     cachedBlocks.forEach((block) => {
-      expect(block.experimental_providerOptions?.anthropic?.cacheControl?.ttl).toBe("1h");
+      expect(block.providerOptions?.anthropic?.cacheControl?.ttl).toBe("1h");
     });
   });
 
@@ -200,9 +200,9 @@ describe("buildCacheableCharacterPrompt", () => {
       enableCaching: true,
     });
 
-    const cachedBlocks = blocks.filter((b) => b.experimental_providerOptions?.anthropic?.cacheControl);
+    const cachedBlocks = blocks.filter((b) => b.providerOptions?.anthropic?.cacheControl);
     cachedBlocks.forEach((block) => {
-      expect(block.experimental_providerOptions?.anthropic?.cacheControl?.ttl).toBe("5m");
+      expect(block.providerOptions?.anthropic?.cacheControl?.ttl).toBe("5m");
     });
   });
 });

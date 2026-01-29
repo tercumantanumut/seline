@@ -12,7 +12,7 @@
  */
 
 import { generateText } from "ai";
-import { getUtilityModel } from "./providers";
+import { getUtilityModel, getProviderTemperature } from "./providers";
 import {
   getEnhancementSession,
   addSessionMessage,
@@ -388,7 +388,7 @@ export async function enhancePromptWithLLM(
           { role: "user" as const, content: enhancementRequest },
         ],
         maxOutputTokens: 3000,
-        temperature: 0.3,
+        temperature: getProviderTemperature(0.3),
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);

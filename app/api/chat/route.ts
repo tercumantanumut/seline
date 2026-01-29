@@ -1,5 +1,5 @@
 import { streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
-import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid } from "@/lib/ai/providers";
+import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, getProviderTemperature } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -1000,9 +1000,11 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    // CRITICAL: If using Antigravity provider, ensure token is valid/refreshed BEFORE making API calls
+    const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
+
+    // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
     // This prevents authentication failures when token expires during normal usage
-    if (getConfiguredProvider() === "antigravity") {
+    if (selectedProvider === "antigravity") {
       const tokenValid = await ensureAntigravityTokenValid();
       if (!tokenValid) {
         return new Response(
@@ -1497,6 +1499,8 @@ export async function POST(req: Request) {
     // 'agentEnabledTools' filter still ensures only authorized tools are candidates.
     const nonDeferredTools = registry.getTools({
       sessionId,
+      userId: dbUser.id,
+      characterId: characterId || undefined,
       characterAvatarUrl: characterAvatarUrl || undefined,
       characterAppearanceDescription: characterAppearanceDescription || undefined,
       includeDeferredTools: false, // Only non-deferred tools for initial active set
@@ -1527,6 +1531,8 @@ export async function POST(req: Request) {
     // strictly controlled by 'activeTools'. This ensures discovered tools have schemas.
     const allTools = registry.getTools({
       sessionId,
+      userId: dbUser.id,
+      characterId: characterId || undefined,
       characterAvatarUrl: characterAvatarUrl || undefined,
       characterAppearanceDescription: characterAppearanceDescription || undefined,
       // agentEnabledTools filter handles which tools can actually be used
@@ -1741,7 +1747,8 @@ export async function POST(req: Request) {
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
         // Tool operations benefit from more deterministic behavior
-        temperature: initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature,
+        // Note: getProviderTemperature() handles provider-specific requirements (e.g., Kimi requires temp=1)
+        temperature: getProviderTemperature(initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
         // Tool choice: "auto" allows model to decide between tools and text
         // Could be set to "required" to force tool use, but "auto" is more flexible
         toolChoice: AI_CONFIG.toolChoice,
@@ -1920,26 +1927,31 @@ export async function POST(req: Request) {
           }
 
           let finalMessageId: string | undefined;
-          // AI SDK v6: Cache metrics are in providerMetadata.anthropic (camelCase)
-          // Also check usage for snake_case fields as fallback (OpenRouter may use different format)
+          // AI SDK v6: Cache metrics sources (in priority order):
+          // 1. providerMetadata.anthropic.cacheCreationInputTokens (only creation, not read)
+          // 2. providerMetadata.anthropic.usage (raw usage object with both fields)
+          // 3. usage.raw (raw API response usage)
+          // 4. usage.inputTokenDetails (SDK-parsed cache details)
           const anthropicMeta = (providerMetadata as any)?.anthropic || {};
+          const rawUsage = anthropicMeta.usage || (usage as any)?.raw || {};
           const cacheCreation = useCaching ? (
             anthropicMeta.cacheCreationInputTokens ||
-            (usage as any)?.cache_creation_input_tokens ||
+            rawUsage.cache_creation_input_tokens ||
+            (usage as any)?.inputTokenDetails?.cacheWriteTokens ||
             0
           ) : 0;
           const cacheRead = useCaching ? (
-            anthropicMeta.cacheReadInputTokens ||
-            (usage as any)?.cache_read_input_tokens ||
+            rawUsage.cache_read_input_tokens ||
+            (usage as any)?.inputTokenDetails?.cacheReadTokens ||
             0
           ) : 0;
           const systemBlocksCached = useCaching && Array.isArray(systemPromptValue)
-            ? systemPromptValue.filter((block) => block.experimental_providerOptions?.anthropic?.cacheControl).length
+            ? systemPromptValue.filter((block) => block.providerOptions?.anthropic?.cacheControl).length
             : 0;
           const messagesCached = useCaching && cachedMessages.length > 0
             ? (() => {
               const cacheMarkerIndex = cachedMessages.findIndex(
-                (msg) => (msg as any).experimental_cache_control
+                (msg) => (msg as any).providerOptions?.anthropic?.cacheControl
               );
               return cacheMarkerIndex > 0 ? cacheMarkerIndex : 0;
             })()
