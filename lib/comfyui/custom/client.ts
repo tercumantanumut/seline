@@ -199,7 +199,7 @@ export async function uploadInputFile(
   options: { buffer: Buffer; filename: string; type?: string; subfolder?: string }
 ): Promise<{ name: string; subfolder?: string }> {
   const formData = new FormData();
-  const blob = new Blob([options.buffer]);
+  const blob = new Blob([new Uint8Array(options.buffer)]);
   formData.append("image", blob, options.filename);
   if (options.subfolder) {
     formData.append("subfolder", options.subfolder);

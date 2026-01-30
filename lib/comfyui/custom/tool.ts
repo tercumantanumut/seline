@@ -1,12 +1,13 @@
 import { jsonSchema, tool } from "ai";
 import type { Tool } from "ai";
+import type { JSONSchema7Definition } from "json-schema";
 import { executeCustomComfyUIWorkflow } from "./executor";
 import type {
   CustomComfyUIInput,
   CustomComfyUIWorkflow,
 } from "./types";
 
-function mapInputToSchema(input: CustomComfyUIInput): Record<string, unknown> {
+function mapInputToSchema(input: CustomComfyUIInput): JSONSchema7Definition {
   const base: Record<string, unknown> = {
     description: input.description || `Workflow input for ${input.name}`,
   };
@@ -46,11 +47,11 @@ function mapInputToSchema(input: CustomComfyUIInput): Record<string, unknown> {
     base.default = input.default;
   }
 
-  return base;
+  return base as JSONSchema7Definition;
 }
 
 function buildInputSchema(inputs: CustomComfyUIInput[]) {
-  const properties: Record<string, unknown> = {};
+  const properties: Record<string, JSONSchema7Definition> = {};
   const required: string[] = [];
 
   for (const input of inputs) {
@@ -61,7 +62,7 @@ function buildInputSchema(inputs: CustomComfyUIInput[]) {
     }
   }
 
-  return jsonSchema({
+  return jsonSchema<Record<string, unknown>>({
     type: "object",
     title: "CustomComfyUIWorkflowInput",
     description: "Inputs for a custom ComfyUI workflow",

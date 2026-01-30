@@ -23,7 +23,7 @@ type ObjectInfoEntry = {
   };
 };
 
-type ObjectInfoMap = Record<string, ObjectInfoEntry>;
+type ObjectInfoMap = Record<string, unknown>;
 
 const WIDGET_MAPPINGS: Record<string, string[]> = {
   KSampler: [
@@ -96,7 +96,7 @@ function parseObjectInfoInputSpec(entry: unknown): { type?: string; enum?: strin
 
 function getWidgetNamesFromObjectInfo(classType: string, objectInfo?: ObjectInfoMap): string[] {
   if (!objectInfo) return [];
-  const entry = objectInfo[classType];
+  const entry = objectInfo[classType] as ObjectInfoEntry | undefined;
   if (!entry?.input) return [];
   const names: string[] = [];
 

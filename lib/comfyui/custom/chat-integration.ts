@@ -1,5 +1,6 @@
 import type { Tool } from "ai";
 import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
+import type { ToolMetadata } from "@/lib/ai/tool-registry/types";
 import { buildCustomComfyUITool } from "./tool";
 import { listCustomComfyUIWorkflows } from "./store";
 import type { CustomComfyUIWorkflow } from "./types";
@@ -14,7 +15,7 @@ export function getCustomComfyUIToolId(workflowId: string): string {
   return `customComfyUI_${workflowId}`;
 }
 
-function workflowToMetadata(workflow: CustomComfyUIWorkflow) {
+function workflowToMetadata(workflow: CustomComfyUIWorkflow): ToolMetadata {
   const keywords = [
     "comfyui",
     "workflow",
