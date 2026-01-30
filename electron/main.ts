@@ -1318,6 +1318,25 @@ function setupIpcHandlers(): void {
     return status;
   });
 
+  // External ComfyUI (user instance) detection
+  ipcMain.handle("comfyuiCustom:detect", async (_event, options?: { host?: string; ports?: number[]; useHttps?: boolean }) => {
+    try {
+      const { detectComfyUIBaseUrl } = await import("../lib/comfyui/custom/client");
+      return await detectComfyUIBaseUrl(options);
+    } catch (error) {
+      return { baseUrl: null, source: "error", error: error instanceof Error ? error.message : "Detection failed" };
+    }
+  });
+
+  ipcMain.handle("comfyuiCustom:resolve", async (_event, override?: { comfyuiBaseUrl?: string; comfyuiHost?: string; comfyuiPort?: number }) => {
+    try {
+      const { resolveCustomComfyUIBaseUrl } = await import("../lib/comfyui/custom/client");
+      return await resolveCustomComfyUIBaseUrl(override);
+    } catch (error) {
+      return { baseUrl: null, source: "error", error: error instanceof Error ? error.message : "Resolution failed" };
+    }
+  });
+
   // Install (build Docker image)
   ipcMain.handle("comfyui:install", async (_event, backendPath: string) => {
     try {

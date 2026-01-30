@@ -13,10 +13,12 @@ import { AlertTriangleIcon, LockIcon } from "lucide-react";
 export interface ToolCapability {
   id: string;
   /** Translation key for display name (e.g., "docsSearch" -> t("tools.docsSearch")) */
-  nameKey: string;
+  nameKey?: string;
   /** Translation key for description (e.g., "docsSearch" -> t("tools.docsSearchDesc")) */
-  descKey: string;
-  category: "knowledge" | "search" | "image-generation" | "image-editing" | "video-generation" | "analysis" | "utility";
+  descKey?: string;
+  displayName?: string;
+  description?: string;
+  category: string;
   /** Dependencies required for this tool to function */
   dependencies?: (
     | "syncedFolders"
@@ -33,7 +35,7 @@ export interface ToolCapability {
 }
 
 /** Available tools grouped by category - uses translation keys */
-const AVAILABLE_TOOLS: ToolCapability[] = [
+const BASE_TOOLS: ToolCapability[] = [
   { id: "docsSearch", nameKey: "docsSearch", descKey: "docsSearchDesc", category: "knowledge" },
   {
     id: "vectorSearch",
@@ -246,9 +248,76 @@ export function CapabilitiesPage({
   const t = useTranslations("characterCreation.capabilities");
   const tDeps = useTranslations("characterCreation.capabilities.dependencyWarnings");
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(initialEnabledTools));
+  const [availableTools, setAvailableTools] = useState<ToolCapability[]>(BASE_TOOLS);
   const [showForm, setShowForm] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    const baseTools = BASE_TOOLS.map((tool) => ({
+      ...tool,
+      displayName: tool.nameKey && t.has(`tools.${tool.nameKey}`)
+        ? t(`tools.${tool.nameKey}`)
+        : tool.id,
+      description: tool.descKey && t.has(`tools.${tool.descKey}`)
+        ? t(`tools.${tool.descKey}`)
+        : "",
+    }));
+
+    setAvailableTools(baseTools);
+
+    let cancelled = false;
+    const loadTools = async () => {
+      try {
+        const response = await fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
+        if (!response.ok) throw new Error("Failed to load tools");
+        const data = (await response.json()) as {
+          tools?: Array<{ id: string; displayName: string; description: string; category: string }>;
+        };
+        if (cancelled) return;
+
+        const merged = new Map<string, ToolCapability>();
+        baseTools.forEach((tool) => merged.set(tool.id, tool));
+
+        (data.tools || []).forEach((tool) => {
+          const existing = merged.get(tool.id);
+          if (existing) {
+            merged.set(tool.id, {
+              ...existing,
+              category: existing.category || tool.category,
+              displayName: existing.displayName && existing.displayName !== existing.id
+                ? existing.displayName
+                : tool.displayName,
+              description: existing.description && existing.description.length > 0
+                ? existing.description
+                : tool.description,
+            });
+          } else {
+            merged.set(tool.id, {
+              id: tool.id,
+              category: tool.category,
+              displayName: tool.displayName,
+              description: tool.description,
+            });
+          }
+        });
+
+        const mergedList = Array.from(merged.values()).sort((a, b) => {
+          if (a.category !== b.category) return a.category.localeCompare(b.category);
+          return (a.displayName || a.id).localeCompare(b.displayName || b.id);
+        });
+        setAvailableTools(mergedList);
+      } catch (error) {
+        console.error("Failed to load tools", error);
+      }
+    };
+
+    loadTools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   // Dependency status - tracks what's configured
   const [dependencyStatus, setDependencyStatus] = useState<{
@@ -370,7 +439,7 @@ export function CapabilitiesPage({
   };
 
   // Group tools by category
-  const toolsByCategory = AVAILABLE_TOOLS.reduce((acc, tool) => {
+  const toolsByCategory = availableTools.reduce((acc, tool) => {
     if (!acc[tool.category]) acc[tool.category] = [];
     acc[tool.category].push(tool);
     return acc;
@@ -426,19 +495,25 @@ export function CapabilitiesPage({
                 {Object.entries(toolsByCategory).map(([category, tools]) => (
                   <div key={category} className="space-y-3">
                     <h3 className="text-sm font-mono font-semibold text-terminal-amber">
-                      {t(`categories.${CATEGORY_KEYS[category]}`)}
+                      {CATEGORY_KEYS[category]
+                        ? t(`categories.${CATEGORY_KEYS[category]}`)
+                        : category.replace(/-/g, " ")}
                     </h3>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {tools.map((tool) => {
                         const isMet = areDependenciesMet(tool);
                         const warning = getDependencyWarning(tool);
+                        const displayName = tool.displayName
+                          || (tool.nameKey && t.has(`tools.${tool.nameKey}`) ? t(`tools.${tool.nameKey}`) : tool.id);
+                        const description = tool.description
+                          || (tool.descKey && t.has(`tools.${tool.descKey}`) ? t(`tools.${tool.descKey}`) : "");
 
                         return (
                           <ToolToggle
                             key={tool.id}
                             tool={tool}
-                            displayName={t(`tools.${tool.nameKey}`)}
-                            description={t(`tools.${tool.descKey}`)}
+                            displayName={displayName}
+                            description={description}
                             enabled={enabledTools.has(tool.id)}
                             disabled={!isMet}
                             warning={warning}

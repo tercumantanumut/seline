@@ -40,8 +40,16 @@ export async function GET(request: Request) {
     // Reload settings to ensure API keys are synced to process.env
     loadSettings();
 
+    try {
+      const { loadCustomComfyUITools } = await import("@/lib/comfyui/custom/chat-integration");
+      await loadCustomComfyUITools();
+    } catch (error) {
+      console.error("[Tools API] Failed to load Custom ComfyUI tools:", error);
+    }
+
     const { searchParams } = new URL(request.url);
     const includeDisabled = searchParams.get("includeDisabled") === "true";
+    const includeAlwaysLoad = searchParams.get("includeAlwaysLoad") === "true";
 
     const registry = ToolRegistry.getInstance();
     const allTools = registry.getAvailableToolsList();
@@ -59,8 +67,8 @@ export async function GET(request: Request) {
       // Skip utility category tools (searchTools, listAllTools)
       if (metadata.category === "utility") continue;
 
-      // Skip always-load tools (these are always available)
-      if (metadata.loading.alwaysLoad) continue;
+      // Skip always-load tools (these are always available), unless requested or custom-comfyui
+      if (metadata.loading.alwaysLoad && !includeAlwaysLoad && metadata.category !== "custom-comfyui") continue;
 
       // Check if tool is enabled via environment variables
       const isEnabled = registry.isToolEnabled(tool.name);

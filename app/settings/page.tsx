@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
 import { getKimiModels } from "@/lib/auth/kimi-models";
-import { LocalModelsManager } from "@/components/comfyui";
+import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
@@ -55,6 +55,11 @@ interface AppSettings {
   vectorSearchTokenChunkStride?: number;
   vectorSearchMaxFileLines?: number;
   vectorSearchMaxLineLength?: number;
+  comfyuiCustomHost?: string;
+  comfyuiCustomPort?: number;
+  comfyuiCustomUseHttps?: boolean;
+  comfyuiCustomAutoDetect?: boolean;
+  comfyuiCustomBaseUrl?: string;
   // Antigravity auth state (read-only, managed via OAuth)
   antigravityAuth?: {
     isAuthenticated: boolean;
@@ -132,6 +137,11 @@ export default function SettingsPage() {
     flux2Klein4bBackendPath: "",
     flux2Klein9bEnabled: false,
     flux2Klein9bBackendPath: "",
+    comfyuiCustomHost: "127.0.0.1",
+    comfyuiCustomPort: 8081,
+    comfyuiCustomUseHttps: false,
+    comfyuiCustomAutoDetect: true,
+    comfyuiCustomBaseUrl: "",
   });
 
   // Antigravity auth state (separate from form state, managed via OAuth)
@@ -212,6 +222,11 @@ export default function SettingsPage() {
         flux2Klein4bBackendPath: data.flux2Klein4bBackendPath ?? "",
         flux2Klein9bEnabled: data.flux2Klein9bEnabled ?? false,
         flux2Klein9bBackendPath: data.flux2Klein9bBackendPath ?? "",
+        comfyuiCustomHost: data.comfyuiCustomHost ?? "127.0.0.1",
+        comfyuiCustomPort: data.comfyuiCustomPort ?? 8081,
+        comfyuiCustomUseHttps: data.comfyuiCustomUseHttps ?? false,
+        comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
+        comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
@@ -678,6 +693,11 @@ interface FormState {
   flux2Klein4bBackendPath: string;
   flux2Klein9bEnabled: boolean;
   flux2Klein9bBackendPath: string;
+  comfyuiCustomHost: string;
+  comfyuiCustomPort: number;
+  comfyuiCustomUseHttps: boolean;
+  comfyuiCustomAutoDetect: boolean;
+  comfyuiCustomBaseUrl: string;
 }
 
 // Supported local embedding models with their metadata
@@ -1678,6 +1698,74 @@ function SettingsPanel({
           onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
           onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
         />
+
+        <div className="rounded-lg border border-terminal-border bg-white p-4 space-y-3">
+          <div>
+            <h3 className="font-mono text-sm font-semibold text-terminal-dark">
+              External ComfyUI Instance
+            </h3>
+            <p className="font-mono text-xs text-terminal-muted">
+              Configure a local or remote ComfyUI host for custom workflows.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">Base URL Override</label>
+            <input
+              type="text"
+              value={formState.comfyuiCustomBaseUrl}
+              onChange={(e) => updateField("comfyuiCustomBaseUrl", e.target.value)}
+              placeholder="http://localhost:8081"
+              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block font-mono text-xs text-terminal-muted">Host</label>
+              <input
+                type="text"
+                value={formState.comfyuiCustomHost}
+                onChange={(e) => updateField("comfyuiCustomHost", e.target.value)}
+                placeholder="127.0.0.1"
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block font-mono text-xs text-terminal-muted">Port</label>
+              <input
+                type="number"
+                value={formState.comfyuiCustomPort}
+                onChange={(e) => updateField("comfyuiCustomPort", Number(e.target.value))}
+                placeholder="8081"
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 font-mono text-xs text-terminal-dark">
+              <input
+                type="checkbox"
+                checked={formState.comfyuiCustomUseHttps}
+                onChange={(e) => updateField("comfyuiCustomUseHttps", e.target.checked)}
+                className="size-4 accent-terminal-green"
+              />
+              Use HTTPS
+            </label>
+            <label className="flex items-center gap-2 font-mono text-xs text-terminal-dark">
+              <input
+                type="checkbox"
+                checked={formState.comfyuiCustomAutoDetect}
+                onChange={(e) => updateField("comfyuiCustomAutoDetect", e.target.checked)}
+                className="size-4 accent-terminal-green"
+              />
+              Auto-detect local port
+            </label>
+          </div>
+        </div>
+
+        <CustomWorkflowsManager />
       </div>
     );
   }

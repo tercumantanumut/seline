@@ -82,6 +82,11 @@ export interface AppSettings {
     comfyuiPort?: number;            // API port (default: 8000)
     comfyuiModelsDownloaded?: boolean; // Whether Z-Image models are downloaded
     comfyuiBackendPath?: string;     // Path to comfyui_backend folder
+    comfyuiCustomHost?: string;      // Host for external ComfyUI instance
+    comfyuiCustomPort?: number;      // Port for external ComfyUI instance
+    comfyuiCustomUseHttps?: boolean; // Use HTTPS for external ComfyUI
+    comfyuiCustomAutoDetect?: boolean; // Auto-detect external ComfyUI port
+    comfyuiCustomBaseUrl?: string;   // Optional full base URL override
 
     // FLUX.2 Klein 4B Local Backend Settings
     flux2Klein4bEnabled?: boolean;        // Enable FLUX.2 Klein 4B for image generation
@@ -188,6 +193,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     comfyuiPort: 8000,
     comfyuiModelsDownloaded: false,
     comfyuiBackendPath: "",
+    comfyuiCustomHost: "127.0.0.1",
+    comfyuiCustomPort: 8081,
+    comfyuiCustomUseHttps: false,
+    comfyuiCustomAutoDetect: true,
+    comfyuiCustomBaseUrl: "",
     // FLUX.2 Klein 4B defaults
     flux2Klein4bEnabled: false,
     flux2Klein4bInstalled: false,
@@ -438,6 +448,21 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.comfyuiBackendPath) {
         process.env.COMFYUI_BACKEND_PATH = settings.comfyuiBackendPath;
+    }
+    if (settings.comfyuiCustomHost) {
+        process.env.COMFYUI_CUSTOM_HOST = settings.comfyuiCustomHost;
+    }
+    if (settings.comfyuiCustomPort !== undefined) {
+        process.env.COMFYUI_CUSTOM_PORT = String(settings.comfyuiCustomPort);
+    }
+    if (settings.comfyuiCustomUseHttps !== undefined) {
+        process.env.COMFYUI_CUSTOM_HTTPS = settings.comfyuiCustomUseHttps ? "true" : "false";
+    }
+    if (settings.comfyuiCustomAutoDetect !== undefined) {
+        process.env.COMFYUI_CUSTOM_AUTODETECT = settings.comfyuiCustomAutoDetect ? "true" : "false";
+    }
+    if (settings.comfyuiCustomBaseUrl) {
+        process.env.COMFYUI_CUSTOM_BASE_URL = settings.comfyuiCustomBaseUrl;
     }
 
     loadConfigFromEnv();
