@@ -28,6 +28,12 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   firecrawlCrawl: Flame,
   generateImageFlux2: Image,
   generateImageWan22: Image,
+  generateImageFlux2Klein4B: Image,
+  editImageFlux2Klein4B: Paintbrush,
+  referenceImageFlux2Klein4B: Image,
+  generateImageFlux2Klein9B: Image,
+  editImageFlux2Klein9B: Paintbrush,
+  referenceImageFlux2Klein9B: Image,
   editRoomImage: Paintbrush,
   editImage: Paintbrush,
   generateVideoWan22: Video,
@@ -47,6 +53,7 @@ const TOOL_COLORS: Record<string, string> = {
   "video-generation": "bg-rose-100 text-rose-700 border-rose-200",
   analysis: "bg-cyan-100 text-cyan-700 border-cyan-200",
   utility: "bg-slate-100 text-slate-700 border-slate-200",
+  "custom-comfyui": "bg-emerald-100 text-emerald-700 border-emerald-200",
 };
 
 /** Tool ID to category mapping */
@@ -60,6 +67,12 @@ const TOOL_CATEGORIES: Record<string, string> = {
   firecrawlCrawl: "search",
   generateImageFlux2: "image-generation",
   generateImageWan22: "image-generation",
+  generateImageFlux2Klein4B: "image-generation",
+  editImageFlux2Klein4B: "image-editing",
+  referenceImageFlux2Klein4B: "image-generation",
+  generateImageFlux2Klein9B: "image-generation",
+  editImageFlux2Klein9B: "image-editing",
+  referenceImageFlux2Klein9B: "image-generation",
   editRoomImage: "image-editing",
   editImage: "image-editing",
   generateVideoWan22: "video-generation",
@@ -69,6 +82,12 @@ const TOOL_CATEGORIES: Record<string, string> = {
   showProductImages: "utility",
   executeCommand: "utility",
 };
+
+function resolveToolCategory(toolId: string): string {
+  if (TOOL_CATEGORIES[toolId]) return TOOL_CATEGORIES[toolId];
+  if (toolId.startsWith("customComfyUI_")) return "custom-comfyui";
+  return "utility";
+}
 
 interface ToolBadgeProps {
   toolId: string;
@@ -90,7 +109,7 @@ export function ToolBadge({
   className,
 }: ToolBadgeProps) {
   const Icon = TOOL_ICONS[toolId] || Package;
-  const category = TOOL_CATEGORIES[toolId] || "utility";
+  const category = resolveToolCategory(toolId);
   const colorClass = TOOL_COLORS[category];
 
   const sizeClasses = {

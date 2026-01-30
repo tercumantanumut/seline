@@ -1657,10 +1657,33 @@ export async function POST(req: Request) {
       console.error("[CHAT API] Failed to load MCP tools:", error);
     }
 
-    // Merge MCP tools with regular tools
+    let customComfyUIToolResult: { allTools: Record<string, Tool>; alwaysLoadToolIds: string[]; deferredToolIds: string[] } = {
+      allTools: {},
+      alwaysLoadToolIds: [],
+      deferredToolIds: [],
+    };
+
+    try {
+      const { loadCustomComfyUITools } = await import("@/lib/comfyui/custom/chat-integration");
+      customComfyUIToolResult = await loadCustomComfyUITools(sessionId);
+
+      if (Object.keys(customComfyUIToolResult.allTools).length > 0) {
+        console.log(`[CHAT API] Loaded ${Object.keys(customComfyUIToolResult.allTools).length} Custom ComfyUI tools.`);
+
+        if (toolSearchContext.enabledTools) {
+          Object.keys(customComfyUIToolResult.allTools).forEach(name => toolSearchContext.enabledTools!.add(name));
+          console.log(`[CHAT API] Added ${Object.keys(customComfyUIToolResult.allTools).length} Custom ComfyUI tools to enabledTools set for discovery`);
+        }
+      }
+    } catch (error) {
+      console.error("[CHAT API] Failed to load Custom ComfyUI tools:", error);
+    }
+
+    // Merge MCP + Custom ComfyUI tools with regular tools
     const allToolsWithMCP = {
       ...tools,
       ...mcpToolResult.allTools,
+      ...customComfyUIToolResult.allTools,
     };
 
 
@@ -1674,11 +1697,12 @@ export async function POST(req: Request) {
           ...initialActiveTools,
           ...previouslyDiscoveredTools,
           ...mcpToolResult.alwaysLoadToolIds,  // NEW: MCP tools with alwaysLoad
+          ...customComfyUIToolResult.alwaysLoadToolIds,
         ])
       ]
       : Object.keys(allToolsWithMCP); // "Always Include" mode: all tools active immediately
 
-    console.log(`[CHAT API] Loaded ${Object.keys(allToolsWithMCP).length} tools (including ${Object.keys(mcpToolResult.allTools).length} MCP tools)`);
+    console.log(`[CHAT API] Loaded ${Object.keys(allToolsWithMCP).length} tools (including ${Object.keys(mcpToolResult.allTools).length} MCP tools and ${Object.keys(customComfyUIToolResult.allTools).length} Custom ComfyUI tools)`);
     console.log(`[CHAT API] Tool loading mode: ${useDeferredLoading ? "deferred" : "always-include"}, initial active tools: ${initialActiveToolNames.length}`);
     if (useDeferredLoading) {
       console.log(`[CHAT API] Previously discovered (restored): ${previouslyDiscoveredTools.size > 0 ? [...previouslyDiscoveredTools].join(", ") : "none"}`);
