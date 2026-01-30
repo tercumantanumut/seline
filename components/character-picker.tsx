@@ -90,7 +90,11 @@ const AVAILABLE_TOOLS: ToolDefinition[] = [
   // Local ComfyUI Image Tools
   { id: "generateImageZImage", category: "image-generation", dependencies: ["comfyuiEnabled"] },
   { id: "generateImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
+  { id: "editImageFlux2Klein4B", category: "image-editing", dependencies: ["flux2Klein4bEnabled"] },
+  { id: "referenceImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
   { id: "generateImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
+  { id: "editImageFlux2Klein9B", category: "image-editing", dependencies: ["flux2Klein9bEnabled"] },
+  { id: "referenceImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
 ];
 
 interface CharacterSummary {
