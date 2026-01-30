@@ -21,7 +21,8 @@ export type ToolCategory =
   | "utility"
   | "search"
   | "scheduling"
-  | "mcp";
+  | "mcp"
+  | "custom-comfyui";
 
 /**
  * Configuration for when a tool should be loaded

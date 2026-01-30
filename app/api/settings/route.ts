@@ -77,6 +77,11 @@ export async function PUT(request: NextRequest) {
       // ComfyUI / Local Image Generation
       comfyuiEnabled: body.comfyuiEnabled !== undefined ? body.comfyuiEnabled : currentSettings.comfyuiEnabled,
       comfyuiBackendPath: body.comfyuiBackendPath !== undefined ? body.comfyuiBackendPath : currentSettings.comfyuiBackendPath,
+      comfyuiCustomHost: body.comfyuiCustomHost !== undefined ? body.comfyuiCustomHost : currentSettings.comfyuiCustomHost,
+      comfyuiCustomPort: body.comfyuiCustomPort !== undefined ? body.comfyuiCustomPort : currentSettings.comfyuiCustomPort,
+      comfyuiCustomUseHttps: body.comfyuiCustomUseHttps !== undefined ? body.comfyuiCustomUseHttps : currentSettings.comfyuiCustomUseHttps,
+      comfyuiCustomAutoDetect: body.comfyuiCustomAutoDetect !== undefined ? body.comfyuiCustomAutoDetect : currentSettings.comfyuiCustomAutoDetect,
+      comfyuiCustomBaseUrl: body.comfyuiCustomBaseUrl !== undefined ? body.comfyuiCustomBaseUrl : currentSettings.comfyuiCustomBaseUrl,
       // FLUX.2 Klein 4B
       flux2Klein4bEnabled: body.flux2Klein4bEnabled !== undefined ? body.flux2Klein4bEnabled : currentSettings.flux2Klein4bEnabled,
       flux2Klein4bBackendPath: body.flux2Klein4bBackendPath !== undefined ? body.flux2Klein4bBackendPath : currentSettings.flux2Klein4bBackendPath,

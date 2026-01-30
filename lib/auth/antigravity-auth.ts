@@ -51,6 +51,8 @@ export const ANTIGRAVITY_OAUTH = {
 } as const;
 
 // Antigravity API configuration
+const ANTIGRAVITY_VERSION = "1.15.8";
+
 export const ANTIGRAVITY_CONFIG = {
   // API endpoints in fallback order (daily → autopush → prod)
   // Daily sandbox is primary - it works, prod gives 500 errors
@@ -63,13 +65,15 @@ export const ANTIGRAVITY_CONFIG = {
   API_BASE_URL: "https://daily-cloudcode-pa.sandbox.googleapis.com",
   // API version
   API_VERSION: "v1internal",
+  // Antigravity version string - keep this in sync with supported versions
+  ANTIGRAVITY_VERSION,
   // OAuth callback port for desktop apps (matches opencode plugin)
   OAUTH_CALLBACK_PORT: 36742,
   // Token refresh threshold (refresh 15 minutes before expiry)
   REFRESH_THRESHOLD_MS: 15 * 60 * 1000,
   // Request headers for Antigravity API (matching opencode-antigravity-auth plugin)
   HEADERS: {
-    "User-Agent": "antigravity/1.11.5 windows/amd64",
+    "User-Agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Antigravity/${ANTIGRAVITY_VERSION} Chrome/138.0.7204.235 Electron/37.3.1 Safari/537.36`,
     "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
     "Client-Metadata": '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}',
   } as const,
