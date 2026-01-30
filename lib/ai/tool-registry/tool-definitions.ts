@@ -56,8 +56,16 @@ import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
 import { createExecuteCommandTool } from "../tools/execute-command-tool";
 import { createZImageGenerateTool } from "../tools/zimage-generate-tool";
-import { createFlux2Klein4BGenerateTool } from "../tools/flux2-klein-4b-generate-tool";
-import { createFlux2Klein9BGenerateTool } from "../tools/flux2-klein-9b-generate-tool";
+import {
+  createFlux2Klein4BGenerateTool,
+  createFlux2Klein4BEditTool,
+  createFlux2Klein4BReferenceTool,
+} from "../tools/flux2-klein-4b-generate-tool";
+import {
+  createFlux2Klein9BGenerateTool,
+  createFlux2Klein9BEditTool,
+  createFlux2Klein9BReferenceTool,
+} from "../tools/flux2-klein-9b-generate-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
 
 /**
@@ -938,6 +946,65 @@ Supports dual modes:
     ({ sessionId }) => createFlux2Klein4BGenerateTool(sessionId!)
   );
 
+  // FLUX.2 Klein 4B - Local Editing
+  registry.register(
+    "editImageFlux2Klein4B",
+    {
+      displayName: "Edit Image (FLUX.2 Klein 4B Local)",
+      category: "image-editing",
+      keywords: [
+        "edit", "modify", "image", "local", "comfyui", "flux", "flux2", "klein", "4b",
+        "image-to-image", "img2img", "reference", "transform", "inpaint", "variations",
+      ],
+      shortDescription: "Edit images locally using FLUX.2 Klein 4B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 4B Editing (Local ComfyUI)
+
+Edit one or more images locally using the FLUX.2 Klein 4B model.
+Supports multiple source images for composition or style mixing.
+
+### Parameters
+- **prompt** (required): Edit instructions
+- **source_image_urls** (required): Array of images to edit (1-10)
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+      enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createFlux2Klein4BEditTool(sessionId!)
+  );
+
+  // FLUX.2 Klein 4B - Local Reference
+  registry.register(
+    "referenceImageFlux2Klein4B",
+    {
+      displayName: "Reference Image (FLUX.2 Klein 4B Local)",
+      category: "image-generation",
+      keywords: [
+        "reference", "style", "image", "local", "comfyui", "flux", "flux2", "klein", "4b",
+        "guided generation", "style transfer", "image-to-image",
+      ],
+      shortDescription: "Reference-guided generation using FLUX.2 Klein 4B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 4B Reference (Local ComfyUI)
+
+Generate images guided by one or more reference images locally using the FLUX.2 Klein 4B model.
+
+### Parameters
+- **prompt** (required): Generation instructions
+- **reference_image_urls** (required): Array of reference images (1-10)
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+      enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createFlux2Klein4BReferenceTool(sessionId!)
+  );
+
   // FLUX.2 Klein 9B - Local Generation (Higher Quality)
   registry.register(
     "generateImageFlux2Klein9B",
@@ -975,6 +1042,65 @@ Supports dual modes:
       enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
     } satisfies ToolMetadata,
     ({ sessionId }) => createFlux2Klein9BGenerateTool(sessionId!)
+  );
+
+  // FLUX.2 Klein 9B - Local Editing
+  registry.register(
+    "editImageFlux2Klein9B",
+    {
+      displayName: "Edit Image (FLUX.2 Klein 9B Local)",
+      category: "image-editing",
+      keywords: [
+        "edit", "modify", "image", "local", "comfyui", "flux", "flux2", "klein", "9b",
+        "image-to-image", "img2img", "reference", "transform", "inpaint", "variations",
+      ],
+      shortDescription: "Edit images locally using FLUX.2 Klein 9B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 9B Editing (Local ComfyUI)
+
+Edit one or more images locally using the FLUX.2 Klein 9B model.
+Supports multiple source images for composition or style mixing.
+
+### Parameters
+- **prompt** (required): Edit instructions
+- **source_image_urls** (required): Array of images to edit (1-10)
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+      enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createFlux2Klein9BEditTool(sessionId!)
+  );
+
+  // FLUX.2 Klein 9B - Local Reference
+  registry.register(
+    "referenceImageFlux2Klein9B",
+    {
+      displayName: "Reference Image (FLUX.2 Klein 9B Local)",
+      category: "image-generation",
+      keywords: [
+        "reference", "style", "image", "local", "comfyui", "flux", "flux2", "klein", "9b",
+        "guided generation", "style transfer", "image-to-image",
+      ],
+      shortDescription: "Reference-guided generation using FLUX.2 Klein 9B via ComfyUI",
+      fullInstructions: `## FLUX.2 Klein 9B Reference (Local ComfyUI)
+
+Generate images guided by one or more reference images locally using the FLUX.2 Klein 9B model.
+
+### Parameters
+- **prompt** (required): Generation instructions
+- **reference_image_urls** (required): Array of reference images (1-10)
+- **seed** (optional): For reproducibility
+- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
+- **steps** (optional): Default 20
+- **guidance** (optional): CFG scale, default 4.0`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+      enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createFlux2Klein9BReferenceTool(sessionId!)
   );
 
   // ============================================================================
