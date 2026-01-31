@@ -26,6 +26,29 @@ type ExecutionResult = {
   error?: string;
 };
 
+type HistoryStatusInfo = {
+  completed: boolean;
+  statusStr?: string;
+};
+
+function getHistoryStatusInfo(entry: Record<string, unknown>): HistoryStatusInfo {
+  const status = entry.status as Record<string, unknown> | undefined;
+  if (!status || typeof status !== "object") {
+    return { completed: false };
+  }
+  const completed = status.completed === true;
+  const statusStr =
+    typeof status.status_str === "string"
+      ? status.status_str.toLowerCase()
+      : undefined;
+  return { completed, statusStr };
+}
+
+function isFailureStatus(statusStr?: string): boolean {
+  if (!statusStr) return false;
+  return ["failed", "error", "cancelled", "canceled", "interrupted"].includes(statusStr);
+}
+
 function cloneWorkflow(workflow: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(workflow)) as Record<string, unknown>;
 }
@@ -186,11 +209,27 @@ export async function executeCustomComfyUIWorkflow(params: {
   if (!entry) {
     throw new Error("ComfyUI did not return history for prompt.");
   }
+  const statusInfo = getHistoryStatusInfo(entry);
+  if (isFailureStatus(statusInfo.statusStr)) {
+    return {
+      status: "error",
+      error: `ComfyUI execution failed (${statusInfo.statusStr}).`,
+      promptId,
+    };
+  }
 
   const allowedNodes = workflow.outputs?.length
     ? new Set(workflow.outputs.map((output) => output.nodeId))
     : undefined;
   const outputFiles = collectOutputs(entry, allowedNodes);
+  if (outputFiles.length === 0) {
+    const statusSuffix = statusInfo.statusStr ? ` (status: ${statusInfo.statusStr})` : "";
+    return {
+      status: "error",
+      error: `ComfyUI completed without outputs${statusSuffix}.`,
+      promptId,
+    };
+  }
 
   const images: Array<{ url: string }> = [];
   const videos: Array<{ url: string }> = [];

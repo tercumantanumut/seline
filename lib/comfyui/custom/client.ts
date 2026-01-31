@@ -2,6 +2,12 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 import { readLocalFile } from "@/lib/storage/local-storage";
 
 const DEFAULT_PORTS = [8081, 8188, 8189];
+const OUTPUT_BUCKETS = ["images", "gifs", "videos"];
+
+type HistoryStatus = {
+  completed: boolean;
+  statusStr?: string;
+};
 
 function buildBaseUrl(host: string, port: number, useHttps = false): string {
   const protocol = useHttps ? "https" : "http";
@@ -28,6 +34,51 @@ function wrapComfyUIFetchError(error: unknown, context: string): never {
     );
   }
   throw error;
+}
+
+function getHistoryStatus(entry: Record<string, unknown>): HistoryStatus {
+  const status = entry.status as Record<string, unknown> | undefined;
+  if (!status || typeof status !== "object") {
+    return { completed: false };
+  }
+  const completed = status.completed === true;
+  const statusStr =
+    typeof status.status_str === "string"
+      ? status.status_str.toLowerCase()
+      : undefined;
+  return { completed, statusStr };
+}
+
+function isTerminalHistoryStatus(entry: Record<string, unknown>): boolean {
+  const { completed, statusStr } = getHistoryStatus(entry);
+  if (completed) return true;
+  if (!statusStr) return false;
+  return [
+    "completed",
+    "success",
+    "succeeded",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+    "interrupted",
+  ].includes(statusStr);
+}
+
+function hasHistoryOutputs(entry: Record<string, unknown>): boolean {
+  const outputs = entry.outputs as Record<string, unknown> | undefined;
+  if (!outputs || typeof outputs !== "object") return false;
+  for (const output of Object.values(outputs)) {
+    if (!output || typeof output !== "object") continue;
+    const outputRecord = output as Record<string, unknown>;
+    for (const bucket of OUTPUT_BUCKETS) {
+      const items = outputRecord[bucket] as unknown;
+      if (Array.isArray(items) && items.length > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 async function safeComfyUIFetch(
@@ -182,7 +233,8 @@ export async function waitForHistory(
 
   while (Date.now() < deadline) {
     const history = await fetchHistory(baseUrl, promptId);
-    if (promptId in history) {
+    const entry = history[promptId] as Record<string, unknown> | undefined;
+    if (entry && (hasHistoryOutputs(entry) || isTerminalHistoryStatus(entry))) {
       return history;
     }
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
