@@ -54,9 +54,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ workflow: created });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to create workflow";
+    const isConnectionError =
+      typeof message === "string" &&
+      (message.includes("ComfyUI connection failed") ||
+        message.includes("ComfyUI instance not reachable"));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create workflow" },
-      { status: 500 }
+      { error: message },
+      { status: isConnectionError ? 503 : 500 }
     );
   }
 }

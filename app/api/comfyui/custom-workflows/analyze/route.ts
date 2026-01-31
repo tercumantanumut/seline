@@ -33,9 +33,14 @@ export async function POST(request: NextRequest) {
     const analysis = analyzeWorkflow(workflowJson, body.format, { objectInfo });
     return NextResponse.json(analysis);
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to analyze workflow";
+    const isConnectionError =
+      typeof message === "string" &&
+      (message.includes("ComfyUI connection failed") ||
+        message.includes("ComfyUI instance not reachable"));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to analyze workflow" },
-      { status: 500 }
+      { error: message },
+      { status: isConnectionError ? 503 : 500 }
     );
   }
 }
