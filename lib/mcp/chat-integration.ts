@@ -75,9 +75,12 @@ export async function loadMCPToolsForCharacter(
 
     // Connect to any servers that aren't already connected
     for (const [serverName, config] of Object.entries(combinedConfig)) {
-        // Skip if server is not enabled for this agent
+        // Skip if server is not enabled for this agent AND no individual tools from it are enabled
         if (enabledServers && !enabledServers.includes(serverName)) {
-            continue;
+            const hasEnabledTools = enabledTools?.some(t => t.startsWith(`${serverName}:`));
+            if (!hasEnabledTools) {
+                continue;
+            }
         }
 
         // Reconnect if not connected OR if connected for a different character
