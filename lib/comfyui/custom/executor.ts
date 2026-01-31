@@ -1,5 +1,6 @@
 import path from "path";
 import { saveFile } from "@/lib/storage/local-storage";
+import { createImage } from "@/lib/db/queries";
 import { convertWorkflowToApi } from "./converter";
 import {
   fetchMediaBuffer,
@@ -58,6 +59,20 @@ function classifyOutput(filename: string): "image" | "video" | "file" {
   return "file";
 }
 
+function shouldUseComfyFileReference(source: string): boolean {
+  const value = source.trim();
+  if (!value) return false;
+  const lower = value.toLowerCase();
+  if (lower.startsWith("http://") || lower.startsWith("https://")) return false;
+  if (lower.startsWith("data:")) return false;
+  if (lower.startsWith("/api/media/")) return false;
+  if (lower.startsWith("local-media://")) return false;
+  if (value.includes("://")) return false;
+  if (value.startsWith("/")) return false;
+  if (/^[A-Za-z0-9+/=]{100,}$/.test(value)) return false;
+  return true;
+}
+
 async function applyInputValue(
   apiWorkflow: Record<string, unknown>,
   input: CustomComfyUIInput,
@@ -81,6 +96,10 @@ async function applyInputValue(
   for (let i = 0; i < values.length; i += 1) {
     const entry = values[i];
     if (typeof entry !== "string" || entry.length === 0) {
+      continue;
+    }
+    if (shouldUseComfyFileReference(entry)) {
+      uploaded.push(entry);
       continue;
     }
     const buffer = await fetchMediaBuffer(entry);
@@ -192,6 +211,21 @@ export async function executeCustomComfyUIWorkflow(params: {
       } else if (fileType === "image") {
         images.push({ url: saved.url });
       }
+
+      const format = path.extname(file.filename).replace(".", "").toLowerCase() || undefined;
+      await createImage({
+        sessionId,
+        role: "generated",
+        localPath: saved.localPath,
+        url: saved.url,
+        format,
+        metadata: {
+          mediaType: fileType,
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          promptId,
+        },
+      });
     } else {
       const query = new URLSearchParams();
       query.set("filename", file.filename);

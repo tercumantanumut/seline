@@ -27,6 +27,8 @@ export function useTaskNotifications() {
   const t = useTranslations("schedules.notifications");
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const connectedUserIdRef = useRef<string | null>(null);
   const addTask = useActiveTasksStore((state) => state.addTask);
   const completeTask = useActiveTasksStore((state) => state.completeTask);
   const buildSessionUrl = useCallback((event: TaskEvent) => {
@@ -120,86 +122,111 @@ export function useTaskNotifications() {
       return;
     }
 
-    console.log("[TaskNotifications] Connecting to event stream for user:", user.id);
-
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+    if (eventSourceRef.current && connectedUserIdRef.current === user.id) {
+      return;
     }
 
-    // Create new SSE connection
-    const eventSource = new EventSource("/api/schedules/events");
-    eventSourceRef.current = eventSource;
+    console.log("[TaskNotifications] Connecting to event stream for user:", user.id);
 
-    eventSource.onopen = () => {
-      console.log("[TaskNotifications] SSE connection opened");
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const message: SSEMessage = JSON.parse(event.data);
-        console.log("[TaskNotifications] Received message:", message.type);
-
-        switch (message.type) {
-          case "connected":
-            console.log("[TaskNotifications] Connected to event stream");
-            break;
-
-          case "heartbeat":
-            // Keep-alive, no action needed
-            break;
-
-          case "task:started":
-            if (message.data) {
-              handleTaskStartedRef.current(message.data);
-            }
-            break;
-
-          case "task:completed":
-            if (message.data) {
-              handleTaskCompletedRef.current(message.data);
-            }
-            break;
-          case "task:progress":
-            if (message.data) {
-              handleTaskProgressRef.current(message.data);
-            }
-            break;
-        }
-      } catch (error) {
-        console.error("[TaskNotifications] Failed to parse message:", error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.warn("[TaskNotifications] Connection error:", error);
-      eventSource.close();
-
-      // Clear ref
-      if (eventSourceRef.current === eventSource) {
-        eventSourceRef.current = null;
-      }
-
-      // Reconnect after 5 seconds
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      reconnectTimeoutRef.current = setTimeout(() => {
-        // Force re-run of this effect by triggering a state update
-        // This is handled naturally by React's effect system on rerender
-      }, 5000);
-    };
-
-    return () => {
-      console.log("[TaskNotifications] Cleaning up SSE connection");
+    const cleanupConnection = () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      connectedUserIdRef.current = null;
+    };
+
+    const scheduleReconnect = () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      const attempt = reconnectAttemptsRef.current + 1;
+      reconnectAttemptsRef.current = attempt;
+      const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 4)));
+      reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = null;
+        if (user?.id) {
+          cleanupConnection();
+          connect();
+        }
+      }, delay);
+    };
+
+    const connect = () => {
+      // Close existing connection
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      // Create new SSE connection
+      const eventSource = new EventSource("/api/schedules/events");
+      eventSourceRef.current = eventSource;
+      connectedUserIdRef.current = user.id;
+
+      eventSource.onopen = () => {
+        reconnectAttemptsRef.current = 0;
+        console.log("[TaskNotifications] SSE connection opened");
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const message: SSEMessage = JSON.parse(event.data);
+          console.log("[TaskNotifications] Received message:", message.type);
+
+          switch (message.type) {
+            case "connected":
+              console.log("[TaskNotifications] Connected to event stream");
+              break;
+
+            case "heartbeat":
+              // Keep-alive, no action needed
+              break;
+
+            case "task:started":
+              if (message.data) {
+                handleTaskStartedRef.current(message.data);
+              }
+              break;
+
+            case "task:completed":
+              if (message.data) {
+                handleTaskCompletedRef.current(message.data);
+              }
+              break;
+            case "task:progress":
+              if (message.data) {
+                handleTaskProgressRef.current(message.data);
+              }
+              break;
+          }
+        } catch (error) {
+          console.error("[TaskNotifications] Failed to parse message:", error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.warn("[TaskNotifications] Connection error:", error);
+        eventSource.close();
+
+        // Clear ref
+        if (eventSourceRef.current === eventSource) {
+          eventSourceRef.current = null;
+        }
+
+        scheduleReconnect();
+      };
+    };
+
+    connect();
+
+    return () => {
+      console.log("[TaskNotifications] Cleaning up SSE connection");
+      cleanupConnection();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
+      reconnectAttemptsRef.current = 0;
     };
   }, [isLoading, user?.id]);
 }
