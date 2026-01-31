@@ -1318,6 +1318,25 @@ function setupIpcHandlers(): void {
     return status;
   });
 
+  // External ComfyUI (user instance) detection
+  ipcMain.handle("comfyuiCustom:detect", async (_event, options?: { host?: string; ports?: number[]; useHttps?: boolean }) => {
+    try {
+      const { detectComfyUIBaseUrl } = await import("../lib/comfyui/custom/client");
+      return await detectComfyUIBaseUrl(options);
+    } catch (error) {
+      return { baseUrl: null, source: "error", error: error instanceof Error ? error.message : "Detection failed" };
+    }
+  });
+
+  ipcMain.handle("comfyuiCustom:resolve", async (_event, override?: { comfyuiBaseUrl?: string; comfyuiHost?: string; comfyuiPort?: number }) => {
+    try {
+      const { resolveCustomComfyUIBaseUrl } = await import("../lib/comfyui/custom/client");
+      return await resolveCustomComfyUIBaseUrl(override);
+    } catch (error) {
+      return { baseUrl: null, source: "error", error: error instanceof Error ? error.message : "Resolution failed" };
+    }
+  });
+
   // Install (build Docker image)
   ipcMain.handle("comfyui:install", async (_event, backendPath: string) => {
     try {
@@ -1666,11 +1685,7 @@ function setupIpcHandlers(): void {
   // Helper: Get FLUX.2 Klein backend path
   function getFlux2KleinBackendPath(variant: "4b" | "9b"): string {
     const config = variant === "4b" ? FLUX2_KLEIN_4B_CONFIG : FLUX2_KLEIN_9B_CONFIG;
-    if (isDev) {
-      return path.join(process.cwd(), "comfyui_backend", config.backendFolder);
-    } else {
-      return path.join(dataDir, config.backendFolder);
-    }
+    return path.join(getComfyUIBackendPath(), config.backendFolder);
   }
 
   // Helper: Send progress to renderer for FLUX.2 Klein
@@ -1862,13 +1877,19 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle("flux2Klein4b:fullSetup", async () => {
     try {
-      const backendPath = getFlux2KleinBackendPath("4b");
+      let backendPath = getFlux2KleinBackendPath("4b");
 
       // Step 1: Check prerequisites
       sendFlux2KleinProgress("4b", { stage: "checking", progress: 5, message: "Checking prerequisites..." });
 
       if (!fs.existsSync(backendPath)) {
-        throw new Error(`Backend folder not found: ${backendPath}. Please ensure FLUX.2 Klein 4B is properly installed.`);
+        if (!isDev) {
+          await ensureComfyUIBackend();
+          backendPath = getFlux2KleinBackendPath("4b");
+        }
+        if (!fs.existsSync(backendPath)) {
+          throw new Error(`Backend folder not found: ${backendPath}. Please ensure FLUX.2 Klein 4B is properly installed.`);
+        }
       }
 
       // Step 2: Check Docker
@@ -2032,13 +2053,19 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle("flux2Klein9b:fullSetup", async () => {
     try {
-      const backendPath = getFlux2KleinBackendPath("9b");
+      let backendPath = getFlux2KleinBackendPath("9b");
 
       // Step 1: Check prerequisites
       sendFlux2KleinProgress("9b", { stage: "checking", progress: 5, message: "Checking prerequisites..." });
 
       if (!fs.existsSync(backendPath)) {
-        throw new Error(`Backend folder not found: ${backendPath}. Please ensure FLUX.2 Klein 9B is properly installed.`);
+        if (!isDev) {
+          await ensureComfyUIBackend();
+          backendPath = getFlux2KleinBackendPath("9b");
+        }
+        if (!fs.existsSync(backendPath)) {
+          throw new Error(`Backend folder not found: ${backendPath}. Please ensure FLUX.2 Klein 9B is properly installed.`);
+        }
       }
 
       // Step 2: Check Docker

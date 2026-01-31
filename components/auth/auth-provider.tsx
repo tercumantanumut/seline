@@ -43,6 +43,7 @@ const PUBLIC_ROUTES = ["/login", "/signup"];
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<LocalUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [noUsers, setNoUsers] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.authenticated && data.user) {
         setUser(data.user);
+        setNoUsers(false);
 
         // Also store in localStorage for fallback
         localStorage.setItem(
@@ -68,9 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(null);
-      return { authenticated: false, noUsers: data.noUsers };
+      setNoUsers(Boolean(data.noUsers));
+      return { authenticated: false, noUsers: Boolean(data.noUsers) };
     } catch {
       setUser(null);
+      setNoUsers(false);
       return { authenticated: false, noUsers: false };
     }
   }, []);
@@ -79,31 +83,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       setIsLoading(true);
 
-      const result = await verifyAuth();
-
-      // Handle redirects based on auth state
-      const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-        pathname.startsWith(route)
-      );
-
-      if (!result.authenticated) {
-        if (result.noUsers && pathname !== "/signup") {
-          // No users exist, redirect to signup
-          router.replace("/signup");
-        } else if (!isPublicRoute) {
-          // Not authenticated and not on public route, redirect to login
-          router.replace("/login");
-        }
-      } else if (isPublicRoute) {
-        // Authenticated but on public route, redirect to home
-        router.replace("/");
-      }
-
+      await verifyAuth();
       setIsLoading(false);
     };
 
     initAuth();
-  }, [pathname, router, verifyAuth]);
+  }, [verifyAuth]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const isPublicRoute = PUBLIC_ROUTES.some((route) =>
+      pathname.startsWith(route)
+    );
+
+    if (!user) {
+      if (noUsers && pathname !== "/signup") {
+        router.replace("/signup");
+      } else if (!isPublicRoute) {
+        router.replace("/login");
+      }
+      return;
+    }
+
+    if (isPublicRoute) {
+      router.replace("/");
+    }
+  }, [isLoading, user, noUsers, pathname, router]);
 
   // Antigravity background token refresh
   useEffect(() => {

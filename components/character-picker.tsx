@@ -29,13 +29,14 @@ import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
-  knowledge: "📚",
-  search: "🔍",
-  "image-generation": "🎨",
-  "image-editing": "✏️",
-  "video-generation": "🎬",
-  analysis: "🔬",
-  utility: "🛠️",
+  knowledge: "\u{1F4DA}",
+  search: "\u{1F50D}",
+  "image-generation": "\u{1F3A8}",
+  "image-editing": "\u270F\uFE0F",
+  "video-generation": "\u{1F3AC}",
+  analysis: "\u{1F52C}",
+  utility: "\u{1F6E0}\uFE0F",
+  "custom-comfyui": "CUI",
 };
 
 /** Available tools that can be enabled/disabled */
@@ -53,11 +54,13 @@ type ToolDependency =
 
 type ToolDefinition = {
   id: string;
-  category: "knowledge" | "search" | "image-generation" | "image-editing" | "video-generation" | "analysis" | "utility";
+  category: string;
   dependencies?: ToolDependency[];
+  displayName?: string;
+  description?: string;
 };
 
-const AVAILABLE_TOOLS: ToolDefinition[] = [
+const BASE_TOOLS: ToolDefinition[] = [
   { id: "docsSearch", category: "knowledge" },
   { id: "vectorSearch", category: "knowledge", dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"] },
   { id: "readFile", category: "knowledge", dependencies: ["syncedFolders"] },
@@ -90,7 +93,11 @@ const AVAILABLE_TOOLS: ToolDefinition[] = [
   // Local ComfyUI Image Tools
   { id: "generateImageZImage", category: "image-generation", dependencies: ["comfyuiEnabled"] },
   { id: "generateImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
+  { id: "editImageFlux2Klein4B", category: "image-editing", dependencies: ["flux2Klein4bEnabled"] },
+  { id: "referenceImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
   { id: "generateImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
+  { id: "editImageFlux2Klein9B", category: "image-editing", dependencies: ["flux2Klein9bEnabled"] },
+  { id: "referenceImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
 ];
 
 interface CharacterSummary {
@@ -125,9 +132,22 @@ export function CharacterPicker() {
   const [isSaving, setIsSaving] = useState(false);
   const [toolSearchQuery, setToolSearchQuery] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [availableTools, setAvailableTools] = useState<ToolDefinition[]>(BASE_TOOLS);
   const t = useTranslations("picker");
   const tc = useTranslations("common");
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
+
+  const baseTools = useMemo(() => {
+    return BASE_TOOLS.map((tool) => ({
+      ...tool,
+      displayName: t.has(`tools.${tool.id}.name`) ? t(`tools.${tool.id}.name`) : tool.id,
+      description: t.has(`tools.${tool.id}.description`) ? t(`tools.${tool.id}.description`) : "",
+    }));
+  }, [t]);
+
+  useEffect(() => {
+    setAvailableTools(baseTools);
+  }, [baseTools]);
 
   const [dependencyStatus, setDependencyStatus] = useState<{
     syncedFolders: boolean;
@@ -155,22 +175,22 @@ export function CharacterPicker() {
 
   // Group tools by category
   const toolsByCategory = useMemo(() => {
-    return AVAILABLE_TOOLS.reduce((acc, tool) => {
+    return availableTools.reduce((acc, tool) => {
       if (!acc[tool.category]) acc[tool.category] = [];
       acc[tool.category].push(tool);
       return acc;
-    }, {} as Record<string, typeof AVAILABLE_TOOLS>);
-  }, []);
+    }, {} as Record<string, ToolDefinition[]>);
+  }, [availableTools]);
 
   // Filter tools based on search query
   const filteredToolsByCategory = useMemo(() => {
     if (!toolSearchQuery.trim()) return toolsByCategory;
     const query = toolSearchQuery.toLowerCase();
-    const filtered: Record<string, typeof AVAILABLE_TOOLS> = {};
+    const filtered: Record<string, ToolDefinition[]> = {};
     for (const [category, tools] of Object.entries(toolsByCategory)) {
       const matchingTools = tools.filter((tool) => {
-        const name = t(`tools.${tool.id}.name`).toLowerCase();
-        const desc = t(`tools.${tool.id}.description`).toLowerCase();
+        const name = (tool.displayName || tool.id).toLowerCase();
+        const desc = (tool.description || "").toLowerCase();
         return name.includes(query) || desc.includes(query) || tool.id.toLowerCase().includes(query);
       });
       if (matchingTools.length > 0) {
@@ -178,7 +198,63 @@ export function CharacterPicker() {
       }
     }
     return filtered;
-  }, [toolsByCategory, toolSearchQuery, t]);
+  }, [toolsByCategory, toolSearchQuery]);
+
+  useEffect(() => {
+    if (!toolEditorOpen) return;
+    let cancelled = false;
+
+    const loadTools = async () => {
+      try {
+        const response = await fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
+        if (!response.ok) throw new Error("Failed to load tools");
+        const data = (await response.json()) as {
+          tools?: Array<{ id: string; displayName: string; description: string; category: string }>;
+        };
+        if (cancelled) return;
+
+        const merged = new Map<string, ToolDefinition>();
+        baseTools.forEach((tool) => merged.set(tool.id, tool));
+
+        (data.tools || []).forEach((tool) => {
+          const existing = merged.get(tool.id);
+          if (existing) {
+            merged.set(tool.id, {
+              ...existing,
+              category: existing.category || tool.category,
+              displayName: existing.displayName && existing.displayName !== existing.id
+                ? existing.displayName
+                : tool.displayName,
+              description: existing.description && existing.description.length > 0
+                ? existing.description
+                : tool.description,
+            });
+          } else {
+            merged.set(tool.id, {
+              id: tool.id,
+              category: tool.category,
+              displayName: tool.displayName,
+              description: tool.description,
+            });
+          }
+        });
+
+        const mergedList = Array.from(merged.values()).sort((a, b) => {
+          if (a.category !== b.category) return a.category.localeCompare(b.category);
+          return (a.displayName || a.id).localeCompare(b.displayName || b.id);
+        });
+        setAvailableTools(mergedList);
+      } catch (error) {
+        console.error("Failed to load tools", error);
+      }
+    };
+
+    loadTools();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [toolEditorOpen, baseTools]);
 
   // Toggle category collapse
   const toggleCategory = (category: string) => {
@@ -276,11 +352,16 @@ export function CharacterPicker() {
         const settingsData = await settingsRes.json();
         const webScraperReady = settingsData.webScraperProvider === "local"
           || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
+        const hasEmbeddingModel = typeof settingsData.embeddingModel === "string"
+          && settingsData.embeddingModel.trim().length > 0;
+        const hasOpenRouterKey = typeof settingsData.openrouterApiKey === "string"
+          && settingsData.openrouterApiKey.trim().length > 0;
+        const embeddingsReady = hasEmbeddingModel || settingsData.embeddingProvider === "local" || hasOpenRouterKey;
 
         if (cancelled) return;
         setDependencyStatus({
           syncedFolders: foldersCount > 0,
-          embeddings: !!(settingsData.embeddingModel || (settingsData.embeddingProvider === "local")),
+          embeddings: embeddingsReady,
           vectorDbEnabled: settingsData.vectorDBEnabled === true,
           tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
           webScraper: webScraperReady,
@@ -721,6 +802,9 @@ export function CharacterPicker() {
               const selectableIds = (toolsByCategory[category] || []).filter(areDependenciesMet).map((t) => t.id);
               const selectableSelectedCount = selectableIds.filter((id) => selectedTools.includes(id)).length;
               const allSelected = selectableIds.length > 0 && selectableSelectedCount === selectableIds.length;
+              const categoryLabel = t.has(`toolEditor.categories.${category}`)
+                ? t(`toolEditor.categories.${category}`)
+                : category.replace(/-/g, " ");
 
               return (
                 <div key={category} className="border border-terminal-border/50 rounded-lg overflow-hidden">
@@ -739,7 +823,7 @@ export function CharacterPicker() {
                       )}
                       <span className="text-sm">{icon}</span>
                       <span className="font-mono text-sm font-medium text-terminal-dark">
-                        {t(`toolEditor.categories.${category}`)}
+                        {categoryLabel}
                       </span>
                       <span className="font-mono text-xs text-terminal-muted">
                         ({selectedCount}/{totalCount})
@@ -789,10 +873,10 @@ export function CharacterPicker() {
                                   htmlFor={`tool-${tool.id}`}
                                   className="font-mono text-xs text-terminal-dark cursor-pointer block truncate"
                                 >
-                                  {t(`tools.${tool.id}.name`)}
+                                  {tool.displayName || tool.id}
                                 </Label>
                                 <p className="text-[10px] font-mono text-terminal-muted line-clamp-1">
-                                  {t(`tools.${tool.id}.description`)}
+                                  {tool.description || ""}
                                 </p>
                                 {warning && (
                                   <div className="mt-1">
@@ -821,7 +905,7 @@ export function CharacterPicker() {
           {/* Footer Actions */}
           <div className="flex justify-between items-center pt-3 border-t border-terminal-border/50">
             <span className="text-xs font-mono text-terminal-muted">
-              {t("toolEditor.footerCount", { selected: selectedTools.length, total: AVAILABLE_TOOLS.length })}
+              {t("toolEditor.footerCount", { selected: selectedTools.length, total: availableTools.length })}
             </span>
             <div className="flex gap-2">
               <AnimatedButton
@@ -920,3 +1004,5 @@ export function CharacterPicker() {
     </div>
   );
 }
+
+

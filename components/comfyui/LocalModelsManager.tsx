@@ -85,7 +85,7 @@ const LOCAL_MODELS: LocalModelConfig[] = [
     {
         id: "z-image",
         name: "Z-Image Turbo FP8",
-        description: "Fast SDXL-based image generation with FP8 quantization for efficient VRAM usage.",
+        description: "Z-Image Turbo FP8 (6B params): fast photorealistic generation with strong instruction following.",
         requirements: "Docker Desktop + NVIDIA GPU",
         modelSize: "~12GB download",
         vramRequired: "~12GB VRAM",
@@ -154,6 +154,7 @@ function ModelCard({
     const [progress, setProgress] = useState<InstallProgress | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
+    const [expanded, setExpanded] = useState(false);
 
     // Get the electron API for this model
     const getElectronAPI = useCallback((): ModelElectronAPI | null => {
@@ -319,17 +320,26 @@ function ModelCard({
 
     const isSetupComplete = status?.imageBuilt && status?.modelsDownloaded;
     const needsSetup = status && (!status.imageBuilt || !status.modelsDownloaded);
+    const statusBadge = (() => {
+        if (checking) return { label: "Checking", tone: "muted" as const };
+        if (!status) return { label: "Unknown", tone: "muted" as const };
+        if (!status.dockerInstalled) return { label: "Docker Missing", tone: "danger" as const };
+        if (!status.imageBuilt || !status.modelsDownloaded) return { label: "Setup Needed", tone: "warning" as const };
+        if (!status.containerRunning) return { label: "Stopped", tone: "muted" as const };
+        if (!status.apiHealthy) return { label: "API Down", tone: "warning" as const };
+        return { label: "Ready", tone: "success" as const };
+    })();
 
     // Status indicator component
     function StatusIndicator({ ok, label }: { ok: boolean; label: string }) {
         return (
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-xs">
                 {ok ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-terminal-green" />
                 ) : (
                     <X className="h-4 w-4 text-red-500" />
                 )}
-                <span className={ok ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>
+                <span className={ok ? "text-terminal-text" : "text-terminal-muted"}>
                     {label}
                 </span>
             </div>
@@ -337,47 +347,72 @@ function ModelCard({
     }
 
     return (
-        <Card className="border-border/50">
-            <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <HardDrive className="h-4 w-4" />
-                            {config.name}
-                        </CardTitle>
-                        <CardDescription className="mt-1.5 text-sm">
-                            {config.description}
-                        </CardDescription>
+        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60">
+            <button
+                type="button"
+                onClick={() => setExpanded((prev) => !prev)}
+                className="flex w-full flex-wrap items-center gap-4 p-4 text-left"
+                aria-expanded={expanded}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-terminal-border bg-terminal-bg/70">
+                        <HardDrive className="h-4 w-4 text-terminal-green" />
                     </div>
-                    {isSetupComplete && (
-                        <Switch
-                            checked={enabled}
-                            onCheckedChange={onEnabledChange}
-                            disabled={!status?.apiHealthy}
+                    <div>
+                        <p className="text-sm font-semibold text-terminal-text">{config.name}</p>
+                        <p className="text-xs text-terminal-muted">{config.description}</p>
+                    </div>
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-5 text-xs text-terminal-muted">
+                    <div className="flex flex-col">
+                        <span>VRAM</span>
+                        <span className="text-terminal-text">{config.vramRequired}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span>Disk</span>
+                        <span className="text-terminal-text">{config.modelSize}</span>
+                    </div>
+                    <div
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-wide ${
+                            statusBadge.tone === "success"
+                                ? "border-terminal-green/40 text-terminal-green"
+                                : statusBadge.tone === "warning"
+                                ? "border-terminal-green/40 text-terminal-green"
+                                : statusBadge.tone === "danger"
+                                ? "border-red-500/40 text-red-400"
+                                : "border-terminal-border text-terminal-muted"
+                        }`}
+                    >
+                        <span
+                            className={`h-2 w-2 rounded-full ${
+                                statusBadge.tone === "success"
+                                    ? "bg-terminal-green"
+                                    : statusBadge.tone === "warning"
+                                    ? "bg-terminal-green"
+                                    : statusBadge.tone === "danger"
+                                    ? "bg-red-500"
+                                    : "bg-terminal-muted"
+                            }`}
                         />
-                    )}
+                        {statusBadge.label}
+                    </div>
+                    {expanded ? <ChevronUp className="h-4 w-4 text-terminal-muted" /> : <ChevronDown className="h-4 w-4 text-terminal-muted" />}
                 </div>
-                <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                        <Download className="h-3 w-3" /> {config.modelSize}
-                    </span>
-                    <span className="flex items-center gap-1">
-                        <Cpu className="h-3 w-3" /> {config.vramRequired}
-                    </span>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            </button>
+
+            {expanded && (
+                <div className="border-t border-terminal-border/60 p-4 space-y-4">
                 {/* Loading State */}
                 {checking && (
                     <div className="flex items-center justify-center p-4">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                        <span className="text-sm text-muted-foreground">Checking status...</span>
+                        <span className="text-sm text-terminal-muted">Checking status...</span>
                     </div>
                 )}
 
                 {/* Status Display - always show after checking */}
                 {!checking && status && (
-                    <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg text-sm">
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-terminal-border/60 bg-terminal-bg/40 p-3 text-sm">
                         <StatusIndicator ok={status.dockerInstalled} label="Docker" />
                         <StatusIndicator ok={status.imageBuilt} label="Image Built" />
                         <StatusIndicator ok={status.modelsDownloaded} label="Models" />
@@ -406,7 +441,7 @@ function ModelCard({
                             <span>{progress.progress}%</span>
                         </div>
                         <Progress value={progress.progress} />
-                        <p className="text-xs text-muted-foreground truncate">{progress.message}</p>
+                        <p className="text-xs text-terminal-muted truncate">{progress.message}</p>
                     </div>
                 )}
 
@@ -460,9 +495,21 @@ function ModelCard({
                     </div>
                 )}
 
+                {isSetupComplete && (
+                    <div className="flex items-center gap-2 text-xs text-terminal-text">
+                        <Switch
+                            checked={enabled}
+                            onCheckedChange={onEnabledChange}
+                            disabled={!status?.apiHealthy}
+                            className="data-[state=checked]:bg-terminal-green"
+                        />
+                        <span>Enabled for tool usage</span>
+                    </div>
+                )}
+
                 {/* Setup Steps - show when not yet set up */}
                 {!checking && needsSetup && (
-                    <div className="text-xs text-muted-foreground space-y-1">
+                    <div className="text-xs text-terminal-muted space-y-1">
                         <p><strong>Setup will:</strong></p>
                         <ul className="list-disc list-inside ml-2 space-y-0.5">
                             {config.setupSteps.map((step, i) => (
@@ -473,12 +520,12 @@ function ModelCard({
                 )}
 
                 {/* Advanced Settings */}
-                <div className="border-t pt-3">
+                <div className="border-t border-terminal-border/60 pt-3">
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="text-muted-foreground hover:text-foreground h-7 px-2"
+                        className="text-terminal-muted hover:text-terminal-text h-7 px-2"
                     >
                         {showAdvanced ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
                         <span className="text-xs">Advanced</span>
@@ -486,13 +533,13 @@ function ModelCard({
 
                     {showAdvanced && (
                         <div className="mt-3 space-y-2">
-                            <Label className="text-xs">Backend Path</Label>
+                            <Label className="text-xs text-terminal-muted">Backend Path</Label>
                             <div className="flex gap-2">
                                 <Input
                                     value={backendPath}
                                     onChange={(e) => onBackendPathChange(e.target.value)}
                                     placeholder="Auto-detected path"
-                                    className="flex-1 text-xs h-8"
+                                    className="flex-1 text-xs h-8 bg-terminal-bg/60 border-terminal-border text-terminal-text placeholder:text-terminal-muted/60"
                                 />
                                 <Button variant="outline" size="sm" onClick={checkStatus} disabled={loading} className="h-8 px-2">
                                     <FolderOpen className="h-3 w-3" />
@@ -501,8 +548,9 @@ function ModelCard({
                         </div>
                     )}
                 </div>
-            </CardContent>
-        </Card>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -590,3 +638,4 @@ export function LocalModelsManager({
         </div>
     );
 }
+

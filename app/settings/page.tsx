@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
 import { getKimiModels } from "@/lib/auth/kimi-models";
-import { LocalModelsManager } from "@/components/comfyui";
+import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
@@ -55,6 +55,11 @@ interface AppSettings {
   vectorSearchTokenChunkStride?: number;
   vectorSearchMaxFileLines?: number;
   vectorSearchMaxLineLength?: number;
+  comfyuiCustomHost?: string;
+  comfyuiCustomPort?: number;
+  comfyuiCustomUseHttps?: boolean;
+  comfyuiCustomAutoDetect?: boolean;
+  comfyuiCustomBaseUrl?: string;
   // Antigravity auth state (read-only, managed via OAuth)
   antigravityAuth?: {
     isAuthenticated: boolean;
@@ -132,6 +137,11 @@ export default function SettingsPage() {
     flux2Klein4bBackendPath: "",
     flux2Klein9bEnabled: false,
     flux2Klein9bBackendPath: "",
+    comfyuiCustomHost: "127.0.0.1",
+    comfyuiCustomPort: 8188,
+    comfyuiCustomUseHttps: false,
+    comfyuiCustomAutoDetect: true,
+    comfyuiCustomBaseUrl: "",
   });
 
   // Antigravity auth state (separate from form state, managed via OAuth)
@@ -212,6 +222,11 @@ export default function SettingsPage() {
         flux2Klein4bBackendPath: data.flux2Klein4bBackendPath ?? "",
         flux2Klein9bEnabled: data.flux2Klein9bEnabled ?? false,
         flux2Klein9bBackendPath: data.flux2Klein9bBackendPath ?? "",
+        comfyuiCustomHost: data.comfyuiCustomHost ?? "127.0.0.1",
+        comfyuiCustomPort: data.comfyuiCustomPort ?? 8188,
+        comfyuiCustomUseHttps: data.comfyuiCustomUseHttps ?? false,
+        comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
+        comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
@@ -678,6 +693,11 @@ interface FormState {
   flux2Klein4bBackendPath: string;
   flux2Klein9bEnabled: boolean;
   flux2Klein9bBackendPath: string;
+  comfyuiCustomHost: string;
+  comfyuiCustomPort: number;
+  comfyuiCustomUseHttps: boolean;
+  comfyuiCustomAutoDetect: boolean;
+  comfyuiCustomBaseUrl: string;
 }
 
 // Supported local embedding models with their metadata
@@ -1632,52 +1652,81 @@ function SettingsPanel({
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Local Image Generation</h2>
-          <p className="font-mono text-sm text-terminal-muted">
-            Generate images locally using Docker-based backends.
-            Requires Docker Desktop and an NVIDIA GPU.
+          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local Image Generation</h2>
+          <p className="text-sm text-terminal-muted">
+            Generate images locally using Docker-based backends. Requires Docker Desktop and an NVIDIA GPU.
           </p>
         </div>
 
-        {/* Hugging Face Token - Required for FLUX.2 Klein models */}
-        <div className="rounded-lg border border-terminal-border bg-white p-4">
-          <label className="mb-1 block font-mono text-sm font-medium text-terminal-dark">
-            Hugging Face Token
-          </label>
-          <p className="mb-2 font-mono text-xs text-terminal-muted">
-            Required for downloading FLUX.2 Klein models (gated access).{" "}
+        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-green/15 text-terminal-green">
+                <KeyIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-terminal-text">Hugging Face Token</p>
+                <p className="text-xs text-terminal-muted">
+                  Required for downloading gated models like FLUX.2 Klein.
+                </p>
+              </div>
+            </div>
             <a
               href="https://huggingface.co/settings/tokens"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-terminal-green underline hover:text-terminal-green/80"
+              className="text-xs text-terminal-green underline hover:text-terminal-green/80"
             >
               Get your token here
             </a>
-          </p>
+          </div>
           <input
             type="password"
             value={formState.huggingFaceToken}
             onChange={(e) => updateField("huggingFaceToken", e.target.value)}
             placeholder="hf_..."
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="mt-3 w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>
 
-        <LocalModelsManager
-          zImageEnabled={formState.comfyuiEnabled}
-          zImageBackendPath={formState.comfyuiBackendPath}
-          onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
-          onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
-          flux4bEnabled={formState.flux2Klein4bEnabled}
-          flux4bBackendPath={formState.flux2Klein4bBackendPath}
-          onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
-          onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
-          flux9bEnabled={formState.flux2Klein9bEnabled}
-          flux9bBackendPath={formState.flux2Klein9bBackendPath}
-          onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
-          onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
-        />
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-wide text-terminal-muted">Backends</p>
+          <LocalModelsManager
+            zImageEnabled={formState.comfyuiEnabled}
+            zImageBackendPath={formState.comfyuiBackendPath}
+            onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
+            onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
+            flux4bEnabled={formState.flux2Klein4bEnabled}
+            flux4bBackendPath={formState.flux2Klein4bBackendPath}
+            onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
+            onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
+            flux9bEnabled={formState.flux2Klein9bEnabled}
+            flux9bBackendPath={formState.flux2Klein9bBackendPath}
+            onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
+            onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
+          />
+        </div>
+
+        <div className="border-t border-terminal-border/60 pt-6 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI Workflows</h3>
+            <p className="text-xs text-terminal-muted">
+              Upload or paste workflow JSON, then review inputs and outputs before saving.
+            </p>
+          </div>
+          <CustomWorkflowsManager
+            connectionBaseUrl={formState.comfyuiCustomBaseUrl}
+            connectionHost={formState.comfyuiCustomHost}
+            connectionPort={formState.comfyuiCustomPort}
+            connectionUseHttps={formState.comfyuiCustomUseHttps}
+            connectionAutoDetect={formState.comfyuiCustomAutoDetect}
+            onConnectionBaseUrlChange={(value: string) => updateField("comfyuiCustomBaseUrl", value)}
+            onConnectionHostChange={(value: string) => updateField("comfyuiCustomHost", value)}
+            onConnectionPortChange={(value: number) => updateField("comfyuiCustomPort", value)}
+            onConnectionUseHttpsChange={(value: boolean) => updateField("comfyuiCustomUseHttps", value)}
+            onConnectionAutoDetectChange={(value: boolean) => updateField("comfyuiCustomAutoDetect", value)}
+          />
+        </div>
       </div>
     );
   }
@@ -2098,3 +2147,4 @@ function MemorySection() {
     </div>
   );
 }
+

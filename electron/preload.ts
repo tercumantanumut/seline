@@ -128,6 +128,12 @@ const electronAPI = {
     fullSetup: (): Promise<{ success: boolean; backendPath?: string; error?: string }> => {
       return ipcRenderer.invoke("comfyui:fullSetup");
     },
+    detectCustom: (options?: { host?: string; ports?: number[]; useHttps?: boolean }): Promise<{ baseUrl: string | null; source: string; error?: string }> => {
+      return ipcRenderer.invoke("comfyuiCustom:detect", options);
+    },
+    resolveCustom: (override?: { comfyuiBaseUrl?: string; comfyuiHost?: string; comfyuiPort?: number }): Promise<{ baseUrl: string | null; source: string; error?: string }> => {
+      return ipcRenderer.invoke("comfyuiCustom:resolve", override);
+    },
     onInstallProgress: (callback: (data: {
       stage: string;
       progress: number;
@@ -302,6 +308,8 @@ const electronAPI = {
         "comfyui:stop",
         "comfyui:getDefaultPath",
         "comfyui:fullSetup",
+        "comfyuiCustom:detect",
+        "comfyuiCustom:resolve",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);

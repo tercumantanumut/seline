@@ -20,6 +20,12 @@ const TOOL_TRANSLATION_KEYS: Record<string, string> = {
   editRoomImage: "editRoomImage",
   generateVideoWan22: "generateVideoWan22",
   generatePixelVideoWan22: "generatePixelVideoWan22",
+  generateImageFlux2Klein4B: "generateImageFlux2Klein4B",
+  editImageFlux2Klein4B: "editImageFlux2Klein4B",
+  referenceImageFlux2Klein4B: "referenceImageFlux2Klein4B",
+  generateImageFlux2Klein9B: "generateImageFlux2Klein9B",
+  editImageFlux2Klein9B: "editImageFlux2Klein9B",
+  referenceImageFlux2Klein9B: "referenceImageFlux2Klein9B",
   showProductImages: "showProductImages",
   executeCommand: "executeCommand",
 };

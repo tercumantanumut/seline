@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, type FC } from "react";
+import { memo, useEffect, useMemo, useState, type FC } from "react";
 import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -446,6 +446,36 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 });
 ToolResultDisplay.displayName = "ToolResultDisplay";
 
+let toolNameCache: Record<string, string> | null = null;
+let toolNameCachePromise: Promise<Record<string, string>> | null = null;
+
+async function loadToolNameCache(): Promise<Record<string, string>> {
+  if (toolNameCache) return toolNameCache;
+  if (toolNameCachePromise) return toolNameCachePromise;
+
+  toolNameCachePromise = fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true")
+    .then(async (response) => {
+      if (!response.ok) throw new Error("Failed to load tool catalog");
+      const data = (await response.json()) as {
+        tools?: Array<{ id: string; displayName: string }>;
+      };
+      const map: Record<string, string> = {};
+      (data.tools || []).forEach((tool) => {
+        if (tool.id && tool.displayName) {
+          map[tool.id] = tool.displayName;
+        }
+      });
+      toolNameCache = map;
+      return map;
+    })
+    .catch(() => {
+      toolNameCache = {};
+      return toolNameCache;
+    });
+
+  return toolNameCachePromise;
+}
+
 // Main component with memo
 export const ToolFallback: ToolCallContentPartComponent = memo(({
   toolName,
@@ -455,11 +485,27 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   const t = useTranslations("assistantUi.tools");
   const isRunning = result === undefined;
   const parsedResult = result as ToolResult | undefined;
+  const [resolvedName, setResolvedName] = useState<string | null>(null);
 
   // Memoize the display name lookup
   const displayName = useMemo(() => {
-    return t.has(toolName) ? t(toolName) : toolName;
-  }, [t, toolName]);
+    return t.has(toolName) ? t(toolName) : (resolvedName || toolName);
+  }, [t, toolName, resolvedName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (t.has(toolName)) {
+      setResolvedName(null);
+      return;
+    }
+    loadToolNameCache().then((cache) => {
+      if (cancelled) return;
+      setResolvedName(cache[toolName] || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [toolName, t]);
 
   // Memoize formatted args
   const formattedArgs = useMemo(() => {

@@ -172,14 +172,21 @@ export const Scene: React.FC<SceneComponentProps> = ({
 
     const baseUrl = getBaseUrl();
 
+    const token = process.env.REMOTION_MEDIA_TOKEN;
+
     // If it's a local API path, construct full HTTP URL
     // Remotion needs absolute HTTP URLs to load media in its headless browser
     if (url.startsWith("/api/media/")) {
-      return `${baseUrl}${url}`;
+      const fullUrl = `${baseUrl}${url}`;
+      if (!token) return fullUrl;
+      const separator = fullUrl.includes("?") ? "&" : "?";
+      return `${fullUrl}${separator}internal_auth=${token}`;
     }
     // If it's a relative path without /api/media/, construct the full API URL
     if (!url.startsWith("/") && !url.includes("://")) {
-      return `${baseUrl}/api/media/${url}`;
+      const fullUrl = `${baseUrl}/api/media/${url}`;
+      if (!token) return fullUrl;
+      return `${fullUrl}?internal_auth=${token}`;
     }
     return url;
   };

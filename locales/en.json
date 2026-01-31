@@ -333,9 +333,25 @@
         "name": "Generate (FLUX.2 Klein 4B)",
         "description": "Fast local FLUX.2 Klein 4B image generation (requires Docker)"
       },
+      "editImageFlux2Klein4B": {
+        "name": "Edit (FLUX.2 Klein 4B)",
+        "description": "Edit images locally with FLUX.2 Klein 4B (requires Docker)"
+      },
+      "referenceImageFlux2Klein4B": {
+        "name": "Reference (FLUX.2 Klein 4B)",
+        "description": "Reference-guided generation with FLUX.2 Klein 4B (requires Docker)"
+      },
       "generateImageFlux2Klein9B": {
         "name": "Generate (FLUX.2 Klein 9B)",
         "description": "High-quality local FLUX.2 Klein 9B image generation (requires Docker)"
+      },
+      "editImageFlux2Klein9B": {
+        "name": "Edit (FLUX.2 Klein 9B)",
+        "description": "Edit images locally with FLUX.2 Klein 9B (requires Docker)"
+      },
+      "referenceImageFlux2Klein9B": {
+        "name": "Reference (FLUX.2 Klein 9B)",
+        "description": "Reference-guided generation with FLUX.2 Klein 9B (requires Docker)"
       }
     }
   },
@@ -492,7 +508,13 @@
       "generateImageGemini3Pro": "Generate (Gemini 3 Pro)",
       "editImageGemini3Pro": "Edit (Gemini 3 Pro)",
       "referenceImageGemini3Pro": "Reference (Gemini 3 Pro)",
-      "generateImageZImage": "Generate (Z-Image Local)"
+      "generateImageZImage": "Generate (Z-Image Local)",
+      "generateImageFlux2Klein4B": "Generate (FLUX.2 Klein 4B)",
+      "editImageFlux2Klein4B": "Edit (FLUX.2 Klein 4B)",
+      "referenceImageFlux2Klein4B": "Reference (FLUX.2 Klein 4B)",
+      "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
+      "editImageFlux2Klein9B": "Edit (FLUX.2 Klein 9B)",
+      "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)"
     }
   },
   "folderSync": {
@@ -705,8 +727,16 @@
         "generateImageZImageDesc": "Local image generation via ComfyUI (requires Docker)",
         "generateImageFlux2Klein4B": "Generate (FLUX.2 Klein 4B)",
         "generateImageFlux2Klein4BDesc": "Fast local FLUX.2 Klein 4B image generation (requires Docker)",
+        "editImageFlux2Klein4B": "Edit (FLUX.2 Klein 4B)",
+        "editImageFlux2Klein4BDesc": "Edit images locally with FLUX.2 Klein 4B (requires Docker)",
+        "referenceImageFlux2Klein4B": "Reference (FLUX.2 Klein 4B)",
+        "referenceImageFlux2Klein4BDesc": "Reference-guided generation with FLUX.2 Klein 4B (requires Docker)",
         "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
-        "generateImageFlux2Klein9BDesc": "High-quality local FLUX.2 Klein 9B image generation (requires Docker)"
+        "generateImageFlux2Klein9BDesc": "High-quality local FLUX.2 Klein 9B image generation (requires Docker)",
+        "editImageFlux2Klein9B": "Edit (FLUX.2 Klein 9B)",
+        "editImageFlux2Klein9BDesc": "Edit images locally with FLUX.2 Klein 9B (requires Docker)",
+        "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)",
+        "referenceImageFlux2Klein9BDesc": "Reference-guided generation with FLUX.2 Klein 9B (requires Docker)"
       },
       "dependencyWarnings": {
         "syncedFolders": "Requires synced folders",
