@@ -15,9 +15,9 @@ const DEFAULT_STATUS: GlobalSyncStatus = {
 };
 
 // Polling intervals
-const ACTIVE_POLL_INTERVAL = 1000; // 1 second when syncing (for responsive UI)
-const IDLE_POLL_INTERVAL = 30000; // 30 seconds when idle
-const DISABLED_POLL_INTERVAL = 300000; // 5 minutes when vector DB is disabled
+const ACTIVE_POLL_INTERVAL = 5000; // 5 seconds when syncing (reduce log noise)
+const IDLE_POLL_INTERVAL = 60000; // 60 seconds when idle
+const DISABLED_POLL_INTERVAL = 600000; // 10 minutes when vector DB is disabled
 
 interface VectorSyncContextType {
   status: GlobalSyncStatus;
@@ -63,9 +63,12 @@ export function useVectorSyncStatusInternal(): UseVectorSyncStatusInternalResult
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await fetch("/api/sync-status");
+    const fetchStatus = useCallback(async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      try {
+        const response = await fetch("/api/sync-status");
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "Failed to fetch sync status");

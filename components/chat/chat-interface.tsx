@@ -490,12 +490,15 @@ export default function ChatInterface({
             return;
         }
 
-        const interval = setInterval(() => {
-            void loadSessions({ silent: true });
-            if (isChannelSession) {
-                void reloadSessionMessages(sessionId);
-            }
-        }, 6000);
+      const interval = setInterval(() => {
+          if (document.visibilityState !== "visible") {
+              return;
+          }
+          void loadSessions({ silent: true });
+          if (isChannelSession) {
+              void reloadSessionMessages(sessionId);
+          }
+      }, 20000);
 
         return () => clearInterval(interval);
     }, [isChannelSession, loadSessions, reloadSessionMessages, sessionId]);
