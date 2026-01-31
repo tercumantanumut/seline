@@ -68,9 +68,14 @@ export async function PUT(
     const saved = await saveCustomComfyUIWorkflow(updated);
     return NextResponse.json({ workflow: saved });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update workflow";
+    const isConnectionError =
+      typeof message === "string" &&
+      (message.includes("ComfyUI connection failed") ||
+        message.includes("ComfyUI instance not reachable"));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update workflow" },
-      { status: 500 }
+      { error: message },
+      { status: isConnectionError ? 503 : 500 }
     );
   }
 }

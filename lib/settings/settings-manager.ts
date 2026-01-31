@@ -194,7 +194,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     comfyuiModelsDownloaded: false,
     comfyuiBackendPath: "",
     comfyuiCustomHost: "127.0.0.1",
-    comfyuiCustomPort: 8081,
+    comfyuiCustomPort: 8188,
     comfyuiCustomUseHttps: false,
     comfyuiCustomAutoDetect: true,
     comfyuiCustomBaseUrl: "",
