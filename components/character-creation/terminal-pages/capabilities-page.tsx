@@ -364,10 +364,15 @@ export function CapabilitiesPage({
         .then((settingsData) => {
           const webScraperReady = settingsData.webScraperProvider === "local"
             || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
+          const hasEmbeddingModel = typeof settingsData.embeddingModel === "string"
+            && settingsData.embeddingModel.trim().length > 0;
+          const hasOpenRouterKey = typeof settingsData.openrouterApiKey === "string"
+            && settingsData.openrouterApiKey.trim().length > 0;
+          const embeddingsReady = hasEmbeddingModel || settingsData.embeddingProvider === "local" || hasOpenRouterKey;
 
           setDependencyStatus({
             syncedFolders: foldersCount > 0,
-            embeddings: !!(settingsData.embeddingModel || (settingsData.embeddingProvider === "local")),
+            embeddings: embeddingsReady,
             vectorDbEnabled: settingsData.vectorDBEnabled === true,
             tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
             webScraper: webScraperReady,

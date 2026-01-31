@@ -31,6 +31,78 @@ function copyRecursive(src, dest) {
     }
 }
 
+function removePath(targetPath) {
+    if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+}
+
+function pruneOnnxRuntime(baseDir, napiDirName, keepOs, keepArch) {
+    const napiDir = path.join(baseDir, "bin", napiDirName);
+    if (!fs.existsSync(napiDir)) return;
+
+    for (const entry of fs.readdirSync(napiDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name !== keepOs) {
+            removePath(path.join(napiDir, entry.name));
+            continue;
+        }
+
+        const archDir = path.join(napiDir, entry.name);
+        for (const archEntry of fs.readdirSync(archDir, { withFileTypes: true })) {
+            if (!archEntry.isDirectory()) continue;
+            if (archEntry.name !== keepArch) {
+                removePath(path.join(archDir, archEntry.name));
+            }
+        }
+    }
+}
+
+function pruneRemotionCompositors(remotionDir, keepOs) {
+    if (!fs.existsSync(remotionDir)) return;
+
+    for (const entry of fs.readdirSync(remotionDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (!entry.name.startsWith("compositor-")) continue;
+        if (!entry.name.includes(keepOs)) {
+            removePath(path.join(remotionDir, entry.name));
+        }
+    }
+}
+
+function pruneEsbuildBinaries(esbuildRoot, keepOs, keepArch) {
+    if (!fs.existsSync(esbuildRoot)) return;
+
+    for (const entry of fs.readdirSync(esbuildRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const name = entry.name;
+        const isPlatformDir = /^(aix|android|darwin|freebsd|linux|netbsd|openbsd|sunos|win32)/.test(name);
+        if (!isPlatformDir) continue;
+
+        const expected = `${keepOs}-${keepArch}`;
+        if (name !== expected) {
+            removePath(path.join(esbuildRoot, name));
+        }
+    }
+}
+
+function pruneStandaloneForPlatform(standaloneRoot) {
+    const platform = process.platform;
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const keepOs = platform === "win32" ? "win32" : platform === "darwin" ? "darwin" : platform === "linux" ? "linux" : null;
+
+    if (!keepOs) return;
+
+    removePath(path.join(standaloneRoot, "node_modules", ".cache"));
+
+    pruneOnnxRuntime(path.join(standaloneRoot, "node_modules", "onnxruntime-node"), "napi-v6", keepOs, arch);
+    pruneOnnxRuntime(path.join(standaloneRoot, "node_modules", "@xenova", "transformers", "node_modules", "onnxruntime-node"), "napi-v3", keepOs, arch);
+    pruneRemotionCompositors(path.join(standaloneRoot, "node_modules", "@remotion"), keepOs);
+
+    pruneEsbuildBinaries(path.join(standaloneRoot, "node_modules", "@esbuild"), keepOs, arch);
+    pruneEsbuildBinaries(path.join(standaloneRoot, "node_modules", "@remotion", "bundler", "node_modules", "@esbuild"), keepOs, arch);
+}
+
 console.log('--- Electron Prepare ---');
 
 // 1. Ensure .next/standalone/.next exists
@@ -166,5 +238,9 @@ for (const mod of nativeModuleBinaries) {
         console.warn(`Warning: ${mod.name} native binary not found at ${srcPath}`);
     }
 }
+
+// 10. Prune platform-specific binaries and caches from standalone
+console.log('Pruning standalone dependencies for current platform...');
+pruneStandaloneForPlatform(standaloneDir);
 
 console.log('--- Preparation Complete ---');
