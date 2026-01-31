@@ -1,5 +1,18 @@
 "use client";
 
+// Suppress noisy dev warning from @assistant-ui/react useToolInvocations
+if (process.env.NODE_ENV !== "production") {
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("argsText updated after controller was closed")
+    )
+      return;
+    originalWarn.apply(console, args);
+  };
+}
+
 import { Component, type ErrorInfo, type FC, type ReactNode, useMemo } from "react";
 import {
   AssistantRuntimeProvider,

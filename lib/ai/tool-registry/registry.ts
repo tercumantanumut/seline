@@ -171,7 +171,7 @@ class ToolRegistry {
   /**
    * Search for tools matching a query
    */
-  search(query: string, limit = 5): ToolSearchResult[] {
+  search(query: string, limit = 20): ToolSearchResult[] {
     const queryLower = query.toLowerCase();
     const queryWords = queryLower.split(/\s+/).filter(Boolean);
 
