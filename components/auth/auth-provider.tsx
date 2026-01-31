@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     initAuth();
-  }, [verifyAuth]);
+  }, [verifyAuth, pathname]);
 
   useEffect(() => {
     if (isLoading) return;
