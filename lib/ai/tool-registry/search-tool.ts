@@ -94,9 +94,9 @@ const toolSearchSchema = jsonSchema<{
     limit: {
       type: "number",
       minimum: 1,
-      maximum: 10,
-      default: 5,
-      description: "Maximum number of tools to return (default: 5)",
+      maximum: 50,
+      default: 20,
+      description: "Maximum number of tools to return (default: 20)",
     },
   },
   required: ["query"],
@@ -161,7 +161,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 
 **After finding a tool:** Use it immediately. Do NOT call searchTools again for the same task.`,
     inputSchema: toolSearchSchema,
-    execute: async ({ query, category, limit = 5 }): Promise<SearchToolResult> => {
+    execute: async ({ query, category, limit = 20 }): Promise<SearchToolResult> => {
       // Search ALL registered tools (including deferred ones) - this enables tool discovery
       let results = registry.search(query, limit * 2); // Fetch more to account for filtering
 
