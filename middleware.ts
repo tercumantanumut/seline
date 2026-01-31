@@ -61,6 +61,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/") &&
     internalAuthHeader === schedulerSecret &&
     isScheduledRunHeader;
+  const internalMediaToken = request.nextUrl.searchParams.get("internal_auth");
+  const isInternalMediaRequest =
+    pathname.startsWith("/api/media") && internalMediaToken === schedulerSecret;
 
   // Check for session cookie
   const sessionId = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -69,7 +72,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 
   // If no session and trying to access protected route
-  if (!sessionId && !isPublicRoute && !isInternalSchedulerRequest) {
+  if (!sessionId && !isPublicRoute && !isInternalSchedulerRequest && !isInternalMediaRequest) {
     // For API routes, return 401
     if (pathname.startsWith("/api/")) {
       const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });

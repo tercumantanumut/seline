@@ -468,15 +468,25 @@ function isClaudeModel(modelId: string): boolean {
  * Check if a model is compatible with the given provider.
  * Returns true if the model belongs to (or is valid for) that provider.
  */
-function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
-  switch (provider) {
-    case "antigravity": return isAntigravityModel(model);
-    case "codex": return isCodexModel(model);
-    case "kimi": return isKimiModel(model);
-    case "anthropic": return isClaudeModel(model);
-    case "openrouter": return true; // OpenRouter accepts any model
+  function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
+    switch (provider) {
+      case "antigravity": return isAntigravityModel(model);
+      case "codex": return isCodexModel(model);
+      case "kimi": return isKimiModel(model);
+      case "anthropic": return isClaudeModel(model);
+      case "openrouter": {
+        const trimmed = model.trim();
+        if (trimmed.startsWith(OPENROUTER_MODEL_PREFIX) || trimmed.includes("/")) {
+          return true;
+        }
+        // Avoid routing bare provider-specific IDs through OpenRouter.
+        if (isAntigravityModel(trimmed) || isCodexModel(trimmed) || isKimiModel(trimmed) || isClaudeModel(trimmed)) {
+          return false;
+        }
+        return true;
+      }
+    }
   }
-}
 
 /**
  * Validate that a model is compatible with the current provider.
