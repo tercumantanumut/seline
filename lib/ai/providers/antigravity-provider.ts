@@ -89,6 +89,29 @@ function normalizeAntigravityToolSchemas(tools: unknown): void {
     return;
   }
 
+  const normalizeEnumValues = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach((item) => normalizeEnumValues(item));
+      return;
+    }
+
+    if (!node || typeof node !== "object") {
+      return;
+    }
+
+    const schema = node as Record<string, unknown>;
+    const enumValues = Array.isArray(schema.enum) ? schema.enum : undefined;
+
+    if (enumValues) {
+      // Antigravity/Gemini expects enum values to be strings in function schemas.
+      schema.enum = enumValues.map((value) => (typeof value === "string" ? value : String(value)));
+    }
+
+    for (const value of Object.values(schema)) {
+      normalizeEnumValues(value);
+    }
+  };
+
   for (const [index, toolEntry] of tools.entries()) {
     if (!toolEntry || typeof toolEntry !== "object") {
       continue;
@@ -103,6 +126,7 @@ function normalizeAntigravityToolSchemas(tools: unknown): void {
         const name = typeof custom.name === "string" ? custom.name : `#${index}`;
         console.warn(`[Antigravity] Tool "${name}" missing input_schema; injecting empty schema`);
       }
+      normalizeEnumValues(custom.input_schema);
     }
 
     if (Array.isArray(entry.functionDeclarations)) {
@@ -117,6 +141,23 @@ function normalizeAntigravityToolSchemas(tools: unknown): void {
           const name = typeof fn.name === "string" ? fn.name : `#${index}.${fnIndex}`;
           console.warn(`[Antigravity] Function "${name}" missing parameters; injecting empty schema`);
         }
+        normalizeEnumValues(fn.parameters);
+      }
+    }
+
+    if (Array.isArray(entry.function_declarations)) {
+      for (const [fnIndex, fnEntry] of entry.function_declarations.entries()) {
+        if (!fnEntry || typeof fnEntry !== "object") {
+          continue;
+        }
+
+        const fn = fnEntry as Record<string, unknown>;
+        if (!("parameters" in fn) || !fn.parameters) {
+          fn.parameters = { type: "object", properties: {} };
+          const name = typeof fn.name === "string" ? fn.name : `#${index}.${fnIndex}`;
+          console.warn(`[Antigravity] Function "${name}" missing parameters; injecting empty schema`);
+        }
+        normalizeEnumValues(fn.parameters);
       }
     }
   }

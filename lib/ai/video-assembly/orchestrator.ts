@@ -6,7 +6,7 @@
  */
 
 import { generateText } from "ai";
-import { getResearchModel } from "../providers";
+import { getConfiguredProvider, getModelByName, getResearchModel, UTILITY_MODELS } from "../providers";
 import { getSessionImages } from "@/lib/db/queries";
 import { renderVideo as remotionRenderVideo } from "./renderer";
 import type {
@@ -89,6 +89,13 @@ function parseJsonResponse<T>(text: string): T {
   return JSON.parse(cleaned.trim());
 }
 
+function isAntigravityQuotaError(error: unknown): boolean {
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const lower = message.toLowerCase();
+  return lower.includes("resource_exhausted") || lower.includes("quota") || lower.includes("429");
+}
+
 /**
  * Phase 1: Analyze available assets in the session
  */
@@ -104,15 +111,15 @@ async function analyzeAssets(
   const images = await getSessionImages(state.sessionId);
   throwIfAborted(abortSignal);
 
-  // Filter to only generated assets (not uploads/references)
-  const generatedAssets = images.filter(
-    (img) => img.role === "generated"
+  // Allow generated outputs and user uploads for assembly
+  const usableAssets = images.filter(
+    (img) => img.role === "generated" || img.role === "upload"
   );
 
   // If specific asset IDs provided, filter to those
-  let filteredAssets = generatedAssets;
+  let filteredAssets = usableAssets;
   if (state.assetIds && state.assetIds.length > 0) {
-    filteredAssets = generatedAssets.filter((img) =>
+    filteredAssets = usableAssets.filter((img) =>
       state.assetIds!.includes(img.id)
     );
   }
@@ -120,7 +127,10 @@ async function analyzeAssets(
   // Convert to MediaAsset format
   const assets: MediaAsset[] = filteredAssets.map((img) => {
     const metadata = img.metadata as Record<string, unknown> | null;
-    const isVideo = img.format === "mp4" || img.format === "webm" ||
+    const urlPath = img.localPath || img.url || "";
+    const inferredExt = urlPath.split(".").pop()?.toLowerCase();
+    const format = img.format || inferredExt;
+    const isVideo = format === "mp4" || format === "webm" ||
       (metadata?.mediaType === "video");
 
     return {
@@ -130,7 +140,7 @@ async function analyzeAssets(
       localPath: img.localPath,
       width: img.width ?? undefined,
       height: img.height ?? undefined,
-      format: img.format ?? undefined,
+      format: format ?? undefined,
       duration: isVideo ? (metadata?.duration as number) ?? 2 : undefined,
       metadata: metadata ?? undefined,
       createdAt: img.createdAt,
@@ -264,10 +274,12 @@ async function createPlan(
     ? `\nUser Requirements:\n${input.userInstructions}\n`
     : "";
 
-  const { text } = await generateText({
-    model: getResearchModel(),
-    system: VIDEO_PLANNING_PROMPT,
-    prompt: `Concept: ${state.concept}
+  let text: string;
+  try {
+    const result = await generateText({
+      model: getResearchModel(),
+      system: VIDEO_PLANNING_PROMPT,
+      prompt: `Concept: ${state.concept}
 ${userRequirementsSection}
 Available Assets (in required order - DO NOT reorder):
 ${assetsContext}
@@ -277,9 +289,42 @@ Default Scene Duration: ${config.defaultSceneDuration} seconds
 Preferred Transition: ${config.defaultTransition}
 
 Create a video assembly plan. You have full creative freedom to select and arrange assets in any order that creates the best narrative.`,
-    temperature: 0.7,
-    abortSignal,
-  });
+      temperature: 0.7,
+      abortSignal,
+    });
+    text = result.text;
+  } catch (error) {
+    const provider = getConfiguredProvider();
+    const canFallback =
+      provider === "antigravity" &&
+      isAntigravityQuotaError(error) &&
+      typeof process.env.OPENROUTER_API_KEY === "string" &&
+      process.env.OPENROUTER_API_KEY.trim().length > 0;
+
+    if (!canFallback) {
+      throw error;
+    }
+
+    console.warn("[VIDEO-ASSEMBLY] Antigravity quota hit, falling back to OpenRouter utility model.");
+    const fallbackModel = getModelByName(UTILITY_MODELS.openrouter);
+    const result = await generateText({
+      model: fallbackModel,
+      system: VIDEO_PLANNING_PROMPT,
+      prompt: `Concept: ${state.concept}
+${userRequirementsSection}
+Available Assets (in required order - DO NOT reorder):
+${assetsContext}
+
+Target Duration: ${config.targetDuration || "auto"} seconds
+Default Scene Duration: ${config.defaultSceneDuration} seconds
+Preferred Transition: ${config.defaultTransition}
+
+Create a video assembly plan. You have full creative freedom to select and arrange assets in any order that creates the best narrative.`,
+      temperature: 0.7,
+      abortSignal,
+    });
+    text = result.text;
+  }
   throwIfAborted(abortSignal);
 
   const planData = parseJsonResponse<{

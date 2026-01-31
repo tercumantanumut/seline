@@ -123,6 +123,8 @@ async function getBundle(): Promise<string> {
       ? "http://localhost:3456"
       : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
+    const mediaToken = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+
     console.log("[VIDEO-RENDERER] Using serve URL for media:", serveUrl);
 
     // Bundle the composition with environment variables for the browser context
@@ -143,6 +145,7 @@ async function getBundle(): Promise<string> {
             ...(config.plugins || []),
             new webpack.DefinePlugin({
               "process.env.REMOTION_SERVE_URL": JSON.stringify(serveUrl),
+              "process.env.REMOTION_MEDIA_TOKEN": JSON.stringify(mediaToken),
             }),
           ],
         };
@@ -177,8 +180,12 @@ function getOutputPath(sessionId: string, format: string): string {
  */
 function pathToUrl(outputPath: string, sessionId: string): string {
   const basePath = process.env.LOCAL_DATA_PATH || join(process.cwd(), ".local-data");
-  const relativePath = outputPath.replace(join(basePath, "media") + "/", "");
-  return `/api/media/${relativePath}`;
+  const mediaRoot = join(basePath, "media");
+  const relativePath = outputPath.startsWith(mediaRoot)
+    ? outputPath.slice(mediaRoot.length + 1)
+    : outputPath;
+  const normalized = relativePath.replace(/\\/g, "/");
+  return `/api/media/${normalized}`;
 }
 
 /**

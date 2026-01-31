@@ -24,6 +24,15 @@ function inferInputType(
   return "string";
 }
 
+function inferMediaTypeHint(classType: string, inputName: string): CustomComfyUIInput["type"] | undefined {
+  const name = inputName.toLowerCase();
+  const className = classType.toLowerCase();
+  if (name.includes("mask")) return "mask";
+  if (name.includes("image") || className.includes("loadimage")) return "image";
+  if (name.includes("video") || className.includes("loadvideo")) return "video";
+  return undefined;
+}
+
 function inferInputTypeFromObjectInfo(rawType?: string): CustomComfyUIInput["type"] | undefined {
   if (!rawType) return undefined;
   const normalized = rawType.toUpperCase();
@@ -118,9 +127,11 @@ export function analyzeWorkflow(
       }
 
       const objectInfo = findObjectInfoEntry(options?.objectInfo, classType, inputName);
-      const inferredType = objectInfo.spec?.type
+      const objectInfoType = objectInfo.spec?.type
         ? inferInputTypeFromObjectInfo(objectInfo.spec.type)
         : undefined;
+      const mediaHint = inferMediaTypeHint(classType, inputName);
+      const inferredType = mediaHint || objectInfoType;
 
       inputs.push({
         id: `${nodeId}:${inputName}`,
