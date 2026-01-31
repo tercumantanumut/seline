@@ -138,7 +138,7 @@ export default function SettingsPage() {
     flux2Klein9bEnabled: false,
     flux2Klein9bBackendPath: "",
     comfyuiCustomHost: "127.0.0.1",
-    comfyuiCustomPort: 8081,
+    comfyuiCustomPort: 8188,
     comfyuiCustomUseHttps: false,
     comfyuiCustomAutoDetect: true,
     comfyuiCustomBaseUrl: "",
@@ -223,7 +223,7 @@ export default function SettingsPage() {
         flux2Klein9bEnabled: data.flux2Klein9bEnabled ?? false,
         flux2Klein9bBackendPath: data.flux2Klein9bBackendPath ?? "",
         comfyuiCustomHost: data.comfyuiCustomHost ?? "127.0.0.1",
-        comfyuiCustomPort: data.comfyuiCustomPort ?? 8081,
+        comfyuiCustomPort: data.comfyuiCustomPort ?? 8188,
         comfyuiCustomUseHttps: data.comfyuiCustomUseHttps ?? false,
         comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
         comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
@@ -1652,120 +1652,81 @@ function SettingsPanel({
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Local Image Generation</h2>
-          <p className="font-mono text-sm text-terminal-muted">
-            Generate images locally using Docker-based backends.
-            Requires Docker Desktop and an NVIDIA GPU.
+          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local Image Generation</h2>
+          <p className="text-sm text-terminal-muted">
+            Generate images locally using Docker-based backends. Requires Docker Desktop and an NVIDIA GPU.
           </p>
         </div>
 
-        {/* Hugging Face Token - Required for FLUX.2 Klein models */}
-        <div className="rounded-lg border border-terminal-border bg-white p-4">
-          <label className="mb-1 block font-mono text-sm font-medium text-terminal-dark">
-            Hugging Face Token
-          </label>
-          <p className="mb-2 font-mono text-xs text-terminal-muted">
-            Required for downloading FLUX.2 Klein models (gated access).{" "}
+        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-green/15 text-terminal-green">
+                <KeyIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-terminal-text">Hugging Face Token</p>
+                <p className="text-xs text-terminal-muted">
+                  Required for downloading gated models like FLUX.2 Klein.
+                </p>
+              </div>
+            </div>
             <a
               href="https://huggingface.co/settings/tokens"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-terminal-green underline hover:text-terminal-green/80"
+              className="text-xs text-terminal-green underline hover:text-terminal-green/80"
             >
               Get your token here
             </a>
-          </p>
+          </div>
           <input
             type="password"
             value={formState.huggingFaceToken}
             onChange={(e) => updateField("huggingFaceToken", e.target.value)}
             placeholder="hf_..."
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="mt-3 w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>
 
-        <LocalModelsManager
-          zImageEnabled={formState.comfyuiEnabled}
-          zImageBackendPath={formState.comfyuiBackendPath}
-          onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
-          onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
-          flux4bEnabled={formState.flux2Klein4bEnabled}
-          flux4bBackendPath={formState.flux2Klein4bBackendPath}
-          onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
-          onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
-          flux9bEnabled={formState.flux2Klein9bEnabled}
-          flux9bBackendPath={formState.flux2Klein9bBackendPath}
-          onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
-          onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
-        />
-
-        <div className="rounded-lg border border-terminal-border bg-white p-4 space-y-3">
-          <div>
-            <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-              External ComfyUI Instance
-            </h3>
-            <p className="font-mono text-xs text-terminal-muted">
-              Configure a local or remote ComfyUI host for custom workflows.
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-1 block font-mono text-xs text-terminal-muted">Base URL Override</label>
-            <input
-              type="text"
-              value={formState.comfyuiCustomBaseUrl}
-              onChange={(e) => updateField("comfyuiCustomBaseUrl", e.target.value)}
-              placeholder="http://localhost:8081"
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block font-mono text-xs text-terminal-muted">Host</label>
-              <input
-                type="text"
-                value={formState.comfyuiCustomHost}
-                onChange={(e) => updateField("comfyuiCustomHost", e.target.value)}
-                placeholder="127.0.0.1"
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block font-mono text-xs text-terminal-muted">Port</label>
-              <input
-                type="number"
-                value={formState.comfyuiCustomPort}
-                onChange={(e) => updateField("comfyuiCustomPort", Number(e.target.value))}
-                placeholder="8081"
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-6">
-            <label className="flex items-center gap-2 font-mono text-xs text-terminal-dark">
-              <input
-                type="checkbox"
-                checked={formState.comfyuiCustomUseHttps}
-                onChange={(e) => updateField("comfyuiCustomUseHttps", e.target.checked)}
-                className="size-4 accent-terminal-green"
-              />
-              Use HTTPS
-            </label>
-            <label className="flex items-center gap-2 font-mono text-xs text-terminal-dark">
-              <input
-                type="checkbox"
-                checked={formState.comfyuiCustomAutoDetect}
-                onChange={(e) => updateField("comfyuiCustomAutoDetect", e.target.checked)}
-                className="size-4 accent-terminal-green"
-              />
-              Auto-detect local port
-            </label>
-          </div>
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-wide text-terminal-muted">Backends</p>
+          <LocalModelsManager
+            zImageEnabled={formState.comfyuiEnabled}
+            zImageBackendPath={formState.comfyuiBackendPath}
+            onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
+            onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
+            flux4bEnabled={formState.flux2Klein4bEnabled}
+            flux4bBackendPath={formState.flux2Klein4bBackendPath}
+            onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
+            onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
+            flux9bEnabled={formState.flux2Klein9bEnabled}
+            flux9bBackendPath={formState.flux2Klein9bBackendPath}
+            onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
+            onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
+          />
         </div>
 
-        <CustomWorkflowsManager />
+        <div className="border-t border-terminal-border/60 pt-6 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI Workflows</h3>
+            <p className="text-xs text-terminal-muted">
+              Upload or paste workflow JSON, then review inputs and outputs before saving.
+            </p>
+          </div>
+          <CustomWorkflowsManager
+            connectionBaseUrl={formState.comfyuiCustomBaseUrl}
+            connectionHost={formState.comfyuiCustomHost}
+            connectionPort={formState.comfyuiCustomPort}
+            connectionUseHttps={formState.comfyuiCustomUseHttps}
+            connectionAutoDetect={formState.comfyuiCustomAutoDetect}
+            onConnectionBaseUrlChange={(value: string) => updateField("comfyuiCustomBaseUrl", value)}
+            onConnectionHostChange={(value: string) => updateField("comfyuiCustomHost", value)}
+            onConnectionPortChange={(value: number) => updateField("comfyuiCustomPort", value)}
+            onConnectionUseHttpsChange={(value: boolean) => updateField("comfyuiCustomUseHttps", value)}
+            onConnectionAutoDetectChange={(value: boolean) => updateField("comfyuiCustomAutoDetect", value)}
+          />
+        </div>
       </div>
     );
   }
@@ -2186,3 +2147,4 @@ function MemorySection() {
     </div>
   );
 }
+

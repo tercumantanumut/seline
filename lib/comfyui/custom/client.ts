@@ -8,6 +8,40 @@ function buildBaseUrl(host: string, port: number, useHttps = false): string {
   return `${protocol}://${host}:${port}`;
 }
 
+function isComfyUIConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("failed to fetch") ||
+    message.includes("ecconnrefused") ||
+    message.includes("enotfound") ||
+    message.includes("networkerror") ||
+    message.includes("network error")
+  );
+}
+
+function wrapComfyUIFetchError(error: unknown, context: string): never {
+  if (isComfyUIConnectionError(error)) {
+    throw new Error(
+      `ComfyUI connection failed while ${context}. Check host/port and ensure ComfyUI is running.`
+    );
+  }
+  throw error;
+}
+
+async function safeComfyUIFetch(
+  url: string,
+  options: RequestInit,
+  context: string
+): Promise<Response> {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    wrapComfyUIFetchError(error, context);
+  }
+}
+
 async function probeComfyUI(baseUrl: string): Promise<boolean> {
   const endpoints = ["/system_stats", "/queue", "/"];
   for (const endpoint of endpoints) {
@@ -79,10 +113,14 @@ export async function resolveCustomComfyUIBaseUrl(workflowOverride?: {
 }
 
 export async function fetchObjectInfo(baseUrl: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`${baseUrl}/object_info`, {
-    method: "GET",
-    signal: AbortSignal.timeout(5000),
-  });
+  const response = await safeComfyUIFetch(
+    `${baseUrl}/object_info`,
+    {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
+    },
+    "fetching /object_info"
+  );
   if (!response.ok) {
     throw new Error(`ComfyUI object_info failed: ${response.status}`);
   }
@@ -94,11 +132,15 @@ export async function submitPrompt(
   prompt: Record<string, unknown>,
   clientId?: string
 ): Promise<string> {
-  const response = await fetch(`${baseUrl}/prompt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, client_id: clientId }),
-  });
+  const response = await safeComfyUIFetch(
+    `${baseUrl}/prompt`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, client_id: clientId }),
+    },
+    "submitting workflow prompt"
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -116,9 +158,13 @@ export async function fetchHistory(
   baseUrl: string,
   promptId: string
 ): Promise<Record<string, unknown>> {
-  const response = await fetch(`${baseUrl}/history/${promptId}`, {
-    method: "GET",
-  });
+  const response = await safeComfyUIFetch(
+    `${baseUrl}/history/${promptId}`,
+    {
+      method: "GET",
+    },
+    "fetching workflow history"
+  );
   if (!response.ok) {
     throw new Error(`ComfyUI history failed: ${response.status}`);
   }
@@ -154,9 +200,13 @@ export async function fetchOutputFile(
   if (options.subfolder) query.set("subfolder", options.subfolder);
   if (options.type) query.set("type", options.type);
 
-  const response = await fetch(`${baseUrl}/view?${query.toString()}`, {
-    method: "GET",
-  });
+  const response = await safeComfyUIFetch(
+    `${baseUrl}/view?${query.toString()}`,
+    {
+      method: "GET",
+    },
+    "fetching ComfyUI output file"
+  );
   if (!response.ok) {
     throw new Error(`ComfyUI view failed: ${response.status}`);
   }
@@ -185,7 +235,11 @@ function resolveMediaBuffer(source: string): Buffer {
 
 export async function fetchMediaBuffer(source: string): Promise<Buffer> {
   if (source.startsWith("http://") || source.startsWith("https://")) {
-    const response = await fetch(source);
+    const response = await safeComfyUIFetch(
+      source,
+      { method: "GET" },
+      "fetching media"
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch media: ${response.status}`);
     }
@@ -208,10 +262,14 @@ export async function uploadInputFile(
     formData.append("type", options.type);
   }
 
-  const response = await fetch(`${baseUrl}/upload/image`, {
-    method: "POST",
-    body: formData,
-  });
+  const response = await safeComfyUIFetch(
+    `${baseUrl}/upload/image`,
+    {
+      method: "POST",
+      body: formData,
+    },
+    "uploading input file"
+  );
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`ComfyUI upload failed: ${response.status} ${errorText}`);

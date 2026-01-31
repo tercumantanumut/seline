@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Braces,
+  FileJson,
+  Lock,
+  Plus,
+  Radar,
+  SlidersHorizontal,
+  Workflow,
+  Wrench,
+  Package,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { CustomComfyUIInput, CustomComfyUIOutput, CustomComfyUIWorkflow } from "@/lib/comfyui/custom/types";
 
@@ -69,7 +81,31 @@ function createOutput(): CustomComfyUIOutput {
   };
 }
 
-export function CustomWorkflowsManager() {
+interface CustomWorkflowsManagerProps {
+  connectionBaseUrl: string;
+  connectionHost: string;
+  connectionPort: number;
+  connectionUseHttps: boolean;
+  connectionAutoDetect: boolean;
+  onConnectionBaseUrlChange: (value: string) => void;
+  onConnectionHostChange: (value: string) => void;
+  onConnectionPortChange: (value: number) => void;
+  onConnectionUseHttpsChange: (value: boolean) => void;
+  onConnectionAutoDetectChange: (value: boolean) => void;
+}
+
+export function CustomWorkflowsManager({
+  connectionBaseUrl,
+  connectionHost,
+  connectionPort,
+  connectionUseHttps,
+  connectionAutoDetect,
+  onConnectionBaseUrlChange,
+  onConnectionHostChange,
+  onConnectionPortChange,
+  onConnectionUseHttpsChange,
+  onConnectionAutoDetectChange,
+}: CustomWorkflowsManagerProps) {
   const [workflows, setWorkflows] = useState<CustomComfyUIWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState<string>("new");
   const [loading, setLoading] = useState(false);
@@ -88,6 +124,14 @@ export function CustomWorkflowsManager() {
   const [comfyuiHost, setComfyuiHost] = useState("");
   const [comfyuiPort, setComfyuiPort] = useState("");
   const [timeoutSeconds, setTimeoutSeconds] = useState("300");
+  const workflowFileRef = useRef<HTMLInputElement | null>(null);
+
+  const baseUrlPreview = (() => {
+    if (connectionBaseUrl.trim()) return connectionBaseUrl.trim();
+    const host = connectionHost?.trim() || "127.0.0.1";
+    const port = connectionPort || 8188;
+    return `${connectionUseHttps ? "https" : "http"}://${host}:${port}`;
+  })();
 
   const selectedWorkflow = useMemo(
     () => workflows.find((workflow) => workflow.id === selectedId),
@@ -193,6 +237,16 @@ export function CustomWorkflowsManager() {
     }
   };
 
+  const handleFormatJson = () => {
+    try {
+      if (!workflowText.trim()) return;
+      const parsed = parseWorkflowJson();
+      setWorkflowText(JSON.stringify(parsed, null, 2));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to format JSON");
+    }
+  };
+
   const normalizeInputs = (items: CustomComfyUIInput[]) =>
     items.map((input) => ({
       ...input,
@@ -282,293 +336,438 @@ export function CustomWorkflowsManager() {
   };
 
   return (
-    <div className="rounded-lg border border-terminal-border bg-white p-4 space-y-4">
+    <div className="space-y-6">
       <div>
-        <h3 className="font-mono text-sm font-semibold text-terminal-dark">Custom ComfyUI Workflows</h3>
-        <p className="font-mono text-xs text-terminal-muted">
-          Upload or paste workflow JSON, then review inputs and outputs before saving.
+        <h3 className="text-lg font-semibold text-terminal-text">Create Workflow</h3>
+        <p className="text-sm text-terminal-muted">
+          Configure external instances and define new custom workflows.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <select
-          value={selectedId}
-          onChange={(event) => setSelectedId(event.target.value)}
-          className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-        >
-          <option value="new">New workflow</option>
-          {workflows.map((workflow) => (
-            <option key={workflow.id} value={workflow.id}>
-              {workflow.name}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={loadWorkflows} disabled={loading}>
-            {loading ? "Loading..." : "Refresh"}
-          </Button>
-          <Button variant="outline" onClick={resetForm}>
-            Clear
-          </Button>
-        </div>
-      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-green/15 text-terminal-green">
+              <Wrench className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-terminal-text">Connection Settings</p>
+              <p className="text-xs text-terminal-muted">Target ComfyUI instance configuration</p>
+            </div>
+          </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Description</label>
-          <input
-            type="text"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
-        </div>
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Host</label>
+              <input
+                type="text"
+                value={connectionHost}
+                onChange={(event) => onConnectionHostChange(event.target.value)}
+                placeholder="127.0.0.1"
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Port</label>
+              <input
+                type="number"
+                value={connectionPort}
+                onChange={(event) => onConnectionPortChange(Number(event.target.value))}
+                placeholder="8188"
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+          </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Loading Mode</label>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-terminal-border bg-terminal-bg/60 text-terminal-muted">
+                <Lock className="h-3.5 w-3.5" />
+              </div>
+              <Switch
+                checked={connectionUseHttps}
+                onCheckedChange={onConnectionUseHttpsChange}
+                className="data-[state=checked]:bg-terminal-green"
+              />
+              <span className="text-xs text-terminal-text">Use Secure Connection (HTTPS)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-terminal-border bg-terminal-bg/60 text-terminal-muted">
+                <Radar className="h-3.5 w-3.5" />
+              </div>
+              <Switch
+                checked={connectionAutoDetect}
+                onCheckedChange={onConnectionAutoDetectChange}
+                className="data-[state=checked]:bg-terminal-green"
+              />
+              <span className="text-xs text-terminal-text">Auto-detect Local Port</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-terminal-muted">Base URL Preview</label>
+            <input
+              type="text"
+              value={baseUrlPreview}
+              onChange={(event) => onConnectionBaseUrlChange(event.target.value)}
+              className="w-full rounded border border-terminal-border bg-terminal-bg/40 px-3 py-2 text-xs text-terminal-text"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-blue-500/15 text-blue-400">
+              <Workflow className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-terminal-text">Workflow Metadata</p>
+              <p className="text-xs text-terminal-muted">Define identity and behavior</p>
+            </div>
+          </div>
+
           <select
-            value={loadingMode}
-            onChange={(event) => setLoadingMode(event.target.value as "always" | "deferred")}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
+            value={selectedId}
+            onChange={(event) => setSelectedId(event.target.value)}
+            className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text"
           >
-            <option value="deferred">Deferred</option>
-            <option value="always">Always</option>
+            <option value="new">Create New Workflow</option>
+            {workflows.map((workflow) => (
+              <option key={workflow.id} value={workflow.id}>
+                {workflow.name}
+              </option>
+            ))}
           </select>
-        </div>
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Timeout (seconds)</label>
-          <input
-            type="number"
-            value={timeoutSeconds}
-            onChange={(event) => setTimeoutSeconds(event.target.value)}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
-        </div>
-        <div className="flex items-center gap-2 pt-5">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => setEnabled(event.target.checked)}
-            className="size-4 accent-terminal-green"
-          />
-          <span className="font-mono text-xs text-terminal-dark">Enabled</span>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Flux Dev Landscape"
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <Switch checked={enabled} onCheckedChange={setEnabled} className="data-[state=checked]:bg-terminal-green" />
+              <span className="text-xs text-terminal-text">Enabled</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-terminal-muted">Description</label>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Briefly describe what this workflow does..."
+              className="min-h-[80px] w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Loading Mode</label>
+              <select
+                value={loadingMode}
+                onChange={(event) => setLoadingMode(event.target.value as "always" | "deferred")}
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text"
+              >
+                <option value="deferred">Deferred</option>
+                <option value="always">Always</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Timeout (s)</label>
+              <input
+                type="number"
+                value={timeoutSeconds}
+                onChange={(event) => setTimeoutSeconds(event.target.value)}
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={loadWorkflows} disabled={loading}>
+              {loading ? "Loading..." : "Refresh"}
+            </Button>
+            <Button variant="outline" onClick={resetForm}>
+              Clear
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">ComfyUI Base URL</label>
-          <input
-            type="text"
-            value={comfyuiBaseUrl}
-            onChange={(event) => setComfyuiBaseUrl(event.target.value)}
-            placeholder="http://localhost:8081"
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
+      <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-bg/70 text-terminal-muted">
+              <Braces className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-terminal-text">Workflow Definition</p>
+              <p className="text-xs text-terminal-muted">Paste ComfyUI JSON or upload a file.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleFormatJson}>
+              <Braces className="h-3.5 w-3.5 mr-2" />
+              Format JSON
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => workflowFileRef.current?.click()}>
+              <FileJson className="h-3.5 w-3.5 mr-2" />
+              Load from File
+            </Button>
+            <input
+              ref={workflowFileRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setWorkflowText(String(reader.result || ""));
+                reader.readAsText(file);
+              }}
+              className="hidden"
+            />
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Host Override</label>
-          <input
-            type="text"
-            value={comfyuiHost}
-            onChange={(event) => setComfyuiHost(event.target.value)}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block font-mono text-xs text-terminal-muted">Port Override</label>
-          <input
-            type="number"
-            value={comfyuiPort}
-            onChange={(event) => setComfyuiPort(event.target.value)}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark"
-          />
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        <label className="mb-1 block font-mono text-xs text-terminal-muted">Workflow JSON</label>
         <Textarea
           value={workflowText}
           onChange={(event) => setWorkflowText(event.target.value)}
-          placeholder="Paste ComfyUI UI/API JSON here"
-          className="min-h-[180px] font-mono text-xs"
+          placeholder="Paste ComfyUI API JSON here (exported with Save (API Format))."
+          className="min-h-[220px] font-mono text-xs text-terminal-text"
         />
-        <input
-          type="file"
-          accept=".json,application/json"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => setWorkflowText(String(reader.result || ""));
-            reader.readAsText(file);
-          }}
-          className="block text-xs text-terminal-muted"
-        />
-      </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 font-mono text-xs text-terminal-dark">
-          <input
-            type="checkbox"
-            checked={validateWithComfyUI}
-            onChange={(event) => setValidateWithComfyUI(event.target.checked)}
-            className="size-4 accent-terminal-green"
-          />
-          Validate with /object_info
-        </label>
-        <Button onClick={handleAnalyze} disabled={analyzing}>
-          {analyzing ? "Analyzing..." : "Analyze"}
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-mono text-sm font-semibold text-terminal-dark">Inputs</h4>
-          <Button variant="outline" onClick={() => setInputs((prev) => [...prev, createInput()])}>
-            Add input
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-terminal-text">
+            <input
+              type="checkbox"
+              checked={validateWithComfyUI}
+              onChange={(event) => setValidateWithComfyUI(event.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+            Validate with /object_info
+          </label>
+          <Button onClick={handleAnalyze} disabled={analyzing}>
+            {analyzing ? "Analyzing..." : "Analyze"}
           </Button>
         </div>
+
+        <details className="rounded-lg border border-terminal-border/60 bg-terminal-bg/40 p-3">
+          <summary className="cursor-pointer text-xs text-terminal-muted">
+            Override ComfyUI target (optional)
+          </summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Base URL Override</label>
+              <input
+                type="text"
+                value={comfyuiBaseUrl}
+                onChange={(event) => setComfyuiBaseUrl(event.target.value)}
+                placeholder="http://localhost:8188"
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-xs text-terminal-text"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Host Override</label>
+              <input
+                type="text"
+                value={comfyuiHost}
+                onChange={(event) => setComfyuiHost(event.target.value)}
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-xs text-terminal-text"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-terminal-muted">Port Override</label>
+              <input
+                type="number"
+                value={comfyuiPort}
+                onChange={(event) => setComfyuiPort(event.target.value)}
+                className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-xs text-terminal-text"
+              />
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-bg/70 text-terminal-green">
+              <SlidersHorizontal className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-terminal-text">Inputs Configuration</p>
+              <p className="text-xs text-terminal-muted">Map incoming data to workflow nodes.</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setInputs((prev) => [...prev, createInput()])}
+            className="border-terminal-green/60 text-terminal-green hover:text-terminal-green"
+          >
+            <Plus className="h-3.5 w-3.5 mr-2" />
+            Add Input
+          </Button>
+        </div>
+
         {inputs.length === 0 ? (
-          <p className="font-mono text-xs text-terminal-muted">No inputs detected yet.</p>
+          <p className="text-xs text-terminal-muted">No inputs detected yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="grid gap-3 text-[11px] uppercase tracking-wide text-terminal-muted sm:grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr_0.9fr_0.5fr]">
+              <span>Input Name</span>
+              <span>Type</span>
+              <span>Node ID</span>
+              <span>Parameter</span>
+              <span>Default</span>
+              <span>Opts</span>
+              <span>Action</span>
+            </div>
             {inputs.map((input, index) => (
-              <div key={input.id} className="grid gap-2 rounded border border-terminal-border p-3 sm:grid-cols-7">
-                <input
-                  type="text"
-                  value={input.name}
-                  onChange={(event) => updateInput(index, { name: event.target.value })}
-                  placeholder="Name"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                />
-                <select
-                  value={input.type}
-                  onChange={(event) => updateInput(index, { type: event.target.value as CustomComfyUIInput["type"] })}
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                >
-                  {INPUT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={input.nodeId}
-                  onChange={(event) => updateInput(index, { nodeId: event.target.value })}
-                  placeholder="Node ID"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                />
-                <input
-                  type="text"
-                  value={input.inputField}
-                  onChange={(event) => updateInput(index, { inputField: event.target.value })}
-                  placeholder="Input field"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                />
-                <input
-                  type="text"
-                  value={formatDefaultValue(input.default)}
-                  onChange={(event) => updateInput(index, { default: event.target.value })}
-                  placeholder="Default"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                />
-                <div className="flex flex-col gap-2 text-xs text-terminal-dark">
-                  <label className="flex items-center gap-2 font-mono">
-                    <input
-                      type="checkbox"
-                      checked={input.required ?? false}
-                      onChange={(event) => updateInput(index, { required: event.target.checked })}
-                      className="size-3 accent-terminal-green"
-                    />
-                    Required
-                  </label>
-                  <label className="flex items-center gap-2 font-mono">
-                    <input
-                      type="checkbox"
-                      checked={input.multiple ?? false}
-                      onChange={(event) => updateInput(index, { multiple: event.target.checked })}
-                      className="size-3 accent-terminal-green"
-                    />
-                    Multiple
-                  </label>
-                  <label className="flex items-center gap-2 font-mono">
-                    <input
-                      type="checkbox"
-                      checked={input.enabled !== false}
-                      onChange={(event) => updateInput(index, { enabled: event.target.checked })}
-                      className="size-3 accent-terminal-green"
-                    />
-                    Expose
-                  </label>
-                </div>
-                <div className="sm:col-span-7">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={input.enum?.join(", ") || ""}
-                      onChange={(event) =>
-                        updateInput(index, {
-                          enum: event.target.value
-                            .split(",")
-                            .map((value) => value.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder="Enum values (comma-separated)"
-                      className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={() => setInputs((prev) => prev.filter((_, idx) => idx !== index))}
-                    >
-                      Remove
-                    </Button>
+              <div key={input.id} className="rounded-lg border border-terminal-border/70 bg-terminal-bg/40 p-3 space-y-2">
+                <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr_0.9fr_0.5fr]">
+                  <input
+                    type="text"
+                    value={input.name}
+                    onChange={(event) => updateInput(index, { name: event.target.value })}
+                    placeholder="sampler_name"
+                    className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
+                  />
+                  <select
+                    value={input.type}
+                    onChange={(event) => updateInput(index, { type: event.target.value as CustomComfyUIInput["type"] })}
+                    className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
+                  >
+                    {INPUT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={input.nodeId}
+                    onChange={(event) => updateInput(index, { nodeId: event.target.value })}
+                    placeholder="5189:5099"
+                    className="w-full rounded border border-terminal-green/50 bg-terminal-bg/70 px-2 py-1 text-xs text-terminal-green"
+                  />
+                  <input
+                    type="text"
+                    value={input.inputField}
+                    onChange={(event) => updateInput(index, { inputField: event.target.value })}
+                    placeholder="sampler_name"
+                    className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
+                  />
+                  <input
+                    type="text"
+                    value={formatDefaultValue(input.default)}
+                    onChange={(event) => updateInput(index, { default: event.target.value })}
+                    placeholder="euler"
+                    className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
+                  />
+                  <div className="flex flex-col gap-2 text-xs text-terminal-text">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={input.required ?? false}
+                        onChange={(event) => updateInput(index, { required: event.target.checked })}
+                        className="size-3 accent-terminal-green"
+                      />
+                      Required
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={input.multiple ?? false}
+                        onChange={(event) => updateInput(index, { multiple: event.target.checked })}
+                        className="size-3 accent-terminal-green"
+                      />
+                      Multiple
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={input.enabled !== false}
+                        onChange={(event) => updateInput(index, { enabled: event.target.checked })}
+                        className="size-3 accent-terminal-green"
+                      />
+                      Expose
+                    </label>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setInputs((prev) => prev.filter((_, idx) => idx !== index))}
+                  >
+                    Remove
+                  </Button>
                 </div>
+                <input
+                  type="text"
+                  value={input.enum?.join(", ") || ""}
+                  onChange={(event) =>
+                    updateInput(index, {
+                      enum: event.target.value
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="Enum values (comma-separated)"
+                  className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
+                />
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="font-mono text-sm font-semibold text-terminal-dark">Outputs</h4>
-          <Button variant="outline" onClick={() => setOutputs((prev) => [...prev, createOutput()])}>
-            Add output
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-bg/70 text-terminal-green">
+              <Package className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-terminal-text">Outputs</p>
+              <p className="text-xs text-terminal-muted">Define what this workflow returns.</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOutputs((prev) => [...prev, createOutput()])}
+            className="border-terminal-green/60 text-terminal-green hover:text-terminal-green"
+          >
+            <Plus className="h-3.5 w-3.5 mr-2" />
+            Add Output
           </Button>
         </div>
+
         {outputs.length === 0 ? (
-          <p className="font-mono text-xs text-terminal-muted">No outputs detected yet.</p>
+          <p className="text-xs text-terminal-muted">No outputs detected yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {outputs.map((output, index) => (
-              <div key={output.id} className="grid gap-2 rounded border border-terminal-border p-3 sm:grid-cols-5">
+              <div key={output.id} className="grid gap-3 rounded-lg border border-terminal-border/70 bg-terminal-bg/40 p-3 sm:grid-cols-[1fr_0.7fr_0.7fr_1fr_auto]">
                 <input
                   type="text"
                   value={output.name}
                   onChange={(event) => updateOutput(index, { name: event.target.value })}
-                  placeholder="Name"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
+                  placeholder="SaveVideo"
+                  className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
                 />
                 <select
                   value={output.type}
                   onChange={(event) => updateOutput(index, { type: event.target.value as CustomComfyUIOutput["type"] })}
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
+                  className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
                 >
                   {OUTPUT_TYPES.map((type) => (
                     <option key={type} value={type}>
@@ -580,18 +779,19 @@ export function CustomWorkflowsManager() {
                   type="text"
                   value={output.nodeId}
                   onChange={(event) => updateOutput(index, { nodeId: event.target.value })}
-                  placeholder="Node ID"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
+                  placeholder="4958"
+                  className="w-full rounded border border-terminal-green/50 bg-terminal-bg/70 px-2 py-1 text-xs text-terminal-green"
                 />
                 <input
                   type="text"
                   value={output.outputField || ""}
                   onChange={(event) => updateOutput(index, { outputField: event.target.value })}
-                  placeholder="Output field"
-                  className="w-full rounded border border-terminal-border bg-white px-2 py-1 font-mono text-xs text-terminal-dark"
+                  placeholder="Output field description..."
+                  className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
                 />
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => setOutputs((prev) => prev.filter((_, idx) => idx !== index))}
                 >
                   Remove
@@ -613,3 +813,4 @@ export function CustomWorkflowsManager() {
     </div>
   );
 }
+
