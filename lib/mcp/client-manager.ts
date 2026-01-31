@@ -8,7 +8,7 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport } from "@/lib/mcp/stdio-transport";
 import type { MCPServerConfig, ResolvedMCPServer, MCPDiscoveredTool, MCPServerStatus } from "./types";
 import { getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
 import { onFolderChange } from "@/lib/vectordb/folder-events";

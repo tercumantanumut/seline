@@ -5,6 +5,14 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/local-auth";
 
+function isSecureRequest(req: NextRequest): boolean {
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  if (forwardedProto) {
+    return forwardedProto.split(",")[0].trim() === "https";
+  }
+  return req.nextUrl.protocol === "https:";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
@@ -52,7 +60,7 @@ export async function POST(req: NextRequest) {
     // Set session cookie (HttpOnly for security)
     response.cookies.set(SESSION_COOKIE_NAME, user.id, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production" && isSecureRequest(req),
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60, // 30 days
       path: "/",
