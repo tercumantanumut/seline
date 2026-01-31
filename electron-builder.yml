@@ -15,6 +15,9 @@ directories:
 files:
   - "electron-dist/**/*"
   - "package.json"
+  - "!**/node_modules/**"
+  - "!**/.cache/**"
+  - "!**/*.map"
 
 # Extra resources - these stay OUTSIDE the asar archive
 extraResources:
@@ -42,6 +45,11 @@ extraResources:
     to: "standalone/node_modules"
     filter:
       - "**/*"
+      - "!**/.cache/**"
+      - "!**/*.map"
+      - "!**/test/**"
+      - "!**/tests/**"
+      - "!**/__tests__/**"
   # Static assets for Next.js
   - from: ".next/static"
     to: "standalone/.next/static"
@@ -57,6 +65,8 @@ extraResources:
     to: "models"
     filter:
       - "**/*"
+      - "!**/model_quantized.onnx"
+      - "!**/bge-large-en-v1.5/**"
   # ComfyUI backend infrastructure (lightweight files only - no models)
   - from: "comfyui_backend"
     to: "comfyui_backend"
