@@ -25,6 +25,30 @@ function validateFolderPath(folderPath: string): boolean {
     return allowedBases.some(base => resolved.startsWith(path.resolve(base)));
 }
 
+function isFilesystemPathArg(arg: string): boolean {
+    if (!arg || arg.startsWith("-")) {
+        return false;
+    }
+    if (arg === "@modelcontextprotocol/server-filesystem" || arg === "server-filesystem") {
+        return false;
+    }
+    if (arg.startsWith("http://") || arg.startsWith("https://")) {
+        return false;
+    }
+    // Recognize synced folder variables as valid path placeholders
+    if (arg === "${SYNCED_FOLDER}" || arg === "${SYNCED_FOLDERS_ARRAY}" || arg === "${SYNCED_FOLDERS}") {
+        return true;
+    }
+    return true;
+}
+
+function hasFilesystemPathArg(args?: string[]): boolean {
+    if (!args || args.length === 0) {
+        return false;
+    }
+    return args.some(isFilesystemPathArg);
+}
+
 // Re-export types for convenience
 export type { MCPDiscoveredTool, MCPServerStatus };
 
@@ -133,10 +157,7 @@ class MCPClientManager {
 
             // Validate filesystem args if applicable
             if (config.command && (serverName === "filesystem" || serverName === "filesystem-multi")) {
-                const hasValidPath = config.args?.some(arg =>
-                    arg && arg.length > 0 && arg !== "<no-primary-folder>" && arg !== "<no-folders>"
-                );
-
+                const hasValidPath = hasFilesystemPathArg(config.args);
                 if (!hasValidPath) {
                     throw new Error(
                         `Filesystem MCP server requires synced folder paths. ` +
@@ -153,7 +174,24 @@ class MCPClientManager {
                 capabilities: {},
             });
 
-            await client.connect(transport);
+            try {
+                await client.connect(transport);
+            } catch (error: any) {
+                // Check for ENOENT specifically (command not found)
+                if (error?.code === "ENOENT" || error?.message?.includes("ENOENT")) {
+                    const command = config.command || "npx";
+                    throw new Error(
+                        `Failed to start MCP server "${serverName}": Could not find "${command}". ` +
+                        `This usually means Node.js is not installed or not in the system PATH. ` +
+                        `\n\nTo fix this:\n` +
+                        `1. Install Node.js from https://nodejs.org\n` +
+                        `2. If using nvm/volta, ensure it's properly configured\n` +
+                        `3. Restart Seline after installation\n` +
+                        `\nOriginal error: ${error.message}`
+                    );
+                }
+                throw error;
+            }
 
             // Discover tools
             const toolsResponse = await client.listTools();
@@ -612,7 +650,7 @@ export async function resolveMCPConfig(
         }
 
         // Resolve arguments with special handling for ${SYNCED_FOLDERS_ARRAY}
-        const resolvedArgs: string[] = [];
+        let resolvedArgs: string[] = [];
         if (config.args) {
             for (const arg of config.args) {
                 if (arg === "${SYNCED_FOLDERS_ARRAY}" && characterId) {
@@ -634,6 +672,73 @@ export async function resolveMCPConfig(
                 } else {
                     resolvedArgs.push(await resolveValue(arg));
                 }
+            }
+        }
+
+        // Resolve ${SYNCED_FOLDER} and ${SYNCED_FOLDERS_ARRAY} variables
+        if (characterId) {
+            const hasVariables = resolvedArgs.some(arg =>
+                arg?.includes("${SYNCED_FOLDER}") ||
+                arg?.includes("${SYNCED_FOLDERS_ARRAY}") ||
+                arg?.includes("${SYNCED_FOLDERS}")
+            );
+
+            if (hasVariables) {
+                const folders = await getSyncFolders(characterId);
+                const primaryFolder = folders.find(f => f.isPrimary)?.folderPath || folders[0]?.folderPath || "";
+
+                // Resolve each arg
+                const newArgs: string[] = [];
+                for (const arg of resolvedArgs) {
+                    if (arg === "${SYNCED_FOLDER}") {
+                        if (!primaryFolder) {
+                            throw new Error("Cannot resolve ${SYNCED_FOLDER}: No synced folders found.");
+                        }
+                        newArgs.push(primaryFolder);
+                    } else if (arg === "${SYNCED_FOLDERS_ARRAY}") {
+                        if (folders.length === 0) {
+                            throw new Error("Cannot resolve ${SYNCED_FOLDERS_ARRAY}: No synced folders found.");
+                        }
+                        // Expand array into multiple args
+                        newArgs.push(...folders.map(f => f.folderPath));
+                    } else if (arg === "${SYNCED_FOLDERS}") {
+                        if (folders.length === 0) {
+                            throw new Error("Cannot resolve ${SYNCED_FOLDERS}: No synced folders found.");
+                        }
+                        // Join as comma-separated string
+                        newArgs.push(folders.map(f => f.folderPath).join(","));
+                    } else {
+                        newArgs.push(arg);
+                    }
+                }
+                resolvedArgs = newArgs;
+                console.log(`[MCP] Resolved synced folder variables for ${serverName}`);
+            }
+        }
+
+        // Auto-inject paths for filesystem servers if still missing
+        if ((serverName === "filesystem" || serverName === "filesystem-multi") && characterId) {
+            const needsAutoPaths = !hasFilesystemPathArg(resolvedArgs);
+            if (needsAutoPaths) {
+                const folders = await getSyncFolders(characterId);
+                if (folders.length === 0) {
+                    throw new Error(
+                        `Cannot resolve filesystem MCP paths: No synced folders for character ${characterId}.`
+                    );
+                }
+
+                const paths = serverName === "filesystem"
+                    ? [folders.find(f => f.isPrimary)?.folderPath || folders[0].folderPath]
+                    : folders.map(f => f.folderPath);
+
+                for (const folderPath of paths) {
+                    if (!validateFolderPath(folderPath)) {
+                        throw new Error(`Invalid folder path in auto-attach: ${folderPath}`);
+                    }
+                }
+
+                resolvedArgs.push(...paths);
+                console.log(`[MCP] Auto-attached ${paths.length} synced folder(s) for ${serverName}`);
             }
         }
 

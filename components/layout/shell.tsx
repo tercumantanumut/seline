@@ -216,7 +216,15 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="font-mono text-terminal-dark hover:bg-terminal-dark/5">
-                      <Link href="/settings">
+                      <Link
+                        href="/settings"
+                        onClick={() => {
+                          // Store current URL for smart back navigation
+                          if (typeof window !== 'undefined') {
+                            sessionStorage.setItem('seline-return-url', window.location.href);
+                          }
+                        }}
+                      >
                         <SettingsIcon className="mr-2 size-4" />
                         {t("sidebar.settings")}
                       </Link>
@@ -306,7 +314,15 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild className="font-mono text-terminal-dark hover:bg-terminal-dark/5">
-                        <Link href="/settings">
+                        <Link
+                          href="/settings"
+                          onClick={() => {
+                            // Store current URL for smart back navigation
+                            if (typeof window !== 'undefined') {
+                              sessionStorage.setItem('seline-return-url', window.location.href);
+                            }
+                          }}
+                        >
                           <SettingsIcon className="mr-2 size-4" />
                           {t("sidebar.settings")}
                         </Link>

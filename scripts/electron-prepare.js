@@ -188,7 +188,27 @@ for (const dep of browserDependencies) {
     }
 }
 
-// 8. Copy local embedding dependencies for offline Transformers.js support
+// 8. Copy npm CLI for bundled npx/npm support in production
+const npmDependencies = [
+    { name: 'npm', src: 'npm', dest: 'npm' },
+];
+
+for (const dep of npmDependencies) {
+    console.log(`Copying ${dep.name} folder...`);
+    const depSrc = path.join(rootDir, 'node_modules', dep.src);
+    const depDest = path.join(standaloneDir, 'node_modules', dep.dest);
+    if (fs.existsSync(depSrc)) {
+        ensureDir(path.dirname(depDest));
+        if (fs.existsSync(depDest)) {
+            fs.rmSync(depDest, { recursive: true, force: true });
+        }
+        copyRecursive(depSrc, depDest);
+    } else {
+        console.log(`Skipping ${dep.name} folder (not found)`);
+    }
+}
+
+// 9. Copy local embedding dependencies for offline Transformers.js support
 const embeddingDependencies = [
     { name: '@xenova/transformers', src: '@xenova/transformers', dest: '@xenova/transformers' },
     { name: 'onnxruntime-node', src: 'onnxruntime-node', dest: 'onnxruntime-node' },
@@ -209,7 +229,7 @@ for (const dep of embeddingDependencies) {
     }
 }
 
-// 9. Copy rebuilt native modules from root node_modules to standalone
+// 10. Copy rebuilt native modules from root node_modules to standalone
 // This is critical because Next.js standalone doesn't include build files (binding.gyp, src/, deps/)
 // needed by electron-rebuild. We rebuild in root node_modules first, then copy the binaries here.
 console.log('Copying rebuilt native module binaries...');
@@ -239,7 +259,7 @@ for (const mod of nativeModuleBinaries) {
     }
 }
 
-// 10. Prune platform-specific binaries and caches from standalone
+// 11. Prune platform-specific binaries and caches from standalone
 console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);
 
