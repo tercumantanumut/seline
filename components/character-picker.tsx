@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight, Plug } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight, Plug, Edit3, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AnimatedCard } from "@/components/ui/animated-card";
@@ -21,6 +21,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
@@ -133,6 +145,24 @@ export function CharacterPicker() {
   const [toolSearchQuery, setToolSearchQuery] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [availableTools, setAvailableTools] = useState<ToolDefinition[]>(BASE_TOOLS);
+
+  // Identity editor state
+  const [identityEditorOpen, setIdentityEditorOpen] = useState(false);
+  const [identityForm, setIdentityForm] = useState({
+    name: "",
+    displayName: "",
+    tagline: "",
+    purpose: "",
+    systemPromptOverride: "",
+  });
+  const [showAdvancedPrompt, setShowAdvancedPrompt] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+
+  // Delete state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [characterToDelete, setCharacterToDelete] = useState<CharacterSummary | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const t = useTranslations("picker");
   const tc = useTranslations("common");
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
@@ -473,6 +503,92 @@ export function CharacterPicker() {
     }
   };
 
+  // Open identity editor for a character
+  const openIdentityEditor = async (character: CharacterSummary) => {
+    setEditingCharacter(character);
+    const metadata = character.metadata as any;
+    const hasCustomPrompt = metadata?.systemPromptOverride && typeof metadata.systemPromptOverride === "string" && metadata.systemPromptOverride.trim();
+    setIdentityForm({
+      name: character.name,
+      displayName: character.displayName || "",
+      tagline: character.tagline || "",
+      purpose: character.metadata?.purpose || "",
+      systemPromptOverride: metadata?.systemPromptOverride || "",
+    });
+    setShowAdvancedPrompt(!!hasCustomPrompt);
+
+    // Fetch the current generated prompt
+    try {
+      const response = await fetch(`/api/characters/${character.id}/prompt-preview`);
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedPrompt(data.prompt || "");
+      }
+    } catch (error) {
+      console.error("Failed to fetch prompt preview:", error);
+      setGeneratedPrompt("");
+    }
+
+    setIdentityEditorOpen(true);
+  };
+
+  // Save identity changes
+  const saveIdentity = async () => {
+    if (!editingCharacter) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/characters/${editingCharacter.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          character: {
+            name: identityForm.name,
+            displayName: identityForm.displayName || undefined,
+            tagline: identityForm.tagline || undefined,
+          },
+          metadata: {
+            purpose: identityForm.purpose || undefined,
+            systemPromptOverride: identityForm.systemPromptOverride || undefined,
+          },
+        }),
+      });
+      if (response.ok) {
+        setIdentityEditorOpen(false);
+        loadCharacters(); // Refresh the list
+      }
+    } catch (error) {
+      console.error("Failed to save identity:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Open delete confirmation dialog
+  const openDeleteDialog = (character: CharacterSummary) => {
+    setCharacterToDelete(character);
+    setDeleteDialogOpen(true);
+  };
+
+  // Delete character
+  const deleteCharacter = async () => {
+    if (!characterToDelete) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/characters/${characterToDelete.id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setDeleteDialogOpen(false);
+        setCharacterToDelete(null);
+        loadCharacters(); // Refresh the list
+      }
+    } catch (error) {
+      console.error("Failed to delete character:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Open MCP tool editor for a character
   const openMcpToolEditor = async (character: CharacterSummary) => {
     setEditingCharacter(character);
@@ -669,7 +785,15 @@ export function CharacterPicker() {
               </div>
 
               {/* Enabled Tools Indicator - Clickable to edit */}
-              <div className="px-4 pb-2 flex items-center gap-3">
+              <div className="px-4 pb-2 flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={() => openIdentityEditor(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title={t("editIdentity")}
+                >
+                  <User className="w-3 h-3" />
+                  <span>{t("edit")}</span>
+                </button>
                 <button
                   onClick={() => openToolEditor(character)}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
@@ -698,6 +822,14 @@ export function CharacterPicker() {
                 >
                   <Plug className="w-3 h-3" />
                   <span>{t("mcpTools")}</span>
+                </button>
+                <button
+                  onClick={() => openDeleteDialog(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
+                  title={t("deleteAgent")}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>{t("delete")}</span>
                 </button>
               </div>
 
@@ -1001,6 +1133,247 @@ export function CharacterPicker() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Identity Editor Dialog */}
+      <Dialog open={identityEditorOpen} onOpenChange={setIdentityEditorOpen}>
+        <DialogContent className="sm:max-w-3xl bg-terminal-cream max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-terminal-border/20">
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <User className="w-5 h-5 text-terminal-green" />
+              {t("identityEditor.title")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("identityEditor.subtitle")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
+            <TabsList className="mx-6 mt-4 grid w-auto grid-cols-2 bg-terminal-bg/20">
+              <TabsTrigger value="basic" className="font-mono text-sm">
+                {t("identityEditor.tabs.basic")}
+              </TabsTrigger>
+              <TabsTrigger value="advanced" className="font-mono text-sm">
+                {t("identityEditor.tabs.advanced")}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Basic Info Tab */}
+            <TabsContent value="basic" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+              {/* Name */}
+              <div>
+                <Label className="font-mono text-sm text-terminal-dark mb-1 block">
+                  {t("identityEditor.fields.name.label")} <span className="text-red-500">*</span>
+                </Label>
+                <input
+                  type="text"
+                  value={identityForm.name}
+                  onChange={(e) => setIdentityForm({ ...identityForm, name: e.target.value })}
+                  placeholder={t("identityEditor.fields.name.placeholder")}
+                  maxLength={100}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.fields.name.helper")}
+                </p>
+              </div>
+
+              {/* Display Name */}
+              <div>
+                <Label className="font-mono text-sm text-terminal-dark mb-1 block">
+                  {t("identityEditor.fields.displayName.label")}
+                </Label>
+                <input
+                  type="text"
+                  value={identityForm.displayName}
+                  onChange={(e) => setIdentityForm({ ...identityForm, displayName: e.target.value })}
+                  placeholder={t("identityEditor.fields.displayName.placeholder")}
+                  maxLength={100}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.fields.displayName.helper")}
+                </p>
+              </div>
+
+              {/* Tagline */}
+              <div>
+                <Label className="font-mono text-sm text-terminal-dark mb-1 block">
+                  {t("identityEditor.fields.tagline.label")}
+                </Label>
+                <input
+                  type="text"
+                  value={identityForm.tagline}
+                  onChange={(e) => setIdentityForm({ ...identityForm, tagline: e.target.value })}
+                  placeholder={t("identityEditor.fields.tagline.placeholder")}
+                  maxLength={200}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.fields.tagline.helper")}
+                </p>
+              </div>
+
+              {/* Purpose */}
+              <div>
+                <Label className="font-mono text-sm text-terminal-dark mb-1 block">
+                  {t("identityEditor.fields.purpose.label")}
+                </Label>
+                <textarea
+                  value={identityForm.purpose}
+                  onChange={(e) => setIdentityForm({ ...identityForm, purpose: e.target.value })}
+                  placeholder={t("identityEditor.fields.purpose.placeholder")}
+                  maxLength={2000}
+                  rows={6}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green resize-none"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("identityEditor.fields.purpose.helper")} ({identityForm.purpose.length}/2000)
+                </p>
+              </div>
+            </TabsContent>
+
+            {/* Advanced Tab - Custom Prompt */}
+            <TabsContent value="advanced" className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+              <div className="rounded border border-amber-200 bg-amber-50 p-3">
+                <p className="font-mono text-xs text-amber-800">
+                  {t("identityEditor.fields.customPrompt.warning")}
+                </p>
+              </div>
+
+              {/* Current Auto-Generated Prompt Preview */}
+              {generatedPrompt && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-mono text-sm text-terminal-dark">
+                      {t("identityEditor.fields.customPrompt.currentPrompt")}
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setIdentityForm({ ...identityForm, systemPromptOverride: generatedPrompt })}
+                      className="text-xs font-mono text-terminal-green hover:text-terminal-green/80 transition-colors flex items-center gap-1 px-2 py-1 rounded hover:bg-terminal-green/10"
+                    >
+                      <span>{t("identityEditor.fields.customPrompt.copyToOverride")}</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="rounded border border-terminal-border bg-terminal-bg/10 p-3 max-h-48 overflow-y-auto">
+                    <pre className="font-mono text-xs text-terminal-dark whitespace-pre-wrap break-words">
+                      {generatedPrompt}
+                    </pre>
+                  </div>
+                  <p className="font-mono text-xs text-terminal-muted">
+                    {t("identityEditor.fields.customPrompt.currentPromptHelper")}
+                  </p>
+                </div>
+              )}
+
+              {/* Custom Override */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="font-mono text-sm text-terminal-dark">
+                    {t("identityEditor.fields.customPrompt.label")}
+                  </Label>
+                  {identityForm.systemPromptOverride.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setIdentityForm({ ...identityForm, systemPromptOverride: "" })}
+                      className="text-xs font-mono text-red-500 hover:text-red-600 transition-colors"
+                    >
+                      {t("identityEditor.fields.customPrompt.clear")}
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={identityForm.systemPromptOverride}
+                  onChange={(e) => setIdentityForm({ ...identityForm, systemPromptOverride: e.target.value })}
+                  placeholder={t("identityEditor.fields.customPrompt.placeholder")}
+                  maxLength={10000}
+                  rows={12}
+                  className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green resize-none"
+                />
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="font-mono text-xs text-terminal-muted">
+                    {t("identityEditor.fields.customPrompt.helper")}
+                  </p>
+                  <p className="font-mono text-xs text-terminal-muted">
+                    {identityForm.systemPromptOverride.length}/10000
+                  </p>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Sticky Footer Actions */}
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-terminal-border/20 bg-terminal-cream">
+            <AnimatedButton
+              variant="outline"
+              onClick={() => setIdentityEditorOpen(false)}
+              className="font-mono"
+            >
+              {tc("cancel")}
+            </AnimatedButton>
+            <AnimatedButton
+              onClick={saveIdentity}
+              disabled={isSaving || !identityForm.name.trim()}
+              className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {tc("save")}
+            </AnimatedButton>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-terminal-cream">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-500" />
+              {t("deleteDialog.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-terminal-muted">
+              {t("deleteDialog.description", {
+                name: characterToDelete?.displayName || characterToDelete?.name || ""
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded border border-amber-200 bg-amber-50 p-3 my-4">
+            <p className="font-mono text-xs text-amber-800">
+              {t("deleteDialog.warning")}
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono" disabled={isDeleting}>
+              {tc("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteCharacter();
+              }}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white font-mono"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  {t("deleteDialog.deleting")}
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {t("deleteDialog.confirm")}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

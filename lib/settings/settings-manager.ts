@@ -71,6 +71,10 @@ export interface AppSettings {
     utilityModel?: string;    // Fast/cheap model for background tasks
     embeddingReindexRequired?: boolean; // Flag to trigger reindex when embeddings change
 
+    // OpenRouter advanced options (JSON string)
+    // Example: { "quant": "q4_0", "thinkingBudget": 512, "includeThoughts": false }
+    openrouterArgs?: string;  // JSON string for OpenRouter provider options
+
     // Image/Video generation
     stylyAiApiKey?: string;
     imageGenerationProvider?: "openrouter" | "local-comfyui"; // Image generation provider selection

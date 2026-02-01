@@ -115,8 +115,9 @@ async function extractFromPdf(buffer: Buffer): Promise<{ text: string; pageCount
     return { text: normalized, pageCount };
   } catch (error) {
     console.error("PDF parsing error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     throw new Error(
-      "Failed to parse PDF document. Ensure the 'pdf-parse' package is installed in this project."
+      `Failed to parse PDF document: ${errorMessage}. This may be due to a corrupted, encrypted, or incompatible PDF file.`
     );
   }
 }

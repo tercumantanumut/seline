@@ -81,6 +81,7 @@ export const agentDocuments = sqliteTable("agent_documents", {
   pageCount: integer("page_count"),
   sourceType: text("source_type"),
   status: text("status", { enum: ["pending", "ready", "failed"] }).default("pending").notNull(),
+  errorMessage: text("error_message"),
   tags: text("tags", { mode: "json" }).default("[]").notNull(),
   metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
   embeddingModel: text("embedding_model"),

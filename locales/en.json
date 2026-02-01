@@ -150,6 +150,10 @@
     "createDescription": "Configure your own AI agent",
     "continue": "Continue",
     "startNew": "Start new chat",
+    "edit": "Edit",
+    "delete": "Delete",
+    "editIdentity": "Edit agent details",
+    "deleteAgent": "Delete agent",
     "folders": "Folders",
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
@@ -162,6 +166,54 @@
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Vector Search Folders",
+    "identityEditor": {
+      "title": "Edit Agent",
+      "subtitle": "Update agent details and behavior",
+      "tabs": {
+        "basic": "Basic Info",
+        "advanced": "Custom Prompt"
+      },
+      "fields": {
+        "name": {
+          "label": "Name",
+          "placeholder": "My Agent",
+          "helper": "Internal identifier for this agent"
+        },
+        "displayName": {
+          "label": "Display Name",
+          "placeholder": "My Helpful Assistant",
+          "helper": "Optional friendly name shown in UI"
+        },
+        "tagline": {
+          "label": "Tagline",
+          "placeholder": "Your creative assistant for daily tasks",
+          "helper": "Brief description shown on agent card"
+        },
+        "purpose": {
+          "label": "Purpose",
+          "placeholder": "Helps with creative writing, brainstorming ideas, and organizing thoughts...",
+          "helper": "Detailed description of agent's role and responsibilities"
+        },
+        "customPrompt": {
+          "toggle": "Advanced: Custom System Prompt",
+          "currentPrompt": "Current Auto-Generated Prompt",
+          "currentPromptHelper": "This is the prompt that will be replaced if you provide a custom override below",
+          "copyToOverride": "Copy to Override",
+          "label": "Custom System Prompt Override",
+          "placeholder": "You are a specialized AI assistant...\n\nYour capabilities include:\n- ...\n- ...",
+          "helper": "Override the auto-generated system prompt with your own",
+          "warning": "⚠️ Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
+          "clear": "Clear custom prompt"
+        }
+      }
+    },
+    "deleteDialog": {
+      "title": "Delete Agent",
+      "description": "Are you sure you want to delete \"{name}\"?",
+      "warning": "⚠️ This action cannot be undone. All conversations, documents, and settings for this agent will be permanently deleted.",
+      "confirm": "Delete Agent",
+      "deleting": "Deleting..."
+    },
     "toolEditor": {
       "subtitle": "{name} • {count} tools enabled",
       "searchPlaceholder": "Search tools...",
@@ -388,9 +440,11 @@
     "error": {
       "fetch": "Failed to load documents",
       "upload": "Upload failed",
-      "delete": "Delete failed"
+      "delete": "Delete failed",
+      "retry": "Failed to retry document processing"
     },
     "delete": "Remove document",
+    "retry": "Retry",
     "type": {
       "pdf": "PDF",
       "txt": "TXT",
@@ -1044,6 +1098,16 @@
           "label": "Local Model Path",
           "placeholder": "C:\\path\\to\\models",
           "helper": "Directory containing model folders (e.g., C:\\models with Xenova/bge-large-en-v1.5 inside). Leave empty to allow cached downloads."
+        },
+        "openrouterArgs": {
+          "label": "OpenRouter Advanced Options (JSON)",
+          "helper": "Custom OpenRouter provider options. Common: quant (q4_0, q8_0, auto), thinkingBudget (for reasoning models), includeThoughts (true/false).",
+          "presets": {
+            "q4": "4-bit Quantization",
+            "q8": "8-bit Quantization",
+            "auto": "Auto Quantization",
+            "noThinking": "Disable Thinking"
+          }
         }
       },
       "tip": {

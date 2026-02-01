@@ -13,6 +13,7 @@ import {
   ChevronDown,
   FileIcon,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
 
@@ -23,6 +24,7 @@ export interface AgentDocument {
   contentType: string;
   sizeBytes?: number | null;
   status: "pending" | "ready" | "failed";
+  errorMessage?: string | null;
   createdAt: string;
 }
 
@@ -82,6 +84,18 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  // Poll for pending documents every 3 seconds
+  useEffect(() => {
+    const hasPending = documents.some(doc => doc.status === "pending");
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      fetchDocuments();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [documents, fetchDocuments]);
+
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -134,6 +148,26 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
       setError(err instanceof Error ? err.message : t("error.delete"));
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRetry = async (documentId: string) => {
+    try {
+      setError(null);
+      // Trigger re-processing by calling the reindex endpoint
+      const response = await fetch(
+        `/api/characters/${agentId}/documents/${documentId}/reindex`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || t("error.retry"));
+      }
+
+      await fetchDocuments();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.retry"));
     }
   };
 
@@ -276,12 +310,35 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
                           </span>
                         )}
                         {doc.status === "failed" && (
-                          <span className="text-red-500 font-medium">
-                            {t("status.failed")}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3 text-red-500" />
+                            <span className="text-red-500 font-medium">
+                              {t("status.failed")}
+                            </span>
+                            {doc.errorMessage && (
+                              <span
+                                className="text-red-600/80 text-[10px] truncate max-w-[150px]"
+                                title={doc.errorMessage}
+                              >
+                                - {doc.errorMessage}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
+                    {doc.status === "failed" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                        onClick={() => handleRetry(doc.id)}
+                        title={t("retry")}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        {t("retry")}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

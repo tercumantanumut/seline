@@ -48,6 +48,13 @@ export function buildCharacterSystemPrompt(
   character: CharacterFull,
   options: { toolLoadingMode?: "deferred" | "always" } = {}
 ): string {
+  // Check for custom prompt override first
+  const metadata = character.metadata as Record<string, any> || {};
+  if (metadata.systemPromptOverride && typeof metadata.systemPromptOverride === "string" && metadata.systemPromptOverride.trim()) {
+    console.log(`[Character Prompt] Using custom system prompt override for ${character.name}`);
+    return metadata.systemPromptOverride;
+  }
+
   const sections: string[] = [];
 
   // Agent identity
@@ -73,7 +80,6 @@ export function buildCharacterSystemPrompt(
   }
 
   // Add metadata/purpose if available
-  const metadata = character.metadata as Record<string, any> || {};
   if (metadata.purpose) {
     profileParts.push(`**Your Purpose:** ${metadata.purpose}`);
   }
@@ -126,6 +132,21 @@ export function buildCacheableCharacterPrompt(
     cacheTtl = "5m",
   } = options;
 
+  // Check for custom prompt override first
+  const metadata = (character.metadata as Record<string, any>) || {};
+  if (metadata.systemPromptOverride && typeof metadata.systemPromptOverride === "string" && metadata.systemPromptOverride.trim()) {
+    console.log(`[Character Prompt] Using custom system prompt override for ${character.name} (cacheable)`);
+    return [{
+      role: "system",
+      content: metadata.systemPromptOverride,
+      ...(enableCaching && {
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+        },
+      }),
+    }];
+  }
+
   const blocks: CacheableSystemBlock[] = [];
 
   // Block 1: Temporal context (changes daily, not cached)
@@ -160,8 +181,7 @@ export function buildCacheableCharacterPrompt(
     profileParts.push(`**Your Avatar Image URL:** ${avatarUrl}`);
   }
 
-  // Add metadata/purpose if available
-  const metadata = (character.metadata as Record<string, any>) || {};
+  // Add metadata/purpose if available (metadata already declared at top)
   if (metadata.purpose) {
     profileParts.push(`**Your Purpose:** ${metadata.purpose}`);
   }

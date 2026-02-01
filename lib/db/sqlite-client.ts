@@ -252,6 +252,14 @@ function initializeTables(sqlite: Database.Database): void {
 	    )
 	  `);
 
+  // Migration: Add error_message column to agent_documents if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_documents ADD COLUMN error_message TEXT`);
+    console.log("[SQLite Migration] Added error_message column to agent_documents");
+  } catch {
+    // Column already exists, ignore error
+  }
+
   // Agent document chunks table
   sqlite.exec(`
 	    CREATE TABLE IF NOT EXISTS agent_document_chunks (
@@ -712,6 +720,25 @@ function initializeTables(sqlite: Database.Database): void {
  * These migrations are idempotent and safe to run multiple times.
  */
 function runDataMigrations(sqlite: Database.Database): void {
+  // Migration: Mark old stuck pending documents as failed
+  try {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const stmt = sqlite.prepare(`
+      UPDATE agent_documents
+      SET status = 'failed',
+          error_message = 'Processing timeout - please retry',
+          updated_at = datetime('now')
+      WHERE status = 'pending'
+        AND created_at < ?
+    `);
+    const result = stmt.run(oneWeekAgo);
+    if (result.changes > 0) {
+      console.log(`[SQLite Migration] Marked ${result.changes} stuck documents as failed`);
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Stuck documents migration failed:", error);
+  }
+
   // Migration: Rename tool names in character metadata (editRoomImage -> editImage)
   // This migration updates existing agent configurations to use the new tool name
   try {

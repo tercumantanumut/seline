@@ -150,6 +150,10 @@
     "createDescription": "Kendi AI ajanınızı yapılandırın",
     "continue": "Devam",
     "startNew": "Yeni sohbet başlat",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "editIdentity": "Ajan detaylarını düzenle",
+    "deleteAgent": "Ajanı sil",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
@@ -162,6 +166,54 @@
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Vektör Arama Klasörleri",
+    "identityEditor": {
+      "title": "Ajanı Düzenle",
+      "subtitle": "Ajan detaylarını ve davranışını güncelle",
+      "tabs": {
+        "basic": "Temel Bilgiler",
+        "advanced": "Özel İstem"
+      },
+      "fields": {
+        "name": {
+          "label": "İsim",
+          "placeholder": "Benim Ajanım",
+          "helper": "Bu ajan için dahili tanımlayıcı"
+        },
+        "displayName": {
+          "label": "Görünen Ad",
+          "placeholder": "Yardımcı Asistanım",
+          "helper": "UI'da gösterilen opsiyonel dostane isim"
+        },
+        "tagline": {
+          "label": "Slogan",
+          "placeholder": "Günlük görevler için yaratıcı asistanınız",
+          "helper": "Ajan kartında gösterilen kısa açıklama"
+        },
+        "purpose": {
+          "label": "Amaç",
+          "placeholder": "Yaratıcı yazarlıkta, beyin fırtınasında ve düşünceleri organize etmede yardımcı olur...",
+          "helper": "Ajanın rolü ve sorumluluklarının detaylı açıklaması"
+        },
+        "customPrompt": {
+          "toggle": "Gelişmiş: Özel Sistem İstemi",
+          "currentPrompt": "Mevcut Otomatik Oluşturulan İstem",
+          "currentPromptHelper": "Aşağıda özel bir geçersiz kılma sağlarsanız, bu istem değiştirilecektir",
+          "copyToOverride": "Geçersiz Kılmaya Kopyala",
+          "label": "Özel Sistem İstemi Üzerine Yazma",
+          "placeholder": "Uzmanlaşmış bir AI asistanısınız...\n\nYetenekleriniz:\n- ...\n- ...",
+          "helper": "Otomatik oluşturulan sistem istemini kendi isteminizle değiştirin",
+          "warning": "⚠️ Özel istemler tüm otomatik oluşturulan talimatları değiştirir. Bunu yalnızca ajanın davranışı üzerinde tam kontrole ihtiyacınız varsa kullanın.",
+          "clear": "Özel istemi temizle"
+        }
+      }
+    },
+    "deleteDialog": {
+      "title": "Ajanı Sil",
+      "description": "\"{name}\" ajanını silmek istediğinizden emin misiniz?",
+      "warning": "⚠️ Bu işlem geri alınamaz. Bu ajana ait tüm konuşmalar, belgeler ve ayarlar kalıcı olarak silinecektir.",
+      "confirm": "Ajanı Sil",
+      "deleting": "Siliniyor..."
+    },
     "toolEditor": {
       "subtitle": "{name} • {count} araç etkin",
       "searchPlaceholder": "Araç ara...",
@@ -388,9 +440,11 @@
     "error": {
       "fetch": "Dokümanlar yüklenemedi",
       "upload": "Yükleme başarısız",
-      "delete": "Silme başarısız"
+      "delete": "Silme başarısız",
+      "retry": "Doküman işleme yeniden denemesi başarısız"
     },
     "delete": "Dokümanı kaldır",
+    "retry": "Yeniden Dene",
     "type": {
       "pdf": "PDF",
       "txt": "TXT",
@@ -1007,6 +1061,16 @@
           "label": "Yerel Model Yolu",
           "placeholder": "C:\\path\\to\\models",
           "helper": "Model klasorlerini iceren dizin (ornek: C:\\models icinde Xenova/bge-large-en-v1.5). Bos birakirsaniz onbellekten indirilebilir."
+        },
+        "openrouterArgs": {
+          "label": "OpenRouter Gelişmiş Seçenekler (JSON)",
+          "helper": "Özel OpenRouter sağlayıcı seçenekleri. Yaygın: quant (q4_0, q8_0, auto), thinkingBudget (akıl yürütme modelleri için), includeThoughts (true/false).",
+          "presets": {
+            "q4": "4-bit Kuantizasyon",
+            "q8": "8-bit Kuantizasyon",
+            "auto": "Otomatik Kuantizasyon",
+            "noThinking": "Düşünmeyi Devre Dışı Bırak"
+          }
         },
         "utility": {
           "label": "Yardımcı Model",

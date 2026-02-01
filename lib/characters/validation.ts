@@ -58,6 +58,8 @@ export const agentMetadataSchema = z.object({
   enabledTools: z.array(z.string()).optional(),
   /** Agent's purpose/responsibilities description */
   purpose: z.string().max(2000).optional(),
+  /** Custom system prompt override (replaces auto-generated prompt if provided) */
+  systemPromptOverride: z.string().max(10000).optional(),
 
   /**
    * Per-agent MCP configuration

@@ -104,6 +104,7 @@ export default function SettingsPage() {
     researchModel: "",
     visionModel: "",
     utilityModel: "",
+    openrouterArgs: "{}",
     theme: "dark" as "dark" | "light" | "system",
     toolLoadingMode: "deferred" as "deferred" | "always",
     promptCachingEnabled: true,
@@ -189,6 +190,7 @@ export default function SettingsPage() {
         researchModel: data.researchModel || "",
         visionModel: data.visionModel || "",
         utilityModel: data.utilityModel || "",
+        openrouterArgs: data.openrouterArgs || "{}",
         theme: data.theme || "dark",
         toolLoadingMode: data.toolLoadingMode || "deferred",
         promptCachingEnabled: data.promptCachingEnabled ?? true,
@@ -660,6 +662,7 @@ interface FormState {
   researchModel: string;
   visionModel: string;
   utilityModel: string;
+  openrouterArgs: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
   promptCachingEnabled: boolean;
@@ -1490,6 +1493,55 @@ function SettingsPanel({
             updateField={updateField}
             t={t}
           />
+
+          {/* OpenRouter Advanced Options */}
+          {formState.llmProvider === "openrouter" && (
+            <div>
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">
+                {t("models.fields.openrouterArgs.label")}
+              </label>
+              <textarea
+                value={formState.openrouterArgs}
+                onChange={(e) => updateField("openrouterArgs", e.target.value)}
+                placeholder='{ "quant": "q4_0", "thinkingBudget": 512, "includeThoughts": false }'
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green resize-none"
+                rows={4}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateField("openrouterArgs", '{"quant":"q4_0"}')}
+                  className="px-2 py-1 text-xs font-mono text-terminal-green hover:bg-terminal-green/10 rounded transition-colors"
+                >
+                  {t("models.fields.openrouterArgs.presets.q4")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField("openrouterArgs", '{"quant":"q8_0"}')}
+                  className="px-2 py-1 text-xs font-mono text-terminal-green hover:bg-terminal-green/10 rounded transition-colors"
+                >
+                  {t("models.fields.openrouterArgs.presets.q8")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField("openrouterArgs", '{"quant":"auto"}')}
+                  className="px-2 py-1 text-xs font-mono text-terminal-green hover:bg-terminal-green/10 rounded transition-colors"
+                >
+                  {t("models.fields.openrouterArgs.presets.auto")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField("openrouterArgs", '{"thinkingBudget":0}')}
+                  className="px-2 py-1 text-xs font-mono text-terminal-green hover:bg-terminal-green/10 rounded transition-colors"
+                >
+                  {t("models.fields.openrouterArgs.presets.noThinking")}
+                </button>
+              </div>
+              <p className="mt-2 font-mono text-xs text-terminal-muted">
+                {t("models.fields.openrouterArgs.helper")}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="rounded border border-amber-200 bg-amber-50 p-4">
