@@ -295,9 +295,11 @@ export default function ChatInterface({
     // Refresh messages when background processing completes
     const refreshMessages = useCallback(async () => {
         try {
+            console.log("[Background Processing] Fetching updated messages for session:", sessionId);
             const response = await fetch(`/api/sessions/${sessionId}/messages`);
             if (response.ok) {
                 const data = await response.json();
+                console.log("[Background Processing] Received messages:", data.messages?.length || 0);
                 const uiMessages = convertDBMessagesToUIMessages(data.messages);
 
                 setSessionState(prev => ({
@@ -307,9 +309,12 @@ export default function ChatInterface({
 
                 lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
                 refreshSessionTimestamp(sessionId);
+                console.log("[Background Processing] Messages updated successfully");
+            } else {
+                console.error("[Background Processing] Failed to fetch messages:", response.status, response.statusText);
             }
         } catch (error) {
-            console.error("Failed to refresh messages:", error);
+            console.error("[Background Processing] Failed to refresh messages:", error);
         }
     }, [sessionId, refreshSessionTimestamp]);
 
@@ -342,9 +347,11 @@ export default function ChatInterface({
                 const response = await fetch(`/api/agent-runs/${runId}/status`);
                 const data = await response.json();
 
+                console.log(`[Background Processing] Poll #${pollCount}: status=${data.status}`);
+
                 if (data.status !== "running") {
                     // Run completed - fetch updated messages
-                    console.log("[Background Processing] Run completed, refreshing messages");
+                    console.log("[Background Processing] Run completed with status:", data.status);
                     if (pollingIntervalRef.current) {
                         clearInterval(pollingIntervalRef.current);
                         pollingIntervalRef.current = null;
