@@ -187,6 +187,9 @@ export default function ChatInterface({
     const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+    const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
+    const [processingRunId, setProcessingRunId] = useState<string | null>(null);
+    const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
         [sessions, sessionId]
@@ -195,6 +198,7 @@ export default function ChatInterface({
 
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastProgressSignatureRef = useRef<string>("");
     const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const lastProgressTimeRef = useRef<number>(0);
@@ -288,6 +292,116 @@ export default function ChatInterface({
         lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
     }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
+
+    // Refresh messages when background processing completes
+    const refreshMessages = useCallback(async () => {
+        try {
+            console.log("[Background Processing] Fetching updated messages for session:", sessionId);
+            const response = await fetch(`/api/sessions/${sessionId}/messages`);
+            if (response.ok) {
+                const data = await response.json();
+                console.log("[Background Processing] Received messages:", data.messages?.length || 0);
+                const uiMessages = convertDBMessagesToUIMessages(data.messages);
+
+                setSessionState(prev => ({
+                    ...prev,
+                    messages: uiMessages
+                }));
+
+                lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
+                refreshSessionTimestamp(sessionId);
+
+                // Increment counter to force ChatProvider remount with new messages
+                setBackgroundRefreshCounter(prev => prev + 1);
+                console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
+            } else {
+                console.error("[Background Processing] Failed to fetch messages:", response.status, response.statusText);
+            }
+        } catch (error) {
+            console.error("[Background Processing] Failed to refresh messages:", error);
+        }
+    }, [sessionId, refreshSessionTimestamp]);
+
+    // Poll for completion of background processing
+    const startPollingForCompletion = useCallback((runId: string) => {
+        // Clear any existing polling interval
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+
+        let pollCount = 0;
+        const maxPolls = 150; // 5 minutes at 2s intervals
+
+        pollingIntervalRef.current = setInterval(async () => {
+            pollCount++;
+
+            // Stop polling after 5 minutes (assume stale)
+            if (pollCount >= maxPolls) {
+                console.warn("[Background Processing] Polling timeout - stopping after 5 minutes");
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
+                }
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/agent-runs/${runId}/status`);
+                const data = await response.json();
+
+                console.log(`[Background Processing] Poll #${pollCount}: status=${data.status}`);
+
+                if (data.status !== "running") {
+                    // Run completed - fetch updated messages
+                    console.log("[Background Processing] Run completed with status:", data.status);
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    setIsProcessingInBackground(false);
+                    setProcessingRunId(null);
+                    await refreshMessages();
+                }
+            } catch (error) {
+                console.error("[Background Processing] Polling error:", error);
+                // Continue polling on error (network might recover)
+            }
+        }, 2000); // Poll every 2 seconds
+    }, [refreshMessages]);
+
+    // Check for active run on mount and when sessionId changes
+    useEffect(() => {
+        async function checkActiveRun() {
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/active-run`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.hasActiveRun) {
+                        console.log("[Background Processing] Detected active run:", data.runId);
+                        setIsProcessingInBackground(true);
+                        setProcessingRunId(data.runId);
+                        startPollingForCompletion(data.runId);
+                    }
+                }
+            } catch (error) {
+                console.error("[Background Processing] Failed to check active run:", error);
+            }
+        }
+
+        if (sessionId) {
+            checkActiveRun();
+        }
+
+        // Cleanup polling on unmount or session change
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+    }, [sessionId, startPollingForCompletion]);
 
     useEffect(() => {
         if (activeTaskForSession) {
@@ -661,22 +775,10 @@ export default function ChatInterface({
         }));
     }, []);
 
-    const chatProviderKey = useMemo(() => {
-        const lastMessage = messages[messages.length - 1];
-        const lastMessageId = lastMessage?.id || "none";
-        const lastMessageRole = lastMessage?.role || "unknown";
-        const partsCount = Array.isArray((lastMessage as { parts?: unknown[] })?.parts)
-            ? ((lastMessage as { parts?: unknown[] }).parts?.length ?? 0)
-            : 0;
-        const textDigest =
-            lastMessage && "parts" in lastMessage && Array.isArray((lastMessage as { parts?: Array<{ type?: string; text?: string }> }).parts)
-                ? (lastMessage as { parts?: Array<{ type?: string; text?: string }> })
-                    .parts?.filter((part) => part?.type === "text")
-                    .map((part) => part?.text || "")
-                    .join("|")
-                : "";
-        return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
-    }, [messages, sessionId]);
+    // Use sessionId + refresh counter for key
+    // Stable during normal chat, but remounts when background processing completes
+    // This keeps the ChatProvider alive during streaming but refreshes when returning to completed background run
+    const chatProviderKey = `${sessionId || "no-session"}-${backgroundRefreshCounter}`;
 
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
@@ -733,6 +835,21 @@ export default function ChatInterface({
                                 onCancel={handleCancelRun}
                                 cancelling={isCancellingRun}
                             />
+                        )}
+                        {isProcessingInBackground && (
+                            <div className="flex items-center gap-3 px-4 py-3 bg-terminal-cream/50 border-b border-terminal-border">
+                                <div className="flex items-center gap-2 flex-1">
+                                    <Loader2 className="w-4 h-4 animate-spin text-terminal-green" />
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-sm text-terminal-dark font-mono font-medium">
+                                            {t("processingInBackground")}
+                                        </span>
+                                        <span className="text-xs text-terminal-muted font-mono">
+                                            {t("processingInBackgroundHint")}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                         <Thread onSessionActivity={handleSessionActivity} />
                     </div>

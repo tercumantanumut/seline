@@ -166,6 +166,10 @@
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Vector Search Folders",
+    "activeSession": {
+      "label": "Active",
+      "tooltip": "This agent has an active session with ongoing operations"
+    },
     "identityEditor": {
       "title": "Edit Agent",
       "subtitle": "Update agent details and behavior",
@@ -1268,7 +1272,10 @@
       "cancelled": "Scheduled run cancelled",
       "cancelError": "Failed to cancel run",
       "startedAt": "Started at {time}"
-    }
+    },
+    "processingInBackground": "Agent is processing in background",
+    "processingInBackgroundHint": "Your response will appear automatically when ready",
+    "processingComplete": "Response ready"
   },
   "channels": {
     "title": "Channel inbox for {name}",
