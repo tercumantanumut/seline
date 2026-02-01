@@ -166,6 +166,10 @@
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Vektör Arama Klasörleri",
+    "activeSession": {
+      "label": "Aktif",
+      "tooltip": "Bu ajanda devam eden işlemler var"
+    },
     "identityEditor": {
       "title": "Ajanı Düzenle",
       "subtitle": "Ajan detaylarını ve davranışını güncelle",

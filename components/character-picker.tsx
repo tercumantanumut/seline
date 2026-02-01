@@ -127,6 +127,9 @@ interface CharacterSummary {
     isPrimary: boolean;
     imageType: string;
   }>;
+  // Active session tracking
+  hasActiveSession?: boolean;
+  activeSessionId?: string;
 }
 
 export function CharacterPicker() {
@@ -453,7 +456,26 @@ export function CharacterPicker() {
         const activeChars = (data.characters || []).filter(
           (c: CharacterSummary) => c.status === "active"
         );
-        setCharacters(activeChars);
+
+        // Enrich with active session status
+        const enriched = await Promise.all(
+          activeChars.map(async (char: CharacterSummary) => {
+            try {
+              const statusRes = await fetch(`/api/characters/${char.id}/active-status`);
+              const statusData = await statusRes.json();
+              return {
+                ...char,
+                hasActiveSession: statusData.hasActiveSession,
+                activeSessionId: statusData.activeSessionId,
+              };
+            } catch (err) {
+              console.warn(`Failed to fetch active status for ${char.id}:`, err);
+              return char;
+            }
+          })
+        );
+
+        setCharacters(enriched);
       }
     } catch (error) {
       console.error("Failed to load characters:", error);
@@ -742,14 +764,30 @@ export function CharacterPicker() {
             >
               <div className="p-4 pb-2">
                 <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12 shadow-sm">
-                    {imageUrl ? (
-                      <AvatarImage src={imageUrl} alt={character.name} />
-                    ) : null}
-                    <AvatarFallback className="bg-terminal-green/10 text-terminal-green font-mono">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="w-12 h-12 shadow-sm">
+                      {imageUrl ? (
+                        <AvatarImage src={imageUrl} alt={character.name} />
+                      ) : null}
+                      <AvatarFallback className="bg-terminal-green/10 text-terminal-green font-mono">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Active session indicator */}
+                    {character.hasActiveSession && (
+                      <div
+                        className="absolute -top-1 -right-1 z-10"
+                        title={t("picker.activeSession.tooltip")}
+                      >
+                        <div className="flex items-center justify-center bg-green-500 rounded-full w-5 h-5 shadow-md">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-base font-medium font-mono text-terminal-dark truncate">
                       {character.displayName || character.name}

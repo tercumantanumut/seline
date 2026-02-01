@@ -48,6 +48,7 @@ export async function PUT(request: NextRequest) {
       researchModel: body.researchModel !== undefined ? body.researchModel : currentSettings.researchModel,
       visionModel: body.visionModel !== undefined ? body.visionModel : currentSettings.visionModel,
       utilityModel: body.utilityModel !== undefined ? body.utilityModel : currentSettings.utilityModel,
+      openrouterArgs: body.openrouterArgs !== undefined ? body.openrouterArgs : currentSettings.openrouterArgs,
       embeddingReindexRequired: body.embeddingReindexRequired !== undefined
         ? body.embeddingReindexRequired
         : currentSettings.embeddingReindexRequired,

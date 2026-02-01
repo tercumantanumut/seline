@@ -661,22 +661,9 @@ export default function ChatInterface({
         }));
     }, []);
 
-    const chatProviderKey = useMemo(() => {
-        const lastMessage = messages[messages.length - 1];
-        const lastMessageId = lastMessage?.id || "none";
-        const lastMessageRole = lastMessage?.role || "unknown";
-        const partsCount = Array.isArray((lastMessage as { parts?: unknown[] })?.parts)
-            ? ((lastMessage as { parts?: unknown[] }).parts?.length ?? 0)
-            : 0;
-        const textDigest =
-            lastMessage && "parts" in lastMessage && Array.isArray((lastMessage as { parts?: Array<{ type?: string; text?: string }> }).parts)
-                ? (lastMessage as { parts?: Array<{ type?: string; text?: string }> })
-                    .parts?.filter((part) => part?.type === "text")
-                    .map((part) => part?.text || "")
-                    .join("|")
-                : "";
-        return `${sessionId || "no-session"}-${messages.length}-${lastMessageId}-${lastMessageRole}-${partsCount}-${textDigest}`;
-    }, [messages, sessionId]);
+    // Use only sessionId for stable key - don't remount on message changes
+    // This keeps the ChatProvider and runtime alive when messages update
+    const chatProviderKey = sessionId || "no-session";
 
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
