@@ -1,5 +1,6 @@
 import spawn from "cross-spawn";
 import type { ChildProcess, IOType } from "child_process";
+import { execSync } from "child_process";
 import { PassThrough, type Stream } from "stream";
 import type { Transport, TransportSendOptions } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
@@ -30,6 +31,63 @@ const DEFAULT_INHERITED_ENV_VARS = process.platform === "win32"
         "PROGRAMFILES",
     ]
     : ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"];
+
+/**
+ * Known locations for Node.js binaries on macOS
+ */
+const MACOS_NODE_PATHS = [
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+];
+
+/**
+ * Attempt to resolve a command to its absolute path
+ * Returns the original command if resolution fails
+ */
+function resolveCommandPath(command: string): string {
+    // Only resolve node-related commands that commonly fail
+    if (!["npx", "node", "npm"].includes(command)) {
+        return command;
+    }
+
+    // If already absolute, use as-is
+    if (command.startsWith("/")) {
+        return command;
+    }
+
+    // Try 'which' command first (works if PATH is correct)
+    try {
+        const result = execSync(`which ${command}`, {
+            encoding: "utf-8",
+            timeout: 2000,
+        }).trim();
+        if (result && result.startsWith("/")) {
+            console.log(`[MCP] Resolved command: ${command} → ${result}`);
+            return result;
+        }
+    } catch {
+        // which failed, try known paths
+    }
+
+    // Fallback: Check known macOS paths directly
+    if (process.platform === "darwin") {
+        for (const dir of MACOS_NODE_PATHS) {
+            const fullPath = `${dir}/${command}`;
+            try {
+                // Check if file exists and is executable
+                execSync(`test -x "${fullPath}"`, { timeout: 1000 });
+                console.log(`[MCP] Resolved command via known paths: ${command} → ${fullPath}`);
+                return fullPath;
+            } catch {
+                // Not found in this path
+            }
+        }
+    }
+
+    // Return original command as last resort
+    return command;
+}
 
 function getDefaultEnvironment(): Record<string, string> {
     const env: Record<string, string> = {};
@@ -80,7 +138,14 @@ export class StdioClientTransport implements Transport {
             throw new Error("StdioClientTransport already started!");
         }
         return new Promise((resolve, reject) => {
-            const child = spawn(this._serverParams.command, this._serverParams.args ?? [], {
+            // Resolve command path for macOS GUI compatibility
+            const resolvedCommand = resolveCommandPath(this._serverParams.command);
+
+            if (resolvedCommand !== this._serverParams.command) {
+                console.log(`[MCP] Resolved command: ${this._serverParams.command} → ${resolvedCommand}`);
+            }
+
+            const child = spawn(resolvedCommand, this._serverParams.args ?? [], {
                 env: {
                     ...getDefaultEnvironment(),
                     ...this._serverParams.env,

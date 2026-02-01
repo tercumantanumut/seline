@@ -17,6 +17,77 @@ import { spawn, exec, ChildProcess } from "child_process";
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === "development";
 
+/**
+ * Fix PATH for macOS GUI apps
+ *
+ * When Electron apps are launched from Finder/Dock (not terminal),
+ * they don't inherit the user's shell PATH. This function adds
+ * common Node.js installation paths to ensure npx/node are found.
+ */
+function fixMacOSPath(): void {
+  if (process.platform !== "darwin") {
+    return; // Only needed on macOS
+  }
+
+  // Skip in development (terminal launch has correct PATH)
+  if (isDev) {
+    return;
+  }
+
+  const currentPath = process.env.PATH || "";
+  const homeDir = process.env.HOME || "";
+
+  // Common Node.js installation paths on macOS
+  const additionalPaths = [
+    "/usr/local/bin",                                    // Homebrew (Intel Mac)
+    "/opt/homebrew/bin",                                 // Homebrew (Apple Silicon)
+    "/opt/homebrew/sbin",                                // Homebrew sbin
+    `${homeDir}/.volta/bin`,                             // Volta
+    `${homeDir}/.fnm/aliases/default/bin`,               // fnm
+    `${homeDir}/.local/bin`,                             // pipx/local installs
+    "/usr/local/opt/node/bin",                           // Homebrew node formula
+    "/opt/local/bin",                                    // MacPorts
+  ];
+
+  // Filter to paths that exist and aren't already in PATH
+  const pathsToAdd: string[] = [];
+
+  for (const p of additionalPaths) {
+    try {
+      if (fs.existsSync(p) && !currentPath.includes(p)) {
+        pathsToAdd.push(p);
+      }
+    } catch {
+      // Ignore errors checking path existence
+    }
+  }
+
+  // Handle NVM with glob pattern (check all installed versions)
+  try {
+    const nvmBaseDir = path.join(homeDir, ".nvm", "versions", "node");
+    if (fs.existsSync(nvmBaseDir)) {
+      const entries = fs.readdirSync(nvmBaseDir);
+      for (const entry of entries) {
+        const binPath = path.join(nvmBaseDir, entry, "bin");
+        if (fs.existsSync(binPath) && !currentPath.includes(binPath)) {
+          pathsToAdd.push(binPath);
+        }
+      }
+    }
+  } catch {
+    // Ignore NVM path errors
+  }
+
+  if (pathsToAdd.length > 0) {
+    process.env.PATH = [...pathsToAdd, currentPath].join(":");
+    console.log("[PATH Fix] Added paths for macOS GUI launch:", pathsToAdd);
+    console.log("[PATH Fix] New PATH:", process.env.PATH);
+  }
+}
+
+// Call immediately to fix PATH before any child processes are spawned
+fixMacOSPath();
+
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;

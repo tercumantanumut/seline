@@ -645,9 +645,13 @@ export function MCPSettings() {
                                             </div>
 
                                             {currentStatus?.lastError ? (
-                                                <p className="font-mono text-xs text-red-500 mt-1 max-w-md truncate" title={currentStatus.lastError}>
-                                                    {currentStatus.lastError}
-                                                </p>
+                                                <Alert variant="destructive" className="mt-2">
+                                                    <AlertCircle className="h-4 w-4" />
+                                                    <AlertTitle>Connection Failed</AlertTitle>
+                                                    <AlertDescription className="text-xs whitespace-pre-wrap font-mono">
+                                                        {currentStatus.lastError}
+                                                    </AlertDescription>
+                                                </Alert>
                                             ) : (
                                                 <div className="flex gap-4 mt-1">
                                                     <span className="font-mono text-xs text-terminal-muted truncate max-w-[200px]" title={config.command ? `${config.command} ${config.args?.join(" ")}` : config.url}>

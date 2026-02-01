@@ -153,7 +153,24 @@ class MCPClientManager {
                 capabilities: {},
             });
 
-            await client.connect(transport);
+            try {
+                await client.connect(transport);
+            } catch (error: any) {
+                // Check for ENOENT specifically (command not found)
+                if (error?.code === "ENOENT" || error?.message?.includes("ENOENT")) {
+                    const command = config.command || "npx";
+                    throw new Error(
+                        `Failed to start MCP server "${serverName}": Could not find "${command}". ` +
+                        `This usually means Node.js is not installed or not in the system PATH. ` +
+                        `\n\nTo fix this:\n` +
+                        `1. Install Node.js from https://nodejs.org\n` +
+                        `2. If using nvm/volta, ensure it's properly configured\n` +
+                        `3. Restart Seline after installation\n` +
+                        `\nOriginal error: ${error.message}`
+                    );
+                }
+                throw error;
+            }
 
             // Discover tools
             const toolsResponse = await client.listTools();
