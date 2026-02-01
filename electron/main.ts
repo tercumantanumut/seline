@@ -78,6 +78,43 @@ function fixMacOSPath(): void {
     // Ignore NVM path errors
   }
 
+  // Handle Homebrew versioned Node.js (e.g., node@22, node@20)
+  try {
+    const homebrewOptDir = "/opt/homebrew/opt";
+    if (fs.existsSync(homebrewOptDir)) {
+      const entries = fs.readdirSync(homebrewOptDir);
+      for (const entry of entries) {
+        // Look for node@XX directories
+        if (entry.startsWith("node@") || entry === "node") {
+          const binPath = path.join(homebrewOptDir, entry, "bin");
+          if (fs.existsSync(binPath) && !currentPath.includes(binPath)) {
+            pathsToAdd.push(binPath);
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore Homebrew path errors
+  }
+
+  // Also check /usr/local/opt for Intel Macs
+  try {
+    const localOptDir = "/usr/local/opt";
+    if (fs.existsSync(localOptDir)) {
+      const entries = fs.readdirSync(localOptDir);
+      for (const entry of entries) {
+        if (entry.startsWith("node@") || entry === "node") {
+          const binPath = path.join(localOptDir, entry, "bin");
+          if (fs.existsSync(binPath) && !currentPath.includes(binPath)) {
+            pathsToAdd.push(binPath);
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore local opt path errors
+  }
+
   if (pathsToAdd.length > 0) {
     process.env.PATH = [...pathsToAdd, currentPath].join(":");
     console.log("[PATH Fix] Added paths for macOS GUI launch:", pathsToAdd);
