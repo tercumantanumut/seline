@@ -125,7 +125,7 @@ function ConfigPreview({
     t
 }: {
     config: MCPServerConfig,
-    syncedFolders: Array<{ folderPath: string, isPrimary: boolean }>,
+    syncedFolders: Array<{ folderPath: string, isPrimary: boolean, characterId?: string }>,
     t: any
 }) {
     const primaryFolder = syncedFolders.find(f => f.isPrimary)?.folderPath || syncedFolders[0]?.folderPath || "";
@@ -215,7 +215,7 @@ export function MCPSettings() {
     const [showNewEnvInput, setShowNewEnvInput] = useState(false);
 
     // Synced folders for path preview/documentation
-    const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean }>>([]);
+    const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean, characterId: string }>>([]);
 
     useEffect(() => {
         loadConfig();
@@ -277,10 +277,16 @@ export function MCPSettings() {
     const connectServer = async (serverName: string) => {
         setConnectingState(prev => ({ ...prev, [serverName]: true }));
         try {
+            // Get characterId from the first synced folder if available
+            const characterId = syncedFolders[0]?.characterId;
+
             const res = await fetch("/api/mcp/connect", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ serverNames: [serverName] }),
+                body: JSON.stringify({
+                    serverNames: [serverName],
+                    characterId
+                }),
             });
 
             const data = await res.json();
