@@ -267,7 +267,8 @@ export class StdioClientTransport implements Transport {
 
             // On macOS in production, inherit stderr can cause terminal windows to appear
             // Default to "ignore" on macOS unless explicitly specified
-            const defaultStderr = process.platform === "darwin" && !process.defaultApp
+            const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
+            const defaultStderr = process.platform === "darwin" && !isElectronDev
                 ? "ignore"
                 : "inherit";
 
