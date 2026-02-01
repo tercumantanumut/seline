@@ -125,7 +125,7 @@ function ConfigPreview({
     t
 }: {
     config: MCPServerConfig,
-    syncedFolders: Array<{ folderPath: string, isPrimary: boolean }>,
+    syncedFolders: Array<{ folderPath: string, isPrimary: boolean, characterId?: string }>,
     t: any
 }) {
     const primaryFolder = syncedFolders.find(f => f.isPrimary)?.folderPath || syncedFolders[0]?.folderPath || "";
@@ -215,7 +215,7 @@ export function MCPSettings() {
     const [showNewEnvInput, setShowNewEnvInput] = useState(false);
 
     // Synced folders for path preview/documentation
-    const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean }>>([]);
+    const [syncedFolders, setSyncedFolders] = useState<Array<{ folderPath: string, isPrimary: boolean, characterId: string }>>([]);
 
     useEffect(() => {
         loadConfig();
@@ -277,10 +277,16 @@ export function MCPSettings() {
     const connectServer = async (serverName: string) => {
         setConnectingState(prev => ({ ...prev, [serverName]: true }));
         try {
+            // Get characterId from the first synced folder if available
+            const characterId = syncedFolders[0]?.characterId;
+
             const res = await fetch("/api/mcp/connect", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ serverNames: [serverName] }),
+                body: JSON.stringify({
+                    serverNames: [serverName],
+                    characterId
+                }),
             });
 
             const data = await res.json();
@@ -645,9 +651,13 @@ export function MCPSettings() {
                                             </div>
 
                                             {currentStatus?.lastError ? (
-                                                <p className="font-mono text-xs text-red-500 mt-1 max-w-md truncate" title={currentStatus.lastError}>
-                                                    {currentStatus.lastError}
-                                                </p>
+                                                <Alert variant="destructive" className="mt-2">
+                                                    <AlertCircle className="h-4 w-4" />
+                                                    <AlertTitle>Connection Failed</AlertTitle>
+                                                    <AlertDescription className="text-xs whitespace-pre-wrap font-mono">
+                                                        {currentStatus.lastError}
+                                                    </AlertDescription>
+                                                </Alert>
                                             ) : (
                                                 <div className="flex gap-4 mt-1">
                                                     <span className="font-mono text-xs text-terminal-muted truncate max-w-[200px]" title={config.command ? `${config.command} ${config.args?.join(" ")}` : config.url}>

@@ -16,7 +16,8 @@ interface GlobalBackButtonProps {
 
 /**
  * Global back button that appears in the header on non-root pages.
- * Uses router.back() for navigation and is Electron-safe with webkit-app-region: no-drag.
+ * Uses smart navigation: checks for stored return URL first, then falls back to router.back().
+ * This preserves session state when returning from settings.
  */
 export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
   className,
@@ -32,6 +33,27 @@ export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
   }
 
   const handleBack = (): void => {
+    // Check for stored return URL (set when navigating to settings)
+    if (typeof window !== 'undefined') {
+      const returnUrl = sessionStorage.getItem('seline-return-url');
+
+      if (returnUrl && pathname === '/settings') {
+        // Clear the stored URL
+        sessionStorage.removeItem('seline-return-url');
+
+        // Parse the URL to get the pathname and search params
+        try {
+          const url = new URL(returnUrl);
+          // Use push with the full path to ensure server component re-runs
+          router.push(url.pathname + url.search);
+          return;
+        } catch {
+          // If URL parsing fails, fall through to router.back()
+        }
+      }
+    }
+
+    // Default behavior
     router.back();
   };
 
