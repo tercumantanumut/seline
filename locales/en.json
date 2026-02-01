@@ -1272,7 +1272,9 @@
       "cancelled": "Scheduled run cancelled",
       "cancelError": "Failed to cancel run",
       "startedAt": "Started at {time}"
-    }
+    },
+    "processingInBackground": "Processing your request...",
+    "processingComplete": "Response ready"
   },
   "channels": {
     "title": "Channel inbox for {name}",

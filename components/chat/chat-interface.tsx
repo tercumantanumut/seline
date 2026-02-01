@@ -187,6 +187,8 @@ export default function ChatInterface({
     const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+    const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
+    const [processingRunId, setProcessingRunId] = useState<string | null>(null);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
         [sessions, sessionId]
@@ -195,6 +197,7 @@ export default function ChatInterface({
 
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastProgressSignatureRef = useRef<string>("");
     const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const lastProgressTimeRef = useRef<number>(0);
@@ -288,6 +291,106 @@ export default function ChatInterface({
         lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
     }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
+
+    // Refresh messages when background processing completes
+    const refreshMessages = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/sessions/${sessionId}/messages`);
+            if (response.ok) {
+                const data = await response.json();
+                const uiMessages = convertDBMessagesToUIMessages(data.messages);
+
+                setSessionState(prev => ({
+                    ...prev,
+                    messages: uiMessages
+                }));
+
+                lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
+                refreshSessionTimestamp(sessionId);
+            }
+        } catch (error) {
+            console.error("Failed to refresh messages:", error);
+        }
+    }, [sessionId, refreshSessionTimestamp]);
+
+    // Poll for completion of background processing
+    const startPollingForCompletion = useCallback((runId: string) => {
+        // Clear any existing polling interval
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+
+        let pollCount = 0;
+        const maxPolls = 150; // 5 minutes at 2s intervals
+
+        pollingIntervalRef.current = setInterval(async () => {
+            pollCount++;
+
+            // Stop polling after 5 minutes (assume stale)
+            if (pollCount >= maxPolls) {
+                console.warn("[Background Processing] Polling timeout - stopping after 5 minutes");
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
+                }
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/agent-runs/${runId}/status`);
+                const data = await response.json();
+
+                if (data.status !== "running") {
+                    // Run completed - fetch updated messages
+                    console.log("[Background Processing] Run completed, refreshing messages");
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    setIsProcessingInBackground(false);
+                    setProcessingRunId(null);
+                    await refreshMessages();
+                }
+            } catch (error) {
+                console.error("[Background Processing] Polling error:", error);
+                // Continue polling on error (network might recover)
+            }
+        }, 2000); // Poll every 2 seconds
+    }, [refreshMessages]);
+
+    // Check for active run on mount and when sessionId changes
+    useEffect(() => {
+        async function checkActiveRun() {
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/active-run`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.hasActiveRun) {
+                        console.log("[Background Processing] Detected active run:", data.runId);
+                        setIsProcessingInBackground(true);
+                        setProcessingRunId(data.runId);
+                        startPollingForCompletion(data.runId);
+                    }
+                }
+            } catch (error) {
+                console.error("[Background Processing] Failed to check active run:", error);
+            }
+        }
+
+        if (sessionId) {
+            checkActiveRun();
+        }
+
+        // Cleanup polling on unmount or session change
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+    }, [sessionId, startPollingForCompletion]);
 
     useEffect(() => {
         if (activeTaskForSession) {
@@ -720,6 +823,14 @@ export default function ChatInterface({
                                 onCancel={handleCancelRun}
                                 cancelling={isCancellingRun}
                             />
+                        )}
+                        {isProcessingInBackground && (
+                            <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border-b border-blue-200">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                <span className="text-sm text-blue-700 font-mono">
+                                    {t("processingInBackground")}
+                                </span>
+                            </div>
                         )}
                         <Thread onSessionActivity={handleSessionActivity} />
                     </div>

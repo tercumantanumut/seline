@@ -1252,7 +1252,9 @@
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
       "startedAt": "{time} itibarıyla başladı"
-    }
+    },
+    "processingInBackground": "İsteğiniz işleniyor...",
+    "processingComplete": "Yanıt hazır"
   },
   "channels": {
     "title": "{name} için kanal gelen kutusu",
