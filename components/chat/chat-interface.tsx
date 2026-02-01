@@ -837,11 +837,18 @@ export default function ChatInterface({
                             />
                         )}
                         {isProcessingInBackground && (
-                            <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border-b border-blue-200">
-                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                <span className="text-sm text-blue-700 font-mono">
-                                    {t("processingInBackground")}
-                                </span>
+                            <div className="flex items-center gap-3 px-4 py-3 bg-terminal-cream/50 border-b border-terminal-border">
+                                <div className="flex items-center gap-2 flex-1">
+                                    <Loader2 className="w-4 h-4 animate-spin text-terminal-green" />
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-sm text-terminal-dark font-mono font-medium">
+                                            {t("processingInBackground")}
+                                        </span>
+                                        <span className="text-xs text-terminal-muted font-mono">
+                                            {t("processingInBackgroundHint")}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         )}
                         <Thread onSessionActivity={handleSessionActivity} />

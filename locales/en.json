@@ -1273,7 +1273,8 @@
       "cancelError": "Failed to cancel run",
       "startedAt": "Started at {time}"
     },
-    "processingInBackground": "Processing your request...",
+    "processingInBackground": "Agent is processing in background",
+    "processingInBackgroundHint": "Your response will appear automatically when ready",
     "processingComplete": "Response ready"
   },
   "channels": {

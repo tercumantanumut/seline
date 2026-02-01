@@ -1253,7 +1253,8 @@
       "cancelError": "Görev iptal edilemedi",
       "startedAt": "{time} itibarıyla başladı"
     },
-    "processingInBackground": "İsteğiniz işleniyor...",
+    "processingInBackground": "Ajan arka planda işliyor",
+    "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
     "processingComplete": "Yanıt hazır"
   },
   "channels": {
