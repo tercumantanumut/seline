@@ -650,7 +650,7 @@ export async function resolveMCPConfig(
         }
 
         // Resolve arguments with special handling for ${SYNCED_FOLDERS_ARRAY}
-        const resolvedArgs: string[] = [];
+        let resolvedArgs: string[] = [];
         if (config.args) {
             for (const arg of config.args) {
                 if (arg === "${SYNCED_FOLDERS_ARRAY}" && characterId) {
