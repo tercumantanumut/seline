@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { getOrCreateLocalUser, getAgentDocumentById, listAgentDocumentsForCharacter, createAgentDocument, createAgentDocumentChunks, deleteAgentDocument, deleteAgentDocumentChunksByDocumentId } from "@/lib/db/queries";
+import { getOrCreateLocalUser, getAgentDocumentById, listAgentDocumentsForCharacter, createAgentDocument, createAgentDocumentChunks, deleteAgentDocument, deleteAgentDocumentChunksByDocumentId, updateAgentDocument } from "@/lib/db/queries";
 import { getCharacter } from "@/lib/characters/queries";
 import { saveDocumentFile } from "@/lib/storage/local-storage";
 import { extractTextFromDocument } from "@/lib/documents/parser";
@@ -177,20 +177,31 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 	        userId: dbUser.id,
 	      });
 	      embeddedChunkCount = result.embeddedChunkCount;
+	      // Document status updated to "ready" by indexAgentDocumentEmbeddings
 	    } catch (error) {
-	      // Surface a clear error but keep the document metadata so the user can retry.
-	      console.error("Index agent document embeddings error:", error);
+	      // On error: update document to "failed" with error message
+	      console.error("Document processing error:", error);
+	      const errorMessage = error instanceof Error ? error.message : "Failed to process document";
+
+	      await updateAgentDocument(document.id, dbUser.id, {
+	        status: "failed",
+	        errorMessage: errorMessage,
+	      });
+
+	      // Return the failed document (still 201 - document was created)
+	      const failedDoc = await getAgentDocumentById(document.id, dbUser.id);
 	      return NextResponse.json(
 	        {
-	          error:
-	            error instanceof Error
-	              ? error.message
-	              : "Failed to index document embeddings",
+	          document: failedDoc ?? document,
+	          chunkCount: chunkRows.length,
+	          embeddedChunkCount: 0,
+	          error: errorMessage,
 	        },
-	        { status: 500 },
+	        { status: 201 } // 201 = created, just failed to process
 	      );
 	    }
 
+	    // Success path
 	    const refreshed = await getAgentDocumentById(document.id, dbUser.id);
 
 	    return NextResponse.json(

@@ -102,6 +102,9 @@ let _localEmbeddingModelDir: string | undefined = undefined;
 
 function getOpenRouterClient() {
   const apiKey = getOpenRouterApiKey();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { loadSettings } = require("@/lib/settings/settings-manager");
+  const settings = loadSettings();
 
   // Recreate client if API key changed (e.g., settings were updated)
   if (_openrouterClient && _openrouterClientApiKey !== apiKey) {
@@ -111,6 +114,22 @@ function getOpenRouterClient() {
   // Create client lazily so it picks up API key after settings are initialized
   if (!_openrouterClient) {
     _openrouterClientApiKey = apiKey;
+
+    // Parse OpenRouter args from settings (with validation)
+    let providerOptions = {};
+    if (settings.openrouterArgs) {
+      try {
+        const args = JSON.parse(settings.openrouterArgs);
+        // Extract quantization suffix for model name
+        const quant = args.quant;
+        // Pass other options to providerOptions
+        providerOptions = { ...args };
+        console.log("[PROVIDERS] OpenRouter args applied:", providerOptions);
+      } catch (error) {
+        console.warn("[PROVIDERS] Invalid OpenRouter args JSON, ignoring:", error);
+      }
+    }
+
     _openrouterClient = createOpenAICompatible({
       name: "openrouter",
       baseURL: OPENROUTER_BASE_URL,
@@ -119,6 +138,8 @@ function getOpenRouterClient() {
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
         "X-Title": "STYLY Agent",
       },
+      // Add provider options for request body customization
+      ...providerOptions,
     });
   }
   return _openrouterClient;
