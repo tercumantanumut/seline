@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { getOrCreateLocalUser, getAgentDocumentById, listAgentDocumentsForCharacter, createAgentDocument, createAgentDocumentChunks, deleteAgentDocument, deleteAgentDocumentChunksByDocumentId } from "@/lib/db/queries";
+import { getOrCreateLocalUser, getAgentDocumentById, listAgentDocumentsForCharacter, createAgentDocument, createAgentDocumentChunks, deleteAgentDocument, deleteAgentDocumentChunksByDocumentId, updateAgentDocument } from "@/lib/db/queries";
 import { getCharacter } from "@/lib/characters/queries";
 import { saveDocumentFile } from "@/lib/storage/local-storage";
 import { extractTextFromDocument } from "@/lib/documents/parser";
