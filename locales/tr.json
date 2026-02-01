@@ -166,6 +166,10 @@
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Vektör Arama Klasörleri",
+    "activeSession": {
+      "label": "Aktif",
+      "tooltip": "Bu ajanda devam eden işlemler var"
+    },
     "identityEditor": {
       "title": "Ajanı Düzenle",
       "subtitle": "Ajan detaylarını ve davranışını güncelle",
@@ -1248,7 +1252,10 @@
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
       "startedAt": "{time} itibarıyla başladı"
-    }
+    },
+    "processingInBackground": "Ajan arka planda işliyor",
+    "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
+    "processingComplete": "Yanıt hazır"
   },
   "channels": {
     "title": "{name} için kanal gelen kutusu",
