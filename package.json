@@ -99,6 +99,7 @@
     "nanoid": "^5.0.9",
     "next": "^15.5.0",
     "next-intl": "^4.6.1",
+    "npm": "^10.9.4",
     "onnxruntime-node": "^1.23.2",
     "onnxruntime-web": "^1.17.0",
     "pdf-parse": "^2.4.5",
