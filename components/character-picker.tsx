@@ -777,7 +777,7 @@ export function CharacterPicker() {
                     {character.hasActiveSession && (
                       <div
                         className="absolute -top-1 -right-1 z-10"
-                        title={t("picker.activeSession.tooltip")}
+                        title={t("activeSession.tooltip")}
                       >
                         <div className="flex items-center justify-center bg-green-500 rounded-full w-5 h-5 shadow-md">
                           <span className="relative flex h-2.5 w-2.5">
