@@ -189,6 +189,7 @@ export default function ChatInterface({
     const [isCancellingRun, setIsCancellingRun] = useState(false);
     const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
     const [processingRunId, setProcessingRunId] = useState<string | null>(null);
+    const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
         [sessions, sessionId]
@@ -309,7 +310,10 @@ export default function ChatInterface({
 
                 lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
                 refreshSessionTimestamp(sessionId);
-                console.log("[Background Processing] Messages updated successfully");
+
+                // Increment counter to force ChatProvider remount with new messages
+                setBackgroundRefreshCounter(prev => prev + 1);
+                console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
             } else {
                 console.error("[Background Processing] Failed to fetch messages:", response.status, response.statusText);
             }
@@ -771,9 +775,10 @@ export default function ChatInterface({
         }));
     }, []);
 
-    // Use only sessionId for stable key - don't remount on message changes
-    // This keeps the ChatProvider and runtime alive when messages update
-    const chatProviderKey = sessionId || "no-session";
+    // Use sessionId + refresh counter for key
+    // Stable during normal chat, but remounts when background processing completes
+    // This keeps the ChatProvider alive during streaming but refreshes when returning to completed background run
+    const chatProviderKey = `${sessionId || "no-session"}-${backgroundRefreshCounter}`;
 
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
