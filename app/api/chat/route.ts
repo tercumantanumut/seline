@@ -2052,16 +2052,18 @@ export async function POST(req: Request) {
           }
 
           // Complete the agent run with success
-          await completeAgentRun(agentRun.id, "succeeded", {
-            stepCount: steps?.length || 0,
-            toolCallCount: steps?.reduce((acc, s) => acc + (s.toolCalls?.length || 0), 0) || 0,
-            usage: usage ? {
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              totalTokens: usage.totalTokens,
-            } : undefined,
-            ...(cacheMetrics ? { cache: cacheMetrics } : {}),
-          });
+          if (agentRun) {
+            await completeAgentRun(agentRun.id, "succeeded", {
+              stepCount: steps?.length || 0,
+              toolCallCount: steps?.reduce((acc, s) => acc + (s.toolCalls?.length || 0), 0) || 0,
+              usage: usage ? {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                totalTokens: usage.totalTokens,
+              } : undefined,
+              ...(cacheMetrics ? { cache: cacheMetrics } : {}),
+            });
+          }
 
           // Log cache performance metrics (if caching enabled)
           if (useCaching && usage) {
@@ -2236,18 +2238,20 @@ export async function POST(req: Request) {
               metadata: buildInterruptionMetadata("chat", interruptionTimestamp),
             });
 
-            await completeAgentRun(agentRun.id, "cancelled", {
-              reason: "user_cancelled",
-              stepCount: steps.length,
-            });
+            if (agentRun) {
+              await completeAgentRun(agentRun.id, "cancelled", {
+                reason: "user_cancelled",
+                stepCount: steps.length,
+              });
 
-            await appendRunEvent({
-              runId: agentRun.id,
-              eventType: "run_completed",
-              level: "info",
-              pipelineName: "chat",
-              data: { status: "cancelled", reason: "user_cancelled", stepCount: steps.length },
-            });
+              await appendRunEvent({
+                runId: agentRun.id,
+                eventType: "run_completed",
+                level: "info",
+                pipelineName: "chat",
+                data: { status: "cancelled", reason: "user_cancelled", stepCount: steps.length },
+              });
+            }
           } catch (error) {
             console.error("[CHAT API] Failed to record cancellation:", error);
           }
