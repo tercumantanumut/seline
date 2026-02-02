@@ -87,7 +87,9 @@ export async function loadMCPToolsForCharacter(
         // (to ensure variables like ${SYNCED_FOLDER} are resolved correctly for the current agent)
         const isConnected = manager.isConnected(serverName);
         const connectedContext = manager.getConnectedCharacterId(serverName);
-        const needsReconnect = !isConnected || connectedContext !== character?.id;
+        // Don't reconnect if already connected from instrumentation (no character context).
+        // Only reconnect if disconnected, or if connected for a DIFFERENT character (not undefined).
+        const needsReconnect = !isConnected || (connectedContext !== undefined && connectedContext !== character?.id);
 
         if (needsReconnect) {
             try {
@@ -129,10 +131,15 @@ export async function loadMCPToolsForCharacter(
 
         // Register with ToolRegistry using preference-aware metadata
         const metadata = mcpToolToMetadata(mcpTool, preference);
-        const factory = () => createMCPToolWrapper(mcpTool);
-        registry.register(toolId, metadata, factory);
+        try {
+            const factory = () => createMCPToolWrapper(mcpTool);
+            registry.register(toolId, metadata, factory);
 
-        allTools[toolId] = createMCPToolWrapper(mcpTool);
+            allTools[toolId] = createMCPToolWrapper(mcpTool);
+        } catch (error) {
+            console.warn(`[MCP] Skipping tool ${toolId} due to schema error:`, error);
+            continue;
+        }
 
         // Track by loading mode
         if (preference.loadingMode === "always") {

@@ -67,6 +67,7 @@ import {
   createFlux2Klein9BReferenceTool,
 } from "../tools/flux2-klein-9b-generate-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
+import { createCalculatorTool } from "../tools/calculator-tool";
 
 /**
  * Register all tools with the registry
@@ -569,6 +570,82 @@ Use these in the prompt to include dynamic values at execution time:
         userId: userId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",
       })
+  );
+
+  // Calculator Tool - Safe mathematical calculations
+  registry.register(
+    "calculator",
+    {
+      displayName: "Calculator",
+      category: "utility",
+      keywords: [
+        "calculate",
+        "calculator",
+        "math",
+        "arithmetic",
+        "compute",
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "sum",
+        "percentage",
+        "percent",
+        "tax",
+        "interest",
+        "compound",
+        "statistics",
+        "mean",
+        "median",
+        "sqrt",
+        "power",
+        "exponent",
+        "trigonometry",
+        "sin",
+        "cos",
+        "convert",
+        "unit",
+        "formula",
+      ],
+      shortDescription:
+        "Perform accurate mathematical calculations - arithmetic, statistics, trigonometry, unit conversions",
+      fullInstructions: `## Calculator Tool
+
+Use this tool instead of doing math yourself. Returns deterministic, accurate results.
+
+### Capabilities
+- **Arithmetic**: +, -, *, /, ^, %, sqrt, cbrt
+- **Trigonometry**: sin, cos, tan, asin, acos, atan (radians)
+- **Logarithms**: log, log10, log2, exp
+- **Constants**: pi, e, phi, tau
+- **Statistics**: mean, median, std, variance, sum, prod
+- **Units**: "5 miles to km", "100 fahrenheit to celsius"
+- **Matrix**: [[1,2],[3,4]] * [[5,6],[7,8]]
+- **Complex**: "2 + 3i"
+
+### Parameters
+- **expression** (required): Math expression to evaluate
+- **precision** (optional): Decimal precision (default: 10, max: 20)
+
+### Examples
+\`\`\`
+calculator({ expression: "2 + 2 * 3" })  // 8
+calculator({ expression: "sqrt(16) + cbrt(27)" })  // 7
+calculator({ expression: "10000 * (1 + 0.07)^30" })  // 76122.55
+calculator({ expression: "mean([85, 90, 78, 92, 88])" })  // 86.6
+calculator({ expression: "5 miles to km" })  // 8.047 km
+calculator({ expression: "45.99 * 1.085", precision: 2 })  // 49.90
+\`\`\`
+
+### When to Use
+- Financial calculations (interest, tax, percentages)
+- Unit conversions
+- Statistical analysis
+- Any math where accuracy matters`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+    } satisfies ToolMetadata,
+    () => createCalculatorTool()
   );
 
   // Describe Image Tool (ALWAYS LOADED - essential for virtual try-on workflows)

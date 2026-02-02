@@ -959,6 +959,7 @@ function recordToolResultChunk(
 }
 
 export async function POST(req: Request) {
+  let agentRun: { id: string } | null = null;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -1226,7 +1227,7 @@ export async function POST(req: Request) {
     await compactIfNeeded(sessionId);
 
     // Create agent run for observability
-    const agentRun = await createAgentRun({
+    agentRun = await createAgentRun({
       sessionId,
       userId: dbUser.id,
       pipelineName: "chat",
@@ -2295,9 +2296,16 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Chat API error:", error);
 
-    // Note: agentRun may not exist if error occurred before run creation
-    // The run will remain in "running" status and can be cleaned up by a background job
-    // or marked as failed on next request if we track the run ID
+    // Mark the agent run as failed so the background processing banner clears
+    if (agentRun?.id) {
+      try {
+        await completeAgentRun(agentRun.id, "failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      } catch (e) {
+        console.error("[CHAT API] Failed to mark agent run as failed:", e);
+      }
+    }
 
     return new Response(
       JSON.stringify({

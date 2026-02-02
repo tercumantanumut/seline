@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { listAgentRunsBySession } from "@/lib/observability/queries";
+import { listAgentRunsBySession, completeAgentRun } from "@/lib/observability/queries";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
@@ -19,7 +19,17 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     // Get all runs for this session
     const runs = await listAgentRunsBySession(sessionId);
-    const activeRun = runs.find(r => r.status === "running");
+    let activeRun = runs.find(r => r.status === "running");
+
+    // Auto-expire stale runs (>10 min) as a safety net
+    if (activeRun) {
+      const startedAt = new Date(activeRun.startedAt).getTime();
+      const TEN_MINUTES = 10 * 60 * 1000;
+      if (Date.now() - startedAt > TEN_MINUTES) {
+        await completeAgentRun(activeRun.id, "failed", { error: "stale_run_cleanup" });
+        activeRun = undefined;
+      }
+    }
 
     if (!activeRun) {
       return NextResponse.json({

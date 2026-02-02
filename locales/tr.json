@@ -317,6 +317,10 @@
         "name": "Görev Zamanla",
         "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
       },
+      "calculator": {
+        "name": "Hesap Makinesi",
+        "description": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)"
+      },
       "generateImageFlux2Flex": {
         "name": "Üret (Flux.2 Flex)",
         "description": "Flux.2 Flex ile görsel üretin"
@@ -548,6 +552,7 @@
       "localGrep": "Yerel Grep",
       "executeCommand": "Komut Çalıştır",
       "scheduleTask": "Görev Zamanla",
+      "calculator": "Hesap Makinesi",
       "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
       "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
@@ -746,6 +751,8 @@
         "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
         "scheduleTask": "Görev Zamanla",
         "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
+        "calculator": "Hesap Makinesi",
+        "calculatorDesc": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",

@@ -14,6 +14,7 @@ import {
   FileText,
   Flame,
   Terminal,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +43,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   describeImage: Eye,
   showProductImages: Package,
   executeCommand: Terminal,
+  calculator: Calculator,
 };
 
 /** Tool ID to category color mapping */
@@ -81,6 +83,7 @@ const TOOL_CATEGORIES: Record<string, string> = {
   describeImage: "analysis",
   showProductImages: "utility",
   executeCommand: "utility",
+  calculator: "utility",
 };
 
 function resolveToolCategory(toolId: string): string {

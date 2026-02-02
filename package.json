@@ -95,6 +95,7 @@
     "jimp": "^1.6.0",
     "lru-cache": "^11.2.4",
     "lucide-react": "^0.468.0",
+    "mathjs": "^15.1.0",
     "meilisearch": "^0.54.0",
     "nanoid": "^5.0.9",
     "next": "^15.5.0",

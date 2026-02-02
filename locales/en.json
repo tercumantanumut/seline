@@ -321,6 +321,10 @@
         "name": "Schedule Task",
         "description": "Schedule tasks for future execution (one-time, recurring, or interval)"
       },
+      "calculator": {
+        "name": "Calculator",
+        "description": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)"
+      },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
         "description": "Generate images with Flux.2 Flex via OpenRouter"
@@ -551,6 +555,7 @@
       "showProductImages": "Product Gallery",
       "executeCommand": "Execute Command",
       "scheduleTask": "Schedule Task",
+      "calculator": "Calculator",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -751,6 +756,8 @@
         "executeCommandDesc": "Run shell commands safely within synced directories",
         "scheduleTask": "Schedule Task",
         "scheduleTaskDesc": "Schedule tasks for future execution (one-time, recurring, or interval)",
+        "calculator": "Calculator",
+        "calculatorDesc": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",
