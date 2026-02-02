@@ -268,7 +268,8 @@ export class StdioClientTransport implements Transport {
             // On macOS in production, inherit stderr can cause terminal windows to appear
             // Default to "ignore" on macOS unless explicitly specified
             const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
-            const defaultStderr = process.platform === "darwin" && !isElectronDev
+            const isDesktopPlatform = process.platform === "darwin" || process.platform === "win32";
+            const defaultStderr = isDesktopPlatform && !isElectronDev
                 ? "ignore"
                 : "inherit";
 
@@ -284,8 +285,8 @@ export class StdioClientTransport implements Transport {
                 cwd: this._serverParams.cwd,
             };
 
-            // On macOS, prevent spawned processes from creating visible terminal windows
-            if (process.platform === "darwin") {
+            // On macOS and Windows, prevent spawned processes from creating visible terminal windows
+            if (process.platform === "darwin" || process.platform === "win32") {
                 spawnOptions.detached = false;
             }
 

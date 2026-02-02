@@ -959,6 +959,7 @@ function recordToolResultChunk(
 }
 
 export async function POST(req: Request) {
+  let agentRun: { id: string } | null = null;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -1226,7 +1227,7 @@ export async function POST(req: Request) {
     await compactIfNeeded(sessionId);
 
     // Create agent run for observability
-    const agentRun = await createAgentRun({
+    agentRun = await createAgentRun({
       sessionId,
       userId: dbUser.id,
       pipelineName: "chat",
@@ -2051,16 +2052,18 @@ export async function POST(req: Request) {
           }
 
           // Complete the agent run with success
-          await completeAgentRun(agentRun.id, "succeeded", {
-            stepCount: steps?.length || 0,
-            toolCallCount: steps?.reduce((acc, s) => acc + (s.toolCalls?.length || 0), 0) || 0,
-            usage: usage ? {
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              totalTokens: usage.totalTokens,
-            } : undefined,
-            ...(cacheMetrics ? { cache: cacheMetrics } : {}),
-          });
+          if (agentRun) {
+            await completeAgentRun(agentRun.id, "succeeded", {
+              stepCount: steps?.length || 0,
+              toolCallCount: steps?.reduce((acc, s) => acc + (s.toolCalls?.length || 0), 0) || 0,
+              usage: usage ? {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                totalTokens: usage.totalTokens,
+              } : undefined,
+              ...(cacheMetrics ? { cache: cacheMetrics } : {}),
+            });
+          }
 
           // Log cache performance metrics (if caching enabled)
           if (useCaching && usage) {
@@ -2235,18 +2238,20 @@ export async function POST(req: Request) {
               metadata: buildInterruptionMetadata("chat", interruptionTimestamp),
             });
 
-            await completeAgentRun(agentRun.id, "cancelled", {
-              reason: "user_cancelled",
-              stepCount: steps.length,
-            });
+            if (agentRun) {
+              await completeAgentRun(agentRun.id, "cancelled", {
+                reason: "user_cancelled",
+                stepCount: steps.length,
+              });
 
-            await appendRunEvent({
-              runId: agentRun.id,
-              eventType: "run_completed",
-              level: "info",
-              pipelineName: "chat",
-              data: { status: "cancelled", reason: "user_cancelled", stepCount: steps.length },
-            });
+              await appendRunEvent({
+                runId: agentRun.id,
+                eventType: "run_completed",
+                level: "info",
+                pipelineName: "chat",
+                data: { status: "cancelled", reason: "user_cancelled", stepCount: steps.length },
+              });
+            }
           } catch (error) {
             console.error("[CHAT API] Failed to record cancellation:", error);
           }
@@ -2295,9 +2300,16 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Chat API error:", error);
 
-    // Note: agentRun may not exist if error occurred before run creation
-    // The run will remain in "running" status and can be cleaned up by a background job
-    // or marked as failed on next request if we track the run ID
+    // Mark the agent run as failed so the background processing banner clears
+    if (agentRun?.id) {
+      try {
+        await completeAgentRun(agentRun.id, "failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      } catch (e) {
+        console.error("[CHAT API] Failed to mark agent run as failed:", e);
+      }
+    }
 
     return new Response(
       JSON.stringify({
