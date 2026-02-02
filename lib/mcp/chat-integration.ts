@@ -56,7 +56,7 @@ export async function loadMCPToolsForCharacter(
 
     // CRITICAL: Sync with config - disconnect servers that are no longer configured
     // and clean up their tools from the registry
-    const disconnectedServers = await manager.syncWithConfig(configuredServerNames);
+    const { disconnectedServers, deferred } = await manager.syncWithConfigSafely(configuredServerNames);
     for (const serverName of disconnectedServers) {
         // Remove tools from registry for disconnected servers
         // Tool IDs have format: mcp_{sanitizedServerName}_{toolName}
@@ -67,7 +67,7 @@ export async function loadMCPToolsForCharacter(
 
     // If no servers are configured, also clear any remaining MCP tools from registry
     // This handles edge cases where state got out of sync
-    if (configuredServerNames.size === 0) {
+    if (configuredServerNames.size === 0 && !deferred) {
         // Use category-based cleanup as a fallback
         registry.unregisterByCategory("mcp");
         console.log("[MCP] No MCP servers configured, cleared all MCP tools from registry");

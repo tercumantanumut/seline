@@ -12,8 +12,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
-import type { TaskEvent } from "@/lib/scheduler/task-events";
+import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
+import type { TaskEvent, UnifiedTask } from "@/lib/background-tasks/types";
 
 interface SSEMessage {
   type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
@@ -29,21 +29,32 @@ export function useTaskNotifications() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectedUserIdRef = useRef<string | null>(null);
-  const addTask = useActiveTasksStore((state) => state.addTask);
-  const completeTask = useActiveTasksStore((state) => state.completeTask);
-  const buildSessionUrl = useCallback((event: TaskEvent) => {
-    if (event.sessionId && event.characterId) {
-      return `/chat/${event.characterId}?sessionId=${event.sessionId}`;
+  const addTask = useUnifiedTasksStore((state) => state.addTask);
+  const updateTask = useUnifiedTasksStore((state) => state.updateTask);
+  const completeTask = useUnifiedTasksStore((state) => state.completeTask);
+  const buildSessionUrl = useCallback((task: UnifiedTask) => {
+    if (task.sessionId && task.characterId) {
+      return `/chat/${task.characterId}?sessionId=${task.sessionId}`;
     }
     return undefined;
   }, []);
-  const buildScheduleUrl = useCallback((event: TaskEvent) => {
-    if (!event.characterId) return undefined;
-    return `/agents/${event.characterId}/schedules?highlight=${event.taskId}&run=${event.runId}&expandHistory=true`;
+  const buildScheduleUrl = useCallback((task: UnifiedTask) => {
+    if (task.type !== "scheduled") return undefined;
+    return `/agents/${task.characterId}/schedules?highlight=${task.taskId}&run=${task.runId}&expandHistory=true`;
   }, []);
-  const dispatchLifecycleEvent = useCallback((eventName: "scheduled-task-started" | "scheduled-task-completed", event: TaskEvent) => {
+  const dispatchLifecycleEvent = useCallback((eventName: "background-task-started" | "background-task-completed", event: TaskEvent) => {
     if (typeof window === "undefined") return;
     window.dispatchEvent(new CustomEvent(eventName, { detail: event }));
+  }, []);
+  const shouldShowChatToast = useCallback((task: UnifiedTask) => {
+    if (typeof window === "undefined") return true;
+    if (task.type !== "chat") return true;
+    const { pathname, search } = window.location;
+    if (!pathname.startsWith("/chat/")) return true;
+    if (!task.sessionId) return true;
+    const params = new URLSearchParams(search);
+    const sessionId = params.get("sessionId");
+    return !sessionId || sessionId !== task.sessionId;
   }, []);
 
   // Use refs for handlers to avoid stale closures in EventSource callbacks
@@ -54,67 +65,122 @@ export function useTaskNotifications() {
   // Update refs when dependencies change
   useEffect(() => {
     handleTaskStartedRef.current = (event: TaskEvent) => {
-      console.log("[TaskNotifications] Task started:", event.taskName, event.runId);
+      if (event.eventType !== "task:started") return;
+      const task = event.task;
+      const isScheduledChat =
+        task.type === "chat" &&
+        task.metadata &&
+        typeof task.metadata === "object" &&
+        "scheduledRunId" in task.metadata;
+      if (isScheduledChat) {
+        return;
+      }
+      const displayName =
+        task.type === "scheduled"
+          ? task.taskName || "Scheduled task"
+          : task.type === "chat"
+          ? "Chat session"
+          : "Channel message";
+      console.log("[TaskNotifications] Task started:", displayName, task.runId);
 
-      // Add to active tasks store
-      addTask(event);
-      dispatchLifecycleEvent("scheduled-task-started", event);
+      addTask(task);
+      dispatchLifecycleEvent("background-task-started", event);
 
-      // Show toast notification
-      toast.info(t("taskRunning", { taskName: event.taskName }), {
-        description: t("taskStartedAt", {
-          time: new Date(event.startedAt).toLocaleTimeString()
-        }),
-        action: buildSessionUrl(event) ? {
-          label: t("viewTask"),
-          onClick: () => {
-            const url = buildSessionUrl(event);
-            if (url) router.push(url);
-          },
-        } : undefined,
-        duration: 5000,
-      });
+      const runningKey =
+        task.type === "scheduled"
+          ? "taskRunning"
+          : task.type === "chat"
+          ? "chatRunning"
+          : "taskRunningGeneric";
+      if (shouldShowChatToast(task)) {
+        toast.info(t(runningKey, { taskName: displayName }), {
+          description: t("taskStartedAt", {
+            time: new Date(task.startedAt).toLocaleTimeString(),
+          }),
+          action: buildSessionUrl(task)
+            ? {
+                label: t("viewTask"),
+                onClick: () => {
+                  const url = buildSessionUrl(task);
+                  if (url) router.push(url);
+                },
+              }
+            : undefined,
+          duration: 5000,
+        });
+      }
     };
 
     handleTaskCompletedRef.current = (event: TaskEvent) => {
-      console.log("[TaskNotifications] Task completed:", event.taskName, event.status);
+      if (event.eventType !== "task:completed") return;
+      const task = event.task;
+      const isScheduledChat =
+        task.type === "chat" &&
+        task.metadata &&
+        typeof task.metadata === "object" &&
+        "scheduledRunId" in task.metadata;
+      if (isScheduledChat) {
+        return;
+      }
+      const displayName =
+        task.type === "scheduled"
+          ? task.taskName || "Scheduled task"
+          : task.type === "chat"
+          ? "Chat session"
+          : "Channel message";
+      console.log("[TaskNotifications] Task completed:", displayName, task.status);
 
-      // Update active tasks store
-      completeTask(event);
-      dispatchLifecycleEvent("scheduled-task-completed", event);
+      completeTask(task);
+      dispatchLifecycleEvent("background-task-completed", event);
 
-      // Show completion toast
-      if (event.status === "succeeded") {
-        toast.success(t("taskCompleted", { taskName: event.taskName }), {
-          description: event.resultSummary?.slice(0, 100),
-          action: buildSessionUrl(event) ? {
-            label: t("viewTask"),
-            onClick: () => {
-              const url = buildSessionUrl(event);
-              if (url) router.push(url);
-            },
-          } : undefined,
-          duration: 8000,
-        });
-      } else if (event.status === "failed") {
-        const scheduleUrl = buildScheduleUrl(event);
-        toast.error(t("taskFailed", { taskName: event.taskName }), {
-          description: event.error?.slice(0, 100),
-          action: scheduleUrl ? {
-            label: t("viewDetails"),
-            onClick: () => router.push(scheduleUrl),
-          } : undefined,
+      if (task.status === "succeeded") {
+        const completedKey = task.type === "chat" ? "chatCompleted" : "taskCompleted";
+        if (shouldShowChatToast(task)) {
+          toast.success(t(completedKey, { taskName: displayName }), {
+            description: task.metadata && typeof task.metadata === "object"
+              ? (task.metadata as { resultSummary?: string }).resultSummary?.slice(0, 100)
+              : undefined,
+            action: buildSessionUrl(task)
+              ? {
+                  label: t("viewTask"),
+                  onClick: () => {
+                    const url = buildSessionUrl(task);
+                    if (url) router.push(url);
+                  },
+                }
+              : undefined,
+            duration: 8000,
+          });
+        }
+      } else if (task.status === "failed") {
+        const scheduleUrl = buildScheduleUrl(task);
+        toast.error(t("taskFailed", { taskName: displayName }), {
+          description: task.error?.slice(0, 100),
+          action: scheduleUrl
+            ? {
+                label: t("viewDetails"),
+                onClick: () => router.push(scheduleUrl),
+              }
+            : undefined,
           duration: 10000,
         });
       }
     };
 
     handleTaskProgressRef.current = (event: TaskEvent) => {
+      if (event.eventType === "task:progress") {
+        if (event.sessionId || event.characterId) {
+          updateTask(event.runId, {
+            ...(event.sessionId ? { sessionId: event.sessionId } : {}),
+            ...(event.characterId ? { characterId: event.characterId } : {}),
+          });
+        }
+      }
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("scheduled-task-progress", { detail: event }));
+        window.dispatchEvent(new CustomEvent("background-task-progress", { detail: event }));
       }
     };
-  }, [addTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl, dispatchLifecycleEvent]);
+  }, [addTask, updateTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl, dispatchLifecycleEvent]);
 
   // Connect to SSE endpoint
   useEffect(() => {
@@ -159,7 +225,7 @@ export function useTaskNotifications() {
       }
 
       // Create new SSE connection
-      const eventSource = new EventSource("/api/schedules/events");
+      const eventSource = new EventSource("/api/tasks/events");
       eventSourceRef.current = eventSource;
       connectedUserIdRef.current = user.id;
 

@@ -1252,7 +1252,7 @@
       "resetError": "Kanal oturumu sıfırlanamadı"
     },
     "scheduledRun": {
-      "active": "'{taskName}' adlı zamanlanmış görev çalışıyor",
+      "active": "{taskName} adlı zamanlanmış görev çalışıyor",
       "description": "Çalışmayı canlı takip edebilir veya gerekirse ajanı durdurabilirsiniz.",
       "stop": "Çalışmayı Durdur",
       "stopping": "Durduruluyor...",
@@ -1262,6 +1262,14 @@
     },
     "processingInBackground": "Ajan arka planda işliyor",
     "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
+    "backgroundRun": {
+      "stop": "Çalışmayı Durdur",
+      "stopping": "Durduruluyor...",
+      "cancelled": "Arka plan çalışması iptal edildi",
+      "cancelError": "Arka plan çalışması iptal edilemedi",
+      "zombieHint": "Bu çalışma takılmış görünüyor. Zorla durdurabilirsiniz.",
+      "forceStop": "Zorla Durdur"
+    },
     "processingComplete": "Yanıt hazır"
   },
   "channels": {
@@ -1565,6 +1573,22 @@
     "description": "{name} için otomatik görevler oluşturun",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
+    "newForm": {
+      "delivery": {
+        "label": "Teslimat",
+        "session": "Uygulama içi oturum",
+        "channel": "Slack veya Telegram kanalı",
+        "hint": "Sonuçları bağlı bir kanala gönderin veya uygulamada tutun.",
+        "target": "Kanal Hedefi",
+        "targetPlaceholder": "Bir kanal konuşması seçin",
+        "empty": "Henüz Slack/Telegram konuşması yok",
+        "loadError": "Kanal hedefleri yüklenemedi",
+        "thread": "Konu"
+      },
+      "validation": {
+        "deliveryTargetRequired": "Teslimat için bir kanal hedefi seçin"
+      }
+    },
     "retry": "Tekrar Dene",
     "filters": {
       "search": "Zamanlamalarda ara...",
@@ -1758,10 +1782,13 @@
       "variableName": "Değişken adı"
     },
     "notifications": {
-      "taskRunning": "Zamanlanmış görev '{taskName}' çalışıyor",
+      "taskRunning": "Zamanlanmış görev {taskName} çalışıyor",
+      "taskRunningGeneric": "Görev {taskName} çalışıyor",
+      "chatRunning": "Sohbet oturumu çalışıyor",
       "taskStartedAt": "{time} başladı",
-      "taskCompleted": "'{taskName}' görevi tamamlandı",
-      "taskFailed": "'{taskName}' görevi başarısız oldu",
+      "taskCompleted": "{taskName} görevi tamamlandı",
+      "chatCompleted": "Sohbet oturumu tamamlandı",
+      "taskFailed": "{taskName} görevi başarısız oldu",
       "viewTask": "Görevi Görüntüle",
       "viewDetails": "Detayları Görüntüle",
       "activeTasks": "{count} aktif görev",

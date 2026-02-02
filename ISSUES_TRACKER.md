@@ -2,9 +2,9 @@
 > Auto-updated daily at 9 AM Istanbul time by Seline Architect
 
 ## Summary
-- **Last Updated:** 2026-02-01
-- **Last Checked:** 2026-02-01 23:58 UTC+3
-- **Open Issues:** 2
+- **Last Updated:** 2026-02-02
+- **Last Checked:** 2026-02-02 19:02 UTC+3
+- **Open Issues:** 1
 - **New Today:** 0
 - **Researched:** 2
 
@@ -17,7 +17,7 @@
 - **Reporter:** @tercumantanumut
 - **Created:** 2026-01-15
 - **Priority:** Medium
-- **Last Checked:** 2026-02-01 23:58 UTC+3
+- **Last Checked:** 2026-02-02 19:02 UTC+3
 
 #### Problem Summary
 GPT often encounters ripgrep tool failures that then recover. The error appears intermittent, suggesting transient failures in the ripgrep subprocess execution rather than a fundamental configuration issue.
@@ -109,17 +109,19 @@ const rg = spawn(rgPath, args, {
 
 ---
 
+## Recently Closed
+
 ### #16 - When I come back to all agent interface, it stops working on background inside of codebase
-- **Status:** 🔴 Open
+- **Status:** ✅ Closed
 - **Reporter:** @DoudouDoudouk
 - **Created:** 2026-01-14
+- **Closed:** 2026-02-02 (detected)
 - **Priority:** High
-- **Last Checked:** 2026-02-01 23:58 UTC+3
 
 #### Problem Summary
 When a user navigates away from an active chat (back to the agent picker/list), any ongoing AI operations (streaming responses, tool executions, codebase operations) are terminated. The user expects background processing to continue.
 
-#### Implementation Plan
+#### Implementation Plan (Archived)
 
 **Root Cause Analysis:**
 The chat system is tightly coupled to React component lifecycle:
@@ -239,11 +241,7 @@ Option B (Full Implementation):
 
 ---
 
-## Recently Closed
-*No recently closed issues*
-
----
-
 ## Change Log
+- **2026-02-02 19:02:** Daily check completed. No new issues. Issue #16 moved to Recently Closed (closed on GitHub).
 - **2026-02-01 23:58:** Daily check completed. No new issues found.
 - **2026-02-01:** Initial tracker created. Researched issues #16 and #17 with implementation plans.

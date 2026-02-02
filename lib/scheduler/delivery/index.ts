@@ -6,7 +6,7 @@
 
 export * from "./types";
 export { DeliveryRouter, getDeliveryRouter } from "./router";
+export { ChannelDeliveryHandler } from "./channel-handler";
 export { EmailDeliveryHandler } from "./email-handler";
 export { SlackDeliveryHandler } from "./slack-handler";
 export { WebhookDeliveryHandler } from "./webhook-handler";
-

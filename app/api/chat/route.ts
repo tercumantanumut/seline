@@ -23,6 +23,11 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskEvents } from "@/lib/scheduler/task-events";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
+import { combineAbortSignals } from "@/lib/utils/abort";
+import type { ChatTask } from "@/lib/background-tasks/types";
+import { nowISO } from "@/lib/utils/timestamp";
 import { deliverChannelReply } from "@/lib/channels/delivery";
 import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
 import {
@@ -1105,8 +1110,10 @@ export async function POST(req: Request) {
     const eventCharacterId =
       characterId ||
       ((sessionMetadata?.characterId as string | undefined) ?? "");
-    const shouldEmitProgress =
-      Boolean(isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId);
+    const shouldEmitProgress = Boolean(sessionId);
+    const shouldEmitScheduledProgress = Boolean(
+      isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId
+    );
     const streamingState: StreamingMessageState | null = shouldEmitProgress
       ? {
         parts: [],
@@ -1125,7 +1132,7 @@ export async function POST(req: Request) {
 
         // Filter out incomplete tool calls before persisting to database
         // This prevents corrupted state from being saved during streaming interruptions
-        const filteredParts = streamingState.parts.filter(part => {
+        let filteredParts = streamingState.parts.filter(part => {
           if (part.type === "tool-call") {
             // Only persist tool calls that have complete args or are beyond input-streaming state
             const hasCompleteArgs = part.args !== undefined;
@@ -1141,6 +1148,10 @@ export async function POST(req: Request) {
           }
           return true; // Keep all other parts
         });
+
+        if (filteredParts.length === 0 && streamingState.parts.length > 0) {
+          filteredParts = [{ type: "text", text: "Working..." }];
+        }
 
         const partsSnapshot = cloneContentParts(filteredParts);
         const now = Date.now();
@@ -1201,18 +1212,51 @@ export async function POST(req: Request) {
         if (streamingState.messageId) {
           streamingState.lastBroadcastSignature = signature;
           streamingState.lastBroadcastAt = now;
-          taskEvents.emitTaskProgress({
-            taskId: scheduledTaskId!,
-            taskName: scheduledTaskName!,
-            runId: scheduledRunId!,
-            userId: dbUser.id,
-            characterId: eventCharacterId,
-            sessionId,
-            assistantMessageId: streamingState.messageId,
-            progressText: extractTextFromParts(partsSnapshot),
-            progressContent: partsSnapshot,
-            startedAt: new Date().toISOString(),
-          });
+          let progressText = extractTextFromParts(partsSnapshot);
+          if (!progressText) {
+            for (let index = streamingState.parts.length - 1; index >= 0; index -= 1) {
+              const part = streamingState.parts[index];
+              if (part?.type === "tool-call") {
+                progressText = `Running ${part.toolName || "tool"}...`;
+                break;
+              }
+            }
+          }
+          if (!progressText) {
+            progressText = "Working...";
+          }
+          if (shouldEmitScheduledProgress) {
+            taskEvents.emitTaskProgress({
+              taskId: scheduledTaskId!,
+              taskName: scheduledTaskName!,
+              runId: scheduledRunId!,
+              userId: dbUser.id,
+              characterId: eventCharacterId,
+              sessionId,
+              assistantMessageId: streamingState.messageId,
+              progressText,
+              progressContent: partsSnapshot,
+              startedAt: nowISO(),
+            });
+          }
+          const progressRunId = scheduledRunId ?? agentRun?.id;
+          if (progressRunId) {
+            taskRegistry.emitProgress(
+              progressRunId,
+              progressText,
+              undefined,
+              {
+                taskId: scheduledTaskId ?? undefined,
+                taskName: scheduledTaskName ?? undefined,
+                userId: dbUser.id,
+                characterId: eventCharacterId,
+                sessionId,
+                assistantMessageId: streamingState.messageId,
+                progressContent: partsSnapshot,
+                startedAt: nowISO(),
+              }
+            );
+          }
         }
       }
       : undefined;
@@ -1237,6 +1281,33 @@ export async function POST(req: Request) {
         messageCount: messages.length,
       },
     });
+    const chatAbortController = new AbortController();
+    registerChatAbortController(agentRun.id, chatAbortController);
+
+    const chatTask: ChatTask = {
+      type: "chat",
+      runId: agentRun.id,
+      userId: dbUser.id,
+      characterId: characterId ?? undefined,
+      sessionId,
+      status: "running",
+      startedAt: nowISO(),
+      pipelineName: "chat",
+      triggerType: isScheduledRun ? "cron" : "chat",
+      messageCount: messages.length,
+      metadata: isScheduledRun
+        ? {
+            scheduledRunId: scheduledRunId ?? undefined,
+            scheduledTaskId: scheduledTaskId ?? undefined,
+          }
+        : undefined,
+    };
+    const existingTask = taskRegistry.get(agentRun.id);
+    if (existingTask) {
+      taskRegistry.updateStatus(agentRun.id, "running", chatTask);
+    } else {
+      taskRegistry.register(chatTask);
+    }
 
     // Only save the NEW user message (the last one in the array)
     // Previous messages have already been saved in earlier requests
@@ -1767,7 +1838,7 @@ export async function POST(req: Request) {
         // Use activeTools to control which tools are visible to the model
         // Initially: non-deferred tools + previously discovered tools from session metadata
         activeTools: initialActiveToolNames as (keyof typeof allToolsWithMCP)[],
-        abortSignal: req.signal,
+        abortSignal: combineAbortSignals([req.signal, chatAbortController.signal]),
         stopWhen: stepCountIs(AI_CONFIG.maxSteps),
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
@@ -1856,6 +1927,9 @@ export async function POST(req: Request) {
         onFinish: async ({ text, steps, usage, providerMetadata }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (agentRun?.id) {
+            removeChatAbortController(agentRun.id);
+          }
           if (streamingState && syncStreamingMessage) {
             await syncStreamingMessage(true);
           }
@@ -2063,6 +2137,13 @@ export async function POST(req: Request) {
               } : undefined,
               ...(cacheMetrics ? { cache: cacheMetrics } : {}),
             });
+            const registryTask = taskRegistry.get(agentRun.id);
+            const registryDurationMs = registryTask
+              ? Date.now() - new Date(registryTask.startedAt).getTime()
+              : undefined;
+            taskRegistry.updateStatus(agentRun.id, "succeeded", {
+              durationMs: registryDurationMs,
+            });
           }
 
           // Log cache performance metrics (if caching enabled)
@@ -2145,6 +2226,9 @@ export async function POST(req: Request) {
         onAbort: async ({ steps }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (agentRun?.id) {
+            removeChatAbortController(agentRun.id);
+          }
           try {
             const interruptionTimestamp = new Date();
             if (streamingState && syncStreamingMessage) {
@@ -2251,6 +2335,13 @@ export async function POST(req: Request) {
                 pipelineName: "chat",
                 data: { status: "cancelled", reason: "user_cancelled", stepCount: steps.length },
               });
+              const registryTask = taskRegistry.get(agentRun.id);
+              const registryDurationMs = registryTask
+                ? Date.now() - new Date(registryTask.startedAt).getTime()
+                : undefined;
+              taskRegistry.updateStatus(agentRun.id, "cancelled", {
+                durationMs: registryDurationMs,
+              });
             }
           } catch (error) {
             console.error("[CHAT API] Failed to record cancellation:", error);
@@ -2303,7 +2394,16 @@ export async function POST(req: Request) {
     // Mark the agent run as failed so the background processing banner clears
     if (agentRun?.id) {
       try {
+        removeChatAbortController(agentRun.id);
         await completeAgentRun(agentRun.id, "failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        const registryTask = taskRegistry.get(agentRun.id);
+        const registryDurationMs = registryTask
+          ? Date.now() - new Date(registryTask.startedAt).getTime()
+          : undefined;
+        taskRegistry.updateStatus(agentRun.id, "failed", {
+          durationMs: registryDurationMs,
           error: error instanceof Error ? error.message : "Unknown error",
         });
       } catch (e) {

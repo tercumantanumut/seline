@@ -12,6 +12,7 @@ import { StdioClientTransport } from "@/lib/mcp/stdio-transport";
 import type { MCPServerConfig, ResolvedMCPServer, MCPDiscoveredTool, MCPServerStatus } from "./types";
 import { getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
 import { onFolderChange } from "@/lib/vectordb/folder-events";
+import { taskRegistry } from "@/lib/background-tasks/registry";
 import path from "path";
 
 function validateFolderPath(folderPath: string): boolean {
@@ -80,6 +81,11 @@ class MCPClientManager {
         completedServers: number;
         failedServers: string[];
     }> = new Map();
+    private pendingReconnects: Map<string, NodeJS.Timeout> = new Map();
+    private pendingConfigSync: {
+        configuredServers: Set<string>;
+        timeoutId: NodeJS.Timeout;
+    } | null = null;
 
     private constructor() {
         // Register folder change listener for auto-reconnection
@@ -287,6 +293,11 @@ class MCPClientManager {
             return;
         }
 
+        if (this.hasActiveScheduledTasks(characterId)) {
+            this.deferReconnect(characterId);
+            return;
+        }
+
         // Initialize reload state
         this.reloadState.set(characterId, {
             isReloading: true,
@@ -379,6 +390,28 @@ class MCPClientManager {
                     : undefined,
             });
         }
+    }
+
+    /**
+     * Sync connections with config with scheduled-task safety.
+     * Defers disconnects while scheduled tasks are running.
+     */
+    async syncWithConfigSafely(configuredServers: Set<string>): Promise<{
+        disconnectedServers: string[];
+        deferred: boolean;
+    }> {
+        if (this.hasActiveScheduledTasks()) {
+            this.deferConfigSync(configuredServers);
+            return { disconnectedServers: [], deferred: true };
+        }
+
+        if (this.pendingConfigSync) {
+            clearTimeout(this.pendingConfigSync.timeoutId);
+            this.pendingConfigSync = null;
+        }
+
+        const disconnectedServers = await this.syncWithConfig(configuredServers);
+        return { disconnectedServers, deferred: false };
     }
 
     /**
@@ -567,6 +600,46 @@ class MCPClientManager {
         }
 
         return disconnectedServers;
+    }
+
+    private hasActiveScheduledTasks(characterId?: string): boolean {
+        const { tasks } = taskRegistry.list({
+            type: "scheduled",
+            ...(characterId ? { characterId } : {}),
+        });
+        return tasks.some((task) => task.status === "running");
+    }
+
+    private deferReconnect(characterId: string): void {
+        if (this.pendingReconnects.has(characterId)) {
+            return;
+        }
+        console.log(`[MCP] Deferring reconnect for character ${characterId} until scheduled tasks complete`);
+        const timeoutId = setTimeout(() => {
+            this.pendingReconnects.delete(characterId);
+            this.reconnectForCharacter(characterId).catch((error) => {
+                console.error(`[MCP] Deferred reconnect failed for ${characterId}:`, error);
+            });
+        }, 60_000);
+        this.pendingReconnects.set(characterId, timeoutId);
+    }
+
+    private deferConfigSync(configuredServers: Set<string>): void {
+        if (this.pendingConfigSync) {
+            clearTimeout(this.pendingConfigSync.timeoutId);
+        }
+
+        console.log("[MCP] Deferring config sync until scheduled tasks complete");
+        const timeoutId = setTimeout(() => {
+            const pending = this.pendingConfigSync;
+            this.pendingConfigSync = null;
+            if (!pending) return;
+            this.syncWithConfigSafely(pending.configuredServers).catch((error) => {
+                console.error("[MCP] Deferred config sync failed:", error);
+            });
+        }, 60_000);
+
+        this.pendingConfigSync = { configuredServers, timeoutId };
     }
 }
 

@@ -485,7 +485,8 @@
       "initializing": "Initializing..."
     },
     "queue": {
-      "messagesQueued": "{count} message{count, plural, one {} other {s}} queued"
+      "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
+      "backgroundHint": "Queued until the background task completes"
     },
     "enhance": {
       "minChars": "Please enter at least 3 characters to enhance",
@@ -1272,13 +1273,21 @@
       "resetError": "Failed to reset channel session"
     },
     "scheduledRun": {
-      "active": "Scheduled task '{taskName}' is running",
+      "active": "Scheduled task {taskName} is running",
       "description": "Follow the run live or stop it if you need to interrupt the agent.",
       "stop": "Stop Run",
       "stopping": "Stopping...",
       "cancelled": "Scheduled run cancelled",
       "cancelError": "Failed to cancel run",
       "startedAt": "Started at {time}"
+    },
+    "backgroundRun": {
+      "stop": "Stop Run",
+      "stopping": "Stopping...",
+      "cancelled": "Background run cancelled",
+      "cancelError": "Failed to cancel background run",
+      "zombieHint": "This run looks stuck. You can force stop it.",
+      "forceStop": "Force Stop"
     },
     "processingInBackground": "Agent is processing in background",
     "processingInBackgroundHint": "Your response will appear automatically when ready",
@@ -1685,6 +1694,17 @@
         "priority": "Priority",
         "maxRetries": "Max Retries"
       },
+      "delivery": {
+        "label": "Delivery",
+        "session": "In-app session",
+        "channel": "Slack or Telegram channel",
+        "hint": "Send results to a connected channel or keep them in the app.",
+        "target": "Channel Target",
+        "targetPlaceholder": "Select a channel conversation",
+        "empty": "No Slack/Telegram conversations yet",
+        "loadError": "Failed to load channel targets",
+        "thread": "Thread"
+      },
       "placeholders": {
         "name": "Daily Content Digest",
         "description": "Briefly describe the purpose of this task...",
@@ -1733,6 +1753,7 @@
       },
       "validation": {
         "required": "Name and prompt are required",
+        "deliveryTargetRequired": "Select a channel target for delivery",
         "failed": "Failed to save schedule"
       }
     },
@@ -1854,10 +1875,13 @@
       "variableName": "Variable name"
     },
     "notifications": {
-      "taskRunning": "Scheduled task '{taskName}' is running",
+      "taskRunning": "Scheduled task {taskName} is running",
+      "taskRunningGeneric": "Task {taskName} is running",
+      "chatRunning": "Chat session is running",
       "taskStartedAt": "Started at {time}",
-      "taskCompleted": "Task '{taskName}' completed",
-      "taskFailed": "Task '{taskName}' failed",
+      "taskCompleted": "Task {taskName} completed",
+      "chatCompleted": "Chat session completed",
+      "taskFailed": "Task {taskName} failed",
       "viewTask": "View Task",
       "viewDetails": "View Details",
       "activeTasks": "{count} active task(s)",

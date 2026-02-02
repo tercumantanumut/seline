@@ -21,6 +21,9 @@ import { getCharacter } from "@/lib/characters/queries";
 import type { ChannelInboundMessage } from "./types";
 import { buildConversationKey, normalizeChannelText } from "./utils";
 import { getChannelManager } from "./manager";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import type { ChannelTask } from "@/lib/background-tasks/types";
+import { nowISO } from "@/lib/utils/timestamp";
 
 const conversationQueues = new Map<string, Promise<void>>();
 
@@ -81,6 +84,23 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   const settings = loadSettings();
   const dbUser = await getOrCreateLocalUser(connection.userId, settings.localUserEmail);
 
+  const runId = crypto.randomUUID();
+  const startedAt = nowISO();
+  const channelTask: ChannelTask = {
+    type: "channel",
+    runId,
+    userId: connection.userId,
+    characterId: message.characterId,
+    status: "running",
+    startedAt,
+    channelType: message.channelType,
+    connectionId: message.connectionId,
+    peerId: message.peerId,
+    threadId: message.threadId ?? undefined,
+    peerName: message.peerName ?? undefined,
+  };
+  taskRegistry.register(channelTask);
+
   const normalizedText = normalizeChannelText(message.text);
   const wantsNewSession = isNewSessionCommand(normalizedText);
 
@@ -137,42 +157,51 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
     return { session: updatedSession ?? session };
   };
 
-  if (wantsNewSession) {
-    await createSessionForConversation();
-    await sendNewSessionConfirmation(message);
-    return;
-  }
+  try {
+    if (wantsNewSession) {
+      await createSessionForConversation();
+      await sendNewSessionConfirmation(message);
+      taskRegistry.updateStatus(runId, "succeeded", {
+        durationMs: Date.now() - new Date(startedAt).getTime(),
+      });
+      return;
+    }
 
-  let sessionId: string;
-  if (!conversation) {
-    const created = await createSessionForConversation();
-    sessionId = created.session.id;
-  } else {
-    const existingSession = await getSession(conversation.sessionId);
-    if (!existingSession || existingSession.status !== "active") {
+    let sessionId: string;
+    if (!conversation) {
       const created = await createSessionForConversation();
       sessionId = created.session.id;
     } else {
-      sessionId = existingSession.id;
-      if (message.peerName && message.peerName !== conversation.peerName) {
-        await updateChannelConversation(conversation.id, { peerName: message.peerName });
+      const existingSession = await getSession(conversation.sessionId);
+      if (!existingSession || existingSession.status !== "active") {
+        const created = await createSessionForConversation();
+        sessionId = created.session.id;
+      } else {
+        sessionId = existingSession.id;
+        if (message.peerName && message.peerName !== conversation.peerName) {
+          await updateChannelConversation(conversation.id, { peerName: message.peerName });
+        }
       }
     }
-  }
 
-  if (conversation) {
-    await touchChannelConversation(conversation.id, message.timestamp);
-  }
+    taskRegistry.updateStatus(runId, "running", { sessionId });
 
-  const contentParts = await buildMessageContent(sessionId, message);
-  if (contentParts.length === 0) {
-    return;
-  }
+    if (conversation) {
+      await touchChannelConversation(conversation.id, message.timestamp);
+    }
 
-  const createdMessage = await createMessage({
-    sessionId,
-    role: "user",
-    content: contentParts,
+    const contentParts = await buildMessageContent(sessionId, message);
+    if (contentParts.length === 0) {
+      taskRegistry.updateStatus(runId, "cancelled", {
+        durationMs: Date.now() - new Date(startedAt).getTime(),
+      });
+      return;
+    }
+
+    const createdMessage = await createMessage({
+      sessionId,
+      role: "user",
+      content: contentParts,
       metadata: {
         channel: {
           connectionId: message.connectionId,
@@ -185,30 +214,41 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
       },
     });
 
-  if (createdMessage?.id) {
-    await createChannelMessage({
-      connectionId: message.connectionId,
-      channelType: message.channelType,
-      externalMessageId: message.messageId,
+    if (createdMessage?.id) {
+      await createChannelMessage({
+        connectionId: message.connectionId,
+        channelType: message.channelType,
+        externalMessageId: message.messageId,
+        sessionId,
+        messageId: createdMessage.id,
+        direction: "inbound",
+      });
+    }
+
+    const dbMessages = await getMessages(sessionId);
+    const uiMessages = convertDBMessagesToUIMessages(dbMessages);
+
+    await invokeChatApi({
+      userId: connection.userId,
       sessionId,
-      messageId: createdMessage.id,
-      direction: "inbound",
+      characterId: character.id,
+      messages: uiMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        parts: msg.parts,
+      })),
     });
+
+    taskRegistry.updateStatus(runId, "succeeded", {
+      durationMs: Date.now() - new Date(startedAt).getTime(),
+    });
+  } catch (error) {
+    taskRegistry.updateStatus(runId, "failed", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      durationMs: Date.now() - new Date(startedAt).getTime(),
+    });
+    throw error;
   }
-
-  const dbMessages = await getMessages(sessionId);
-  const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-
-  await invokeChatApi({
-    userId: connection.userId,
-    sessionId,
-    characterId: character.id,
-    messages: uiMessages.map((msg) => ({
-      id: msg.id,
-      role: msg.role,
-      parts: msg.parts,
-    })),
-  });
 }
 
 async function buildMessageContent(sessionId: string, message: ChannelInboundMessage) {

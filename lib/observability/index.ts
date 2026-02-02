@@ -58,7 +58,9 @@ export {
   listPromptTemplates,
   // Stale run management
   findStaleRuns,
+  findZombieRuns,
   markRunAsTimedOut,
+  markRunAsCancelled,
   cleanupStaleRuns,
   // Admin/List queries
   type ListAgentRunsOptions,
@@ -106,4 +108,3 @@ export type {
   AgentRunTriggerType,
   EventLevel,
 } from "@/lib/db/sqlite-schema";
-

@@ -23,7 +23,7 @@ const TOOL_REFETCH_ALLOWLIST = new Set([
   "webQuery",
   "retrieveFullContent",
 ]);
-const MAX_TOOL_REFETCH = 6;
+const MAX_TOOL_REFETCH = 10;
 
 // Types
 export interface FrontendMessagePart {

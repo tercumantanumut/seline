@@ -11,7 +11,7 @@ import {
 export async function GET() {
     const settings = loadSettings();
 
-    let missingProvider: "anthropic" | "openrouter" | "antigravity" | null = null;
+    let missingProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | null = null;
 
     if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
         missingProvider = "anthropic";
@@ -19,6 +19,12 @@ export async function GET() {
         missingProvider = "openrouter";
     } else if (settings.llmProvider === "antigravity" && !settings.antigravityAuth?.isAuthenticated) {
         missingProvider = "antigravity";
+    } else if (settings.llmProvider === "codex" && !settings.codexAuth?.isAuthenticated) {
+        missingProvider = "codex";
+    } else if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
+        missingProvider = "kimi";
+    } else if (settings.llmProvider === "ollama") {
+        missingProvider = null;
     }
 
     return NextResponse.json({

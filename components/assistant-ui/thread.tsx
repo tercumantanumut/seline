@@ -64,9 +64,11 @@ import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
+  footer?: React.ReactNode;
+  isBackgroundTaskRunning?: boolean;
 }
 
-export const Thread: FC<ThreadProps> = ({ onSessionActivity }) => {
+export const Thread: FC<ThreadProps> = ({ onSessionActivity, footer, isBackgroundTaskRunning = false }) => {
   const isRunning = useThread((t) => t.isRunning);
 
   return (
@@ -87,12 +89,13 @@ export const Thread: FC<ThreadProps> = ({ onSessionActivity }) => {
                 EditComposer,
               }}
             />
+            {footer}
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
             <ThreadScrollToBottom />
-            <Composer />
+            <Composer isBackgroundTaskRunning={isBackgroundTaskRunning} />
           </div>
         </GalleryWrapper>
       </ThreadPrimitive.Root>
@@ -292,9 +295,10 @@ const ThreadScrollToBottom: FC = () => {
 interface QueuedMessage {
   id: string;
   content: string;
+  mode: "chat" | "deep-research";
 }
 
-const Composer: FC = () => {
+const Composer: FC<{ isBackgroundTaskRunning?: boolean }> = ({ isBackgroundTaskRunning = false }) => {
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -332,6 +336,7 @@ const Composer: FC = () => {
   const isDeepResearchActive = deepResearch?.isActive ?? false;
   const isDeepResearchLoading = deepResearch?.isLoading ?? false;
   const isOperationRunning = isRunning || isDeepResearchLoading;
+  const isQueueBlocked = isOperationRunning || isBackgroundTaskRunning;
 
   // Track if we're currently processing a queued message
   const isProcessingQueue = useRef(false);
@@ -348,7 +353,7 @@ const Composer: FC = () => {
     }
 
     // Only process if: not running, has queued messages, and not already processing
-    if (!isRunning && queuedMessages.length > 0 && !isProcessingQueue.current) {
+    if (!isQueueBlocked && queuedMessages.length > 0 && !isProcessingQueue.current) {
       isProcessingQueue.current = true;
       isAwaitingRunStart.current = true;
 
@@ -357,13 +362,17 @@ const Composer: FC = () => {
 
       // Small delay to ensure the runtime is ready for the next message
       setTimeout(() => {
+        if (nextMessage.mode === "deep-research" && deepResearch) {
+          deepResearch.startResearch(nextMessage.content);
+          return;
+        }
         threadRuntime.append({
           role: "user",
           content: [{ type: "text", text: nextMessage.content }],
         });
       }, 100);
     }
-  }, [isRunning, queuedMessages, threadRuntime]);
+  }, [isQueueBlocked, queuedMessages, threadRuntime, deepResearch]);
 
   // Handle form submission
   const handleSubmit = useCallback((e?: React.FormEvent) => {
@@ -374,7 +383,7 @@ const Composer: FC = () => {
     if (!hasText && !hasAttachments) return;
 
     // If Deep Research mode is active, start research instead of regular chat
-    if (isDeepResearchMode && deepResearch && hasText) {
+    if (isDeepResearchMode && deepResearch && hasText && !isQueueBlocked) {
       deepResearch.startResearch(inputValue.trim());
       setInputValue("");
       return;
@@ -383,12 +392,13 @@ const Composer: FC = () => {
     // Determine what to send: enhanced context if available, otherwise original input
     const messageToSend = enhancedContext || inputValue.trim();
 
-    if (isRunning) {
+    if (isQueueBlocked) {
       // Queue the message when AI is busy (text only, no attachments for queued)
       if (hasText) {
         setQueuedMessages(prev => [...prev, {
           id: `queued-${Date.now()}`,
           content: messageToSend,
+          mode: isDeepResearchMode ? "deep-research" : "chat",
         }]);
       }
       setInputValue("");
@@ -407,7 +417,7 @@ const Composer: FC = () => {
       setEnhancedContext(null);
       setEnhancementInfo(null);
     }
-  }, [inputValue, isRunning, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext]);
+  }, [inputValue, isQueueBlocked, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext]);
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -602,6 +612,11 @@ const Composer: FC = () => {
             <ClockIcon className="size-3" />
             {t("queue.messagesQueued", { count: queuedMessages.length })}
           </div>
+          {isBackgroundTaskRunning && (
+            <div className="text-[11px] text-terminal-muted/80 font-mono">
+              {t("queue.backgroundHint")}
+            </div>
+          )}
           <div className="flex flex-wrap gap-1">
             {queuedMessages.map((msg) => (
               <div
@@ -797,9 +812,9 @@ const Composer: FC = () => {
                     "size-8 text-terminal-cream",
                     isDeepResearchMode
                       ? "bg-purple-600 hover:bg-purple-700"
-                      : isRunning
-                        ? "bg-terminal-amber hover:bg-terminal-amber/90"
-                        : "bg-terminal-dark hover:bg-terminal-dark/90"
+                        : isQueueBlocked
+                          ? "bg-terminal-amber hover:bg-terminal-amber/90"
+                          : "bg-terminal-dark hover:bg-terminal-dark/90"
                   )}
                   disabled={(!inputValue.trim() && attachmentCount === 0) || deepResearch?.isLoading}
                 >
@@ -807,7 +822,7 @@ const Composer: FC = () => {
                     <RefreshCwIcon className="size-4 animate-spin" />
                   ) : isDeepResearchMode ? (
                     <FlaskConicalIcon className="size-4" />
-                  ) : isRunning ? (
+                  ) : isQueueBlocked ? (
                     <ClockIcon className="size-4" />
                   ) : (
                     <SendHorizontalIcon className="size-4" />
@@ -815,7 +830,7 @@ const Composer: FC = () => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
-                {isDeepResearchMode ? t("tooltips.startResearch") : isRunning ? t("tooltips.queueMessage") : t("tooltips.sendMessage")}
+                {isDeepResearchMode ? t("tooltips.startResearch") : isQueueBlocked ? t("tooltips.queueMessage") : t("tooltips.sendMessage")}
               </TooltipContent>
             </Tooltip>
           </div>

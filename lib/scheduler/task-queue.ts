@@ -14,6 +14,9 @@ import type { ContextSource, DeliveryMethod, DeliveryConfig } from "@/lib/db/sql
 import { getContextSourceManager } from "./context-sources";
 import { getDeliveryRouter } from "./delivery";
 import { taskEvents } from "./task-events";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import type { ScheduledTask } from "@/lib/background-tasks/types";
+import { nowISO } from "@/lib/utils/timestamp";
 
 export interface QueuedTask {
   runId: string;
@@ -60,6 +63,7 @@ export class TaskQueue {
     if (queueIndex !== -1) {
       this.queue.splice(queueIndex, 1);
       await this.updateRunStatus(runId, "cancelled");
+      taskRegistry.updateStatus(runId, "cancelled");
       console.log(`[TaskQueue] Cancelled queued task ${runId}`);
       return true;
     }
@@ -69,6 +73,7 @@ export class TaskQueue {
     if (controller) {
       controller.abort();
       await this.updateRunStatus(runId, "cancelled");
+      taskRegistry.updateStatus(runId, "cancelled");
       console.log(`[TaskQueue] Cancelled running task ${runId}`);
       return true;
     }
@@ -160,7 +165,7 @@ export class TaskQueue {
    */
   private async executeTask(task: QueuedTask): Promise<void> {
     const startTime = Date.now();
-    const startedAt = new Date().toISOString();
+    const startedAt = nowISO();
 
     // Create abort controller for this task
     const controller = new AbortController();
@@ -171,6 +176,28 @@ export class TaskQueue {
 
     try {
       await this.updateRunStatus(task.runId, "running", { startedAt });
+
+      const unifiedTask: ScheduledTask = {
+        type: "scheduled",
+        runId: task.runId,
+        taskId: task.taskId,
+        taskName: task.taskName,
+        userId: task.userId,
+        characterId: task.characterId,
+        status: "running",
+        startedAt,
+        prompt: task.prompt,
+        priority: task.priority,
+        attemptNumber: task.attemptNumber ?? 1,
+        maxRetries: task.maxRetries,
+      };
+
+      const existing = taskRegistry.get(task.runId);
+      if (existing) {
+        taskRegistry.updateStatus(task.runId, "running", unifiedTask);
+      } else {
+        taskRegistry.register(unifiedTask);
+      }
 
       console.log(`[TaskQueue] Executing task ${task.runId}`);
 
@@ -203,6 +230,15 @@ export class TaskQueue {
 
       // Update run status with sessionId so it's visible in UI
       await this.updateRunStatus(task.runId, "running", { sessionId });
+      taskRegistry.updateStatus(task.runId, "running", { sessionId });
+      taskRegistry.emitProgress(task.runId, "Session ready", undefined, {
+        taskId: task.taskId,
+        taskName: task.taskName,
+        userId: task.userId,
+        characterId: task.characterId,
+        sessionId,
+        startedAt,
+      });
 
       // Step 3: Execute the chat (this is the long-running part)
       const result = await this.executeChatAPI(
@@ -224,7 +260,11 @@ export class TaskQueue {
           sessionId,
           status: "cancelled",
           startedAt,
-          completedAt: new Date().toISOString(),
+          completedAt: nowISO(),
+          durationMs: Date.now() - startTime,
+        });
+        taskRegistry.updateStatus(task.runId, "cancelled", {
+          sessionId,
           durationMs: Date.now() - startTime,
         });
         return;
@@ -232,7 +272,7 @@ export class TaskQueue {
 
       // Success
       const durationMs = Date.now() - startTime;
-      const completedAt = new Date().toISOString();
+      const completedAt = nowISO();
       await this.updateRunStatus(task.runId, "succeeded", {
         completedAt,
         durationMs,
@@ -257,11 +297,20 @@ export class TaskQueue {
         durationMs,
         resultSummary: result.summary,
       });
+      taskRegistry.updateStatus(task.runId, "succeeded", {
+        sessionId,
+        durationMs,
+        metadata: {
+          resultSummary: result.summary,
+          agentRunId: result.agentRunId,
+        },
+      });
 
       // Deliver results
       await this.deliverResults(task.taskId, task.runId, {
         status: "succeeded",
         summary: result.summary,
+        fullText: result.fullText,
         sessionId,
         durationMs,
       });
@@ -280,10 +329,14 @@ export class TaskQueue {
             sessionId,
             status: "cancelled",
             startedAt,
-            completedAt: new Date().toISOString(),
+            completedAt: nowISO(),
             durationMs: Date.now() - startTime,
           });
         }
+        taskRegistry.updateStatus(task.runId, "cancelled", {
+          sessionId,
+          durationMs: Date.now() - startTime,
+        });
         return;
       }
       await this.handleTaskError(task, error, startTime, startedAt, sessionId);
@@ -315,6 +368,10 @@ export class TaskQueue {
         error: errorMessage,
         attemptNumber: attemptNumber + 1,
       });
+      taskRegistry.updateStatus(task.runId, "queued", {
+        error: errorMessage,
+        attemptNumber: attemptNumber + 1,
+      });
 
       setTimeout(() => {
         this.enqueue({ ...task, attemptNumber: attemptNumber + 1 });
@@ -323,7 +380,7 @@ export class TaskQueue {
     } else {
       // Final failure
       const durationMs = Date.now() - startTime;
-      const completedAt = new Date().toISOString();
+      const completedAt = nowISO();
       await this.updateRunStatus(task.runId, "failed", {
         completedAt,
         durationMs,
@@ -346,6 +403,11 @@ export class TaskQueue {
         durationMs,
         error: errorMessage,
       });
+      taskRegistry.updateStatus(task.runId, "failed", {
+        sessionId,
+        durationMs,
+        error: errorMessage,
+      });
 
       // Deliver failure notification
       await this.deliverResults(task.taskId, task.runId, {
@@ -365,6 +427,7 @@ export class TaskQueue {
     result: {
       status: "succeeded" | "failed";
       summary?: string;
+      fullText?: string;
       sessionId?: string;
       error?: string;
       durationMs?: number;
@@ -392,9 +455,11 @@ export class TaskQueue {
         taskName: task.name,
         runId,
         status: result.status,
-        summary: result.summary,
+        summary: result.fullText ?? result.summary,
         sessionId: result.sessionId,
-        sessionUrl: result.sessionId ? `${baseUrl}/chat/${result.sessionId}` : undefined,
+        sessionUrl: result.sessionId
+          ? `${baseUrl}/chat/${task.characterId}?sessionId=${result.sessionId}`
+          : undefined,
         error: result.error,
         durationMs: result.durationMs,
         metadata: {},
@@ -469,6 +534,7 @@ export class TaskQueue {
   ): Promise<{
     agentRunId?: string;
     summary?: string;
+    fullText?: string;
   }> {
     const { getSession } = await import("@/lib/db/queries");
 
@@ -532,16 +598,19 @@ export class TaskQueue {
     const messages = await getMessages(sessionId);
     const lastAssistantMessage = messages.filter(m => m.role === "assistant").pop();
     let summary: string | undefined;
+    let fullText: string | undefined;
 
     if (lastAssistantMessage?.content) {
       const content = lastAssistantMessage.content as Array<{ type: string; text?: string }>;
       const textParts = content.filter(p => p.type === "text" && p.text);
-      summary = textParts.map(p => p.text).join("\n").slice(0, 500);
+      fullText = textParts.map(p => p.text).join("\n");
+      summary = fullText.slice(0, 500);
     }
 
     return {
       agentRunId,
       summary,
+      fullText,
     };
   }
 

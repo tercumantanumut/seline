@@ -5,10 +5,11 @@ import type { MCPConfig } from "@/lib/mcp/types";
 
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
+    ollamaBaseUrl?: string;
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
@@ -163,6 +164,7 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
     llmProvider: "anthropic",
+    ollamaBaseUrl: "http://localhost:11434/v1",
     localUserId: crypto.randomUUID(),
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
@@ -232,6 +234,7 @@ const MODEL_PREFIXES: Record<string, string[]> = {
   kimi: ["kimi-", "moonshot-"],
   codex: ["gpt-5", "codex"],
   antigravity: ["gemini-3", "claude-sonnet-4-5", "claude-haiku-4-5"],
+  ollama: [], // accepts any model name
   openrouter: [], // accepts anything
 };
 
@@ -356,6 +359,11 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.kimiApiKey) {
         process.env.KIMI_API_KEY = settings.kimiApiKey;
+    }
+    if (settings.ollamaBaseUrl !== undefined) {
+        process.env.OLLAMA_BASE_URL = settings.ollamaBaseUrl;
+    } else {
+        delete process.env.OLLAMA_BASE_URL;
     }
     if (settings.tavilyApiKey) {
         process.env.TAVILY_API_KEY = settings.tavilyApiKey;
@@ -497,6 +505,10 @@ export function hasRequiredApiKeys(): boolean {
     if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
         return false;
     }
+    // Ollama runs locally and does not require an API key
+    if (settings.llmProvider === "ollama") {
+        return true;
+    }
 
     return true;
 }
@@ -528,4 +540,3 @@ export function initializeSettings(): void {
     updateEnvFromSettings(settings);
     console.log("[Settings] Initialized with provider:", settings.llmProvider);
 }
-

@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useActiveTaskCount, useActiveTasks } from "@/lib/stores/active-tasks-store";
+import { useActiveTaskCount, useActiveTasks } from "@/lib/stores/unified-tasks-store";
 import { cn } from "@/lib/utils";
 
 export function ActiveTasksIndicator() {
@@ -78,7 +78,21 @@ export function ActiveTasksIndicator() {
         </div>
         
         <div className="max-h-64 overflow-y-auto">
-          {tasks.map((task) => (
+          {tasks.map((task) => {
+            const title =
+              task.type === "scheduled"
+                ? task.taskName
+                : task.type === "chat"
+                ? "Chat run"
+                : `Channel ${task.channelType}`;
+            const subtitle =
+              task.type === "channel"
+                ? task.peerName || task.peerId
+                : task.type === "scheduled"
+                ? task.taskId
+                : task.pipelineName;
+
+            return (
             <div
               key={task.runId}
               className="p-3 border-b border-terminal-green/10 last:border-0 hover:bg-terminal-green/5 transition-colors"
@@ -86,15 +100,16 @@ export function ActiveTasksIndicator() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-sm font-medium text-terminal-dark truncate">
-                    {task.taskName}
+                    {title}
                   </p>
                   <div className="flex items-center gap-2 mt-1 text-xs text-terminal-muted font-mono">
                     <Clock className="h-3 w-3" />
                     <span>{t("startedAgo", { time: formatTimeAgo(task.startedAt) })}</span>
+                    {subtitle ? <span className="truncate">• {subtitle}</span> : null}
                   </div>
                 </div>
                 
-                {task.sessionId && (
+                {task.sessionId && task.characterId && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -111,7 +126,7 @@ export function ActiveTasksIndicator() {
                 )}
               </div>
             </div>
-          ))}
+          )})}
         </div>
       </PopoverContent>
     </Popover>

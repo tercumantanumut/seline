@@ -46,6 +46,22 @@ export async function register() {
       }
     }, 3000);
 
+    // Cleanup zombie runs after restart
+    setTimeout(async () => {
+      try {
+        const { findZombieRuns, markRunAsCancelled } = await import("@/lib/observability");
+        const zombies = await findZombieRuns(5);
+        for (const run of zombies) {
+          await markRunAsCancelled(run.id, "server_restart_cleanup", { forceCancelled: true });
+        }
+        if (zombies.length > 0) {
+          console.warn(`[Instrumentation] Auto-cancelled ${zombies.length} zombie run(s) on startup`);
+        }
+      } catch (error) {
+        console.error("[Instrumentation] Error cleaning up zombie runs:", error);
+      }
+    }, 3500);
+
     // Start scheduled task scheduler
     setTimeout(async () => {
       try {
@@ -96,4 +112,3 @@ export async function register() {
     console.log("[Instrumentation] Server-side services initialized");
   }
 }
-

@@ -28,7 +28,10 @@ function getDbPath(): string {
 const globalForDb = globalThis as unknown as {
   sqlite: Database.Database | undefined;
   db: BetterSQLite3Database<typeof schema> | undefined;
+  schemaVersion?: number;
 };
+
+const SCHEMA_VERSION = 2;
 
 function createConnection(): { sqlite: Database.Database; db: BetterSQLite3Database<typeof schema> } {
   const dbPath = getDbPath();
@@ -45,6 +48,9 @@ function createConnection(): { sqlite: Database.Database; db: BetterSQLite3Datab
 
   // Enable WAL mode for better concurrent access
   sqlite.pragma("journal_mode = WAL");
+
+  // Allow short waits for locks during concurrent dev migrations.
+  sqlite.pragma("busy_timeout = 5000");
 
   // Enable foreign keys
   sqlite.pragma("foreign_keys = ON");
@@ -63,6 +69,12 @@ function getDb(): BetterSQLite3Database<typeof schema> {
 
     // Initialize tables on first connection
     initializeTables(sqlite);
+    globalForDb.schemaVersion = SCHEMA_VERSION;
+    return globalForDb.db;
+  }
+  if (globalForDb.schemaVersion !== SCHEMA_VERSION && globalForDb.sqlite) {
+    initializeTables(globalForDb.sqlite);
+    globalForDb.schemaVersion = SCHEMA_VERSION;
   }
   return globalForDb.db;
 }
@@ -528,6 +540,7 @@ function initializeTables(sqlite: Database.Database): void {
       trigger_type TEXT NOT NULL DEFAULT 'api' CHECK(trigger_type IN ('chat', 'api', 'job', 'cron', 'webhook', 'tool')),
       status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'succeeded', 'failed', 'cancelled')),
       started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT,
       duration_ms INTEGER,
       trace_id TEXT,
@@ -535,6 +548,19 @@ function initializeTables(sqlite: Database.Database): void {
       metadata TEXT NOT NULL DEFAULT '{}'
     )
   `);
+
+  // Migration: Ensure updated_at column exists in agent_runs
+  try {
+    const agentRunsColumns = sqlite.prepare("PRAGMA table_info(agent_runs)").all() as Array<{ name: string }>;
+    const hasUpdatedAt = agentRunsColumns.some((column) => column.name === "updated_at");
+    if (!hasUpdatedAt) {
+      sqlite.exec(`ALTER TABLE agent_runs ADD COLUMN updated_at TEXT`);
+      sqlite.exec(`UPDATE agent_runs SET updated_at = COALESCE(updated_at, started_at, datetime('now'))`);
+      console.log("[SQLite Migration] Added updated_at to agent_runs and backfilled values");
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to ensure updated_at column on agent_runs:", error);
+  }
 
   // Agent run events table - timeline of events within a run
   sqlite.exec(`
@@ -651,7 +677,7 @@ function initializeTables(sqlite: Database.Database): void {
       paused_at TEXT,
       paused_until TEXT,
       pause_reason TEXT,
-      delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook')),
+      delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook', 'channel')),
       delivery_config TEXT NOT NULL DEFAULT '{}',
       result_session_id TEXT REFERENCES sessions(id),
       create_new_session_per_run INTEGER NOT NULL DEFAULT 1,
@@ -823,6 +849,216 @@ function runDataMigrations(sqlite: Database.Database): void {
   } catch (error) {
     console.warn("[SQLite Migration] Scheduled tasks column migration failed:", error);
     // Don't throw - this is a non-critical migration
+  }
+
+  // Migration: Expand delivery_method constraint to include "channel"
+  try {
+    sqlite.exec("BEGIN IMMEDIATE");
+
+    const tableSqlRow = sqlite.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduled_tasks'"
+    ).get() as { sql?: string } | undefined;
+    const tableSql = tableSqlRow?.sql || "";
+    if (!tableSql || tableSql.includes("'channel'")) {
+      sqlite.exec("COMMIT");
+    } else {
+      console.log("[SQLite Migration] Updating scheduled_tasks delivery_method constraint to include channel");
+      sqlite.exec("PRAGMA foreign_keys=OFF");
+      try {
+        sqlite.exec("ALTER TABLE scheduled_tasks RENAME TO scheduled_tasks_old");
+        const oldTableExists = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_tasks_old'"
+        ).get();
+        if (!oldTableExists) {
+          sqlite.exec("ROLLBACK");
+          console.warn("[SQLite Migration] scheduled_tasks_old missing after rename, skipping migration");
+        } else {
+          sqlite.exec(`
+            CREATE TABLE scheduled_tasks (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+              name TEXT NOT NULL,
+              description TEXT,
+              schedule_type TEXT NOT NULL DEFAULT 'cron' CHECK(schedule_type IN ('cron', 'interval', 'once')),
+              cron_expression TEXT,
+              interval_minutes INTEGER,
+              scheduled_at TEXT,
+              timezone TEXT NOT NULL DEFAULT 'UTC',
+              initial_prompt TEXT NOT NULL,
+              prompt_variables TEXT NOT NULL DEFAULT '{}',
+              context_sources TEXT NOT NULL DEFAULT '[]',
+              enabled INTEGER NOT NULL DEFAULT 1,
+              max_retries INTEGER NOT NULL DEFAULT 3,
+              timeout_ms INTEGER NOT NULL DEFAULT 300000,
+              priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('high', 'normal', 'low')),
+              status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'paused', 'archived')),
+              paused_at TEXT,
+              paused_until TEXT,
+              pause_reason TEXT,
+              delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook', 'channel')),
+              delivery_config TEXT NOT NULL DEFAULT '{}',
+              result_session_id TEXT REFERENCES sessions(id),
+              create_new_session_per_run INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+              last_run_at TEXT,
+              next_run_at TEXT
+            )
+          `);
+          sqlite.exec(`
+            INSERT INTO scheduled_tasks (
+              id, user_id, character_id, name, description, schedule_type, cron_expression,
+              interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
+              context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
+              paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
+              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+            )
+            SELECT
+              id, user_id, character_id, name, description, schedule_type, cron_expression,
+              interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
+              context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
+              paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
+              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+            FROM scheduled_tasks_old
+          `);
+
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_user
+              ON scheduled_tasks (user_id, enabled, created_at DESC)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_character
+              ON scheduled_tasks (character_id, enabled)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run
+              ON scheduled_tasks (enabled, next_run_at)
+          `);
+
+          sqlite.exec("DROP TABLE IF EXISTS scheduled_tasks_old");
+          sqlite.exec("COMMIT");
+        }
+      } catch (migrationError) {
+        sqlite.exec("ROLLBACK");
+        const hasOldTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_tasks_old'"
+        ).get();
+        const hasNewTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_tasks'"
+        ).get();
+        if (hasOldTable && !hasNewTable) {
+          sqlite.exec("ALTER TABLE scheduled_tasks_old RENAME TO scheduled_tasks");
+        }
+        console.warn("[SQLite Migration] Delivery method migration aborted:", migrationError);
+      } finally {
+        sqlite.exec("PRAGMA foreign_keys=ON");
+      }
+    }
+  } catch (error) {
+    try {
+      if (sqlite.inTransaction) {
+        sqlite.exec("ROLLBACK");
+      }
+    } catch {
+      // ignore rollback errors
+    }
+    console.warn("[SQLite Migration] Scheduled tasks delivery_method migration failed:", error);
+    // Don't throw - this is a non-critical migration
+  }
+
+  // Migration: Repair scheduled_task_runs foreign key if it points to scheduled_tasks_old
+  try {
+    const tableSqlRow = sqlite.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
+    ).get() as { sql?: string } | undefined;
+    const tableSql = tableSqlRow?.sql || "";
+    if (!tableSql || !tableSql.includes("scheduled_tasks_old")) {
+      return;
+    }
+
+    console.log("[SQLite Migration] Updating scheduled_task_runs foreign key to scheduled_tasks");
+    sqlite.exec("BEGIN IMMEDIATE");
+    sqlite.exec("PRAGMA foreign_keys=OFF");
+    try {
+      sqlite.exec("ALTER TABLE scheduled_task_runs RENAME TO scheduled_task_runs_old");
+      const oldTableExists = sqlite.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+      ).get();
+      if (!oldTableExists) {
+        sqlite.exec("ROLLBACK");
+        console.warn("[SQLite Migration] scheduled_task_runs_old missing after rename, skipping migration");
+        return;
+      }
+
+      sqlite.exec(`
+        CREATE TABLE scheduled_task_runs (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+          agent_run_id TEXT,
+          session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
+          scheduled_for TEXT NOT NULL,
+          started_at TEXT,
+          completed_at TEXT,
+          duration_ms INTEGER,
+          attempt_number INTEGER NOT NULL DEFAULT 1,
+          result_summary TEXT,
+          error TEXT,
+          resolved_prompt TEXT,
+          metadata TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+
+      sqlite.exec(`
+        INSERT INTO scheduled_task_runs (
+          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+          metadata, created_at
+        )
+        SELECT
+          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+          metadata, created_at
+        FROM scheduled_task_runs_old
+      `);
+
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
+          ON scheduled_task_runs (task_id, created_at DESC)
+      `);
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
+          ON scheduled_task_runs (status, scheduled_for)
+      `);
+
+      sqlite.exec("DROP TABLE IF EXISTS scheduled_task_runs_old");
+      sqlite.exec("COMMIT");
+    } catch (migrationError) {
+      sqlite.exec("ROLLBACK");
+      const hasOldTable = sqlite.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+      ).get();
+      const hasNewTable = sqlite.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
+      ).get();
+      if (hasOldTable && !hasNewTable) {
+        sqlite.exec("ALTER TABLE scheduled_task_runs_old RENAME TO scheduled_task_runs");
+      }
+      console.warn("[SQLite Migration] scheduled_task_runs foreign key migration aborted:", migrationError);
+    } finally {
+      sqlite.exec("PRAGMA foreign_keys=ON");
+    }
+  } catch (error) {
+    try {
+      if (sqlite.inTransaction) {
+        sqlite.exec("ROLLBACK");
+      }
+    } catch {
+      // ignore rollback errors
+    }
+    console.warn("[SQLite Migration] scheduled_task_runs foreign key migration failed:", error);
   }
 }
 

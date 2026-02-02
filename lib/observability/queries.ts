@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/sqlite-schema";
 import type { AgentRunEventType, AgentRunStatus, EventLevel } from "@/lib/db/sqlite-schema";
 import { eq, desc, and, lte, gte, or, count, asc, like } from "drizzle-orm";
+import { durationMs as calculateDurationMs, isStale, nowISO, parseTimestampMs } from "@/lib/utils/timestamp";
 
 // Re-export types for convenience
 export type { AgentRunEventType, AgentRunStatus, EventLevel };
@@ -51,6 +52,8 @@ export async function createAgentRun(options: CreateAgentRunOptions): Promise<Ag
       traceId: options.traceId,
       spanId: options.spanId,
       status: "running",
+      startedAt: nowISO(),
+      updatedAt: nowISO(),
       metadata: options.metadata ?? {},
     })
     .returning();
@@ -66,7 +69,7 @@ export async function completeAgentRun(
   status: AgentRunStatus,
   metadata?: Record<string, unknown>
 ): Promise<AgentRun | undefined> {
-  const completedAt = new Date().toISOString();
+  const completedAt = nowISO();
   
   // Calculate duration from startedAt
   const run = await db.query.agentRuns.findFirst({
@@ -75,15 +78,15 @@ export async function completeAgentRun(
   
   if (!run) return undefined;
   
-  const startTime = new Date(run.startedAt).getTime();
-  const durationMs = Date.now() - startTime;
+  const runDurationMs = calculateDurationMs(run.startedAt, completedAt);
 
   const [updated] = await db
     .update(agentRuns)
     .set({
       status,
       completedAt,
-      durationMs,
+      durationMs: runDurationMs,
+      updatedAt: completedAt,
       metadata: metadata ? { ...((run.metadata as object) || {}), ...metadata } : run.metadata,
     })
     .where(eq(agentRuns.id, runId))
@@ -138,10 +141,12 @@ export interface AppendRunEventOptions {
  * Append an event to an agent run's timeline
  */
 export async function appendRunEvent(options: AppendRunEventOptions): Promise<AgentRunEvent> {
+  const updatedAt = nowISO();
   const [event] = await db
     .insert(agentRunEvents)
     .values({
       runId: options.runId,
+      timestamp: updatedAt,
       eventType: options.eventType,
       level: options.level ?? "info",
       durationMs: options.durationMs,
@@ -155,6 +160,11 @@ export async function appendRunEvent(options: AppendRunEventOptions): Promise<Ag
       data: options.data ?? {},
     })
     .returning();
+
+  await db
+    .update(agentRuns)
+    .set({ updatedAt })
+    .where(eq(agentRuns.id, options.runId));
 
   return event;
 }
@@ -308,19 +318,32 @@ export async function listPromptTemplates(): Promise<PromptTemplate[]> {
  * Find stale runs - runs in "running" status for longer than threshold
  * Default threshold: 30 minutes
  */
-export async function findStaleRuns(
-  thresholdMinutes: number = 30
-): Promise<AgentRun[]> {
-  const threshold = new Date(Date.now() - thresholdMinutes * 60 * 1000);
-  const thresholdISO = threshold.toISOString();
-
-  return db.query.agentRuns.findMany({
-    where: and(
-      eq(agentRuns.status, "running"),
-      lte(agentRuns.startedAt, thresholdISO)
-    ),
-    orderBy: agentRuns.startedAt,
+export async function findStaleRuns(thresholdMinutes: number = 30): Promise<AgentRun[]> {
+  const runs = await db.query.agentRuns.findMany({
+    where: eq(agentRuns.status, "running"),
+    orderBy: agentRuns.updatedAt,
   });
+
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return runs
+    .filter((run) => isStale(run.updatedAt ?? run.startedAt, thresholdMs))
+    .sort((a, b) => parseTimestampMs(a.updatedAt ?? a.startedAt) - parseTimestampMs(b.updatedAt ?? b.startedAt));
+}
+
+/**
+ * Find zombie runs - runs in "running" status with no updates for longer than threshold
+ * Default threshold: 5 minutes
+ */
+export async function findZombieRuns(thresholdMinutes: number = 5): Promise<AgentRun[]> {
+  const runs = await db.query.agentRuns.findMany({
+    where: eq(agentRuns.status, "running"),
+    orderBy: agentRuns.updatedAt,
+  });
+
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return runs
+    .filter((run) => isStale(run.updatedAt ?? run.startedAt, thresholdMs))
+    .sort((a, b) => parseTimestampMs(a.updatedAt ?? a.startedAt) - parseTimestampMs(b.updatedAt ?? b.startedAt));
 }
 
 /**
@@ -333,16 +356,50 @@ export async function markRunAsTimedOut(
   const run = await getAgentRun(runId);
   if (!run) return undefined;
 
+  const completedAt = nowISO();
   const [updated] = await db
     .update(agentRuns)
     .set({
       status: "failed",
-      completedAt: new Date().toISOString(),
-      durationMs: Date.now() - new Date(run.startedAt).getTime(),
+      completedAt,
+      durationMs: calculateDurationMs(run.startedAt, completedAt),
+      updatedAt: completedAt,
       metadata: {
         ...((run.metadata as object) || {}),
         cleanupReason: reason,
-        cleanedUpAt: new Date().toISOString(),
+        cleanedUpAt: completedAt,
+      },
+    })
+    .where(eq(agentRuns.id, runId))
+    .returning();
+
+  return updated;
+}
+
+/**
+ * Mark a run as cancelled
+ */
+export async function markRunAsCancelled(
+  runId: string,
+  reason: string = "cancelled",
+  metadata?: Record<string, unknown>
+): Promise<AgentRun | undefined> {
+  const run = await getAgentRun(runId);
+  if (!run) return undefined;
+
+  const completedAt = nowISO();
+  const [updated] = await db
+    .update(agentRuns)
+    .set({
+      status: "cancelled",
+      completedAt,
+      durationMs: calculateDurationMs(run.startedAt, completedAt),
+      updatedAt: completedAt,
+      metadata: {
+        ...((run.metadata as object) || {}),
+        cancelReason: reason,
+        cancelledAt: completedAt,
+        ...(metadata ?? {}),
       },
     })
     .where(eq(agentRuns.id, runId))
@@ -585,4 +642,3 @@ export async function getVersionAdoptionTimeline(
 
   return results.sort((a, b) => a.date.localeCompare(b.date));
 }
-
