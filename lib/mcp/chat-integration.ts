@@ -74,6 +74,9 @@ export async function loadMCPToolsForCharacter(
     }
 
     // Connect to any servers that aren't already connected
+    // Use Promise.all with individual error handling to parallelize connections
+    const connectionPromises: Promise<void>[] = [];
+    
     for (const [serverName, config] of Object.entries(combinedConfig)) {
         // Skip if server is not enabled for this agent AND no individual tools from it are enabled
         if (enabledServers && !enabledServers.includes(serverName)) {
@@ -83,15 +86,22 @@ export async function loadMCPToolsForCharacter(
             }
         }
 
-        // Reconnect if not connected OR if connected for a different character
-        // (to ensure variables like ${SYNCED_FOLDER} are resolved correctly for the current agent)
+        // Check if already connected with compatible context
         const isConnected = manager.isConnected(serverName);
         const connectedContext = manager.getConnectedCharacterId(serverName);
-        // Don't reconnect if already connected from instrumentation (no character context).
-        // Only reconnect if disconnected, or if connected for a DIFFERENT character (not undefined).
-        const needsReconnect = !isConnected || (connectedContext !== undefined && connectedContext !== character?.id);
+        
+        // Skip if already connected with:
+        // 1. Same character context, OR
+        // 2. No character context (from instrumentation) - this is compatible with any character
+        if (isConnected) {
+            if (connectedContext === character?.id || connectedContext === undefined) {
+                console.log(`[MCP] Server ${serverName} already connected with compatible context, skipping`);
+                continue;
+            }
+        }
 
-        if (needsReconnect) {
+        // Need to connect (or reconnect for different character)
+        const connectPromise = (async () => {
             try {
                 const resolved = await resolveMCPConfig(
                     serverName,
@@ -103,7 +113,14 @@ export async function loadMCPToolsForCharacter(
             } catch (error) {
                 console.error(`[MCP] Failed to connect to ${serverName}:`, error);
             }
-        }
+        })();
+        
+        connectionPromises.push(connectPromise);
+    }
+    
+    // Wait for all connections to complete
+    if (connectionPromises.length > 0) {
+        await Promise.all(connectionPromises);
     }
 
     // Get filtered MCP tools for this agent
