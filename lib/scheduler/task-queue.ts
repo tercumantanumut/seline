@@ -13,7 +13,6 @@ import { and, eq, sql } from "drizzle-orm";
 import type { ContextSource, DeliveryMethod, DeliveryConfig } from "@/lib/db/sqlite-schedule-schema";
 import { getContextSourceManager } from "./context-sources";
 import { getDeliveryRouter } from "./delivery";
-import { taskEvents } from "./task-events";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { ScheduledTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
@@ -216,22 +215,11 @@ export class TaskQueue {
       // Step 1: Prepare session FIRST (before chat execution)
       sessionId = await this.prepareSession({ ...task, prompt: resolvedPrompt });
 
-      // Step 2: Emit started event IMMEDIATELY after session creation
-      // This ensures users see the task as "running" right away
-      taskEvents.emitTaskStarted({
-        taskId: task.taskId,
-        taskName: task.taskName,
-        runId: task.runId,
-        userId: task.userId,
-        characterId: task.characterId,
-        sessionId,
-        startedAt,
-      });
-
-      // Update run status with sessionId so it's visible in UI
+      // Step 2: Update run status with sessionId so it's visible in UI
       await this.updateRunStatus(task.runId, "running", { sessionId });
       taskRegistry.updateStatus(task.runId, "running", { sessionId });
       taskRegistry.emitProgress(task.runId, "Session ready", undefined, {
+        type: "scheduled",
         taskId: task.taskId,
         taskName: task.taskName,
         userId: task.userId,
@@ -250,19 +238,6 @@ export class TaskQueue {
       // Check if aborted
       if (controller.signal.aborted) {
         console.log(`[TaskQueue] Task ${task.runId} was cancelled`);
-        // Emit cancelled event
-        taskEvents.emitTaskCompleted({
-          taskId: task.taskId,
-          taskName: task.taskName,
-          runId: task.runId,
-          userId: task.userId,
-          characterId: task.characterId,
-          sessionId,
-          status: "cancelled",
-          startedAt,
-          completedAt: nowISO(),
-          durationMs: Date.now() - startTime,
-        });
         taskRegistry.updateStatus(task.runId, "cancelled", {
           sessionId,
           durationMs: Date.now() - startTime,
@@ -283,20 +258,6 @@ export class TaskQueue {
 
       console.log(`[TaskQueue] Task ${task.runId} completed in ${durationMs}ms`);
 
-      // Emit completed event
-      taskEvents.emitTaskCompleted({
-        taskId: task.taskId,
-        taskName: task.taskName,
-        runId: task.runId,
-        userId: task.userId,
-        characterId: task.characterId,
-        sessionId,
-        status: "succeeded",
-        startedAt,
-        completedAt,
-        durationMs,
-        resultSummary: result.summary,
-      });
       taskRegistry.updateStatus(task.runId, "succeeded", {
         sessionId,
         durationMs,
@@ -318,21 +279,6 @@ export class TaskQueue {
     } catch (error) {
       if ((error as Error).name === "AbortError" || controller.signal.aborted) {
         console.log(`[TaskQueue] Task ${task.runId} was cancelled`);
-        // Emit cancelled event if we have a session
-        if (sessionId) {
-          taskEvents.emitTaskCompleted({
-            taskId: task.taskId,
-            taskName: task.taskName,
-            runId: task.runId,
-            userId: task.userId,
-            characterId: task.characterId,
-            sessionId,
-            status: "cancelled",
-            startedAt,
-            completedAt: nowISO(),
-            durationMs: Date.now() - startTime,
-          });
-        }
         taskRegistry.updateStatus(task.runId, "cancelled", {
           sessionId,
           durationMs: Date.now() - startTime,
@@ -389,20 +335,6 @@ export class TaskQueue {
 
       console.error(`[TaskQueue] Task ${task.runId} failed permanently: ${errorMessage}`);
 
-      // Emit failed event
-      taskEvents.emitTaskCompleted({
-        taskId: task.taskId,
-        taskName: task.taskName,
-        runId: task.runId,
-        userId: task.userId,
-        characterId: task.characterId,
-        sessionId,
-        status: "failed",
-        startedAt,
-        completedAt,
-        durationMs,
-        error: errorMessage,
-      });
       taskRegistry.updateStatus(task.runId, "failed", {
         sessionId,
         durationMs,

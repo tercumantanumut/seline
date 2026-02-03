@@ -68,7 +68,7 @@ export interface TaskProgressEvent {
   type: TaskType;
   taskId?: string;
   taskName?: string;
-  userId?: string;
+  userId: string;
   characterId?: string;
   sessionId?: string;
   assistantMessageId?: string;

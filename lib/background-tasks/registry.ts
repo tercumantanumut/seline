@@ -101,11 +101,53 @@ class TaskRegistry extends EventEmitter {
     runId: string,
     progressText?: string,
     progressPercent?: number,
-    details?: Omit<TaskProgressEvent, "eventType" | "timestamp" | "runId" | "type">
+    details?: Omit<TaskProgressEvent, "eventType" | "timestamp" | "runId">
   ): void {
     const task = this.tasks.get(runId);
-    if (!task) return;
+    const progressPreview = progressText?.slice(0, 50);
 
+    console.log("[TaskRegistry] emitProgress called:", {
+      runId,
+      progressText: progressPreview,
+      hasTask: !!task,
+      currentTaskCount: this.tasks.size,
+    });
+
+    if (!task) {
+      if (!details?.userId || !details?.type) {
+        console.warn("[TaskRegistry] Progress event dropped; task not in registry and missing details:", {
+          runId,
+          progressText: progressPreview,
+          detailsProvided: !!details,
+          availableTasks: Array.from(this.tasks.keys()),
+        });
+        return;
+      }
+
+      console.warn("[TaskRegistry] Task not in registry; emitting progress with provided details:", {
+        runId,
+        userId: details.userId,
+        type: details.type,
+      });
+
+      const { userId, type, ...restDetails } = details;
+      const event: TaskEvent = {
+        eventType: "task:progress",
+        runId,
+        type,
+        userId,
+        progressText,
+        progressPercent,
+        ...restDetails,
+        timestamp: nowISO(),
+      };
+
+      this.emit("task:progress", event);
+      this.emit(`task:progress:${userId}`, event);
+      return;
+    }
+
+    const { userId: _detailsUserId, type: _detailsType, ...restDetails } = details ?? {};
     const event: TaskEvent = {
       eventType: "task:progress",
       runId,
@@ -115,9 +157,16 @@ class TaskRegistry extends EventEmitter {
       sessionId: task.sessionId,
       progressText,
       progressPercent,
-      ...(details || {}),
+      ...restDetails,
       timestamp: nowISO(),
     };
+
+    console.log("[TaskRegistry] Emitting task:progress:", {
+      runId,
+      userId: task.userId,
+      type: task.type,
+      progressText: progressPreview,
+    });
 
     this.emit("task:progress", event);
     this.emit(`task:progress:${task.userId}`, event);

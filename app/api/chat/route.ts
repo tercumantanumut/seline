@@ -22,7 +22,6 @@ import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messa
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
-import { taskEvents } from "@/lib/scheduler/task-events";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { combineAbortSignals } from "@/lib/utils/abort";
@@ -1112,9 +1111,6 @@ export async function POST(req: Request) {
       characterId ||
       ((sessionMetadata?.characterId as string | undefined) ?? "");
     const shouldEmitProgress = Boolean(sessionId);
-    const shouldEmitScheduledProgress = Boolean(
-      isScheduledRun && scheduledRunId && scheduledTaskId && scheduledTaskName && sessionId
-    );
     const streamingState: StreamingMessageState | null = shouldEmitProgress
       ? {
         parts: [],
@@ -1226,27 +1222,25 @@ export async function POST(req: Request) {
           if (!progressText) {
             progressText = "Working...";
           }
-          if (shouldEmitScheduledProgress) {
-            taskEvents.emitTaskProgress({
-              taskId: scheduledTaskId!,
-              taskName: scheduledTaskName!,
-              runId: scheduledRunId!,
-              userId: dbUser.id,
-              characterId: eventCharacterId,
-              sessionId,
-              assistantMessageId: streamingState.messageId,
-              progressText,
-              progressContent: partsSnapshot,
-              startedAt: nowISO(),
-            });
-          }
           const progressRunId = scheduledRunId ?? agentRun?.id;
-          if (progressRunId) {
+          const progressType = scheduledRunId ? "scheduled" : agentRun?.id ? "chat" : undefined;
+
+          console.log("[CHAT API] Progress event routing:", {
+            scheduledRunId,
+            agentRunId: agentRun?.id,
+            progressRunId,
+            progressType,
+            progressText: progressText.slice(0, 50),
+            willEmitToRegistry: Boolean(progressRunId && progressType),
+          });
+
+          if (progressRunId && progressType) {
             taskRegistry.emitProgress(
               progressRunId,
               progressText,
               undefined,
               {
+                type: progressType,
                 taskId: scheduledTaskId ?? undefined,
                 taskName: scheduledTaskName ?? undefined,
                 userId: dbUser.id,

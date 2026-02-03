@@ -7,7 +7,8 @@
 
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { taskEvents, type TaskEvent } from "@/lib/scheduler/task-events";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import type { TaskEvent } from "@/lib/background-tasks/types";
 import { startScheduler } from "@/lib/scheduler/scheduler-service";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,8 @@ export async function GET(request: NextRequest) {
 
       // Subscribe to task events for this user
       const handleStarted = (event: TaskEvent) => {
-        console.log(`[SSE] Sending task:started event to user ${userId}:`, event.runId);
+        const runId = "task" in event ? event.task.runId : event.runId;
+        console.log(`[SSE] Sending task:started event to user ${userId}:`, runId);
         try {
           const message = JSON.stringify({
             type: "task:started",
@@ -54,7 +56,8 @@ export async function GET(request: NextRequest) {
       };
 
       const handleCompleted = (event: TaskEvent) => {
-        console.log(`[SSE] Sending task:completed event to user ${userId}:`, event.runId);
+        const runId = "task" in event ? event.task.runId : event.runId;
+        console.log(`[SSE] Sending task:completed event to user ${userId}:`, runId);
         try {
           const message = JSON.stringify({
             type: "task:completed",
@@ -67,7 +70,8 @@ export async function GET(request: NextRequest) {
       };
 
       const handleProgress = (event: TaskEvent) => {
-        console.log(`[SSE] Sending task:progress event to user ${userId}:`, event.runId);
+        const runId = "task" in event ? event.task.runId : event.runId;
+        console.log(`[SSE] Sending task:progress event to user ${userId}:`, runId);
         try {
           const message = JSON.stringify({
             type: "task:progress",
@@ -81,7 +85,7 @@ export async function GET(request: NextRequest) {
 
       // Subscribe to user-specific events
       console.log(`[SSE] Subscribing to events for user: ${userId}`);
-      cleanup = taskEvents.subscribeForUser(userId, {
+      cleanup = taskRegistry.subscribeForUser(userId, {
         onStarted: handleStarted,
         onCompleted: handleCompleted,
         onProgress: handleProgress,

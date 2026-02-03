@@ -39,6 +39,17 @@ export async function GET(request: NextRequest) {
 
       const handleEvent = (event: TaskEvent) => {
         try {
+          console.log("[SSE] → Sending task event to client:", {
+            eventType: event.eventType,
+            runId: "task" in event ? event.task.runId : event.runId,
+            type: "task" in event ? event.task.type : event.type,
+            userId: "task" in event ? event.task.userId : event.userId,
+            progressText:
+              event.eventType === "task:progress"
+                ? event.progressText?.slice(0, 50)
+                : undefined,
+          });
+
           const message = JSON.stringify({
             type: event.eventType,
             data: event,
