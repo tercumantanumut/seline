@@ -30,21 +30,29 @@ export async function POST(req: Request) {
     // Parse request body
     const body = await req.json();
     const { urls, query, sessionId, characterId } = body as {
-      urls: string[];
+      urls: string[] | string;
       query: string;
       sessionId: string;
       characterId?: string;
     };
+    const normalizedUrls = Array.isArray(urls)
+      ? urls
+      : typeof urls === "string"
+        ? urls
+            .split(",")
+            .map((url) => url.trim())
+            .filter((url) => url.length > 0)
+        : [];
 
     // Validate inputs
-    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+    if (normalizedUrls.length === 0) {
       return new Response(
         JSON.stringify({ error: "At least one URL is required" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    if (urls.length > 5) {
+    if (normalizedUrls.length > 5) {
       return new Response(
         JSON.stringify({ error: "Maximum 5 URLs allowed" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -73,9 +81,9 @@ export async function POST(req: Request) {
       triggerType: "api",
       characterId: characterId || undefined,
       metadata: {
-        urlCount: urls.length,
+        urlCount: normalizedUrls.length,
         queryLength: query.length,
-        urls: urls,
+        urls: normalizedUrls,
       },
     });
 
@@ -102,7 +110,7 @@ export async function POST(req: Request) {
             try {
               // Run web browse with event streaming
               const result = await browseAndSynthesize({
-                urls,
+                urls: normalizedUrls,
                 query: query.trim(),
                 options: {
                   sessionId,
@@ -224,4 +232,3 @@ export async function GET() {
     }
   );
 }
-
