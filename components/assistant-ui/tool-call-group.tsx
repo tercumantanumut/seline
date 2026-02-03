@@ -3,7 +3,7 @@
 import type { FC, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useMessage } from "@assistant-ui/react";
+import { useAssistantState } from "@assistant-ui/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ type ToolCallPart = {
   toolName: string;
   result?: unknown;
   isError?: boolean;
+  status?: { type?: string } | null;
 };
 
 interface ToolCallGroupProps {
@@ -36,6 +37,11 @@ function getResultCount(result: unknown): number | null {
 }
 
 function getStatus(part: ToolCallPart): ToolCallBadgeStatus {
+  if (part.status?.type === "incomplete") return "error";
+  if (part.status?.type === "running" || part.status?.type === "requires-action") {
+    return "running";
+  }
+
   const result = part.result as Record<string, unknown> | undefined;
   const status = result?.status;
 
@@ -50,15 +56,14 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   children,
 }) => {
   const t = useTranslations("assistantUi.tools");
-  const message = useMessage();
+  const messageParts = useAssistantState((state) => state.message.parts);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toolParts = useMemo(() => {
-    const parts = (message?.parts ?? []) as Array<{ type?: string }>;
-    return parts
+    return messageParts
       .slice(startIndex, endIndex + 1)
       .filter((part): part is ToolCallPart => part?.type === "tool-call");
-  }, [message?.parts, startIndex, endIndex]);
+  }, [messageParts, startIndex, endIndex]);
 
   const hasError = useMemo(() => {
     return toolParts.some((part) => getStatus(part) === "error");
