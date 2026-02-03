@@ -5,6 +5,7 @@ import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { abortChatRun } from "@/lib/background-tasks/chat-abort-registry";
 import { isStale } from "@/lib/utils/timestamp";
+import { taskRegistry } from "@/lib/background-tasks/registry";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -30,8 +31,9 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     const aborted = abortChatRun(runId, "user_cancelled");
     if (!aborted) {
+      const hasRegistryTask = Boolean(taskRegistry.get(runId));
       const isZombie = isStale(run.updatedAt ?? run.startedAt, 5 * 60 * 1000);
-      if (!isZombie) {
+      if (hasRegistryTask && !isZombie) {
         return NextResponse.json({ error: "Run is not cancellable" }, { status: 409 });
       }
 
