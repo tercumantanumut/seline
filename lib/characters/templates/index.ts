@@ -28,6 +28,17 @@ export function getDefaultTemplate(): AgentTemplate | undefined {
 
 function resolvePathVariable(pathVar: string): string {
   if (pathVar === "${SETUP_FOLDER}") {
+    // In production, use the bundled source code
+    const resourcesPath = process.env.ELECTRON_RESOURCES_PATH ||
+                         (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+
+    if (resourcesPath) {
+      const { join } = require("path");
+      // Source code is bundled inside standalone folder
+      return join(resourcesPath, "standalone", "seline-source");
+    }
+
+    // Development: use current working directory
     return process.cwd();
   }
   return pathVar;
