@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import type { TaskEvent, UnifiedTask } from "@/lib/background-tasks/types";
+import { formatDuration } from "@/lib/utils/timestamp";
 
 interface SSEMessage {
   type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
@@ -29,6 +30,8 @@ export function useTaskNotifications() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectedUserIdRef = useRef<string | null>(null);
+  const hasConnectedOnceRef = useRef(false);
+  const wasDisconnectedRef = useRef(false);
   const addTask = useUnifiedTasksStore((state) => state.addTask);
   const updateTask = useUnifiedTasksStore((state) => state.updateTask);
   const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -153,16 +156,37 @@ export function useTaskNotifications() {
           });
         }
       } else if (task.status === "failed") {
-        const scheduleUrl = buildScheduleUrl(task);
-        toast.error(t("taskFailed", { taskName: displayName }), {
-          description: task.error?.slice(0, 100),
-          action: scheduleUrl
-            ? {
-                label: t("viewDetails"),
-                onClick: () => router.push(scheduleUrl),
-              }
-            : undefined,
-          duration: 10000,
+        const errorMessage = task.error?.toLowerCase() ?? "";
+        const isCreditError =
+          errorMessage.includes("credit") ||
+          errorMessage.includes("insufficient") ||
+          errorMessage.includes("quota");
+        if (isCreditError) {
+          toast.error(t("taskCreditExhausted"), {
+            description: t("taskCreditExhaustedDescription"),
+            duration: 15000,
+          });
+        } else {
+          const scheduleUrl = buildScheduleUrl(task);
+          toast.error(t("taskFailed", { taskName: displayName }), {
+            description: task.error?.slice(0, 100),
+            action: scheduleUrl
+              ? {
+                  label: t("viewDetails"),
+                  onClick: () => router.push(scheduleUrl),
+                }
+              : undefined,
+            duration: 10000,
+          });
+        }
+      } else if (task.status === "stale") {
+        const duration = task.durationMs ? formatDuration(task.durationMs) : "30m";
+        toast.warning(t("taskStale"), {
+          description: t("taskStaleDescription", {
+            taskName: displayName,
+            duration,
+          }),
+          duration: 8000,
         });
       }
     };
@@ -218,6 +242,43 @@ export function useTaskNotifications() {
       }, delay);
     };
 
+    const reconcileTasks = async (showToast: boolean) => {
+      try {
+        const response = await fetch("/api/tasks/active");
+        if (!response.ok) return;
+        const { tasks } = (await response.json()) as { tasks: UnifiedTask[] };
+
+        const currentTasks = useUnifiedTasksStore.getState().tasks;
+        const serverRunIds = new Set(tasks.map((task) => task.runId));
+
+        for (const task of currentTasks) {
+          if (!serverRunIds.has(task.runId)) {
+            console.log(`[TaskNotifications] Removing stale task: ${task.runId}`);
+            completeTask(task);
+          }
+        }
+
+        for (const task of tasks) {
+          const existing = currentTasks.find((current) => current.runId === task.runId);
+          if (existing) {
+            updateTask(task.runId, task);
+          } else {
+            console.log(`[TaskNotifications] Adding missing task: ${task.runId}`);
+            addTask(task);
+          }
+        }
+
+        if (showToast && tasks.length > 0) {
+          toast.success(t("taskReconnected"), {
+            description: t("taskReconnectedDescription", { count: tasks.length }),
+            duration: 5000,
+          });
+        }
+      } catch (error) {
+        console.error("[TaskNotifications] Failed to reconcile state:", error);
+      }
+    };
+
     const connect = () => {
       // Close existing connection
       if (eventSourceRef.current) {
@@ -232,6 +293,10 @@ export function useTaskNotifications() {
       eventSource.onopen = () => {
         reconnectAttemptsRef.current = 0;
         console.log("[TaskNotifications] SSE connection opened");
+        const showToast = hasConnectedOnceRef.current && wasDisconnectedRef.current;
+        hasConnectedOnceRef.current = true;
+        wasDisconnectedRef.current = false;
+        void reconcileTasks(showToast);
       };
 
       eventSource.onmessage = (event) => {
@@ -273,6 +338,7 @@ export function useTaskNotifications() {
       eventSource.onerror = (error) => {
         console.warn("[TaskNotifications] Connection error:", error);
         eventSource.close();
+        wasDisconnectedRef.current = true;
 
         // Clear ref
         if (eventSourceRef.current === eventSource) {
@@ -283,7 +349,9 @@ export function useTaskNotifications() {
       };
     };
 
-    connect();
+    void reconcileTasks(false).then(() => {
+      connect();
+    });
 
     return () => {
       console.log("[TaskNotifications] Cleaning up SSE connection");

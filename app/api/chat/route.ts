@@ -965,6 +965,7 @@ function recordToolResultChunk(
 
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
+  let chatTaskRegistered = false;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -1308,6 +1309,7 @@ export async function POST(req: Request) {
     } else {
       taskRegistry.register(chatTask);
     }
+    chatTaskRegistered = true;
 
     // Only save the NEW user message (the last one in the array)
     // Previous messages have already been saved in earlier requests
@@ -1819,6 +1821,28 @@ export async function POST(req: Request) {
       `caching: ${cachingStatus}`
     );
     let runFinalized = false;
+    const finalizeFailedRun = async (errorMessage: string, isCreditError: boolean) => {
+      if (runFinalized) return;
+      runFinalized = true;
+      if (chatTaskRegistered && agentRun?.id) {
+        try {
+          removeChatAbortController(agentRun.id);
+          await completeAgentRun(agentRun.id, "failed", {
+            error: isCreditError ? "Insufficient credits" : errorMessage,
+          });
+          const registryTask = taskRegistry.get(agentRun.id);
+          const registryDurationMs = registryTask
+            ? Date.now() - new Date(registryTask.startedAt).getTime()
+            : undefined;
+          taskRegistry.updateStatus(agentRun.id, "failed", {
+            durationMs: registryDurationMs,
+            error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
+          });
+        } catch (failureError) {
+          console.error("[CHAT API] Failed to mark agent run as failed:", failureError);
+        }
+      }
+    };
     const result = await withRunContext(
       {
         runId: agentRun.id,
@@ -1898,6 +1922,16 @@ export async function POST(req: Request) {
           return {
             activeTools: currentActiveTools as (keyof typeof tools)[],
           };
+        },
+        onError: async ({ error }) => {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          const errorMessageLower = errorMessage.toLowerCase();
+          const isCreditError =
+            errorMessageLower.includes("insufficient") ||
+            errorMessageLower.includes("quota") ||
+            errorMessageLower.includes("credit") ||
+            errorMessageLower.includes("429");
+          await finalizeFailedRun(errorMessage, isCreditError);
         },
         onChunk: shouldEmitProgress
           ? async ({ chunk }) => {
@@ -2391,12 +2425,20 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Chat API error:", error);
 
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessageLower = errorMessage.toLowerCase();
+    const isCreditError =
+      errorMessageLower.includes("insufficient") ||
+      errorMessageLower.includes("quota") ||
+      errorMessageLower.includes("credit") ||
+      errorMessageLower.includes("429");
+
     // Mark the agent run as failed so the background processing banner clears
-    if (agentRun?.id) {
+    if (chatTaskRegistered && agentRun?.id) {
       try {
         removeChatAbortController(agentRun.id);
         await completeAgentRun(agentRun.id, "failed", {
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: isCreditError ? "Insufficient credits" : errorMessage,
         });
         const registryTask = taskRegistry.get(agentRun.id);
         const registryDurationMs = registryTask
@@ -2404,7 +2446,7 @@ export async function POST(req: Request) {
           : undefined;
         taskRegistry.updateStatus(agentRun.id, "failed", {
           durationMs: registryDurationMs,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
         });
       } catch (e) {
         console.error("[CHAT API] Failed to mark agent run as failed:", e);
@@ -2413,10 +2455,12 @@ export async function POST(req: Request) {
 
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Internal server error",
+        error: isCreditError
+          ? "Insufficient credits. Please add credits to continue."
+          : errorMessage,
       }),
       {
-        status: 500,
+        status: isCreditError ? 402 : 500,
         headers: { "Content-Type": "application/json" },
       }
     );

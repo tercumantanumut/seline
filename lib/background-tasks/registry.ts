@@ -25,6 +25,15 @@ const globalForRegistry = globalThis as typeof globalThis & {
 class TaskRegistry extends EventEmitter {
   private tasks: Map<string, UnifiedTask> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private cleanupStats = {
+    totalCleaned: 0,
+    lastCleanupAt: null as string | null,
+    cleanupsByReason: {
+      stale: 0,
+      failed: 0,
+      cancelled: 0,
+    },
+  };
 
   private constructor() {
     super();
@@ -201,11 +210,21 @@ class TaskRegistry extends EventEmitter {
       this.updateStatus(runId, "stale", {
         error: "Task marked stale by cleanup",
       });
+      this.cleanupStats.totalCleaned += 1;
+      this.cleanupStats.cleanupsByReason.stale += 1;
     }
 
     if (staleRunIds.length > 0) {
-      console.log(`[TaskRegistry] Cleaned up ${staleRunIds.length} stale tasks`);
+      this.cleanupStats.lastCleanupAt = nowISO();
+      console.log(
+        `[TaskRegistry] Cleaned up ${staleRunIds.length} stale tasks ` +
+        `(total: ${this.cleanupStats.totalCleaned})`
+      );
     }
+  }
+
+  getCleanupStats() {
+    return { ...this.cleanupStats };
   }
 
   shutdown(): void {
