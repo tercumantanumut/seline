@@ -14,6 +14,13 @@ import { nowISO } from "@/lib/utils/timestamp";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const DEBUG_SSE_EVENTS = process.env.DEBUG_SSE_EVENTS === "true";
+
+const redact = (value?: string) => {
+  if (!value) return undefined;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+};
+
 export async function GET(request: NextRequest) {
   let userId: string;
   try {
@@ -39,16 +46,15 @@ export async function GET(request: NextRequest) {
 
       const handleEvent = (event: TaskEvent) => {
         try {
-          console.log("[SSE] → Sending task event to client:", {
-            eventType: event.eventType,
-            runId: "task" in event ? event.task.runId : event.runId,
-            type: "task" in event ? event.task.type : event.type,
-            userId: "task" in event ? event.task.userId : event.userId,
-            progressText:
-              event.eventType === "task:progress"
-                ? event.progressText?.slice(0, 50)
-                : undefined,
-          });
+          if (DEBUG_SSE_EVENTS) {
+            console.log("[SSE] → Sending task event to client:", {
+              eventType: event.eventType,
+              runId: redact("task" in event ? event.task.runId : event.runId),
+              type: "task" in event ? event.task.type : event.type,
+              userId: redact("task" in event ? event.task.userId : event.userId),
+              hasProgressText: event.eventType === "task:progress" ? Boolean(event.progressText) : undefined,
+            });
+          }
 
           const message = JSON.stringify({
             type: event.eventType,
