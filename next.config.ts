@@ -82,6 +82,9 @@ const nextConfig: NextConfig = {
     "grammy",
     "@slack/bolt",
     "qrcode",
+    // MCP SDK - uses Node.js child_process and should never run in browser
+    "@modelcontextprotocol/sdk",
+    "cross-spawn",
   ],
   images: {
     remotePatterns: [
@@ -97,11 +100,34 @@ const nextConfig: NextConfig = {
   },
   // Configure webpack to handle ONNX files and exclude Remotion from bundling
   webpack: (config, { isServer }) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      path: false,
-    };
+    // For client-side, prevent Node.js-only modules from being bundled
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        child_process: false,
+        crypto: false,
+        stream: false,
+        util: false,
+        buffer: false,
+        events: false,
+      };
+
+      // Explicitly mark MCP SDK as external for client builds
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@modelcontextprotocol/sdk': 'commonjs @modelcontextprotocol/sdk',
+        'cross-spawn': 'commonjs cross-spawn',
+      });
+    } else {
+      // Server-side fallbacks
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
 
     // Exclude Remotion bundler/renderer from webpack bundling
     // These packages are dynamically imported at runtime and contain
@@ -119,6 +145,8 @@ const nextConfig: NextConfig = {
         /^webpack(\/|$)/,    // Webpack itself and subpaths
         /^terser-webpack-plugin(\/|$)/, // Webpack plugin dependency
         /^@lancedb(\/|$)/,   // LanceDB embedded vector database with native bindings
+        /^@modelcontextprotocol(\/|$)/, // MCP SDK - uses Node.js child_process
+        /^cross-spawn(\/|$)/, // Spawning child processes - Node.js only
       ];
 
       // Function-based external that matches patterns
@@ -155,6 +183,8 @@ const nextConfig: NextConfig = {
           /node_modules\/webpack\//,
           /node_modules\/terser-webpack-plugin\//,
           /node_modules\/@lancedb\//,
+          /node_modules\/@modelcontextprotocol\//,
+          /node_modules\/cross-spawn\//,
         ];
 
         for (const pattern of pathPatterns) {
