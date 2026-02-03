@@ -342,14 +342,15 @@ export default function ChatInterface({
 
         setIsZombieRun(false);
         let pollCount = 0;
-        const maxPolls = 150; // 5 minutes at 2s intervals
+        const pollIntervalMs = 2000;
+        const maxPolls = 300; // 10 minutes at 2s intervals
 
         pollingIntervalRef.current = setInterval(async () => {
             pollCount++;
 
             // Stop polling after 5 minutes (assume stale)
             if (pollCount >= maxPolls) {
-                console.warn("[Background Processing] Polling timeout - stopping after 5 minutes");
+                console.warn("[Background Processing] Polling timeout - stopping after 10 minutes");
                 if (pollingIntervalRef.current) {
                     clearInterval(pollingIntervalRef.current);
                     pollingIntervalRef.current = null;
@@ -393,7 +394,7 @@ export default function ChatInterface({
                 console.error("[Background Processing] Polling error:", error);
                 // Continue polling on error (network might recover)
             }
-        }, 2000); // Poll every 2 seconds
+        }, pollIntervalMs); // Poll every 2 seconds
     }, [refreshMessages, reloadSessionMessages, sessionId]);
 
     // Check for active run on mount and when sessionId changes
