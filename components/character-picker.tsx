@@ -119,6 +119,7 @@ interface CharacterSummary {
   displayName?: string | null;
   tagline?: string | null;
   status: string;
+  isDefault?: boolean;
   metadata?: {
     enabledTools?: string[];
     purpose?: string;
@@ -862,14 +863,16 @@ export function CharacterPicker() {
                   <Plug className="w-3 h-3" />
                   <span>{t("mcpTools")}</span>
                 </button>
-                <button
-                  onClick={() => openDeleteDialog(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
-                  title={t("deleteAgent")}
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>{t("delete")}</span>
-                </button>
+                {!character.isDefault && (
+                  <button
+                    onClick={() => openDeleteDialog(character)}
+                    className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
+                    title={t("deleteAgent")}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>{t("delete")}</span>
+                  </button>
+                )}
               </div>
 
               <div className="px-4 pb-4 pt-0 flex gap-2">
@@ -1416,5 +1419,4 @@ export function CharacterPicker() {
     </div>
   );
 }
-
 
