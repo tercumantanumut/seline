@@ -4,6 +4,7 @@ import { getAgentRun } from "@/lib/observability/queries";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { isStale } from "@/lib/utils/timestamp";
+import { taskRegistry } from "@/lib/background-tasks/registry";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -24,8 +25,10 @@ export async function GET(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const isZombie = run.status === "running"
-      && isStale(run.updatedAt ?? run.startedAt, 5 * 60 * 1000);
+    const isZombie = run.status === "running" && (
+      isStale(run.updatedAt ?? run.startedAt, 5 * 60 * 1000)
+      || !taskRegistry.get(runId)
+    );
 
     return NextResponse.json({
       status: run.status,
