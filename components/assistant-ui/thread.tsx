@@ -45,6 +45,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MarkdownText, UserMarkdownText } from "./markdown-text";
 import { ToolFallback } from "./tool-fallback";
+import { ToolCallGroup } from "./tool-call-group";
 import { VectorSearchToolUI } from "./vector-search-inline";
 import { ProductGalleryToolUI } from "./product-gallery-inline";
 import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
@@ -1105,6 +1106,7 @@ const AssistantMessage: FC = () => {
           <MessagePrimitive.Content
             components={{
               Text: MarkdownText,
+              ToolGroup: ToolCallGroup,
               tools: {
                 by_name: {
                   vectorSearch: VectorSearchToolUI,
