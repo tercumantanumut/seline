@@ -27,23 +27,38 @@ import { getWebScraperProvider } from "@/lib/ai/web-scraper/provider";
 // ============================================================================
 
 const webBrowseSchema = jsonSchema<{
-  urls: string[];
+  urls: string[] | string;
   query: string;
+  includeMarkdown?: boolean | string;
 }>({
   type: "object",
   title: "WebBrowseInput",
   description: "Input schema for browsing and analyzing web pages",
   properties: {
     urls: {
-      type: "array",
-      items: { type: "string", format: "uri" },
-      minItems: 1,
-      maxItems: 5,
-      description: "URLs to fetch and analyze (1-5 URLs)",
+      oneOf: [
+        {
+          type: "array",
+          items: { type: "string", format: "uri" },
+          minItems: 1,
+          maxItems: 5,
+          description: "URLs to fetch and analyze (1-5 URLs)",
+        },
+        {
+          type: "string",
+          description:
+            "Single URL to fetch and analyze. Will be normalized into a list.",
+        },
+      ],
     },
     query: {
       type: "string",
       description: "The question or information you want to extract from the web pages. Be specific about what you're looking for.",
+    },
+    includeMarkdown: {
+      type: ["boolean", "string"],
+      description:
+        "Ignored for webBrowse. Accepted for compatibility with legacy callers.",
     },
   },
   required: ["urls", "query"],
@@ -84,8 +99,9 @@ interface WebBrowseToolResult {
 
 // Input args type for webBrowse
 interface WebBrowseArgs {
-  urls: string[];
+  urls: string[] | string;
   query: string;
+  includeMarkdown?: boolean | string;
 }
 
 // Input args type for webQuery
@@ -103,6 +119,12 @@ async function executeWebBrowse(
 ): Promise<WebBrowseToolResult> {
   const { sessionId, userId, characterId } = options;
   const { urls, query } = args;
+  const normalizedUrls = Array.isArray(urls)
+    ? urls
+    : urls
+        .split(",")
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0);
 
   // Check if Firecrawl is configured when selected
   const provider = getWebScraperProvider();
@@ -115,7 +137,7 @@ async function executeWebBrowse(
   }
 
   const result = await browseAndSynthesize({
-    urls,
+    urls: normalizedUrls,
     query,
     options: { sessionId, userId, characterId },
     abortSignal: toolCallOptions?.abortSignal,
@@ -248,4 +270,3 @@ If you need new pages, use webBrowse instead.`,
     execute: executeWithLogging,
   });
 }
-

@@ -7,6 +7,7 @@ import {
   getUserCharacters,
   createCharacterImage,
 } from "@/lib/characters/queries";
+import { ensureDefaultAgentExists } from "@/lib/characters/templates";
 import {
   createCharacterSchema,
   agentMetadataSchema,
@@ -30,6 +31,8 @@ export async function GET(req: Request) {
     const userId = await requireAuth(req);
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
+
+    await ensureDefaultAgentExists(dbUser.id);
     const characterList = await getUserCharacters(dbUser.id);
 
     return NextResponse.json({ characters: characterList });
@@ -119,4 +122,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

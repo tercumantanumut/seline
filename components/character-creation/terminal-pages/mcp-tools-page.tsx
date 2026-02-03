@@ -129,11 +129,9 @@ export function MCPToolsPage({
             loadedTools.forEach((tool: MCPTool) => {
                 const toolKey = `${tool.serverName}:${tool.name}`;
 
-                // If no preference exists, default to enabled with deferred loading
                 if (!(toolKey in newPreferences)) {
-                    newPreferences[toolKey] = { enabled: true, loadingMode: "deferred" };
-                    newSelectedTools.add(toolKey);
-                    newSelectedServers.add(tool.serverName);
+                    const shouldEnable = newSelectedTools.has(toolKey) || newSelectedServers.has(tool.serverName);
+                    newPreferences[toolKey] = { enabled: shouldEnable, loadingMode: "deferred" };
                     hasChanges = true;
                 }
             });
@@ -142,7 +140,6 @@ export function MCPToolsPage({
                 setToolPreferences(newPreferences);
                 setSelectedServers(newSelectedServers);
                 setSelectedTools(newSelectedTools);
-                // Propagate to parent immediately
                 onUpdate(
                     Array.from(newSelectedServers),
                     Array.from(newSelectedTools),

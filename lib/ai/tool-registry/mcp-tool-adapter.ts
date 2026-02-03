@@ -563,14 +563,20 @@ export function getMCPToolsForAgent(
 
     // If enabled tools are explicitly specified, honor that list directly.
     // This allows per-tool enablement even when a server isn't globally enabled.
-    if (enabledTools && enabledTools.length > 0) {
+    if (enabledTools) {
+        if (enabledTools.length === 0) {
+            return [];
+        }
         const toolSet = new Set(enabledTools);
         tools = tools.filter(t => toolSet.has(`${t.serverName}:${t.name}`));
         return tools;
     }
 
     // Otherwise filter by enabled servers (if provided)
-    if (enabledServers && enabledServers.length > 0) {
+    if (enabledServers) {
+        if (enabledServers.length === 0) {
+            return [];
+        }
         const serverSet = new Set(enabledServers);
         tools = tools.filter(t => serverSet.has(t.serverName));
     }

@@ -1060,6 +1060,35 @@ function runDataMigrations(sqlite: Database.Database): void {
     }
     console.warn("[SQLite Migration] scheduled_task_runs foreign key migration failed:", error);
   }
+
+  // Migration: Ensure default agents do not auto-enable MCP tools
+  try {
+    const rows = sqlite.prepare(
+      "SELECT id, metadata FROM characters WHERE is_default = 1"
+    ).all() as Array<{ id: string; metadata: string }>;
+
+    let updatedCount = 0;
+    for (const row of rows) {
+      try {
+        const metadata = JSON.parse(row.metadata || "{}");
+        metadata.enabledMcpServers = [];
+        metadata.enabledMcpTools = [];
+        metadata.mcpToolPreferences = {};
+        sqlite.prepare(
+          "UPDATE characters SET metadata = ?, updated_at = datetime('now') WHERE id = ?"
+        ).run(JSON.stringify(metadata), row.id);
+        updatedCount++;
+      } catch (parseError) {
+        console.warn(`[SQLite Migration] Failed to update MCP defaults for character ${row.id}:`, parseError);
+      }
+    }
+
+    if (updatedCount > 0) {
+      console.log(`[SQLite Migration] Disabled MCP tools for ${updatedCount} default agent(s)`);
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
+  }
 }
 
 // Check if we're in a build environment (Next.js static generation)
