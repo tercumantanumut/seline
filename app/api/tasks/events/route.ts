@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder();
   let cleanup: (() => void) | null = null;
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  let onAbort: (() => void) | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
         onProgress: handleEvent,
       });
 
-      const heartbeatInterval = setInterval(() => {
+      heartbeatInterval = setInterval(() => {
         try {
           const heartbeat = JSON.stringify({
             type: "heartbeat",
@@ -80,12 +82,18 @@ export async function GET(request: NextRequest) {
           });
           controller.enqueue(encoder.encode(`data: ${heartbeat}\n\n`));
         } catch {
-          clearInterval(heartbeatInterval);
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
         }
       }, 30000);
 
-      request.signal.addEventListener("abort", () => {
-        clearInterval(heartbeatInterval);
+      onAbort = () => {
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
         if (cleanup) {
           cleanup();
           cleanup = null;
@@ -95,10 +103,19 @@ export async function GET(request: NextRequest) {
         } catch {
           // Already closed
         }
-      });
+      };
+      request.signal.addEventListener("abort", onAbort, { once: true });
     },
 
     cancel() {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+      if (onAbort) {
+        request.signal.removeEventListener("abort", onAbort);
+        onAbort = null;
+      }
       if (cleanup) {
         cleanup();
         cleanup = null;
