@@ -239,19 +239,40 @@ function getDefaultEnvironment(): Record<string, string> {
 function isProductionBuild(): boolean {
     // Check various indicators of a packaged Electron app
     const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
-    
+
     // Check for explicit production marker (set by Electron main process)
     const hasProductionMarker = process.env.SELINE_PRODUCTION_BUILD === "1";
-    
+
     // Check for resourcesPath (direct Electron) or ELECTRON_RESOURCES_PATH (Next.js server)
     const hasResourcesPath = !!(process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
         || !!process.env.ELECTRON_RESOURCES_PATH;
-    
+
     const isProduction = (hasProductionMarker || hasResourcesPath) && !isElectronDev;
-    
+
     console.log(`[MCP] isProductionBuild check: hasProductionMarker=${hasProductionMarker}, hasResourcesPath=${hasResourcesPath}, isElectronDev=${isElectronDev}, result=${isProduction}`);
-    
+
     return isProduction;
+}
+
+/**
+ * Detect if we're running in an Electron environment (main or renderer process)
+ * This checks for Electron-specific process properties
+ */
+function isElectronEnvironment(): boolean {
+    return (
+        typeof process !== 'undefined' &&
+        (
+            // Direct Electron indicator
+            !!process.versions?.electron ||
+            // Running as Electron node (ELECTRON_RUN_AS_NODE)
+            process.env.ELECTRON_RUN_AS_NODE === '1' ||
+            // Electron resources path indicators
+            !!(process as any).resourcesPath ||
+            !!process.env.ELECTRON_RESOURCES_PATH ||
+            // Electron user data path
+            !!process.env.ELECTRON_USER_DATA_PATH
+        )
+    );
 }
 
 export class StdioClientTransport implements Transport {
@@ -282,14 +303,27 @@ export class StdioClientTransport implements Transport {
                 console.log(`[MCP] Resolved command: ${this._serverParams.command} → ${resolvedSpawn.command}`);
             }
 
-            // Determine if we're in production
+            // Determine if we're in production or Electron environment
             const isProduction = isProductionBuild();
-            
-            // In production builds, ALWAYS use 'ignore' for stderr to prevent terminal windows
-            // This is critical for both Windows and macOS
-            const stderrConfig: IOType = isProduction ? "ignore" : (this._serverParams.stderr as IOType ?? "inherit");
+            const isElectron = isElectronEnvironment();
 
-            console.log(`[MCP] Spawn config: platform=${process.platform}, isProduction=${isProduction}, stderr=${stderrConfig}`);
+            // In production builds OR Electron environments, ALWAYS use 'ignore' for stderr
+            // This prevents:
+            // - Terminal windows in production (Windows and macOS)
+            // - EBADF errors in Electron (where stdio descriptors may be invalid)
+            // In Electron, we MUST avoid 'inherit' because stdio descriptors may not be valid,
+            // even in development mode, leading to spawn EBADF errors
+            const stderrConfig: IOType | Stream | number = (() => {
+                if (isProduction || isElectron) {
+                    // Use 'ignore' to avoid invalid descriptor issues
+                    return "ignore";
+                }
+                // Non-Electron dev: Allow user-specified stderr or default to 'pipe'
+                return this._serverParams.stderr ?? "pipe";
+            })();
+
+            const stderrLabel = typeof stderrConfig === "string" ? stderrConfig : "stream";
+            console.log(`[MCP] Spawn config: platform=${process.platform}, isProduction=${isProduction}, isElectron=${isElectron}, stderr=${stderrLabel}`);
 
             const spawnOptions: any = {
                 env: {
