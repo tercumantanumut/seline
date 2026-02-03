@@ -42,6 +42,7 @@ export const agentRuns = sqliteTable("agent_runs", {
   
   // Timing
   startedAt: text("started_at").default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
   completedAt: text("completed_at"),
   durationMs: integer("duration_ms"),
   
@@ -207,4 +208,3 @@ export type AgentRunEventType =
 export type AgentRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 export type AgentRunTriggerType = "chat" | "api" | "job" | "cron" | "webhook" | "tool";
 export type EventLevel = "debug" | "info" | "warn" | "error";
-

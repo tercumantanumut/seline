@@ -32,8 +32,8 @@ import {
 import { useTranslations, useFormatter } from "next-intl";
 import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
 import { toast } from "sonner";
-import type { TaskEvent } from "@/lib/scheduler/task-events";
-import { useActiveTasksStore } from "@/lib/stores/active-tasks-store";
+import type { TaskEvent } from "@/lib/background-tasks/types";
+import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 
 interface CharacterFullData {
     id: string;
@@ -183,12 +183,17 @@ export default function ChatInterface({
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
-    const activeTasks = useActiveTasksStore((state) => state.activeTasks);
-    const activeTaskForSession = sessionId ? activeTasks.find((task) => task.sessionId === sessionId) : undefined;
+    const activeTasks = useUnifiedTasksStore((state) => state.tasks);
+    const completeTask = useUnifiedTasksStore((state) => state.completeTask);
+    const activeTaskForSession = sessionId
+        ? activeTasks.find((task) => task.sessionId === sessionId && task.type === "scheduled")
+        : undefined;
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
+    const [isCancellingBackgroundRun, setIsCancellingBackgroundRun] = useState(false);
     const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
     const [processingRunId, setProcessingRunId] = useState<string | null>(null);
+    const [isZombieRun, setIsZombieRun] = useState(false);
     const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
@@ -260,7 +265,10 @@ export default function ChatInterface({
 
     const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
         try {
-            const response = await fetch(`/api/sessions/${targetSessionId}`);
+            const response = await fetch(`/api/sessions/${targetSessionId}`, {
+                cache: "no-store",
+                headers: { "Cache-Control": "no-cache" },
+            });
             if (response.ok) {
                 const data = await response.json();
                 const dbMessages = (data.messages || []) as DBMessage[];
@@ -297,7 +305,10 @@ export default function ChatInterface({
     const refreshMessages = useCallback(async () => {
         try {
             console.log("[Background Processing] Fetching updated messages for session:", sessionId);
-            const response = await fetch(`/api/sessions/${sessionId}/messages`);
+            const response = await fetch(`/api/sessions/${sessionId}/messages`, {
+                cache: "no-store",
+                headers: { "Cache-Control": "no-cache" },
+            });
             if (response.ok) {
                 const data = await response.json();
                 console.log("[Background Processing] Received messages:", data.messages?.length || 0);
@@ -329,6 +340,7 @@ export default function ChatInterface({
             clearInterval(pollingIntervalRef.current);
         }
 
+        setIsZombieRun(false);
         let pollCount = 0;
         const maxPolls = 150; // 5 minutes at 2s intervals
 
@@ -344,14 +356,26 @@ export default function ChatInterface({
                 }
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
+                setIsZombieRun(false);
                 return;
             }
 
             try {
-                const response = await fetch(`/api/agent-runs/${runId}/status`);
+                const response = await fetch(`/api/agent-runs/${runId}/status`, {
+                    cache: "no-store",
+                    headers: { "Cache-Control": "no-cache" },
+                });
                 const data = await response.json();
 
                 console.log(`[Background Processing] Poll #${pollCount}: status=${data.status}`);
+
+                if (data.status === "running") {
+                    setIsZombieRun(Boolean(data.isZombie));
+                    if (sessionId && document.visibilityState === "visible") {
+                        await reloadSessionMessages(sessionId);
+                    }
+                    return;
+                }
 
                 if (data.status !== "running") {
                     // Run completed - fetch updated messages
@@ -362,6 +386,7 @@ export default function ChatInterface({
                     }
                     setIsProcessingInBackground(false);
                     setProcessingRunId(null);
+                    setIsZombieRun(false);
                     await refreshMessages();
                 }
             } catch (error) {
@@ -369,13 +394,16 @@ export default function ChatInterface({
                 // Continue polling on error (network might recover)
             }
         }, 2000); // Poll every 2 seconds
-    }, [refreshMessages]);
+    }, [refreshMessages, reloadSessionMessages, sessionId]);
 
     // Check for active run on mount and when sessionId changes
     useEffect(() => {
         async function checkActiveRun() {
             try {
-                const response = await fetch(`/api/sessions/${sessionId}/active-run`);
+                const response = await fetch(`/api/sessions/${sessionId}/active-run`, {
+                    cache: "no-store",
+                    headers: { "Cache-Control": "no-cache" },
+                });
                 if (response.ok) {
                     const data = await response.json();
                     if (data.hasActiveRun) {
@@ -383,6 +411,7 @@ export default function ChatInterface({
                         setIsProcessingInBackground(true);
                         setProcessingRunId(data.runId);
                         startPollingForCompletion(data.runId);
+                        void reloadSessionMessages(sessionId);
                     }
                 }
             } catch (error) {
@@ -404,16 +433,96 @@ export default function ChatInterface({
     }, [sessionId, startPollingForCompletion]);
 
     useEffect(() => {
-        if (activeTaskForSession) {
+        if (!processingRunId || !sessionId) {
+            return;
+        }
+
+        if (!pollingIntervalRef.current) {
+            startPollingForCompletion(processingRunId);
+        }
+    }, [processingRunId, sessionId, startPollingForCompletion]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+            if (processingRunId && sessionId) {
+                startPollingForCompletion(processingRunId);
+                void reloadSessionMessages(sessionId);
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibility);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [processingRunId, reloadSessionMessages, sessionId, startPollingForCompletion]);
+
+    useEffect(() => {
+        if (activeTaskForSession?.type === "scheduled") {
             setActiveRun({
                 runId: activeTaskForSession.runId,
-                taskName: activeTaskForSession.taskName,
+                taskName: activeTaskForSession.taskName || "Scheduled task",
                 startedAt: activeTaskForSession.startedAt,
             });
         } else {
             setActiveRun(null);
         }
     }, [activeTaskForSession]);
+
+    useEffect(() => {
+        if (!activeTaskForSession?.runId) {
+            return;
+        }
+
+        let isCancelled = false;
+        let interval: NodeJS.Timeout | null = null;
+
+        const pollRunStatus = async () => {
+            try {
+                const response = await fetch(`/api/schedules/runs/${activeTaskForSession.runId}/status`, {
+                    cache: "no-store",
+                    headers: { "Cache-Control": "no-cache" },
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                if (isCancelled) return;
+
+                if (!["pending", "queued", "running"].includes(data.status)) {
+                    completeTask({
+                        ...activeTaskForSession,
+                        status: data.status,
+                        completedAt: data.completedAt ?? new Date().toISOString(),
+                        durationMs: data.durationMs ?? activeTaskForSession.durationMs,
+                    });
+                    setActiveRun(null);
+                    if (interval) {
+                        clearInterval(interval);
+                        interval = null;
+                    }
+                }
+            } catch (error) {
+                console.error("[Scheduled Run] Status polling error:", error);
+            }
+        };
+
+        pollRunStatus();
+        interval = setInterval(pollRunStatus, 5000);
+
+        return () => {
+            isCancelled = true;
+            if (interval) {
+                clearInterval(interval);
+            }
+        };
+    }, [activeTaskForSession, completeTask]);
 
     const switchSession = useCallback(
         async (newSessionId: string) => {
@@ -539,6 +648,29 @@ export default function ChatInterface({
         }
     }, [activeRun, sessionId, t]);
 
+    const handleCancelBackgroundRun = useCallback(async () => {
+        if (!processingRunId) {
+            return;
+        }
+        setIsCancellingBackgroundRun(true);
+        try {
+            const response = await fetch(`/api/agent-runs/${processingRunId}/cancel`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            });
+            if (!response.ok) {
+                throw new Error("Failed to cancel run");
+            }
+            toast.success(t("backgroundRun.cancelled"));
+            setIsZombieRun(false);
+        } catch (err) {
+            console.error("Failed to cancel background run:", err);
+            toast.error(t("backgroundRun.cancelError"));
+        } finally {
+            setIsCancellingBackgroundRun(false);
+        }
+    }, [processingRunId, t]);
+
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
@@ -548,7 +680,7 @@ export default function ChatInterface({
             const detail = (event as CustomEvent<TaskEvent>).detail;
             if (!detail) return;
 
-            if (detail.sessionId && detail.sessionId === sessionId) {
+            if (detail.eventType === "task:completed" && detail.task.type === "scheduled" && detail.task.sessionId === sessionId) {
                 // Debounce the reload to allow final progress update to settle
                 if (reloadDebounceRef.current) {
                     clearTimeout(reloadDebounceRef.current);
@@ -560,14 +692,14 @@ export default function ChatInterface({
                 }, 150); // Small delay to let final state settle
 
                 setActiveRun((current) => {
-                    if (current?.runId === detail.runId) {
+                    if (current?.runId === detail.task.runId) {
                         return null;
                     }
                     return current;
                 });
             }
 
-            if (detail.characterId === character.id) {
+            if (detail.eventType === "task:completed" && detail.task.characterId === character.id) {
                 void loadSessions();
             }
         };
@@ -576,26 +708,26 @@ export default function ChatInterface({
             const detail = (event as CustomEvent<TaskEvent>).detail;
             if (!detail) return;
 
-            if (detail.sessionId && detail.sessionId === sessionId) {
+            if (detail.eventType === "task:started" && detail.task.type === "scheduled" && detail.task.sessionId === sessionId) {
                 setActiveRun({
-                    runId: detail.runId,
-                    taskName: detail.taskName,
-                    startedAt: detail.startedAt,
+                    runId: detail.task.runId,
+                    taskName: detail.task.taskName,
+                    startedAt: detail.task.startedAt,
                 });
                 void reloadSessionMessages(sessionId);
             }
 
-            if (detail.characterId === character.id) {
+            if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
                 void loadSessions();
             }
         };
 
-        window.addEventListener("scheduled-task-completed", handleTaskCompleted);
-        window.addEventListener("scheduled-task-started", handleTaskStarted);
+        window.addEventListener("background-task-completed", handleTaskCompleted);
+        window.addEventListener("background-task-started", handleTaskStarted);
 
         return () => {
-            window.removeEventListener("scheduled-task-completed", handleTaskCompleted);
-            window.removeEventListener("scheduled-task-started", handleTaskStarted);
+            window.removeEventListener("background-task-completed", handleTaskCompleted);
+            window.removeEventListener("background-task-started", handleTaskStarted);
         };
     }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
 
@@ -633,7 +765,7 @@ export default function ChatInterface({
 
         const handleTaskProgress = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
-            if (!detail || detail.sessionId !== sessionId) {
+            if (!detail || detail.eventType !== "task:progress" || detail.sessionId !== sessionId) {
                 return;
             }
             const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
@@ -662,9 +794,15 @@ export default function ChatInterface({
             lastProgressSignatureRef.current = contentSignature;
 
             // Only convert if we have new content
-            const progressParts = detail.progressContent?.length
+            let progressParts = detail.progressContent?.length
                 ? convertContentPartsToUIParts(detail.progressContent as DBContentPart[])
-                : ([{ type: "text", text: detail.progressText }] as UIMessage["parts"]);
+                : ([] as UIMessage["parts"]);
+
+            if (!progressParts || progressParts.length === 0) {
+                if (detail.progressText?.trim()) {
+                    progressParts = [{ type: "text", text: detail.progressText }] as UIMessage["parts"];
+                }
+            }
 
             // Cache the converted parts
             lastProgressPartsRef.current = progressParts;
@@ -697,12 +835,14 @@ export default function ChatInterface({
                     messages: nextMessages,
                 };
             });
-            refreshSessionTimestamp(detail.sessionId);
+            if (detail.sessionId) {
+                refreshSessionTimestamp(detail.sessionId);
+            }
         };
 
-        window.addEventListener("scheduled-task-progress", handleTaskProgress);
+        window.addEventListener("background-task-progress", handleTaskProgress);
         return () => {
-            window.removeEventListener("scheduled-task-progress", handleTaskProgress);
+            window.removeEventListener("background-task-progress", handleTaskProgress);
             // Reset memoization refs when effect cleans up
             lastProgressSignatureRef.current = "";
             lastProgressPartsRef.current = null;
@@ -829,29 +969,32 @@ export default function ChatInterface({
                     initialMessages={messages}
                 >
                     <div className="flex h-full flex-col gap-3">
-                        {activeRun && (
-                            <ScheduledRunBanner
-                                run={activeRun}
-                                onCancel={handleCancelRun}
-                                cancelling={isCancellingRun}
-                            />
-                        )}
-                        {isProcessingInBackground && (
-                            <div className="flex items-center gap-3 px-4 py-3 bg-terminal-cream/50 border-b border-terminal-border">
-                                <div className="flex items-center gap-2 flex-1">
-                                    <Loader2 className="w-4 h-4 animate-spin text-terminal-green" />
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-sm text-terminal-dark font-mono font-medium">
-                                            {t("processingInBackground")}
-                                        </span>
-                                        <span className="text-xs text-terminal-muted font-mono">
-                                            {t("processingInBackgroundHint")}
-                                        </span>
-                                    </div>
-                                </div>
+                        {(activeRun || isProcessingInBackground) && (
+                            <div className="px-4 pt-2 space-y-2">
+                                {activeRun && (
+                                    <ScheduledRunBanner
+                                        run={activeRun}
+                                        onCancel={handleCancelRun}
+                                        cancelling={isCancellingRun}
+                                    />
+                                )}
+                                {isProcessingInBackground && !activeRun && (
+                                    <BackgroundProcessingBanner
+                                        title={t("processingInBackground")}
+                                        hint={isZombieRun ? t("backgroundRun.zombieHint") : t("processingInBackgroundHint")}
+                                        onCancel={handleCancelBackgroundRun}
+                                        cancelling={isCancellingBackgroundRun}
+                                        canCancel={Boolean(processingRunId)}
+                                        isZombie={isZombieRun}
+                                    />
+                                )}
                             </div>
                         )}
-                        <Thread onSessionActivity={handleSessionActivity} />
+                        <Thread
+                            onSessionActivity={handleSessionActivity}
+                            footer={isProcessingInBackground ? <BackgroundProgressPlaceholder /> : null}
+                            isBackgroundTaskRunning={Boolean(activeRun || isProcessingInBackground)}
+                        />
                     </div>
                 </ChatProvider>
             </CharacterProvider>
@@ -876,6 +1019,28 @@ function ChatSidebarHeader({
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-mono">{label}</span>
         </Button>
+    );
+}
+
+function BackgroundProgressPlaceholder() {
+    return (
+        <div className="mx-auto mb-10 mt-6 w-full max-w-4xl rounded-2xl bg-terminal-cream/70 p-6 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
+                <Loader2 className="h-3 w-3 animate-spin text-terminal-green" />
+                <span>Fetching live updates...</span>
+            </div>
+            <div className="mt-5 space-y-3">
+                <div className="h-3 w-11/12 rounded-full bg-terminal-green/15 animate-pulse" />
+                <div className="h-3 w-5/6 rounded-full bg-terminal-green/10 animate-pulse" />
+                <div className="h-3 w-4/6 rounded-full bg-terminal-green/10 animate-pulse" />
+                <div className="h-3 w-2/3 rounded-full bg-terminal-green/10 animate-pulse" />
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
+                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
+                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
+            </div>
+        </div>
     );
 }
 
@@ -1456,13 +1621,13 @@ function ScheduledRunBanner({
     const t = useTranslations("chat");
 
     return (
-        <div className="rounded-lg border border-terminal-dark/15 bg-terminal-dark/5 p-3 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-xl border border-terminal-border/60 bg-terminal-cream/80 shadow-sm">
+            <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
-                    <Loader2 className="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin text-terminal-green" />
+                    <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/60" />
                     <div className="space-y-1">
                         <p className="font-mono text-sm text-terminal-dark">
-                            {t("scheduledRun.active", { taskName: run.taskName })}
+                            {t("scheduledRun.active", { taskName: run.taskName || "Scheduled task" })}
                         </p>
                         <p className="text-xs text-terminal-muted">
                             {t("scheduledRun.description")}
@@ -1491,6 +1656,64 @@ function ScheduledRunBanner({
                             <>
                                 <CircleStop className="mr-2 h-4 w-4" />
                                 {t("scheduledRun.stop")}
+                            </>
+                        )}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function BackgroundProcessingBanner({
+    title,
+    hint,
+    onCancel,
+    cancelling,
+    canCancel,
+    isZombie,
+}: {
+    title: string;
+    hint: string;
+    onCancel: () => void;
+    cancelling: boolean;
+    canCancel: boolean;
+    isZombie: boolean;
+}) {
+    const t = useTranslations("chat");
+
+    return (
+        <div className="rounded-xl border border-terminal-border/50 bg-terminal-cream/70 shadow-sm">
+            <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/30" />
+                <div className="flex items-start gap-2 flex-1">
+                    <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-terminal-green" />
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-sm text-terminal-dark font-mono font-medium">
+                            {title}
+                        </span>
+                        <span className="text-xs text-terminal-muted font-mono">
+                            {hint}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        className="font-mono"
+                        onClick={onCancel}
+                        disabled={cancelling || !canCancel}
+                    >
+                        {cancelling ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {t("backgroundRun.stopping")}
+                            </>
+                        ) : (
+                            <>
+                                <CircleStop className="mr-2 h-4 w-4" />
+                                {isZombie ? t("backgroundRun.forceStop") : t("backgroundRun.stop")}
                             </>
                         )}
                     </Button>

@@ -139,18 +139,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
     let bufferedDelta = "";
     let lastTextId: string | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const flushBuffer = (
-      controller: TransformStreamDefaultController<UIMessageChunk>,
-    ) => {
-      if (!bufferedDelta || !lastTextId) return;
-      controller.enqueue({
-        type: "text-delta",
-        id: lastTextId,
-        delta: bufferedDelta,
-      } as UIMessageChunk);
-      bufferedDelta = "";
-    };
+    let streamErrored = false;
 
     const clearTimer = () => {
       if (flushTimer) {
@@ -159,9 +148,41 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
       }
     };
 
+    const safeEnqueue = (
+      controller: TransformStreamDefaultController<UIMessageChunk>,
+      chunk: UIMessageChunk,
+    ) => {
+      if (streamErrored) return false;
+      try {
+        controller.enqueue(chunk);
+        return true;
+      } catch {
+        streamErrored = true;
+        clearTimer();
+        bufferedDelta = "";
+        return false;
+      }
+    };
+
+    const flushBuffer = (
+      controller: TransformStreamDefaultController<UIMessageChunk>,
+    ) => {
+      if (!bufferedDelta || !lastTextId) return;
+      if (!safeEnqueue(controller, {
+        type: "text-delta",
+        id: lastTextId,
+        delta: bufferedDelta,
+      } as UIMessageChunk)) {
+        bufferedDelta = "";
+        return;
+      }
+      bufferedDelta = "";
+    };
+
     const scheduleFlush = (
       controller: TransformStreamDefaultController<UIMessageChunk>,
     ) => {
+      if (streamErrored) return;
       if (flushTimer) return;
       flushTimer = setTimeout(() => {
         flushTimer = null;
@@ -172,12 +193,13 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
     return baseStream.pipeThrough(
       new TransformStream<UIMessageChunk, UIMessageChunk>({
         transform(chunk, controller) {
+          if (streamErrored) return;
           switch (chunk.type) {
             case "text-start": {
               // Flush anything pending before a new text stream begins.
               flushBuffer(controller);
               lastTextId = chunk.id;
-              controller.enqueue(chunk);
+              safeEnqueue(controller, chunk);
               return;
             }
             case "text-delta": {
@@ -198,14 +220,14 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               // Ensure final buffered text is emitted before the end marker.
               clearTimer();
               flushBuffer(controller);
-              controller.enqueue(chunk);
+              safeEnqueue(controller, chunk);
               return;
             }
             default: {
               // Tool and control events should not be delayed.
               clearTimer();
               flushBuffer(controller);
-              controller.enqueue(chunk);
+              safeEnqueue(controller, chunk);
               return;
             }
           }

@@ -18,10 +18,11 @@ import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-se
 import { MCPSettings } from "@/components/settings/mcp-settings";
 
 interface AppSettings {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   kimiApiKey?: string;
+  ollamaBaseUrl?: string;
   tavilyApiKey?: string;
   firecrawlApiKey?: string;
   webScraperProvider?: "firecrawl" | "local";
@@ -89,10 +90,11 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState({
-    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi",
+    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama",
     anthropicApiKey: "",
     openrouterApiKey: "",
     kimiApiKey: "",
+    ollamaBaseUrl: "http://localhost:11434/v1",
     tavilyApiKey: "",
     firecrawlApiKey: "",
     webScraperProvider: "firecrawl" as "firecrawl" | "local",
@@ -179,6 +181,7 @@ export default function SettingsPage() {
         anthropicApiKey: data.anthropicApiKey || "",
         openrouterApiKey: data.openrouterApiKey || "",
         kimiApiKey: data.kimiApiKey || "",
+        ollamaBaseUrl: data.ollamaBaseUrl || "http://localhost:11434/v1",
         tavilyApiKey: data.tavilyApiKey || "",
         firecrawlApiKey: data.firecrawlApiKey || "",
         webScraperProvider: data.webScraperProvider || "firecrawl",
@@ -647,10 +650,11 @@ export default function SettingsPage() {
 }
 
 interface FormState {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
   anthropicApiKey: string;
   openrouterApiKey: string;
   kimiApiKey: string;
+  ollamaBaseUrl: string;
   tavilyApiKey: string;
   firecrawlApiKey: string;
   webScraperProvider: "firecrawl" | "local";
@@ -928,7 +932,7 @@ function SettingsPanel({
                 value="anthropic"
                 checked={formState.llmProvider === "anthropic"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -945,7 +949,7 @@ function SettingsPanel({
                 value="openrouter"
                 checked={formState.llmProvider === "openrouter"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -959,10 +963,27 @@ function SettingsPanel({
               <input
                 type="radio"
                 name="llmProvider"
+                value="ollama"
+                checked={formState.llmProvider === "ollama"}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
+                className="size-4 accent-terminal-green"
+              />
+              <span className="font-mono text-terminal-dark">Ollama (local)</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="radio"
+                name="llmProvider"
                 value="kimi"
                 checked={formState.llmProvider === "kimi"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -979,7 +1000,7 @@ function SettingsPanel({
                 value="codex"
                 checked={formState.llmProvider === "codex"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1005,7 +1026,7 @@ function SettingsPanel({
                 value="antigravity"
                 checked={formState.llmProvider === "antigravity"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1105,6 +1126,22 @@ function SettingsPanel({
 
         <div className="space-y-4">
           <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("api.keysTitle")}</h2>
+
+          {formState.llmProvider === "ollama" && (
+            <div>
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">Ollama Base URL</label>
+              <input
+                type="text"
+                value={formState.ollamaBaseUrl}
+                onChange={(e) => updateField("ollamaBaseUrl", e.target.value)}
+                placeholder="http://localhost:11434/v1"
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Point this to your local Ollama OpenAI-compatible endpoint.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.anthropic.label")}</label>
@@ -1280,8 +1317,11 @@ function SettingsPanel({
                 value={formState.chatModel ?? ""}
                 onChange={(e) => updateField("chatModel", e.target.value)}
                 placeholder={
-                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                    "x-ai/grok-4.1-fast"
+                  formState.llmProvider === "anthropic"
+                    ? "claude-sonnet-4-5-20250929"
+                    : formState.llmProvider === "ollama"
+                      ? "llama3.1:8b"
+                      : "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -1335,8 +1375,11 @@ function SettingsPanel({
                 value={formState.researchModel ?? ""}
                 onChange={(e) => updateField("researchModel", e.target.value)}
                 placeholder={
-                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                    "x-ai/grok-4.1-fast"
+                  formState.llmProvider === "anthropic"
+                    ? "claude-sonnet-4-5-20250929"
+                    : formState.llmProvider === "ollama"
+                      ? "llama3.1:8b"
+                      : "x-ai/grok-4.1-fast"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -1390,8 +1433,11 @@ function SettingsPanel({
                 value={formState.visionModel ?? ""}
                 onChange={(e) => updateField("visionModel", e.target.value)}
                 placeholder={
-                  formState.llmProvider === "anthropic" ? "claude-sonnet-4-5-20250929" :
-                    "google/gemini-2.0-flash-001"
+                  formState.llmProvider === "anthropic"
+                    ? "claude-sonnet-4-5-20250929"
+                    : formState.llmProvider === "ollama"
+                      ? "llama3.1:8b"
+                      : "google/gemini-2.0-flash-001"
                 }
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
@@ -1444,7 +1490,7 @@ function SettingsPanel({
                 type="text"
                 value={formState.utilityModel ?? ""}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
-                placeholder="google/gemini-2.0-flash-lite-001"
+                placeholder={formState.llmProvider === "ollama" ? "llama3.1:8b" : "google/gemini-2.0-flash-lite-001"}
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
             )}
@@ -2199,4 +2245,3 @@ function MemorySection() {
     </div>
   );
 }
-

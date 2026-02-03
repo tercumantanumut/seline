@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { listAgentRunsBySession, completeAgentRun } from "@/lib/observability/queries";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { isStale } from "@/lib/utils/timestamp";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -23,9 +24,8 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     // Auto-expire stale runs (>10 min) as a safety net
     if (activeRun) {
-      const startedAt = new Date(activeRun.startedAt).getTime();
       const TEN_MINUTES = 10 * 60 * 1000;
-      if (Date.now() - startedAt > TEN_MINUTES) {
+      if (isStale(activeRun.startedAt, TEN_MINUTES)) {
         await completeAgentRun(activeRun.id, "failed", { error: "stale_run_cleanup" });
         activeRun = undefined;
       }

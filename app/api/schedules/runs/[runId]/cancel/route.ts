@@ -13,6 +13,7 @@ import { db } from "@/lib/db/sqlite-client";
 import { scheduledTaskRuns } from "@/lib/db/sqlite-schedule-schema";
 import { eq } from "drizzle-orm";
 import { getScheduler, startScheduler } from "@/lib/scheduler/scheduler-service";
+import { nowISO } from "@/lib/utils/timestamp";
 
 export async function POST(
   req: NextRequest,
@@ -52,7 +53,7 @@ export async function POST(
         await db.update(scheduledTaskRuns)
           .set({
             status: "cancelled",
-            completedAt: new Date().toISOString(),
+            completedAt: nowISO(),
           })
           .where(eq(scheduledTaskRuns.id, runId));
       } else {

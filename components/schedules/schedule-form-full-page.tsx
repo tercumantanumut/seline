@@ -40,6 +40,22 @@ import {
 import { TEMPLATE_VARIABLES } from "@/lib/scheduler/template-variables";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
 
+type DeliveryMethodOption = "session" | "channel";
+
+interface ChannelConversationOption {
+    id: string;
+    connectionId: string;
+    channelType: "whatsapp" | "telegram" | "slack";
+    peerId: string;
+    peerName?: string | null;
+    threadId?: string | null;
+    connection?: {
+        id: string;
+        channelType: "whatsapp" | "telegram" | "slack";
+        displayName?: string | null;
+    } | null;
+}
+
 interface ScheduleFormFullPageProps {
     characterId: string;
     characterName?: string;
@@ -100,6 +116,14 @@ export function ScheduleFormFullPage({
         (schedule?.priority as "low" | "normal" | "high") ?? "normal"
     );
     const [maxRetries, setMaxRetries] = useState(schedule?.maxRetries ?? 3);
+    const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodOption>(
+        schedule?.deliveryMethod === "channel" ? "channel" : "session"
+    );
+    const [channelTargets, setChannelTargets] = useState<ChannelConversationOption[]>([]);
+    const [selectedTargetId, setSelectedTargetId] = useState<string>("");
+    const initialTargetIdRef = useRef<string | null>(null);
+    const [isLoadingTargets, setIsLoadingTargets] = useState(false);
+    const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
 
     const [showVariableHelp, setShowVariableHelp] = useState(false);
 
@@ -134,7 +158,9 @@ export function ScheduleFormFullPage({
             prompt !== (schedule?.initialPrompt ?? "") ||
             priority !== ((schedule?.priority as any) ?? "normal") ||
             timezone !== (schedule?.timezone ?? (localValue ?? "UTC")) ||
-            effectiveCron !== (schedule?.cronExpression ?? existingCron);
+            effectiveCron !== (schedule?.cronExpression ?? existingCron) ||
+            deliveryMethod !== (schedule?.deliveryMethod === "channel" ? "channel" : "session") ||
+            selectedTargetId !== (initialTargetIdRef.current ?? "");
 
         setIsDirty(hasChanges);
     }, [name, description, prompt, priority, timezone, effectiveCron, schedule, localValue, existingCron]);
@@ -159,6 +185,12 @@ export function ScheduleFormFullPage({
             return;
         }
 
+        const selectedTarget = channelTargets.find((target) => target.id === selectedTargetId);
+        if (deliveryMethod === "channel" && !selectedTarget) {
+            setError(t("validation.deliveryTargetRequired"));
+            return;
+        }
+
         setIsSubmitting(true);
         setError(null);
 
@@ -173,6 +205,14 @@ export function ScheduleFormFullPage({
                 priority,
                 maxRetries,
                 status: "active",
+                deliveryMethod: deliveryMethod === "channel" ? "channel" : "session",
+                deliveryConfig: deliveryMethod === "channel" && selectedTarget
+                    ? {
+                        connectionId: selectedTarget.connectionId,
+                        peerId: selectedTarget.peerId,
+                        threadId: selectedTarget.threadId ?? null,
+                    }
+                    : {},
             });
             router.replace(`/agents/${characterId}/schedules`);
         } catch (err) {
@@ -186,6 +226,12 @@ export function ScheduleFormFullPage({
         setIsSubmitting(true);
         setError(null);
         try {
+            const selectedTarget = channelTargets.find((target) => target.id === selectedTargetId);
+            if (deliveryMethod === "channel" && !selectedTarget) {
+                setError(t("validation.deliveryTargetRequired"));
+                setIsSubmitting(false);
+                return;
+            }
             await onSubmit({
                 name: name.trim() || t("untitledDraft"),
                 description: description.trim() || undefined,
@@ -197,6 +243,14 @@ export function ScheduleFormFullPage({
                 maxRetries,
                 status: "draft",
                 enabled: false,
+                deliveryMethod: deliveryMethod === "channel" ? "channel" : "session",
+                deliveryConfig: deliveryMethod === "channel" && selectedTarget
+                    ? {
+                        connectionId: selectedTarget.connectionId,
+                        peerId: selectedTarget.peerId,
+                        threadId: selectedTarget.threadId ?? null,
+                    }
+                    : {},
             });
             toast.success(t("draftSaved"));
             router.replace(`/agents/${characterId}/schedules`);
@@ -214,6 +268,72 @@ export function ScheduleFormFullPage({
             setPrompt((prev) => prev + variable);
         }
     };
+
+    const getTargetLabel = (target: ChannelConversationOption) => {
+        const connectionLabel = target.connection?.displayName
+            ? `${target.connection.displayName}`
+            : target.connection?.channelType
+                ? target.connection.channelType.toUpperCase()
+                : target.channelType.toUpperCase();
+        const peerLabel = target.peerName || target.peerId;
+        const threadLabel = target.threadId ? ` • ${t("delivery.thread")}` : "";
+        return `${connectionLabel} — ${peerLabel}${threadLabel}`;
+    };
+
+    useEffect(() => {
+        let ignore = false;
+        const loadTargets = async () => {
+            setIsLoadingTargets(true);
+            setTargetLoadError(null);
+            try {
+                const response = await fetch(`/api/channels/conversations?characterId=${characterId}`);
+                if (!response.ok) {
+                    throw new Error("Failed to load channel targets");
+                }
+                const data = await response.json();
+                const allTargets = (data.conversations || []) as ChannelConversationOption[];
+                const filtered = allTargets.filter((target) => target.channelType !== "whatsapp");
+                if (!ignore) {
+                    setChannelTargets(filtered);
+                }
+            } catch {
+                if (!ignore) {
+                    setTargetLoadError(t("delivery.loadError"));
+                }
+            } finally {
+                if (!ignore) {
+                    setIsLoadingTargets(false);
+                }
+            }
+        };
+
+        loadTargets();
+        return () => {
+            ignore = true;
+        };
+    }, [characterId, t]);
+
+    useEffect(() => {
+        if (deliveryMethod !== "channel") {
+            return;
+        }
+        const config = schedule?.deliveryConfig as { connectionId?: string; peerId?: string; threadId?: string | null } | undefined;
+        if (!config || !config.connectionId || !config.peerId) {
+            return;
+        }
+        const match = channelTargets.find(
+            (target) =>
+                target.connectionId === config.connectionId &&
+                target.peerId === config.peerId &&
+                (target.threadId ?? null) === (config.threadId ?? null)
+        );
+        if (match && !selectedTargetId) {
+            setSelectedTargetId(match.id);
+            if (!initialTargetIdRef.current) {
+                initialTargetIdRef.current = match.id;
+            }
+        }
+    }, [channelTargets, deliveryMethod, schedule?.deliveryConfig, selectedTargetId]);
 
     const handleCancel = () => {
         if (isDirty) {
@@ -484,6 +604,68 @@ export function ScheduleFormFullPage({
                                     className="font-mono"
                                 />
                             </div>
+                        </div>
+
+                        {/* Delivery Settings */}
+                        <div className="space-y-4 p-4 bg-terminal-cream/50 rounded-lg border border-terminal-border">
+                            <div className="space-y-1">
+                                <Label className="text-xs text-terminal-muted uppercase tracking-wider">
+                                    {t("delivery.label")}
+                                </Label>
+                                <Select
+                                    value={deliveryMethod}
+                                    onValueChange={(value) => setDeliveryMethod(value as DeliveryMethodOption)}
+                                >
+                                    <SelectTrigger className="font-mono">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="session" className="font-mono">
+                                            {t("delivery.session")}
+                                        </SelectItem>
+                                        <SelectItem value="channel" className="font-mono">
+                                            {t("delivery.channel")}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-terminal-muted">
+                                    {t("delivery.hint")}
+                                </p>
+                            </div>
+
+                            {deliveryMethod === "channel" && (
+                                <div className="space-y-2">
+                                    <Label className="text-xs text-terminal-muted uppercase tracking-wider">
+                                        {t("delivery.target")}
+                                    </Label>
+                                    <Select
+                                        value={selectedTargetId}
+                                        onValueChange={setSelectedTargetId}
+                                        disabled={isLoadingTargets}
+                                    >
+                                        <SelectTrigger className="font-mono">
+                                            <SelectValue placeholder={t("delivery.targetPlaceholder")} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {channelTargets.length === 0 && (
+                                                <SelectItem value="__empty" disabled className="font-mono">
+                                                    {t("delivery.empty")}
+                                                </SelectItem>
+                                            )}
+                                            {channelTargets.map((target) => (
+                                                <SelectItem key={target.id} value={target.id} className="font-mono">
+                                                    {getTargetLabel(target)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {targetLoadError && (
+                                        <p className="text-xs text-red-600">
+                                            {targetLoadError}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

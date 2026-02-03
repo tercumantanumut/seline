@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
       timeoutMs,
       priority,
       status,
+      deliveryMethod,
+      deliveryConfig,
       createNewSessionPerRun,
     } = body;
 
@@ -119,6 +121,8 @@ export async function POST(req: NextRequest) {
       timeoutMs: timeoutMs ?? 300000,
       priority,
       status: status || "active",
+      deliveryMethod: deliveryMethod || "session",
+      deliveryConfig: deliveryConfig || {},
       createNewSessionPerRun: createNewSessionPerRun ?? true,
     }).returning();
 
@@ -136,4 +140,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

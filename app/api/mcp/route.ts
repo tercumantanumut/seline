@@ -72,7 +72,7 @@ export async function PUT(request: NextRequest) {
                 .map(([name]) => name)
         );
 
-        const disconnectedServers = await manager.syncWithConfig(configuredServers);
+        const { disconnectedServers, deferred } = await manager.syncWithConfigSafely(configuredServers);
 
         // Clean up tools from registry for disconnected servers
         for (const serverName of disconnectedServers) {
@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({
             success: true,
             disconnectedServers: disconnectedServers.length,
+            deferred,
         });
     } catch (error) {
         console.error("[MCP API] Error:", error);
@@ -111,4 +112,3 @@ function maskEnvironment(env: Record<string, string>): Record<string, string> {
     }
     return masked;
 }
-

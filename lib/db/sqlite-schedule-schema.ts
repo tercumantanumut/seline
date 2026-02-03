@@ -60,7 +60,7 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
 
   // === Delivery Options ===
   deliveryMethod: text("delivery_method", {
-    enum: ["session", "email", "slack", "webhook"]
+    enum: ["session", "email", "slack", "webhook", "channel"]
   }).default("session").notNull(),
   deliveryConfig: text("delivery_config", { mode: "json" }).default("{}").notNull(),
 
@@ -173,7 +173,7 @@ export type TemplateVariable =
   | string;
 
 // Delivery configuration types
-export type DeliveryMethod = "session" | "email" | "slack" | "webhook";
+export type DeliveryMethod = "session" | "email" | "slack" | "webhook" | "channel";
 
 export interface EmailDeliveryConfig {
   recipients: string[];
@@ -194,4 +194,15 @@ export interface WebhookDeliveryConfig {
   includeMetadata?: boolean;
 }
 
-export type DeliveryConfig = EmailDeliveryConfig | SlackDeliveryConfig | WebhookDeliveryConfig | Record<string, unknown>;
+export interface ChannelDeliveryConfig {
+  connectionId: string;
+  peerId: string;
+  threadId?: string | null;
+}
+
+export type DeliveryConfig =
+  | EmailDeliveryConfig
+  | SlackDeliveryConfig
+  | WebhookDeliveryConfig
+  | ChannelDeliveryConfig
+  | Record<string, unknown>;

@@ -28,11 +28,12 @@ import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provid
 import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
 
 // Provider types
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
 export type EmbeddingProvider = "openrouter" | "local";
 
 // Provider configuration
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
 const DEFAULT_EMBEDDING_PROVIDER: EmbeddingProvider = "openrouter";
 
 // Helper to get OpenRouter API key dynamically (allows settings to set it after module load)
@@ -52,6 +53,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   antigravity: "claude-sonnet-4-5", // Free via Antigravity
   codex: "gpt-5.1-codex",
   kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
+  ollama: "llama3.1:8b",
 };
 
 // Utility models - fast/cheap models for background tasks (compaction, memory extraction)
@@ -61,6 +63,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   antigravity: "gemini-3-flash", // Free via Antigravity
   codex: "gpt-5.1-codex-mini",
   kimi: "kimi-k2-turbo-preview", // Fast Kimi model for utility tasks
+  ollama: "llama3.1:8b",
 };
 
 // Claude model prefixes - models that should use Anthropic provider
@@ -94,6 +97,10 @@ let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
 // Lazy-initialized Kimi client (OpenAI-compatible)
 let _kimiClient: ReturnType<typeof createOpenAICompatible> | null = null;
 let _kimiClientApiKey: string | undefined = undefined;
+
+// Lazy-initialized Ollama client (OpenAI-compatible)
+let _ollamaClient: ReturnType<typeof createOpenAICompatible> | null = null;
+let _ollamaClientBaseUrl: string | undefined = undefined;
 
 // Cache for local embedding model instance
 let _localEmbeddingModel: EmbeddingModel | null = null;
@@ -197,6 +204,40 @@ function getKimiClient() {
     });
   }
   return _kimiClient;
+}
+
+function getOllamaBaseUrl(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { loadSettings } = require("@/lib/settings/settings-manager");
+  const settings = loadSettings();
+  return (
+    settings.ollamaBaseUrl ||
+    process.env.OLLAMA_BASE_URL ||
+    OLLAMA_DEFAULT_BASE_URL
+  );
+}
+
+function getOllamaClient() {
+  const baseURL = getOllamaBaseUrl();
+
+  if (!baseURL) {
+    throw new Error("Ollama base URL is not configured. Set ollamaBaseUrl or OLLAMA_BASE_URL.");
+  }
+
+  if (_ollamaClient && _ollamaClientBaseUrl !== baseURL) {
+    _ollamaClient = null;
+  }
+
+  if (!_ollamaClient) {
+    _ollamaClientBaseUrl = baseURL;
+    _ollamaClient = createOpenAICompatible({
+      name: "ollama",
+      baseURL,
+      apiKey: "",
+    });
+  }
+
+  return _ollamaClient;
 }
 
 /**
@@ -337,6 +378,8 @@ export function invalidateProviderCache(): void {
   _codexProvider = null;
   _kimiClient = null;
   _kimiClientApiKey = undefined;
+  _ollamaClient = null;
+  _ollamaClientBaseUrl = undefined;
 }
 
 /**
@@ -398,6 +441,10 @@ export function getConfiguredProvider(): LLMProvider {
       return "anthropic";
     }
     return "kimi";
+  }
+
+  if (provider === "ollama") {
+    return "ollama";
   }
 
   // Default to anthropic
@@ -463,6 +510,10 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
       return getKimiClient()(model);
     }
 
+    case "ollama": {
+      return getOllamaClient()(model);
+    }
+
     case "openrouter": {
       const apiKey = getOpenRouterApiKey();
       if (!apiKey) {
@@ -494,6 +545,7 @@ function isClaudeModel(modelId: string): boolean {
       case "antigravity": return isAntigravityModel(model);
       case "codex": return isCodexModel(model);
       case "kimi": return isKimiModel(model);
+      case "ollama": return true;
       case "anthropic": return isClaudeModel(model);
       case "openrouter": {
         const trimmed = model.trim();
@@ -599,7 +651,7 @@ export function getChatModel(): LanguageModel {
 
   if (chatModel) {
     console.log(`[PROVIDERS] Using configured chat model: ${chatModel}`);
-    return getModelByName(chatModel);
+    return provider === "ollama" ? getLanguageModel(chatModel) : getModelByName(chatModel);
   }
 
   // Fall back to default provider behavior
@@ -629,7 +681,7 @@ export function getResearchModel(): LanguageModel {
 
   if (researchModel) {
     console.log(`[PROVIDERS] Using configured research model: ${researchModel}`);
-    return getModelByName(researchModel);
+    return provider === "ollama" ? getLanguageModel(researchModel) : getModelByName(researchModel);
   }
 
   // Fall back to chat model
@@ -660,7 +712,7 @@ export function getVisionModel(): LanguageModel {
 
   if (visionModel) {
     console.log(`[PROVIDERS] Using configured vision model: ${visionModel}`);
-    return getModelByName(visionModel);
+    return provider === "ollama" ? getLanguageModel(visionModel) : getModelByName(visionModel);
   }
 
   // Fall back to chat model - Claude has native vision support
@@ -691,7 +743,7 @@ export function getUtilityModel(): LanguageModel {
 
   if (overrideModel) {
     console.log(`[PROVIDERS] Using configured utility model: ${overrideModel}`);
-    return getModelByName(overrideModel);
+    return provider === "ollama" ? getLanguageModel(overrideModel) : getModelByName(overrideModel);
   }
   const model = UTILITY_MODELS[provider];
 
@@ -721,6 +773,10 @@ export function getUtilityModel(): LanguageModel {
         throw new Error("KIMI_API_KEY environment variable is not configured");
       }
       return getKimiClient()(model);
+    }
+
+    case "ollama": {
+      return getOllamaClient()(model);
     }
 
     case "openrouter": {
@@ -892,6 +948,8 @@ export function getProviderDisplayName(): string {
       return `Codex (${model})`;
     case "kimi":
       return `Kimi (${model})`;
+    case "ollama":
+      return `Ollama (${model})`;
     case "openrouter":
       return `OpenRouter (${model})`;
     case "anthropic":
@@ -913,6 +971,7 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
     antigravity: { tools: true, streaming: true, images: true },
     codex: { tools: true, streaming: true, images: true },
     kimi: { tools: true, streaming: true, images: true },
+    ollama: { tools: false, streaming: true, images: false },
   };
 
   return featureSupport[provider]?.[feature] ?? false;

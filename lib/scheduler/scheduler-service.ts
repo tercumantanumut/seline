@@ -10,6 +10,7 @@ import { db } from "@/lib/db/sqlite-client";
 import { scheduledTasks, scheduledTaskRuns, type ScheduledTask, type ContextSource } from "@/lib/db/sqlite-schedule-schema";
 import { eq, and, lte, isNull, or } from "drizzle-orm";
 import { TaskQueue } from "./task-queue";
+import { nowISO } from "@/lib/utils/timestamp";
 import { resolveTimezone } from "@/lib/utils/timezone";
 
 interface SchedulerConfig {
@@ -187,7 +188,7 @@ export class SchedulerService {
     const [run] = await db.insert(scheduledTaskRuns).values({
       taskId: task.id,
       status: "pending",
-      scheduledFor: new Date().toISOString(),
+      scheduledFor: nowISO(),
       resolvedPrompt: this.resolvePromptVariables(
         task.initialPrompt,
         (task.promptVariables as Record<string, string>) || {},
@@ -216,7 +217,7 @@ export class SchedulerService {
 
     // Update last run time
     await db.update(scheduledTasks)
-      .set({ lastRunAt: new Date().toISOString() })
+      .set({ lastRunAt: nowISO() })
       .where(eq(scheduledTasks.id, taskId));
   }
 

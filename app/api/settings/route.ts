@@ -39,6 +39,7 @@ export async function PUT(request: NextRequest) {
     const updatedSettings: AppSettings = {
       ...currentSettings,
       llmProvider: body.llmProvider ?? currentSettings.llmProvider,
+      ollamaBaseUrl: body.ollamaBaseUrl !== undefined ? body.ollamaBaseUrl : currentSettings.ollamaBaseUrl,
       theme: body.theme ?? currentSettings.theme,
       webScraperProvider: body.webScraperProvider ?? currentSettings.webScraperProvider,
       // Model settings - allow empty string to clear, undefined to keep current
@@ -137,4 +138,3 @@ function maskApiKey(key: string): string {
   if (key.length <= 8) return "••••••••";
   return key.slice(0, 4) + "••••••••" + key.slice(-4);
 }
-

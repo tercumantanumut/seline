@@ -67,10 +67,15 @@ export interface ChannelSendPayload {
   text: string;
   threadId?: string | null;
   attachments?: ChannelAttachment[];
+  replyToMessageId?: string | null;
+  chunkIndex?: number;
+  totalChunks?: number;
 }
 
 export interface ChannelSendResult {
   externalMessageId: string;
+  chunkIndex?: number;
+  totalChunks?: number;
 }
 
 export interface ChannelConnector {

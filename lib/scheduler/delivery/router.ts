@@ -6,6 +6,7 @@
 
 import type { DeliveryHandler, DeliveryPayload, DeliveryResult } from "./types";
 import type { DeliveryMethod, DeliveryConfig } from "@/lib/db/sqlite-schedule-schema";
+import { ChannelDeliveryHandler } from "./channel-handler";
 import { EmailDeliveryHandler } from "./email-handler";
 import { SlackDeliveryHandler } from "./slack-handler";
 import { WebhookDeliveryHandler } from "./webhook-handler";
@@ -15,6 +16,7 @@ export class DeliveryRouter {
 
   constructor() {
     // Register default handlers
+    this.register(new ChannelDeliveryHandler());
     this.register(new EmailDeliveryHandler());
     this.register(new SlackDeliveryHandler());
     this.register(new WebhookDeliveryHandler());
@@ -74,4 +76,3 @@ export function getDeliveryRouter(): DeliveryRouter {
   }
   return routerInstance;
 }
-

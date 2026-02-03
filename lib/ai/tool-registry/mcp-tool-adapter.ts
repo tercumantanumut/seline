@@ -561,16 +561,18 @@ export function getMCPToolsForAgent(
     const manager = MCPClientManager.getInstance();
     let tools = manager.getAllTools();
 
-    // Filter by enabled servers
-    if (enabledServers && enabledServers.length > 0) {
-        const serverSet = new Set(enabledServers);
-        tools = tools.filter(t => serverSet.has(t.serverName));
-    }
-
-    // Filter by enabled tools (format: "serverName:toolName")
+    // If enabled tools are explicitly specified, honor that list directly.
+    // This allows per-tool enablement even when a server isn't globally enabled.
     if (enabledTools && enabledTools.length > 0) {
         const toolSet = new Set(enabledTools);
         tools = tools.filter(t => toolSet.has(`${t.serverName}:${t.name}`));
+        return tools;
+    }
+
+    // Otherwise filter by enabled servers (if provided)
+    if (enabledServers && enabledServers.length > 0) {
+        const serverSet = new Set(enabledServers);
+        tools = tools.filter(t => serverSet.has(t.serverName));
     }
 
     return tools;

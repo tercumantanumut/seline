@@ -94,21 +94,42 @@ export class TelegramConnector implements ChannelConnector {
 
   async sendMessage(payload: ChannelSendPayload): Promise<ChannelSendResult> {
     const chatId = Number(payload.peerId);
-    const text = payload.text || "";
+    const replyParameters = payload.replyToMessageId
+      ? { message_id: Number(payload.replyToMessageId) }
+      : undefined;
+    let text = payload.text || "";
+    if (
+      payload.totalChunks &&
+      payload.totalChunks > 1 &&
+      payload.chunkIndex &&
+      !/^\(\d+\/\d+\)\s/.test(text)
+    ) {
+      text = `(${payload.chunkIndex}/${payload.totalChunks}) ${text}`;
+    }
     const attachment = payload.attachments?.[0];
 
     if (attachment && attachment.type === "image") {
       const sent = await this.bot.api.sendPhoto(chatId, new InputFile(attachment.data, attachment.filename), {
         caption: text || undefined,
         message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+        reply_parameters: replyParameters,
       });
-      return { externalMessageId: String(sent.message_id) };
+      return {
+        externalMessageId: String(sent.message_id),
+        chunkIndex: payload.chunkIndex,
+        totalChunks: payload.totalChunks,
+      };
     }
 
     const sent = await this.bot.api.sendMessage(chatId, text || " ", {
       message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+      reply_parameters: replyParameters,
     });
-    return { externalMessageId: String(sent.message_id) };
+    return {
+      externalMessageId: String(sent.message_id),
+      chunkIndex: payload.chunkIndex,
+      totalChunks: payload.totalChunks,
+    };
   }
 
   private attachHandlers(): void {
