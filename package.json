@@ -25,7 +25,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "electron:compile": "tsc -p tsconfig.electron.json",
-    "electron:dev": "npm rebuild better-sqlite3 && concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "npm rebuild better-sqlite3 && concurrently -k \"node scripts/dev-with-stdio-fix.mjs\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build && npm run electron:rebuild-native && npm run electron:prepare && npm run electron:compile",
     "electron:prepare": "node scripts/electron-prepare.js",
     "electron:copy-remotion": "rm -rf .next/standalone/node_modules/@remotion && cp -r node_modules/@remotion .next/standalone/node_modules/",
