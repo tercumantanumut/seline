@@ -70,6 +70,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     if (existing.userId !== dbUser.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    if (existing.isDefault) {
+      return NextResponse.json({ error: "Default agent cannot be deleted" }, { status: 400 });
+    }
 
     const body = await req.json();
     const parseResult = updateSchema.safeParse(body);
@@ -135,4 +138,3 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     );
   }
 }
-
