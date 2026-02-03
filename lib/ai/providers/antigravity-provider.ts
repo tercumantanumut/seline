@@ -355,12 +355,12 @@ function sanitizeSchema(schema: Record<string, unknown>): Record<string, unknown
   delete input.dependencies;
 
   const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (!ANTIGRAVITY_ALLOWED_SCHEMA_KEYS.has(key)) {
-      continue;
-    }
+    for (const [key, value] of Object.entries(input)) {
+      if (!ANTIGRAVITY_ALLOWED_SCHEMA_KEYS.has(key)) {
+        continue;
+      }
 
-    switch (key) {
+      switch (key) {
       case "$ref":
         if (typeof value === "string") {
           sanitized[key] = value
@@ -368,16 +368,30 @@ function sanitizeSchema(schema: Record<string, unknown>): Record<string, unknown
             .replace(/#\/definitions$/g, "#/$defs");
         }
         break;
-      case "properties":
-      case "patternProperties":
-      case "$defs":
-      case "dependentSchemas": {
-        const record = sanitizeSchemaRecord(value);
-        if (record) {
-          sanitized[key] = record;
+        case "properties":
+        case "patternProperties":
+        case "$defs":
+        case "dependentSchemas": {
+          const record = sanitizeSchemaRecord(value);
+          if (record) {
+            sanitized[key] = record;
+          }
+          break;
         }
-        break;
-      }
+        case "dependentRequired": {
+          if (isPlainObject(value)) {
+            const record: Record<string, string[]> = {};
+            for (const [depKey, depValue] of Object.entries(value)) {
+              if (Array.isArray(depValue) && depValue.every((entry) => typeof entry === "string")) {
+                record[depKey] = depValue as string[];
+              }
+            }
+            if (Object.keys(record).length > 0) {
+              sanitized[key] = record;
+            }
+          }
+          break;
+        }
       case "items":
       case "additionalProperties":
       case "unevaluatedProperties":
