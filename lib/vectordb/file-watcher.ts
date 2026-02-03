@@ -12,12 +12,27 @@ import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-sche
 import { eq, and } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
 import { isVectorDBEnabled } from "./client";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import type { TaskEvent } from "@/lib/background-tasks/types";
 
 // Map of folder ID to watcher instance
 const watchers = new Map<string, FSWatcher>();
 
 // Map of folder ID to set of changed file paths
 const folderQueues = new Map<string, Set<string>>();
+const deferredQueues = new Map<string, Set<string>>();
+
+const folderProcessors = new Map<string, {
+  processBatch: () => Promise<void>;
+  characterId: string;
+  folderPath: string;
+}>();
+
+const activeBatchProcessing = new Set<string>();
+const pendingBatchRun = new Map<string, boolean>();
+
+const activeChatRunsByCharacter = new Map<string, number>();
+let registryListenerInitialized = false;
 
 // Debounce timers for folders
 const folderTimers = new Map<string, NodeJS.Timeout>();
@@ -31,6 +46,78 @@ interface WatcherConfig {
   recursive: boolean;
   includeExtensions: string[];
   excludePatterns: string[];
+}
+
+function seedActiveChatRuns(): void {
+  activeChatRunsByCharacter.clear();
+  const activeChatTasks = taskRegistry.list({ type: "chat" }).tasks;
+  for (const task of activeChatTasks) {
+    if (!task.characterId) continue;
+    const current = activeChatRunsByCharacter.get(task.characterId) ?? 0;
+    activeChatRunsByCharacter.set(task.characterId, current + 1);
+  }
+}
+
+function initializeRegistryListener(): void {
+  if (registryListenerInitialized) return;
+  seedActiveChatRuns();
+
+  taskRegistry.on("task:started", (event: TaskEvent) => {
+    if (event.eventType !== "task:started") return;
+    if (event.task.type !== "chat" || !event.task.characterId) return;
+    const current = activeChatRunsByCharacter.get(event.task.characterId) ?? 0;
+    activeChatRunsByCharacter.set(event.task.characterId, current + 1);
+  });
+
+  taskRegistry.on("task:completed", (event: TaskEvent) => {
+    if (event.eventType !== "task:completed") return;
+    if (event.task.type !== "chat" || !event.task.characterId) return;
+    const current = activeChatRunsByCharacter.get(event.task.characterId) ?? 0;
+    const next = Math.max(0, current - 1);
+    if (next === 0) {
+      activeChatRunsByCharacter.delete(event.task.characterId);
+      flushDeferredForCharacter(event.task.characterId);
+    } else {
+      activeChatRunsByCharacter.set(event.task.characterId, next);
+    }
+  });
+
+  registryListenerInitialized = true;
+}
+
+function shouldDeferIndexing(characterId: string): boolean {
+  return (activeChatRunsByCharacter.get(characterId) ?? 0) > 0;
+}
+
+function flushDeferredForCharacter(characterId: string): void {
+  if (shouldDeferIndexing(characterId)) {
+    return;
+  }
+  for (const [folderId, processor] of folderProcessors.entries()) {
+    if (processor.characterId !== characterId) continue;
+    void flushDeferredForFolder(folderId);
+  }
+}
+
+async function flushDeferredForFolder(folderId: string): Promise<void> {
+  const deferred = deferredQueues.get(folderId);
+  const processor = folderProcessors.get(folderId);
+  const queue = folderQueues.get(folderId);
+  if (!deferred || !processor || !queue || deferred.size === 0) {
+    return;
+  }
+  if (shouldDeferIndexing(processor.characterId)) {
+    return;
+  }
+
+  for (const filePath of deferred) {
+    queue.add(filePath);
+  }
+  const count = deferred.size;
+  deferred.clear();
+
+  console.log(`[FileWatcher] Flushing ${count} deferred file(s) for ${processor.folderPath}`);
+  await processor.processBatch();
 }
 
 /**
@@ -88,6 +175,8 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     return;
   }
 
+  initializeRegistryListener();
+
   // Stop existing watcher if any
   await stopWatching(config.folderId);
 
@@ -97,10 +186,20 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
   // Initialize queue for this folder
   folderQueues.set(folderId, new Set());
+  deferredQueues.set(folderId, new Set());
 
   const processBatch = async () => {
+    if (activeBatchProcessing.has(folderId)) {
+      pendingBatchRun.set(folderId, true);
+      return;
+    }
+
+    activeBatchProcessing.add(folderId);
     const queue = folderQueues.get(folderId);
-    if (!queue || queue.size === 0) return;
+    if (!queue || queue.size === 0) {
+      activeBatchProcessing.delete(folderId);
+      return;
+    }
 
     // Create a snapshot of current files to process and clear the queue
     const filesToProcess = Array.from(queue);
@@ -109,28 +208,48 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
     console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath}`);
 
-    await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
-      try {
-        // Check if file still exists (it might have been deleted quickly)
-        const fileExists = true; // Indexing handles existence check
+    try {
+      await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
+        try {
+          console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
+          const relativePath = relative(folderPath, filePath);
+          await indexFileToVectorDB({
+            characterId,
+            filePath,
+            folderId,
+            relativePath,
+          });
+        } catch (error) {
+          console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
+        }
+      });
+    } finally {
+      activeBatchProcessing.delete(folderId);
+      console.log(`[FileWatcher] Batch processing complete for ${folderPath}`);
 
-        console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
-        const relativePath = relative(folderPath, filePath);
-        await indexFileToVectorDB({
-          characterId,
-          filePath,
-          folderId,
-          relativePath,
-        });
-      } catch (error) {
-        console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
+      if (pendingBatchRun.get(folderId)) {
+        pendingBatchRun.delete(folderId);
+        if (folderQueues.get(folderId)?.size) {
+          await processBatch();
+        }
       }
-    });
-
-    console.log(`[FileWatcher] Batch processing complete for ${folderPath}`);
+    }
   };
 
   const scheduleBatch = (filePath: string) => {
+    if (shouldDeferIndexing(characterId)) {
+      const deferred = deferredQueues.get(folderId);
+      if (deferred && !deferred.has(filePath)) {
+        deferred.add(filePath);
+        if (deferred.size === 1) {
+          console.log(
+            `[FileWatcher] Deferring indexing while chat run is active for ${folderPath}`
+          );
+        }
+      }
+      return;
+    }
+
     const queue = folderQueues.get(folderId);
     if (!queue) return;
 
@@ -235,6 +354,11 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     });
 
   watchers.set(folderId, watcher);
+  folderProcessors.set(folderId, {
+    processBatch,
+    characterId,
+    folderPath,
+  });
 
   // Update folder status
   await db
@@ -263,6 +387,17 @@ export async function stopWatching(folderId: string): Promise<void> {
   if (folderQueues.has(folderId)) {
     folderQueues.delete(folderId);
   }
+
+  if (deferredQueues.has(folderId)) {
+    deferredQueues.delete(folderId);
+  }
+
+  if (folderProcessors.has(folderId)) {
+    folderProcessors.delete(folderId);
+  }
+
+  pendingBatchRun.delete(folderId);
+  activeBatchProcessing.delete(folderId);
 }
 
 /**
@@ -287,4 +422,3 @@ export function getWatchedFolders(): string[] {
 export function isWatching(folderId: string): boolean {
   return watchers.has(folderId);
 }
-
