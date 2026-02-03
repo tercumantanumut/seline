@@ -147,11 +147,19 @@ function prependPath(existingPath: string | undefined, extraDir: string): string
 }
 
 function getBundledNpmCliPath(cliName: "npx-cli.js" | "npm-cli.js"): string | null {
-    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    // In packaged Electron apps, process.resourcesPath is only available in the main process.
+    // For the Next.js server (child process), we use ELECTRON_RESOURCES_PATH env var.
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath 
+        || process.env.ELECTRON_RESOURCES_PATH;
+    
     const candidates = [
+        // Primary: bundled in resources/standalone/node_modules/npm/bin/
         path.join(resourcesPath ?? "", "standalone", "node_modules", "npm", "bin", cliName),
+        // Fallback: relative to cwd (for dev mode)
         path.join(process.cwd(), "node_modules", "npm", "bin", cliName),
     ];
+    
+    console.log(`[MCP] Looking for bundled ${cliName}, resourcesPath=${resourcesPath}, candidates:`, candidates);
 
     for (const candidate of candidates) {
         try {
@@ -225,16 +233,25 @@ function getDefaultEnvironment(): Record<string, string> {
     return env;
 }
 
-function shouldHideWindows(serverParams: StdioServerParameters): boolean {
-    if (process.platform !== "win32") {
-        return false;
-    }
-    if (typeof serverParams.windowsHide === "boolean") {
-        return serverParams.windowsHide;
-    }
-    // Allow an opt-out for debugging.
-    const showConsole = (process.env.SELINE_MCP_SHOW_CONSOLE || "").toLowerCase();
-    return showConsole !== "1" && showConsole !== "true" && showConsole !== "yes";
+/**
+ * Determine if we're running in a production (packaged) environment
+ */
+function isProductionBuild(): boolean {
+    // Check various indicators of a packaged Electron app
+    const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
+    
+    // Check for explicit production marker (set by Electron main process)
+    const hasProductionMarker = process.env.SELINE_PRODUCTION_BUILD === "1";
+    
+    // Check for resourcesPath (direct Electron) or ELECTRON_RESOURCES_PATH (Next.js server)
+    const hasResourcesPath = !!(process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+        || !!process.env.ELECTRON_RESOURCES_PATH;
+    
+    const isProduction = (hasProductionMarker || hasResourcesPath) && !isElectronDev;
+    
+    console.log(`[MCP] isProductionBuild check: hasProductionMarker=${hasProductionMarker}, hasResourcesPath=${hasResourcesPath}, isElectronDev=${isElectronDev}, result=${isProduction}`);
+    
+    return isProduction;
 }
 
 export class StdioClientTransport implements Transport {
@@ -265,31 +282,47 @@ export class StdioClientTransport implements Transport {
                 console.log(`[MCP] Resolved command: ${this._serverParams.command} → ${resolvedSpawn.command}`);
             }
 
-            // On macOS in production, inherit stderr can cause terminal windows to appear
-            // Default to "ignore" on macOS unless explicitly specified
-            const isElectronDev = process.env.ELECTRON_IS_DEV === "1" || process.env.NODE_ENV === "development";
-            const isDesktopPlatform = process.platform === "darwin" || process.platform === "win32";
-            const defaultStderr = isDesktopPlatform && !isElectronDev
-                ? "ignore"
-                : "inherit";
+            // Determine if we're in production
+            const isProduction = isProductionBuild();
+            
+            // In production builds, ALWAYS use 'ignore' for stderr to prevent terminal windows
+            // This is critical for both Windows and macOS
+            const stderrConfig: IOType = isProduction ? "ignore" : (this._serverParams.stderr as IOType ?? "inherit");
+
+            console.log(`[MCP] Spawn config: platform=${process.platform}, isProduction=${isProduction}, stderr=${stderrConfig}`);
 
             const spawnOptions: any = {
                 env: {
                     ...getDefaultEnvironment(),
                     ...this._serverParams.env,
                     ...resolvedSpawn.env,
+                    // Prevent terminal detection in production
+                    ...(isProduction ? { 
+                        TERM: "dumb",  // Disable color/interactive features
+                        NO_COLOR: "1", // Disable colors
+                        CI: "1",       // Many tools check this to disable interactive mode
+                    } : {}),
                 },
-                stdio: ["pipe", "pipe", this._serverParams.stderr ?? defaultStderr],
+                stdio: ["pipe", "pipe", stderrConfig],
                 shell: false,
-                windowsHide: shouldHideWindows(this._serverParams),
                 cwd: this._serverParams.cwd,
             };
 
-            // On macOS and Windows, prevent spawned processes from creating visible terminal windows
-            if (process.platform === "darwin" || process.platform === "win32") {
+            // CRITICAL: Platform-specific window hiding configuration
+            if (process.platform === "win32") {
+                // Windows: windowsHide only works when NOT using shell and NOT spawning .cmd files
+                // Since we resolve npx/npm to their CLI .js files, this should work
+                spawnOptions.windowsHide = true;
+                spawnOptions.detached = false; // MUST be false for windowsHide to work
+            } else if (process.platform === "darwin") {
+                // macOS: No windowsHide equivalent, but these settings help:
+                // - detached: false keeps the process attached to parent
+                // - stdio: ignore for stderr prevents terminal association
                 spawnOptions.detached = false;
             }
 
+            console.log(`[MCP] Spawning: ${resolvedSpawn.command} ${(resolvedSpawn.args ?? []).join(" ")}`);
+            
             const child = spawn(resolvedSpawn.command, resolvedSpawn.args ?? [], spawnOptions);
             this._process = child;
             child.on("error", (error: Error) => {
@@ -297,6 +330,7 @@ export class StdioClientTransport implements Transport {
                 this.onerror?.(error);
             });
             child.on("spawn", () => {
+                console.log(`[MCP] Process spawned with PID: ${child.pid}`);
                 resolve();
             });
             child.on("close", (_code: number | null) => {

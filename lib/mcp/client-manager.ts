@@ -69,6 +69,9 @@ class MCPClientManager {
     private transports: Map<string, StdioClientTransport | SSEClientTransport> = new Map();
     private characterMcpServers: Map<string, string[]> = new Map(); // Track which servers belong to which character
     private serverCharacterContext: Map<string, string | undefined> = new Map(); // Track characterId used for each server connection
+    
+    /** Track servers currently being connected to prevent race conditions */
+    private connectingServers: Map<string, Promise<MCPServerStatus>> = new Map();
 
     /** Default timeout for tool calls in milliseconds (5 minutes) */
     private readonly toolCallTimeoutMs: number = 300000;
@@ -113,6 +116,33 @@ class MCPClientManager {
         config: ResolvedMCPServer,
         characterId?: string
     ): Promise<MCPServerStatus> {
+        // CRITICAL: Prevent double-spawning race condition
+        // If already connecting to this server, wait for that connection to complete
+        const existingConnection = this.connectingServers.get(serverName);
+        if (existingConnection) {
+            console.log(`[MCP] Connection to ${serverName} already in progress, waiting...`);
+            return existingConnection;
+        }
+
+        // Create a promise that will be resolved when connection completes
+        const connectionPromise = this._doConnect(serverName, config, characterId);
+        this.connectingServers.set(serverName, connectionPromise);
+        
+        try {
+            return await connectionPromise;
+        } finally {
+            this.connectingServers.delete(serverName);
+        }
+    }
+
+    /**
+     * Internal connection logic - called by connect() with race protection
+     */
+    private async _doConnect(
+        serverName: string,
+        config: ResolvedMCPServer,
+        characterId?: string
+    ): Promise<MCPServerStatus> {
         // Track character association
         if (characterId) {
             const servers = this.characterMcpServers.get(characterId) || [];
@@ -121,12 +151,28 @@ class MCPClientManager {
                 this.characterMcpServers.set(characterId, servers);
             }
         }
+        
+        // Skip if already connected with same context
+        if (this.isConnected(serverName)) {
+            const existingContext = this.serverCharacterContext.get(serverName);
+            // If connected with same character context (or both undefined), skip reconnection
+            if (existingContext === characterId) {
+                console.log(`[MCP] Server ${serverName} already connected with same context, skipping`);
+                return this.status.get(serverName) || {
+                    serverName,
+                    connected: true,
+                    toolCount: this.tools.get(serverName)?.length || 0,
+                    tools: this.tools.get(serverName)?.map(t => t.name) || [],
+                };
+            }
+        }
+        
         // Disconnect existing connection if any
         await this.disconnect(serverName);
 
         // Wait a brief moment for OS to reclaim resources (ports/files)
         // This helps with servers like Linear that bind local ports
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         try {
             let transport: StdioClientTransport | SSEClientTransport;

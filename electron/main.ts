@@ -767,6 +767,10 @@ async function startNextServer(): Promise<void> {
         ELECTRON_RUN_AS_NODE: "1", // Critical: Makes Electron binary run as Node.js
         LOCAL_DATA_PATH: path.join(userDataPath, "data"), // Ensure database path is passed
         NEXT_TELEMETRY_DISABLED: "1",
+        // Pass resources path to Next.js server for MCP spawning
+        ELECTRON_RESOURCES_PATH: resourcesPath,
+        // Explicitly mark as production build for MCP terminal hiding
+        SELINE_PRODUCTION_BUILD: "1",
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
