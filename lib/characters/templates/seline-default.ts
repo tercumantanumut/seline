@@ -7,7 +7,7 @@ export const SELINE_DEFAULT_TEMPLATE: AgentTemplate = {
   tagline: "Your AI companion on the Seline platform",
   purpose: "A helpful AI assistant on the Seline platform. I can help you search the web, analyze documents, execute commands, and accomplish tasks. You can add sync folders to give me access to your files and documents.",
   isDefault: true,
-  isDeletable: false,
+  isDeletable: true,
   enabledTools: [
     "docsSearch",
     "vectorSearch",

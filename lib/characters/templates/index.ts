@@ -45,8 +45,11 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
       return existingDefault.id;
     }
 
-    // Check for existing Seline character to promote
+    // Check for existing characters
     const existingCharacters = await getUserCharacters(userId);
+
+    // If user has any characters but no default, respect their choice
+    // They may have explicitly deleted the default agent
     if (existingCharacters.length > 0) {
       const existingSeline = existingCharacters.find(
         (character) => character.name.toLowerCase() === SELINE_DEFAULT_TEMPLATE.name.toLowerCase()
@@ -64,9 +67,12 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
           throw error;
         }
       }
+      // User has characters but no default - don't force-create one
+      return null;
     }
 
-    // Create new default agent with race condition protection
+    // Only create default agent for brand new users (zero characters)
+    // This ensures first-time users get the default, but it can be deleted permanently
     try {
       return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
     } catch (error) {
