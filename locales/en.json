@@ -611,6 +611,7 @@
     "displayNamePlaceholder": "My Documents",
     "includeSubfolders": "Include subfolders (recursive)",
     "advancedOptions": "Advanced Options",
+    "recommendedExcludes": "Recommended excludes (build artifacts, caches, logs)",
     "fileExtensions": "File Extensions (comma-separated)",
     "excludePatterns": "Exclude Patterns (auto-detected from .gitignore)",
     "patternsIncluded": "✓ Patterns from .gitignore included",
