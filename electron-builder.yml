@@ -53,6 +53,11 @@ extraResources:
       - "!**/test/**"
       - "!**/tests/**"
       - "!**/__tests__/**"
+  # Turbopack external module wrappers (lives inside .next/node_modules, excluded by the !**/node_modules filter above)
+  - from: ".next/standalone/.next/node_modules"
+    to: "standalone/.next/node_modules"
+    filter:
+      - "**/*"
   # Static assets for Next.js
   - from: ".next/static"
     to: "standalone/.next/static"
