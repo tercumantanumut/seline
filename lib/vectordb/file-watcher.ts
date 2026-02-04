@@ -15,18 +15,40 @@ import { isVectorDBEnabled } from "./client";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { TaskEvent } from "@/lib/background-tasks/types";
 
-// Map of folder ID to watcher instance
-const watchers = new Map<string, FSWatcher>();
+// Global state that persists across hot reloads (dev mode)
+const globalForWatchers = globalThis as unknown as {
+  fileWatchers?: Map<string, FSWatcher>;
+  folderQueues?: Map<string, Set<string>>;
+  deferredQueues?: Map<string, Set<string>>;
+  folderProcessors?: Map<string, {
+    processBatch: () => Promise<void>;
+    characterId: string;
+    folderPath: string;
+  }>;
+};
+
+// Initialize global state if not already present
+if (!globalForWatchers.fileWatchers) {
+  globalForWatchers.fileWatchers = new Map();
+}
+if (!globalForWatchers.folderQueues) {
+  globalForWatchers.folderQueues = new Map();
+}
+if (!globalForWatchers.deferredQueues) {
+  globalForWatchers.deferredQueues = new Map();
+}
+if (!globalForWatchers.folderProcessors) {
+  globalForWatchers.folderProcessors = new Map();
+}
+
+// Map of folder ID to watcher instance (use global in dev mode to persist across hot reloads)
+const watchers = globalForWatchers.fileWatchers;
 
 // Map of folder ID to set of changed file paths
-const folderQueues = new Map<string, Set<string>>();
-const deferredQueues = new Map<string, Set<string>>();
+const folderQueues = globalForWatchers.folderQueues;
+const deferredQueues = globalForWatchers.deferredQueues;
 
-const folderProcessors = new Map<string, {
-  processBatch: () => Promise<void>;
-  characterId: string;
-  folderPath: string;
-}>();
+const folderProcessors = globalForWatchers.folderProcessors;
 
 const activeBatchProcessing = new Set<string>();
 const pendingBatchRun = new Map<string, boolean>();

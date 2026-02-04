@@ -91,14 +91,24 @@ export async function archiveCharacter(id: string) {
 }
 
 export async function setDefaultCharacter(userId: string, characterId: string) {
-  // First, unset any existing default
-  await db
-    .update(characters)
-    .set({ isDefault: false })
-    .where(and(eq(characters.userId, userId), eq(characters.isDefault, true)));
+  // Use a transaction to atomically unset old default and set new default
+  return db.transaction((tx) => {
+    // First, unset any existing default
+    tx
+      .update(characters)
+      .set({ isDefault: false })
+      .where(and(eq(characters.userId, userId), eq(characters.isDefault, true)))
+      .run();
 
-  // Set the new default
-  return updateCharacter(characterId, { isDefault: true });
+    // Then set the new default
+    const [updated] = tx
+      .update(characters)
+      .set({ isDefault: true, updatedAt: now() })
+      .where(eq(characters.id, characterId))
+      .returning();
+
+    return updated;
+  });
 }
 
 // ============================================================================

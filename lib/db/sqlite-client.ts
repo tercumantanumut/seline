@@ -216,6 +216,13 @@ function initializeTables(sqlite: Database.Database): void {
     )
   `);
 
+  // Create unique partial index to enforce only one default per user
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_characters_user_default
+      ON characters(user_id, is_default)
+      WHERE is_default = 1
+  `);
+
 
   // Character images table
   sqlite.exec(`

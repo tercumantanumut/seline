@@ -35,23 +35,46 @@ function resolvePathVariable(pathVar: string): string {
 
 export async function ensureDefaultAgentExists(userId: string): Promise<string | null> {
   try {
+    // First check if default already exists (fast path)
     const existingDefault = await getUserDefaultCharacter(userId);
     if (existingDefault) {
       return existingDefault.id;
     }
 
+    // Check for existing Seline character to promote
     const existingCharacters = await getUserCharacters(userId);
     if (existingCharacters.length > 0) {
       const existingSeline = existingCharacters.find(
         (character) => character.name.toLowerCase() === SELINE_DEFAULT_TEMPLATE.name.toLowerCase()
       );
       if (existingSeline) {
-        await setDefaultCharacter(userId, existingSeline.id);
-        return existingSeline.id;
+        try {
+          await setDefaultCharacter(userId, existingSeline.id);
+          return existingSeline.id;
+        } catch (error) {
+          // If setting default fails due to race condition, check if another default was created
+          const nowDefault = await getUserDefaultCharacter(userId);
+          if (nowDefault) {
+            return nowDefault.id;
+          }
+          throw error;
+        }
       }
     }
 
-    return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+    // Create new default agent with race condition protection
+    try {
+      return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+    } catch (error) {
+      // If creation fails due to unique constraint violation (race condition),
+      // another request may have created the default
+      const nowDefault = await getUserDefaultCharacter(userId);
+      if (nowDefault) {
+        return nowDefault.id;
+      }
+      // Re-throw if it's not a race condition error
+      throw error;
+    }
   } catch (error) {
     console.error("[Templates] Error ensuring default agent:", error);
     return null;
