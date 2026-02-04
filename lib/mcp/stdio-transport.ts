@@ -44,46 +44,63 @@ const MACOS_NODE_PATHS = [
     "/opt/homebrew/sbin",
 ];
 
+function normalizeExecutableName(command: string): string {
+    const baseName = path.basename(command).toLowerCase();
+    return baseName.replace(/\.(cmd|exe|bat)$/i, "");
+}
+
+function isExecutable(filePath: string): boolean {
+    try {
+        fs.accessSync(filePath, fs.constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+
 /**
  * Attempt to resolve a command to its absolute path
  * Returns the original command if resolution fails
  */
 function resolveCommandPath(command: string): string {
+    const normalizedCommand = normalizeExecutableName(command);
     // Only resolve node-related commands that commonly fail
-    if (!["npx", "node", "npm"].includes(command)) {
+    if (!["npx", "node", "npm"].includes(normalizedCommand)) {
         return command;
     }
 
     // If already absolute, use as-is
-    if (command.startsWith("/")) {
+    if (path.isAbsolute(command)) {
         return command;
     }
 
-    // Try 'which' command first (works if PATH is correct)
+    // Avoid shell lookups on Windows to prevent "which" errors.
+    if (process.platform === "win32") {
+        return command;
+    }
+
+    // Try a POSIX lookup first (works if PATH is correct)
     try {
-        const result = execSync(`which ${command}`, {
+        const result = execSync(`command -v ${normalizedCommand}`, {
             encoding: "utf-8",
             timeout: 2000,
         }).trim();
-        if (result && result.startsWith("/")) {
-            console.log(`[MCP] Resolved command: ${command} → ${result}`);
+        if (result && path.isAbsolute(result)) {
+            console.log(`[MCP] Resolved command: ${command} -> ${result}`);
             return result;
         }
     } catch {
-        // which failed, try known paths
+        // command -v failed, try known paths
     }
 
     // Fallback: Check known macOS paths directly
     if (process.platform === "darwin") {
         for (const dir of MACOS_NODE_PATHS) {
-            const fullPath = `${dir}/${command}`;
-            try {
-                // Check if file exists and is executable
-                execSync(`test -x "${fullPath}"`, { timeout: 1000 });
-                console.log(`[MCP] Resolved command via known paths: ${command} → ${fullPath}`);
+            const fullPath = path.join(dir, normalizedCommand);
+            if (isExecutable(fullPath)) {
+                console.log(`[MCP] Resolved command via known paths: ${command} -> ${fullPath}`);
                 return fullPath;
-            } catch {
-                // Not found in this path
             }
         }
     }
@@ -98,7 +115,43 @@ type ResolvedSpawnCommand = {
     env?: Record<string, string>;
 };
 
+/**
+ * Get path to bundled Node.js binary (Windows and macOS, production builds)
+ * Returns null if not found or not on a supported platform
+ */
+function getBundledNodeExe(): string | null {
+    if (process.platform !== "win32" && process.platform !== "darwin") {
+        return null;
+    }
+
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+        || process.env.ELECTRON_RESOURCES_PATH;
+
+    if (!resourcesPath) {
+        return null;
+    }
+
+    const nodeBinaryName = process.platform === "win32" ? "node.exe" : "node";
+    const bundledNodePath = path.join(resourcesPath, "standalone", "node_modules", ".bin", nodeBinaryName);
+
+    try {
+        if (fs.existsSync(bundledNodePath)) {
+            console.log(`[MCP] Found bundled ${nodeBinaryName} at: ${bundledNodePath}`);
+            return bundledNodePath;
+        }
+    } catch {
+        // Ignore filesystem errors
+    }
+
+    return null;
+}
+
 function ensureNodeShimDir(): string | null {
+    // In production, we use bundled Node.js directly - no shim needed
+    if (getBundledNodeExe()) {
+        return null;
+    }
+
     const baseDir = process.env.ELECTRON_USER_DATA_PATH || os.tmpdir();
     if (!baseDir) {
         return null;
@@ -111,9 +164,13 @@ function ensureNodeShimDir(): string | null {
         if (!fs.existsSync(shimPath)) {
             fs.mkdirSync(shimDir, { recursive: true });
             if (process.platform === "win32") {
+                // Windows node.cmd shim - fallback if bundled node.exe not available
+                // Note: cmd.exe may briefly flash a window when npm/npx spawns this shim.
                 const contents = [
                     "@echo off",
                     "set ELECTRON_RUN_AS_NODE=1",
+                    "set ELECTRON_NO_ATTACH_CONSOLE=1",
+                    "set ELECTRON_ENABLE_LOGGING=0",
                     `"${process.execPath}" %*`,
                     "",
                 ].join("\r\n");
@@ -176,29 +233,49 @@ function getBundledNpmCliPath(cliName: "npx-cli.js" | "npm-cli.js"): string | nu
 
 function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawnCommand {
     const originalCommand = serverParams.command;
+    const normalizedCommand = normalizeExecutableName(originalCommand);
     const baseArgs = serverParams.args ?? [];
     const resolvedCommand = resolveCommandPath(originalCommand);
     const shimDir = ensureNodeShimDir();
 
     const basePath = serverParams.env?.PATH ?? process.env.PATH;
 
-    if (originalCommand === "npx" || originalCommand === "npm") {
-        const cliName = originalCommand === "npx" ? "npx-cli.js" : "npm-cli.js";
+    // On Windows, prefer bundled node.exe to avoid console window flashing
+    // The bundled node.exe is a real console app where windowsHide works correctly,
+    // unlike Electron with ELECTRON_RUN_AS_NODE which still allocates a console
+    const bundledNodeExe = getBundledNodeExe();
+
+    if (normalizedCommand === "npx" || normalizedCommand === "npm") {
+        const cliName = normalizedCommand === "npx" ? "npx-cli.js" : "npm-cli.js";
         const bundledCli = getBundledNpmCliPath(cliName);
         if (bundledCli) {
-            console.log(`[MCP] Using bundled npm CLI for ${originalCommand}: ${bundledCli}`);
+            // Use bundled node.exe on Windows if available, otherwise fall back to Electron
+            const nodeRuntime = bundledNodeExe ?? process.execPath;
+            const useElectronRunAsNode = !bundledNodeExe;
+
+            console.log(`[MCP] Using bundled npm CLI for ${originalCommand}: ${bundledCli} (runtime: ${nodeRuntime})`);
             return {
-                command: process.execPath,
+                command: nodeRuntime,
                 args: [bundledCli, ...baseArgs],
                 env: {
-                    ELECTRON_RUN_AS_NODE: "1",
+                    ...(useElectronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
                     ...(shimDir ? { PATH: prependPath(basePath, shimDir) } : {}),
                 },
             };
         }
     }
 
-    if (originalCommand === "node" && !path.isAbsolute(resolvedCommand)) {
+    if (normalizedCommand === "node" && !path.isAbsolute(resolvedCommand)) {
+        // Use bundled node.exe on Windows if available
+        if (bundledNodeExe) {
+            console.log(`[MCP] Using bundled node.exe for node command: ${bundledNodeExe}`);
+            return {
+                command: bundledNodeExe,
+                args: baseArgs,
+                env: shimDir ? { PATH: prependPath(basePath, shimDir) } : undefined,
+            };
+        }
+
         console.log("[MCP] Using Electron as Node runtime for node command");
         return {
             command: process.execPath,
@@ -279,7 +356,7 @@ export class StdioClientTransport implements Transport {
             const resolvedSpawn = resolveSpawnCommand(this._serverParams);
 
             if (resolvedSpawn.command !== this._serverParams.command) {
-                console.log(`[MCP] Resolved command: ${this._serverParams.command} → ${resolvedSpawn.command}`);
+                console.log(`[MCP] Resolved command: ${this._serverParams.command} -> ${resolvedSpawn.command}`);
             }
 
             // Determine if we're in production
@@ -296,30 +373,26 @@ export class StdioClientTransport implements Transport {
                     ...getDefaultEnvironment(),
                     ...this._serverParams.env,
                     ...resolvedSpawn.env,
-                    // Prevent terminal detection in production
-                    ...(isProduction ? { 
-                        TERM: "dumb",  // Disable color/interactive features
-                        NO_COLOR: "1", // Disable colors
-                        CI: "1",       // Many tools check this to disable interactive mode
-                    } : {}),
+                    // Prevent terminal detection and window spawning
+                    TERM: "dumb",  // Disable color/interactive features
+                    NO_COLOR: "1", // Disable colors
+                    CI: "1",       // Many tools check this to disable interactive mode
+                    // Electron-specific: prevent console window allocation
+                    // When Electron runs with ELECTRON_RUN_AS_NODE=1, it may still allocate
+                    // a console for stdio. These vars attempt to prevent that.
+                    ELECTRON_NO_ATTACH_CONSOLE: "1",
+                    ELECTRON_ENABLE_LOGGING: "0",
+                    ELECTRON_NO_ASAR: "1",  // Disable asar support when running as Node
                 },
                 stdio: ["pipe", "pipe", stderrConfig],
                 shell: false,
                 cwd: this._serverParams.cwd,
+                // CRITICAL: These options prevent terminal windows on ALL platforms
+                // windowsHide: true - Hides console window on Windows (no-op on other platforms)
+                // detached: false - Keeps process attached to parent, required for windowsHide
+                windowsHide: true,
+                detached: false,
             };
-
-            // CRITICAL: Platform-specific window hiding configuration
-            if (process.platform === "win32") {
-                // Windows: windowsHide only works when NOT using shell and NOT spawning .cmd files
-                // Since we resolve npx/npm to their CLI .js files, this should work
-                spawnOptions.windowsHide = true;
-                spawnOptions.detached = false; // MUST be false for windowsHide to work
-            } else if (process.platform === "darwin") {
-                // macOS: No windowsHide equivalent, but these settings help:
-                // - detached: false keeps the process attached to parent
-                // - stdio: ignore for stderr prevents terminal association
-                spawnOptions.detached = false;
-            }
 
             console.log(`[MCP] Spawning: ${resolvedSpawn.command} ${(resolvedSpawn.args ?? []).join(" ")}`);
             
