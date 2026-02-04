@@ -9,6 +9,7 @@ import {
 } from "../queries";
 import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
+import { getUserWorkspacePath } from "@/lib/workspace/setup";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
@@ -29,6 +30,9 @@ export function getDefaultTemplate(): AgentTemplate | undefined {
 function resolvePathVariable(pathVar: string): string {
   if (pathVar === "${SETUP_FOLDER}") {
     return process.cwd();
+  }
+  if (pathVar === "${USER_WORKSPACE}") {
+    return getUserWorkspacePath();
   }
   return pathVar;
 }

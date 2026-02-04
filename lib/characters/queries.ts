@@ -105,7 +105,8 @@ export async function setDefaultCharacter(userId: string, characterId: string) {
       .update(characters)
       .set({ isDefault: true, updatedAt: now() })
       .where(eq(characters.id, characterId))
-      .returning();
+      .returning()
+      .all();
 
     return updated;
   });

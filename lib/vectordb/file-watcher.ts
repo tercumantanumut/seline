@@ -6,7 +6,8 @@
  */
 
 import chokidar, { FSWatcher } from "chokidar";
-import { extname, relative } from "path";
+import { extname, relative, join } from "path";
+import { access } from "fs/promises";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, and } from "drizzle-orm";
@@ -71,6 +72,40 @@ interface WatcherConfig {
   recursive: boolean;
   includeExtensions: string[];
   excludePatterns: string[];
+}
+
+/**
+ * Check if a directory is a project root (contains package.json, Cargo.toml, etc.)
+ * Project roots are typically large codebases that should use polling mode.
+ */
+async function isProjectRootDirectory(folderPath: string): Promise<boolean> {
+  // Check if it's the current working directory
+  if (folderPath === process.cwd()) {
+    return true;
+  }
+
+  // Check for common project markers
+  const projectMarkers = [
+    'package.json',
+    'Cargo.toml',
+    'go.mod',
+    'pom.xml',
+    'build.gradle',
+    'composer.json',
+    'requirements.txt',
+    'pyproject.toml',
+  ];
+
+  for (const marker of projectMarkers) {
+    try {
+      await access(join(folderPath, marker));
+      return true; // Found a project marker
+    } catch {
+      // File doesn't exist, continue checking
+    }
+  }
+
+  return false;
 }
 
 function seedActiveChatRuns(): void {
@@ -330,9 +365,9 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   // For large codebases (project root) or folders that previously hit EMFILE,
   // use polling mode to prevent file descriptor exhaustion
   // This is less efficient but much more reliable and doesn't hit file descriptor limits
-  const isLargeCodebase = folderPath === process.cwd();
+  const isProjectRoot = await isProjectRootDirectory(folderPath);
   const forcedPolling = pollingModeWatchers.has(folderId);
-  const usePolling = isLargeCodebase || forcedPolling;
+  const usePolling = isProjectRoot || forcedPolling;
 
   if (usePolling) {
     console.log(
@@ -432,22 +467,28 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       if (error?.code === 'EMFILE' && !pollingModeWatchers.has(folderId)) {
         console.warn(
           `[FileWatcher] Hit file descriptor limit for ${folderPath}, ` +
-          `restarting in polling mode...`
+          `will restart in polling mode after cleanup...`
         );
 
-        // Mark this folder for polling mode
+        // Mark this folder for polling mode BEFORE closing
         pollingModeWatchers.add(folderId);
 
         // Close the current watcher
-        await watcher.close();
-        watchers.delete(folderId);
+        try {
+          await watcher.close();
+          watchers.delete(folderId);
+        } catch (closeError) {
+          console.error(`[FileWatcher] Error closing watcher:`, closeError);
+        }
 
-        // Restart the watcher (will use polling mode now)
+        // Wait longer to ensure file descriptors are released
+        // and to avoid overwhelming the system if multiple watchers fail
         setTimeout(() => {
+          console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode...`);
           startWatching(config).catch(err => {
-            console.error(`[FileWatcher] Failed to restart watcher:`, err);
+            console.error(`[FileWatcher] Failed to restart watcher in polling mode:`, err);
           });
-        }, 1000);
+        }, 3000); // Wait 3 seconds instead of 1
       }
     });
 
