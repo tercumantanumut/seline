@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   // This prevents Next.js from inferring the wrong workspace root
   // and creating nested folder structures in standalone output
   outputFileTracingRoot: path.join(__dirname),
+  // Exclude large/irrelevant directories from standalone output tracing.
+  // Without this, Next.js copies dist-electron, .local-data (vectordb files), .git etc. into .next/standalone/
+  outputFileTracingExcludes: [
+    "dist-electron/**",
+    ".git/**",
+    ".local-data/**",
+    "node_modules/.cache/**",
+  ],
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
