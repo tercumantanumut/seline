@@ -13,6 +13,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as https from "https";
 import { spawn, exec, ChildProcess } from "child_process";
+import { listFiles, downloadFile } from "@huggingface/hub";
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === "development";
@@ -965,10 +966,6 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle("model:download", async (event, modelId: string) => {
     try {
-      // Dynamic import to avoid bundling issues
-      const hub = await import("@huggingface/hub");
-      const { listFiles, downloadFile } = hub;
-
       const destDir = path.join(userModelsDir, ...modelId.split("/"));
 
       // Ensure destination directory exists
