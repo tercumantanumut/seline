@@ -2,9 +2,9 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.8-blue)
 ![Electron](https://img.shields.io/badge/Electron-39.2.4-47848F?logo=electron&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-15.5-black?logo=next.js&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -19,35 +19,99 @@
 
 <br/>
 
-Seline is an AI assistant that blends chat, visual tools, and a local knowledge base into a single desktop app. It runs *mostly* on your machine—your documents stay private, your conversations persist across sessions, and you can switch between LLM providers without leaving the app.
+Seline is a local-first AI desktop application that brings together conversational AI, visual generation tools, vector search, and multi-channel connectivity in one place. Your data stays on your machine, conversations persist across sessions with long-running context, and you can route between any LLM provider without leaving the app. Connect WhatsApp, Telegram, or Slack to turn your agents into always-on bots that respond across channels with full context and background task delivery.
 
 ## Highlights
-- Chat with configurable agents and keep long-running sessions organized.
-- Enhance prompts with grounded context from your synced folders and memories.
-- Generate and edit images, then assemble them into videos.
-- Run vector search locally with LanceDB for fast, private retrieval.
-- Run commands in your synced/indexed folders
 
-**Updates:**
-- **Fix:** Prompt caching now works correctly with AI SDK v6 (`providerOptions` replaces deprecated `experimental_providerOptions`). Cache creation and read metrics are properly reported in the observability dashboard.
-- Prompt caching enabled by default for supported providers:
-  - **Anthropic** (direct) - explicit cache breakpoints with configurable TTL (5m default, 1h premium)
-  - **OpenRouter** - passes cache breakpoints to Anthropic/Gemini models; OpenAI, Grok, Moonshot, Groq, and DeepSeek use provider-side automatic caching (no TTL config)
-  - **Kimi** - provider-side automatic context caching (no TTL config)
-  - **Antigravity / Codex** - no prompt caching support
-- 3rd provider added - now supports Antigravity models and Google Antigravity subscription
-- **New:** Moonshot Kimi K2.5 provider with 256K context, native vision, and thinking mode
+**Multi-Channel Connectivity**
+- **WhatsApp, Telegram, Slack** — Turn agents into always-on bots. Messages route to assigned agents, responses flow back automatically. Scheduled task delivery to channels.
+- **MCP (Model Context Protocol)** — Connect external AI services per-agent with dynamic path variables. Bundled Node.js for `npx`-based servers.
 
-## MCP Dynamic Configuration
-Seline supports dynamic variables in MCP server configurations:
-- `${SYNCED_FOLDER}`: Resolves to the path of the primary synced folder for the current character.
-- `${SYNCED_FOLDERS}`: Resolves to a comma-separated list of all synced folders.
-- `${SYNCED_FOLDERS_ARRAY}`: Resolves to multiple arguments, one for each synced folder (useful for servers like `filesystem`). 
+**Intelligence & Research**
+- **Deep Research Mode** — 6-phase workflow (plan → search → analyze → draft → refine → finalize) with cited sources and full reports. Multi-model routing for research, chat, vision, and utility tasks running in parallel.
+- **Local web browsing with Puppeteer** — Bundled headless Chromium scrapes pages locally (no external API needed), supports JavaScript-heavy sites, extracts markdown and metadata.
+- **Prompt enhancement** — A utility model enriches your queries with context from synced folders before the main LLM sees them.
+- **Smart tool discovery** — 40+ tools loaded on-demand via searchTools, saving ~70% of tokens per request.
+
+**Local Knowledge & Privacy**
+- **Local or API Vector search with LanceDB** — Hybrid dense + lexical retrieval, AI-powered result synthesis. Embedding provider can be local (on-device) or API-based.
+- **Document RAG** — Attach files to agents, indexed and searchable instantly with configurable sync ignore patterns.
+- **Local grep (ripgrep)** — Fast pattern search across synced folders.
+
+**Visual & Creative Tools**
+- **Image generation** — Flux.2, GPT-5, Gemini, Z-Image, FLUX.2 Klein 4B/9B (local), WAN 2.2. Reference-based editing, style transfer, virtual try-on.
+- **Video assembly** — AI-driven scene planning, professional transitions (fade/crossfade/slide/wipe/zoom), Ken Burns effect, text overlays, session-wide asset compilation into cohesive videos via Remotion.
+- **Custom ComfyUI workflows** — Import JSON, auto-detect inputs/outputs, real-time WebSocket progress.
+
+**Automation & Agents**
+- **Task scheduler** — Recurring cron jobs with presets (Daily Standup, Weekly Digest, Code Review). Pause, resume, trigger on demand. Live streaming output. Background task system with zombie run detection and channel delivery.
+- **Persistent memory** — Agents remember preferences and workflows across sessions, categorized and user-controlled.
+- **Configurable agents** — Persistent sessions, long-running context, active session indicators.
+- **Plan tool & UI** — Models create and track multi-step task plans inline with collapsible status UI. Tool calls grouped into compact badge rows (handles 15+ concurrent calls cleanly).
+
+**Developer Experience**
+- **Prompt caching** — Claude API and OpenRouter cache tracking in observability dashboard. Explicit cache breakpoints with configurable TTL (5m/1h) for Claude direct API.
+- **Execute commands** — Safely run commands within synced/indexed folders.
+
+## LLM Providers
+| Provider | Models | Prompt Caching |
+|----------|--------|----------------|
+| Anthropic | Claude (direct API) | Explicit cache breakpoints, configurable TTL (5m / 1h) |
+| OpenRouter | Claude, Gemini, OpenAI, Grok, Moonshot, Groq, DeepSeek | Provider-side (automatic for supported models) |
+| Kimi / Moonshot | Kimi K2.5 (256K ctx, vision, thinking) | Provider-side automatic |
+| Antigravity | Gemini 3, Claude Sonnet 4.5, Claude Haiku 4.5 | Not supported |
+| Codex | GPT-5, Codex | Not supported |
+| Ollama | Local models | Not supported |
+
+## MCP (Model Context Protocol)
+Seline ships with full MCP support. Servers are configured per-agent and auto-connect on startup.
+
+### Dynamic Variables
+- `${SYNCED_FOLDER}` — path of the primary synced folder for the current agent.
+- `${SYNCED_FOLDERS}` — comma-separated list of all synced folders.
+- `${SYNCED_FOLDERS_ARRAY}` — expands to one argument per folder (useful for the `filesystem` server).
+
+Node.js is bundled inside the app on macOS and Windows, so MCP servers that need `npx` or `node` work out of the box without a system Node.js installation.
+
+## Multi-Channel Inbox
+
+Turn your agents into always-on bots by connecting WhatsApp, Telegram, or Slack. Each agent can have its own channel connections—inbound messages route to the assigned agent with full context, and responses flow back through the same channel automatically.
+
+### Supported Channels
+
+**WhatsApp** (via Baileys)
+- QR code pairing — scan with your WhatsApp mobile app
+- Persistent auth across restarts
+- Text messages and image attachments (send/receive)
+- Self-chat mode for testing
+- Auto-reconnection on connection drops
+
+**Telegram** (via Grammy)
+- Bot token authentication (create via @BotFather)
+- Message threads/topics support
+- Automatic message chunking for long responses (3800 char limit)
+- Text and image support
+- Handles polling conflicts (multiple instances)
+
+**Slack** (via Bolt SDK)
+- Socket mode (no public webhook needed)
+- Requires: bot token, app token, signing secret
+- Channels, DMs, and threaded messages
+- File uploads with captions
+- Auto-resolves channel/user names
+
+### Features
+
+- **Unified routing** — Messages route to the agent assigned to each connection
+- **Background task delivery** — Scheduled task results can be sent to channels automatically with formatted summaries (task name, status, duration, errors, session links)
+- **Full context** — Agents see message history, attachments, and thread context
+- **Status tracking** — Connection status (disconnected/connecting/connected/error) shown in UI
+- **Auto-bootstrap** — All connections auto-reconnect on app startup
 
 ## Supported Platforms
-- Windows (installer builds are available).
-- macOS is supported today; DMG distribution is coming soon. You can build macOS packages from source in the meantime.
-- Linux, not tested.
+- **macOS** — DMG installer available.
+- **Windows** — NSIS installer and portable builds available.
+- **Linux** — not tested.
 
 ## Prerequisites
 For end users: none beyond the OS installer.
@@ -65,16 +129,16 @@ npm install
 ## Development Workflow
 
 ```bash
-npm run electron:pack && npm run electron:dev
+npm run electron:dev
 ```
-This runs the Next.js dev server and launches Electron against `http://localhost:3000`.
+This runs the Next.js dev server (with stdio fix) and launches Electron against `http://localhost:3000`.
 
 ## Build Commands
 ```bash
 # Windows installer + portable
 npm run electron:dist:win
 
-# macOS (DMG/dir)
+# macOS (DMG + dir)
 npm run electron:dist:mac
 ```
 For local packaging without creating installers, use `npm run electron:pack`. See `docs/BUILD.md` for the full pipeline.
@@ -179,10 +243,11 @@ docker-compose restart comfyui workflow-api
 ```
 
 ## Troubleshooting
-- Native module errors (`better-sqlite3`, `onnxruntime-node`): run `npm run electron:rebuild-native` before building.
-- Black screen in packaged app: verify `.next/standalone` and `extraResources` are correct; see `docs/BUILD.md`.
-- Missing provider keys: ensure `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `KIMI_API_KEY` is configured in settings or `.env`.
-- Embeddings mismatch errors: reindex Vector Search from Settings or run `POST /api/vector-sync` with `action: "reindex-all"`.
+- **Native module errors** (`better-sqlite3`, `onnxruntime-node`): run `npm run electron:rebuild-native` before building.
+- **Black screen in packaged app**: verify `.next/standalone` and `extraResources` are correct; see `docs/BUILD.md`.
+- **Missing provider keys**: ensure `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `KIMI_API_KEY` is configured in settings or `.env`.
+- **Embeddings mismatch errors**: reindex Vector Search from Settings or run `POST /api/vector-sync` with `action: "reindex-all"`.
+- **MCP servers not starting**: Node.js is bundled in the app; if you still see ENOENT errors, check that the app was installed from the latest DMG/installer (not copied manually).
 
 ## Documentation
 - `docs/ARCHITECTURE.md` - system layout and core flows
