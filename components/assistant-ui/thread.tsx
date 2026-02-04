@@ -50,6 +50,7 @@ import { VectorSearchToolUI } from "./vector-search-inline";
 import { ProductGalleryToolUI } from "./product-gallery-inline";
 import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
+import { PlanToolUI } from "./plan-tool-ui";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { useCharacter, DEFAULT_CHARACTER } from "./character-context";
@@ -1113,6 +1114,7 @@ const AssistantMessage: FC = () => {
                   showProductImages: ProductGalleryToolUI,
                   executeCommand: ExecuteCommandToolUI,
                   calculator: CalculatorToolUI,
+                  updatePlan: PlanToolUI,
                 },
                 Fallback: ToolFallback,
               },

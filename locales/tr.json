@@ -321,6 +321,10 @@
         "name": "Hesap Makinesi",
         "description": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)"
       },
+      "updatePlan": {
+        "name": "Plan Güncelle",
+        "description": "Adım durumlarıyla görünür bir görev planı oluştur veya güncelle"
+      },
       "generateImageFlux2Flex": {
         "name": "Üret (Flux.2 Flex)",
         "description": "Flux.2 Flex ile görsel üretin"
@@ -553,6 +557,7 @@
       "executeCommand": "Komut Çalıştır",
       "scheduleTask": "Görev Zamanla",
       "calculator": "Hesap Makinesi",
+      "updatePlan": "Plan Güncelle",
       "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
       "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
@@ -753,6 +758,8 @@
         "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
         "calculator": "Hesap Makinesi",
         "calculatorDesc": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)",
+        "updatePlan": "Plan Güncelle",
+        "updatePlanDesc": "Konuşma boyunca adım durumlarıyla görünür bir görev planı oluştur veya güncelle",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
@@ -943,6 +950,7 @@
       "description": "Bu ajan için hangi MCP sunucularını ve araçlarını etkinleştireceğinizi seçin.",
       "noServersTitle": "MCP Sunucusu Yapılandırılmadı",
       "noServersDescription": "Harici araçları etkinleştirmek için Ayarlar → MCP Sunucuları'ndan MCP sunucularını yapılandırın.",
+      "configureServers": "MCP Ayarlarını Aç",
       "skipForNow": "Şimdilik Atla",
       "serversNotConnected": "MCP sunucuları yapılandırıldı ancak bağlı değil. Mevcut araçları keşfetmek için bağlanın.",
       "connecting": "Bağlanıyor...",

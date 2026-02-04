@@ -325,6 +325,10 @@
         "name": "Calculator",
         "description": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)"
       },
+      "updatePlan": {
+        "name": "Update Plan",
+        "description": "Create or update a visible task plan with step statuses"
+      },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
         "description": "Generate images with Flux.2 Flex via OpenRouter"
@@ -557,6 +561,7 @@
       "executeCommand": "Execute Command",
       "scheduleTask": "Schedule Task",
       "calculator": "Calculator",
+      "updatePlan": "Update Plan",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -759,6 +764,8 @@
         "scheduleTaskDesc": "Schedule tasks for future execution (one-time, recurring, or interval)",
         "calculator": "Calculator",
         "calculatorDesc": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)",
+        "updatePlan": "Update Plan",
+        "updatePlanDesc": "Create or update a visible task plan with step statuses across the conversation",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",
@@ -849,6 +856,7 @@
       "description": "Select which MCP servers and tools to enable for this agent.",
       "noServersTitle": "No MCP Servers Configured",
       "noServersDescription": "Configure MCP servers in Settings → MCP Servers to enable external tools.",
+      "configureServers": "Open MCP Settings",
       "skipForNow": "Skip for Now",
       "serversNotConnected": "MCP servers are configured but not connected. Connect to discover available tools.",
       "connecting": "Connecting...",
