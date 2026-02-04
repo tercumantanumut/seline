@@ -304,6 +304,27 @@ async function sendNewSessionConfirmation(message: ChannelInboundMessage): Promi
   }
 }
 
+/**
+ * Detects the correct Chat API base URL for Electron production vs development.
+ *
+ * - Development: Next.js dev server runs on port 3000
+ * - Electron Production: Next.js standalone server runs on port 3456
+ */
+function getChatApiBaseUrl(): string {
+  // Detect Electron production environment (same logic as lib/mcp/stdio-transport.ts)
+  const isElectronProduction =
+    (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+     !!(process as any).resourcesPath ||
+     !!process.env.ELECTRON_RESOURCES_PATH) &&
+    process.env.ELECTRON_IS_DEV !== "1" &&
+    process.env.NODE_ENV !== "development";
+
+  const baseUrl = isElectronProduction ? "http://localhost:3456" : "http://localhost:3000";
+  console.log(`[Channels] Chat API base URL: ${baseUrl} (isElectronProd=${isElectronProduction})`);
+
+  return baseUrl;
+}
+
 async function invokeChatApi(params: {
   userId: string;
   sessionId: string;
@@ -314,7 +335,7 @@ async function invokeChatApi(params: {
     parts: Array<{ type: string; text?: string; image?: string; url?: string }>;
   }>;
 }) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = getChatApiBaseUrl();
   const settings = loadSettings();
   await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
@@ -324,52 +345,105 @@ async function invokeChatApi(params: {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
-  try {
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
-        "X-Session-Id": params.sessionId,
-        "X-Character-Id": params.characterId,
-      },
-      body: JSON.stringify({
-        sessionId: params.sessionId,
-        messages: params.messages,
-      }),
-      signal: controller.signal,
-    });
+  // Retry logic for transient connection failures
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[Channels] Chat API error:", response.status, errorText);
-      return;
-    }
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[Channels] Chat API request (attempt ${attempt}/${maxRetries}) to ${baseUrl}/api/chat`);
 
-    reader = response.body?.getReader();
-    if (!reader) {
-      return;
-    }
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
+          "X-Session-Id": params.sessionId,
+          "X-Character-Id": params.characterId,
+        },
+        body: JSON.stringify({
+          sessionId: params.sessionId,
+          messages: params.messages,
+        }),
+        signal: controller.signal,
+      });
 
-    while (true) {
-      const { done } = await reader.read();
-      if (done) break;
-    }
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      console.warn(`[Channels] Chat API request timed out after ${timeoutMs}ms`);
-    } else {
-      console.error("[Channels] Chat API invocation error:", error);
-    }
-    if (reader) {
-      try {
-        await reader.cancel();
-      } catch (cancelError) {
-        console.warn("[Channels] Failed to cancel chat stream reader:", cancelError);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Channels] Chat API error (attempt ${attempt}):`, response.status, errorText);
+
+        // Don't retry on client errors (4xx)
+        if (response.status >= 400 && response.status < 500) {
+          throw new Error(`Chat API returned ${response.status}: ${errorText}`);
+        }
+
+        // Retry on server errors (5xx)
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+        throw new Error(`Chat API returned ${response.status} after ${maxRetries} attempts`);
       }
+
+      reader = response.body?.getReader();
+      if (!reader) {
+        console.warn("[Channels] Chat API response has no body reader");
+        return;
+      }
+
+      // Consume the stream
+      while (true) {
+        const { done } = await reader.read();
+        if (done) break;
+      }
+
+      console.log(`[Channels] Chat API request completed successfully`);
+      return; // Success - exit retry loop
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn(`[Channels] Chat API request timed out after ${timeoutMs}ms`);
+        throw error; // Don't retry timeouts
+      }
+
+      // Enhanced logging for connection errors
+      if (error instanceof Error && error.message.includes("ECONNREFUSED")) {
+        console.error(
+          `[Channels] Chat API connection refused (attempt ${attempt}/${maxRetries}):`,
+          `\n  URL: ${baseUrl}/api/chat`,
+          `\n  Error: ${error.message}`,
+          `\n  NODE_ENV: ${process.env.NODE_ENV}`
+        );
+      } else {
+        console.error(`[Channels] Chat API invocation error (attempt ${attempt}):`, error);
+      }
+
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (cancelError) {
+          console.warn("[Channels] Failed to cancel chat stream reader:", cancelError);
+        }
+        reader = undefined;
+      }
+
+      // Retry on connection errors
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+
+      // All retries exhausted - throw to trigger task failure
+      throw lastError;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return;
-  } finally {
-    clearTimeout(timeoutId);
+  }
+
+  // If we get here, all retries failed
+  if (lastError) {
+    throw lastError;
   }
 }
