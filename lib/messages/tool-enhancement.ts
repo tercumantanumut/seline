@@ -22,6 +22,7 @@ const TOOL_REFETCH_ALLOWLIST = new Set([
   "webBrowse",
   "webQuery",
   "retrieveFullContent",
+  "updatePlan",
 ]);
 const MAX_TOOL_REFETCH = 10;
 
