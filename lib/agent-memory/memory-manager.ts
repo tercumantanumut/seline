@@ -11,7 +11,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { nanoid } from "nanoid";
-import { getLocalDataPath } from "../storage/local-data-path";
 import type {
   MemoryEntry,
   MemoryMetadata,
@@ -45,7 +44,8 @@ export class AgentMemoryManager {
   }
 
   private getAgentDataPath(characterId: string): string {
-    return getLocalDataPath("agents", characterId);
+    const basePath = process.env.LOCAL_DATA_PATH || join(process.cwd(), ".local-data");
+    return join(basePath, "agents", characterId);
   }
 
   private ensureDirectoryExists(): void {
