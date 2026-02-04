@@ -12,6 +12,7 @@ import {
 } from "@/lib/vectordb/sync-service";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
+import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
 
 /**
  * GET /api/vector-sync?characterId=xxx
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         displayName,
         recursive: recursive ?? true,
         includeExtensions: includeExtensions ?? [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"],
-        excludePatterns: excludePatterns ?? ["node_modules", ".git", "dist", "build"],
+        excludePatterns: excludePatterns ?? DEFAULT_IGNORE_PATTERNS,
       });
 
       // Auto-trigger sync in the background unless explicitly disabled
@@ -205,4 +206,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-

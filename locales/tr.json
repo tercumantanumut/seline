@@ -607,6 +607,7 @@
     "displayNamePlaceholder": "Belgelerim",
     "includeSubfolders": "Alt klasörleri dahil et (özyinelemeli)",
     "advancedOptions": "Gelişmiş Seçenekler",
+    "recommendedExcludes": "Önerilen hariç tutmalar (derleme artıkları, önbellek, loglar)",
     "fileExtensions": "Dosya Uzantıları (virgülle ayrılmış)",
     "excludePatterns": "Hariç Tutulacak Kalıplar (.gitignore'dan otomatik algılandı)",
     "patternsIncluded": "✓ .gitignore kalıpları dahil edildi",

@@ -90,12 +90,53 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newRecursive, setNewRecursive] = useState(true);
   const [newExtensions, setNewExtensions] = useState(DEFAULT_EXTENSIONS);
-  const [newExcludePatterns, setNewExcludePatterns] = useState("node_modules,.git,dist,build,.next,__pycache__,.venv,venv");
+  const [newExcludePatterns, setNewExcludePatterns] = useState("node_modules,.git,dist,build,.next,__pycache__,.venv,venv,package-lock.json,pnpm-lock.yaml,yarn.lock");
   const [isAdding, setIsAdding] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [folderAnalysis, setFolderAnalysis] = useState<FolderAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [useRecommendedExcludes, setUseRecommendedExcludes] = useState(true);
+
+  const RECOMMENDED_EXCLUDES = [
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "coverage",
+    ".local-data",
+    "dist-electron",
+    "comfyui_backend",
+    ".vscode",
+    ".idea",
+    "tmp",
+    "temp",
+    ".DS_Store",
+    "Thumbs.db",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "*.tsbuildinfo",
+    "*.log",
+    "*.lock",
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.local-data/**",
+    "**/dist-electron/**",
+    "**/comfyui_backend/**",
+    "**/.vscode/**",
+    "**/.idea/**",
+    "**/tmp/**",
+    "**/temp/**",
+  ];
 
 
 
@@ -149,7 +190,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
         setAnalysisError(null);
         // Auto-populate exclude patterns from detected patterns
         if (data.mergedPatterns && data.mergedPatterns.length > 0) {
-          setNewExcludePatterns(data.mergedPatterns.join(","));
+          const merged = data.mergedPatterns.join(",");
+          if (merged !== newExcludePatterns) {
+            setNewExcludePatterns(merged);
+          }
         }
         // Set display name from folder name
         if (!newDisplayName && data.folderName) {
@@ -179,7 +223,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [newFolderPath, newExtensions, newRecursive]);
+  }, [newFolderPath, newExtensions, newRecursive, newExcludePatterns]);
 
   const handleAddFolder = async () => {
     if (!newFolderPath.trim()) return;
@@ -220,11 +264,23 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     setNewDisplayName("");
     setNewRecursive(true);
     setNewExtensions(DEFAULT_EXTENSIONS);
-    setNewExcludePatterns("node_modules,.git,dist,build,.next,__pycache__,.venv,venv");
+    setNewExcludePatterns("node_modules,.git,dist,build,.next,__pycache__,.venv,venv,package-lock.json,pnpm-lock.yaml,yarn.lock");
     setShowAddForm(false);
     setFolderAnalysis(null);
     setAnalysisError(null);
     setShowAdvancedOptions(false);
+  };
+
+  const toggleRecommendedExcludes = (checked: boolean) => {
+    setUseRecommendedExcludes(checked);
+    const current = newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean);
+    if (checked) {
+      const merged = Array.from(new Set([...current, ...RECOMMENDED_EXCLUDES]));
+      setNewExcludePatterns(merged.join(","));
+    } else {
+      const filtered = current.filter((p) => !RECOMMENDED_EXCLUDES.includes(p));
+      setNewExcludePatterns(filtered.join(","));
+    }
   };
 
   const handleRemoveFolder = async (folderId: string) => {
@@ -641,6 +697,16 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           {/* Advanced Options */}
           {showAdvancedOptions && (
             <div className="space-y-3 pl-4 border-l-2 border-terminal-border">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="recommended-excludes"
+                  checked={useRecommendedExcludes}
+                  onCheckedChange={(checked) => toggleRecommendedExcludes(checked === true)}
+                />
+                <Label htmlFor="recommended-excludes" className="font-mono text-xs text-terminal-dark cursor-pointer">
+                  {t("recommendedExcludes")}
+                </Label>
+              </div>
               <div>
                 <Label className="font-mono text-xs text-terminal-muted">{t("fileExtensions")}</Label>
                 <Input
