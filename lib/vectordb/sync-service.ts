@@ -15,6 +15,7 @@ import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, and, sql, lt, or } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
+import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
 import { deleteAgentTable } from "./collections";
 import { isVectorDBEnabled } from "./client";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";
@@ -115,40 +116,16 @@ async function getFileHash(filePath: string): Promise<string> {
 function shouldIncludeFile(
   filePath: string,
   includeExtensions: string[],
-  excludePatterns: string[]
+  shouldIgnore: (filePath: string) => boolean
 ): boolean {
   const ext = extname(filePath).slice(1).toLowerCase();
-  const fileName = filePath.split("/").pop() || "";
 
   // Check extension whitelist
   if (includeExtensions.length > 0 && !includeExtensions.includes(ext)) {
     return false;
   }
 
-  // Check exclude patterns
-  for (const pattern of excludePatterns) {
-    // Wildcard extension pattern (e.g., "*.lock")
-    if (pattern.startsWith("*.")) {
-      const extToExclude = pattern.slice(2).toLowerCase();
-      if (ext === extToExclude) {
-        return false;
-      }
-    }
-    // Exact filename match (e.g., "package-lock.json")
-    else if (fileName === pattern) {
-      return false;
-    }
-    // Hidden files/folders (patterns starting with ".")
-    else if (pattern.startsWith(".") && filePath.includes(`/${pattern}`)) {
-      return false;
-    }
-    // Directory or path segment match
-    else if (filePath.includes(`/${pattern}/`) || filePath.endsWith(`/${pattern}`)) {
-      return false;
-    }
-  }
-
-  return true;
+  return !shouldIgnore(filePath);
 }
 
 /**
@@ -159,7 +136,7 @@ async function discoverFiles(
   basePath: string,
   recursive: boolean,
   includeExtensions: string[],
-  excludePatterns: string[]
+  shouldIgnore: (filePath: string) => boolean
 ): Promise<Array<{ filePath: string; relativePath: string }>> {
   const files: Array<{ filePath: string; relativePath: string }> = [];
 
@@ -171,21 +148,21 @@ async function discoverFiles(
       const relPath = relative(basePath, fullPath);
 
       if (entry.isDirectory()) {
-        if (recursive && !excludePatterns.includes(entry.name)) {
-          const subFiles = await discoverFiles(
-            fullPath,
-            basePath,
-            recursive,
-            includeExtensions,
-            excludePatterns
-          );
-          files.push(...subFiles);
+          if (recursive && !shouldIgnore(fullPath)) {
+            const subFiles = await discoverFiles(
+              fullPath,
+              basePath,
+              recursive,
+              includeExtensions,
+              shouldIgnore
+            );
+            files.push(...subFiles);
+          }
+        } else if (entry.isFile()) {
+          if (shouldIncludeFile(fullPath, includeExtensions, shouldIgnore)) {
+            files.push({ filePath: fullPath, relativePath: relPath });
+          }
         }
-      } else if (entry.isFile()) {
-        if (shouldIncludeFile(fullPath, includeExtensions, excludePatterns)) {
-          files.push({ filePath: fullPath, relativePath: relPath });
-        }
-      }
     }
   } catch (error) {
     console.error(`[SyncService] Error reading folder ${folderPath}:`, error);
@@ -486,10 +463,14 @@ export async function syncFolder(
     // Use module-level parseJsonArray helper for parsing JSON arrays from database
     const includeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
     const excludePatterns = parseJsonArray(folder.excludePatterns);
+    const mergedExcludePatterns = Array.from(
+      new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
+    );
+    const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folder.folderPath);
 
     console.log(`[SyncService] Discovering files in ${folder.folderPath}`);
     console.log(`[SyncService] Include extensions: ${JSON.stringify(includeExtensions)}`);
-    console.log(`[SyncService] Exclude patterns: ${JSON.stringify(excludePatterns)}`);
+    console.log(`[SyncService] Exclude patterns: ${JSON.stringify(mergedExcludePatterns)}`);
     console.log(`[SyncService] Parallel config: concurrency=${config.concurrency}, staggerDelayMs=${config.staggerDelayMs}`);
     if (forceReindex) {
       console.log(`[SyncService] Force reindex enabled for folder ${folder.folderPath}`);
@@ -501,7 +482,7 @@ export async function syncFolder(
       folder.folderPath,
       folder.recursive,
       includeExtensions,
-      excludePatterns
+      shouldIgnore
     );
 
     console.log(`[SyncService] Discovered ${discoveredFiles.length} files to process`);
@@ -1228,4 +1209,3 @@ export async function syncStaleFolders(maxAgeMs: number = 60 * 60 * 1000): Promi
     isSyncingStaleFolders = false;
   }
 }
-

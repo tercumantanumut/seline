@@ -12,6 +12,7 @@ import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, and } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
+import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
 import { isVectorDBEnabled } from "./client";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { TaskEvent } from "@/lib/background-tasks/types";
@@ -376,6 +377,11 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   }
 
+  const mergedExcludePatterns = Array.from(
+    new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
+  );
+  const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
+
   const watcher = chokidar.watch(folderPath, {
     persistent: true,
     ignoreInitial: true, // Don't trigger on existing files
@@ -394,6 +400,9 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
   // Handle file add/change
   const handleFileChange = async (filePath: string) => {
+    if (shouldIgnore(filePath)) {
+      return;
+    }
     // Get extension without the leading dot for comparison
     const ext = extname(filePath).slice(1).toLowerCase();
     // Normalize includeExtensions by removing any leading dots

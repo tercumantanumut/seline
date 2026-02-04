@@ -81,6 +81,7 @@ export function TerminalWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vectorDBEnabled, setVectorDBEnabled] = useState(false);
+  const [hasMcpServers, setHasMcpServers] = useState<boolean | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const t = useTranslations("characterCreation.progress");
   const router = useRouter();
@@ -95,16 +96,38 @@ export function TerminalWizard() {
       .catch(console.error);
   }, []);
 
+  // Check if MCP servers are configured (to decide whether to show MCP step)
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/mcp")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const configured = (Object.entries(data?.config?.mcpServers || {}) as [string, { enabled?: boolean }][])
+          .filter(([_, serverConfig]) => serverConfig?.enabled !== false)
+          .map(([name]) => name);
+        setHasMcpServers(configured.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHasMcpServers(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Build wizard steps with translations, filtering out vectorSearch if disabled
   const wizardSteps = useMemo(() => {
-    const baseSteps = WIZARD_STEPS.filter(
-      (step) => step.id !== "vectorSearch" || vectorDBEnabled
-    );
+    const baseSteps = WIZARD_STEPS.filter((step) => {
+      if (step.id === "vectorSearch" && !vectorDBEnabled) return false;
+      if (step.id === "mcpTools" && hasMcpServers === false) return false;
+      return true;
+    });
     return baseSteps.map((step) => ({
       ...step,
       label: t(step.id as "intro" | "identity" | "capabilities" | "mcpTools" | "knowledge" | "embeddingSetup" | "vectorSearch" | "preview"),
     }));
-  }, [vectorDBEnabled, t]);
+  }, [vectorDBEnabled, hasMcpServers, t]);
 
   // Check if current page should show progress bar
   const showProgressBar = PROGRESS_PAGES.includes(currentPage);
@@ -159,7 +182,11 @@ export function TerminalWizard() {
   // Handle capabilities submission
   const handleCapabilitiesSubmit = (enabledTools: string[]) => {
     setState((prev) => ({ ...prev, enabledTools }));
-    navigateTo("mcpTools");
+    if (hasMcpServers === false) {
+      navigateTo("preview");
+    } else {
+      navigateTo("mcpTools");
+    }
   };
 
   // Handle MCP tools submission
@@ -170,7 +197,6 @@ export function TerminalWizard() {
       enabledMcpTools: tools,
       mcpToolPreferences: preferences,
     }));
-    navigateTo("preview");
   };
 
   // Handle knowledge base submission
@@ -419,7 +445,7 @@ export function TerminalWizard() {
                 enabledTools={state.enabledTools}
                 documents={state.documents}
                 onConfirm={handleFinalizeAgent}
-                onBack={() => navigateTo("mcpTools", -1)}
+                onBack={() => navigateTo(hasMcpServers === false ? "capabilities" : "mcpTools", -1)}
                 isSubmitting={isSubmitting}
               />
             )}

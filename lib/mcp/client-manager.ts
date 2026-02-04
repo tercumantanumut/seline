@@ -10,7 +10,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@/lib/mcp/stdio-transport";
 import type { MCPServerConfig, ResolvedMCPServer, MCPDiscoveredTool, MCPServerStatus } from "./types";
-import { getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
+import { getAllSyncFolders, getSyncFolders, getPrimarySyncFolder } from "@/lib/vectordb/sync-service";
 import { onFolderChange } from "@/lib/vectordb/folder-events";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import path from "path";
@@ -709,14 +709,20 @@ export async function resolveMCPConfig(
     const resolveValue = async (value: string): Promise<string> => {
         let resolved = value;
 
+        const getMcpFolders = async () => {
+            return characterId ? await getSyncFolders(characterId) : await getAllSyncFolders();
+        };
+
         // Handle ${SYNCED_FOLDER} - primary folder only
-        if (resolved.includes("${SYNCED_FOLDER}") && characterId) {
-            const primaryFolder = await getPrimarySyncFolder(characterId);
+        if (resolved.includes("${SYNCED_FOLDER}")) {
+            const primaryFolder = characterId
+                ? await getPrimarySyncFolder(characterId)
+                : (await getAllSyncFolders()).find(f => f.isPrimary);
             const primaryPath = primaryFolder?.folderPath || "";
 
             if (!primaryPath) {
                 throw new Error(
-                    `Cannot resolve \${SYNCED_FOLDER}: No synced folders for character ${characterId}. ` +
+                    "Cannot resolve ${SYNCED_FOLDER}: No synced folders found. " +
                     `Please sync a folder in Settings → Vector Search.`
                 );
             }
@@ -729,12 +735,12 @@ export async function resolveMCPConfig(
         }
 
         // Handle ${SYNCED_FOLDERS} - all folders, comma-separated (for single-arg tools)
-        if (resolved.includes("${SYNCED_FOLDERS}") && characterId) {
-            const folders = await getSyncFolders(characterId);
+        if (resolved.includes("${SYNCED_FOLDERS}")) {
+            const folders = await getMcpFolders();
 
             if (folders.length === 0) {
                 throw new Error(
-                    `Cannot resolve \${SYNCED_FOLDERS}: No synced folders for character ${characterId}.`
+                    "Cannot resolve ${SYNCED_FOLDERS}: No synced folders found."
                 );
             }
 
@@ -772,11 +778,11 @@ export async function resolveMCPConfig(
         let resolvedArgs: string[] = [];
         if (config.args) {
             for (const arg of config.args) {
-                if (arg === "${SYNCED_FOLDERS_ARRAY}" && characterId) {
-                    const folders = await getSyncFolders(characterId);
+                if (arg === "${SYNCED_FOLDERS_ARRAY}") {
+                    const folders = characterId ? await getSyncFolders(characterId) : await getAllSyncFolders();
 
                     if (folders.length === 0) {
-                        throw new Error(`Cannot resolve \${SYNCED_FOLDERS_ARRAY}: No synced folders for character ${characterId}.`);
+                        throw new Error("Cannot resolve ${SYNCED_FOLDERS_ARRAY}: No synced folders found.");
                     }
 
                     for (const folder of folders) {
@@ -795,7 +801,7 @@ export async function resolveMCPConfig(
         }
 
         // Resolve ${SYNCED_FOLDER} and ${SYNCED_FOLDERS_ARRAY} variables
-        if (characterId) {
+        {
             const hasVariables = resolvedArgs.some(arg =>
                 arg?.includes("${SYNCED_FOLDER}") ||
                 arg?.includes("${SYNCED_FOLDERS_ARRAY}") ||
@@ -803,7 +809,7 @@ export async function resolveMCPConfig(
             );
 
             if (hasVariables) {
-                const folders = await getSyncFolders(characterId);
+                const folders = characterId ? await getSyncFolders(characterId) : await getAllSyncFolders();
                 const primaryFolder = folders.find(f => f.isPrimary)?.folderPath || folders[0]?.folderPath || "";
 
                 // Resolve each arg
@@ -836,13 +842,13 @@ export async function resolveMCPConfig(
         }
 
         // Auto-inject paths for filesystem servers if still missing
-        if ((serverName === "filesystem" || serverName === "filesystem-multi") && characterId) {
+        if (serverName === "filesystem" || serverName === "filesystem-multi") {
             const needsAutoPaths = !hasFilesystemPathArg(resolvedArgs);
             if (needsAutoPaths) {
-                const folders = await getSyncFolders(characterId);
+                const folders = characterId ? await getSyncFolders(characterId) : await getAllSyncFolders();
                 if (folders.length === 0) {
                     throw new Error(
-                        `Cannot resolve filesystem MCP paths: No synced folders for character ${characterId}.`
+                        "Cannot resolve filesystem MCP paths: No synced folders found."
                     );
                 }
 

@@ -62,6 +62,7 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", nameKey: "scheduleTask", descKey: "scheduleTaskDesc", category: "utility" },
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
+  { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
   // OpenRouter Image Tools
   {
     id: "generateImageFlux2Flex",
@@ -281,6 +282,9 @@ export function CapabilitiesPage({
         baseTools.forEach((tool) => merged.set(tool.id, tool));
 
         (data.tools || []).forEach((tool) => {
+          if (tool.category === "mcp" || tool.id.startsWith("mcp_")) {
+            return;
+          }
           const existing = merged.get(tool.id);
           if (existing) {
             merged.set(tool.id, {

@@ -25,13 +25,10 @@ const limitedMath = math.create(all, {
 const dangerousFunctions = [
     "import",
     "createUnit",
-    "evaluate",
-    "parse",
     "compile",
     "parser",
     "chain",
     "help",
-    "config",
 ];
 
 dangerousFunctions.forEach((fn) => {

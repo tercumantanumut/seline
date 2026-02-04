@@ -91,7 +91,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     // Loading state
     if (!result) {
         return (
-            <div className="my-2 rounded-lg border border-terminal-border/50 bg-gradient-to-br from-terminal-bg/40 to-terminal-bg/20 backdrop-blur-sm overflow-hidden">
+            <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-center gap-3 p-3">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-terminal-amber/10 text-terminal-amber">
                         <Calculator className="w-4 h-4 animate-pulse" />
@@ -113,7 +113,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     // Error state
     if (!isSuccess) {
         return (
-            <div className="my-2 rounded-lg border border-red-200 bg-gradient-to-br from-red-50/80 to-red-50/40 backdrop-blur-sm overflow-hidden">
+            <div className="my-2 rounded-lg border border-red-200/70 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-start gap-3 p-3">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 flex-shrink-0">
                         <AlertCircle className="w-4 h-4" />
@@ -134,10 +134,10 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
 
     // Success state
     return (
-        <div className="my-2 rounded-lg border border-terminal-green/30 bg-gradient-to-br from-terminal-green/5 to-terminal-bg/20 backdrop-blur-sm overflow-hidden">
+        <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-3 py-2 border-b border-terminal-border/30 bg-terminal-bg/30">
-                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-terminal-green/10 text-terminal-green">
+            <div className="flex items-center gap-3 px-3 py-2 border-b border-terminal-border/40 bg-terminal-cream/90">
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-terminal-bg/40 text-terminal-dark">
                     {getTypeIcon(resultType)}
                 </div>
                 <code className="flex-1 font-mono text-sm text-terminal-dark truncate">
@@ -156,7 +156,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                     <span className="text-terminal-muted font-mono text-lg">=</span>
                     <div className="flex-1 min-w-0">
                         <code className={cn(
-                            "font-mono text-lg font-medium text-terminal-green break-all",
+                            "font-mono text-lg font-medium text-terminal-dark break-all",
                             isLongResult && !expanded && "line-clamp-2"
                         )}>
                             {displayResult}

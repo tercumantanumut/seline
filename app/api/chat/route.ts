@@ -6,6 +6,7 @@ import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
 import { createVectorSearchToolV2, createReadFileTool } from "@/lib/ai/vector-search";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
 import { createExecuteCommandTool } from "@/lib/ai/tools/execute-command-tool";
+import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -1712,6 +1713,9 @@ export async function POST(req: Request) {
           sessionId,
           characterId: characterId || null,
         }),
+      }),
+      ...(allTools.updatePlan && {
+        updatePlan: createUpdatePlanTool({ sessionId }),
       }),
     };
 
