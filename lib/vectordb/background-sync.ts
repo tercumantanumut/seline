@@ -15,9 +15,15 @@ const DEFAULT_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 // Minimum sync interval: 5 minutes
 const MIN_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
+// Global state that persists across hot reloads (dev mode)
+const globalForSync = globalThis as unknown as {
+  vectorSyncIntervalId?: NodeJS.Timeout | null;
+  vectorSyncInitialized?: boolean;
+};
+
 // Scheduler state
-let syncIntervalId: NodeJS.Timeout | null = null;
-let isInitialized = false;
+let syncIntervalId: NodeJS.Timeout | null = globalForSync.vectorSyncIntervalId ?? null;
+let isInitialized = globalForSync.vectorSyncInitialized ?? false;
 
 /**
  * Get the configured sync interval from settings
@@ -95,6 +101,7 @@ export function startBackgroundSync(): void {
       console.error("[BackgroundSync] Unhandled error in background sync:", err);
     });
   }, intervalMs);
+  globalForSync.vectorSyncIntervalId = syncIntervalId;
 }
 
 /**
@@ -104,6 +111,7 @@ export function stopBackgroundSync(): void {
   if (syncIntervalId) {
     clearInterval(syncIntervalId);
     syncIntervalId = null;
+    globalForSync.vectorSyncIntervalId = null;
     console.log("[BackgroundSync] Scheduler stopped");
   }
 }
@@ -127,8 +135,14 @@ export async function initializeVectorSync(): Promise<void> {
 
   console.log("[BackgroundSync] Initializing vector sync system...");
   isInitialized = true;
+  globalForSync.vectorSyncInitialized = true;
 
   try {
+    // 0. Clean up any existing watchers from previous hot reloads (dev mode)
+    const { stopAllWatchers } = await import("./file-watcher");
+    await stopAllWatchers();
+    console.log("[BackgroundSync] Cleaned up existing watchers");
+
     // 1. Recover any folders stuck in "syncing" status from previous crashes
     await recoverStuckSyncingFolders();
 

@@ -9,6 +9,7 @@ import {
 } from "../queries";
 import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
+import { getUserWorkspacePath } from "@/lib/workspace/setup";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
@@ -41,28 +42,60 @@ function resolvePathVariable(pathVar: string): string {
     // Development: use current working directory
     return process.cwd();
   }
+  if (pathVar === "${USER_WORKSPACE}") {
+    return getUserWorkspacePath();
+  }
   return pathVar;
 }
 
 export async function ensureDefaultAgentExists(userId: string): Promise<string | null> {
   try {
+    // First check if default already exists (fast path)
     const existingDefault = await getUserDefaultCharacter(userId);
     if (existingDefault) {
       return existingDefault.id;
     }
 
+    // Check for existing characters
     const existingCharacters = await getUserCharacters(userId);
+
+    // If user has any characters but no default, respect their choice
+    // They may have explicitly deleted the default agent
     if (existingCharacters.length > 0) {
       const existingSeline = existingCharacters.find(
         (character) => character.name.toLowerCase() === SELINE_DEFAULT_TEMPLATE.name.toLowerCase()
       );
       if (existingSeline) {
-        await setDefaultCharacter(userId, existingSeline.id);
-        return existingSeline.id;
+        try {
+          await setDefaultCharacter(userId, existingSeline.id);
+          return existingSeline.id;
+        } catch (error) {
+          // If setting default fails due to race condition, check if another default was created
+          const nowDefault = await getUserDefaultCharacter(userId);
+          if (nowDefault) {
+            return nowDefault.id;
+          }
+          throw error;
+        }
       }
+      // User has characters but no default - don't force-create one
+      return null;
     }
 
-    return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+    // Only create default agent for brand new users (zero characters)
+    // This ensures first-time users get the default, but it can be deleted permanently
+    try {
+      return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+    } catch (error) {
+      // If creation fails due to unique constraint violation (race condition),
+      // another request may have created the default
+      const nowDefault = await getUserDefaultCharacter(userId);
+      if (nowDefault) {
+        return nowDefault.id;
+      }
+      // Re-throw if it's not a race condition error
+      throw error;
+    }
   } catch (error) {
     console.error("[Templates] Error ensuring default agent:", error);
     return null;

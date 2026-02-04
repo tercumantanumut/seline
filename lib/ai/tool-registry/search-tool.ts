@@ -88,8 +88,9 @@ const toolSearchSchema = jsonSchema<{
         "knowledge",
         "utility",
         "search",
+        "mcp",
       ],
-      description: "Optional category filter to narrow down results",
+      description: "Optional category filter to narrow down results. Use 'mcp' for MCP server tools (linear, filesystem, etc).",
     },
     limit: {
       type: "number",
@@ -165,42 +166,25 @@ export function createToolSearchTool(context?: ToolSearchContext) {
       // Search ALL registered tools (including deferred ones) - this enables tool discovery
       let results = registry.search(query, limit * 2); // Fetch more to account for filtering
 
-      // Apply category filter if provided (with fuzzy fallback)
+      // Apply category filter if provided - but never filter out strong query matches
+      // Models often guess the wrong category, so treat it as a soft hint, not a hard filter
       if (category) {
         const categoryLower = category.toLowerCase();
         const beforeCategoryFilter = results.length;
 
-        // First try exact category match
-        const exactMatches = results.filter((r) => r.category === category);
+        // Split results: those matching category and those that don't
+        const categoryMatches = results.filter((r) => r.category === category);
+        const otherMatches = results.filter((r) => r.category !== category);
 
-        // If few exact matches, also include tools with category-related keywords
-        if (exactMatches.length < 3) {
-          // Fuzzy fallback: include tools whose keywords contain the category term
-          const fuzzyMatches = results.filter((r) => {
-            if (r.category === category) return true; // Already included
-            // Check if any keyword relates to the category
-            const toolMeta = registry.get(r.name);
-            if (!toolMeta) return false;
-            return toolMeta.metadata.keywords.some(kw =>
-              kw.toLowerCase().includes(categoryLower) ||
-              categoryLower.includes(kw.toLowerCase())
-            );
-          });
-
-          if (fuzzyMatches.length > exactMatches.length) {
-            logSearchTools(`[searchTools] Category "${category}" expanded from ${exactMatches.length} exact to ${fuzzyMatches.length} fuzzy matches`);
-            results = fuzzyMatches;
-          } else {
-            results = exactMatches;
-          }
-        } else {
-          results = exactMatches;
+        if (categoryMatches.length > 0) {
+          // Category matches exist - prefer them but keep high-relevance others
+          const highRelevanceOthers = otherMatches.filter((r) => r.relevance >= 0.4);
+          results = [...categoryMatches, ...highRelevanceOthers];
         }
+        // If zero category matches, keep ALL results (query match is more important)
+        // This prevents wrong category guesses from hiding relevant tools
 
-        // Warn if category filter was too narrow
-        if (results.length < beforeCategoryFilter && results.length < 3) {
-          warnSearchTools(`[searchTools] Category "${category}" narrowed ${beforeCategoryFilter} -> ${results.length} results. Consider query-only search for better discovery.`);
-        }
+        logSearchTools(`[searchTools] Category "${category}": ${categoryMatches.length} category matches, ${otherMatches.length} other matches, returning ${results.length} total`);
       }
 
       // CRITICAL: Filter results to only show tools enabled for this agent

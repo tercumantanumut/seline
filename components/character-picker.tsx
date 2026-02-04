@@ -863,16 +863,14 @@ export function CharacterPicker() {
                   <Plug className="w-3 h-3" />
                   <span>{t("mcpTools")}</span>
                 </button>
-                {!character.isDefault && (
-                  <button
-                    onClick={() => openDeleteDialog(character)}
-                    className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
-                    title={t("deleteAgent")}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>{t("delete")}</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => openDeleteDialog(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
+                  title={t("deleteAgent")}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>{t("delete")}</span>
+                </button>
               </div>
 
               <div className="px-4 pb-4 pt-0 flex gap-2">

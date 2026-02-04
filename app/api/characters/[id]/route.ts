@@ -70,9 +70,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     if (existing.userId !== dbUser.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (existing.isDefault) {
-      return NextResponse.json({ error: "Default agent cannot be deleted" }, { status: 400 });
-    }
 
     const body = await req.json();
     const parseResult = updateSchema.safeParse(body);
@@ -128,6 +125,33 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Clean up resources before deleting (using dynamic imports to avoid worker spawn issues)
+    try {
+      // Stop all file watchers for this character's sync folders
+      const { getSyncFolders } = await import("@/lib/vectordb/sync-service");
+      const { stopWatching } = await import("@/lib/vectordb/file-watcher");
+
+      const syncFolders = await getSyncFolders(id);
+      for (const folder of syncFolders) {
+        try {
+          await stopWatching(folder.id);
+        } catch (error) {
+          console.warn(`[DeleteCharacter] Failed to stop watcher for folder ${folder.id}:`, error);
+        }
+      }
+
+      // Delete vector database table
+      try {
+        const { deleteAgentTable } = await import("@/lib/vectordb/collections");
+        await deleteAgentTable(id);
+      } catch (error) {
+        console.warn(`[DeleteCharacter] Failed to delete vector table for character ${id}:`, error);
+      }
+    } catch (error) {
+      console.warn("[DeleteCharacter] Error during cleanup, continuing with deletion:", error);
+    }
+
+    // Delete the character (CASCADE will delete related data)
     await deleteCharacter(id);
     return NextResponse.json({ success: true });
   } catch (error) {
