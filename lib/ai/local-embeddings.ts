@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { EmbeddingModelV2, EmbeddingModelV2Embedding } from "@ai-sdk/provider";
+import { getLocalDataPath } from "../storage/local-data-path";
 
 export const DEFAULT_LOCAL_EMBEDDING_MODEL = "Xenova/bge-large-en-v1.5";
 const DEFAULT_QUERY_PREFIX = "Represent this code for search:";
@@ -28,8 +29,7 @@ let cachedPipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 function resolveCacheDir(override?: string): string {
   if (override) return override;
   if (process.env.EMBEDDING_CACHE_DIR) return process.env.EMBEDDING_CACHE_DIR;
-  const basePath = process.env.LOCAL_DATA_PATH || path.join(process.cwd(), ".local-data");
-  return path.join(basePath, "transformers-cache");
+  return getLocalDataPath("transformers-cache");
 }
 
 function resolveModelDir(override?: string): string | undefined {
@@ -38,8 +38,7 @@ function resolveModelDir(override?: string): string | undefined {
 
   // Fallback: read from settings.json (for Next.js dev server which doesn't have Electron env vars)
   try {
-    const basePath = process.env.LOCAL_DATA_PATH || path.join(process.cwd(), ".local-data");
-    const settingsPath = path.join(basePath, "settings.json");
+    const settingsPath = getLocalDataPath("settings.json");
     if (fs.existsSync(settingsPath)) {
       const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
       if (settings.embeddingModelDir && fs.existsSync(settings.embeddingModelDir)) {
