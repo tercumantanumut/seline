@@ -17,6 +17,7 @@ export const SELINE_DEFAULT_TEMPLATE: AgentTemplate = {
     "webBrowse",
     "executeCommand",
     "describeImage",
+    "updatePlan",
   ],
   syncFolders: [
     {

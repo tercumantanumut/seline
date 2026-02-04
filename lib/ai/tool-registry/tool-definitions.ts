@@ -68,6 +68,7 @@ import {
 } from "../tools/flux2-klein-9b-generate-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
+import { createUpdatePlanTool } from "../tools/update-plan-tool";
 
 /**
  * Register all tools with the registry
@@ -646,6 +647,81 @@ calculator({ expression: "45.99 * 1.085", precision: 2 })  // 49.90
       requiresSession: false,
     } satisfies ToolMetadata,
     () => createCalculatorTool()
+  );
+
+  // Update Plan Tool - Create or update a visible task plan
+  registry.register(
+    "updatePlan",
+    {
+      displayName: "Update Plan",
+      category: "utility",
+      keywords: [
+        "plan", "update plan", "task plan", "steps", "todo", "progress",
+        "checklist", "roadmap", "track", "status", "milestone",
+      ],
+      shortDescription:
+        "Create or update a visible task plan with step statuses across the conversation",
+      fullInstructions: `## Update Plan Tool
+
+**Creates a plan if none exists. Updates the existing plan if one does.**
+This is the single entry point for all plan operations — first call creates, subsequent calls update.
+
+The plan is visible to the user as a persistent panel and persists across messages and page refreshes.
+
+### When to Use
+- **First time**: Call with your steps to CREATE the plan (mode defaults to "replace")
+- **Subsequently**: Call with changed steps + mode="merge" to UPDATE specific steps
+- When breaking down a complex request into steps
+- When you want the user to see your progress on a multi-step task
+- To update step statuses as work progresses (pending → in_progress → completed)
+
+### Quick Decision
+- **No plan exists yet?** → just call with steps (mode="replace" is default, creates the plan)
+- **Plan exists, want to change a step?** → call with that step's id + new status, mode="merge"
+- **Want to completely redo the plan?** → call with new steps, mode="replace"
+
+### Parameters
+- **steps** (required): Array of step objects:
+  - **id** (optional): Stable identifier. If omitted, one is generated. Use the returned id in future merge calls to target that step.
+  - **text** (required): 1-sentence step description (max 120 chars)
+  - **status** (optional): "pending" | "in_progress" | "completed" | "canceled". Default: "pending"
+- **explanation** (optional): Brief reason for the update (shown in UI as a note, not as a step)
+- **mode** (optional): "replace" (default) replaces entire plan. "merge" updates existing steps by id/text and appends new ones.
+
+### Constraints
+- Max 20 steps (extras are truncated with a warning)
+- At most 1 step can be in_progress at a time (auto-enforced, extras downgraded to pending)
+- Plan version auto-increments on each call
+
+### Example — Create a Plan
+\`\`\`
+updatePlan({
+  steps: [
+    { text: "Research current API endpoints" },
+    { text: "Design new database schema" },
+    { text: "Implement migration script" },
+    { text: "Write tests" },
+    { text: "Deploy to staging" }
+  ],
+  explanation: "Starting the implementation plan"
+})
+\`\`\`
+
+### Example — Merge Update (mark step done, advance next)
+\`\`\`
+updatePlan({
+  steps: [
+    { id: "step_abc_0", text: "Research current API endpoints", status: "completed" },
+    { id: "step_def_1", text: "Design new database schema", status: "in_progress" }
+  ],
+  mode: "merge",
+  explanation: "Research complete, starting schema design"
+})
+\`\`\``,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createUpdatePlanTool({ sessionId: sessionId || "UNSCOPED" })
   );
 
   // Describe Image Tool (ALWAYS LOADED - essential for virtual try-on workflows)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readdir, readFile, stat } from "fs/promises";
 import { existsSync } from "fs";
 import { join, basename } from "path";
+import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "@/lib/vectordb/ignore-patterns";
 
 /**
  * Parse .gitignore-style patterns from a file
@@ -66,11 +67,12 @@ export async function POST(request: NextRequest) {
 
     // Remove duplicates and merge with defaults
     const defaultPatterns = ["node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "venv"];
-    const allPatterns = [...new Set([...defaultPatterns, ...detectedPatterns])];
+    const allPatterns = [...new Set([...defaultPatterns, ...DEFAULT_IGNORE_PATTERNS, ...detectedPatterns])];
 
     // Count files that would be indexed (with a limit to avoid slowness)
     const extensions = includeExtensions || [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"];
     const excludes = excludePatterns || allPatterns;
+    const shouldIgnore = createIgnoreMatcher(excludes, folderPath);
     const shouldRecurse = recursive !== false;
 
     let fileCount = 0;
@@ -92,14 +94,7 @@ export async function POST(request: NextRequest) {
           if (fileCount >= maxFilesToCount) break;
 
           // Check if should be excluded
-          const shouldExclude = excludes.some((pattern: string) => {
-            if (pattern.startsWith("*.")) {
-              return entry.name.endsWith(pattern.slice(1));
-            }
-            return entry.name === pattern || entry.name.startsWith(pattern);
-          });
-
-          if (shouldExclude) continue;
+          if (shouldIgnore(join(dir, entry.name))) continue;
 
           if (entry.isDirectory()) {
             await countFiles(join(dir, entry.name), depth + 1);
@@ -109,7 +104,7 @@ export async function POST(request: NextRequest) {
               const normalizedExt = ext.startsWith(".") ? ext : `.${ext}`;
               return entry.name.endsWith(normalizedExt);
             });
-            if (hasValidExtension) {
+            if (hasValidExtension && !shouldIgnore(join(dir, entry.name))) {
               fileCount++;
 
               // Check line count for large file detection (only check first 10 matching files for performance)
@@ -157,4 +152,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
