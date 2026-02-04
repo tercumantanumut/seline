@@ -14,10 +14,10 @@ const nextConfig: NextConfig = {
   // Exclude large/irrelevant directories from standalone output tracing.
   // Without this, Next.js copies dist-electron, .local-data (vectordb files), .git etc. into .next/standalone/
   outputFileTracingExcludes: [
-    "dist-electron/**",
-    ".git/**",
-    ".local-data/**",
-    "node_modules/.cache/**",
+    ["dist-electron/**"],
+    [".git/**"],
+    [".local-data/**"],
+    ["node_modules/.cache/**"],
   ],
   experimental: {
     serverActions: {
