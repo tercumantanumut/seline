@@ -44,6 +44,9 @@ if (!globalForWatchers.folderProcessors) {
 // Map of folder ID to watcher instance (use global in dev mode to persist across hot reloads)
 const watchers = globalForWatchers.fileWatchers;
 
+// Track which watchers are using polling mode
+const pollingModeWatchers = new Set<string>();
+
 // Map of folder ID to set of changed file paths
 const folderQueues = globalForWatchers.folderQueues;
 const deferredQueues = globalForWatchers.deferredQueues;
@@ -206,6 +209,15 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
   console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
 
+  // Warn if watching project root (common source of FD exhaustion)
+  if (folderPath === process.cwd()) {
+    console.warn(
+      `[FileWatcher] WARNING: Watching entire project directory (${folderPath}). ` +
+      `This may cause high file descriptor usage and performance issues. ` +
+      `Consider syncing specific subdirectories instead.`
+    );
+  }
+
   // Initialize queue for this folder
   folderQueues.set(folderId, new Set());
   deferredQueues.set(folderId, new Set());
@@ -288,19 +300,61 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   };
 
+  // Build efficient ignore patterns for chokidar
+  // Convert exclude patterns to glob patterns that chokidar can use efficiently
+  const ignoredPatterns = excludePatterns.map(pattern => {
+    // If pattern looks like a directory or file name, make it match anywhere in the path
+    if (!pattern.includes('*') && !pattern.includes('/')) {
+      return `**/${pattern}/**`;
+    }
+    return pattern;
+  });
+
+  // Always exclude common large directories to prevent FD exhaustion
+  const alwaysExclude = [
+    '**/node_modules/**',
+    '**/.git/**',
+    '**/.next/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/coverage/**',
+    '**/.local-data/**',
+    '**/dist-electron/**',
+    '**/comfyui_backend/**',
+    '**/.vscode/**',
+    '**/.idea/**',
+    '**/tmp/**',
+    '**/temp/**',
+  ];
+
+  // For large codebases (project root) or folders that previously hit EMFILE,
+  // use polling mode to prevent file descriptor exhaustion
+  // This is less efficient but much more reliable and doesn't hit file descriptor limits
+  const isLargeCodebase = folderPath === process.cwd();
+  const forcedPolling = pollingModeWatchers.has(folderId);
+  const usePolling = isLargeCodebase || forcedPolling;
+
+  if (usePolling) {
+    console.log(
+      `[FileWatcher] Using polling mode for large codebase: ${folderPath} ` +
+      `(prevents file descriptor exhaustion)`
+    );
+  }
+
   const watcher = chokidar.watch(folderPath, {
     persistent: true,
     ignoreInitial: true, // Don't trigger on existing files
     depth: recursive ? undefined : 0,
-    ignored: (path: string) => {
-      // Check exclude patterns
-      for (const pattern of excludePatterns) {
-        if (path.includes(pattern)) {
-          return true;
-        }
-      }
-      return false;
+    ignored: [...alwaysExclude, ...ignoredPatterns],
+    // Use atomic writes to reduce file descriptor churn
+    awaitWriteFinish: {
+      stabilityThreshold: 200,
+      pollInterval: 100,
     },
+    // Use polling for large codebases to prevent EMFILE errors
+    usePolling,
+    interval: usePolling ? 2000 : undefined, // Check every 2 seconds in polling mode
+    binaryInterval: usePolling ? 5000 : undefined, // Check binary files every 5 seconds
   });
 
   // Handle file add/change
@@ -371,8 +425,30 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     .on("add", handleFileChange)
     .on("change", handleFileChange)
     .on("unlink", handleFileRemove)
-    .on("error", (error) => {
+    .on("error", async (error: any) => {
       console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
+
+      // If we hit EMFILE and weren't already using polling, restart in polling mode
+      if (error?.code === 'EMFILE' && !pollingModeWatchers.has(folderId)) {
+        console.warn(
+          `[FileWatcher] Hit file descriptor limit for ${folderPath}, ` +
+          `restarting in polling mode...`
+        );
+
+        // Mark this folder for polling mode
+        pollingModeWatchers.add(folderId);
+
+        // Close the current watcher
+        await watcher.close();
+        watchers.delete(folderId);
+
+        // Restart the watcher (will use polling mode now)
+        setTimeout(() => {
+          startWatching(config).catch(err => {
+            console.error(`[FileWatcher] Failed to restart watcher:`, err);
+          });
+        }, 1000);
+      }
     });
 
   watchers.set(folderId, watcher);
@@ -420,6 +496,7 @@ export async function stopWatching(folderId: string): Promise<void> {
 
   pendingBatchRun.delete(folderId);
   activeBatchProcessing.delete(folderId);
+  pollingModeWatchers.delete(folderId);
 }
 
 /**
