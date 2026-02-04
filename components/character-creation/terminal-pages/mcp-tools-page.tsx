@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plug, ChevronDown, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import type { MCPTool } from "@/lib/mcp/types";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -296,6 +297,15 @@ export function MCPToolsPage({
                     <p className="mt-2 font-mono text-sm text-terminal-muted">
                         {t("noServersDescription")}
                     </p>
+                    <div className="mt-4">
+                        <Link
+                            href="/settings?tab=mcp"
+                            target="_blank"
+                            className="inline-flex items-center rounded border border-terminal-border px-4 py-2 font-mono text-sm text-terminal-dark transition-colors hover:bg-terminal-cream"
+                        >
+                            {t("configureServers")}
+                        </Link>
+                    </div>
                 </div>
                 <div className="flex justify-center">
                     <button
