@@ -12,23 +12,14 @@ import { mkdirSync, existsSync } from 'fs';
  * Get the path to the user's workspace directory
  * Creates the directory if it doesn't exist
  *
- * Location: ~/.seline/workspace or similar platform-specific location
+ * Location: ~/.seline/workspace (user home directory)
  */
 export function getUserWorkspacePath(): string {
-  // In Electron main process, use app.getPath('userData')
-  // In Next.js/non-Electron, fall back to local data directory
-  let userDataPath: string;
-
-  try {
-    // Try to import electron app
-    const { app } = require('electron');
-    userDataPath = app.getPath('userData');
-  } catch {
-    // Not in Electron, use local data directory
-    userDataPath = join(process.cwd(), '.local-data');
-  }
-
-  const workspacePath = join(userDataPath, 'workspace');
+  // Use user's home directory, NOT the app data directory
+  // This keeps workspace separate from app internals
+  const { homedir } = require('os');
+  const homeDir = homedir();
+  const workspacePath = join(homeDir, '.seline', 'workspace');
 
   // Ensure directory exists
   if (!existsSync(workspacePath)) {
