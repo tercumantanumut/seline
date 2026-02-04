@@ -903,6 +903,25 @@ function recordToolInputDelta(state: StreamingMessageState, toolCallId: string, 
   return true;
 }
 
+function finalizeStreamingToolCalls(state: StreamingMessageState): boolean {
+  let changed = false;
+  for (const part of state.toolCallParts.values()) {
+    if (part.type === "tool-call" && part.state === "input-streaming" && part.argsText && !part.args) {
+      try {
+        const parsed = JSON.parse(part.argsText);
+        part.args = parsed;
+        part.state = "input-available";
+        changed = true;
+        console.log(`[CHAT API] Finalized streaming tool call: ${part.toolName} (${part.toolCallId})`);
+      } catch (error) {
+        console.warn(`[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}):`, error);
+        // Leave in input-streaming state - will be filtered out
+      }
+    }
+  }
+  return changed;
+}
+
 function recordStructuredToolCall(
   state: StreamingMessageState,
   toolCallId: string,
@@ -1957,6 +1976,10 @@ export async function POST(req: Request) {
           runFinalized = true;
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
+          }
+          // Finalize any tool calls that were streamed via deltas (OpenAI format)
+          if (streamingState) {
+            finalizeStreamingToolCalls(streamingState);
           }
           if (streamingState && syncStreamingMessage) {
             await syncStreamingMessage(true);
