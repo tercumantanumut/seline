@@ -316,4 +316,30 @@ for (const mod of nativeModuleBinaries) {
 console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);
 
+// 12. Bundle Node.js executable for MCP subprocess spawning
+// This avoids console window flashing on Windows and provides a clean Node.js runtime on Mac
+// Using a real Node.js binary instead of ELECTRON_RUN_AS_NODE improves compatibility
+if (process.platform === 'win32' || process.platform === 'darwin') {
+    const platformName = process.platform === 'win32' ? 'Windows' : 'macOS';
+    console.log(`Bundling Node.js executable for ${platformName}...`);
+    const nodeExeSrc = process.execPath; // Current Node.js executable
+    const nodeBinDir = path.join(standaloneDir, 'node_modules', '.bin');
+    const nodeExeName = process.platform === 'win32' ? 'node.exe' : 'node';
+    const nodeExeDest = path.join(nodeBinDir, nodeExeName);
+
+    ensureDir(nodeBinDir);
+
+    if (fs.existsSync(nodeExeSrc)) {
+        fs.copyFileSync(nodeExeSrc, nodeExeDest);
+        // Ensure the binary is executable on macOS
+        if (process.platform === 'darwin') {
+            fs.chmodSync(nodeExeDest, 0o755);
+        }
+        const stats = fs.statSync(nodeExeDest);
+        console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+    } else {
+        console.warn('  Warning: Could not find Node.js executable to bundle');
+    }
+}
+
 console.log('--- Preparation Complete ---');
