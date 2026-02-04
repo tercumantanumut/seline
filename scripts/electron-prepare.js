@@ -105,6 +105,17 @@ function pruneStandaloneForPlatform(standaloneRoot) {
 
 console.log('--- Electron Prepare ---');
 
+// 0. Remove build artifacts and sensitive files that Next.js standalone copies from project root
+// These would otherwise bloat the final package (dist-electron alone is 600MB+)
+const standaloneJunk = ['dist-electron', '.git', '.env.local', '.env.example'];
+for (const name of standaloneJunk) {
+    const target = path.join(standaloneDir, name);
+    if (fs.existsSync(target)) {
+        console.log(`Removing ${name} from standalone...`);
+        removePath(target);
+    }
+}
+
 // 1. Ensure .next/standalone/.next exists
 console.log('Ensuring directory structure...');
 ensureDir(standaloneNextDir);
