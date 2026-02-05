@@ -2,13 +2,15 @@
 
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Key, Globe } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles, Key, Globe, Zap, MessageSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+
 interface ProviderStepProps {
-    selectedProvider: "anthropic" | "openrouter" | "antigravity";
-    onSelect: (provider: "anthropic" | "openrouter" | "antigravity") => void;
+    selectedProvider: LLMProvider;
+    onSelect: (provider: LLMProvider) => void;
     onContinue: () => void;
     onBack: () => void;
 }
@@ -20,6 +22,11 @@ const providers = [
         recommended: true,
     },
     {
+        id: "codex" as const,
+        icon: Zap,
+        recommended: false,
+    },
+    {
         id: "anthropic" as const,
         icon: Key,
         recommended: false,
@@ -27,6 +34,11 @@ const providers = [
     {
         id: "openrouter" as const,
         icon: Globe,
+        recommended: false,
+    },
+    {
+        id: "kimi" as const,
+        icon: MessageSquare,
         recommended: false,
     },
 ];

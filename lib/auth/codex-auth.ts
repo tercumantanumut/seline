@@ -113,6 +113,9 @@ export function saveCodexToken(token: CodexOAuthToken, email?: string, accountId
     lastRefresh: Date.now(),
   };
 
+  // Set Codex as the active LLM provider
+  settings.llmProvider = "codex";
+
   saveSettings(settings);
 
   cachedToken = token;

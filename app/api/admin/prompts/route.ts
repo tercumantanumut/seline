@@ -7,11 +7,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { listPromptTemplates } from "@/lib/observability";
+import { isLocalEnvironment } from "@/lib/utils/environment";
 
 export async function GET(req: NextRequest) {
   try {
-    // Skip auth in development for admin endpoints
-    if (process.env.NODE_ENV !== "development") {
+    // Skip auth for local environments (development and Electron production)
+    if (!isLocalEnvironment()) {
       await requireAuth(req);
     }
 

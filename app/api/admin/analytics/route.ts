@@ -7,13 +7,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/sqlite-client";
 import { agentRuns, agentRunEvents } from "@/lib/db/sqlite-observability-schema";
 import { sql, eq, count, avg, desc, and, gte } from "drizzle-orm";
-
-// Skip auth in development
-const isDev = process.env.NODE_ENV === "development";
+import { isLocalEnvironment } from "@/lib/utils/environment";
 
 export async function GET(request: Request) {
-  // In production, add proper auth check here
-  if (!isDev) {
+  // Skip auth for local environments (development and Electron production)
+  // Both are running on the user's local machine
+  if (!isLocalEnvironment()) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -266,6 +266,9 @@ export function saveAntigravityToken(
     lastRefresh: Date.now(),
   };
 
+  // Set Antigravity as the active LLM provider
+  settings.llmProvider = "antigravity";
+
   saveSettings(settings);
 
   // Invalidate cache

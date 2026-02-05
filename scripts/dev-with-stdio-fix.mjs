@@ -52,7 +52,7 @@ const child = spawn('npx', ['next', 'dev'], {
     FORCE_COLOR: '1',
   },
   stdio: stdio, // Use the validated stdio configuration
-  shell: false,
+  shell: process.platform === 'win32', // Windows needs shell to find npx.cmd
 });
 
 // If we had to use 'pipe' for any descriptor, manually forward the streams

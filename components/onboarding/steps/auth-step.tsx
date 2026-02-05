@@ -7,8 +7,10 @@ import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucid
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import type { LLMProvider } from "./provider-step";
+
 interface AuthStepProps {
-    provider: "anthropic" | "openrouter" | "antigravity";
+    provider: LLMProvider;
     onAuthenticated: () => void;
     onBack: () => void;
     onSkip: () => void;
@@ -21,16 +23,18 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Check if already authenticated for Antigravity
+    // Check if already authenticated for OAuth providers
     useEffect(() => {
         if (provider === "antigravity") {
-            checkAntigravityAuth();
+            checkOAuthAuth("/api/auth/antigravity");
+        } else if (provider === "codex") {
+            checkOAuthAuth("/api/auth/codex");
         }
     }, [provider]);
 
-    const checkAntigravityAuth = async () => {
+    const checkOAuthAuth = async (endpoint: string) => {
         try {
-            const response = await fetch(`/api/auth/antigravity?t=${Date.now()}`);
+            const response = await fetch(`${endpoint}?t=${Date.now()}`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.authenticated) {
@@ -38,7 +42,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 }
             }
         } catch (err) {
-            console.error("Failed to check Antigravity auth:", err);
+            console.error(`Failed to check auth for ${endpoint}:`, err);
         }
     };
 
@@ -145,6 +149,109 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         }
     };
 
+    const handleCodexLogin = async () => {
+        setLoading(true);
+        setError(null);
+
+        const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+            ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+            : undefined;
+        const isElectron = !!electronAPI?.isElectron;
+
+        let popup: Window | null = null;
+        let pollInterval: NodeJS.Timeout | null = null;
+        let timeoutId: NodeJS.Timeout | null = null;
+
+        const cleanup = () => {
+            if (pollInterval) clearInterval(pollInterval);
+            if (timeoutId) clearTimeout(timeoutId);
+            setLoading(false);
+        };
+
+        try {
+            // Open a placeholder popup synchronously
+            if (!isElectron) {
+                const width = 500;
+                const height = 700;
+                const left = window.screenX + (window.outerWidth - width) / 2;
+                const top = window.screenY + (window.outerHeight - height) / 2;
+
+                popup = window.open(
+                    "about:blank",
+                    "codex-auth",
+                    `width=${width},height=${height},left=${left},top=${top}`
+                );
+
+                if (popup) {
+                    popup.document.write("<p style='font-family:monospace;padding:20px'>Connecting to OpenAI...</p>");
+                }
+            }
+
+            // Get the OAuth authorization URL
+            const authResponse = await fetch("/api/auth/codex/authorize");
+            const authData = await authResponse.json();
+
+            if (!authData.success || !authData.url) {
+                popup?.close();
+                throw new Error(authData.error || "Failed to get authorization URL");
+            }
+
+            if (isElectron && electronAPI?.shell?.openExternal) {
+                await electronAPI.shell.openExternal(authData.url);
+            } else if (popup) {
+                popup.location.href = authData.url;
+            } else {
+                toast.error("Popup blocked. Please allow popups for this site and try again.");
+                cleanup();
+                return;
+            }
+
+            // Poll for auth completion
+            let pollInFlight = false;
+            pollInterval = setInterval(async () => {
+                if (pollInFlight) return;
+                pollInFlight = true;
+                try {
+                    const response = await fetch(`/api/auth/codex?t=${Date.now()}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.authenticated) {
+                            popup?.close();
+                            setIsAuthenticated(true);
+                            cleanup();
+                            return;
+                        }
+                    }
+
+                    if (popup?.closed) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        const finalCheck = await fetch(`/api/auth/codex?t=${Date.now()}`);
+                        if (finalCheck.ok) {
+                            const data = await finalCheck.json();
+                            if (data.authenticated) {
+                                setIsAuthenticated(true);
+                            }
+                        }
+                        cleanup();
+                    }
+                } finally {
+                    pollInFlight = false;
+                }
+            }, 1000);
+
+            // Timeout after 5 minutes
+            timeoutId = setTimeout(() => {
+                popup?.close();
+                cleanup();
+            }, 5 * 60 * 1000);
+
+        } catch (err) {
+            console.error("Codex login failed:", err);
+            setError(err instanceof Error ? err.message : "Authentication failed");
+            cleanup();
+        }
+    };
+
     const handleApiKeySubmit = async () => {
         if (!apiKey.trim()) {
             setError("Please enter an API key");
@@ -156,7 +263,16 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
 
         try {
             // Save the API key to settings
-            const keyField = provider === "anthropic" ? "anthropicApiKey" : "openrouterApiKey";
+            const keyFieldMap: Record<string, string> = {
+                anthropic: "anthropicApiKey",
+                openrouter: "openrouterApiKey",
+                kimi: "kimiApiKey",
+            };
+            const keyField = keyFieldMap[provider];
+            if (!keyField) {
+                throw new Error("Invalid provider for API key");
+            }
+
             const response = await fetch("/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -197,7 +313,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                     {t("title")}
                 </h1>
 
-                {provider === "antigravity" ? (
+                {provider === "antigravity" || provider === "codex" ? (
                     <div className="space-y-6 mt-8">
                         {isAuthenticated ? (
                             <motion.div
@@ -207,13 +323,13 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             >
                                 <CheckCircle2 className="w-12 h-12 text-terminal-green mx-auto mb-4" />
                                 <p className="font-mono text-terminal-green font-semibold">
-                                    Connected to Antigravity!
+                                    Connected to {provider === "antigravity" ? "Antigravity" : "Codex"}!
                                 </p>
                             </motion.div>
                         ) : (
                             <>
                                 <Button
-                                    onClick={handleAntigravityLogin}
+                                    onClick={provider === "antigravity" ? handleAntigravityLogin : handleCodexLogin}
                                     disabled={loading}
                                     className="w-full gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono py-6"
                                 >
@@ -222,6 +338,8 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Connecting...
                                         </>
+                                    ) : provider === "codex" ? (
+                                        "Sign in with OpenAI"
                                     ) : (
                                         t("oauth.button")
                                     )}

@@ -49,11 +49,41 @@
           "title": "OpenRouter",
           "desc": "OpenRouter üzerinden birden fazla modele erişin"
         },
+        "codex": {
+          "title": "OpenAI Codex (ChatGPT Plus)",
+          "desc": "ChatGPT Plus/Pro aboneliğinizi GPT-4o ve o1 için kullanın"
+        },
         "kimi": {
           "title": "Moonshot Kimi",
           "desc": "256K bağlam ve görüntü desteği ile Kimi K2.5 kullanın"
         }
       }
+    },
+    "embedding": {
+      "title": "Vektör Aramayı Etkinleştir",
+      "subtitle": "Vektör arama, ajanlarınızın belgelerinizde ilgili içeriği bulmasını sağlar",
+      "providers": {
+        "openrouter": {
+          "title": "OpenRouter (Bulut)",
+          "desc": "OpenRouter API ile hızlı embeddinglar",
+          "noKey": "OpenRouter API anahtarı gerekli (Ayarlar'dan ekleyin)"
+        },
+        "local": {
+          "title": "Yerel (Cihazda)",
+          "desc": "Gizli, çevrimdışı embeddinglar - veri cihazınızdan çıkmaz",
+          "electronOnly": "Sadece masaüstü uygulamada kullanılabilir"
+        }
+      },
+      "selectModel": "İndirilecek embedding modelini seçin:",
+      "recommended": "Önerilen",
+      "download": "İndir",
+      "downloading": "İndiriliyor...",
+      "saved": "Vektör arama etkinleştirildi!",
+      "saving": "Kaydediliyor...",
+      "continue": "Devam",
+      "skip": "Atla",
+      "back": "Geri",
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
     },
     "auth": {
       "title": "Hesabınızı Bağlayın",

@@ -49,11 +49,41 @@
           "title": "OpenRouter",
           "desc": "Access multiple models through OpenRouter"
         },
+        "codex": {
+          "title": "OpenAI Codex (ChatGPT Plus)",
+          "desc": "Use your ChatGPT Plus/Pro subscription for GPT-4o and o1"
+        },
         "kimi": {
           "title": "Moonshot Kimi",
           "desc": "Use Moonshot's Kimi K2.5 with 256K context and vision"
         }
       }
+    },
+    "embedding": {
+      "title": "Enable Vector Search",
+      "subtitle": "Vector search lets your agents find relevant content in your documents",
+      "providers": {
+        "openrouter": {
+          "title": "OpenRouter (Cloud)",
+          "desc": "Fast embeddings via OpenRouter API",
+          "noKey": "Requires OpenRouter API key (add in Settings)"
+        },
+        "local": {
+          "title": "Local (On-device)",
+          "desc": "Private, offline embeddings - no data leaves your device",
+          "electronOnly": "Only available in desktop app"
+        }
+      },
+      "selectModel": "Select an embedding model to download:",
+      "recommended": "Recommended",
+      "download": "Download",
+      "downloading": "Downloading...",
+      "saved": "Vector search enabled!",
+      "saving": "Saving...",
+      "continue": "Continue",
+      "skip": "Skip",
+      "back": "Back",
+      "skipHint": "You can configure this later in Settings"
     },
     "auth": {
       "title": "Connect Your Account",

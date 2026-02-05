@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { isLocalEnvironment } from "@/lib/utils/environment";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  if (process.env.NODE_ENV !== "development") {
+  // Only allow in local environments (development and Electron production)
+  if (!isLocalEnvironment()) {
     return new Response("Forbidden", { status: 403 });
   }
 

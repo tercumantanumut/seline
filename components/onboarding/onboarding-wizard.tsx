@@ -3,35 +3,31 @@
 import { useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { Shell } from "@/components/layout/shell";
 import {
     WelcomeStep,
     ProviderStep,
     AuthStep,
-    PersonalizationStep,
+    EmbeddingStep,
     CompleteStep,
 } from "./steps";
-import { Sparkles, Key, Palette, CheckCircle2 } from "lucide-react";
+import { Sparkles, Key, Database, CheckCircle2 } from "lucide-react";
 
-type OnboardingStep = "welcome" | "provider" | "auth" | "personalization" | "complete";
+import type { LLMProvider } from "./steps/provider-step";
+
+type OnboardingStep = "welcome" | "provider" | "auth" | "embedding" | "complete";
 
 interface OnboardingState {
-    llmProvider: "anthropic" | "openrouter" | "antigravity";
+    llmProvider: LLMProvider;
     apiKey: string;
     isAuthenticated: boolean;
-    preferences: {
-        visual_preferences: string[];
-        communication_style: string[];
-        workflow_patterns: string[];
-    };
 }
 
 const ONBOARDING_STEPS = [
     { id: "welcome", label: "Welcome", icon: <Sparkles className="w-4 h-4" /> },
     { id: "provider", label: "Provider", icon: <Key className="w-4 h-4" /> },
     { id: "auth", label: "Connect", icon: <Key className="w-4 h-4" /> },
-    { id: "personalization", label: "Personalize", icon: <Palette className="w-4 h-4" /> },
+    { id: "embedding", label: "Search", icon: <Database className="w-4 h-4" /> },
     { id: "complete", label: "Ready", icon: <CheckCircle2 className="w-4 h-4" /> },
 ];
 
@@ -57,15 +53,9 @@ export function OnboardingWizard() {
         llmProvider: "antigravity", // Default to free option
         apiKey: "",
         isAuthenticated: false,
-        preferences: {
-            visual_preferences: [],
-            communication_style: [],
-            workflow_patterns: [],
-        },
     });
 
     const router = useRouter();
-    const t = useTranslations("onboarding");
 
     const navigateTo = useCallback((step: OnboardingStep, dir: number = 1) => {
         setDirection(dir);
@@ -77,15 +67,12 @@ export function OnboardingWizard() {
             await fetch("/api/onboarding", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    globalMemoryDefaults: state.preferences,
-                }),
+                body: JSON.stringify({}),
             });
 
             router.push("/");
         } catch (error) {
             console.error("Failed to complete onboarding:", error);
-            // Still navigate even if saving preferences fails
             router.push("/");
         }
     };
@@ -162,19 +149,17 @@ export function OnboardingWizard() {
                                     provider={state.llmProvider}
                                     onAuthenticated={() => {
                                         setState({ ...state, isAuthenticated: true });
-                                        navigateTo("personalization");
+                                        navigateTo("embedding");
                                     }}
                                     onBack={() => navigateTo("provider", -1)}
-                                    onSkip={() => navigateTo("personalization")}
+                                    onSkip={() => navigateTo("embedding")}
                                 />
                             )}
-                            {currentStep === "personalization" && (
-                                <PersonalizationStep
-                                    preferences={state.preferences}
-                                    onUpdate={(prefs) => setState({ ...state, preferences: prefs })}
+                            {currentStep === "embedding" && (
+                                <EmbeddingStep
                                     onContinue={() => navigateTo("complete")}
-                                    onSkip={() => navigateTo("complete")}
                                     onBack={() => navigateTo("auth", -1)}
+                                    onSkip={() => navigateTo("complete")}
                                 />
                             )}
                             {currentStep === "complete" && (
