@@ -455,7 +455,7 @@ async function extractContent(
           const summary = getToolSummaryFromOutput(toolName, output, part.input);
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} summary: ${summary}`,
+            text: `[SYSTEM: Tool ${toolName} summary: ${summary}]`,
           });
         } else if (output?.text) {
           // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
@@ -465,7 +465,7 @@ async function extractContent(
           }
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} result: ${resultText}`,
+            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
           });
         } else if (toolName === "searchTools") {
           // Preserve searchTools results so AI remembers discovered tools
@@ -552,7 +552,7 @@ async function extractContent(
 
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} result: ${stringifiedOutput}`,
+            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${stringifiedOutput}]`,
           });
         }
       } else if (part.type.startsWith("tool-")) {
@@ -587,7 +587,7 @@ async function extractContent(
           const summary = getToolSummaryFromOutput(toolName, toolOutput, partWithOutput.input);
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} summary: ${summary}`,
+            text: `[SYSTEM: Tool ${toolName} summary: ${summary}]`,
           });
         } else if (toolOutput?.text) {
           // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
@@ -597,7 +597,7 @@ async function extractContent(
           }
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} result: ${resultText}`,
+            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
           });
         } else if (toolName === "searchTools") {
           // Preserve searchTools results so AI remembers discovered tools
@@ -676,7 +676,7 @@ async function extractContent(
           const resultText = toolOutput ? JSON.stringify(toolOutput) : "null";
           contentParts.push({
             type: "text",
-            text: `Previous ${toolName} result: ${resultText}`,
+            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
           });
         }
       }
