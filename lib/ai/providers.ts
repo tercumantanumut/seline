@@ -36,6 +36,24 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
 const DEFAULT_EMBEDDING_PROVIDER: EmbeddingProvider = "openrouter";
 
+/**
+ * Get the correct app URL for HTTP-Referer headers
+ * Handles both development and production Electron environments
+ */
+function getAppUrl(): string {
+  // Detect Electron production environment
+  const isElectronProduction =
+    (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+     !!(process as any).resourcesPath ||
+     !!process.env.ELECTRON_RESOURCES_PATH) &&
+    process.env.ELECTRON_IS_DEV !== "1" &&
+    process.env.NODE_ENV !== "development";
+
+  return isElectronProduction
+    ? "http://localhost:3456"
+    : "http://localhost:3000";
+}
+
 // Helper to get OpenRouter API key dynamically (allows settings to set it after module load)
 function getOpenRouterApiKey(): string | undefined {
   return process.env.OPENROUTER_API_KEY;
@@ -142,7 +160,7 @@ function getOpenRouterClient() {
       baseURL: OPENROUTER_BASE_URL,
       apiKey: apiKey || "",
       headers: {
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        "HTTP-Referer": getAppUrl(),
         "X-Title": "STYLY Agent",
       },
       // Add provider options for request body customization
@@ -197,7 +215,7 @@ function getKimiClient() {
       baseURL: KIMI_CONFIG.BASE_URL,
       apiKey: apiKey || "",
       headers: {
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        "HTTP-Referer": getAppUrl(),
         "X-Title": "Seline Agent",
       },
       fetch: kimiCustomFetch,
