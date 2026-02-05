@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Plus, X, Terminal, Globe, Info, AlertTriangle, Copy, Check,
-    ChevronDown, ChevronUp, Eye, EyeOff
+    Eye, EyeOff, Shield, Key, Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MCPServerConfig } from "@/lib/mcp/types";
@@ -125,6 +125,11 @@ export function MCPServerForm({
         const updated = { ...headers };
         delete updated[key];
         setHeaders(updated);
+    };
+
+    const upsertQuickHeader = (key: string, value: string, showValue = true) => {
+        setHeaders((prev) => ({ ...prev, [key]: value }));
+        setShowHeaderValues((prev) => ({ ...prev, [key]: showValue }));
     };
 
     const copyVariable = (varName: string) => {
@@ -517,49 +522,93 @@ export function MCPServerForm({
                                 </PopoverContent>
                             </Popover>
                         </div>
+                        <p className="text-[10px] text-terminal-muted">
+                            Headers are sent with every SSE request. Use ${"{VAR_NAME}"} for environment variables.
+                            Common: Authorization, X-API-Key, X-Project-ID.
+                        </p>
+
+                        {Object.keys(headers).length === 0 && (
+                            <div className="flex flex-wrap gap-2 p-2 rounded border border-dashed border-terminal-border bg-terminal-bg/30">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[10px]"
+                                    onClick={() => upsertQuickHeader("Authorization", "Bearer ${YOUR_API_KEY}")}
+                                >
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Bearer Token
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[10px]"
+                                    onClick={() => upsertQuickHeader("X-API-Key", "${YOUR_API_KEY}")}
+                                >
+                                    <Key className="h-3 w-3 mr-1" />
+                                    API Key
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[10px]"
+                                    onClick={() => upsertQuickHeader("Authorization", "Basic dXNlcm5hbWU6cGFzc3dvcmQ=")}
+                                >
+                                    <Lock className="h-3 w-3 mr-1" />
+                                    Basic Auth
+                                </Button>
+                            </div>
+                        )}
 
                         {/* Existing headers */}
                         {Object.entries(headers).map(([key, value]) => (
-                            <div key={key} className="flex items-center gap-2">
-                                <Input
-                                    value={key}
-                                    disabled
-                                    className="w-1/3 font-mono text-xs bg-gray-50"
-                                />
-                                <div className="flex-1 relative">
+                            <div key={key} className="space-y-1">
+                                <div className="flex items-center gap-2">
                                     <Input
-                                        type={showHeaderValues[key] ? "text" : "password"}
-                                        value={value}
-                                        onChange={(e) =>
-                                            setHeaders({ ...headers, [key]: e.target.value })
-                                        }
-                                        placeholder="Value or ${VAR}"
-                                        className="font-mono text-xs pr-8"
+                                        value={key}
+                                        disabled
+                                        className="w-1/3 font-mono text-xs bg-gray-50"
                                     />
-                                    <button
-                                        onClick={() =>
-                                            setShowHeaderValues({
-                                                ...showHeaderValues,
-                                                [key]: !showHeaderValues[key],
-                                            })
-                                        }
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-terminal-muted hover:text-terminal-dark"
+                                    <div className="flex-1 relative">
+                                        <Input
+                                            type={showHeaderValues[key] ? "text" : "password"}
+                                            value={value}
+                                            onChange={(e) =>
+                                                setHeaders({ ...headers, [key]: e.target.value })
+                                            }
+                                            placeholder="Value or ${VAR}"
+                                            className="font-mono text-xs pr-8"
+                                        />
+                                        <button
+                                            onClick={() =>
+                                                setShowHeaderValues({
+                                                    ...showHeaderValues,
+                                                    [key]: !showHeaderValues[key],
+                                                })
+                                            }
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-terminal-muted hover:text-terminal-dark"
+                                        >
+                                            {showHeaderValues[key] ? (
+                                                <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                                <Eye className="h-3 w-3" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-8 w-8 shrink-0"
+                                        onClick={() => handleRemoveHeader(key)}
                                     >
-                                        {showHeaderValues[key] ? (
-                                            <EyeOff className="h-3 w-3" />
-                                        ) : (
-                                            <Eye className="h-3 w-3" />
-                                        )}
-                                    </button>
+                                        <X className="h-3 w-3" />
+                                    </Button>
                                 </div>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 shrink-0"
-                                    onClick={() => handleRemoveHeader(key)}
-                                >
-                                    <X className="h-3 w-3" />
-                                </Button>
+                                {value.includes("${") && (
+                                    <div className="text-[10px] text-terminal-muted font-mono bg-terminal-bg/50 p-1.5 rounded">
+                                        <span className="font-semibold">Preview: </span>
+                                        {resolveVariablePreview(value)}
+                                    </div>
+                                )}
                             </div>
                         ))}
 

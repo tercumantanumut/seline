@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import {
     Loader2, Check, X, RefreshCw, Plus, Trash2, Plug,
     Terminal, Globe, AlertCircle, Play, Square, Info,
-    PlusCircle, AlertTriangle, ChevronDown, Edit2
+    PlusCircle, AlertTriangle, ChevronDown, Edit2, Key
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MCPServerConfig } from "@/lib/mcp/types";
@@ -36,7 +36,18 @@ interface MCPServerStatus {
     tools: string[];
 }
 
-const PREBUILT_TEMPLATES = [
+interface MCPTemplate {
+    id: string;
+    name: string;
+    description: string;
+    config: MCPServerConfig;
+    requiredEnv: string[];
+    setupInstructions?: string;
+    authType?: string;
+    difficulty?: "Easy" | "Medium" | "Advanced";
+}
+
+const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "filesystem",
         name: "Filesystem",
@@ -100,7 +111,9 @@ const PREBUILT_TEMPLATES = [
             }
         },
         requiredEnv: ["COMPOSIO_API_KEY"],
-        setupInstructions: "Get your API key from https://app.composio.dev/settings"
+        setupInstructions: "Get your API key from https://app.composio.dev/settings",
+        authType: "Header auth",
+        difficulty: "Easy"
     },
     {
         id: "linear",
@@ -110,7 +123,8 @@ const PREBUILT_TEMPLATES = [
             command: "npx",
             args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
         },
-        requiredEnv: []
+        requiredEnv: [],
+        difficulty: "Easy"
     },
     {
         id: "supabase",
@@ -125,7 +139,8 @@ const PREBUILT_TEMPLATES = [
                 "MCP_REMOTE_HEADERS": "{\"Authorization\": \"Bearer ${SUPABASE_ACCESS_TOKEN}\"}"
             }
         },
-        requiredEnv: ["SUPABASE_PROJECT_REF", "SUPABASE_ACCESS_TOKEN"]
+        requiredEnv: ["SUPABASE_PROJECT_REF", "SUPABASE_ACCESS_TOKEN"],
+        difficulty: "Medium"
     },
     {
         id: "assistant-ui",
@@ -350,7 +365,7 @@ export function MCPSettings() {
         setEditingServer(null);
     };
 
-    const handleApplyTemplate = async (template: typeof PREBUILT_TEMPLATES[0]) => {
+    const handleApplyTemplate = async (template: MCPTemplate) => {
         // Check if env vars needed and add them
         if (template.requiredEnv && template.requiredEnv.length > 0) {
             const newEnv = { ...environment };
@@ -432,20 +447,67 @@ export function MCPSettings() {
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
                     Recommended Servers
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {PREBUILT_TEMPLATES.map(template => (
                         <button
                             key={template.id}
                             onClick={() => handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-4 rounded-lg border border-terminal-border bg-white hover:border-terminal-green hover:shadow-sm transition-all text-left"
+                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-white hover:border-terminal-green hover:shadow-sm transition-all text-left"
                         >
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-1.5 rounded bg-terminal-green/10 text-terminal-green">
-                                    <Terminal className="h-4 w-4" />
+                            <div className="flex items-center justify-between w-full gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 rounded bg-terminal-green/10 text-terminal-green">
+                                        {template.config.type === "sse" ? (
+                                            <Globe className="h-4 w-4" />
+                                        ) : (
+                                            <Terminal className="h-4 w-4" />
+                                        )}
+                                    </div>
+                                    <span className="font-mono font-medium text-sm">{template.name}</span>
                                 </div>
-                                <span className="font-mono font-medium text-sm">{template.name}</span>
+                                {template.requiredEnv.length > 0 && (
+                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
+                                        <Key className="h-3 w-3 mr-1" />
+                                        Auth
+                                    </Badge>
+                                )}
                             </div>
-                            <p className="font-mono text-xs text-terminal-muted">{template.description}</p>
+                            <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{template.description}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
+                                    {template.config.type === "sse" ? "sse" : "stdio"}
+                                </Badge>
+                                {template.difficulty && (
+                                    <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                                        {template.difficulty}
+                                    </Badge>
+                                )}
+                                {template.requiredEnv.length > 0 && (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 px-1.5 text-[10px] text-terminal-muted"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <Info className="h-3 w-3 mr-1" />
+                                                Setup
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-72 text-xs">
+                                            <div className="space-y-2">
+                                                <p className="font-semibold">{template.name}</p>
+                                                <p>Required env: {template.requiredEnv.join(", ")}</p>
+                                                {template.setupInstructions && (
+                                                    <p className="text-terminal-muted">{template.setupInstructions}</p>
+                                                )}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
+                            </div>
                         </button>
                     ))}
                 </div>
