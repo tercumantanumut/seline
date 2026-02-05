@@ -232,6 +232,9 @@ export function ChannelConnectionsDialog({
           await fetch(`/api/channels/connections/${connectionId}/connect`, { method: "POST" });
         }
         toast.success(t("notices.created"));
+        if (formType === "slack") {
+          toast.warning(t("notices.slackScopesHint"), { duration: 8000 });
+        }
       }
 
       resetForm();

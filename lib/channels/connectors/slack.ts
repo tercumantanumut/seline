@@ -151,11 +151,20 @@ async function extractSlackAttachments(event: any, client: any, token?: string |
   });
 
   if (!response.ok) {
-    console.error(
-      `[Slack] Failed to download file "${file.name}" — ` +
-      `${response.status} ${response.statusText}. ` +
-      `The bot token may be missing or expired.`
-    );
+    if (response.status === 403) {
+      console.error(
+        `[Slack] Permission denied downloading file "${file.name}" (403). ` +
+        `Your Slack app is missing the "files:read" OAuth scope. ` +
+        `Go to api.slack.com → your app → Features & Permissions → Scopes, ` +
+        `add "files:read", and reinstall the app.`
+      );
+    } else {
+      console.error(
+        `[Slack] Failed to download file "${file.name}" — ` +
+        `${response.status} ${response.statusText}. ` +
+        `The bot token may be missing or expired.`
+      );
+    }
     return attachments;
   }
 
