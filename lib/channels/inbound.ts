@@ -285,7 +285,7 @@ function buildConversationTitle(channelType: string, peerName?: string | null, p
 
 function isNewSessionCommand(text: string): boolean {
   if (!text) return false;
-  return /^\/new(?:@[\w_]+)?$/i.test(text.trim());
+  return /^(?:\/|!)new(?:@[\w_]+)?$/i.test(text.trim());
 }
 
 async function sendNewSessionConfirmation(message: ChannelInboundMessage): Promise<void> {
