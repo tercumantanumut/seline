@@ -1374,7 +1374,8 @@
     "notices": {
       "created": "Kanal bağlandı.",
       "updated": "Bağlantı güncellendi.",
-      "deleted": "Bağlantı kaldırıldı."
+      "deleted": "Bağlantı kaldırıldı.",
+      "slackScopesHint": "Slack uygulamanız tam işlevsellik için şu bot kapsamlarına ihtiyaç duyar: messages:read, messages:write, channels:read, files:read. Resimler gelmediyse api.slack.com'daki uygulamanızı kontrol edin."
     }
   },
   "usage": {

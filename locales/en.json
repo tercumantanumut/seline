@@ -1395,7 +1395,8 @@
     "notices": {
       "created": "Channel connected.",
       "updated": "Connection updated.",
-      "deleted": "Connection removed."
+      "deleted": "Connection removed.",
+      "slackScopesHint": "Slack app needs these bot scopes for full functionality: messages:read, messages:write, channels:read, files:read. Check your app at api.slack.com if images aren't coming through."
     }
   },
   "usage": {
