@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "fs/promises";
 import { existsSync } from "fs";
 import { join, basename } from "path";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "@/lib/vectordb/ignore-patterns";
+import { isDangerousPath } from "@/lib/vectordb/dangerous-paths";
 
 /**
  * Parse .gitignore-style patterns from a file
@@ -30,6 +31,12 @@ export async function POST(request: NextRequest) {
         { error: "folderPath is required" },
         { status: 400 }
       );
+    }
+
+    // Reject dangerous / overly-broad paths before touching the filesystem
+    const dangerError = isDangerousPath(folderPath);
+    if (dangerError) {
+      return NextResponse.json({ error: dangerError }, { status: 400 });
     }
 
     // Check if folder exists

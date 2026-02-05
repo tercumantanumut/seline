@@ -17,6 +17,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   StarIcon,
+  XCircleIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -162,6 +163,32 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   useEffect(() => {
     loadFolders();
   }, [loadFolders]);
+
+  // Poll every 2 seconds while any folder is actively syncing so the UI
+  // reflects real progress / completion without waiting for the user to act.
+  useEffect(() => {
+    const hasSyncing = folders.some((f) => f.status === "syncing");
+    if (!hasSyncing) return;
+
+    const interval = setInterval(() => {
+      loadFolders();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [folders, loadFolders]);
+
+  const handleCancelSync = async (folderId: string) => {
+    try {
+      await fetch("/api/vector-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", folderId }),
+      });
+      // Give the server a moment to propagate, then reload
+      setTimeout(loadFolders, 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel sync");
+    }
+  };
 
   // Analyze folder path to detect ignore patterns and file count
   const analyzeFolder = async (path: string) => {
@@ -466,15 +493,27 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       <StarIcon className="w-4 h-4" />
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleSyncFolder(folder.id)}
-                    disabled={syncingFolderId === folder.id}
-                    className="h-8 w-8"
-                  >
-                    <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
-                  </Button>
+                  {folder.status === "syncing" ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCancelSync(folder.id)}
+                      title="Cancel sync"
+                      className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    >
+                      <XCircleIcon className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleSyncFolder(folder.id)}
+                      disabled={syncingFolderId === folder.id}
+                      className="h-8 w-8"
+                    >
+                      <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"

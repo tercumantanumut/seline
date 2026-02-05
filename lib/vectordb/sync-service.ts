@@ -22,6 +22,7 @@ import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
 
+import { isDangerousPath } from "./dangerous-paths";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
 export { onFolderChange, notifyFolderChange };
 export type { FolderChangeEvent };
@@ -213,6 +214,12 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     excludePatterns = ["node_modules", ".*", ".git", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "*.lock"],
     indexingMode = "auto",
   } = config;
+
+  // Reject dangerous paths (filesystem root, system directories, etc.)
+  const dangerError = isDangerousPath(folderPath);
+  if (dangerError) {
+    throw new Error(dangerError);
+  }
 
   // Normalize extensions to ensure consistent format (without dots)
   const normalizedExtensions = normalizeExtensions(includeExtensions);

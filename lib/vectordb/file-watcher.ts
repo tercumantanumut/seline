@@ -58,6 +58,11 @@ const folderProcessors = globalForWatchers.folderProcessors;
 const activeBatchProcessing = new Set<string>();
 const pendingBatchRun = new Map<string, boolean>();
 
+// Track EACCES / EPERM errors per folder.  After the threshold the watcher is
+// stopped and the folder is marked as errored so we don't spam the console.
+const permissionErrorCounts = new Map<string, number>();
+const PERMISSION_ERROR_THRESHOLD = 10;
+
 const activeChatRunsByCharacter = new Map<string, number>();
 let registryListenerInitialized = false;
 
@@ -545,19 +550,61 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     .on("change", handleFileChange)
     .on("unlink", handleFileRemove)
     .on("error", async (error: any) => {
+      // --- Permission errors (EACCES / EPERM) ---
+      // These fire continuously for paths the process can't access (e.g. "/" on macOS).
+      // Count them; after the threshold stop the watcher and mark the folder errored.
+      if (error?.code === 'EACCES' || error?.code === 'EPERM') {
+        const count = (permissionErrorCounts.get(folderId) ?? 0) + 1;
+        permissionErrorCounts.set(folderId, count);
+
+        if (count === 1) {
+          console.warn(
+            `[FileWatcher] Permission error watching ${folderPath}: ${error.path || error.message}. ` +
+            `Will stop watcher if errors persist.`
+          );
+        }
+
+        if (count >= PERMISSION_ERROR_THRESHOLD) {
+          console.error(
+            `[FileWatcher] ${PERMISSION_ERROR_THRESHOLD} permission errors for ${folderPath}. ` +
+            `Stopping watcher and marking folder as errored.`
+          );
+          permissionErrorCounts.delete(folderId);
+
+          try {
+            await watcher.close();
+            watchers.delete(folderId);
+          } catch (closeError) {
+            console.error(`[FileWatcher] Error closing watcher:`, closeError);
+          }
+
+          // Mark folder as errored in the database
+          await db
+            .update(agentSyncFolders)
+            .set({
+              status: "error",
+              lastError: `Stopped: repeated permission errors watching ${folderPath}. ` +
+                         `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(agentSyncFolders.id, folderId));
+        }
+        // Silently drop subsequent errors until we hit the threshold
+        return;
+      }
+
       console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
 
-      // If we hit EMFILE and weren't already using polling, restart in polling mode
+      // --- File-descriptor exhaustion (EMFILE) ---
+      // Restart the watcher in polling mode which uses stat() instead of native watches.
       if (error?.code === 'EMFILE' && !pollingModeWatchers.has(folderId)) {
         console.warn(
           `[FileWatcher] Hit file descriptor limit for ${folderPath}, ` +
           `will restart in polling mode after cleanup...`
         );
 
-        // Mark this folder for polling mode BEFORE closing
         pollingModeWatchers.add(folderId);
 
-        // Close the current watcher
         try {
           await watcher.close();
           watchers.delete(folderId);
@@ -565,14 +612,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
           console.error(`[FileWatcher] Error closing watcher:`, closeError);
         }
 
-        // Wait longer to ensure file descriptors are released
-        // and to avoid overwhelming the system if multiple watchers fail
         setTimeout(() => {
           console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode...`);
           startWatching(config).catch(err => {
             console.error(`[FileWatcher] Failed to restart watcher in polling mode:`, err);
           });
-        }, 3000); // Wait 3 seconds instead of 1
+        }, 3000);
       }
     });
 
@@ -622,6 +667,7 @@ export async function stopWatching(folderId: string): Promise<void> {
   pendingBatchRun.delete(folderId);
   activeBatchProcessing.delete(folderId);
   pollingModeWatchers.delete(folderId);
+  permissionErrorCounts.delete(folderId);
 }
 
 /**

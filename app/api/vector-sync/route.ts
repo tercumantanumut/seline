@@ -9,6 +9,7 @@ import {
   reindexAllCharacters,
   forceCleanupStuckFolders,
   setPrimaryFolder,
+  cancelSyncById,
 } from "@/lib/vectordb/sync-service";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
@@ -138,6 +139,19 @@ export async function POST(request: NextRequest) {
         pendingCleaned: result.pendingCleaned,
         message: `Cleaned ${result.syncingCleaned} syncing and ${result.pendingCleaned} pending folders`
       });
+    }
+
+    if (action === "cancel") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for cancel" },
+          { status: 400 }
+        );
+      }
+
+      const cancelled = await cancelSyncById(folderId);
+      return NextResponse.json({ success: true, cancelled });
     }
 
     if (action === "set-primary") {

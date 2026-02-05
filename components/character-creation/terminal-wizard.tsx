@@ -116,10 +116,9 @@ export function TerminalWizard() {
     };
   }, []);
 
-  // Build wizard steps with translations, filtering out vectorSearch if disabled
+  // Build wizard steps with translations
   const wizardSteps = useMemo(() => {
     const baseSteps = WIZARD_STEPS.filter((step) => {
-      if (step.id === "vectorSearch" && !vectorDBEnabled) return false;
       if (step.id === "mcpTools" && hasMcpServers === false) return false;
       return true;
     });
@@ -233,13 +232,9 @@ export function TerminalWizard() {
     }
   };
 
-  // Handle embedding setup skip
+  // Handle embedding setup skip — always show the folder sync page next
   const handleEmbeddingSetupSkip = () => {
-    if (vectorDBEnabled) {
-      navigateTo("vectorSearch");
-    } else {
-      navigateTo("capabilities");
-    }
+    navigateTo("vectorSearch");
   };
 
   // Agents expansion hook

@@ -6,8 +6,12 @@
  */
 
 import { getSetting } from "@/lib/settings/settings-manager";
-import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders } from "./sync-service";
+import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders, getAllSyncFolders } from "./sync-service";
 import { isVectorDBEnabled } from "./client";
+import { isDangerousPath } from "./dangerous-paths";
+import { db } from "@/lib/db/sqlite-client";
+import { agentSyncFolders } from "@/lib/db/sqlite-character-schema";
+import { eq } from "drizzle-orm";
 
 // Default sync interval: 1 hour
 const DEFAULT_SYNC_INTERVAL_MS = 60 * 60 * 1000;
@@ -141,6 +145,27 @@ export async function initializeVectorSync(): Promise<void> {
 
     // 1. Recover any folders stuck in "syncing" status from previous crashes
     await recoverStuckSyncingFolders();
+
+    // 1b. Mark any folders with dangerous paths as errored so we never
+    //     try to watch them (one-time cleanup for folders added before
+    //     the path-validation guard was introduced).
+    const allFolders = await getAllSyncFolders();
+    for (const folder of allFolders) {
+      const dangerError = isDangerousPath(folder.folderPath);
+      if (dangerError && folder.status !== "error") {
+        console.warn(
+          `[BackgroundSync] Marking folder "${folder.folderPath}" as errored on startup: ${dangerError}`
+        );
+        await db
+          .update(agentSyncFolders)
+          .set({
+            status: "error",
+            lastError: dangerError,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agentSyncFolders.id, folder.id));
+      }
+    }
 
     // 2. Restart file watchers for all synced folders
     await restartAllWatchers();
