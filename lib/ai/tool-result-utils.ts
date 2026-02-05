@@ -1,3 +1,6 @@
+import { limitToolOutput } from "./output-limiter";
+import { getRunContext } from "@/lib/observability/run-context";
+
 type ToolResultNormalization = {
   output: Record<string, unknown>;
   summary: string;
@@ -170,6 +173,47 @@ export function normalizeToolResultOutput(
   output: unknown,
   input?: unknown
 ): ToolResultNormalization {
+  // Get session ID from run context for content storage
+  const sessionId = getRunContext()?.sessionId;
+
+  // Apply token limit (universal safety net)
+  // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.
+  const limitResult = limitToolOutput(output, toolName, sessionId);
+
+  // If limited, update output with truncated version
+  if (limitResult.limited) {
+    console.log(
+      `[ToolResult] Limited ${toolName} output: ` +
+        `${limitResult.originalLength} → ${limitResult.truncatedLength} chars ` +
+        `(~${limitResult.estimatedTokens} tokens)`
+    );
+
+    // Handle string output
+    if (typeof output === "string") {
+      output = limitResult.output;
+    }
+    // Handle object output with text fields
+    else if (output && typeof output === "object") {
+      const obj = output as Record<string, unknown>;
+
+      // Update the primary text field
+      if (typeof obj.content === "string") {
+        obj.content = limitResult.output;
+      } else if (typeof obj.text === "string") {
+        obj.text = limitResult.output;
+      } else if (typeof obj.stdout === "string") {
+        obj.stdout = limitResult.output;
+      }
+
+      // Mark as truncated
+      obj.truncated = true;
+      if (limitResult.contentId) {
+        obj.truncatedContentId = limitResult.contentId;
+      }
+    }
+  }
+
+  // Continue with existing normalization logic
   if (output === null || output === undefined) {
     const error = "Tool returned no output.";
     const summary = truncateSummary(buildToolSummary(toolName, input, { status: "error", error }));
