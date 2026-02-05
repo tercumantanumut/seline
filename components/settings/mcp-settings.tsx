@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import {
     Loader2, Check, X, RefreshCw, Plus, Trash2, Plug,
     Terminal, Globe, AlertCircle, Play, Square, Info,
-    PlusCircle, AlertTriangle, ChevronDown
+    PlusCircle, AlertTriangle, ChevronDown, Edit2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MCPServerConfig } from "@/lib/mcp/types";
@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { MCPServerForm } from "@/components/settings/mcp-server-form";
 
 interface MCPServerStatus {
     serverName: string;
@@ -43,7 +44,8 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDER}"]
-        }
+        },
+        requiredEnv: []
     },
     {
         id: "filesystem-multi",
@@ -52,7 +54,8 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDERS_ARRAY}"]
-        }
+        },
+        requiredEnv: []
     },
     {
         id: "github",
@@ -62,7 +65,18 @@ const PREBUILT_TEMPLATES = [
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-github"],
             env: { "GITHUB_PERSONAL_ACCESS_TOKEN": "" }
-        }
+        },
+        requiredEnv: ["GITHUB_PERSONAL_ACCESS_TOKEN"]
+    },
+    {
+        id: "chrome-devtools",
+        name: "Chrome DevTools",
+        description: "Browser debugging & inspection",
+        config: {
+            command: "npx",
+            args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
+        },
+        requiredEnv: []
     },
     {
         id: "postgres",
@@ -71,7 +85,22 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:password@localhost/db"]
-        }
+        },
+        requiredEnv: []
+    },
+    {
+        id: "composio",
+        name: "Composio",
+        description: "100+ tool integrations (SSE)",
+        config: {
+            type: "sse" as const,
+            url: "https://backend.composio.dev/api/v1/mcp",
+            headers: {
+                "X-API-Key": "${COMPOSIO_API_KEY}"
+            }
+        },
+        requiredEnv: ["COMPOSIO_API_KEY"],
+        setupInstructions: "Get your API key from https://app.composio.dev/settings"
     },
     {
         id: "linear",
@@ -80,7 +109,8 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
-        }
+        },
+        requiredEnv: []
     },
     {
         id: "supabase",
@@ -94,7 +124,8 @@ const PREBUILT_TEMPLATES = [
                 "SUPABASE_ACCESS_TOKEN": "",
                 "MCP_REMOTE_HEADERS": "{\"Authorization\": \"Bearer ${SUPABASE_ACCESS_TOKEN}\"}"
             }
-        }
+        },
+        requiredEnv: ["SUPABASE_PROJECT_REF", "SUPABASE_ACCESS_TOKEN"]
     },
     {
         id: "assistant-ui",
@@ -103,7 +134,8 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "@assistant-ui/mcp-docs-server"]
-        }
+        },
+        requiredEnv: []
     },
     {
         id: "everything",
@@ -112,7 +144,8 @@ const PREBUILT_TEMPLATES = [
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-everything"]
-        }
+        },
+        requiredEnv: []
     },
 ];
 
@@ -204,11 +237,7 @@ export function MCPSettings() {
     const [showJsonMode, setShowJsonMode] = useState(false);
     const [rawJson, setRawJson] = useState("");
     const [isAddingServer, setIsAddingServer] = useState(false);
-    const [newServerName, setNewServerName] = useState("");
-    const [newServerType, setNewServerType] = useState<"stdio" | "sse">("stdio");
-    const [newServerCommand, setNewServerCommand] = useState("");
-    const [newServerArgs, setNewServerArgs] = useState("");
-    const [newServerUrl, setNewServerUrl] = useState("");
+    const [editingServer, setEditingServer] = useState<string | null>(null);
 
     // Env Vars
     const [newEnvKey, setNewEnvKey] = useState("");
@@ -307,70 +336,42 @@ export function MCPSettings() {
         }
     };
 
-    // Actually we don't have a disconnect API yet, but we can restart connection which effectively resets it
-    // Implementing a true disconnect would require a new API endpoint, for now we just re-connect or remove
-
-    const handleAddServer = async () => {
-        if (!newServerName.trim()) {
-            toast.error("Server name is required");
-            return;
-        }
-
-        if (mcpServers[newServerName]) {
-            toast.error("Server with this name already exists");
-            return;
-        }
-
-        const newConfig: MCPServerConfig = {};
-        if (newServerType === "stdio") {
-            if (!newServerCommand.trim()) {
-                toast.error("Command is required for stdio transport");
-                return;
-            }
-            newConfig.command = newServerCommand;
-            newConfig.args = newServerArgs.split("\n").map(a => a.trim()).filter(a => a);
-        } else {
-            if (!newServerUrl.trim()) {
-                toast.error("URL is required for SSE transport");
-                return;
-            }
-            newConfig.url = newServerUrl;
-            newConfig.type = "sse";
-        }
-
-        const updatedServers = { ...mcpServers, [newServerName]: newConfig };
+    // Handle form save (for both add and edit)
+    const handleFormSave = async (name: string, config: MCPServerConfig) => {
+        const updatedServers = { ...mcpServers, [name]: config };
         await saveAll(updatedServers);
         setIsAddingServer(false);
-        resetForm();
+        setEditingServer(null);
+        toast.success(`Server ${name} ${editingServer ? 'updated' : 'added'} successfully`);
     };
 
-    const resetForm = () => {
-        setNewServerName("");
-        setNewServerType("stdio");
-        setNewServerCommand("");
-        setNewServerArgs("");
-        setNewServerUrl("");
+    const handleFormCancel = () => {
+        setIsAddingServer(false);
+        setEditingServer(null);
     };
 
-    const handleApplyTemplate = (template: typeof PREBUILT_TEMPLATES[0]) => {
-        setNewServerName(template.id);
-        setNewServerType(template.config.command ? "stdio" : "sse");
-        setNewServerCommand(template.config.command || "");
-        setNewServerArgs(template.config.args?.join("\n") || "");
-        setIsAddingServer(true);
-
-        // Check if env vars needed
-        if (template.config.env) {
+    const handleApplyTemplate = async (template: typeof PREBUILT_TEMPLATES[0]) => {
+        // Check if env vars needed and add them
+        if (template.requiredEnv && template.requiredEnv.length > 0) {
             const newEnv = { ...environment };
             let changed = false;
-            Object.keys(template.config.env).forEach(key => {
+            template.requiredEnv.forEach(key => {
                 if (!newEnv[key]) {
                     newEnv[key] = "";
                     changed = true;
                 }
             });
-            if (changed) setEnvironment(newEnv);
+            if (changed) {
+                setEnvironment(newEnv);
+                await saveAll(mcpServers, newEnv);
+                toast.info(`Added ${template.requiredEnv.length} environment variable(s). Please set values below.`);
+            }
         }
+
+        // Add server directly from template
+        const updatedServers = { ...mcpServers, [template.id]: template.config };
+        await saveAll(updatedServers);
+        toast.success(`${template.name} server added successfully`);
     };
 
     const handleDeleteServer = async (serverName: string) => {
@@ -464,145 +465,13 @@ export function MCPSettings() {
 
                 {/* Add Server Form */}
                 {isAddingServer && (
-                    <div className="rounded-lg border border-terminal-green bg-terminal-green/5 p-4 space-y-4 animate-in fade-in slide-in-from-top-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Server Name</Label>
-                                <Input
-                                    value={newServerName}
-                                    onChange={(e) => setNewServerName(e.target.value)}
-                                    placeholder="e.g. my-server"
-                                    className="font-mono"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Transport Type</Label>
-                                <div className="flex bg-white rounded-md border border-terminal-border p-1">
-                                    <button
-                                        onClick={() => setNewServerType("stdio")}
-                                        className={cn(
-                                            "flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded text-xs font-mono transition-colors",
-                                            newServerType === "stdio" ? "bg-terminal-green text-white" : "hover:bg-gray-100"
-                                        )}
-                                    >
-                                        <Terminal className="h-3 w-3" /> Stdio
-                                    </button>
-                                    <button
-                                        onClick={() => setNewServerType("sse")}
-                                        className={cn(
-                                            "flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded text-xs font-mono transition-colors",
-                                            newServerType === "sse" ? "bg-terminal-green text-white" : "hover:bg-gray-100"
-                                        )}
-                                    >
-                                        <Globe className="h-3 w-3" /> SSE
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {newServerType === "stdio" ? (
-                            <div className="space-y-3">
-                                <div className="space-y-2">
-                                    <Label>Command</Label>
-                                    <Input
-                                        value={newServerCommand}
-                                        onChange={(e) => setNewServerCommand(e.target.value)}
-                                        placeholder="npx"
-                                        className="font-mono"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <Label>Arguments (one per line)</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" size="sm" className="h-6 text-[10px] gap-1 px-2 border-terminal-border">
-                                                    <PlusCircle className="h-3 w-3" />
-                                                    {t("insertVariable")}
-                                                </Button>
-                                            </PopoverTrigger>
-
-
-                                            <PopoverContent className="w-64 p-2" align="end">
-                                                <div className="space-y-1">
-                                                    <button
-                                                        onClick={() => setNewServerArgs(prev => prev + (prev ? "\n" : "") + "${SYNCED_FOLDER}")}
-                                                        className="w-full text-left p-1.5 hover:bg-terminal-bg rounded text-xs transition-colors flex flex-col"
-                                                    >
-                                                        <code className="text-terminal-green font-bold">${"{SYNCED_FOLDER}"}</code>
-                                                        <span className="text-[10px] text-terminal-muted">{t("syncedFolderVariable")}</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setNewServerArgs(prev => prev + (prev ? "\n" : "") + "${SYNCED_FOLDERS_ARRAY}")}
-                                                        className="w-full text-left p-1.5 hover:bg-terminal-bg rounded text-xs transition-colors flex flex-col"
-                                                    >
-                                                        <code className="text-terminal-green font-bold">${"{SYNCED_FOLDERS_ARRAY}"}</code>
-                                                        <span className="text-[10px] text-terminal-muted">{t("syncedFoldersArrayVariable")}</span>
-                                                    </button>
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                    <Textarea
-                                        value={newServerArgs}
-                                        onChange={(e) => setNewServerArgs(e.target.value)}
-                                        placeholder="-y\n@modelcontextprotocol/server-example"
-                                        className="font-mono h-24 text-sm"
-                                    />
-
-                                    {/* Warnings and Preview */}
-                                    {newServerCommand && (
-                                        <div className="space-y-2 mt-2">
-                                            {validateMCPConfig(
-                                                { command: newServerCommand, args: newServerArgs.split("\n").filter(a => a.trim()) },
-                                                syncedFolders
-                                            ).map((warning, i) => (
-                                                <Alert key={i} variant="default" className="bg-amber-50 border-amber-200 py-2 px-3 h-auto">
-                                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                                                    <AlertDescription className="text-[10px] text-amber-800 ml-1">
-                                                        {warning}
-                                                    </AlertDescription>
-                                                </Alert>
-                                            ))}
-
-                                            <ConfigPreview
-                                                config={{
-                                                    command: newServerCommand,
-                                                    args: newServerArgs.split("\n").filter(a => a.trim())
-                                                }}
-                                                syncedFolders={syncedFolders}
-                                                t={t}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                <Label>Server URL</Label>
-                                <div className="space-y-2">
-                                    <Input
-                                        value={newServerUrl}
-                                        onChange={(e) => setNewServerUrl(e.target.value)}
-                                        placeholder="https://api.example.com/sse"
-                                        className="font-mono"
-                                    />
-                                    {newServerUrl && (
-                                        <ConfigPreview
-                                            config={{ url: newServerUrl, type: "sse" } as any}
-                                            syncedFolders={syncedFolders}
-                                            t={t}
-                                        />
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="ghost" onClick={() => setIsAddingServer(false)}>Cancel</Button>
-                            <Button onClick={handleAddServer} disabled={isSaving}>Save Server</Button>
-                        </div>
-                    </div>
+                    <MCPServerForm
+                        environment={environment}
+                        syncedFolders={syncedFolders}
+                        onSave={handleFormSave}
+                        onCancel={handleFormCancel}
+                        existingNames={Object.keys(mcpServers)}
+                    />
                 )}
 
                 {/* Server Cards */}
@@ -618,6 +487,22 @@ export function MCPSettings() {
                             const StatusIcon = s.icon;
                             const isConnecting = connectingState[name];
                             const currentStatus = status.find(st => st.serverName === name);
+                            const isEditing = editingServer === name;
+
+                            if (isEditing) {
+                                return (
+                                    <MCPServerForm
+                                        key={name}
+                                        initialConfig={config}
+                                        initialName={name}
+                                        environment={environment}
+                                        syncedFolders={syncedFolders}
+                                        onSave={handleFormSave}
+                                        onCancel={handleFormCancel}
+                                        existingNames={Object.keys(mcpServers).filter(n => n !== name)}
+                                    />
+                                );
+                            }
 
                             return (
                                 <div
@@ -629,11 +514,11 @@ export function MCPSettings() {
                                             : "border-terminal-border"
                                     )}
                                 >
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-4 flex-1">
                                         <div className={cn("p-2 rounded-full", s.badge)}>
                                             <StatusIcon className="h-4 w-4" />
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <h4 className="font-mono font-semibold text-terminal-dark">{name}</h4>
                                                 <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal text-terminal-muted">
@@ -648,6 +533,12 @@ export function MCPSettings() {
                                                         {t("disabledBadge")}
                                                     </Badge>
                                                 )}
+                                                {/* Show header count for SSE servers */}
+                                                {!config.command && config.headers && Object.keys(config.headers).length > 0 && (
+                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-blue-50 text-blue-700 border-blue-200">
+                                                        {Object.keys(config.headers).length} header{Object.keys(config.headers).length > 1 ? 's' : ''}
+                                                    </Badge>
+                                                )}
                                             </div>
 
                                             {currentStatus?.lastError ? (
@@ -660,7 +551,7 @@ export function MCPSettings() {
                                                 </Alert>
                                             ) : (
                                                 <div className="flex gap-4 mt-1">
-                                                    <span className="font-mono text-xs text-terminal-muted truncate max-w-[200px]" title={config.command ? `${config.command} ${config.args?.join(" ")}` : config.url}>
+                                                    <span className="font-mono text-xs text-terminal-muted truncate max-w-[300px]" title={config.command ? `${config.command} ${config.args?.join(" ")}` : config.url}>
                                                         {config.command ? `${config.command} ${config.args?.join(" ")}` : config.url}
                                                     </span>
                                                     {currentStatus?.connected && (
@@ -690,6 +581,15 @@ export function MCPSettings() {
                                             disabled={isConnecting || config.enabled === false}
                                         >
                                             {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 px-2"
+                                            onClick={() => setEditingServer(name)}
+                                            disabled={config.enabled === false}
+                                        >
+                                            <Edit2 className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />
                                         </Button>
                                         <Button
                                             size="sm"
