@@ -54,6 +54,32 @@ export class TaskQueue {
   }
 
   /**
+   * Get the correct base URL for the chat API
+   * Handles both development and production Electron environments
+   *
+   * Port mapping:
+   * - Development: port 3000 (Next.js dev server)
+   * - Electron Production: port 3456 (standalone server)
+   */
+  private getChatApiBaseUrl(): string {
+    // Detect Electron production environment (same logic as lib/channels/inbound.ts)
+    const isElectronProduction =
+      (process.env.SELINE_PRODUCTION_BUILD === "1" ||
+       !!(process as any).resourcesPath ||
+       !!process.env.ELECTRON_RESOURCES_PATH) &&
+      process.env.ELECTRON_IS_DEV !== "1" &&
+      process.env.NODE_ENV !== "development";
+
+    const baseUrl = isElectronProduction
+      ? "http://localhost:3456"
+      : "http://localhost:3000";
+
+    console.log(`[TaskQueue] Chat API base URL: ${baseUrl} (isElectronProd=${isElectronProduction})`);
+
+    return baseUrl;
+  }
+
+  /**
    * Cancel a running or queued task
    */
   async cancel(runId: string): Promise<boolean> {
@@ -305,10 +331,38 @@ export class TaskQueue {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const attemptNumber = task.attemptNumber ?? 1;
 
+    // Capture detailed error information for debugging
+    const errorType = error instanceof Error ? error.name : "UnknownError";
+    const endpoint = `${this.getChatApiBaseUrl()}/api/chat`;
+
+    // Enhanced error logging with context
+    if (error instanceof Error && error.message.includes("ECONNREFUSED")) {
+      console.error(
+        `[TaskQueue] Connection refused for task ${task.runId} (attempt ${attemptNumber}/${task.maxRetries}):`,
+        `\n  Task: ${task.taskName}`,
+        `\n  URL: ${endpoint}`,
+        `\n  Error: ${error.message}`,
+        `\n  Environment: NODE_ENV=${process.env.NODE_ENV}, SELINE_PRODUCTION_BUILD=${process.env.SELINE_PRODUCTION_BUILD}`
+      );
+    } else if (error instanceof Error && error.message.includes("ENOTFOUND")) {
+      console.error(
+        `[TaskQueue] DNS resolution failed for task ${task.runId}:`,
+        `\n  URL: ${endpoint}`,
+        `\n  Error: ${error.message}`
+      );
+    } else {
+      console.error(
+        `[TaskQueue] Task ${task.runId} failed (attempt ${attemptNumber}/${task.maxRetries}):`,
+        `\n  Error type: ${errorType}`,
+        `\n  Message: ${errorMessage}`,
+        `\n  Endpoint: ${endpoint}`
+      );
+    }
+
     if (attemptNumber < task.maxRetries) {
       // Retry with exponential backoff
       const retryDelay = this.config.retryDelayMs * Math.pow(2, attemptNumber - 1);
-      console.log(`[TaskQueue] Task ${task.runId} failed, retrying in ${retryDelay}ms (attempt ${attemptNumber}/${task.maxRetries})`);
+      console.log(`[TaskQueue] Task ${task.runId} will retry in ${retryDelay}ms (attempt ${attemptNumber + 1}/${task.maxRetries})`);
 
       await this.updateRunStatus(task.runId, "pending", {
         error: errorMessage,
@@ -379,7 +433,7 @@ export class TaskQueue {
       // Skip if no external delivery
       if (deliveryMethod === "session") return;
 
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const baseUrl = this.getChatApiBaseUrl();
       const deliveryRouter = getDeliveryRouter();
 
       await deliveryRouter.deliver(deliveryMethod, deliveryConfig, {
@@ -472,7 +526,7 @@ export class TaskQueue {
 
     // Make internal API call to chat endpoint
     // This triggers the full agent execution with all tools
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = this.getChatApiBaseUrl();
 
     // Combine timeout and cancellation signals
     const timeoutController = new AbortController();
