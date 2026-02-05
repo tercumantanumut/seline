@@ -1,4 +1,10 @@
 export const CODEX_MODEL_IDS = [
+  // GPT-5.3 Codex
+  "gpt-5.3-codex",
+  "gpt-5.3-codex-low",
+  "gpt-5.3-codex-medium",
+  "gpt-5.3-codex-high",
+  "gpt-5.3-codex-xhigh",
   // GPT-5.2 (general)
   "gpt-5.2",
   "gpt-5.2-none",
@@ -48,6 +54,12 @@ export const CODEX_MODEL_IDS = [
 export type CodexModelId = (typeof CODEX_MODEL_IDS)[number];
 
 export const MODEL_MAP: Record<string, string> = {
+  // GPT-5.3 Codex
+  "gpt-5.3-codex": "gpt-5.3-codex",
+  "gpt-5.3-codex-low": "gpt-5.3-codex",
+  "gpt-5.3-codex-medium": "gpt-5.3-codex",
+  "gpt-5.3-codex-high": "gpt-5.3-codex",
+  "gpt-5.3-codex-xhigh": "gpt-5.3-codex",
   // GPT-5.2
   "gpt-5.2": "gpt-5.2",
   "gpt-5.2-none": "gpt-5.2",
@@ -95,6 +107,7 @@ export const MODEL_MAP: Record<string, string> = {
 };
 
 const BASE_MODEL_LABELS: Record<string, string> = {
+  "gpt-5.3-codex": "GPT-5.3 Codex",
   "gpt-5.2": "GPT-5.2",
   "gpt-5.2-codex": "GPT-5.2 Codex",
   "gpt-5.1-codex-max": "GPT-5.1 Codex Max",
@@ -137,6 +150,9 @@ export function normalizeCodexModel(model: string | undefined): string {
 
   const normalized = modelId.toLowerCase();
 
+  if (normalized.includes("gpt-5.3-codex") || normalized.includes("gpt 5.3 codex")) {
+    return "gpt-5.3-codex";
+  }
   if (normalized.includes("gpt-5.2-codex") || normalized.includes("gpt 5.2 codex")) {
     return "gpt-5.2-codex";
   }

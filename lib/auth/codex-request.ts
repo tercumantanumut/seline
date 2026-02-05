@@ -30,8 +30,12 @@ function getReasoningConfig(
 
   const isGpt52Codex =
     normalizedName.includes("gpt-5.2-codex") || normalizedName.includes("gpt 5.2 codex");
+  const isGpt53Codex =
+    normalizedName.includes("gpt-5.3-codex") || normalizedName.includes("gpt 5.3 codex");
   const isGpt52General =
     (normalizedName.includes("gpt-5.2") || normalizedName.includes("gpt 5.2")) && !isGpt52Codex;
+  const isGpt53General =
+    (normalizedName.includes("gpt-5.3") || normalizedName.includes("gpt 5.3")) && !isGpt53Codex;
   const isCodexMax =
     normalizedName.includes("codex-max") || normalizedName.includes("codex max");
   const isCodexMini =
@@ -42,6 +46,7 @@ function getReasoningConfig(
   const isCodex = normalizedName.includes("codex") && !isCodexMini;
   const isLightweight =
     !isCodexMini && (normalizedName.includes("nano") || normalizedName.includes("mini"));
+  const prefersMediumDefault = isGpt53Codex;
 
   const isGpt51General =
     (normalizedName.includes("gpt-5.1") || normalizedName.includes("gpt 5.1")) &&
@@ -49,11 +54,13 @@ function getReasoningConfig(
     !isCodexMax &&
     !isCodexMini;
 
-  const supportsXhigh = isGpt52General || isGpt52Codex || isCodexMax;
-  const supportsNone = isGpt52General || isGpt51General;
+  const supportsXhigh = isGpt53General || isGpt53Codex || isGpt52General || isGpt52Codex || isCodexMax;
+  const supportsNone = isGpt53General || isGpt52General || isGpt51General;
 
   const defaultEffort: ReasoningEffort = isCodexMini
     ? "medium"
+    : prefersMediumDefault
+      ? "medium"
     : supportsXhigh
       ? "high"
       : isLightweight

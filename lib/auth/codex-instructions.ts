@@ -37,6 +37,9 @@ function getCacheDir(): string {
 }
 
 export function getModelFamily(normalizedModel: string): CodexModelFamily {
+  if (normalizedModel.includes("gpt-5.3-codex") || normalizedModel.includes("gpt 5.3 codex")) {
+    return "gpt-5.2-codex";
+  }
   if (normalizedModel.includes("gpt-5.2-codex") || normalizedModel.includes("gpt 5.2 codex")) {
     return "gpt-5.2-codex";
   }
