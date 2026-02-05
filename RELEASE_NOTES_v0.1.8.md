@@ -1,6 +1,18 @@
-# Seline v0.1.8 - Plan Tool, Background Tasks, Tool Stacking & Stability
-
 ## What's New
+<img width="768" height="532" alt="Screenshot 2026-02-04 231013" src="https://github.com/user-attachments/assets/b63ee73b-4613-4526-9e85-d4da09a37247" />
+
+### Hotfixes:
+
+Below issues are hotfixes, rookie mistakes... sorry about them, there are tons of stuff to test...
+- Fixed Telegram Chat API connection failure in Electron production, use /new to create fresh chat sessions on telegram
+- Fixed local model download error due to huggingface library not being bundled in production build, which is now resolved.
+- Fixed issue with Scheduled tasks were failing with "fetch failed" errors in production Electron builds because the task queue was using port 3000 instead of the correct port 3456 where the standalone server runs.
+- Fixed Fetch failed on Analytics, admin route protection, unnecessary, removed.
+- Telegram, Slack and Whatsapp all confirmed working both in prod and dev.
+- This update might require wipe local data, wipe local data and restart the app if client slows down after update (.../Roaming/seline for windows )
+- **Fixed terminal output context bloat** — Implemented general 25K token limit for all tool outputs (bash commands, MCP tools, etc.) to prevent commands like `ls -R` or `pip freeze` from generating millions of tokens. Full output stored for on-demand retrieval via `retrieveFullContent` tool.
+- **Decoupled sync folders from vector embeddings** — Users can now sync folders without configuring embeddings. New indexing modes: "files-only" (track files only), "full" (create embeddings), and "auto" (smart default). Tools like `localGrep` and `readFile` work immediately without embeddings. Backward compatible with smart migration for existing folders.
+
 
 ### Plan Tool
 - New `updatePlan` tool lets models create and maintain a persistent task plan within a chat session
@@ -73,3 +85,4 @@
 - Fixed orphaned sync folders and vector DB tables left behind on agent deletion
 - Fixed calculator tool evaluation returning incorrect results
 - Fixed OpenRouter advanced args not persisting when saved in settings
+
