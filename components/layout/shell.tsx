@@ -203,13 +203,13 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
                       <span className={cn("truncate text-sm", desktopCollapsed && "md:hidden")}>{user.email}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 bg-terminal-cream">
-                    <DropdownMenuItem disabled className="font-mono text-terminal-muted">
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuItem disabled className="font-mono">
                       <UserIcon className="mr-2 size-4" />
                       <span className="truncate">{user.email}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-terminal-dark/10" />
-                    <DropdownMenuItem asChild className="font-mono text-terminal-dark hover:bg-terminal-dark/5">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="font-mono">
                       <Link href="/usage">
                         <BarChart2Icon className="mr-2 size-4" />
                         {t("sidebar.usage")}
@@ -302,12 +302,12 @@ export const Shell: FC<ShellProps> = ({ sidebar, sidebarHeader, children, hideNa
                         <UserIcon className="size-5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-terminal-cream">
-                      <DropdownMenuItem disabled className="font-mono text-terminal-muted">
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem disabled className="font-mono">
                         <span className="truncate">{user.email}</span>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="bg-terminal-dark/10" />
-                      <DropdownMenuItem asChild className="font-mono text-terminal-dark hover:bg-terminal-dark/5">
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild className="font-mono">
                         <Link href="/usage">
                           <BarChart2Icon className="mr-2 size-4" />
                           {t("sidebar.usage")}
