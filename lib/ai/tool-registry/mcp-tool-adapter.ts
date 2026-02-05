@@ -475,6 +475,9 @@ export function mcpToolToMetadata(
         fullInstructions: mcpTool.description,
         loading: loadingConfig,  // Now dynamic based on preference
         requiresSession: false,
+        // MCP tool results are shown in UI but excluded from AI conversation history
+        // to save tokens (large outputs like browser snapshots are processed once)
+        ephemeralResults: true,
     };
 }
 

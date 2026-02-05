@@ -249,6 +249,16 @@ const MAX_TEXT_CONTENT_LENGTH = 10000;
 const MAX_EPHEMERAL_TOOL_RESULT_LENGTH = 300;
 const EPHEMERAL_TOOLS = ["webSearch", "webBrowse", "webQuery"];
 
+// Helper to check if a tool has ephemeral results (shown in UI but excluded from AI history)
+// MCP tools have large outputs like browser snapshots that don't need to persist in context
+function isEphemeralTool(toolName: string): boolean {
+  // All MCP tools are ephemeral by default (their results are processed once then excluded)
+  if (toolName.startsWith("mcp_")) {
+    return true;
+  }
+  return false;
+}
+
 // When the conversation nears context limits, switch tool results to deterministic summaries
 const TOOL_SUMMARY_TOKEN_THRESHOLD = 120000;
 
@@ -431,6 +441,14 @@ async function extractContent(
         // Handle historical tool calls from DB - include result as text so AI can reference it
         // This is crucial for the AI to remember previous image/video generation results
         const toolName = part.toolName || "tool";
+
+        // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
+        // This saves tokens for large outputs like browser snapshots that were already processed
+        if (isEphemeralTool(toolName)) {
+          console.log(`[EXTRACT] Skipping ephemeral tool ${toolName} from AI context`);
+          continue;
+        }
+
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
         if (output?.images && output.images.length > 0) {
@@ -559,6 +577,13 @@ async function extractContent(
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
         // These may include output (AI SDK) or result (legacy format)
         const toolName = part.type.replace("tool-", "");
+
+        // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
+        if (isEphemeralTool(toolName)) {
+          console.log(`[EXTRACT] Skipping ephemeral tool ${toolName} from AI context`);
+          continue;
+        }
+
         const partWithOutput = part as typeof part & {
           input?: unknown;
           output?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
@@ -907,16 +932,31 @@ function recordToolInputDelta(state: StreamingMessageState, toolCallId: string, 
 function finalizeStreamingToolCalls(state: StreamingMessageState): boolean {
   let changed = false;
   for (const part of state.toolCallParts.values()) {
-    if (part.type === "tool-call" && part.state === "input-streaming" && part.argsText && !part.args) {
-      try {
-        const parsed = JSON.parse(part.argsText);
-        part.args = parsed;
+    // Finalize any tool call that's still in input-streaming state without args
+    if (part.type === "tool-call" && part.state === "input-streaming" && !part.args) {
+      if (part.argsText) {
+        // Parse the accumulated argsText
+        try {
+          const parsed = JSON.parse(part.argsText);
+          part.args = parsed;
+          part.state = "input-available";
+          changed = true;
+          console.log(`[CHAT API] Finalized streaming tool call: ${part.toolName} (${part.toolCallId})`);
+        } catch (error) {
+          // If argsText is invalid JSON, default to empty object
+          // This can happen with malformed streaming or early interruption
+          console.warn(`[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}), using empty args:`, error);
+          part.args = {};
+          part.state = "input-available";
+          changed = true;
+        }
+      } else {
+        // No argsText means the tool was called with empty args (no tool-input-delta chunks sent)
+        // This is valid - many tools accept empty/optional parameters
+        part.args = {};
         part.state = "input-available";
         changed = true;
-        console.log(`[CHAT API] Finalized streaming tool call: ${part.toolName} (${part.toolCallId})`);
-      } catch (error) {
-        console.warn(`[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}):`, error);
-        // Leave in input-streaming state - will be filtered out
+        console.log(`[CHAT API] Finalized streaming tool call with empty args: ${part.toolName} (${part.toolCallId})`);
       }
     }
   }

@@ -74,6 +74,13 @@ export interface ToolMetadata {
 
   /** Environment variable that enables/disables this tool */
   enableEnvVar?: string;
+
+  /**
+   * If true, tool results are shown in UI but excluded from AI conversation history.
+   * Used to save tokens for large outputs like browser snapshots that the AI has
+   * already processed in the current turn.
+   */
+  ephemeralResults?: boolean;
 }
 
 /**

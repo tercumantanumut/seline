@@ -169,10 +169,15 @@ function buildUIPartsFromDBContent(
           `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with state "input-streaming" - likely a streaming interruption`
         );
         continue; // Skip incomplete streaming tool calls
+      } else {
+        // No args or argsText, but not in streaming state - assume empty args
+        // This handles tools that accept no parameters (e.g., MCP tools with optional params)
+        validInput = {};
       }
 
       const isValidInputObject =
         validInput !== undefined &&
+        validInput !== null &&
         typeof validInput === "object" &&
         !Array.isArray(validInput);
 

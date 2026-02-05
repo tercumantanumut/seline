@@ -442,6 +442,22 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     );
   }
 
+  // Fallback for generic text/content results (e.g., MCP tools like take_snapshot)
+  const textContent = result.text || (result as { content?: string }).content;
+  if (textContent && typeof textContent === "string") {
+    // Truncate very long results for display (full result is still available to AI)
+    const displayText = textContent.length > 2000
+      ? textContent.substring(0, 2000) + `\n\n... [${textContent.length - 2000} more characters]`
+      : textContent;
+    return (
+      <div className="mt-2 text-sm text-terminal-muted font-mono transition-opacity duration-150">
+        <pre className="overflow-x-auto max-h-64 rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words text-terminal-dark">
+          {displayText}
+        </pre>
+      </div>
+    );
+  }
+
   return null;
 });
 ToolResultDisplay.displayName = "ToolResultDisplay";
@@ -538,8 +554,15 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
         </details>
       )}
 
-      {/* Show result */}
-      {parsedResult && <ToolResultDisplay toolName={toolName} result={parsedResult} />}
+      {/* Show result in collapsible section */}
+      {parsedResult && (
+        <details className="text-xs text-terminal-muted">
+          <summary className="cursor-pointer hover:text-terminal-dark">
+            View output
+          </summary>
+          <ToolResultDisplay toolName={toolName} result={parsedResult} />
+        </details>
+      )}
     </div>
   );
 });

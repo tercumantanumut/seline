@@ -1112,6 +1112,22 @@ function createResponseTransformStreamWithRetry(
           try {
             const parsed = JSON.parse(json);
             const unwrapped = parsed.response !== undefined ? parsed.response : parsed;
+
+            // Fix for Claude via Antigravity: ensure functionCall parts have args field
+            if (unwrapped?.candidates && Array.isArray(unwrapped.candidates)) {
+              for (const candidate of unwrapped.candidates) {
+                if (candidate?.content?.parts && Array.isArray(candidate.content.parts)) {
+                  for (const part of candidate.content.parts) {
+                    if (part?.functionCall && typeof part.functionCall === "object") {
+                      if (!("args" in part.functionCall)) {
+                        part.functionCall.args = {};
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
             controller.enqueue(`data: ${JSON.stringify(unwrapped)}\n`);
           } catch {
             controller.enqueue(line + "\n");
@@ -1167,6 +1183,25 @@ function createResponseTransformStreamWithRetry(
 
           // Unwrap the response field if present
           const unwrapped = parsed.response !== undefined ? parsed.response : parsed;
+
+          // Fix for Claude via Antigravity: ensure functionCall parts have args field
+          // The Google AI SDK expects args to be present (even if empty), but Claude
+          // may omit it entirely when there are no arguments
+          if (unwrapped?.candidates && Array.isArray(unwrapped.candidates)) {
+            for (const candidate of unwrapped.candidates) {
+              if (candidate?.content?.parts && Array.isArray(candidate.content.parts)) {
+                for (const part of candidate.content.parts) {
+                  if (part?.functionCall && typeof part.functionCall === "object") {
+                    // Inject empty args if missing
+                    if (!("args" in part.functionCall)) {
+                      part.functionCall.args = {};
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           controller.enqueue(`data: ${JSON.stringify(unwrapped)}\n`);
         } catch {
           controller.enqueue(line + "\n");
@@ -1188,10 +1223,24 @@ function createResponseTransformStreamWithRetry(
 function unwrapResponse(text: string): string {
   try {
     const parsed = JSON.parse(text);
-    if (parsed.response !== undefined) {
-      return JSON.stringify(parsed.response);
+    const unwrapped = parsed.response !== undefined ? parsed.response : parsed;
+
+    // Fix for Claude via Antigravity: ensure functionCall parts have args field
+    if (unwrapped?.candidates && Array.isArray(unwrapped.candidates)) {
+      for (const candidate of unwrapped.candidates) {
+        if (candidate?.content?.parts && Array.isArray(candidate.content.parts)) {
+          for (const part of candidate.content.parts) {
+            if (part?.functionCall && typeof part.functionCall === "object") {
+              if (!("args" in part.functionCall)) {
+                part.functionCall.args = {};
+              }
+            }
+          }
+        }
+      }
     }
-    return text;
+
+    return JSON.stringify(unwrapped);
   } catch {
     return text;
   }
