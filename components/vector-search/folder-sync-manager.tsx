@@ -35,6 +35,7 @@ interface SyncFolder {
   fileCount: number | null;
   chunkCount: number | null;
   embeddingModel: string | null;
+  indexingMode: "files-only" | "full" | "auto";
   isPrimary: boolean;
 }
 
@@ -510,6 +511,17 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       <span className="text-terminal-muted">{t("lastSynced")}</span>{" "}
                       <span className="text-terminal-dark">
                         {folder.lastSyncedAt ? new Date(folder.lastSyncedAt).toLocaleString() : t("never")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">Mode:</span>{" "}
+                      <span className={cn(
+                        "text-xs font-mono px-2 py-0.5 rounded",
+                        folder.indexingMode === "full" && "bg-terminal-green/20 text-terminal-green",
+                        folder.indexingMode === "files-only" && "bg-terminal-blue/20 text-terminal-blue",
+                        folder.indexingMode === "auto" && "bg-terminal-muted/20 text-terminal-muted"
+                      )}>
+                        {folder.indexingMode === "full" ? "Full (with embeddings)" : folder.indexingMode === "files-only" ? "Files Only" : "Auto"}
                       </span>
                     </div>
                     {folder.embeddingModel && (

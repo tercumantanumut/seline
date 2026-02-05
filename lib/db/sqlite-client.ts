@@ -507,11 +507,32 @@ function initializeTables(sqlite: Database.Database): void {
   // Create index for primary flag after ensuring column exists
   try {
     sqlite.exec(`
-      CREATE INDEX IF NOT EXISTS agent_sync_folders_primary_idx 
+      CREATE INDEX IF NOT EXISTS agent_sync_folders_primary_idx
       ON agent_sync_folders(character_id, is_primary)
     `);
   } catch (error) {
     console.error("[SQLite Migration] Failed to create primary index:", error);
+  }
+
+  // Migration: Add indexing_mode column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN indexing_mode TEXT NOT NULL DEFAULT 'auto'`);
+    console.log("[SQLite Migration] Added indexing_mode column to agent_sync_folders");
+
+    // Set smart defaults based on existing embeddingModel:
+    // - If embeddingModel exists (NOT NULL) → "full" (was using embeddings)
+    // - If embeddingModel is NULL → "files-only" (was not using embeddings)
+    sqlite.exec(`
+      UPDATE agent_sync_folders
+      SET indexing_mode = CASE
+        WHEN embedding_model IS NOT NULL THEN 'full'
+        ELSE 'files-only'
+      END
+      WHERE indexing_mode = 'auto'
+    `);
+    console.log("[SQLite Migration] Set indexing_mode based on embedding_model presence");
+  } catch {
+    // Column already exists, ignore error
   }
 
   // =========================================================================

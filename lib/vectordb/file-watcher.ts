@@ -231,10 +231,8 @@ async function processWithConcurrency<T>(
  * Start watching a folder for changes
  */
 export async function startWatching(config: WatcherConfig): Promise<void> {
-  if (!isVectorDBEnabled()) {
-    console.log("[FileWatcher] VectorDB not enabled, skipping watch");
-    return;
-  }
+  // Note: We allow watching even when VectorDB is disabled, as folders can be in "files-only" mode
+  // The indexing mode will be checked during file processing
 
   initializeRegistryListener();
 
@@ -278,19 +276,96 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
     console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath}`);
 
+    // Get folder config to check indexing mode
+    const [folder] = await db
+      .select()
+      .from(agentSyncFolders)
+      .where(eq(agentSyncFolders.id, folderId));
+
+    if (!folder) {
+      console.error(`[FileWatcher] Folder ${folderId} not found, skipping batch`);
+      activeBatchProcessing.delete(folderId);
+      return;
+    }
+
+    // Determine if we should create embeddings based on indexing mode
+    const shouldCreateEmbeddings =
+      folder.indexingMode === "full" ||
+      (folder.indexingMode === "auto" && isVectorDBEnabled());
+
+    console.log(
+      `[FileWatcher] Folder indexing mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+    );
+
     try {
       await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
         try {
-          console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
           const relativePath = relative(folderPath, filePath);
-          await indexFileToVectorDB({
-            characterId,
-            filePath,
-            folderId,
-            relativePath,
-          });
+
+          if (shouldCreateEmbeddings) {
+            console.log(`[FileWatcher] Indexing changed file with embeddings: ${filePath}`);
+            await indexFileToVectorDB({
+              characterId,
+              filePath,
+              folderId,
+              relativePath,
+            });
+          } else {
+            // FILES-ONLY MODE: Just update the file tracking in the database without creating embeddings
+            console.log(`[FileWatcher] Tracking changed file (files-only mode): ${filePath}`);
+
+            // Get file metadata
+            const { stat } = await import("fs/promises");
+            const { createHash } = await import("crypto");
+            const { readFile: readFileContent } = await import("fs/promises");
+
+            const fileStat = await stat(filePath);
+            const content = await readFileContent(filePath);
+            const fileHash = createHash("md5").update(content).digest("hex");
+
+            // Check if file exists in database
+            const [existing] = await db
+              .select()
+              .from(agentSyncFiles)
+              .where(and(
+                eq(agentSyncFiles.folderId, folderId),
+                eq(agentSyncFiles.filePath, filePath)
+              ));
+
+            if (existing) {
+              // Update existing file record
+              await db
+                .update(agentSyncFiles)
+                .set({
+                  contentHash: fileHash,
+                  sizeBytes: fileStat.size,
+                  modifiedAt: fileStat.mtime.toISOString(),
+                  status: "indexed",
+                  vectorPointIds: [], // No embeddings in files-only mode
+                  chunkCount: 0,
+                  lastIndexedAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(agentSyncFiles.id, existing.id));
+            } else {
+              // Insert new file record
+              await db.insert(agentSyncFiles).values({
+                folderId,
+                characterId,
+                filePath,
+                relativePath,
+                contentHash: fileHash,
+                sizeBytes: fileStat.size,
+                modifiedAt: fileStat.mtime.toISOString(),
+                status: "indexed",
+                vectorPointIds: [],
+                chunkCount: 0,
+                lastIndexedAt: new Date().toISOString(),
+              });
+            }
+          }
         } catch (error) {
-          console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
+          console.error(`[FileWatcher] Error processing file ${filePath}:`, error);
         }
       });
     } finally {

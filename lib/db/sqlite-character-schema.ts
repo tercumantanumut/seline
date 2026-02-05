@@ -141,6 +141,11 @@ export const agentSyncFolders = sqliteTable(
     fileCount: integer("file_count").default(0),
     chunkCount: integer("chunk_count").default(0),
     embeddingModel: text("embedding_model"), // Track which embedding model was used for sync
+    indexingMode: text("indexing_mode", {
+      enum: ["files-only", "full", "auto"],
+    })
+      .default("auto")
+      .notNull(), // files-only: track files only, full: create embeddings, auto: use embeddings if VectorDB enabled
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
   },

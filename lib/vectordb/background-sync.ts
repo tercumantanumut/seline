@@ -56,10 +56,8 @@ function isAutoSyncEnabled(): boolean {
  * Run the background sync task
  */
 async function runBackgroundSync(): Promise<void> {
-  if (!isVectorDBEnabled()) {
-    console.log("[BackgroundSync] VectorDB not enabled, skipping sync");
-    return;
-  }
+  // Note: We allow syncing even when VectorDB is disabled, as folders can be in "files-only" mode
+  // Each folder's indexing mode will be checked during sync
 
   if (!isAutoSyncEnabled()) {
     console.log("[BackgroundSync] Auto-sync disabled, skipping");
@@ -128,10 +126,8 @@ export async function initializeVectorSync(): Promise<void> {
     return;
   }
 
-  if (!isVectorDBEnabled()) {
-    console.log("[BackgroundSync] VectorDB not enabled, skipping initialization");
-    return;
-  }
+  // Note: We allow initialization even when VectorDB is disabled, as folders can be in "files-only" mode
+  // Each folder's indexing mode will be checked during sync/watch
 
   console.log("[BackgroundSync] Initializing vector sync system...");
   isInitialized = true;

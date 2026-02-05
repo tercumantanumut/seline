@@ -846,16 +846,14 @@ export function CharacterPicker() {
                       : t("configureTools")}
                   </span>
                 </button>
-                {vectorDBEnabled && (
-                  <button
-                    onClick={() => openFolderManager(character)}
-                    className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                    title={t("vectorTitle")}
-                  >
-                    <DatabaseIcon className="w-3 h-3" />
-                    <span>{t("folders")}</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => openFolderManager(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title={t("vectorTitle")}
+                >
+                  <DatabaseIcon className="w-3 h-3" />
+                  <span>{t("folders")}</span>
+                </button>
                 <button
                   onClick={() => openMcpToolEditor(character)}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-purple-500 transition-colors cursor-pointer"
