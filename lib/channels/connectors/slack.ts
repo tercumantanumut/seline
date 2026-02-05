@@ -149,6 +149,16 @@ async function extractSlackAttachments(event: any, client: any, token?: string |
   const response = await fetch(file.url_private_download, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
+
+  if (!response.ok) {
+    console.error(
+      `[Slack] Failed to download file "${file.name}" — ` +
+      `${response.status} ${response.statusText}. ` +
+      `The bot token may be missing or expired.`
+    );
+    return attachments;
+  }
+
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const mimeType = response.headers.get("content-type") || file.mimetype || "image/jpeg";

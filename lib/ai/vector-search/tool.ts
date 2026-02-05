@@ -203,7 +203,12 @@ async function executeVectorSearch(
     return {
       ...emptyResult,
       status: "disabled",
-      message: "Vector Search is not enabled. Enable it in Settings > Vector Search to use this feature.",
+      message:
+        "Vector search is not enabled because VectorDB is disabled.\n\n" +
+        "However, you can still access synced folders using:\n" +
+        "• localGrep - Fast pattern matching and exact text search\n" +
+        "• readFile - Direct file access by path\n\n" +
+        "To enable semantic search, configure embeddings in Settings.",
     };
   }
 
@@ -241,9 +246,27 @@ async function executeVectorSearch(
       resultsCount: 0,
     });
 
+    // Check if user has folders but they might be in files-only mode
+    const folders = await getSyncFolders(characterId);
+    const hasFilesOnlyFolders = folders.some(f => f.indexingMode === "files-only");
+    const hasAutoFoldersWithoutEmbeddings = folders.some(
+      f => f.indexingMode === "auto" && !f.embeddingModel
+    );
+
+    let message = "No matching documents found. Try rephrasing or using different keywords.";
+
+    if (hasFilesOnlyFolders || hasAutoFoldersWithoutEmbeddings) {
+      message =
+        "No embeddings found in synced folders. Some folders are in files-only mode.\n\n" +
+        "You can still access these folders using:\n" +
+        "• localGrep - Fast pattern matching\n" +
+        "• readFile - Direct file access\n\n" +
+        "To enable semantic search, switch folders to 'full' mode in the folder manager.";
+    }
+
     return {
       ...emptyResult,
-      message: "No matching documents found. Try rephrasing or using different keywords.",
+      message,
     };
   }
 

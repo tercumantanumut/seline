@@ -22,6 +22,7 @@ import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
 
+import { isDangerousPath } from "./dangerous-paths";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
 export { onFolderChange, notifyFolderChange };
 export type { FolderChangeEvent };
@@ -91,6 +92,7 @@ export interface SyncFolderConfig {
   recursive?: boolean;
   includeExtensions?: string[];
   excludePatterns?: string[];
+  indexingMode?: "files-only" | "full" | "auto";
 }
 
 export interface SyncResult {
@@ -210,7 +212,14 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     recursive = true,
     includeExtensions = ["md", "txt", "pdf", "html"],
     excludePatterns = ["node_modules", ".*", ".git", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "*.lock"],
+    indexingMode = "auto",
   } = config;
+
+  // Reject dangerous paths (filesystem root, system directories, etc.)
+  const dangerError = isDangerousPath(folderPath);
+  if (dangerError) {
+    throw new Error(dangerError);
+  }
 
   // Normalize extensions to ensure consistent format (without dots)
   const normalizedExtensions = normalizeExtensions(includeExtensions);
@@ -232,6 +241,7 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
       // Do NOT use JSON.stringify here
       includeExtensions: normalizedExtensions,
       excludePatterns,
+      indexingMode,
       status: "pending",
     })
     .returning();
@@ -402,11 +412,6 @@ export async function syncFolder(
     errors: [],
   };
 
-  if (!isVectorDBEnabled()) {
-    result.errors.push("VectorDB is not enabled");
-    return result;
-  }
-
   // Get folder config
   const [folder] = await db
     .select()
@@ -417,6 +422,15 @@ export async function syncFolder(
     result.errors.push("Folder not found");
     return result;
   }
+
+  // Determine if we should create embeddings based on indexing mode
+  const shouldCreateEmbeddings =
+    folder.indexingMode === "full" ||
+    (folder.indexingMode === "auto" && isVectorDBEnabled());
+
+  console.log(
+    `[SyncService] Syncing folder ${folder.displayName || folder.folderPath} with mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+  );
 
   // Check if already syncing (in memory) by folder ID
   if (syncingFolders.has(folderId)) {
@@ -617,33 +631,59 @@ export async function syncFolder(
         // Log start for debugging large files hanging
         console.log(`[SyncService] Processing file ${fileIndex + 1}/${totalFiles}: ${file.relativePath}`);
 
-        // Remove old vectors if updating
-        if (existing) {
-          const pointIds = parseJsonArray(existing.vectorPointIds);
-          if (pointIds.length > 0) {
-            await removeFileFromVectorDB({
-              characterId: folder.characterId,
-              pointIds,
-            });
+        let indexResult: { pointIds: string[]; chunkCount: number; error?: string };
+
+        if (shouldCreateEmbeddings) {
+          // FULL MODE: Create embeddings
+
+          // Remove old vectors if updating
+          if (existing) {
+            const pointIds = parseJsonArray(existing.vectorPointIds);
+            if (pointIds.length > 0) {
+              await removeFileFromVectorDB({
+                characterId: folder.characterId,
+                pointIds,
+              });
+            }
           }
-        }
 
-        // Index the file (this calls the embedding API)
-        // Pass signal to allow cancellation on timeout
-        const indexResult = await indexFileToVectorDB({
-          characterId: folder.characterId,
-          folderId,
-          filePath: file.filePath,
-          relativePath: file.relativePath,
-          signal: controller.signal,
-        });
+          // Index the file (this calls the embedding API)
+          // Pass signal to allow cancellation on timeout
+          indexResult = await indexFileToVectorDB({
+            characterId: folder.characterId,
+            folderId,
+            filePath: file.filePath,
+            relativePath: file.relativePath,
+            signal: controller.signal,
+          });
 
-        clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-        if (indexResult.error) {
-          processedCount++;
-          logProgress(processedCount, totalFiles, file.relativePath, "error", startTime);
-          return { indexed: false, skipped: false, error: `${file.relativePath}: ${indexResult.error}` };
+          if (indexResult.error) {
+            processedCount++;
+            logProgress(processedCount, totalFiles, file.relativePath, "error", startTime);
+            return { indexed: false, skipped: false, error: `${file.relativePath}: ${indexResult.error}` };
+          }
+        } else {
+          // FILES-ONLY MODE: Track file without creating embeddings
+          clearTimeout(timeoutId);
+
+          // Remove old vectors if they exist (user may have switched from full to files-only)
+          if (existing) {
+            const pointIds = parseJsonArray(existing.vectorPointIds);
+            if (pointIds.length > 0) {
+              await removeFileFromVectorDB({
+                characterId: folder.characterId,
+                pointIds,
+              });
+            }
+          }
+
+          // No embeddings created, just track the file
+          indexResult = {
+            pointIds: [],
+            chunkCount: 0,
+          };
         }
 
         // Upsert file record - use a transaction-like approach for safety
@@ -745,8 +785,8 @@ export async function syncFolder(
       ? `${result.errors.length} file(s) failed: ${result.errors.join("; ")}`
       : null;
 
-    // Get the embedding model used for this sync
-    const embeddingModelId = getEmbeddingModelId();
+    // Get the embedding model used for this sync (only if embeddings were created)
+    const embeddingModelId = shouldCreateEmbeddings ? getEmbeddingModelId() : null;
 
     await db
       .update(agentSyncFolders)
@@ -756,7 +796,7 @@ export async function syncFolder(
         lastError: errorSummary,
         fileCount: allFolderFiles.length,
         chunkCount: totalChunkCount,
-        embeddingModel: embeddingModelId, // Track which embedding model was used
+        embeddingModel: embeddingModelId, // Track which embedding model was used (null for files-only mode)
         updatedAt: new Date().toISOString(),
       })
       .where(eq(agentSyncFolders.id, folderId));

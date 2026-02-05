@@ -6,8 +6,12 @@
  */
 
 import { getSetting } from "@/lib/settings/settings-manager";
-import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders } from "./sync-service";
+import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders, getAllSyncFolders } from "./sync-service";
 import { isVectorDBEnabled } from "./client";
+import { isDangerousPath } from "./dangerous-paths";
+import { db } from "@/lib/db/sqlite-client";
+import { agentSyncFolders } from "@/lib/db/sqlite-character-schema";
+import { eq } from "drizzle-orm";
 
 // Default sync interval: 1 hour
 const DEFAULT_SYNC_INTERVAL_MS = 60 * 60 * 1000;
@@ -56,10 +60,8 @@ function isAutoSyncEnabled(): boolean {
  * Run the background sync task
  */
 async function runBackgroundSync(): Promise<void> {
-  if (!isVectorDBEnabled()) {
-    console.log("[BackgroundSync] VectorDB not enabled, skipping sync");
-    return;
-  }
+  // Note: We allow syncing even when VectorDB is disabled, as folders can be in "files-only" mode
+  // Each folder's indexing mode will be checked during sync
 
   if (!isAutoSyncEnabled()) {
     console.log("[BackgroundSync] Auto-sync disabled, skipping");
@@ -128,10 +130,8 @@ export async function initializeVectorSync(): Promise<void> {
     return;
   }
 
-  if (!isVectorDBEnabled()) {
-    console.log("[BackgroundSync] VectorDB not enabled, skipping initialization");
-    return;
-  }
+  // Note: We allow initialization even when VectorDB is disabled, as folders can be in "files-only" mode
+  // Each folder's indexing mode will be checked during sync/watch
 
   console.log("[BackgroundSync] Initializing vector sync system...");
   isInitialized = true;
@@ -145,6 +145,27 @@ export async function initializeVectorSync(): Promise<void> {
 
     // 1. Recover any folders stuck in "syncing" status from previous crashes
     await recoverStuckSyncingFolders();
+
+    // 1b. Mark any folders with dangerous paths as errored so we never
+    //     try to watch them (one-time cleanup for folders added before
+    //     the path-validation guard was introduced).
+    const allFolders = await getAllSyncFolders();
+    for (const folder of allFolders) {
+      const dangerError = isDangerousPath(folder.folderPath);
+      if (dangerError && folder.status !== "error") {
+        console.warn(
+          `[BackgroundSync] Marking folder "${folder.folderPath}" as errored on startup: ${dangerError}`
+        );
+        await db
+          .update(agentSyncFolders)
+          .set({
+            status: "error",
+            lastError: dangerError,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agentSyncFolders.id, folder.id));
+      }
+    }
 
     // 2. Restart file watchers for all synced folders
     await restartAllWatchers();

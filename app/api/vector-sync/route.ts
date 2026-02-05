@@ -9,6 +9,7 @@ import {
   reindexAllCharacters,
   forceCleanupStuckFolders,
   setPrimaryFolder,
+  cancelSyncById,
 } from "@/lib/vectordb/sync-service";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
@@ -20,12 +21,8 @@ import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
  */
 export async function GET(request: NextRequest) {
   try {
-    if (!isVectorDBEnabled()) {
-      return NextResponse.json(
-        { error: "Vector search is not enabled" },
-        { status: 400 }
-      );
-    }
+    // Note: We allow getting folders even when VectorDB is disabled,
+    // as folders can be in "files-only" mode
 
     const { searchParams } = new URL(request.url);
     const characterId = searchParams.get("characterId");
@@ -50,18 +47,14 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    if (!isVectorDBEnabled()) {
-      return NextResponse.json(
-        { error: "Vector search is not enabled" },
-        { status: 400 }
-      );
-    }
+    // Note: We allow sync operations even when VectorDB is disabled,
+    // as folders can be in "files-only" mode
 
     const body = await request.json();
     const { action } = body;
 
     if (action === "add") {
-      const { characterId, folderPath, displayName, recursive, includeExtensions, excludePatterns, autoSync } = body;
+      const { characterId, folderPath, displayName, recursive, includeExtensions, excludePatterns, indexingMode, autoSync } = body;
 
       if (!characterId || !folderPath) {
         return NextResponse.json(
@@ -79,6 +72,7 @@ export async function POST(request: NextRequest) {
         recursive: recursive ?? true,
         includeExtensions: includeExtensions ?? [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"],
         excludePatterns: excludePatterns ?? DEFAULT_IGNORE_PATTERNS,
+        indexingMode: indexingMode ?? "auto",
       });
 
       // Auto-trigger sync in the background unless explicitly disabled
@@ -145,6 +139,19 @@ export async function POST(request: NextRequest) {
         pendingCleaned: result.pendingCleaned,
         message: `Cleaned ${result.syncingCleaned} syncing and ${result.pendingCleaned} pending folders`
       });
+    }
+
+    if (action === "cancel") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for cancel" },
+          { status: 400 }
+        );
+      }
+
+      const cancelled = await cancelSyncById(folderId);
+      return NextResponse.json({ success: true, cancelled });
     }
 
     if (action === "set-primary") {

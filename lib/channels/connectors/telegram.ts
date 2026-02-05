@@ -221,6 +221,15 @@ async function extractTelegramAttachments(ctx: Context, botToken: string): Promi
   }
   const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`;
   const response = await fetch(fileUrl);
+
+  if (!response.ok) {
+    console.error(
+      `[Telegram] Failed to download photo (file_id ${photo.file_id}) — ` +
+      `${response.status} ${response.statusText}.`
+    );
+    return attachments;
+  }
+
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const mimeType = response.headers.get("content-type") || "image/jpeg";

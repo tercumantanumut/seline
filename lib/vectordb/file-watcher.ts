@@ -58,6 +58,11 @@ const folderProcessors = globalForWatchers.folderProcessors;
 const activeBatchProcessing = new Set<string>();
 const pendingBatchRun = new Map<string, boolean>();
 
+// Track EACCES / EPERM errors per folder.  After the threshold the watcher is
+// stopped and the folder is marked as errored so we don't spam the console.
+const permissionErrorCounts = new Map<string, number>();
+const PERMISSION_ERROR_THRESHOLD = 10;
+
 const activeChatRunsByCharacter = new Map<string, number>();
 let registryListenerInitialized = false;
 
@@ -231,10 +236,8 @@ async function processWithConcurrency<T>(
  * Start watching a folder for changes
  */
 export async function startWatching(config: WatcherConfig): Promise<void> {
-  if (!isVectorDBEnabled()) {
-    console.log("[FileWatcher] VectorDB not enabled, skipping watch");
-    return;
-  }
+  // Note: We allow watching even when VectorDB is disabled, as folders can be in "files-only" mode
+  // The indexing mode will be checked during file processing
 
   initializeRegistryListener();
 
@@ -278,19 +281,96 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
     console.log(`[FileWatcher] Processing batch of ${filesToProcess.length} files for ${folderPath}`);
 
+    // Get folder config to check indexing mode
+    const [folder] = await db
+      .select()
+      .from(agentSyncFolders)
+      .where(eq(agentSyncFolders.id, folderId));
+
+    if (!folder) {
+      console.error(`[FileWatcher] Folder ${folderId} not found, skipping batch`);
+      activeBatchProcessing.delete(folderId);
+      return;
+    }
+
+    // Determine if we should create embeddings based on indexing mode
+    const shouldCreateEmbeddings =
+      folder.indexingMode === "full" ||
+      (folder.indexingMode === "auto" && isVectorDBEnabled());
+
+    console.log(
+      `[FileWatcher] Folder indexing mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+    );
+
     try {
       await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
         try {
-          console.log(`[FileWatcher] Indexing changed file: ${filePath}`);
           const relativePath = relative(folderPath, filePath);
-          await indexFileToVectorDB({
-            characterId,
-            filePath,
-            folderId,
-            relativePath,
-          });
+
+          if (shouldCreateEmbeddings) {
+            console.log(`[FileWatcher] Indexing changed file with embeddings: ${filePath}`);
+            await indexFileToVectorDB({
+              characterId,
+              filePath,
+              folderId,
+              relativePath,
+            });
+          } else {
+            // FILES-ONLY MODE: Just update the file tracking in the database without creating embeddings
+            console.log(`[FileWatcher] Tracking changed file (files-only mode): ${filePath}`);
+
+            // Get file metadata
+            const { stat } = await import("fs/promises");
+            const { createHash } = await import("crypto");
+            const { readFile: readFileContent } = await import("fs/promises");
+
+            const fileStat = await stat(filePath);
+            const content = await readFileContent(filePath);
+            const fileHash = createHash("md5").update(content).digest("hex");
+
+            // Check if file exists in database
+            const [existing] = await db
+              .select()
+              .from(agentSyncFiles)
+              .where(and(
+                eq(agentSyncFiles.folderId, folderId),
+                eq(agentSyncFiles.filePath, filePath)
+              ));
+
+            if (existing) {
+              // Update existing file record
+              await db
+                .update(agentSyncFiles)
+                .set({
+                  contentHash: fileHash,
+                  sizeBytes: fileStat.size,
+                  modifiedAt: fileStat.mtime.toISOString(),
+                  status: "indexed",
+                  vectorPointIds: [], // No embeddings in files-only mode
+                  chunkCount: 0,
+                  lastIndexedAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(agentSyncFiles.id, existing.id));
+            } else {
+              // Insert new file record
+              await db.insert(agentSyncFiles).values({
+                folderId,
+                characterId,
+                filePath,
+                relativePath,
+                contentHash: fileHash,
+                sizeBytes: fileStat.size,
+                modifiedAt: fileStat.mtime.toISOString(),
+                status: "indexed",
+                vectorPointIds: [],
+                chunkCount: 0,
+                lastIndexedAt: new Date().toISOString(),
+              });
+            }
+          }
         } catch (error) {
-          console.error(`[FileWatcher] Error indexing file ${filePath}:`, error);
+          console.error(`[FileWatcher] Error processing file ${filePath}:`, error);
         }
       });
     } finally {
@@ -470,19 +550,61 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     .on("change", handleFileChange)
     .on("unlink", handleFileRemove)
     .on("error", async (error: any) => {
+      // --- Permission errors (EACCES / EPERM) ---
+      // These fire continuously for paths the process can't access (e.g. "/" on macOS).
+      // Count them; after the threshold stop the watcher and mark the folder errored.
+      if (error?.code === 'EACCES' || error?.code === 'EPERM') {
+        const count = (permissionErrorCounts.get(folderId) ?? 0) + 1;
+        permissionErrorCounts.set(folderId, count);
+
+        if (count === 1) {
+          console.warn(
+            `[FileWatcher] Permission error watching ${folderPath}: ${error.path || error.message}. ` +
+            `Will stop watcher if errors persist.`
+          );
+        }
+
+        if (count >= PERMISSION_ERROR_THRESHOLD) {
+          console.error(
+            `[FileWatcher] ${PERMISSION_ERROR_THRESHOLD} permission errors for ${folderPath}. ` +
+            `Stopping watcher and marking folder as errored.`
+          );
+          permissionErrorCounts.delete(folderId);
+
+          try {
+            await watcher.close();
+            watchers.delete(folderId);
+          } catch (closeError) {
+            console.error(`[FileWatcher] Error closing watcher:`, closeError);
+          }
+
+          // Mark folder as errored in the database
+          await db
+            .update(agentSyncFolders)
+            .set({
+              status: "error",
+              lastError: `Stopped: repeated permission errors watching ${folderPath}. ` +
+                         `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(agentSyncFolders.id, folderId));
+        }
+        // Silently drop subsequent errors until we hit the threshold
+        return;
+      }
+
       console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
 
-      // If we hit EMFILE and weren't already using polling, restart in polling mode
+      // --- File-descriptor exhaustion (EMFILE) ---
+      // Restart the watcher in polling mode which uses stat() instead of native watches.
       if (error?.code === 'EMFILE' && !pollingModeWatchers.has(folderId)) {
         console.warn(
           `[FileWatcher] Hit file descriptor limit for ${folderPath}, ` +
           `will restart in polling mode after cleanup...`
         );
 
-        // Mark this folder for polling mode BEFORE closing
         pollingModeWatchers.add(folderId);
 
-        // Close the current watcher
         try {
           await watcher.close();
           watchers.delete(folderId);
@@ -490,14 +612,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
           console.error(`[FileWatcher] Error closing watcher:`, closeError);
         }
 
-        // Wait longer to ensure file descriptors are released
-        // and to avoid overwhelming the system if multiple watchers fail
         setTimeout(() => {
           console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode...`);
           startWatching(config).catch(err => {
             console.error(`[FileWatcher] Failed to restart watcher in polling mode:`, err);
           });
-        }, 3000); // Wait 3 seconds instead of 1
+        }, 3000);
       }
     });
 
@@ -547,6 +667,7 @@ export async function stopWatching(folderId: string): Promise<void> {
   pendingBatchRun.delete(folderId);
   activeBatchProcessing.delete(folderId);
   pollingModeWatchers.delete(folderId);
+  permissionErrorCounts.delete(folderId);
 }
 
 /**
