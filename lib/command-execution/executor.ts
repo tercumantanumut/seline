@@ -19,6 +19,9 @@ import type { ExecuteOptions, ExecuteResult } from "./types";
  */
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
+// Note: This byte limit prevents memory/performance issues during execution.
+// Token-based limiting (25K tokens) happens in normalizeToolResultOutput()
+// to ensure consistent behavior across all tools (bash, MCP, custom).
 
 /**
  * Build a minimal, safe environment for command execution
