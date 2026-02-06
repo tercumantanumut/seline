@@ -30,7 +30,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useTranslations, useFormatter } from "next-intl";
-import { convertDBMessagesToUIMessages, convertContentPartsToUIParts, getContentPartsSignature, type DBContentPart } from "@/lib/messages/converter";
+import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import type { TaskEvent } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
@@ -204,11 +204,9 @@ export default function ChatInterface({
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastProgressSignatureRef = useRef<string>("");
-    const lastProgressPartsRef = useRef<UIMessage["parts"] | null>(null);
     const lastProgressTimeRef = useRef<number>(0);
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
-    const PROGRESS_THROTTLE_MS = 100; // Minimum time between UI updates
+    const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
 
     // Sync server-provided initial data when props change (e.g., after navigation)
     // This handles the case where the component is reused but props are different
@@ -280,7 +278,10 @@ export default function ChatInterface({
         return null;
     }, []);
 
-    const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
+    const reloadSessionMessages = useCallback(async (
+        targetSessionId: string,
+        options?: { remount?: boolean }
+    ) => {
         const uiMessages = await fetchSessionMessages(targetSessionId);
         if (!uiMessages) return;
         if (sessionId && sessionId !== targetSessionId) {
@@ -297,6 +298,9 @@ export default function ChatInterface({
             }
             return { sessionId: targetSessionId, messages: uiMessages };
         });
+        if (options?.remount) {
+            setBackgroundRefreshCounter((prev) => prev + 1);
+        }
         lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
     }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
@@ -373,7 +377,7 @@ export default function ChatInterface({
                 if (data.status === "running") {
                     setIsZombieRun(Boolean(data.isZombie));
                     if (sessionId && document.visibilityState === "visible") {
-                        await reloadSessionMessages(sessionId);
+                        await reloadSessionMessages(sessionId, { remount: true });
                     }
                     return;
                 }
@@ -412,7 +416,7 @@ export default function ChatInterface({
                         setIsProcessingInBackground(true);
                         setProcessingRunId(data.runId);
                         startPollingForCompletion(data.runId);
-                        void reloadSessionMessages(sessionId);
+                        void reloadSessionMessages(sessionId, { remount: true });
                     }
                 }
             } catch (error) {
@@ -454,7 +458,7 @@ export default function ChatInterface({
             }
             if (processingRunId && sessionId) {
                 startPollingForCompletion(processingRunId);
-                void reloadSessionMessages(sessionId);
+                void reloadSessionMessages(sessionId, { remount: true });
             }
         };
 
@@ -688,7 +692,7 @@ export default function ChatInterface({
                 }
 
                 reloadDebounceRef.current = setTimeout(() => {
-                    void reloadSessionMessages(sessionId);
+                    void reloadSessionMessages(sessionId, { remount: true });
                     reloadDebounceRef.current = null;
                 }, 150); // Small delay to let final state settle
 
@@ -715,7 +719,7 @@ export default function ChatInterface({
                     taskName: detail.task.taskName,
                     startedAt: detail.task.startedAt,
                 });
-                void reloadSessionMessages(sessionId);
+                void reloadSessionMessages(sessionId, { remount: true });
             }
 
             if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
@@ -737,18 +741,19 @@ export default function ChatInterface({
             return;
         }
 
+      const intervalMs = isChannelSession || isProcessingInBackground ? 2500 : 20000;
       const interval = setInterval(() => {
           if (document.visibilityState !== "visible") {
               return;
           }
           void loadSessions({ silent: true });
-          if (isChannelSession) {
-              void reloadSessionMessages(sessionId);
+          if (isChannelSession || isProcessingInBackground) {
+              void reloadSessionMessages(sessionId, { remount: true });
           }
-      }, 20000);
+      }, intervalMs);
 
         return () => clearInterval(interval);
-    }, [isChannelSession, loadSessions, reloadSessionMessages, sessionId]);
+    }, [isChannelSession, isProcessingInBackground, loadSessions, reloadSessionMessages, sessionId]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -769,73 +774,15 @@ export default function ChatInterface({
             if (!detail || detail.eventType !== "task:progress" || detail.sessionId !== sessionId) {
                 return;
             }
-            const messageId = detail.assistantMessageId || `${detail.runId}-assistant`;
-
-            // Early return if no progress content
-            if (!detail.progressContent?.length && !detail.progressText) {
+            if (!isChannelSession && !isProcessingInBackground) {
                 return;
             }
-
-            // Time-based throttle to reduce UI updates
             const now = Date.now();
             if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) {
                 return;
             }
             lastProgressTimeRef.current = now;
-
-            // Compute signature to check if content meaningfully changed
-            const contentSignature = detail.progressContent?.length
-                ? getContentPartsSignature(detail.progressContent as DBContentPart[])
-                : `text:${detail.progressText?.length || 0}`;
-
-            // Skip update if content hasn't meaningfully changed
-            if (contentSignature === lastProgressSignatureRef.current) {
-                return;
-            }
-            lastProgressSignatureRef.current = contentSignature;
-
-            // Only convert if we have new content
-            let progressParts = detail.progressContent?.length
-                ? convertContentPartsToUIParts(detail.progressContent as DBContentPart[])
-                : ([] as UIMessage["parts"]);
-
-            if (!progressParts || progressParts.length === 0) {
-                if (detail.progressText?.trim()) {
-                    progressParts = [{ type: "text", text: detail.progressText }] as UIMessage["parts"];
-                }
-            }
-
-            // Cache the converted parts
-            lastProgressPartsRef.current = progressParts;
-
-            setSessionState((prev) => {
-                if (prev.sessionId !== sessionId) {
-                    return prev;
-                }
-                const existingIndex = prev.messages.findIndex((msg) => msg.id === messageId);
-                const baseMessage = existingIndex === -1 ? { id: messageId, role: "assistant", parts: [] as UIMessage["parts"] } : prev.messages[existingIndex];
-
-                if (!progressParts || progressParts.length === 0) {
-                    return prev;
-                }
-
-                const updatedMessage: UIMessage = {
-                    ...baseMessage,
-                    id: messageId,
-                    role: "assistant",
-                    parts: progressParts,
-                };
-                const nextMessages = [...prev.messages];
-                if (existingIndex === -1) {
-                    nextMessages.push(updatedMessage);
-                } else {
-                    nextMessages[existingIndex] = updatedMessage;
-                }
-                return {
-                    sessionId: prev.sessionId,
-                    messages: nextMessages,
-                };
-            });
+            void reloadSessionMessages(sessionId, { remount: true });
             if (detail.sessionId) {
                 refreshSessionTimestamp(detail.sessionId);
             }
@@ -844,11 +791,8 @@ export default function ChatInterface({
         window.addEventListener("background-task-progress", handleTaskProgress);
         return () => {
             window.removeEventListener("background-task-progress", handleTaskProgress);
-            // Reset memoization refs when effect cleans up
-            lastProgressSignatureRef.current = "";
-            lastProgressPartsRef.current = null;
         };
-    }, [refreshSessionTimestamp, sessionId]);
+    }, [isChannelSession, isProcessingInBackground, refreshSessionTimestamp, reloadSessionMessages, sessionId]);
 
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {

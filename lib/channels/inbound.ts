@@ -360,6 +360,7 @@ async function invokeChatApi(params: {
           Cookie: `${SESSION_COOKIE_NAME}=${params.userId}`,
           "X-Session-Id": params.sessionId,
           "X-Character-Id": params.characterId,
+          "X-Task-Source": "channel",
         },
         body: JSON.stringify({
           sessionId: params.sessionId,

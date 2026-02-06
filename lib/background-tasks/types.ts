@@ -99,6 +99,17 @@ export function isChatTask(task: UnifiedTask): task is ChatTask {
   return task.type === "chat";
 }
 
+export function isTaskSuppressedFromUI(task: UnifiedTask): boolean {
+  if (task.type !== "chat") {
+    return false;
+  }
+  const metadata = task.metadata;
+  if (!metadata || typeof metadata !== "object") {
+    return false;
+  }
+  return Boolean((metadata as { suppressFromUI?: unknown }).suppressFromUI);
+}
+
 export interface ListActiveTasksOptions {
   userId?: string;
   characterId?: string;

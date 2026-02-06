@@ -1098,9 +1098,11 @@ export async function POST(req: Request) {
 
     // Get character ID from header (for character-specific chats)
     const characterId = req.headers.get("X-Character-Id");
+    const taskSource = req.headers.get("X-Task-Source")?.toLowerCase();
+    const isChannelSource = taskSource === "channel";
 
     // DEBUG: Log session ID sources and last message structure
-    console.log(`[CHAT API] Session ID: header=${headerSessionId}, body=${bodySessionId}, using=${providedSessionId}, characterId=${characterId}`);
+    console.log(`[CHAT API] Session ID: header=${headerSessionId}, body=${bodySessionId}, using=${providedSessionId}, characterId=${characterId}, source=${taskSource || "chat"}`);
 
     // DEBUG: Log full structure of last message to understand attachment handling
     const lastMsg = messages[messages.length - 1];
@@ -1330,10 +1332,11 @@ export async function POST(req: Request) {
       sessionId,
       userId: dbUser.id,
       pipelineName: "chat",
-      triggerType: "chat",
+      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : "chat",
       metadata: {
         characterId: characterId || null,
         messageCount: messages.length,
+        taskSource: taskSource || "chat",
       },
     });
     const chatAbortController = new AbortController();
@@ -1348,14 +1351,25 @@ export async function POST(req: Request) {
       status: "running",
       startedAt: nowISO(),
       pipelineName: "chat",
-      triggerType: isScheduledRun ? "cron" : "chat",
+      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : "chat",
       messageCount: messages.length,
-      metadata: isScheduledRun
-        ? {
-            scheduledRunId: scheduledRunId ?? undefined,
-            scheduledTaskId: scheduledTaskId ?? undefined,
-          }
-        : undefined,
+      metadata:
+        isScheduledRun || isChannelSource
+          ? {
+              ...(isScheduledRun
+                ? {
+                    scheduledRunId: scheduledRunId ?? undefined,
+                    scheduledTaskId: scheduledTaskId ?? undefined,
+                  }
+                : {}),
+              ...(isChannelSource
+                ? {
+                    suppressFromUI: true,
+                    taskSource: "channel",
+                  }
+                : {}),
+            }
+          : undefined,
     };
     const existingTask = taskRegistry.get(agentRun.id);
     if (existingTask) {

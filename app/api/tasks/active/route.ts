@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { isTaskSuppressedFromUI } from "@/lib/background-tasks/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,9 +21,10 @@ export async function GET(request: NextRequest) {
   }
 
   const { tasks } = taskRegistry.list({ userId });
+  const visibleTasks = tasks.filter((task) => !isTaskSuppressedFromUI(task));
 
   return Response.json({
-    tasks,
+    tasks: visibleTasks,
     timestamp: new Date().toISOString(),
   });
 }

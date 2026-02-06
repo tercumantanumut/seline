@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { taskRegistry } from "@/lib/background-tasks/registry";
-import type { TaskEvent } from "@/lib/background-tasks/types";
+import { isTaskSuppressedFromUI, type TaskEvent } from "@/lib/background-tasks/types";
 import { startScheduler } from "@/lib/scheduler/scheduler-service";
 import { nowISO } from "@/lib/utils/timestamp";
 
@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
 
       const handleEvent = (event: TaskEvent) => {
         try {
+          if (event.eventType !== "task:progress" && isTaskSuppressedFromUI(event.task)) {
+            return;
+          }
+
           if (DEBUG_SSE_EVENTS) {
             console.log("[SSE] → Sending task event to client:", {
               eventType: event.eventType,
