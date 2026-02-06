@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Settings2, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, Settings2, RotateCcw, Loader2Icon, CheckIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
@@ -17,10 +17,17 @@ const OPTIMAL_DEFAULTS = {
     vectorSearchTokenChunkSize: 96,
     vectorSearchTokenChunkStride: 48,
     vectorSearchRerankTopK: 20,
-    vectorSearchRerankModel: "models/ms-marco-MiniLM-L-6-v2.onnx",
+    vectorSearchRerankModel: "cross-encoder/ms-marco-MiniLM-L-6-v2",
     vectorSearchMaxFileLines: 3000,
     vectorSearchMaxLineLength: 1000,
 };
+
+const LOCAL_RERANK_MODELS = [
+    { id: "cross-encoder/ms-marco-MiniLM-L-6-v2", name: "MS MARCO MiniLM L-6 v2 (Fast)" },
+    { id: "cross-encoder/ms-marco-MiniLM-L-12-v2", name: "MS MARCO MiniLM L-12 v2 (Higher quality)" },
+    { id: "BAAI/bge-reranker-base", name: "BGE Reranker Base" },
+    { id: "BAAI/bge-reranker-large", name: "BGE Reranker Large" },
+];
 
 interface AdvancedVectorSettingsProps {
     // Hybrid Search
@@ -207,17 +214,11 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
                                     onChange={props.onRerankTopKChange}
                                     min={1}
                                 />
-                                <div>
-                                    <label className="mb-1 block font-mono text-xs text-terminal-muted">
-                                        {t("reranking.modelPath")}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={props.rerankModel}
-                                        onChange={(e) => props.onRerankModelChange(e.target.value)}
-                                        className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                                    />
-                                </div>
+                                <RerankerModelField
+                                    modelId={props.rerankModel}
+                                    onModelIdChange={props.onRerankModelChange}
+                                    label={t("reranking.modelPath")}
+                                />
                             </div>
                         )}
                     </SettingsSection>
@@ -265,6 +266,188 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
                         </div>
                     </SettingsSection>
                 </div>
+            )}
+        </div>
+    );
+}
+
+function RerankerModelField({
+    modelId,
+    onModelIdChange,
+    label,
+}: {
+    modelId: string;
+    onModelIdChange: (value: string) => void;
+    label: string;
+}) {
+    const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [downloadProgress, setDownloadProgress] = useState(0);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+
+    const isElectronEnv = typeof window !== "undefined" && !!(window as unknown as {
+        electronAPI?: unknown;
+    }).electronAPI;
+
+    useEffect(() => {
+        if (!isElectronEnv) return;
+
+        const checkStatus = async () => {
+            const electronAPI = (window as unknown as {
+                electronAPI?: { model?: { checkExists?: (id: string) => Promise<boolean> } };
+            }).electronAPI;
+
+            if (!electronAPI?.model?.checkExists) return;
+
+            const status: Record<string, boolean> = {};
+            for (const model of LOCAL_RERANK_MODELS) {
+                try {
+                    status[model.id] = await electronAPI.model.checkExists(model.id);
+                } catch {
+                    status[model.id] = false;
+                }
+            }
+
+            const trimmedModelId = modelId.trim();
+            if (trimmedModelId && !status.hasOwnProperty(trimmedModelId)) {
+                try {
+                    status[trimmedModelId] = await electronAPI.model.checkExists(trimmedModelId);
+                } catch {
+                    status[trimmedModelId] = false;
+                }
+            }
+
+            setModelStatus(status);
+        };
+
+        checkStatus();
+    }, [isElectronEnv, modelId]);
+
+    const selectedPreset = LOCAL_RERANK_MODELS.find((m) => m.id === modelId);
+    const selectedModelId = selectedPreset?.id || modelId.trim() || LOCAL_RERANK_MODELS[0].id;
+
+    const handleDownload = async (targetModelId: string) => {
+        if (!targetModelId) return;
+
+        setDownloading(targetModelId);
+        setDownloadProgress(0);
+        setDownloadError(null);
+
+        const electronAPI = (window as unknown as {
+            electronAPI?: {
+                model?: {
+                    download?: (id: string) => Promise<{ success: boolean; error?: string }>;
+                    onProgress?: (
+                        cb: (data: { modelId: string; status: string; progress?: number; error?: string }) => void
+                    ) => void;
+                    removeProgressListener?: () => void;
+                };
+            };
+        }).electronAPI;
+
+        if (!electronAPI?.model?.download) {
+            setDownloadError("Model download API not available. Please restart the app.");
+            setDownloading(null);
+            return;
+        }
+
+        if (electronAPI.model.onProgress) {
+            electronAPI.model.onProgress((data) => {
+                if (data.modelId === targetModelId) {
+                    if (data.progress !== undefined) setDownloadProgress(data.progress);
+                    if (data.status === "completed") {
+                        setDownloading(null);
+                        setModelStatus((prev) => ({ ...prev, [targetModelId]: true }));
+                    }
+                    if (data.status === "error") {
+                        setDownloading(null);
+                        setDownloadError(data.error || "Download failed");
+                    }
+                }
+            });
+        }
+
+        try {
+            const result = await electronAPI.model.download(targetModelId);
+            if (!result.success) {
+                setDownloadError(result.error || "Download failed");
+            }
+        } catch (err) {
+            setDownloadError(err instanceof Error ? err.message : "Download failed");
+        } finally {
+            setDownloading(null);
+            electronAPI.model.removeProgressListener?.();
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <div>
+                <label className="mb-1 block font-mono text-xs text-terminal-muted">{label}</label>
+                <div className="flex gap-2">
+                    <select
+                        value={selectedPreset?.id ?? "__custom__"}
+                        onChange={(e) => {
+                            if (e.target.value === "__custom__") return;
+                            onModelIdChange(e.target.value);
+                        }}
+                        className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    >
+                        {LOCAL_RERANK_MODELS.map((model) => (
+                            <option key={model.id} value={model.id}>
+                                {model.name} {modelStatus[model.id] ? "✓" : ""}
+                            </option>
+                        ))}
+                        <option value="__custom__">Custom model ID</option>
+                    </select>
+
+                    {isElectronEnv && (
+                        <Button
+                            type="button"
+                            onClick={() => handleDownload(selectedModelId)}
+                            disabled={
+                                !selectedModelId ||
+                                downloading !== null ||
+                                modelStatus[selectedModelId]
+                            }
+                            className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 disabled:opacity-50"
+                        >
+                            {downloading === selectedModelId ? (
+                                <>
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                    {downloadProgress}%
+                                </>
+                            ) : modelStatus[selectedModelId] ? (
+                                <>
+                                    <CheckIcon className="size-4" />
+                                    Ready
+                                </>
+                            ) : (
+                                "Download"
+                            )}
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            <div>
+                <label className="mb-1 block font-mono text-xs text-terminal-muted">
+                    Custom model ID
+                </label>
+                <input
+                    type="text"
+                    value={modelId}
+                    onChange={(e) => onModelIdChange(e.target.value)}
+                    placeholder="cross-encoder/ms-marco-MiniLM-L-6-v2"
+                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                    Pick a preset or enter any Hugging Face reranker model ID.
+                </p>
+            </div>
+
+            {downloadError && (
+                <p className="font-mono text-xs text-red-600">{downloadError}</p>
             )}
         </div>
     );

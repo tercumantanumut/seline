@@ -8,6 +8,7 @@ import {
   protocol,
   net,
   nativeTheme,
+  dialog,
 } from "electron";
 import * as path from "path";
 import * as fs from "fs";
@@ -129,6 +130,11 @@ fixMacOSPath();
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
+let isAppQuitting = false;
+let serverRestartCount = 0;
+let serverRestartResetTimer: NodeJS.Timeout | null = null;
+const MAX_SERVER_RESTARTS = 3;
+const RESTART_RESET_INTERVAL = 5 * 60 * 1000;
 type ThemePreference = "dark" | "light" | "system";
 let currentThemePreference: ThemePreference = "system";
 let themeListenerRegistered = false;
@@ -802,6 +808,42 @@ async function startNextServer(): Promise<void> {
 
     nextServer.on("exit", (code, signal) => {
       debugLog("[Next.js] Process exited with code:", code, "signal:", signal);
+      nextServer = null;
+
+      // Don't auto-restart on intentional shutdown or when no window exists.
+      if (isAppQuitting || !mainWindow) {
+        return;
+      }
+
+      if (serverRestartCount >= MAX_SERVER_RESTARTS) {
+        debugError("[Next.js] Max restart attempts reached. Server will not auto-restart.");
+        dialog.showErrorBox(
+          "Server Crashed",
+          "The application server has crashed repeatedly. Please restart the app manually."
+        );
+        return;
+      }
+
+      serverRestartCount += 1;
+      debugLog(`[Next.js] Auto-restarting server (attempt ${serverRestartCount}/${MAX_SERVER_RESTARTS})...`);
+
+      if (serverRestartResetTimer) {
+        clearTimeout(serverRestartResetTimer);
+      }
+      serverRestartResetTimer = setTimeout(() => {
+        serverRestartCount = 0;
+      }, RESTART_RESET_INTERVAL);
+
+      setTimeout(() => {
+        startNextServer()
+          .then(() => {
+            debugLog("[Next.js] Server restarted successfully");
+            mainWindow?.reload();
+          })
+          .catch((error) => {
+            debugError("[Next.js] Failed to restart server:", error);
+          });
+      }, 2000);
     });
 
     // Timeout fallback - assume server started after 5 seconds
@@ -2332,6 +2374,11 @@ app.on("window-all-closed", () => {
 // Clean up before quitting
 app.on("before-quit", () => {
   debugLog('[App] before-quit event - cleaning up');
+  isAppQuitting = true;
+  if (serverRestartResetTimer) {
+    clearTimeout(serverRestartResetTimer);
+    serverRestartResetTimer = null;
+  }
   stopNextServer();
 });
 

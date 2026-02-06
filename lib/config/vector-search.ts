@@ -59,7 +59,7 @@ const defaultConfig: VectorSearchV2Config = {
   lexicalWeight: 2.0,
   rrfK: 50,
 
-  rerankModel: "models/ms-marco-MiniLM-L-6-v2.onnx",
+  rerankModel: "cross-encoder/ms-marco-MiniLM-L-6-v2",
   rerankTopK: 20,
 
   enableLLMSynthesis: true,

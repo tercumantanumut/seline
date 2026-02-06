@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { AutoTokenizer, env, pipeline } from "@xenova/transformers";
+import { AutoTokenizer, env, pipeline } from "@huggingface/transformers";
 
 const DEFAULT_MODEL_ID = "Xenova/bge-large-en-v1.5";
 const modelId = process.env.EMBEDDING_MODEL_ID || DEFAULT_MODEL_ID;
@@ -23,6 +23,14 @@ if (modelDir) {
   env.allowRemoteModels = false;
 } else {
   env.allowRemoteModels = true;
+}
+
+function resolvePreferredDevice() {
+  const configured = process.env.LOCAL_EMBEDDING_DEVICE?.trim().toLowerCase();
+  if (configured) return configured;
+  if (process.platform === "win32") return "dml";
+  if (process.platform === "linux" && process.arch === "x64") return "cuda";
+  return "cpu";
 }
 
 function cosineSimilarity(a, b) {
@@ -126,6 +134,8 @@ async function main() {
   console.log(`[Embedding Test] Cache dir: ${env.cacheDir}`);
   console.log(`[Embedding Test] Local model path: ${env.localModelPath ?? "default"}`);
   console.log(`[Embedding Test] allowRemoteModels: ${env.allowRemoteModels}`);
+  const preferredDevice = resolvePreferredDevice();
+  console.log(`[Embedding Test] Preferred device: ${preferredDevice}`);
 
   const tokenizer = await loadTokenizerWithPatch({
     local_files_only: !env.allowRemoteModels,
@@ -138,10 +148,24 @@ async function main() {
   console.log("[Embedding Test] Loading feature-extraction pipeline...");
   let extractor;
   try {
-    extractor = await pipeline("feature-extraction", modelId);
+    extractor = await pipeline("feature-extraction", modelId, {
+      device: preferredDevice,
+      dtype: "fp32",
+    });
   } catch (error) {
-    console.error("[Embedding Test] Pipeline load failed:", error);
-    throw error;
+    if (preferredDevice !== "cpu") {
+      console.warn(
+        `[Embedding Test] Failed on device "${preferredDevice}", retrying on cpu:`,
+        error
+      );
+      extractor = await pipeline("feature-extraction", modelId, {
+        device: "cpu",
+        dtype: "fp32",
+      });
+    } else {
+      console.error("[Embedding Test] Pipeline load failed:", error);
+      throw error;
+    }
   }
   console.log("[Embedding Test] Pipeline loaded");
 

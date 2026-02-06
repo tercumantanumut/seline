@@ -6,6 +6,18 @@ export const DEFAULT_LOCAL_EMBEDDING_MODEL = "Xenova/bge-large-en-v1.5";
 const DEFAULT_QUERY_PREFIX = "Represent this code for search:";
 const DEFAULT_QUERY_MAX_CHARS = 512;
 const DEFAULT_MAX_BATCH = 64;
+type TransformerDevice =
+  | "auto"
+  | "gpu"
+  | "cpu"
+  | "wasm"
+  | "webgpu"
+  | "cuda"
+  | "dml"
+  | "webnn"
+  | "webnn-npu"
+  | "webnn-gpu"
+  | "webnn-cpu";
 
 // Define a type that matches the actual pipeline return value
 type FeatureExtractionPipeline = (
@@ -24,6 +36,32 @@ export interface LocalEmbeddingOptions {
 
 let cachedPipelineKey: string | null = null;
 let cachedPipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
+let embeddingLock: Promise<void> = Promise.resolve();
+
+function isTransformerDevice(value: string): value is TransformerDevice {
+  return [
+    "auto",
+    "gpu",
+    "cpu",
+    "wasm",
+    "webgpu",
+    "cuda",
+    "dml",
+    "webnn",
+    "webnn-npu",
+    "webnn-gpu",
+    "webnn-cpu",
+  ].includes(value);
+}
+
+function resolvePreferredDevice(): TransformerDevice {
+  const configured = process.env.LOCAL_EMBEDDING_DEVICE?.trim().toLowerCase();
+  if (configured && isTransformerDevice(configured)) return configured;
+
+  if (process.platform === "win32") return "dml";
+  if (process.platform === "linux" && process.arch === "x64") return "cuda";
+  return "cpu";
+}
 
 function resolveCacheDir(override?: string): string {
   if (override) return override;
@@ -109,16 +147,39 @@ async function loadPipelineWithPatch(
   modelId: string,
   cacheDir: string
 ): Promise<FeatureExtractionPipeline> {
-  const { pipeline } = await import("@xenova/transformers");
-  try {
-    return (await pipeline("feature-extraction", modelId)) as unknown as FeatureExtractionPipeline;
-  } catch (error) {
-    const message = String(error);
-    if (message.includes("x.split is not a function")) {
-      const tokenizerPath = resolveTokenizerPath(cacheDir, modelId);
-      if (patchTokenizerMerges(tokenizerPath)) {
-        return (await pipeline("feature-extraction", modelId)) as unknown as FeatureExtractionPipeline;
+  const { pipeline } = await import("@huggingface/transformers");
+  const preferredDevice = resolvePreferredDevice();
+
+  const tryLoad = async (device: TransformerDevice): Promise<FeatureExtractionPipeline> => {
+    try {
+      return (await pipeline("feature-extraction", modelId, {
+        device,
+        dtype: "fp32",
+      })) as unknown as FeatureExtractionPipeline;
+    } catch (error) {
+      const message = String(error);
+      if (message.includes("x.split is not a function")) {
+        const tokenizerPath = resolveTokenizerPath(cacheDir, modelId);
+        if (patchTokenizerMerges(tokenizerPath)) {
+          return (await pipeline("feature-extraction", modelId, {
+            device,
+            dtype: "fp32",
+          })) as unknown as FeatureExtractionPipeline;
+        }
       }
+      throw error;
+    }
+  };
+
+  try {
+    return await tryLoad(preferredDevice);
+  } catch (error) {
+    if (preferredDevice !== "cpu") {
+      console.warn(
+        `[LocalEmbeddings] Failed to initialize on device "${preferredDevice}", falling back to cpu:`,
+        error
+      );
+      return tryLoad("cpu");
     }
     throw error;
   }
@@ -129,7 +190,14 @@ async function getPipeline(options: LocalEmbeddingOptions): Promise<FeatureExtra
   const cacheDir = resolveCacheDir(options.cacheDir);
   const modelDir = resolveModelDir(options.modelDir);
   const allowRemoteModels = options.allowRemoteModels ?? !modelDir;
-  const cacheKey = [modelId, cacheDir, modelDir ?? "", allowRemoteModels ? "remote" : "local"].join("|");
+  const preferredDevice = resolvePreferredDevice();
+  const cacheKey = [
+    modelId,
+    cacheDir,
+    modelDir ?? "",
+    allowRemoteModels ? "remote" : "local",
+    preferredDevice,
+  ].join("|");
 
   if (cachedPipelinePromise && cachedPipelineKey === cacheKey) {
     return cachedPipelinePromise;
@@ -137,7 +205,7 @@ async function getPipeline(options: LocalEmbeddingOptions): Promise<FeatureExtra
 
   cachedPipelineKey = cacheKey;
   cachedPipelinePromise = (async () => {
-    const { env } = await import("@xenova/transformers");
+    const { env } = await import("@huggingface/transformers");
     env.cacheDir = cacheDir;
     env.useBrowserCache = false;
     env.allowLocalModels = true;
@@ -205,16 +273,27 @@ export function createLocalEmbeddingModel(
         return { embeddings: [] };
       }
 
-      const texts = values.map((value) => applyQueryPrefix(String(value), queryPrefix, queryMaxChars));
-      const pipeline = await getPipeline({ ...options, modelId });
-      const output = await pipeline(texts, { pooling: "mean", normalize: true });
-      const embeddings = toEmbeddings(output, values.length);
+      const previousLock = embeddingLock;
+      let releaseLock: (() => void) | undefined;
+      embeddingLock = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      await previousLock;
 
-      return {
-        embeddings,
-        usage: { tokens: 0, totalTokens: 0 },
-        warnings: [],
-      };
+      try {
+        const texts = values.map((value) => applyQueryPrefix(String(value), queryPrefix, queryMaxChars));
+        const pipeline = await getPipeline({ ...options, modelId });
+        const output = await pipeline(texts, { pooling: "mean", normalize: true });
+        const embeddings = toEmbeddings(output, values.length);
+
+        return {
+          embeddings,
+          usage: { tokens: 0, totalTokens: 0 },
+          warnings: [],
+        };
+      } finally {
+        releaseLock?.();
+      }
     },
   };
 }

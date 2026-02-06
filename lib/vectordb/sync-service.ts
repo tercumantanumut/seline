@@ -21,6 +21,7 @@ import { isVectorDBEnabled } from "./client";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
+import { loadSettings } from "@/lib/settings/settings-manager";
 
 import { isDangerousPath } from "./dangerous-paths";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
@@ -41,6 +42,21 @@ const DEFAULT_PARALLEL_CONFIG: ParallelConfig = {
   concurrency: 5,
   staggerDelayMs: 100,
 };
+
+function resolveParallelConfig(parallelConfig: Partial<ParallelConfig>): ParallelConfig {
+  const settings = loadSettings();
+  const isLocalEmbeddingProvider = settings.embeddingProvider === "local";
+  const baseConcurrency = isLocalEmbeddingProvider ? 2 : DEFAULT_PARALLEL_CONFIG.concurrency;
+  const requestedConcurrency = typeof parallelConfig.concurrency === "number" && Number.isFinite(parallelConfig.concurrency)
+    ? Math.max(1, Math.floor(parallelConfig.concurrency))
+    : baseConcurrency;
+
+  return {
+    ...DEFAULT_PARALLEL_CONFIG,
+    ...parallelConfig,
+    concurrency: isLocalEmbeddingProvider ? Math.min(requestedConcurrency, 2) : requestedConcurrency,
+  };
+}
 
 /**
  * Maximum time to spend indexing a single file before aborting.
@@ -178,6 +194,20 @@ async function discoverFiles(
  */
 function normalizeExtensions(extensions: string[]): string[] {
   return extensions.map(ext => ext.startsWith(".") ? ext.slice(1).toLowerCase() : ext.toLowerCase());
+}
+
+function warnIfLargeLocalEmbeddingSync(folderPath: string, fileCount: number): void {
+  const settings = loadSettings();
+  const isLocalEmbeddingProvider = settings.embeddingProvider === "local";
+
+  if (!isLocalEmbeddingProvider || fileCount <= 500) {
+    return;
+  }
+
+  console.warn(
+    `[VectorDB] Syncing ${fileCount} files with local embeddings may cause instability for ${folderPath}. ` +
+    `Consider switching to OpenRouter embeddings for large imports.`
+  );
 }
 
 /**
@@ -398,10 +428,7 @@ export async function syncFolder(
   parallelConfig: Partial<ParallelConfig> = {},
   forceReindex: boolean = false
 ): Promise<SyncResult> {
-  const config: ParallelConfig = {
-    ...DEFAULT_PARALLEL_CONFIG,
-    ...parallelConfig,
-  };
+  const config = resolveParallelConfig(parallelConfig);
 
   const result: SyncResult = {
     folderId,
@@ -498,6 +525,7 @@ export async function syncFolder(
       includeExtensions,
       shouldIgnore
     );
+    warnIfLargeLocalEmbeddingSync(folder.folderPath, discoveredFiles.length);
 
     console.log(`[SyncService] Discovered ${discoveredFiles.length} files to process`);
 

@@ -16,6 +16,7 @@ import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns"
 import { isVectorDBEnabled } from "./client";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { TaskEvent } from "@/lib/background-tasks/types";
+import { loadSettings } from "@/lib/settings/settings-manager";
 
 // Global state that persists across hot reloads (dev mode)
 const globalForWatchers = globalThis as unknown as {
@@ -69,7 +70,13 @@ let registryListenerInitialized = false;
 // Debounce timers for folders
 const folderTimers = new Map<string, NodeJS.Timeout>();
 const DEBOUNCE_MS = 1000; // Wait 1 second after last change before processing batch
-const MAX_CONCURRENCY = 5; // Process max 5 files at once per folder
+
+function getMaxConcurrency(): number {
+  const settings = loadSettings();
+  const isLocalEmbeddingProvider = settings.embeddingProvider === "local";
+  // Reduce parallelism for local embeddings to avoid overwhelming ONNX runtime.
+  return isLocalEmbeddingProvider ? 2 : 5;
+}
 
 interface WatcherConfig {
   folderId: string;
@@ -303,7 +310,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
 
     try {
-      await processWithConcurrency(filesToProcess, MAX_CONCURRENCY, async (filePath) => {
+      await processWithConcurrency(filesToProcess, getMaxConcurrency(), async (filePath) => {
         try {
           const relativePath = relative(folderPath, filePath);
 

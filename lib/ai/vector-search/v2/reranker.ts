@@ -7,16 +7,55 @@ import { VectorSearchHit } from "@/lib/vectordb/search";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import path from "path";
 import fs from "fs";
+import { loadSettings } from "@/lib/settings/settings-manager";
 
 let cachedPipeline: any = null;
 let cachedPipelinePromise: Promise<any> | null = null;
 let failedToLoad = false;
+type TransformerDevice =
+  | "auto"
+  | "gpu"
+  | "cpu"
+  | "wasm"
+  | "webgpu"
+  | "cuda"
+  | "dml"
+  | "webnn"
+  | "webnn-npu"
+  | "webnn-gpu"
+  | "webnn-cpu";
+
+function isTransformerDevice(value: string): value is TransformerDevice {
+  return [
+    "auto",
+    "gpu",
+    "cpu",
+    "wasm",
+    "webgpu",
+    "cuda",
+    "dml",
+    "webnn",
+    "webnn-npu",
+    "webnn-gpu",
+    "webnn-cpu",
+  ].includes(value);
+}
+
+function resolvePreferredDevice(): TransformerDevice {
+  const configured = process.env.LOCAL_EMBEDDING_DEVICE?.trim().toLowerCase();
+  if (configured && isTransformerDevice(configured)) return configured;
+
+  if (process.platform === "win32") return "dml";
+  if (process.platform === "linux" && process.arch === "x64") return "cuda";
+  return "cpu";
+}
 
 /**
  * Configure Transformers.js environment
  */
 async function configureEnv() {
-  const { env } = await import("@xenova/transformers");
+  const { env } = await import("@huggingface/transformers");
+  const settings = loadSettings();
 
   const basePath = process.env.LOCAL_DATA_PATH || path.join(process.cwd(), ".local-data");
   env.cacheDir = path.join(basePath, "transformers-cache");
@@ -24,9 +63,33 @@ async function configureEnv() {
   env.allowLocalModels = true;
   env.allowRemoteModels = true;
 
-  if (process.env.EMBEDDING_MODEL_DIR) {
-    env.localModelPath = process.env.EMBEDDING_MODEL_DIR;
+  const modelDir = process.env.EMBEDDING_MODEL_DIR || settings.embeddingModelDir;
+  if (modelDir) {
+    env.localModelPath = modelDir;
   }
+}
+
+function normalizeRerankModelId(rawModelId: string): string | null {
+  if (!rawModelId) return null;
+
+  let modelId = rawModelId.trim().replace(/\\/g, "/");
+
+  // Legacy config sometimes stores hub IDs prefixed with "models/".
+  if (modelId.toLowerCase().startsWith("models/")) {
+    modelId = modelId.slice("models/".length);
+  }
+
+  // Legacy ONNX file path from older reranker implementation.
+  if (modelId.toLowerCase().endsWith(".onnx")) {
+    const base = path.basename(modelId).toLowerCase();
+    if (base === "ms-marco-minilm-l-6-v2.onnx") {
+      return "cross-encoder/ms-marco-MiniLM-L-6-v2";
+    }
+    console.warn(`[Reranker] Unsupported ONNX file path in rerankModel: ${rawModelId}`);
+    return null;
+  }
+
+  return modelId || null;
 }
 
 /**
@@ -38,17 +101,41 @@ async function getPipeline(): Promise<any> {
   if (cachedPipelinePromise) return cachedPipelinePromise;
 
   const config = getVectorSearchConfig();
-  const modelPath = config.rerankModel;
+  const modelPath = normalizeRerankModelId(config.rerankModel);
+  if (!modelPath) {
+    failedToLoad = true;
+    return null;
+  }
 
   cachedPipelinePromise = (async () => {
     try {
       await configureEnv();
-      const { pipeline } = await import("@xenova/transformers");
+      const { pipeline } = await import("@huggingface/transformers");
+      const preferredDevice = resolvePreferredDevice();
 
       console.log(`[Reranker] Loading model via Transformers.js: ${modelPath}`);
 
       // Attempt to load as text-classification (standard for cross-encoders)
-      const pipe = await pipeline("text-classification", modelPath);
+      let pipe: any;
+      try {
+        pipe = await pipeline("text-classification", modelPath, {
+          device: preferredDevice,
+          dtype: "fp32",
+        });
+      } catch (error) {
+        if (preferredDevice !== "cpu") {
+          console.warn(
+            `[Reranker] Failed to initialize on device "${preferredDevice}", falling back to cpu:`,
+            error
+          );
+          pipe = await pipeline("text-classification", modelPath, {
+            device: "cpu",
+            dtype: "fp32",
+          });
+        } else {
+          throw error;
+        }
+      }
 
       console.log("[Reranker] Model loaded successfully");
       cachedPipeline = pipe;

@@ -15,6 +15,7 @@ import { chunkByTokens } from "@/lib/documents/v2/token-chunking";
 import { extractTextFromDocument } from "@/lib/documents/parser";
 import { generateLexicalVector } from "./v2/lexical-vectors";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
+import { loadSettings } from "@/lib/settings/settings-manager";
 
 export interface IndexFileResult {
   filePath: string;
@@ -82,10 +83,14 @@ function getChunksForIndexing(text: string): IndexChunk[] {
 
 function resolveEmbeddingBatchSize(): number {
   const { embeddingBatchSize } = getVectorSearchConfig();
+  const settings = loadSettings();
+  const isLocalEmbeddingProvider = settings.embeddingProvider === "local";
+  const maxBatch = isLocalEmbeddingProvider ? 16 : 64;
+
   if (!Number.isFinite(embeddingBatchSize) || embeddingBatchSize <= 0) {
-    return 64;
+    return maxBatch;
   }
-  return Math.floor(embeddingBatchSize);
+  return Math.min(Math.floor(embeddingBatchSize), maxBatch);
 }
 
 function createDocumentRecord(params: {

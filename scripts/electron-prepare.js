@@ -95,8 +95,14 @@ function pruneStandaloneForPlatform(standaloneRoot) {
 
     removePath(path.join(standaloneRoot, "node_modules", ".cache"));
 
-    pruneOnnxRuntime(path.join(standaloneRoot, "node_modules", "onnxruntime-node"), "napi-v6", keepOs, arch);
-    pruneOnnxRuntime(path.join(standaloneRoot, "node_modules", "@xenova", "transformers", "node_modules", "onnxruntime-node"), "napi-v3", keepOs, arch);
+    const ortPaths = [
+        path.join(standaloneRoot, "node_modules", "onnxruntime-node"),
+        path.join(standaloneRoot, "node_modules", "@huggingface", "transformers", "node_modules", "onnxruntime-node"),
+    ];
+    for (const ortPath of ortPaths) {
+        pruneOnnxRuntime(ortPath, "napi-v6", keepOs, arch);
+        pruneOnnxRuntime(ortPath, "napi-v3", keepOs, arch);
+    }
     pruneRemotionCompositors(path.join(standaloneRoot, "node_modules", "@remotion"), keepOs);
 
     pruneEsbuildBinaries(path.join(standaloneRoot, "node_modules", "@esbuild"), keepOs, arch);
@@ -263,7 +269,7 @@ for (const dep of npmDependencies) {
 
 // 9. Copy local embedding dependencies for offline Transformers.js support
 const embeddingDependencies = [
-    { name: '@xenova/transformers', src: '@xenova/transformers', dest: '@xenova/transformers' },
+    { name: '@huggingface/transformers', src: '@huggingface/transformers', dest: '@huggingface/transformers' },
     { name: 'onnxruntime-node', src: 'onnxruntime-node', dest: 'onnxruntime-node' },
 ];
 

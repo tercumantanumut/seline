@@ -180,7 +180,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     vectorSearchRrfK: 50,
     vectorSearchDenseWeight: 1.0,
     vectorSearchLexicalWeight: 2.0,
-    vectorSearchRerankModel: "models/ms-marco-MiniLM-L-6-v2.onnx",
+    vectorSearchRerankModel: "cross-encoder/ms-marco-MiniLM-L-6-v2",
     vectorSearchRerankTopK: 20,
     vectorSearchTokenChunkSize: 96,
     vectorSearchTokenChunkStride: 48,
@@ -391,6 +391,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.embeddingProvider) {
         process.env.EMBEDDING_PROVIDER = settings.embeddingProvider;
+    }
+    if (settings.embeddingModelDir) {
+        process.env.EMBEDDING_MODEL_DIR = settings.embeddingModelDir;
     }
     if (settings.researchModel) {
         process.env.RESEARCH_MODEL = settings.researchModel;
