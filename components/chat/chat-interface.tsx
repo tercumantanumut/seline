@@ -654,27 +654,46 @@ export default function ChatInterface({
     }, [activeRun, sessionId, t]);
 
     const handleCancelBackgroundRun = useCallback(async () => {
-        if (!processingRunId) {
+        const runId = processingRunId;
+        if (!runId) {
             return;
         }
         setIsCancellingBackgroundRun(true);
         try {
-            const response = await fetch(`/api/agent-runs/${processingRunId}/cancel`, {
+            const response = await fetch(`/api/agent-runs/${runId}/cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
             });
             if (!response.ok) {
-                throw new Error("Failed to cancel run");
+                let shouldTreatAsCancelled = false;
+                if (response.status === 409) {
+                    try {
+                        const payload = await response.json();
+                        shouldTreatAsCancelled = Boolean(payload?.status && payload.status !== "running");
+                    } catch {
+                        shouldTreatAsCancelled = false;
+                    }
+                }
+                if (!shouldTreatAsCancelled) {
+                    throw new Error("Failed to cancel run");
+                }
             }
             toast.success(t("backgroundRun.cancelled"));
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+            setIsProcessingInBackground(false);
+            setProcessingRunId(null);
             setIsZombieRun(false);
+            await refreshMessages();
         } catch (err) {
             console.error("Failed to cancel background run:", err);
             toast.error(t("backgroundRun.cancelError"));
         } finally {
             setIsCancellingBackgroundRun(false);
         }
-    }, [processingRunId, t]);
+    }, [processingRunId, refreshMessages, t]);
 
     useEffect(() => {
         if (typeof window === "undefined") {
