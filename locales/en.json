@@ -635,7 +635,7 @@
     "analyzing": "Analyzing folder...",
     "filesToIndex": "files to index",
     "ignorePatternsDetected": "ignore patterns detected",
-    "largeFilesWillBeSkipped": "large file(s) over 3000 lines will be skipped",
+    "largeFilesWillBeSkipped": "large file(s) over {maxLines} lines will be skipped",
     "verifyLater": "You can still add this folder - it will be verified when syncing.",
     "displayName": "Display Name (optional)",
     "displayNamePlaceholder": "My Documents",

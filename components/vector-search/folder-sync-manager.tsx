@@ -47,6 +47,7 @@ interface FolderAnalysis {
   mergedPatterns: string[];
   fileCountPreview: number;
   fileCountLimited: boolean;
+  maxFileLines?: number;
   largeFileCount?: number;
   largeFileExamples?: string[];
   exists: boolean;
@@ -680,7 +681,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       <AlertCircleIcon className="w-4 h-4 text-terminal-amber flex-shrink-0 mt-0.5" />
                       <div className="text-xs font-mono">
                         <span className="text-terminal-amber font-semibold">
-                          {folderAnalysis.largeFileCount} {t("largeFilesWillBeSkipped")}
+                          {folderAnalysis.largeFileCount}{" "}
+                          {t("largeFilesWillBeSkipped", {
+                            maxLines: folderAnalysis.maxFileLines ?? 3000,
+                          })}
                         </span>
                         {folderAnalysis.largeFileExamples && folderAnalysis.largeFileExamples.length > 0 && (
                           <div className="text-terminal-muted mt-1">

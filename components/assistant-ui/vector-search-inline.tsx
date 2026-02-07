@@ -199,14 +199,14 @@ const FindingCard: FC<{
               <div className="h-px bg-terminal-dark/10" />
 
               {/* Explanation */}
-              <p className="text-sm text-terminal-dark leading-relaxed">
+              <p className="text-sm text-terminal-dark leading-relaxed break-words [overflow-wrap:anywhere]">
                 {finding.explanation}
               </p>
 
               {/* Code Snippet */}
               {finding.snippet && (
                 <div className="relative">
-                  <pre className="p-3 rounded-lg bg-terminal-dark/[0.03] border border-terminal-dark/5 text-xs font-mono text-terminal-dark overflow-x-auto max-h-48">
+                  <pre className="p-3 rounded-lg bg-terminal-dark/[0.03] border border-terminal-dark/5 text-xs font-mono text-terminal-dark whitespace-pre-wrap break-words [overflow-wrap:anywhere] max-h-48 overflow-y-auto">
                     <code>{finding.snippet}</code>
                   </pre>
                 </div>
@@ -299,7 +299,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono min-h-[60px] [contain:layout_style]"
+        className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono min-h-[60px] [contain:layout_style] min-w-0"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-terminal-green/10">
@@ -307,7 +307,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div className="flex-1">
             <div className="text-sm font-medium text-terminal-dark">Searching...</div>
-            <div className="text-xs text-terminal-muted mt-0.5 break-words">
+            <div className="text-xs text-terminal-muted mt-0.5 break-words [overflow-wrap:anywhere]">
               &quot;{query}&quot;
             </div>
           </div>
@@ -322,7 +322,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="my-3 rounded-lg bg-destructive/5 border border-destructive/20 shadow-sm p-4 font-mono"
+      className="my-3 rounded-lg bg-destructive/5 border border-destructive/20 shadow-sm p-4 font-mono min-w-0"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-destructive/10">
@@ -330,7 +330,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div>
             <div className="text-sm font-medium text-destructive">Search Failed</div>
-            <div className="text-xs text-destructive/80 mt-0.5">
+            <div className="text-xs text-destructive/80 mt-0.5 break-words [overflow-wrap:anywhere]">
               {result?.message || result?.error || "An error occurred during search"}
             </div>
           </div>
@@ -345,7 +345,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono"
+      className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm p-4 font-mono min-w-0"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-terminal-dark/5">
@@ -353,7 +353,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div>
             <div className="text-sm font-medium text-terminal-dark">No Results Found</div>
-            <div className="text-xs text-terminal-muted mt-0.5">
+            <div className="text-xs text-terminal-muted mt-0.5 break-words [overflow-wrap:anywhere]">
               {result?.message || "Try rephrasing your query or using different keywords."}
             </div>
           </div>
@@ -374,7 +374,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm overflow-hidden font-mono"
+      className="my-3 rounded-lg bg-terminal-cream border border-terminal-dark/10 shadow-sm overflow-hidden font-mono min-w-0"
     >
       {/* Header */}
       <div className="p-4 border-b border-terminal-dark/10">
@@ -388,7 +388,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
               <StrategyBadge strategy={result.strategy} />
             </div>
             {result.reasoning && (
-              <p className="text-xs text-terminal-muted mt-1 leading-relaxed">{result.reasoning}</p>
+              <p className="text-xs text-terminal-muted mt-1 leading-relaxed break-words [overflow-wrap:anywhere]">{result.reasoning}</p>
             )}
           </div>
         </div>
@@ -396,7 +396,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
         {/* Summary */}
         {result.summary && (
           <div className="mt-3 p-3 rounded-lg bg-terminal-dark/[0.02] border border-terminal-dark/5">
-            <p className="text-sm text-terminal-dark leading-relaxed">{result.summary}</p>
+            <p className="text-sm text-terminal-dark leading-relaxed break-words [overflow-wrap:anywhere]">{result.summary}</p>
           </div>
         )}
 

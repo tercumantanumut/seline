@@ -631,7 +631,7 @@
     "analyzing": "Klasör analiz ediliyor...",
     "filesToIndex": "indekslenecek dosya",
     "ignorePatternsDetected": "yoksayma kalıbı tespit edildi",
-    "largeFilesWillBeSkipped": "büyük dosya (3000+ satır) atlanacak",
+    "largeFilesWillBeSkipped": "büyük dosya ({maxLines}+ satır) atlanacak",
     "verifyLater": "Bu klasörü yine de ekleyebilirsiniz - senkronizasyon sırasında doğrulanacaktır.",
     "displayName": "Görünen Ad (isteğe bağlı)",
     "displayNamePlaceholder": "Belgelerim",

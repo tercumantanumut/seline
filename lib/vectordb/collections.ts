@@ -12,6 +12,7 @@ import { LEX_DIM } from "./v2/lexical-vectors";
 
 // Table name prefix for agent tables
 const TABLE_PREFIX = "agent_";
+const tableEnsurePromises = new Map<string, Promise<lancedb.Table | null>>();
 
 /**
  * Get the table name for an agent
@@ -51,6 +52,56 @@ function createVectorRecord(data: Omit<VectorRecord, keyof Record<string, unknow
   return data as Record<string, unknown>;
 }
 
+async function ensureV2SchemaCompatibility(params: {
+  db: lancedb.Connection;
+  table: lancedb.Table;
+  tableName: string;
+  dimensions: number;
+  useV2Schema: boolean;
+}): Promise<lancedb.Table> {
+  const { db, table, tableName, dimensions, useV2Schema } = params;
+
+  if (!useV2Schema) {
+    return table;
+  }
+
+  try {
+    const schema = await table.schema();
+    const hasLexicalColumn = schema.fields.some((f) => f.name === "lexicalVector");
+    if (hasLexicalColumn) {
+      return table;
+    }
+
+    console.log(`[VectorDB] Schema mismatch for ${tableName}. Dropping to upgrade to V2 schema.`);
+    await db.dropTable(tableName);
+  } catch (error) {
+    console.warn(`[VectorDB] Error checking schema for ${tableName}, proceeding with existing:`, error);
+    return table;
+  }
+
+  const dummyRecord = createVectorRecord({
+    id: "__schema__",
+    vector: new Array(dimensions).fill(0),
+    text: "",
+    folderId: "",
+    filePath: "",
+    relativePath: "",
+    chunkIndex: 0,
+    tokenCount: 0,
+    indexedAt: Date.now(),
+    lexicalVector: new Array(LEX_DIM).fill(0),
+    startLine: 0,
+    endLine: 0,
+    tokenOffset: 0,
+    version: 2,
+  });
+
+  const recreated = await db.createTable(tableName, [dummyRecord]);
+  await recreated.delete('id = "__schema__"');
+  console.log(`[VectorDB] Created table: ${tableName}`);
+  return recreated;
+}
+
 /**
  * Ensure an agent's table exists, creating it if necessary
  */
@@ -58,37 +109,29 @@ export async function ensureAgentTable(
   characterId: string,
   dimensions: number = 1536
 ): Promise<lancedb.Table | null> {
+  const tableName = getAgentTableName(characterId);
+  const inFlight = tableEnsurePromises.get(tableName);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const ensurePromise = (async (): Promise<lancedb.Table | null> => {
   const db = await getLanceDB();
   if (!db) return null;
 
-  const tableName = getAgentTableName(characterId);
   const existingTables = await db.tableNames();
   const config = getVectorSearchConfig();
   const useV2Schema = config.enableHybridSearch || config.enableTokenChunking;
 
   if (existingTables.includes(tableName)) {
     const table = await db.openTable(tableName);
-
-    // Check if schema migration is needed for V2
-    if (useV2Schema) {
-      try {
-        const schema = await table.schema();
-        const hasLexicalColumn = schema.fields.some(f => f.name === "lexicalVector");
-
-        if (!hasLexicalColumn) {
-          console.log(`[VectorDB] Schema mismatch for ${tableName}. Dropping to upgrade to V2 schema.`);
-          await db.dropTable(tableName);
-          // Fall through to create new table
-        } else {
-          return table;
-        }
-      } catch (e) {
-        console.warn(`[VectorDB] Error checking schema for ${tableName}, proceeding with existing:`, e);
-        return table;
-      }
-    } else {
-      return table;
-    }
+    return ensureV2SchemaCompatibility({
+      db,
+      table,
+      tableName,
+      dimensions,
+      useV2Schema,
+    });
   }
 
   // Create empty table with schema
@@ -114,13 +157,41 @@ export async function ensureAgentTable(
       : {}),
   });
 
-  const table = await db.createTable(tableName, [dummyRecord]);
+  let table: lancedb.Table;
+  try {
+    table = await db.createTable(tableName, [dummyRecord]);
+  } catch (error) {
+    const errorMessage = String(error);
+    if (!/already exists/i.test(errorMessage)) {
+      throw error;
+    }
+
+    const existingTable = await db.openTable(tableName);
+    return ensureV2SchemaCompatibility({
+      db,
+      table: existingTable,
+      tableName,
+      dimensions,
+      useV2Schema,
+    });
+  }
 
   // Delete the dummy record
   await table.delete('id = "__schema__"');
 
   console.log(`[VectorDB] Created table: ${tableName}`);
   return table;
+  })();
+
+  tableEnsurePromises.set(tableName, ensurePromise);
+
+  try {
+    return await ensurePromise;
+  } finally {
+    if (tableEnsurePromises.get(tableName) === ensurePromise) {
+      tableEnsurePromises.delete(tableName);
+    }
+  }
 }
 
 /**

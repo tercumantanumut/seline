@@ -62,7 +62,89 @@ function resolveParallelConfig(parallelConfig: Partial<ParallelConfig>): Paralle
  * Maximum time to spend indexing a single file before aborting.
  * Prevents sync from hanging on problematic files.
  */
-const MAX_FILE_INDEXING_TIMEOUT_MS = 30 * 1000; // 1 minute
+const MAX_FILE_INDEXING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Extensions treated as plain text/code for line-based size checks.
+ * Binary formats like PDF should not be decoded as UTF-8 for these checks.
+ */
+const TEXT_FILE_EXTENSIONS = new Set([
+  "txt",
+  "md",
+  "markdown",
+  "rst",
+  "tex",
+  "js",
+  "jsx",
+  "ts",
+  "tsx",
+  "py",
+  "java",
+  "cpp",
+  "c",
+  "h",
+  "go",
+  "rs",
+  "rb",
+  "php",
+  "html",
+  "htm",
+  "css",
+  "xml",
+  "json",
+  "yaml",
+  "yml",
+  "log",
+  "sql",
+  "sh",
+  "bat",
+  "csv",
+]);
+
+function shouldApplyTextLineChecks(filePath: string): boolean {
+  const ext = extname(filePath).slice(1).toLowerCase();
+  return TEXT_FILE_EXTENSIONS.has(ext);
+}
+
+function scanTextFileLimits(
+  content: string,
+  maxFileLines: number,
+  maxLineLength: number
+): { lineCount: number; tooLongLineLength?: number } {
+  let lineCount = 1;
+  let currentLineLength = 0;
+
+  for (let i = 0; i < content.length; i += 1) {
+    const charCode = content.charCodeAt(i);
+
+    if (charCode === 10) {
+      lineCount += 1;
+      if (lineCount > maxFileLines) {
+        return { lineCount };
+      }
+      currentLineLength = 0;
+      continue;
+    }
+
+    // Ignore CR in CRLF
+    if (charCode === 13) {
+      continue;
+    }
+
+    currentLineLength += 1;
+    if (currentLineLength > maxLineLength) {
+      return { lineCount, tooLongLineLength: currentLineLength };
+    }
+  }
+
+  return { lineCount };
+}
+
+function formatTimeout(ms: number): string {
+  if (ms % 60000 === 0) return `${ms / 60000}m`;
+  if (ms % 1000 === 0) return `${ms / 1000}s`;
+  return `${ms}ms`;
+}
 
 /**
  * Simple concurrency limiter for parallel processing
@@ -619,41 +701,43 @@ export async function syncFolder(
           return { indexed: false, skipped: true };
         }
 
-        // Check file size (line count and line length) - skip very large files
-        // Use maxFileLines and maxLineLength from config (user-configurable in settings)
-        const { maxFileLines, maxLineLength } = getVectorSearchConfig();
-        try {
-          const content = await readFile(file.filePath, "utf-8");
-          const lineCount = content.split("\n").length;
-          if (lineCount > maxFileLines) {
-            clearTimeout(timeoutId);
-            processedCount++;
-            console.warn(`[SyncService] Skipping large file (${lineCount} lines, max ${maxFileLines}): ${file.relativePath}`);
-            logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
-            return {
-              indexed: false,
-              skipped: true,
-              error: `${file.relativePath}: File too large (${lineCount} lines, max ${maxFileLines})`
-            };
-          }
+        // Check file size by line heuristics only for text-like formats.
+        // Binary formats (e.g. PDF) should bypass this and be handled by format-specific parsers.
+        if (shouldApplyTextLineChecks(file.filePath)) {
+          const { maxFileLines, maxLineLength } = getVectorSearchConfig();
+          try {
+            const content = await readFile(file.filePath, "utf-8");
+            const scanResult = scanTextFileLimits(content, maxFileLines, maxLineLength);
 
-          // Check for excessively long lines (e.g. base64 strings)
-          const lines = content.split("\n");
-          const tooLongLine = lines.find(line => line.length > maxLineLength);
-          if (tooLongLine) {
-            clearTimeout(timeoutId);
-            processedCount++;
-            console.warn(`[SyncService] Skipping file with long line (${tooLongLine.length} chars, max ${maxLineLength}): ${file.relativePath}`);
-            logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
-            return {
-              indexed: false,
-              skipped: true,
-              error: `${file.relativePath}: File contains too long line (${tooLongLine.length} chars, max ${maxLineLength})`
-            };
+            if (scanResult.lineCount > maxFileLines) {
+              clearTimeout(timeoutId);
+              processedCount++;
+              console.warn(`[SyncService] Skipping large file (${scanResult.lineCount} lines, max ${maxFileLines}): ${file.relativePath}`);
+              logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
+              return {
+                indexed: false,
+                skipped: true,
+                error: `${file.relativePath}: File too large (${scanResult.lineCount} lines, max ${maxFileLines})`
+              };
+            }
+
+            if (typeof scanResult.tooLongLineLength === "number") {
+              clearTimeout(timeoutId);
+              processedCount++;
+              console.warn(
+                `[SyncService] Skipping file with long line (${scanResult.tooLongLineLength} chars, max ${maxLineLength}): ${file.relativePath}`
+              );
+              logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
+              return {
+                indexed: false,
+                skipped: true,
+                error: `${file.relativePath}: File contains too long line (${scanResult.tooLongLineLength} chars, max ${maxLineLength})`
+              };
+            }
+          } catch {
+            // If text read fails unexpectedly, let indexing/parsers decide.
+            console.log(`[SyncService] Could not read file as text, proceeding with indexing: ${file.relativePath}`);
           }
-        } catch (readError) {
-          // If we can't read as text (binary file), let indexing handle it
-          console.log(`[SyncService] Could not read file as text, proceeding with indexing: ${file.relativePath}`);
         }
 
         // Log start for debugging large files hanging
@@ -760,7 +844,7 @@ export async function syncFolder(
 
         let errorMsg = error instanceof Error ? error.message : "Unknown error";
         if (controller.signal.aborted) {
-          errorMsg = "Timeout (5m) exceeded";
+          errorMsg = `Timeout (${formatTimeout(MAX_FILE_INDEXING_TIMEOUT_MS)}) exceeded`;
         }
 
         logProgress(processedCount, totalFiles, file.relativePath, "error", startTime);
