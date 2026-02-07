@@ -12,6 +12,8 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 let cachedPipeline: any = null;
 let cachedPipelinePromise: Promise<any> | null = null;
 let failedToLoad = false;
+let runtimeFallbackDevice: TransformerDevice | null = null;
+let lastPipelineDevice: TransformerDevice | null = null;
 type TransformerDevice =
   | "auto"
   | "gpu"
@@ -42,12 +44,31 @@ function isTransformerDevice(value: string): value is TransformerDevice {
 }
 
 function resolvePreferredDevice(): TransformerDevice {
+  if (runtimeFallbackDevice) return runtimeFallbackDevice;
+
   const configured = process.env.LOCAL_EMBEDDING_DEVICE?.trim().toLowerCase();
   if (configured && isTransformerDevice(configured)) return configured;
 
   if (process.platform === "win32") return "dml";
   if (process.platform === "linux" && process.arch === "x64") return "cuda";
   return "cpu";
+}
+
+function resetPipelineState(): void {
+  cachedPipeline = null;
+  cachedPipelinePromise = null;
+  lastPipelineDevice = null;
+}
+
+function isRecoverableGpuRuntimeError(error: unknown): boolean {
+  const message = String(error ?? "").toLowerCase();
+  return (
+    message.includes("device instance has been suspended") ||
+    message.includes("getdeviceremovedreason") ||
+    message.includes("dxgi_error_device_removed") ||
+    message.includes("dxgi_error_device_hung") ||
+    message.includes("887a0005")
+  );
 }
 
 /**
@@ -139,6 +160,7 @@ async function getPipeline(): Promise<any> {
 
       console.log("[Reranker] Model loaded successfully");
       cachedPipeline = pipe;
+      lastPipelineDevice = preferredDevice;
       return pipe;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -176,7 +198,7 @@ export async function rerankResults(
   const toRerank = hits.slice(0, rerankLimit);
   const remainder = hits.slice(rerankLimit);
 
-  try {
+  const scoreWithPipeline = async (pipe: any): Promise<number[] | null> => {
     const scores: number[] = [];
 
     for (const hit of toRerank) {
@@ -192,6 +214,36 @@ export async function rerankResults(
         console.warn("[Reranker] Unexpected output format. This model may be an EMBEDDING model, not a CROSS-ENCODER.");
         console.warn("[Reranker] Switching to silent fallback (standard search results).");
         failedToLoad = true;
+        return null;
+      }
+    }
+    return scores;
+  };
+
+  try {
+    let scores: number[] | null;
+    try {
+      scores = await scoreWithPipeline(pipe);
+      if (!scores) {
+        return hits;
+      }
+    } catch (error) {
+      if (!isRecoverableGpuRuntimeError(error) || lastPipelineDevice === "cpu") {
+        throw error;
+      }
+
+      console.warn(
+        "[Reranker] GPU runtime error detected; switching reranker to CPU for this process:",
+        error
+      );
+      runtimeFallbackDevice = "cpu";
+      resetPipelineState();
+      const cpuPipe = await getPipeline();
+      if (!cpuPipe) {
+        return hits;
+      }
+      scores = await scoreWithPipeline(cpuPipe);
+      if (!scores) {
         return hits;
       }
     }
