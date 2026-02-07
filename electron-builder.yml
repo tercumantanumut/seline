@@ -106,7 +106,7 @@ mac:
   category: "public.app-category.entertainment"
   # icon: "build-resources/icon.icns"
   hardenedRuntime: true
-  gatekeeperAssess: false
+  gatekeeperAssess: true
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
   # Build only for current architecture by default (use CLI flags to override)
@@ -138,7 +138,6 @@ nsis:
 
 # DMG settings for macOS
 dmg:
-  sign: false
   contents:
     - x: 130
       y: 220
@@ -151,10 +150,8 @@ dmg:
     height: 380
 
 # Notarization settings (for production releases)
-# Uncomment and configure for App Store / notarized releases
-# afterSign: "scripts/notarize.js"
-# notarize:
-#   teamId: "YOUR_TEAM_ID"
+# Script no-ops when Apple credentials are not provided.
+afterSign: "scripts/notarize.js"
 
 # Publish configuration (for auto-updates)
 # publish:

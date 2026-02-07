@@ -62,6 +62,41 @@ Key settings:
 }
 ```
 
+## macOS Signing and Notarization
+
+The build uses `afterSign: "scripts/notarize.js"` in `electron-builder.yml`.
+
+- If Apple credentials are missing, the notarization hook logs a warning and skips.
+- If credentials are present, the app is submitted with `notarytool`.
+
+Supported environment configurations:
+
+1. App-specific password flow
+```bash
+APPLE_ID="you@example.com"
+APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+APPLE_TEAM_ID="ABCDE12345"
+```
+
+2. App Store Connect API key flow
+```bash
+APPLE_API_KEY="/path/to/AuthKey_XXXX.p8"
+APPLE_API_KEY_ID="XXXX"
+APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
+
+Optional:
+```bash
+APPLE_BUNDLE_ID="ai.zlutty.app"
+```
+
+Verification commands for release artifacts:
+```bash
+codesign --verify --deep --strict --verbose=2 "Seline.app"
+spctl -a -vvv "Seline.app"
+xcrun stapler validate "Seline.app"
+```
+
 ## Native Module Handling
 
 ### The Problem
@@ -125,6 +160,16 @@ spawn(process.execPath, [standaloneServer], {
     ELECTRON_RUN_AS_NODE: "1",  // CRITICAL: Makes Electron binary run as Node.js
   },
 });
+```
+
+## MCP Runtime Notes (macOS)
+
+- On macOS, MCP subprocesses now default to Electron's internal Node runtime (`ELECTRON_RUN_AS_NODE=1`).
+- This avoids shipping a builder-machine Node binary that can depend on local Homebrew libraries (for example `icu4c`).
+- If you explicitly need a bundled macOS Node binary, set:
+```bash
+SELINE_BUNDLE_NODE_ON_MAC=1
+SELINE_NODE_RUNTIME_PATH="/absolute/path/to/portable/node"
 ```
 
 ## File Locations in Packaged App
