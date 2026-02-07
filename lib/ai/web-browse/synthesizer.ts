@@ -29,7 +29,7 @@ const DEFAULT_IMAGE_LIMIT = 10;
 const MAX_IMAGE_LIMIT = 200;
 
 // Timeout for synthesis (ms)
-const SYNTHESIS_TIMEOUT_MS = 30000;
+const SYNTHESIS_TIMEOUT_MS = 120000;
 
 // ============================================================================
 // System Prompt

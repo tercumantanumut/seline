@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         scope: body.scope,
       });
       
-      saveAntigravityToken(token, body.email);
+      saveAntigravityToken(token, body.email, true);
       invalidateProviderCache(); // Refresh provider clients
       
       return NextResponse.json({
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         scope: body.token.scope,
       };
       
-      saveAntigravityToken(token, body.email);
+      saveAntigravityToken(token, body.email, true);
       invalidateProviderCache();
       
       return NextResponse.json({

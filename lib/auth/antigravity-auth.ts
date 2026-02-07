@@ -251,7 +251,8 @@ export function needsTokenRefresh(): boolean {
  */
 export function saveAntigravityToken(
   token: AntigravityOAuthToken,
-  email?: string
+  email?: string,
+  setAsActiveProvider = false
 ): void {
   const settings = loadSettings();
 
@@ -266,8 +267,11 @@ export function saveAntigravityToken(
     lastRefresh: Date.now(),
   };
 
-  // Set Antigravity as the active LLM provider
-  settings.llmProvider = "antigravity";
+  // Only switch active provider during explicit user-driven auth flows.
+  // Token refresh must not mutate provider selection.
+  if (setAsActiveProvider) {
+    settings.llmProvider = "antigravity";
+  }
 
   saveSettings(settings);
 

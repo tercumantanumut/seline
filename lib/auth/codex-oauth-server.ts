@@ -118,7 +118,7 @@ async function handleCallback(req: http.IncomingMessage, res: http.ServerRespons
     };
 
     const decoded = decodeCodexJWT(token.access_token);
-    saveCodexToken(token, decoded?.email, decoded?.accountId);
+    saveCodexToken(token, decoded?.email, decoded?.accountId, true);
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");

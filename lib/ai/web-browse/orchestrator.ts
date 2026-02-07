@@ -27,6 +27,7 @@ import { logToolEvent } from "@/lib/ai/tool-registry/logging";
 // ============================================================================
 
 const FIRECRAWL_SCRAPE_URL = "https://api.firecrawl.dev/v1/scrape";
+const FIRECRAWL_TIMEOUT_MS = 120000;
 
 function getFirecrawlApiKey(): string | undefined {
   // Ensure settings are loaded so process.env is updated (Electron standalone).
@@ -266,7 +267,7 @@ async function fetchWebContent(
         url,
         formats: ["markdown", "links"],
         onlyMainContent: true,
-        timeout: 30000,
+        timeout: FIRECRAWL_TIMEOUT_MS,
       }),
       signal: abortSignal,
     });
