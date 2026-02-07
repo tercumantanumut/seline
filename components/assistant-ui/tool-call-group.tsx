@@ -79,13 +79,8 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         isExpanded && "max-h-[800px] overflow-y-auto"
       )}
     >
-      {/* Badges area - collapses to show only first 2 rows when not expanded */}
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-2",
-          !isExpanded && "max-h-[48px] overflow-hidden"
-        )}
-      >
+      {/* Badges area remains fully visible so live tool activity is always apparent */}
+      <div className="flex flex-wrap items-center gap-2">
         {toolParts.map((part, index) => {
           const label = t.has(part.toolName) ? t(part.toolName) : part.toolName;
           const status = getStatus(part);

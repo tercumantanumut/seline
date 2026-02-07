@@ -3,6 +3,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 import path from "path";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+const DOCUMENT_UPLOAD_BODY_SIZE_LIMIT = process.env.NEXT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT || "100mb";
 
 const nextConfig: NextConfig = {
   // Enable standalone output for Electron packaging
@@ -20,6 +21,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // Needed for multipart uploads that pass through middleware (default is 10mb).
+    middlewareClientMaxBodySize: DOCUMENT_UPLOAD_BODY_SIZE_LIMIT,
   },
   // Exclude Remotion and esbuild packages from Turbopack bundling
   // These packages contain native binaries and platform-specific code

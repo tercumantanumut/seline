@@ -14,6 +14,9 @@ import type { NewAgentDocumentChunk } from "@/lib/db/sqlite-schema";
 
 // Route params type (Next.js App Router with async params)
 type RouteParams = { params: Promise<{ id: string }> };
+const MAX_DOCUMENT_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024; // 1 MB
+const MAX_DOCUMENT_UPLOAD_MB = Math.floor(MAX_DOCUMENT_UPLOAD_BYTES / (1024 * 1024));
 
 const uploadMetadataSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -47,6 +50,13 @@ function parseTags(raw: unknown): string[] | undefined {
   }
 
   return undefined;
+}
+
+function documentTooLargeResponse() {
+  return NextResponse.json(
+    { error: `File is too large. Max upload size is ${MAX_DOCUMENT_UPLOAD_MB}MB.` },
+    { status: 413 }
+  );
 }
 
 // GET - List documents for a specific agent
@@ -95,11 +105,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const contentLengthHeader = req.headers.get("content-length");
+    if (contentLengthHeader) {
+      const contentLength = Number(contentLengthHeader);
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength > MAX_DOCUMENT_UPLOAD_BYTES + MAX_MULTIPART_OVERHEAD_BYTES
+      ) {
+        return documentTooLargeResponse();
+      }
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
+      return documentTooLargeResponse();
     }
 
     // Collect metadata fields
