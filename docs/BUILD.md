@@ -164,12 +164,17 @@ spawn(process.execPath, [standaloneServer], {
 
 ## MCP Runtime Notes (macOS)
 
-- On macOS, MCP subprocesses now default to Electron's internal Node runtime (`ELECTRON_RUN_AS_NODE=1`).
-- This avoids shipping a builder-machine Node binary that can depend on local Homebrew libraries (for example `icu4c`).
-- If you explicitly need a bundled macOS Node binary, set:
+- On macOS, MCP subprocesses default to a bundled `node` binary inside the app.
+- This avoids terminal window popups for MCP command execution in production.
+- During build, Homebrew-linked `process.execPath` binaries are blocked by default to avoid shipping machine-specific dylib dependencies.
+- Recommended: provide a portable runtime path explicitly:
 ```bash
-SELINE_BUNDLE_NODE_ON_MAC=1
 SELINE_NODE_RUNTIME_PATH="/absolute/path/to/portable/node"
+```
+- Optional overrides:
+```bash
+SELINE_DISABLE_BUNDLED_NODE_ON_MAC=1
+SELINE_ALLOW_HOMEBREW_NODE_RUNTIME=1
 ```
 
 ## File Locations in Packaged App
