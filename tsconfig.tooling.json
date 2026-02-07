@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo/typecheck.tooling.tsbuildinfo"
+  },
+  "include": [
+    "drizzle.config.ts",
+    "next.config.ts",
+    "tailwind.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "types/**/*.d.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/**/*",
+    "electron/**/*",
+    "dist-electron/**/*",
+    "tmp-clawdbot/**/*"
+  ]
+}

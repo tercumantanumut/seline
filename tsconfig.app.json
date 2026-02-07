@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo/typecheck.app.tsbuildinfo"
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "i18n/**/*.ts",
+    "types/**/*.d.ts",
+    "middleware.ts",
+    "instrumentation.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/**/*",
+    "scripts/**/*",
+    "electron/**/*",
+    "lib/**/*",
+    "dist-electron/**/*",
+    "tmp-clawdbot/**/*"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo/typecheck.lib.tsbuildinfo"
+  },
+  "include": [
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/**/*",
+    "scripts/**/*",
+    "app/**/*",
+    "components/**/*",
+    "hooks/**/*",
+    "electron/**/*",
+    "lib/**/__tests__/**/*",
+    "dist-electron/**/*",
+    "tmp-clawdbot/**/*"
+  ]
+}
