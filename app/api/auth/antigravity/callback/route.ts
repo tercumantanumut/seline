@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 
         if (tokenResponse.access_token) {
           const token = parseOAuthCallbackToken(tokenResponse);
-          saveAntigravityToken(token, tokenResponse.email);
+          saveAntigravityToken(token, tokenResponse.email, true);
           invalidateProviderCache();
 
           return new NextResponse(

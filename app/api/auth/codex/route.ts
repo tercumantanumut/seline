@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       };
 
       const decoded = decodeCodexJWT(token.access_token);
-      saveCodexToken(token, decoded?.email, decoded?.accountId);
+      saveCodexToken(token, decoded?.email, decoded?.accountId, true);
       invalidateProviderCache();
 
       return NextResponse.json({
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       };
 
       const decoded = decodeCodexJWT(token.access_token);
-      saveCodexToken(token, decoded?.email, decoded?.accountId);
+      saveCodexToken(token, decoded?.email, decoded?.accountId, true);
       invalidateProviderCache();
 
       return NextResponse.json({

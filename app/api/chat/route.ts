@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
+import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
 import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, getProviderTemperature } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
@@ -859,6 +859,7 @@ function normalizeToolCallInput(
 interface StreamingMessageState {
   parts: DBContentPart[];
   toolCallParts: Map<string, DBToolCallPart>;
+  loggedIncompleteToolCalls: Set<string>;
   messageId?: string;
   lastBroadcastAt: number;
   lastBroadcastSignature: string;
@@ -1177,6 +1178,7 @@ export async function POST(req: Request) {
       ? {
         parts: [],
         toolCallParts: new Map<string, DBToolCallPart>(),
+        loggedIncompleteToolCalls: new Set<string>(),
         messageId: undefined,
         lastBroadcastAt: 0,
         lastBroadcastSignature: "",
@@ -1198,10 +1200,14 @@ export async function POST(req: Request) {
             const isStillStreaming = part.state === "input-streaming";
 
             if (isStillStreaming && !hasCompleteArgs) {
-              console.log(
-                `[CHAT API] Filtering incomplete tool call ${part.toolCallId} (${part.toolName}) ` +
-                `from streaming persistence - state: ${part.state}, has args: ${hasCompleteArgs}`
-              );
+              const logKey = `${part.toolCallId}:${part.toolName ?? "tool"}`;
+              if (!streamingState.loggedIncompleteToolCalls.has(logKey)) {
+                streamingState.loggedIncompleteToolCalls.add(logKey);
+                console.log(
+                  `[CHAT API] Filtering incomplete tool call ${part.toolCallId} (${part.toolName}) ` +
+                  `from streaming persistence - state: ${part.state}, has args: ${hasCompleteArgs}`
+                );
+              }
               return false; // Don't persist incomplete streaming tool calls
             }
           }
@@ -2463,6 +2469,31 @@ export async function POST(req: Request) {
     // AI SDK v5: use toUIMessageStreamResponse for assistant-ui compatibility
     // messageMetadata extracts token usage from finish-step events to send to client
     const response = result.toUIMessageStreamResponse({
+      consumeSseStream: ({ stream }) =>
+        consumeStream({
+          stream,
+          onError: (error) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessageLower = errorMessage.toLowerCase();
+            const isCreditError =
+              errorMessageLower.includes("insufficient") ||
+              errorMessageLower.includes("quota") ||
+              errorMessageLower.includes("credit") ||
+              errorMessageLower.includes("429");
+            void finalizeFailedRun(errorMessage, isCreditError);
+          },
+        }),
+      onError: (error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessageLower = errorMessage.toLowerCase();
+        const isCreditError =
+          errorMessageLower.includes("insufficient") ||
+          errorMessageLower.includes("quota") ||
+          errorMessageLower.includes("credit") ||
+          errorMessageLower.includes("429");
+        void finalizeFailedRun(errorMessage, isCreditError);
+        return "Streaming interrupted. The run was marked accordingly.";
+      },
       messageMetadata: ({ part }) => {
         // finish-step includes usage: LanguageModelUsage + providerMetadata
         if (part.type === 'finish-step' && part.usage) {

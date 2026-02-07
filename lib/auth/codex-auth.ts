@@ -100,7 +100,12 @@ export function needsCodexTokenRefresh(): boolean {
   return expiresAt <= (now + CODEX_CONFIG.REFRESH_THRESHOLD_MS) && expiresAt > now;
 }
 
-export function saveCodexToken(token: CodexOAuthToken, email?: string, accountId?: string): void {
+export function saveCodexToken(
+  token: CodexOAuthToken,
+  email?: string,
+  accountId?: string,
+  setAsActiveProvider = false
+): void {
   const settings = loadSettings();
 
   settings.codexToken = token;
@@ -113,8 +118,11 @@ export function saveCodexToken(token: CodexOAuthToken, email?: string, accountId
     lastRefresh: Date.now(),
   };
 
-  // Set Codex as the active LLM provider
-  settings.llmProvider = "codex";
+  // Only switch active provider during explicit user-driven auth flows.
+  // Token refresh must not mutate provider selection.
+  if (setAsActiveProvider) {
+    settings.llmProvider = "codex";
+  }
 
   saveSettings(settings);
 
