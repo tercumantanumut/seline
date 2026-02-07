@@ -6,18 +6,20 @@ export class OpenAITTSProvider implements TTSProvider {
 
   isAvailable(): boolean {
     const settings = loadSettings();
-    // OpenAI TTS works with OpenRouter key (openai-compatible) or direct OpenAI usage
-    return !!(settings.openrouterApiKey || process.env.OPENAI_API_KEY);
+    // OpenAI TTS works with direct OpenAI key or OpenRouter key (openai-compatible)
+    return !!(settings.openaiApiKey || process.env.OPENAI_API_KEY || settings.openrouterApiKey);
   }
 
   async synthesize(options: TTSOptions): Promise<TTSResult> {
     const settings = loadSettings();
-    const apiKey = process.env.OPENAI_API_KEY || settings.openrouterApiKey;
+    // Priority: settings.openaiApiKey > env OPENAI_API_KEY > settings.openrouterApiKey
+    const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = openaiKey || settings.openrouterApiKey;
     if (!apiKey) {
       throw new Error("No OpenAI or OpenRouter API key configured for TTS");
     }
 
-    const baseUrl = process.env.OPENAI_API_KEY
+    const baseUrl = openaiKey
       ? "https://api.openai.com/v1"
       : "https://openrouter.ai/api/v1";
 

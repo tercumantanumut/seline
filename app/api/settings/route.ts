@@ -20,6 +20,7 @@ export async function GET() {
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
       huggingFaceToken: settings.huggingFaceToken ? maskApiKey(settings.huggingFaceToken) : undefined,
       elevenLabsApiKey: settings.elevenLabsApiKey ? maskApiKey(settings.elevenLabsApiKey) : undefined,
+      openaiApiKey: settings.openaiApiKey ? maskApiKey(settings.openaiApiKey) : undefined,
     };
     return NextResponse.json(maskedSettings);
   } catch (error) {
@@ -108,6 +109,8 @@ export async function PUT(request: NextRequest) {
       // Voice & Audio - STT
       sttEnabled: body.sttEnabled !== undefined ? body.sttEnabled : currentSettings.sttEnabled,
       sttProvider: body.sttProvider !== undefined ? body.sttProvider : currentSettings.sttProvider,
+      sttLocalModel: body.sttLocalModel !== undefined ? body.sttLocalModel : currentSettings.sttLocalModel,
+      whisperCppPath: body.whisperCppPath !== undefined ? body.whisperCppPath : currentSettings.whisperCppPath,
     };
 
     // Only update API keys if they're provided and not masked
@@ -135,6 +138,9 @@ export async function PUT(request: NextRequest) {
     }
     if (body.elevenLabsApiKey && !body.elevenLabsApiKey.includes("•")) {
       updatedSettings.elevenLabsApiKey = body.elevenLabsApiKey;
+    }
+    if (body.openaiApiKey && !body.openaiApiKey.includes("•")) {
+      updatedSettings.openaiApiKey = body.openaiApiKey;
     }
 
     const embeddingConfigChanged = (

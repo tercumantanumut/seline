@@ -1095,6 +1095,65 @@ function setupIpcHandlers(): void {
     }
   });
 
+  // Single-file model download (for whisper.cpp .bin files from shared repos)
+  // Unlike model:download which downloads an entire repo, this downloads one file.
+  ipcMain.handle("model:checkFileExists", async (_event, opts: { modelId: string; filename: string }) => {
+    const filePath = path.join(userModelsDir, "whisper", opts.filename);
+    return fs.existsSync(filePath);
+  });
+
+  ipcMain.handle("model:downloadFile", async (event, opts: { modelId: string; repo: string; filename: string }) => {
+    try {
+      const destDir = path.join(userModelsDir, "whisper");
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      const destPath = path.join(destDir, opts.filename);
+      debugLog(`[Model] Starting single-file download: ${opts.repo}/${opts.filename} -> ${destPath}`);
+
+      event.sender.send("model:downloadProgress", {
+        modelId: opts.modelId,
+        status: "downloading",
+        progress: 0,
+        file: opts.filename,
+      });
+
+      const blob = await downloadFile({
+        repo: opts.repo,
+        path: opts.filename,
+      });
+
+      if (!blob) {
+        throw new Error(`File not found: ${opts.repo}/${opts.filename}`);
+      }
+
+      // Stream the download — read chunks and report progress
+      const arrayBuffer = await blob.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      fs.writeFileSync(destPath, buffer);
+
+      debugLog(`[Model] Single-file download complete: ${opts.filename} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+
+      event.sender.send("model:downloadProgress", {
+        modelId: opts.modelId,
+        status: "completed",
+        progress: 100,
+        file: opts.filename,
+      });
+
+      return { success: true };
+    } catch (error) {
+      debugError(`[Model] Single-file download failed: ${opts.repo}/${opts.filename}`, error);
+      event.sender.send("model:downloadProgress", {
+        modelId: opts.modelId,
+        status: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Command execution handler - proxies to Next.js API
   ipcMain.handle("command:execute", async (_event, options: {
     command: string;
