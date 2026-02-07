@@ -138,6 +138,7 @@ async function getPipeline(): Promise<any> {
 
       // Attempt to load as text-classification (standard for cross-encoders)
       let pipe: any;
+      let actualDevice: TransformerDevice = preferredDevice;
       try {
         pipe = await pipeline("text-classification", modelPath, {
           device: preferredDevice,
@@ -153,6 +154,7 @@ async function getPipeline(): Promise<any> {
             device: "cpu",
             dtype: "fp32",
           });
+          actualDevice = "cpu";
         } else {
           throw error;
         }
@@ -160,7 +162,7 @@ async function getPipeline(): Promise<any> {
 
       console.log("[Reranker] Model loaded successfully");
       cachedPipeline = pipe;
-      lastPipelineDevice = preferredDevice;
+      lastPipelineDevice = actualDevice;
       return pipe;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
