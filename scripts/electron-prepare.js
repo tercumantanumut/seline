@@ -109,6 +109,18 @@ function pruneStandaloneForPlatform(standaloneRoot) {
     pruneEsbuildBinaries(path.join(standaloneRoot, "node_modules", "@remotion", "bundler", "node_modules", "@esbuild"), keepOs, arch);
 }
 
+function isHomebrewLinkedMacBinary(binaryPath) {
+    if (process.platform !== "darwin") return false;
+    try {
+        const escapedPath = binaryPath.replace(/"/g, '\\"');
+        const linkedLibs = execSync(`otool -L "${escapedPath}"`, { encoding: "utf-8" });
+        return /\/opt\/homebrew\/opt\/|\/usr\/local\/opt\//.test(linkedLibs);
+    } catch {
+        // If we cannot inspect dylibs, don't block the build.
+        return false;
+    }
+}
+
 console.log('--- Electron Prepare ---');
 
 // 0. Remove build artifacts and sensitive files that Next.js standalone copies from project root
@@ -323,11 +335,11 @@ console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);
 
 // 12. Bundle Node.js executable for MCP subprocess spawning.
-// Windows keeps a bundled runtime to avoid console window flashing.
-// macOS defaults to Electron's own Node runtime (ELECTRON_RUN_AS_NODE) to avoid
-// host-specific dylib links from a builder machine's Node binary.
+// Keep bundled runtime on macOS and Windows to avoid terminal windows when MCP commands run.
+// For macOS, block clearly Homebrew-linked binaries by default to avoid shipping
+// machine-specific dylib dependencies (for example missing icu4c on end-user devices).
 const shouldBundleWindowsNode = process.platform === 'win32';
-const shouldBundleMacNode = process.platform === 'darwin' && process.env.SELINE_BUNDLE_NODE_ON_MAC === '1';
+const shouldBundleMacNode = process.platform === 'darwin' && process.env.SELINE_DISABLE_BUNDLED_NODE_ON_MAC !== '1';
 
 if (shouldBundleWindowsNode || shouldBundleMacNode) {
     const isWindows = process.platform === 'win32';
@@ -336,25 +348,31 @@ if (shouldBundleWindowsNode || shouldBundleMacNode) {
     const configuredNodePath = process.env.SELINE_NODE_RUNTIME_PATH;
     const nodeExeSrc = configuredNodePath || process.execPath;
 
-    if (!isWindows && !configuredNodePath) {
-        console.warn('Skipping macOS node bundling: set SELINE_NODE_RUNTIME_PATH to bundle a portable Node binary.');
-    } else {
-        console.log(`Bundling Node.js executable for ${platformName}...`);
-        const nodeBinDir = path.join(standaloneDir, 'node_modules', '.bin');
-        const nodeExeDest = path.join(nodeBinDir, nodeExeName);
+    console.log(`Bundling Node.js executable for ${platformName}...`);
+    const nodeBinDir = path.join(standaloneDir, 'node_modules', '.bin');
+    const nodeExeDest = path.join(nodeBinDir, nodeExeName);
+    ensureDir(nodeBinDir);
 
-        ensureDir(nodeBinDir);
-
-        if (fs.existsSync(nodeExeSrc)) {
-            fs.copyFileSync(nodeExeSrc, nodeExeDest);
-            if (!isWindows) {
-                fs.chmodSync(nodeExeDest, 0o755);
+    if (fs.existsSync(nodeExeSrc)) {
+        if (!isWindows) {
+            const allowHomebrewRuntime = process.env.SELINE_ALLOW_HOMEBREW_NODE_RUNTIME === '1';
+            if (!configuredNodePath && !allowHomebrewRuntime && isHomebrewLinkedMacBinary(nodeExeSrc)) {
+                throw new Error(
+                    'Refusing to bundle Homebrew-linked macOS Node runtime from process.execPath. ' +
+                    'Set SELINE_NODE_RUNTIME_PATH to a portable Node binary, or set ' +
+                    'SELINE_ALLOW_HOMEBREW_NODE_RUNTIME=1 to override.'
+                );
             }
-            const stats = fs.statSync(nodeExeDest);
-            console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
-        } else {
-            console.warn(`  Warning: Could not find Node.js executable to bundle at ${nodeExeSrc}`);
         }
+
+        fs.copyFileSync(nodeExeSrc, nodeExeDest);
+        if (!isWindows) {
+            fs.chmodSync(nodeExeDest, 0o755);
+        }
+        const stats = fs.statSync(nodeExeDest);
+        console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+    } else {
+        console.warn(`  Warning: Could not find Node.js executable to bundle at ${nodeExeSrc}`);
     }
 }
 

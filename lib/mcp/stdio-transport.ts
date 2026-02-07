@@ -117,13 +117,13 @@ type ResolvedSpawnCommand = {
 
 /**
  * Get path to bundled Node.js binary.
- * Default behavior: Windows only.
- * macOS support is opt-in with SELINE_BUNDLE_NODE_ON_MAC=1.
+ * Default behavior: Windows + macOS.
+ * macOS can opt out with SELINE_DISABLE_BUNDLED_NODE_ON_MAC=1.
  * Returns null if not found or not on a supported platform
  */
 function getBundledNodeExe(): string | null {
-    const macOptIn = process.platform === "darwin" && process.env.SELINE_BUNDLE_NODE_ON_MAC === "1";
-    if (process.platform !== "win32" && !macOptIn) {
+    const macBundledEnabled = process.platform === "darwin" && process.env.SELINE_DISABLE_BUNDLED_NODE_ON_MAC !== "1";
+    if (process.platform !== "win32" && !macBundledEnabled) {
         return null;
     }
 
