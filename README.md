@@ -21,6 +21,11 @@
 
 Seline is a local-first AI desktop application that brings together conversational AI, visual generation tools, vector search, and multi-channel connectivity in one place. Your data stays on your machine, conversations persist across sessions with long-running context, and you can route between any LLM provider without leaving the app. Connect WhatsApp, Telegram, or Slack to turn your agents into always-on bots that respond across channels with full context and background task delivery.
 
+Seline is in active development, things break, we fix, it's a big application and our team utilizes it each day now and dedicated to improve. 
+
+Known Issues: Mac dmg builds has signing issue, might give error after install. 
+Wait two days or search for workaround on the web. I will sign in two days with Apple developer id. 
+
 ## Highlights
 
 **Multi-Channel Connectivity**
