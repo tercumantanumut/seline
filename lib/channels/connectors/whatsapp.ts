@@ -178,14 +178,25 @@ export class WhatsAppConnector implements ChannelConnector {
     await this.waitForReady(15000);
 
     const text = payload.text || "";
-    const attachment = payload.attachments?.[0];
+    const imageAttachment = payload.attachments?.find((a) => a.type === "image");
+    const audioAttachment = payload.attachments?.find((a) => a.type === "audio");
     let result: proto.WebMessageInfo | undefined;
 
-    if (attachment && attachment.type === "image") {
+    if (imageAttachment) {
       result = await this.sock.sendMessage(payload.peerId, {
-        image: attachment.data,
+        image: imageAttachment.data,
         caption: text || undefined,
       });
+    } else if (audioAttachment) {
+      result = await this.sock.sendMessage(payload.peerId, {
+        audio: audioAttachment.data,
+        mimetype: audioAttachment.mimeType || "audio/mpeg",
+        ptt: true, // Send as voice note (push-to-talk)
+      });
+      // Also send the text as a separate message if present
+      if (text && text.trim() !== " ") {
+        await this.sock.sendMessage(payload.peerId, { text });
+      }
     } else {
       result = await this.sock.sendMessage(payload.peerId, { text });
     }
@@ -240,19 +251,45 @@ async function extractAttachments(
   sock: ReturnType<typeof makeWASocket>
 ) {
   const attachments: ChannelInboundMessage["attachments"] = [];
+
+  // Image attachments
   const image = msg.message?.imageMessage;
-  if (!image) {
+  if (image) {
+    try {
+      const buffer = await downloadMediaMessage(msg, "buffer", {}, { logger: sock.logger, reuploadRequest: sock.updateMediaMessage });
+      if (buffer instanceof Buffer) {
+        attachments.push({
+          type: "image",
+          filename: image?.caption ? `${image.caption}.jpg` : `whatsapp-${msg.key.id}.jpg`,
+          mimeType: image?.mimetype || "image/jpeg",
+          data: buffer,
+        });
+      }
+    } catch (error) {
+      console.error("[WhatsApp] Failed to download image:", error);
+    }
     return attachments;
   }
 
-  const buffer = await downloadMediaMessage(msg, "buffer", {}, { logger: sock.logger, reuploadRequest: sock.updateMediaMessage });
-  if (buffer instanceof Buffer) {
-    attachments.push({
-      type: "image",
-      filename: image?.caption ? `${image.caption}.jpg` : `whatsapp-${msg.key.id}.jpg`,
-      mimeType: image?.mimetype || "image/jpeg",
-      data: buffer,
-    });
+  // Audio/voice note attachments
+  const audio = msg.message?.audioMessage;
+  if (audio) {
+    try {
+      const buffer = await downloadMediaMessage(msg, "buffer", {}, { logger: sock.logger, reuploadRequest: sock.updateMediaMessage });
+      if (buffer instanceof Buffer) {
+        const isVoiceNote = audio.ptt === true;
+        attachments.push({
+          type: "audio",
+          filename: isVoiceNote ? `voice-${msg.key.id}.ogg` : `audio-${msg.key.id}.ogg`,
+          mimeType: audio.mimetype || "audio/ogg; codecs=opus",
+          data: buffer,
+        });
+      }
+    } catch (error) {
+      console.error("[WhatsApp] Failed to download audio:", error);
+    }
+    return attachments;
   }
+
   return attachments;
 }

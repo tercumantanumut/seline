@@ -19,6 +19,7 @@ export async function GET() {
       firecrawlApiKey: settings.firecrawlApiKey ? maskApiKey(settings.firecrawlApiKey) : undefined,
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
       huggingFaceToken: settings.huggingFaceToken ? maskApiKey(settings.huggingFaceToken) : undefined,
+      elevenLabsApiKey: settings.elevenLabsApiKey ? maskApiKey(settings.elevenLabsApiKey) : undefined,
     };
     return NextResponse.json(maskedSettings);
   } catch (error) {
@@ -91,6 +92,22 @@ export async function PUT(request: NextRequest) {
       // FLUX.2 Klein 9B
       flux2Klein9bEnabled: body.flux2Klein9bEnabled !== undefined ? body.flux2Klein9bEnabled : currentSettings.flux2Klein9bEnabled,
       flux2Klein9bBackendPath: body.flux2Klein9bBackendPath !== undefined ? body.flux2Klein9bBackendPath : currentSettings.flux2Klein9bBackendPath,
+      // Local Grep settings
+      localGrepEnabled: body.localGrepEnabled !== undefined ? body.localGrepEnabled : currentSettings.localGrepEnabled,
+      localGrepMaxResults: body.localGrepMaxResults !== undefined ? body.localGrepMaxResults : currentSettings.localGrepMaxResults,
+      localGrepContextLines: body.localGrepContextLines !== undefined ? body.localGrepContextLines : currentSettings.localGrepContextLines,
+      localGrepRespectGitignore: body.localGrepRespectGitignore !== undefined ? body.localGrepRespectGitignore : currentSettings.localGrepRespectGitignore,
+      // Voice & Audio - TTS
+      ttsEnabled: body.ttsEnabled !== undefined ? body.ttsEnabled : currentSettings.ttsEnabled,
+      ttsProvider: body.ttsProvider !== undefined ? body.ttsProvider : currentSettings.ttsProvider,
+      ttsAutoMode: body.ttsAutoMode !== undefined ? body.ttsAutoMode : currentSettings.ttsAutoMode,
+      elevenLabsVoiceId: body.elevenLabsVoiceId !== undefined ? body.elevenLabsVoiceId : currentSettings.elevenLabsVoiceId,
+      openaiTtsVoice: body.openaiTtsVoice !== undefined ? body.openaiTtsVoice : currentSettings.openaiTtsVoice,
+      openaiTtsModel: body.openaiTtsModel !== undefined ? body.openaiTtsModel : currentSettings.openaiTtsModel,
+      ttsSummarizeThreshold: body.ttsSummarizeThreshold !== undefined ? body.ttsSummarizeThreshold : currentSettings.ttsSummarizeThreshold,
+      // Voice & Audio - STT
+      sttEnabled: body.sttEnabled !== undefined ? body.sttEnabled : currentSettings.sttEnabled,
+      sttProvider: body.sttProvider !== undefined ? body.sttProvider : currentSettings.sttProvider,
     };
 
     // Only update API keys if they're provided and not masked
@@ -115,6 +132,9 @@ export async function PUT(request: NextRequest) {
     }
     if (body.huggingFaceToken && !body.huggingFaceToken.includes("•")) {
       updatedSettings.huggingFaceToken = body.huggingFaceToken;
+    }
+    if (body.elevenLabsApiKey && !body.elevenLabsApiKey.includes("•")) {
+      updatedSettings.elevenLabsApiKey = body.elevenLabsApiKey;
     }
 
     const embeddingConfigChanged = (

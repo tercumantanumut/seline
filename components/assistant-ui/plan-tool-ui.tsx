@@ -75,7 +75,7 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
 
   // --- Success state ---
   const plan = result.plan;
-  if (!plan || plan.steps.length === 0) return null;
+  if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
 
   const counts = { completed: 0, in_progress: 0, pending: 0, canceled: 0 };
   plan.steps.forEach((s) => { counts[s.status]++; });

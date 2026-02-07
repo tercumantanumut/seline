@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon, Volume2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
@@ -79,7 +79,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "voice";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -149,6 +149,16 @@ export default function SettingsPage() {
     comfyuiCustomUseHttps: false,
     comfyuiCustomAutoDetect: true,
     comfyuiCustomBaseUrl: "",
+    // Voice & Audio settings
+    ttsEnabled: false,
+    ttsProvider: "edge" as "elevenlabs" | "openai" | "edge",
+    ttsAutoMode: "off" as "off" | "always" | "channels-only",
+    elevenLabsApiKey: "",
+    elevenLabsVoiceId: "",
+    openaiTtsVoice: "alloy",
+    ttsSummarizeThreshold: 500,
+    sttEnabled: false,
+    sttProvider: "openai" as "openai" | "local",
   });
 
   // Antigravity auth state (separate from form state, managed via OAuth)
@@ -236,6 +246,16 @@ export default function SettingsPage() {
         comfyuiCustomUseHttps: data.comfyuiCustomUseHttps ?? false,
         comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
         comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
+        // Voice & Audio settings
+        ttsEnabled: data.ttsEnabled ?? false,
+        ttsProvider: data.ttsProvider ?? "edge",
+        ttsAutoMode: data.ttsAutoMode ?? "off",
+        elevenLabsApiKey: data.elevenLabsApiKey ?? "",
+        elevenLabsVoiceId: data.elevenLabsVoiceId ?? "",
+        openaiTtsVoice: data.openaiTtsVoice ?? "alloy",
+        ttsSummarizeThreshold: data.ttsSummarizeThreshold ?? 500,
+        sttEnabled: data.sttEnabled ?? false,
+        sttProvider: data.sttProvider ?? "openai",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errors.load"));
@@ -592,6 +612,7 @@ export default function SettingsPage() {
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
     { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
     { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
+    { id: "voice" as const, label: "Voice & Audio", icon: Volume2Icon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];
@@ -730,6 +751,16 @@ interface FormState {
   comfyuiCustomUseHttps: boolean;
   comfyuiCustomAutoDetect: boolean;
   comfyuiCustomBaseUrl: string;
+  // Voice & Audio settings
+  ttsEnabled: boolean;
+  ttsProvider: "elevenlabs" | "openai" | "edge";
+  ttsAutoMode: "off" | "always" | "channels-only";
+  elevenLabsApiKey: string;
+  elevenLabsVoiceId: string;
+  openaiTtsVoice: string;
+  ttsSummarizeThreshold: number;
+  sttEnabled: boolean;
+  sttProvider: "openai" | "local";
 }
 
 // Derive local embedding model list from shared registry (single source of truth)
@@ -1876,6 +1907,222 @@ function SettingsPanel({
           </p>
         </div>
         <MCPSettings />
+      </div>
+    );
+  }
+
+  if (section === "voice") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
+          <p className="font-mono text-xs text-terminal-muted">
+            Configure text-to-speech and speech-to-text for conversations and channel messages.
+          </p>
+        </div>
+
+        {/* ── Text-to-Speech ─────────────────────────────── */}
+        <div className="space-y-4">
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">Text-to-Speech (TTS)</h3>
+
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="font-mono text-sm text-terminal-dark">Enable TTS</label>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Generate audio from agent replies. Voice notes are sent to channels automatically.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={formState.ttsEnabled}
+              onChange={(e) => updateField("ttsEnabled", e.target.checked)}
+              className="size-5 accent-terminal-green"
+            />
+          </div>
+
+          {formState.ttsEnabled && (
+            <>
+              {/* Auto-mode */}
+              <div>
+                <label className="mb-2 block font-mono text-sm text-terminal-muted">Auto-speak Mode</label>
+                <div className="space-y-3">
+                  {([
+                    { value: "off" as const, label: "Off", desc: "Only when explicitly requested (speakAloud tool)" },
+                    { value: "channels-only" as const, label: "Channels Only", desc: "Auto-attach voice notes to channel replies" },
+                    { value: "always" as const, label: "Always", desc: "Generate audio for every agent reply" },
+                  ] as const).map((opt) => (
+                    <label key={opt.value} className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="ttsAutoMode"
+                        value={opt.value}
+                        checked={formState.ttsAutoMode === opt.value}
+                        onChange={() => updateField("ttsAutoMode", opt.value)}
+                        className="mt-1 size-4 accent-terminal-green"
+                      />
+                      <div>
+                        <span className="font-mono text-terminal-dark">{opt.label}</span>
+                        <p className="font-mono text-xs text-terminal-muted">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Provider selection */}
+              <div>
+                <label className="mb-2 block font-mono text-sm text-terminal-muted">TTS Provider</label>
+                <div className="space-y-3">
+                  {([
+                    { value: "edge" as const, label: "Edge TTS (Free)", desc: "Microsoft Edge neural voices. No API key required." },
+                    { value: "openai" as const, label: "OpenAI TTS", desc: "Uses your OpenAI/OpenRouter API key. High quality, fast." },
+                    { value: "elevenlabs" as const, label: "ElevenLabs", desc: "Premium voice cloning and synthesis. Requires API key." },
+                  ] as const).map((opt) => (
+                    <label key={opt.value} className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="ttsProvider"
+                        value={opt.value}
+                        checked={formState.ttsProvider === opt.value}
+                        onChange={() => updateField("ttsProvider", opt.value)}
+                        className="mt-1 size-4 accent-terminal-green"
+                      />
+                      <div>
+                        <span className="font-mono text-terminal-dark">{opt.label}</span>
+                        <p className="font-mono text-xs text-terminal-muted">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* OpenAI voice selector */}
+              {formState.ttsProvider === "openai" && (
+                <div>
+                  <label className="mb-2 block font-mono text-sm text-terminal-muted">OpenAI Voice</label>
+                  <select
+                    value={formState.openaiTtsVoice}
+                    onChange={(e) => updateField("openaiTtsVoice", e.target.value)}
+                    className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                  >
+                    {["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((v) => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* ElevenLabs settings */}
+              {formState.ttsProvider === "elevenlabs" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block font-mono text-sm text-terminal-muted">ElevenLabs API Key</label>
+                    <input
+                      type="password"
+                      value={formState.elevenLabsApiKey}
+                      onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
+                      placeholder="xi_..."
+                      className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block font-mono text-sm text-terminal-muted">Voice ID</label>
+                    <input
+                      type="text"
+                      value={formState.elevenLabsVoiceId}
+                      onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
+                      placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                      className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    />
+                    <p className="mt-1 font-mono text-xs text-terminal-muted">
+                      Find voice IDs at elevenlabs.io/voice-library
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Summarize threshold */}
+              <div>
+                <label className="mb-1 block font-mono text-sm text-terminal-muted">
+                  Summarize Threshold (characters)
+                </label>
+                <input
+                  type="number"
+                  min={100}
+                  max={5000}
+                  step={100}
+                  value={formState.ttsSummarizeThreshold}
+                  onChange={(e) => updateField("ttsSummarizeThreshold", parseInt(e.target.value, 10) || 500)}
+                  className="w-32 rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  Replies longer than this are summarized before TTS to reduce audio length.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Speech-to-Text ─────────────────────────────── */}
+        <div className="space-y-4 border-t border-terminal-border/60 pt-6">
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">Speech-to-Text (STT)</h3>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="font-mono text-sm text-terminal-dark">Enable STT</label>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Automatically transcribe audio attachments from channels (WhatsApp voice notes, etc.).
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={formState.sttEnabled}
+              onChange={(e) => updateField("sttEnabled", e.target.checked)}
+              className="size-5 accent-terminal-green"
+            />
+          </div>
+
+          {formState.sttEnabled && (
+            <div>
+              <label className="mb-2 block font-mono text-sm text-terminal-muted">STT Provider</label>
+              <div className="space-y-3">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="sttProvider"
+                    value="openai"
+                    checked={formState.sttProvider === "openai"}
+                    onChange={() => updateField("sttProvider", "openai")}
+                    className="mt-1 size-4 accent-terminal-green"
+                  />
+                  <div>
+                    <span className="font-mono text-terminal-dark">OpenAI Whisper</span>
+                    <p className="font-mono text-xs text-terminal-muted">
+                      Uses your OpenAI/OpenRouter API key. Fast and accurate.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="sttProvider"
+                    value="local"
+                    checked={formState.sttProvider === "local"}
+                    onChange={() => updateField("sttProvider", "local")}
+                    className="mt-1 size-4 accent-terminal-green"
+                  />
+                  <div>
+                    <span className="font-mono text-terminal-dark">Local (Coming Soon)</span>
+                    <p className="font-mono text-xs text-terminal-muted">
+                      On-device transcription using whisper.cpp. No API key needed.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

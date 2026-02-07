@@ -40,7 +40,7 @@ export interface ScheduledTask extends BaseTask {
 
 export interface ChannelTask extends BaseTask {
   type: "channel";
-  channelType: "telegram" | "whatsapp" | "slack";
+  channelType: "telegram" | "whatsapp" | "slack" | "discord";
   connectionId: string;
   peerId: string;
   threadId?: string;

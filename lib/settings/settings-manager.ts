@@ -160,6 +160,22 @@ export interface AppSettings {
 
     // Settings UI preferences
     settingsExpandedSections?: string[]; // Remember which sections are expanded
+
+    // TTS (Text-to-Speech) settings
+    ttsEnabled?: boolean;
+    ttsProvider?: "elevenlabs" | "openai" | "edge";
+    ttsAutoMode?: "off" | "always" | "channels-only";
+    elevenLabsApiKey?: string;
+    elevenLabsVoiceId?: string;
+    openaiTtsVoice?: string;
+    openaiTtsModel?: string;
+    ttsSummarizeThreshold?: number; // Chars above which to summarize before TTS
+
+    // Audio Transcription (STT) settings
+    sttEnabled?: boolean;
+    sttProvider?: "openai" | "local";
+    sttLocalModel?: string;          // Selected whisper.cpp model ID (default: "ggml-tiny.en")
+    whisperCppPath?: string;         // Custom path to whisper-cli binary (auto-detected if empty)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -216,6 +232,16 @@ const DEFAULT_SETTINGS: AppSettings = {
     flux2Klein9bAutoStart: false,
     flux2Klein9bModelsDownloaded: false,
     flux2Klein9bBackendPath: "",
+    // TTS defaults
+    ttsEnabled: false,
+    ttsProvider: "edge",
+    ttsAutoMode: "off",
+    ttsSummarizeThreshold: 1500,
+    openaiTtsVoice: "alloy",
+    openaiTtsModel: "gpt-4o-mini-tts",
+    // STT defaults
+    sttEnabled: true,
+    sttProvider: "openai",
 };
 
 function getSettingsPath(): string {
@@ -478,6 +504,11 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.comfyuiCustomBaseUrl) {
         process.env.COMFYUI_CUSTOM_BASE_URL = settings.comfyuiCustomBaseUrl;
+    }
+
+    // TTS/STT settings
+    if (settings.elevenLabsApiKey) {
+        process.env.ELEVENLABS_API_KEY = settings.elevenLabsApiKey;
     }
 
     loadConfigFromEnv();

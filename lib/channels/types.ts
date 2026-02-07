@@ -1,4 +1,4 @@
-export type ChannelType = "whatsapp" | "telegram" | "slack";
+export type ChannelType = "whatsapp" | "telegram" | "slack" | "discord";
 
 export type ChannelStatus = "disconnected" | "connecting" | "connected" | "error";
 
@@ -36,13 +36,21 @@ export interface SlackConnectionConfig {
   label?: string;
 }
 
+export interface DiscordConnectionConfig {
+  type: "discord";
+  botToken: string;
+  /** Friendly label shown in the UI. */
+  label?: string;
+}
+
 export type ChannelConnectionConfig =
   | WhatsAppConnectionConfig
   | TelegramConnectionConfig
-  | SlackConnectionConfig;
+  | SlackConnectionConfig
+  | DiscordConnectionConfig;
 
 export interface ChannelAttachment {
-  type: "image" | "file";
+  type: "image" | "file" | "audio";
   filename: string;
   mimeType: string;
   data: Buffer;

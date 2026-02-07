@@ -195,7 +195,7 @@ export const channelConnections = sqliteTable(
     characterId: text("character_id")
       .references(() => characters.id, { onDelete: "cascade" })
       .notNull(),
-    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack", "discord"] }).notNull(),
     displayName: text("display_name"),
     config: text("config", { mode: "json" }).default("{}").notNull(),
     status: text("status", { enum: ["disconnected", "connecting", "connected", "error"] })
@@ -226,7 +226,7 @@ export const channelConversations = sqliteTable(
     characterId: text("character_id")
       .references(() => characters.id, { onDelete: "cascade" })
       .notNull(),
-    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack", "discord"] }).notNull(),
     peerId: text("peer_id").notNull(),
     peerName: text("peer_name"),
     threadId: text("thread_id"),
@@ -256,7 +256,7 @@ export const channelMessages = sqliteTable(
     connectionId: text("connection_id")
       .references(() => channelConnections.id, { onDelete: "cascade" })
       .notNull(),
-    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }).notNull(),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack", "discord"] }).notNull(),
     externalMessageId: text("external_message_id").notNull(),
     sessionId: text("session_id")
       .references(() => sessions.id, { onDelete: "cascade" })
