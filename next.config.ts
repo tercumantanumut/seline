@@ -1,9 +1,26 @@
-import type { NextConfig } from "next";
+import type { NextConfig, SizeLimit } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import path from "path";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
-const DOCUMENT_UPLOAD_BODY_SIZE_LIMIT = process.env.NEXT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT || "100mb";
+const DEFAULT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT: SizeLimit = "100mb";
+const DOCUMENT_UPLOAD_BODY_SIZE_LIMIT: SizeLimit = (() => {
+  const rawValue = process.env.NEXT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT;
+  if (!rawValue) {
+    return DEFAULT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT;
+  }
+
+  if (/^\d+(\.\d+)?[kKmMgGtTpP][bB]$/.test(rawValue)) {
+    return rawValue as SizeLimit;
+  }
+
+  const numericValue = Number(rawValue);
+  if (Number.isFinite(numericValue) && numericValue >= 0) {
+    return numericValue;
+  }
+
+  return DEFAULT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT;
+})();
 
 const nextConfig: NextConfig = {
   // Enable standalone output for Electron packaging
