@@ -95,6 +95,13 @@ const electronAPI = {
     removeProgressListener: (): void => {
       ipcRenderer.removeAllListeners("model:downloadProgress");
     },
+    // Single-file download for whisper.cpp models (downloads one .bin from a shared HF repo)
+    checkFileExists: (opts: { modelId: string; filename: string }): Promise<boolean> => {
+      return ipcRenderer.invoke("model:checkFileExists", opts);
+    },
+    downloadFile: (opts: { modelId: string; repo: string; filename: string }): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("model:downloadFile", opts);
+    },
   },
 
   // ComfyUI local backend operations
@@ -299,6 +306,8 @@ const electronAPI = {
         "model:getModelsDir",
         "model:checkExists",
         "model:download",
+        "model:checkFileExists",
+        "model:downloadFile",
         "logs:getBuffer",
         "command:execute",
         "comfyui:checkStatus",

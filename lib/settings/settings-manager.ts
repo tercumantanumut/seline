@@ -9,6 +9,7 @@ export interface AppSettings {
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
+    openaiApiKey?: string;    // For OpenAI Whisper STT, TTS, and other OpenAI-direct services
     ollamaBaseUrl?: string;
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
@@ -242,6 +243,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     // STT defaults
     sttEnabled: true,
     sttProvider: "openai",
+    sttLocalModel: "ggml-tiny.en",
 };
 
 function getSettingsPath(): string {
@@ -405,6 +407,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.huggingFaceToken) {
         process.env.HF_TOKEN = settings.huggingFaceToken;
+    }
+    if (settings.openaiApiKey) {
+        process.env.OPENAI_API_KEY = settings.openaiApiKey;
     }
     process.env.LLM_PROVIDER = settings.llmProvider;
 
