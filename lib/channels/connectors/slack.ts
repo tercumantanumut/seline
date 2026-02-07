@@ -89,14 +89,16 @@ export class SlackConnector implements ChannelConnector {
 
   async sendMessage(payload: ChannelSendPayload): Promise<ChannelSendResult> {
     const text = payload.text || "";
-    const attachment = payload.attachments?.[0];
+    const imageAttachment = payload.attachments?.find((a) => a.type === "image");
+    const audioAttachment = payload.attachments?.find((a) => a.type === "audio");
+    const fileAttachment = imageAttachment || audioAttachment;
 
-    if (attachment && attachment.type === "image") {
+    if (fileAttachment) {
       const uploadArgs: any = {
         channels: payload.peerId,
-        file: attachment.data,
-        filename: attachment.filename,
-        filetype: attachment.mimeType,
+        file: fileAttachment.data,
+        filename: fileAttachment.filename,
+        filetype: fileAttachment.mimeType,
         initial_comment: text || undefined,
       };
       if (payload.threadId) {
@@ -141,7 +143,12 @@ async function resolveSlackPeerName(client: any, channelId: string, userId?: str
 async function extractSlackAttachments(event: any, client: any, token?: string | undefined) {
   const attachments: ChannelInboundMessage["attachments"] = [];
   const files = event.files as Array<{ url_private_download?: string; mimetype?: string; name?: string }> | undefined;
-  const file = files?.find((item) => item.mimetype?.startsWith("image/"));
+  if (!files?.length) return attachments;
+
+  // Find image or audio file
+  const file = files.find(
+    (item) => item.mimetype?.startsWith("image/") || item.mimetype?.startsWith("audio/")
+  );
   if (!file?.url_private_download) {
     return attachments;
   }
@@ -170,10 +177,12 @@ async function extractSlackAttachments(event: any, client: any, token?: string |
 
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const mimeType = response.headers.get("content-type") || file.mimetype || "image/jpeg";
+  const mimeType = response.headers.get("content-type") || file.mimetype || "application/octet-stream";
+  const isAudio = mimeType.startsWith("audio/");
+
   attachments.push({
-    type: "image",
-    filename: file.name || `slack-${Date.now()}.jpg`,
+    type: isAudio ? "audio" : "image",
+    filename: file.name || `slack-${Date.now()}.${isAudio ? "mp3" : "jpg"}`,
     mimeType,
     data: buffer,
   });

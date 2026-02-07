@@ -40,7 +40,7 @@ export const PlanPanel: FC = () => {
     localStorage.setItem(STORAGE_KEY, String(collapsed));
   }, [collapsed]);
 
-  if (!plan || plan.steps.length === 0) return null;
+  if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
 
   return (
     <div className="sticky top-0 z-10 w-full max-w-4xl mx-auto mb-3">

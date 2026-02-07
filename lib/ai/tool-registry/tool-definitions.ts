@@ -69,6 +69,8 @@ import {
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
+import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
+import { createTranscribeTool } from "../tools/transcribe-tool";
 
 /**
  * Register all tools with the registry
@@ -722,6 +724,75 @@ updatePlan({
       requiresSession: true,
     } satisfies ToolMetadata,
     ({ sessionId }) => createUpdatePlanTool({ sessionId: sessionId || "UNSCOPED" })
+  );
+
+  // ============================================================
+  // VOICE & AUDIO TOOLS - Deferred (discovered via searchTools)
+  // ============================================================
+
+  // Speak Aloud Tool - Text-to-Speech synthesis
+  registry.register(
+    "speakAloud",
+    {
+      displayName: "Speak Aloud",
+      category: "utility",
+      keywords: [
+        "voice", "speak", "say", "read aloud", "tts", "text to speech",
+        "audio", "listen", "sound", "narrate", "pronounce",
+      ],
+      shortDescription: "Synthesize text to speech audio using the configured TTS provider",
+      fullInstructions: `## Speak Aloud Tool
+
+Converts text to speech audio using the configured TTS provider (Edge TTS, OpenAI, or ElevenLabs).
+
+### When to Use
+- User asks to "read this aloud", "say this", "speak", or "read to me"
+- User wants to hear a response spoken
+- User requests audio output
+
+### Parameters
+- \`text\` (required): The text to speak. Keep concise for natural-sounding speech.
+- \`voice\` (optional): Voice identifier. Omit to use the agent's configured voice.
+- \`speed\` (optional): Speed multiplier (0.5 to 2.0). Default: 1.0.
+
+### Notes
+- TTS must be enabled in Settings → Voice & Audio
+- Long text is automatically truncated to avoid excessively long audio
+- The audio is played automatically in the desktop UI`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createSpeakAloudTool({ sessionId: sessionId || "UNSCOPED" })
+  );
+
+  // Transcribe Tool - Audio transcription status
+  registry.register(
+    "transcribe",
+    {
+      displayName: "Transcribe Audio",
+      category: "utility",
+      keywords: [
+        "transcribe", "transcription", "stt", "speech to text",
+        "voice note", "audio", "whisper", "dictation",
+      ],
+      shortDescription: "Check audio transcription capabilities and status",
+      fullInstructions: `## Transcribe Tool
+
+Reports on audio transcription capabilities. Voice notes from WhatsApp, Telegram, Slack, and Discord are automatically transcribed — this tool provides status information.
+
+### When to Use
+- User asks "can you transcribe audio?"
+- User wants to know about voice note processing
+- User asks about STT/speech-to-text settings
+
+### Notes
+- Inbound voice notes are automatically transcribed (no manual trigger needed)
+- Uses OpenAI Whisper API for transcription
+- Transcripts are injected as text messages in the conversation`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createTranscribeTool({ sessionId: sessionId || "UNSCOPED" })
   );
 
   // Describe Image Tool (ALWAYS LOADED - essential for virtual try-on workflows)

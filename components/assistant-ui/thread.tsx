@@ -51,6 +51,7 @@ import { ProductGalleryToolUI } from "./product-gallery-inline";
 import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
+import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { useCharacter, DEFAULT_CHARACTER } from "./character-context";
@@ -1115,6 +1116,8 @@ const AssistantMessage: FC = () => {
                   executeCommand: ExecuteCommandToolUI,
                   calculator: CalculatorToolUI,
                   updatePlan: PlanToolUI,
+                  speakAloud: SpeakAloudToolUI,
+                  transcribe: TranscribeToolUI,
                 },
                 Fallback: ToolFallback,
               },
