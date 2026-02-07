@@ -14,56 +14,26 @@ import {
     AlertCircleIcon,
     Loader2Icon,
 } from "lucide-react";
+import {
+    OPENROUTER_EMBEDDING_MODELS,
+    LOCAL_EMBEDDING_MODELS,
+    type EmbeddingModelInfo,
+} from "@/lib/config/embedding-models";
 
-// Suggested OpenRouter embedding models
-const OPENROUTER_MODELS = [
-    {
-        id: "openai/text-embedding-3-small",
-        name: "OpenAI Embedding 3 Small",
-        description: "Fast, cost-effective, 1536 dimensions",
-        recommended: true,
-    },
-    {
-        id: "openai/text-embedding-3-large",
-        name: "OpenAI Embedding 3 Large",
-        description: "Highest quality, 3072 dimensions",
-        recommended: false,
-    },
-    {
-        id: "voyage-ai/voyage-3-lite",
-        name: "Voyage 3 Lite",
-        description: "Fast retrieval, 512 dimensions",
-        recommended: false,
-    },
-];
+// Derive UI models from shared registry (single source of truth)
+const OPENROUTER_MODELS = OPENROUTER_EMBEDDING_MODELS.map((m: EmbeddingModelInfo) => ({
+    id: m.id,
+    name: m.name,
+    description: `${m.description || ""}, ${m.dimensions} dimensions`.replace(/^, /, ""),
+    recommended: m.recommended ?? false,
+}));
 
-// Local embedding models (from settings page)
-const LOCAL_MODELS = [
-    {
-        id: "Xenova/bge-large-en-v1.5",
-        name: "BGE Large",
-        description: "1024 dimensions, ~1.3GB download",
-        recommended: true,
-    },
-    {
-        id: "Xenova/bge-base-en-v1.5",
-        name: "BGE Base",
-        description: "768 dimensions, ~440MB download",
-        recommended: false,
-    },
-    {
-        id: "Xenova/bge-small-en-v1.5",
-        name: "BGE Small",
-        description: "384 dimensions, ~130MB download",
-        recommended: false,
-    },
-    {
-        id: "Xenova/all-MiniLM-L6-v2",
-        name: "MiniLM L6",
-        description: "384 dimensions, ~90MB download",
-        recommended: false,
-    },
-];
+const LOCAL_MODELS = LOCAL_EMBEDDING_MODELS.map((m: EmbeddingModelInfo) => ({
+    id: m.id,
+    name: m.name,
+    description: `${m.dimensions} dimensions${m.size ? `, ~${m.size} download` : ""}`,
+    recommended: m.recommended ?? false,
+}));
 
 interface EmbeddingSetupPageProps {
     agentName: string;

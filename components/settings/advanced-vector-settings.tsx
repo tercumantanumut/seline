@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Settings2, RotateCcw, Loader2Icon, CheckIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings2, RotateCcw, Loader2Icon, CheckIcon, AlertTriangleIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import {
+    RERANKER_MODELS,
+    isValidRerankerModel,
+    formatDimensionLabel,
+    type RerankerModelInfo,
+} from "@/lib/config/embedding-models";
 
 // Optimal defaults from testing (93% retrieval accuracy)
 const OPTIMAL_DEFAULTS = {
@@ -22,12 +28,11 @@ const OPTIMAL_DEFAULTS = {
     vectorSearchMaxLineLength: 1000,
 };
 
-const LOCAL_RERANK_MODELS = [
-    { id: "cross-encoder/ms-marco-MiniLM-L-6-v2", name: "MS MARCO MiniLM L-6 v2 (Fast)" },
-    { id: "cross-encoder/ms-marco-MiniLM-L-12-v2", name: "MS MARCO MiniLM L-12 v2 (Higher quality)" },
-    { id: "BAAI/bge-reranker-base", name: "BGE Reranker Base" },
-    { id: "BAAI/bge-reranker-large", name: "BGE Reranker Large" },
-];
+// Use shared reranker model registry (source of truth: lib/config/embedding-models.ts)
+const LOCAL_RERANK_MODELS = RERANKER_MODELS.map((m: RerankerModelInfo) => ({
+    id: m.id,
+    name: m.description ? `${m.name} (${m.description})` : m.name,
+}));
 
 interface AdvancedVectorSettingsProps {
     // Hybrid Search
@@ -61,6 +66,9 @@ interface AdvancedVectorSettingsProps {
     onMaxFileLinesChange: (value: number) => void;
     maxLineLength: number;
     onMaxLineLengthChange: (value: number) => void;
+    // Embedding model context (for dimension display)
+    embeddingModel?: string;
+    embeddingProvider?: string;
 }
 
 export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
@@ -442,9 +450,38 @@ function RerankerModelField({
                     className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 />
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
-                    Pick a preset or enter any Hugging Face reranker model ID.
+                    Pick a preset or enter any Hugging Face cross-encoder reranker model ID.
                 </p>
             </div>
+
+            {/* Model type validation warning */}
+            {(() => {
+                const validity = modelId.trim() ? isValidRerankerModel(modelId) : null;
+                if (validity === false) {
+                    return (
+                        <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 p-2">
+                            <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-red-600" />
+                            <p className="font-mono text-xs text-red-700">
+                                <strong>Wrong model type:</strong> This appears to be an embedding model, not a cross-encoder reranker.
+                                Rerankers score (query, text) pairs — they don&apos;t produce vectors.
+                                Select a cross-encoder model like &quot;cross-encoder/ms-marco-MiniLM-L-6-v2&quot;.
+                            </p>
+                        </div>
+                    );
+                }
+                if (validity === null && modelId.trim()) {
+                    return (
+                        <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2">
+                            <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                            <p className="font-mono text-xs text-amber-700">
+                                <strong>Unrecognized model:</strong> Ensure this is a cross-encoder model (not an embedding model).
+                                Cross-encoders output relevance scores, not vectors.
+                            </p>
+                        </div>
+                    );
+                }
+                return null;
+            })()}
 
             {downloadError && (
                 <p className="font-mono text-xs text-red-600">{downloadError}</p>

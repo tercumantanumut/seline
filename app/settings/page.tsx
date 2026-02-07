@@ -16,6 +16,10 @@ import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
+import {
+  LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
+  formatDimensionLabel,
+} from "@/lib/config/embedding-models";
 
 interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
@@ -549,7 +553,28 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formState),
       });
-      if (!response.ok) throw new Error(t("errors.save"));
+      if (!response.ok) {
+        // Try to extract validation error details from the response
+        try {
+          const errorData = await response.json();
+          if (errorData.details?.length) {
+            throw new Error(errorData.details.join(" "));
+          }
+        } catch (parseErr) {
+          // If JSON parsing fails, use generic error
+          if (parseErr instanceof Error && parseErr.message !== t("errors.save")) {
+            throw parseErr;
+          }
+        }
+        throw new Error(t("errors.save"));
+      }
+      const result = await response.json();
+      // Show validation warnings as toasts
+      if (result.warnings?.length) {
+        for (const warning of result.warnings) {
+          toast.warning(warning);
+        }
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       setTheme(formState.theme);
@@ -707,13 +732,12 @@ interface FormState {
   comfyuiCustomBaseUrl: string;
 }
 
-// Supported local embedding models with their metadata
-const LOCAL_EMBEDDING_MODELS = [
-  { id: "Xenova/bge-large-en-v1.5", name: "BGE Large (1024 dims, ~1.3GB)", size: "1.3GB" },
-  { id: "Xenova/bge-base-en-v1.5", name: "BGE Base (768 dims, ~440MB)", size: "440MB" },
-  { id: "Xenova/bge-small-en-v1.5", name: "BGE Small (384 dims, ~130MB)", size: "130MB" },
-  { id: "Xenova/all-MiniLM-L6-v2", name: "MiniLM L6 (384 dims, ~90MB)", size: "90MB" },
-];
+// Derive local embedding model list from shared registry (single source of truth)
+const LOCAL_EMBEDDING_MODELS = SHARED_LOCAL_EMBEDDING_MODELS.map((m) => ({
+  id: m.id,
+  name: `${m.name} (${m.dimensions} dims${m.size ? `, ~${m.size}` : ""})`,
+  size: m.size || "",
+}));
 
 const ANTIGRAVITY_MODELS = getAntigravityModels();
 const CODEX_MODELS = getCodexModels();
@@ -882,6 +906,11 @@ function LocalEmbeddingModelSelector({ formState, updateField, t }: LocalEmbeddi
       <p className="mt-1 font-mono text-xs text-terminal-muted">
         {t("models.fields.embedding.helper")}
       </p>
+      {formState.embeddingModel && (
+        <p className="mt-1 font-mono text-xs text-terminal-green">
+          Vector dimensions: {formatDimensionLabel(formState.embeddingModel)}
+        </p>
+      )}
     </div>
   );
 }
@@ -1681,6 +1710,8 @@ function SettingsPanel({
               onMaxFileLinesChange={(v) => updateField("vectorSearchMaxFileLines", v)}
               maxLineLength={formState.vectorSearchMaxLineLength}
               onMaxLineLengthChange={(v) => updateField("vectorSearchMaxLineLength", v)}
+              embeddingModel={formState.embeddingModel}
+              embeddingProvider={formState.embeddingProvider}
             />
 
             {/* Local Grep Settings */}
