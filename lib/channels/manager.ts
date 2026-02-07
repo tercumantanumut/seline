@@ -8,6 +8,7 @@ import {
 import { WhatsAppConnector } from "./connectors/whatsapp";
 import { TelegramConnector } from "./connectors/telegram";
 import { SlackConnector } from "./connectors/slack";
+import { DiscordConnector } from "./connectors/discord";
 import { ChannelConnector, ChannelSendPayload, ChannelSendResult, ChannelStatus } from "./types";
 import { handleInboundMessage } from "./inbound";
 
@@ -124,6 +125,14 @@ class ChannelManager {
           connectionId,
           characterId: connection.characterId,
           config: { type: "slack", ...(config as any) },
+          onMessage: handleInboundMessage,
+          onStatus: updateStatus,
+        });
+      } else if (connection.channelType === "discord") {
+        connector = new DiscordConnector({
+          connectionId,
+          characterId: connection.characterId,
+          config: { type: "discord", ...(config as any) },
           onMessage: handleInboundMessage,
           onStatus: updateStatus,
         });

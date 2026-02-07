@@ -224,7 +224,7 @@ The plan persists across messages and page refreshes.`,
       let resolvedSteps: Array<{ id?: string; text: string; status?: string }>;
       const mergeWarnings: string[] = [];
 
-      if (mode === "merge" && currentPlan.steps.length > 0) {
+      if (mode === "merge" && Array.isArray(currentPlan.steps) && currentPlan.steps.length > 0) {
         const merged = mergeSteps(currentPlan.steps, steps);
         resolvedSteps = merged.steps;
         mergeWarnings.push(...merged.warnings);

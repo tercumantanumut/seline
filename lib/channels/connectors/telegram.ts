@@ -106,11 +106,26 @@ export class TelegramConnector implements ChannelConnector {
     ) {
       text = `(${payload.chunkIndex}/${payload.totalChunks}) ${text}`;
     }
-    const attachment = payload.attachments?.[0];
+    const imageAttachment = payload.attachments?.find((a) => a.type === "image");
+    const audioAttachment = payload.attachments?.find((a) => a.type === "audio");
 
-    if (attachment && attachment.type === "image") {
-      const sent = await this.bot.api.sendPhoto(chatId, new InputFile(attachment.data, attachment.filename), {
+    if (imageAttachment) {
+      const sent = await this.bot.api.sendPhoto(chatId, new InputFile(imageAttachment.data, imageAttachment.filename), {
         caption: text || undefined,
+        message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+        reply_parameters: replyParameters,
+      });
+      return {
+        externalMessageId: String(sent.message_id),
+        chunkIndex: payload.chunkIndex,
+        totalChunks: payload.totalChunks,
+      };
+    }
+
+    // Send voice note for audio attachments (Telegram voice bubble UX)
+    if (audioAttachment) {
+      const sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
+        caption: text && text.trim() !== " " ? text : undefined,
         message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
         reply_parameters: replyParameters,
       });
@@ -210,36 +225,63 @@ function formatTelegramError(error: unknown): string {
 
 async function extractTelegramAttachments(ctx: Context, botToken: string): Promise<ChannelInboundMessage["attachments"]> {
   const attachments: ChannelInboundMessage["attachments"] = [];
+
+  // Photo attachments
   const photo = ctx.message?.photo?.[ctx.message.photo.length - 1];
-  if (!photo) {
+  if (photo) {
+    const fileInfo = await ctx.api.getFile(photo.file_id);
+    if (fileInfo.file_path) {
+      const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`;
+      const response = await fetch(fileUrl);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        attachments.push({
+          type: "image",
+          filename: `telegram-${photo.file_unique_id}.jpg`,
+          mimeType: response.headers.get("content-type") || "image/jpeg",
+          data: Buffer.from(arrayBuffer),
+        });
+      } else {
+        console.error(
+          `[Telegram] Failed to download photo (file_id ${photo.file_id}) — ` +
+          `${response.status} ${response.statusText}.`
+        );
+      }
+    }
     return attachments;
   }
 
-  const fileInfo = await ctx.api.getFile(photo.file_id);
-  if (!fileInfo.file_path) {
-    return attachments;
+  // Voice note / audio attachments
+  const voice = ctx.message?.voice;
+  const audio = ctx.message?.audio;
+  const voiceOrAudio = voice || audio;
+  if (voiceOrAudio) {
+    try {
+      const fileInfo = await ctx.api.getFile(voiceOrAudio.file_id);
+      if (fileInfo.file_path) {
+        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`;
+        const response = await fetch(fileUrl);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const mimeType = voiceOrAudio.mime_type || "audio/ogg";
+          const extension = voice ? "ogg" : (mimeType.includes("mp3") ? "mp3" : "ogg");
+          attachments.push({
+            type: "audio",
+            filename: `telegram-${voiceOrAudio.file_unique_id}.${extension}`,
+            mimeType,
+            data: Buffer.from(arrayBuffer),
+          });
+        } else {
+          console.error(
+            `[Telegram] Failed to download voice/audio (file_id ${voiceOrAudio.file_id}) — ` +
+            `${response.status} ${response.statusText}.`
+          );
+        }
+      }
+    } catch (error) {
+      console.error("[Telegram] Failed to extract voice/audio:", error);
+    }
   }
-  const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileInfo.file_path}`;
-  const response = await fetch(fileUrl);
-
-  if (!response.ok) {
-    console.error(
-      `[Telegram] Failed to download photo (file_id ${photo.file_id}) — ` +
-      `${response.status} ${response.statusText}.`
-    );
-    return attachments;
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const mimeType = response.headers.get("content-type") || "image/jpeg";
-
-  attachments.push({
-    type: "image",
-    filename: `telegram-${photo.file_unique_id}.jpg`,
-    mimeType,
-    data: buffer,
-  });
 
   return attachments;
 }

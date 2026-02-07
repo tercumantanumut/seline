@@ -24,6 +24,7 @@ import { getChannelManager } from "./manager";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { ChannelTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
+import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/lib/audio/transcription";
 
 const conversationQueues = new Map<string, Promise<void>>();
 
@@ -102,6 +103,17 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   taskRegistry.register(channelTask);
 
   const normalizedText = normalizeChannelText(message.text);
+
+  // Handle slash commands (/status, /tts, /compact)
+  const commandResult = parseChannelCommand(normalizedText);
+  if (commandResult) {
+    await handleChannelCommand(commandResult, message);
+    taskRegistry.updateStatus(runId, "succeeded", {
+      durationMs: Date.now() - new Date(startedAt).getTime(),
+    });
+    return;
+  }
+
   const wantsNewSession = isNewSessionCommand(normalizedText);
 
   let conversation = await findChannelConversation({
@@ -263,6 +275,29 @@ async function buildMessageContent(sessionId: string, message: ChannelInboundMes
       if (attachment.type === "image") {
         const saved = await saveFile(attachment.data, sessionId, attachment.filename, "upload");
         parts.push({ type: "image", image: saved.url });
+      } else if (attachment.type === "audio" && isAudioMimeType(attachment.mimeType)) {
+        // Transcribe audio attachments (voice notes)
+        if (isTranscriptionAvailable()) {
+          try {
+            const result = await transcribeAudio(
+              attachment.data,
+              attachment.mimeType,
+              attachment.filename
+            );
+            const durationLabel = result.durationSeconds
+              ? ` | duration=${result.durationSeconds.toFixed(1)}s`
+              : "";
+            parts.push({
+              type: "text",
+              text: `[Voice note transcript | provider=${result.provider}${durationLabel}]\n${result.text}`,
+            });
+          } catch (error) {
+            console.error("[Channels] Audio transcription failed:", error);
+            parts.push({ type: "text", text: `[Voice note: transcription failed — ${attachment.filename}]` });
+          }
+        } else {
+          parts.push({ type: "text", text: `[Voice note: ${attachment.filename} — transcription not configured]` });
+        }
       } else {
         parts.push({ type: "text", text: `[File: ${attachment.filename}]` });
       }
@@ -446,5 +481,89 @@ async function invokeChatApi(params: {
   // If we get here, all retries failed
   if (lastError) {
     throw lastError;
+  }
+}
+
+// ============================================================================
+// Channel Slash Commands
+// ============================================================================
+
+interface ChannelCommand {
+  name: string;
+  args: string;
+}
+
+function parseChannelCommand(text: string): ChannelCommand | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  // Match /command or !command (with optional @botname suffix)
+  const match = trimmed.match(/^[/!](status|tts|compact)(?:@[\w_]+)?(?:\s+(.*))?$/i);
+  if (!match) return null;
+  return { name: match[1].toLowerCase(), args: (match[2] || "").trim() };
+}
+
+async function handleChannelCommand(
+  command: ChannelCommand,
+  message: ChannelInboundMessage
+): Promise<void> {
+  const manager = getChannelManager();
+
+  let responseText: string;
+  switch (command.name) {
+    case "status": {
+      const conversation = await findChannelConversation({
+        connectionId: message.connectionId,
+        peerId: message.peerId,
+        threadId: message.threadId,
+      });
+      const settings = loadSettings();
+      const sessionInfo = conversation
+        ? `Session: active (${conversation.sessionId.slice(0, 8)}...)`
+        : "Session: none";
+      const ttsStatus = settings.ttsEnabled ? `on (${settings.ttsProvider})` : "off";
+      const sttStatus = settings.sttEnabled ? `on (${settings.sttProvider})` : "off";
+      responseText = [
+        `Channel: ${message.channelType}`,
+        sessionInfo,
+        `TTS: ${ttsStatus}`,
+        `STT: ${sttStatus}`,
+        `Provider: ${settings.llmProvider}`,
+      ].join("\n");
+      break;
+    }
+
+    case "tts": {
+      const { updateSetting, loadSettings: load } = await import("@/lib/settings/settings-manager");
+      const arg = command.args.toLowerCase();
+      if (arg === "on") {
+        updateSetting("ttsEnabled", true);
+        responseText = "TTS enabled for channel replies.";
+      } else if (arg === "off") {
+        updateSetting("ttsEnabled", false);
+        responseText = "TTS disabled.";
+      } else {
+        const current = load();
+        responseText = `TTS is ${current.ttsEnabled ? "on" : "off"} (provider: ${current.ttsProvider || "edge"}).\nUsage: /tts on | /tts off`;
+      }
+      break;
+    }
+
+    case "compact": {
+      responseText = "Session compaction is not yet available. Use /new to start a fresh session.";
+      break;
+    }
+
+    default:
+      responseText = `Unknown command: /${command.name}`;
+  }
+
+  try {
+    await manager.sendMessage(message.connectionId, {
+      peerId: message.peerId,
+      threadId: message.threadId,
+      text: responseText,
+    });
+  } catch (error) {
+    console.warn("[Channels] Failed to send command response:", error);
   }
 }

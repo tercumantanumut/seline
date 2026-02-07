@@ -26,6 +26,7 @@ import {
 } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
+import { VoiceProvider } from "./assistant-ui/voice-context";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -359,9 +360,11 @@ export const ChatProvider: FC<ChatProviderProps> = ({
       genericError={tErrors("genericRefresh")}
     >
       <AssistantRuntimeProvider runtime={runtime}>
-        <DeepResearchProvider sessionId={sessionId}>
-          {children}
-        </DeepResearchProvider>
+        <VoiceProvider>
+          <DeepResearchProvider sessionId={sessionId}>
+            {children}
+          </DeepResearchProvider>
+        </VoiceProvider>
       </AssistantRuntimeProvider>
     </ChatErrorBoundary>
   );

@@ -26,7 +26,7 @@ export function normalizeChannelText(text?: string | null): string {
 }
 
 export function ensureChannelType(value: string): ChannelType {
-  if (value === "whatsapp" || value === "telegram" || value === "slack") {
+  if (value === "whatsapp" || value === "telegram" || value === "slack" || value === "discord") {
     return value;
   }
   throw new Error(`Unsupported channel type: ${value}`);
