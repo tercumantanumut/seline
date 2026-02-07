@@ -37,6 +37,7 @@ export interface LocalEmbeddingOptions {
 let cachedPipelineKey: string | null = null;
 let cachedPipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
 let embeddingLock: Promise<void> = Promise.resolve();
+let runtimeFallbackDevice: TransformerDevice | null = null;
 
 function isTransformerDevice(value: string): value is TransformerDevice {
   return [
@@ -55,12 +56,30 @@ function isTransformerDevice(value: string): value is TransformerDevice {
 }
 
 function resolvePreferredDevice(): TransformerDevice {
+  if (runtimeFallbackDevice) return runtimeFallbackDevice;
+
   const configured = process.env.LOCAL_EMBEDDING_DEVICE?.trim().toLowerCase();
   if (configured && isTransformerDevice(configured)) return configured;
 
   if (process.platform === "win32") return "dml";
   if (process.platform === "linux" && process.arch === "x64") return "cuda";
   return "cpu";
+}
+
+function resetPipelineCache(): void {
+  cachedPipelineKey = null;
+  cachedPipelinePromise = null;
+}
+
+function isRecoverableGpuRuntimeError(error: unknown): boolean {
+  const message = String(error ?? "").toLowerCase();
+  return (
+    message.includes("device instance has been suspended") ||
+    message.includes("getdeviceremovedreason") ||
+    message.includes("dxgi_error_device_removed") ||
+    message.includes("dxgi_error_device_hung") ||
+    message.includes("887a0005")
+  );
 }
 
 function resolveCacheDir(override?: string): string {
@@ -282,8 +301,25 @@ export function createLocalEmbeddingModel(
 
       try {
         const texts = values.map((value) => applyQueryPrefix(String(value), queryPrefix, queryMaxChars));
-        const pipeline = await getPipeline({ ...options, modelId });
-        const output = await pipeline(texts, { pooling: "mean", normalize: true });
+        let pipeline = await getPipeline({ ...options, modelId });
+        let output: unknown;
+        try {
+          output = await pipeline(texts, { pooling: "mean", normalize: true });
+        } catch (error) {
+          if (!isRecoverableGpuRuntimeError(error) || resolvePreferredDevice() === "cpu") {
+            throw error;
+          }
+
+          console.warn(
+            '[LocalEmbeddings] GPU runtime error detected; switching local embeddings to CPU for this process:',
+            error
+          );
+          runtimeFallbackDevice = "cpu";
+          resetPipelineCache();
+          pipeline = await getPipeline({ ...options, modelId });
+          output = await pipeline(texts, { pooling: "mean", normalize: true });
+        }
+
         const embeddings = toEmbeddings(output, values.length);
 
         return {
