@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadSettings, saveSettings, type AppSettings } from "@/lib/settings/settings-manager";
+import { validateModelConfiguration } from "@/lib/config/embedding-models";
 
 /**
  * GET /api/settings
@@ -125,9 +126,43 @@ export async function PUT(request: NextRequest) {
       updatedSettings.embeddingReindexRequired = true;
     }
 
+    // Validate embedding + reranker model configuration
+    const validation = validateModelConfiguration({
+      embeddingProvider: updatedSettings.embeddingProvider || "openrouter",
+      embeddingModel: updatedSettings.embeddingModel || "",
+      rerankingEnabled: updatedSettings.vectorSearchRerankingEnabled ?? false,
+      rerankModel: updatedSettings.vectorSearchRerankModel || "",
+      previousEmbeddingProvider: currentSettings.embeddingProvider,
+      previousEmbeddingModel: currentSettings.embeddingModel,
+    });
+
+    // Block save if reranker is definitely an embedding model (wrong model type)
+    if (!validation.valid) {
+      return NextResponse.json(
+        {
+          error: "Invalid model configuration",
+          details: validation.errors,
+          warnings: validation.warnings,
+        },
+        { status: 400 }
+      );
+    }
+
     saveSettings(updatedSettings);
 
-    return NextResponse.json({ success: true });
+    // Include warnings in successful response so the UI can display them
+    const responsePayload: Record<string, unknown> = { success: true };
+    if (validation.warnings.length > 0) {
+      responsePayload.warnings = validation.warnings;
+    }
+    if (validation.embeddingDimensions) {
+      responsePayload.embeddingDimensions = validation.embeddingDimensions;
+    }
+    if (validation.reindexRequired) {
+      responsePayload.reindexRequired = true;
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     console.error("[Settings API] Error saving settings:", error);
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
