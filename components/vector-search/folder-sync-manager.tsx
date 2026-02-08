@@ -404,6 +404,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       case "synced": return <CheckCircleIcon className="w-4 h-4 text-terminal-green" />;
       case "syncing": return <Loader2Icon className="w-4 h-4 text-terminal-green animate-spin" />;
       case "error": return <AlertCircleIcon className="w-4 h-4 text-destructive" />;
+      case "paused": return <AlertCircleIcon className="w-4 h-4 text-terminal-amber" />;
       case "pending": return <FileIcon className="w-4 h-4 text-terminal-muted" />;
       default: return <FileIcon className="w-4 h-4 text-terminal-muted" />;
     }
