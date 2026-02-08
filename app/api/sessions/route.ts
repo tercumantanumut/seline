@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSession, listSessions, listSessionsByCharacterId, getOrCreateLocalUser, getOrCreateCharacterSession } from "@/lib/db/queries";
+import {
+  createSession,
+  listSessions,
+  listSessionsByCharacterId,
+  listSessionsPaginated,
+  getOrCreateLocalUser,
+  getOrCreateCharacterSession,
+} from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
@@ -13,15 +20,39 @@ export async function GET(req: NextRequest) {
     // Check for characterId filter in query params
     const { searchParams } = new URL(req.url);
     const characterId = searchParams.get("characterId");
+    const cursor = searchParams.get("cursor") ?? undefined;
+    const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
+    const search = searchParams.get("search")?.trim() || undefined;
+    const channelType = (searchParams.get("channelType") as "whatsapp" | "telegram" | "slack" | null) ?? undefined;
+    const dateRange = (searchParams.get("dateRange") as "today" | "week" | "month" | "all" | null) ?? undefined;
+    const wantsPagination =
+      searchParams.has("cursor") ||
+      searchParams.has("search") ||
+      searchParams.has("channelType") ||
+      searchParams.has("dateRange") ||
+      searchParams.has("limit");
+
+    if (wantsPagination) {
+      const result = await listSessionsPaginated({
+        userId: dbUser.id,
+        characterId: characterId ?? undefined,
+        cursor,
+        limit: Number.isFinite(limit) ? limit : 20,
+        search,
+        channelType,
+        dateRange,
+      });
+      return NextResponse.json(result);
+    }
 
     if (characterId) {
       // List sessions for a specific character
-      const sessions = await listSessionsByCharacterId(dbUser.id, characterId, 50);
+      const sessions = await listSessionsByCharacterId(dbUser.id, characterId, 100);
       return NextResponse.json({ sessions });
     }
 
     // List all sessions belonging to this user
-    const sessions = await listSessions(dbUser.id, 50);
+    const sessions = await listSessions(dbUser.id, 100);
 
     return NextResponse.json({ sessions });
   } catch (error) {

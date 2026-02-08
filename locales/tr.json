@@ -1276,7 +1276,35 @@
       "rename": "Sohbeti yeniden adlandır",
       "edit": "Başlığı düzenle",
       "save": "Kaydet",
-      "cancel": "İptal"
+      "cancel": "İptal",
+      "emptyHint": "Sohbetleri g?rmek i?in yeni sohbet ba?lat?n veya filtreleri de?i?tirin.",
+      "searchPlaceholder": "Sohbetlerde ara...",
+      "channelAll": "T?m kanallar",
+      "messageCount": "{count, plural, one {# mesaj} other {# mesaj}}",
+      "groups": {
+        "today": "Bug?n",
+        "week": "Bu Hafta",
+        "older": "Daha Eski"
+      },
+      "date": {
+        "all": "T?m zamanlar",
+        "today": "Bug?n",
+        "week": "Son 7 g?n",
+        "month": "Son 30 g?n"
+      },
+      "loadMore": "Daha fazla y?kle ({loaded}/{total})",
+      "loadingMore": "Y?kleniyor...",
+      "exportMarkdown": "Markdown olarak d??a aktar",
+      "exportJson": "JSON olarak d??a aktar",
+      "exportSuccess": "Sohbet d??a aktar?ld?",
+      "exportError": "Sohbet d??a aktar?lamad?",
+      "noActiveChannels": "Aktif kanal yok",
+      "filters": "Filtreler",
+      "quickLinks": "Kisa Baglantilar",
+      "knowledgeBase": "Bilgi Kutuphanesi",
+      "agentMemoryShort": "Hafiza",
+      "schedulesShort": "Takvim",
+      "usageShort": "Kullanim"
     },
     "session": {
       "untitled": "Başlıksız sohbet",
