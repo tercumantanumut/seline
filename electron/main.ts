@@ -19,6 +19,18 @@ import { listFiles, downloadFile } from "@huggingface/hub";
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === "development";
 
+// Keep dev data isolated from production builds to avoid DB collisions.
+if (isDev) {
+  try {
+    const appName = app.getName();
+    const devUserDataPath = path.join(app.getPath("appData"), `${appName}-dev`);
+    app.setPath("userData", devUserDataPath);
+    console.log("[Init] Using dev userData path:", devUserDataPath);
+  } catch (error) {
+    console.warn("[Init] Failed to set dev userData path:", error);
+  }
+}
+
 /**
  * Fix PATH for macOS GUI apps
  *
@@ -2448,4 +2460,3 @@ app.on("web-contents-created", (_event, contents) => {
     event.preventDefault();
   });
 });
-
