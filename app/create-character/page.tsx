@@ -5,7 +5,7 @@ export const metadata = {
   description: "Configure a custom AI agent with our cinematic terminal experience",
 };
 
-// Authentication is handled by middleware - see middleware.ts
+// Authentication is handled by proxy - see proxy.ts
 // The middleware redirects unauthenticated users to /login
 export default function CreateCharacterPage() {
   return (

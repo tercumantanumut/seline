@@ -364,6 +364,8 @@ if (fs.existsSync(whisperBundleDir)) {
     copyRecursive(whisperBundleDir, whisperDestDir);
     // Ensure binaries are executable
     const whisperBinCandidates = [
+        path.join(whisperDestDir, 'bin', 'whisper-whisper-cli'),
+        path.join(whisperDestDir, 'bin', 'whisper-whisper-cli.exe'),
         path.join(whisperDestDir, 'bin', 'whisper-cli'),
         path.join(whisperDestDir, 'bin', 'whisper-cli.exe'),
         path.join(whisperDestDir, 'bin', 'main.exe'),

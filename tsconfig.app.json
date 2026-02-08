@@ -17,7 +17,7 @@
     "hooks/**/*.tsx",
     "i18n/**/*.ts",
     "types/**/*.d.ts",
-    "middleware.ts",
+    "proxy.ts",
     "instrumentation.ts"
   ],
   "exclude": [

@@ -42,9 +42,9 @@ function detectLocale(request: NextRequest): Locale {
 }
 
 /**
- * Middleware to protect routes, handle authentication redirects, and set locale.
+ * Proxy handler to protect routes, handle authentication redirects, and set locale.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip static routes

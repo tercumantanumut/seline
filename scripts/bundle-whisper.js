@@ -32,8 +32,8 @@ async function main() {
     let tempCleanupDir = null;
 
     if (!whisperBin) {
-        if (hasExistingBundle(outputDir)) {
-            console.log('No local whisper-cli found, keeping existing binaries/whisper bundle.');
+        if (hasUsableExistingBundle(outputDir)) {
+            console.log('No local whisper-cli found, keeping existing usable binaries/whisper bundle.');
             return;
         }
 
@@ -114,9 +114,16 @@ function bundleForMac(realBin, binOutDir, libOutDir) {
 }
 
 function bundleForWindows(realBin, binOutDir, libOutDir) {
-    const destBin = path.join(binOutDir, 'whisper-cli.exe');
+    const sourceName = path.basename(realBin);
+    const destBin = path.join(binOutDir, sourceName);
     fs.copyFileSync(realBin, destBin);
     console.log(`Copied binary: ${destBin} (${toMb(fs.statSync(destBin).size)} MB)`);
+
+    if (sourceName.toLowerCase() !== 'whisper-cli.exe') {
+        const compatAlias = path.join(binOutDir, 'whisper-cli.exe');
+        fs.copyFileSync(realBin, compatAlias);
+        console.log(`  Added compatibility alias: ${compatAlias}`);
+    }
 
     const dllCandidates = collectWindowsDlls(realBin);
     let copied = 0;
@@ -156,32 +163,46 @@ function bundleGeneric(realBin, binOutDir) {
     console.log(`Output: ${path.join(binOutDir, '..')}`);
 }
 
-function hasExistingBundle(outputDir) {
+function hasUsableExistingBundle(outputDir) {
     const candidates = [
+        path.join(outputDir, 'bin', 'whisper-whisper-cli'),
+        path.join(outputDir, 'bin', 'whisper-whisper-cli.exe'),
         path.join(outputDir, 'bin', 'whisper-cli'),
         path.join(outputDir, 'bin', 'whisper-cli.exe'),
         path.join(outputDir, 'bin', 'main.exe'),
     ];
-    return candidates.some((p) => fs.existsSync(p));
+    for (const candidate of candidates) {
+        if (!fs.existsSync(candidate)) continue;
+        if (!isDeprecatedWhisperStub(candidate)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function findWhisperCli() {
     const envPath = process.env.WHISPER_CPP_PATH;
     if (envPath && fs.existsSync(envPath)) {
-        return envPath;
+        const preferred = preferNewWhisperBinary(envPath);
+        if (!isDeprecatedWhisperStub(preferred)) return preferred;
     }
 
     const candidates = getCandidatePaths();
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) {
-            return candidate;
+            const preferred = preferNewWhisperBinary(candidate);
+            if (!isDeprecatedWhisperStub(preferred)) return preferred;
         }
     }
 
     const fromPath = findInPath(process.platform === 'win32'
-        ? ['whisper-cli.exe', 'whisper-cli', 'main.exe']
-        : ['whisper-cli']);
-    return fromPath;
+        ? ['whisper-whisper-cli.exe', 'whisper-whisper-cli', 'whisper-cli.exe', 'whisper-cli', 'main.exe']
+        : ['whisper-whisper-cli', 'whisper-cli']);
+
+    if (!fromPath) return null;
+
+    const preferred = preferNewWhisperBinary(fromPath);
+    return isDeprecatedWhisperStub(preferred) ? null : preferred;
 }
 
 async function tryAutoDownloadWhisperForWindows() {
@@ -198,9 +219,15 @@ async function tryAutoDownloadWhisperForWindows() {
         await downloadToFile(assetUrl, zipPath);
         extractZipArchive(zipPath, extractDir);
 
-        const binaryPath = findFileRecursive(extractDir, ['whisper-cli.exe', 'main.exe']);
+        const binaryPath = findFileRecursiveByPriority(extractDir, [
+            'whisper-whisper-cli.exe',
+            'whisper-whisper-cli',
+            'whisper-cli.exe',
+            'whisper-cli',
+            'main.exe',
+        ]);
         if (!binaryPath) {
-            throw new Error('Downloaded archive did not contain whisper-cli.exe or main.exe');
+            throw new Error('Downloaded archive did not contain a whisper CLI executable');
         }
 
         console.log(`Auto-downloaded whisper binary: ${binaryPath}`);
@@ -268,6 +295,14 @@ function findFileRecursive(rootDir, fileNames) {
     return null;
 }
 
+function findFileRecursiveByPriority(rootDir, fileNames) {
+    for (const fileName of fileNames) {
+        const found = findFileRecursive(rootDir, [fileName]);
+        if (found) return found;
+    }
+    return null;
+}
+
 function escapePowerShellString(input) {
     return String(input).replace(/'/g, "''");
 }
@@ -280,9 +315,42 @@ function safeRemoveDir(targetDir) {
     }
 }
 
+function preferNewWhisperBinary(binaryPath) {
+    const fileName = path.basename(binaryPath).toLowerCase();
+    const dir = path.dirname(binaryPath);
+
+    if (fileName === 'whisper-cli.exe') {
+        const preferred = path.join(dir, 'whisper-whisper-cli.exe');
+        if (fs.existsSync(preferred)) return preferred;
+    }
+
+    if (fileName === 'whisper-cli') {
+        const preferred = path.join(dir, 'whisper-whisper-cli');
+        if (fs.existsSync(preferred)) return preferred;
+    }
+
+    return binaryPath;
+}
+
+function isDeprecatedWhisperStub(binaryPath) {
+    try {
+        const output = execFileSync(binaryPath, ['--help'], {
+            timeout: 5000,
+            stdio: 'pipe',
+            encoding: 'utf-8',
+        });
+        return /is deprecated/i.test(output || '');
+    } catch (err) {
+        const details = extractExecErrorOutput(err);
+        return /is deprecated/i.test(details);
+    }
+}
+
 function getCandidatePaths() {
     if (process.platform === 'darwin') {
         return [
+            '/opt/homebrew/bin/whisper-whisper-cli',
+            '/usr/local/bin/whisper-whisper-cli',
             '/opt/homebrew/bin/whisper-cli',
             '/usr/local/bin/whisper-cli',
         ];
@@ -293,17 +361,26 @@ function getCandidatePaths() {
         const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
         const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData', 'Local');
         return [
+            path.join(programFiles, 'whisper.cpp', 'whisper-whisper-cli.exe'),
             path.join(programFiles, 'whisper.cpp', 'whisper-cli.exe'),
             path.join(programFiles, 'whisper.cpp', 'main.exe'),
+            path.join(programFiles, 'whisper.cpp', 'build', 'bin', 'Release', 'whisper-whisper-cli.exe'),
             path.join(programFiles, 'whisper.cpp', 'build', 'bin', 'Release', 'whisper-cli.exe'),
+            path.join(programFilesX86, 'whisper.cpp', 'whisper-whisper-cli.exe'),
             path.join(programFilesX86, 'whisper.cpp', 'whisper-cli.exe'),
             path.join(programFilesX86, 'whisper.cpp', 'main.exe'),
+            path.join(localAppData, 'Programs', 'whisper.cpp', 'whisper-whisper-cli.exe'),
             path.join(localAppData, 'Programs', 'whisper.cpp', 'whisper-cli.exe'),
             path.join(localAppData, 'Programs', 'whisper.cpp', 'main.exe'),
         ];
     }
 
-    return ['/usr/local/bin/whisper-cli', '/usr/bin/whisper-cli'];
+    return [
+        '/usr/local/bin/whisper-whisper-cli',
+        '/usr/bin/whisper-whisper-cli',
+        '/usr/local/bin/whisper-cli',
+        '/usr/bin/whisper-cli',
+    ];
 }
 
 function findInPath(executableNames) {
@@ -326,6 +403,20 @@ function findInPath(executableNames) {
         }
     }
     return null;
+}
+
+function extractExecErrorOutput(error) {
+    if (!error || typeof error !== 'object') {
+        return String(error || '');
+    }
+
+    const parts = [];
+    if (typeof error.stdout === 'string') parts.push(error.stdout);
+    if (Buffer.isBuffer(error.stdout)) parts.push(error.stdout.toString('utf-8'));
+    if (typeof error.stderr === 'string') parts.push(error.stderr);
+    if (Buffer.isBuffer(error.stderr)) parts.push(error.stderr.toString('utf-8'));
+    if (typeof error.message === 'string') parts.push(error.message);
+    return parts.join('\n');
 }
 
 function getRequiredDylibs(binaryPath) {

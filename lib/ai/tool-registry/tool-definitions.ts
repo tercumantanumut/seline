@@ -454,11 +454,13 @@ localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
 - Check git status: executeCommand({ command: "git", args: ["status"] })
 - Install dependencies: executeCommand({ command: "npm", args: ["install"] })
 - Build project: executeCommand({ command: "npm", args: ["run", "build"] })
-- List files: executeCommand({ command: "ls", args: ["-la"] })
+- List files (Windows): executeCommand({ command: "dir" })
+- List files (macOS/Linux): executeCommand({ command: "ls", args: ["-la"] })
+- Python inline scripts: executeCommand({ command: "python", args: ["-c", "print('hello')"] })
 
 **Parameters:**
-- command: The executable to run (npm, git, node, etc.)
-- args: Array of command arguments
+- command: The executable only (npm, git, python, etc.), not a full shell line
+- args: Array of command arguments. For Python inline scripts, pass script as ONE arg after "-c"
 - cwd: Working directory (defaults to first synced folder)
 - timeout: Max execution time in ms (default 30000)`,
       loading: { deferLoading: true },

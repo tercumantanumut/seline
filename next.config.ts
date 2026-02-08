@@ -21,8 +21,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
-    // Needed for multipart uploads that pass through middleware (default is 10mb).
-    middlewareClientMaxBodySize: DOCUMENT_UPLOAD_BODY_SIZE_LIMIT,
+    // Needed for multipart uploads that pass through proxy (default is 10mb).
+    proxyClientMaxBodySize: DOCUMENT_UPLOAD_BODY_SIZE_LIMIT,
   },
   // Exclude Remotion and esbuild packages from Turbopack bundling
   // These packages contain native binaries and platform-specific code

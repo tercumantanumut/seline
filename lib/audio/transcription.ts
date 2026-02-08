@@ -2,7 +2,7 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWhisperModel, DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
 import { execFileSync } from "node:child_process";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { tmpdir, homedir, platform } from "node:os";
 
 export interface TranscriptionResult {
@@ -221,11 +221,7 @@ async function transcribeWithWhisperCpp(
 
     // Run whisper-cli with a generous timeout (model loading can be slow first time)
     const startTime = Date.now();
-    execFileSync(binaryPath, args, {
-      timeout: 120000, // 2 minutes max
-      stdio: "pipe",
-      env: { ...process.env },
-    });
+    const effectiveBinaryPath = runWhisperCli(binaryPath, args);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     // Parse JSON output
@@ -257,7 +253,7 @@ async function transcribeWithWhisperCpp(
     const detectedLang = output.result?.language || output.language;
 
     console.log(
-      `[STT] Transcribed audio (${elapsed}s) via whisper.cpp (model: ${modelInfo?.name || modelId})`
+      `[STT] Transcribed audio (${elapsed}s) via whisper.cpp (model: ${modelInfo?.name || modelId}, bin: ${basename(effectiveBinaryPath)})`
     );
 
     return {
@@ -325,7 +321,7 @@ function findWhisperBinary(): string | null {
 
   // 1. Custom path from settings
   if (settings.whisperCppPath && existsSync(settings.whisperCppPath)) {
-    return settings.whisperCppPath;
+    return preferNewWhisperBinary(settings.whisperCppPath);
   }
 
   // 2. Bundled in Electron app resources (production builds)
@@ -338,22 +334,33 @@ function findWhisperBinary(): string | null {
 
   // 3. Common system install paths
   const commonPaths = [
+    "/opt/homebrew/bin/whisper-whisper-cli", // newer upstream naming
+    "/usr/local/bin/whisper-whisper-cli",
     "/opt/homebrew/bin/whisper-cli",   // Apple Silicon
     "/usr/local/bin/whisper-cli",      // Intel Mac
+    join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-whisper-cli.exe"),
     join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-cli.exe"),
     join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "main.exe"),
+    join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-whisper-cli.exe"),
     join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-cli.exe"),
     join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "main.exe"),
+    join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-whisper-cli.exe"),
     join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-cli.exe"),
     join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
   ];
   for (const p of commonPaths) {
-    if (existsSync(p)) return p;
+    if (existsSync(p)) return preferNewWhisperBinary(p);
   }
 
   // 4. Check PATH
-  const fromPath = findExecutableInPath(["whisper-cli", "whisper-cli.exe", "main.exe"]);
-  if (fromPath) return fromPath;
+  const fromPath = findExecutableInPath([
+    "whisper-whisper-cli",
+    "whisper-whisper-cli.exe",
+    "whisper-cli",
+    "whisper-cli.exe",
+    "main.exe",
+  ]);
+  if (fromPath) return preferNewWhisperBinary(fromPath);
 
   return null;
 }
@@ -401,10 +408,114 @@ function findFfmpegBinary(): string | null {
 
 function getWhisperBundledRelativePaths(): string[] {
   return [
+    join("bin", "whisper-whisper-cli"),
+    join("bin", "whisper-whisper-cli.exe"),
     join("bin", "whisper-cli"),
     join("bin", "whisper-cli.exe"),
     join("bin", "main.exe"),
   ];
+}
+
+function preferNewWhisperBinary(binaryPath: string): string {
+  const fileName = basename(binaryPath).toLowerCase();
+  const binaryDir = dirname(binaryPath);
+
+  if (fileName === "whisper-cli.exe") {
+    const preferred = join(binaryDir, "whisper-whisper-cli.exe");
+    if (existsSync(preferred)) return preferred;
+  }
+
+  if (fileName === "whisper-cli") {
+    const preferred = join(binaryDir, "whisper-whisper-cli");
+    if (existsSync(preferred)) return preferred;
+  }
+
+  return binaryPath;
+}
+
+function runWhisperCli(binaryPath: string, args: string[]): string {
+  const firstChoice = preferNewWhisperBinary(binaryPath);
+  try {
+    execFileSync(firstChoice, args, {
+      timeout: 120000, // 2 minutes max
+      stdio: "pipe",
+      env: buildWhisperRuntimeEnv(firstChoice),
+    });
+    return firstChoice;
+  } catch (err) {
+    const output = getProcessErrorOutput(err);
+    const replacement = parseDeprecatedWhisperReplacement(output);
+
+    if (replacement) {
+      const retryPath = resolveReplacementWhisperBinary(firstChoice, replacement);
+      if (retryPath && retryPath !== firstChoice) {
+        execFileSync(retryPath, args, {
+          timeout: 120000,
+          stdio: "pipe",
+          env: buildWhisperRuntimeEnv(retryPath),
+        });
+        return retryPath;
+      }
+
+      throw new Error(
+        `Bundled whisper binary "${basename(firstChoice)}" is a deprecated launcher and exited before transcription. ` +
+        `Expected replacement "${replacement}" was not found. ` +
+        `Re-bundle whisper binaries (npm run electron:bundle-whisper) or set a custom binary path in Settings -> Voice & Audio.`
+      );
+    }
+
+    throw err;
+  }
+}
+
+function buildWhisperRuntimeEnv(binaryPath: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+
+  // Windows loader requires dependent DLL directories in PATH.
+  if (platform() === "win32") {
+    const libDir = join(dirname(binaryPath), "..", "lib");
+    if (existsSync(libDir)) {
+      env.PATH = `${libDir};${env.PATH || ""}`;
+    }
+  }
+
+  return env;
+}
+
+function getProcessErrorOutput(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return String(error ?? "");
+  }
+
+  const err = error as {
+    message?: string;
+    stdout?: string | Buffer;
+    stderr?: string | Buffer;
+  };
+
+  const chunks: string[] = [];
+  if (typeof err.stdout === "string") chunks.push(err.stdout);
+  if (Buffer.isBuffer(err.stdout)) chunks.push(err.stdout.toString("utf-8"));
+  if (typeof err.stderr === "string") chunks.push(err.stderr);
+  if (Buffer.isBuffer(err.stderr)) chunks.push(err.stderr.toString("utf-8"));
+  if (typeof err.message === "string") chunks.push(err.message);
+  return chunks.join("\n").trim();
+}
+
+function parseDeprecatedWhisperReplacement(output: string): string | null {
+  if (!/is deprecated/i.test(output)) return null;
+  const match = output.match(/Please use '([^']+)'/i);
+  return match?.[1] || null;
+}
+
+function resolveReplacementWhisperBinary(currentBinaryPath: string, replacementName: string): string | null {
+  const localCandidate = join(dirname(currentBinaryPath), replacementName);
+  if (existsSync(localCandidate)) return localCandidate;
+
+  const fromPath = findExecutableInPath([replacementName]);
+  if (fromPath) return fromPath;
+
+  return null;
 }
 
 function getFfmpegBundledRelativePaths(): string[] {

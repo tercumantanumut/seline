@@ -1,17 +1,18 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "fs";
-import { join, dirname } from "path";
+import { dirname, resolve, sep } from "path";
 import { nanoid } from "nanoid";
+
+type StorageRole = "upload" | "reference" | "generated" | "mask" | "tile";
 
 // Get the base storage path
 function getStoragePath(): string {
   // In Electron, LOCAL_DATA_PATH is set to userDataPath/data
   // So media goes to userDataPath/data/media
   if (process.env.LOCAL_DATA_PATH) {
-    return join(process.env.LOCAL_DATA_PATH, "media");
+    return resolve(process.env.LOCAL_DATA_PATH, "media");
   }
   // Fallback for development
-  const dataDir = join(process.cwd(), ".local-data");
-  return join(dataDir, "media");
+  return resolve(process.cwd(), ".local-data", "media");
 }
 
 // Ensure directory exists
@@ -31,6 +32,68 @@ function pathToFileUrl(filePath: string): string {
   return `/api/media/${normalizedPath}`;
 }
 
+function sanitizeSegment(value: string, fallback: string): string {
+  const normalized = value.trim().replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+$/, "_");
+  const clipped = normalized.slice(0, 120);
+  return clipped || fallback;
+}
+
+function sanitizeExtension(value: string, fallback: string = "bin"): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return normalized || fallback;
+}
+
+function normalizeRelativePath(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0) {
+    throw new Error("Invalid relative path");
+  }
+
+  for (const part of parts) {
+    if (part === "." || part === ".." || part.includes("\0")) {
+      throw new Error("Invalid path segment");
+    }
+  }
+
+  return parts.join("/");
+}
+
+function resolveUnderStorage(relativePath: string): string {
+  const storageRoot = resolve(getStoragePath());
+  const normalizedRelative = normalizeRelativePath(relativePath);
+  const fullPath = resolve(storageRoot, normalizedRelative);
+  const storagePrefix = storageRoot.endsWith(sep) ? storageRoot : `${storageRoot}${sep}`;
+
+  if (fullPath !== storageRoot && !fullPath.startsWith(storagePrefix)) {
+    throw new Error("Path escapes storage directory");
+  }
+
+  return fullPath;
+}
+
+function createSessionRelativePath(
+  sessionId: string,
+  role: StorageRole,
+  extension: string
+): string {
+  const safeSessionId = sanitizeSegment(sessionId, "session");
+  const safeRole = sanitizeSegment(role, "generated");
+  const safeExtension = sanitizeExtension(extension);
+  return `${safeSessionId}/${safeRole}/${nanoid()}.${safeExtension}`;
+}
+
+function createDocumentRelativePath(
+  userId: string,
+  characterId: string,
+  extension: string
+): string {
+  const safeUserId = sanitizeSegment(userId, "user");
+  const safeCharacterId = sanitizeSegment(characterId, "character");
+  const safeExtension = sanitizeExtension(extension);
+  return `docs/${safeUserId}/${safeCharacterId}/${nanoid()}.${safeExtension}`;
+}
+
 export interface UploadResult {
   localPath: string;
   url: string;
@@ -46,15 +109,14 @@ export interface DocumentUploadResult extends UploadResult {
 export async function saveBase64Image(
   base64Data: string,
   sessionId: string,
-  role: "upload" | "reference" | "generated" | "mask" | "tile" = "generated",
+  role: StorageRole = "generated",
   format: string = "png"
 ): Promise<UploadResult> {
   const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, "");
   const buffer = Buffer.from(base64Clean, "base64");
 
-  const storagePath = getStoragePath();
-  const relativePath = join(sessionId, role, `${nanoid()}.${format}`);
-  const fullPath = join(storagePath, relativePath);
+  const relativePath = createSessionRelativePath(sessionId, role, format);
+  const fullPath = resolveUnderStorage(relativePath);
 
   ensureDir(dirname(fullPath));
   writeFileSync(fullPath, buffer);
@@ -71,15 +133,14 @@ export async function saveBase64Image(
 export async function saveBase64Video(
   base64Data: string,
   sessionId: string,
-  role: "upload" | "reference" | "generated" | "mask" | "tile" = "generated",
+  role: StorageRole = "generated",
   format: string = "mp4"
 ): Promise<UploadResult> {
   const base64Clean = base64Data.replace(/^data:(video|application)\/\w+;base64,/, "");
   const buffer = Buffer.from(base64Clean, "base64");
 
-  const storagePath = getStoragePath();
-  const relativePath = join(sessionId, role, `${nanoid()}.${format}`);
-  const fullPath = join(storagePath, relativePath);
+  const relativePath = createSessionRelativePath(sessionId, role, format);
+  const fullPath = resolveUnderStorage(relativePath);
 
   ensureDir(dirname(fullPath));
   writeFileSync(fullPath, buffer);
@@ -97,13 +158,12 @@ export async function saveFile(
   file: Buffer,
   sessionId: string,
   filename: string,
-  role: "upload" | "reference" | "generated" | "mask" | "tile" = "upload"
+  role: StorageRole = "upload"
 ): Promise<UploadResult> {
   const ext = filename.split(".").pop() || "bin";
-  
-  const storagePath = getStoragePath();
-  const relativePath = join(sessionId, role, `${nanoid()}.${ext}`);
-  const fullPath = join(storagePath, relativePath);
+
+  const relativePath = createSessionRelativePath(sessionId, role, ext);
+  const fullPath = resolveUnderStorage(relativePath);
 
   ensureDir(dirname(fullPath));
   writeFileSync(fullPath, file);
@@ -114,38 +174,35 @@ export async function saveFile(
   };
 }
 
-	/**
-	 * Save a document file (PDF, text, Markdown, HTML) to local storage
-	 * under a stable, agent-scoped path.
-	 */
-	export async function saveDocumentFile(
-	  file: Buffer,
-	  userId: string,
-	  characterId: string,
-	  filename: string
-	): Promise<DocumentUploadResult> {
-	  const ext = filename.split(".").pop() || "bin";
+/**
+ * Save a document file (PDF, text, Markdown, HTML) to local storage
+ * under a stable, agent-scoped path.
+ */
+export async function saveDocumentFile(
+  file: Buffer,
+  userId: string,
+  characterId: string,
+  filename: string
+): Promise<DocumentUploadResult> {
+  const ext = filename.split(".").pop() || "bin";
+  const relativePath = createDocumentRelativePath(userId, characterId, ext);
+  const fullPath = resolveUnderStorage(relativePath);
 
-	  const storagePath = getStoragePath();
-	  const relativePath = join("docs", userId, characterId, `${nanoid()}.${ext}`);
-	  const fullPath = join(storagePath, relativePath);
+  ensureDir(dirname(fullPath));
+  writeFileSync(fullPath, file);
 
-	  ensureDir(dirname(fullPath));
-	  writeFileSync(fullPath, file);
-
-	  return {
-	    localPath: relativePath,
-	    url: pathToFileUrl(relativePath),
-	    extension: ext,
-	  };
-	}
+  return {
+    localPath: relativePath,
+    url: pathToFileUrl(relativePath),
+    extension: sanitizeExtension(ext),
+  };
+}
 
 /**
  * Read a file from local storage
  */
 export function readLocalFile(relativePath: string): Buffer {
-  const storagePath = getStoragePath();
-  const fullPath = join(storagePath, relativePath);
+  const fullPath = resolveUnderStorage(relativePath);
   return readFileSync(fullPath);
 }
 
@@ -153,10 +210,13 @@ export function readLocalFile(relativePath: string): Buffer {
  * Delete a file from local storage
  */
 export function deleteLocalFile(relativePath: string): void {
-  const storagePath = getStoragePath();
-  const fullPath = join(storagePath, relativePath);
-  if (existsSync(fullPath)) {
-    unlinkSync(fullPath);
+  try {
+    const fullPath = resolveUnderStorage(relativePath);
+    if (existsSync(fullPath)) {
+      unlinkSync(fullPath);
+    }
+  } catch {
+    // Ignore invalid path attempts
   }
 }
 
@@ -164,17 +224,19 @@ export function deleteLocalFile(relativePath: string): void {
  * Get the full file path for a relative path
  */
 export function getFullPath(relativePath: string): string {
-  const storagePath = getStoragePath();
-  return join(storagePath, relativePath);
+  return resolveUnderStorage(relativePath);
 }
 
 /**
  * Check if a file exists
  */
 export function fileExists(relativePath: string): boolean {
-  const storagePath = getStoragePath();
-  const fullPath = join(storagePath, relativePath);
-  return existsSync(fullPath);
+  try {
+    const fullPath = resolveUnderStorage(relativePath);
+    return existsSync(fullPath);
+  } catch {
+    return false;
+  }
 }
 
 /**
