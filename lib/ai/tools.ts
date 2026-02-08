@@ -1773,7 +1773,25 @@ async function executeOpenRouterImage(
     const data = await response.json() as {
       choices?: Array<{ message?: { images?: Array<{ image_url: { url: string } }> } }>
     };
-    const images = data.choices?.[0]?.message?.images || [];
+    const rawImages = data.choices?.[0]?.message?.images || [];
+
+    // Gemini 3 Pro (and occasionally others) can return identical duplicate images in a single response.
+    // Deduplicate by URL fingerprint to avoid saving and rendering duplicates.
+    const seen = new Set<string>();
+    const images = rawImages.filter((img) => {
+      const url = img?.image_url?.url;
+      if (!url) return false;
+      const key = url.startsWith("data:") ? url.substring(0, 200) : url;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (images.length !== rawImages.length) {
+      console.log(
+        `[OpenRouter Image] Deduplicated ${rawImages.length} -> ${images.length} images (model: ${model}, operation: ${operation})`
+      );
+    }
 
     if (images.length === 0) {
       throw new Error("No images returned from OpenRouter API");
