@@ -75,6 +75,11 @@ extraResources:
       - "**/*"
       - "!**/model_quantized.onnx"
       - "!**/bge-large-en-v1.5/**"
+  # Bundled whisper-cli + dylibs for local speech-to-text
+  - from: "binaries/whisper"
+    to: "binaries/whisper"
+    filter:
+      - "**/*"
   # ComfyUI backend infrastructure (lightweight files only - no models)
   - from: "comfyui_backend"
     to: "comfyui_backend"
