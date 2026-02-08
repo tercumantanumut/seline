@@ -5,7 +5,7 @@ import type { MCPConfig } from "@/lib/mcp/types";
 
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
@@ -59,6 +59,28 @@ export interface AppSettings {
         access_token: string;
         refresh_token: string;
         expires_at: number;
+    };
+
+    // Claude Code OAuth authentication (Claude Pro/MAX subscription)
+    claudecodeAuth?: {
+        isAuthenticated: boolean;
+        email?: string;
+        expiresAt?: number;
+        lastRefresh?: number;
+    };
+    claudecodeToken?: {
+        type: "oauth";
+        access_token: string;
+        refresh_token: string;
+        expires_at: number;
+    };
+
+    // Pending Claude Code OAuth state (persisted to survive dev recompilation)
+    pendingClaudeCodeOAuth?: {
+        state: string;
+        verifier: string;
+        origin: string;
+        createdAt: number;
     };
 
     // Model selection for different tasks
@@ -262,6 +284,7 @@ const MODEL_PREFIXES: Record<string, string[]> = {
   kimi: ["kimi-", "moonshot-"],
   codex: ["gpt-5", "codex"],
   antigravity: ["gemini-3", "claude-sonnet-4-5", "claude-haiku-4-5"],
+  claudecode: ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"],
   ollama: [], // accepts any model name
   openrouter: [], // accepts anything
 };
@@ -542,6 +565,10 @@ export function hasRequiredApiKeys(): boolean {
     }
     // Kimi requires an API key from Moonshot
     if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
+        return false;
+    }
+    // Claude Code requires OAuth authentication (Claude Pro/MAX subscription)
+    if (settings.llmProvider === "claudecode" && !settings.claudecodeAuth?.isAuthenticated) {
         return false;
     }
     // Ollama runs locally and does not require an API key

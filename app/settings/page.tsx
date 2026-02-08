@@ -11,6 +11,7 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { toast } from "sonner";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
+import { getClaudeCodeModels } from "@/lib/auth/claudecode-models";
 import { getKimiModels } from "@/lib/auth/kimi-models";
 import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui";
 import { useRouter } from "next/navigation";
@@ -23,7 +24,7 @@ import {
 import { WHISPER_MODELS, DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
 
 interface AppSettings {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   kimiApiKey?: string;
@@ -96,7 +97,7 @@ export default function SettingsPage() {
 
   // Form state for editable fields
   const [formState, setFormState] = useState({
-    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama",
+    llmProvider: "anthropic" as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode",
     anthropicApiKey: "",
     openrouterApiKey: "",
     kimiApiKey: "",
@@ -182,10 +183,19 @@ export default function SettingsPage() {
   } | null>(null);
   const [codexLoading, setCodexLoading] = useState(false);
 
+  // Claude Code auth state (separate from form state, managed via OAuth)
+  const [claudecodeAuth, setClaudecodeAuth] = useState<{
+    isAuthenticated: boolean;
+    email?: string;
+    expiresAt?: number;
+  } | null>(null);
+  const [claudecodeLoading, setClaudecodeLoading] = useState(false);
+
   useEffect(() => {
     loadSettings();
     loadAntigravityAuth();
     loadCodexAuth();
+    loadClaudeCodeAuth();
   }, []);
 
   const loadSettings = async () => {
@@ -311,6 +321,27 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error("Failed to load Codex auth status:", err);
+    }
+    return false;
+  };
+
+  const loadClaudeCodeAuth = async (): Promise<boolean> => {
+    try {
+      await fetch("/api/auth/claudecode/refresh", { method: "POST" });
+
+      const response = await fetch(`/api/auth/claudecode?t=${Date.now()}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[Settings] Loaded Claude Code auth:", data);
+        setClaudecodeAuth({
+          isAuthenticated: data.authenticated,
+          email: data.email,
+          expiresAt: data.expiresAt,
+        });
+        return data.authenticated;
+      }
+    } catch (err) {
+      console.error("Failed to load Claude Code auth status:", err);
     }
     return false;
   };
@@ -570,6 +601,84 @@ export default function SettingsPage() {
     }
   };
 
+  const [claudeCodePasteMode, setClaudeCodePasteMode] = useState(false);
+
+  const handleClaudeCodeLogin = async () => {
+    setClaudecodeLoading(true);
+    const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+      ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+      : undefined;
+    const isElectron = !!electronAPI?.isElectron;
+
+    try {
+      const authResponse = await fetch("/api/auth/claudecode/authorize");
+      const authData = await authResponse.json();
+
+      if (!authData.success || !authData.url) {
+        throw new Error(authData.error || "Failed to get authorization URL");
+      }
+
+      if (isElectron && electronAPI?.shell?.openExternal) {
+        await electronAPI.shell.openExternal(authData.url);
+      } else {
+        window.open(authData.url, "_blank");
+      }
+
+      // Switch to paste mode
+      setClaudeCodePasteMode(true);
+    } catch (err) {
+      console.error("Claude Code login failed:", err);
+      toast.error("Failed to start authentication");
+    } finally {
+      setClaudecodeLoading(false);
+    }
+  };
+
+  const handleClaudeCodePasteSubmit = async (code: string) => {
+    setClaudecodeLoading(true);
+    try {
+      const response = await fetch("/api/auth/claudecode/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to exchange authorization code");
+      }
+
+      await loadClaudeCodeAuth();
+      setClaudeCodePasteMode(false);
+    } catch (err) {
+      console.error("Claude Code code exchange failed:", err);
+      toast.error(err instanceof Error ? err.message : "Code exchange failed");
+    } finally {
+      setClaudecodeLoading(false);
+    }
+  };
+
+  const handleClaudeCodeLogout = async () => {
+    setClaudecodeLoading(true);
+    try {
+      const response = await fetch("/api/auth/claudecode", { method: "DELETE" });
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        throw new Error(errorText || `Logout failed with status ${response.status}`);
+      }
+      setClaudecodeAuth(null);
+      if (formState.llmProvider === "claudecode") {
+        setFormState(prev => ({ ...prev, llmProvider: "anthropic" }));
+      }
+    } catch (err) {
+      console.error("Claude Code logout failed:", err);
+      toast.error(tc("error"));
+    } finally {
+      setClaudecodeLoading(false);
+    }
+  };
+
   const saveSettings = async () => {
     setSaving(true);
     setError(null);
@@ -693,6 +802,13 @@ export default function SettingsPage() {
               codexLoading={codexLoading}
               onCodexLogin={handleCodexLogin}
               onCodexLogout={handleCodexLogout}
+              claudecodeAuth={claudecodeAuth}
+              claudecodeLoading={claudecodeLoading}
+              onClaudeCodeLogin={handleClaudeCodeLogin}
+              onClaudeCodeLogout={handleClaudeCodeLogout}
+              claudeCodePasteMode={claudeCodePasteMode}
+              onClaudeCodePasteSubmit={handleClaudeCodePasteSubmit}
+              onClaudeCodePasteCancel={() => setClaudeCodePasteMode(false)}
             />
           </div>
         </div>
@@ -702,7 +818,7 @@ export default function SettingsPage() {
 }
 
 interface FormState {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
   anthropicApiKey: string;
   openrouterApiKey: string;
   kimiApiKey: string;
@@ -780,6 +896,7 @@ const LOCAL_EMBEDDING_MODELS = SHARED_LOCAL_EMBEDDING_MODELS.map((m) => ({
 
 const ANTIGRAVITY_MODELS = getAntigravityModels();
 const CODEX_MODELS = getCodexModels();
+const CLAUDECODE_MODELS = getClaudeCodeModels();
 const KIMI_MODELS = getKimiModels();
 
 interface LocalEmbeddingModelSelectorProps {
@@ -1145,6 +1262,62 @@ interface SettingsPanelProps {
   codexLoading: boolean;
   onCodexLogin: () => void;
   onCodexLogout: () => void;
+  claudecodeAuth: { isAuthenticated: boolean; email?: string; expiresAt?: number } | null;
+  claudecodeLoading: boolean;
+  onClaudeCodeLogin: () => void;
+  onClaudeCodeLogout: () => void;
+  claudeCodePasteMode: boolean;
+  onClaudeCodePasteSubmit: (code: string) => void;
+  onClaudeCodePasteCancel: () => void;
+}
+
+function ClaudeCodePasteInput({
+  loading,
+  onSubmit,
+  onCancel,
+}: {
+  loading: boolean;
+  onSubmit: (code: string) => void;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = useState("");
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-terminal-border pt-3">
+      <p className="font-mono text-xs text-terminal-muted">
+        A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.
+      </p>
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Paste the authorization code here..."
+        className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+        autoFocus
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && code.trim()) {
+            onSubmit(code);
+          }
+        }}
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          className="rounded border border-terminal-border px-3 py-1.5 font-mono text-xs text-terminal-muted hover:bg-terminal-bg disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => onSubmit(code)}
+          disabled={loading || !code.trim()}
+          className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
+        >
+          {loading ? "Verifying..." : "Submit Code"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SettingsPanel({
@@ -1159,6 +1332,13 @@ function SettingsPanel({
   codexLoading,
   onCodexLogin,
   onCodexLogout,
+  claudecodeAuth,
+  claudecodeLoading,
+  onClaudeCodeLogin,
+  onClaudeCodeLogout,
+  claudeCodePasteMode,
+  onClaudeCodePasteSubmit,
+  onClaudeCodePasteCancel,
 }: SettingsPanelProps) {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
@@ -1179,7 +1359,7 @@ function SettingsPanel({
                 value="anthropic"
                 checked={formState.llmProvider === "anthropic"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1196,7 +1376,7 @@ function SettingsPanel({
                 value="openrouter"
                 checked={formState.llmProvider === "openrouter"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1213,7 +1393,7 @@ function SettingsPanel({
                 value="ollama"
                 checked={formState.llmProvider === "ollama"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1230,7 +1410,7 @@ function SettingsPanel({
                 value="kimi"
                 checked={formState.llmProvider === "kimi"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1247,7 +1427,7 @@ function SettingsPanel({
                 value="codex"
                 checked={formState.llmProvider === "codex"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1270,10 +1450,36 @@ function SettingsPanel({
               <input
                 type="radio"
                 name="llmProvider"
+                value="claudecode"
+                checked={formState.llmProvider === "claudecode"}
+                onChange={(e) => {
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
+                  updateField("chatModel", "");
+                  updateField("researchModel", "");
+                  updateField("visionModel", "");
+                  updateField("utilityModel", "");
+                }}
+                disabled={!claudecodeAuth?.isAuthenticated}
+                className="size-4 accent-terminal-green disabled:opacity-50"
+              />
+              <span className={cn(
+                "font-mono",
+                claudecodeAuth?.isAuthenticated ? "text-terminal-dark" : "text-terminal-muted"
+              )}>
+                Claude Code
+                {claudecodeAuth?.isAuthenticated && (
+                  <span className="ml-2 text-xs text-terminal-green">Connected</span>
+                )}
+              </span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="radio"
+                name="llmProvider"
                 value="antigravity"
                 checked={formState.llmProvider === "antigravity"}
                 onChange={(e) => {
-                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama");
+                  updateField("llmProvider", e.target.value as "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode");
                   updateField("chatModel", "");
                   updateField("researchModel", "");
                   updateField("visionModel", "");
@@ -1369,6 +1575,51 @@ function SettingsPanel({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Claude Code OAuth Section */}
+        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">
+                Claude Code (Pro / MAX)
+              </h3>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                Connect your Claude Pro or MAX subscription for Opus 4.6, Sonnet 4.5, and Haiku 4.5.
+              </p>
+              {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
+                <p className="mt-1 font-mono text-xs text-terminal-green">
+                  Signed in as {claudecodeAuth.email}
+                </p>
+              )}
+            </div>
+            <div>
+              {claudecodeAuth?.isAuthenticated ? (
+                <button
+                  onClick={onClaudeCodeLogout}
+                  disabled={claudecodeLoading}
+                  className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {claudecodeLoading ? "..." : "Disconnect"}
+                </button>
+              ) : !claudeCodePasteMode ? (
+                <button
+                  onClick={onClaudeCodeLogin}
+                  disabled={claudecodeLoading}
+                  className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
+                >
+                  {claudecodeLoading ? "Connecting..." : "Connect with Anthropic"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {claudeCodePasteMode && !claudecodeAuth?.isAuthenticated && (
+            <ClaudeCodePasteInput
+              loading={claudecodeLoading}
+              onSubmit={onClaudeCodePasteSubmit}
+              onCancel={onClaudeCodePasteCancel}
+            />
+          )}
         </div>
 
         <div className="space-y-4">
@@ -1563,6 +1814,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "claudecode" ? (
+              <select
+                value={formState.chatModel || "claude-sonnet-4-5-20250929"}
+                onChange={(e) => updateField("chatModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CLAUDECODE_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : formState.llmProvider === "kimi" ? (
               <select
                 value={formState.chatModel || "kimi-k2.5"}
@@ -1616,6 +1879,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "claudecode" ? (
+              <select
+                value={formState.researchModel || "claude-opus-4-6"}
+                onChange={(e) => updateField("researchModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>
@@ -1679,6 +1954,18 @@ function SettingsPanel({
                   </option>
                 ))}
               </select>
+            ) : formState.llmProvider === "claudecode" ? (
+              <select
+                value={formState.visionModel || "claude-sonnet-4-5-20250929"}
+                onChange={(e) => updateField("visionModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CLAUDECODE_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             ) : formState.llmProvider === "kimi" ? (
               <select
                 value={formState.visionModel || "kimi-k2.5"}
@@ -1732,6 +2019,18 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            ) : formState.llmProvider === "claudecode" ? (
+              <select
+                value={formState.utilityModel || "claude-haiku-4-5-20251001"}
+                onChange={(e) => updateField("utilityModel", e.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              >
+                {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name}
                   </option>

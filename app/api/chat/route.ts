@@ -1,5 +1,5 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
-import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, getProviderTemperature } from "@/lib/ai/providers";
+import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, getProviderTemperature } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -1178,6 +1178,17 @@ export async function POST(req: Request) {
       if (!tokenValid) {
         return new Response(
           JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
+          { status: 401, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // CRITICAL: If Claude Code is selected, ensure token is valid/refreshed BEFORE making API calls
+    if (selectedProvider === "claudecode") {
+      const tokenValid = await ensureClaudeCodeTokenValid();
+      if (!tokenValid) {
+        return new Response(
+          JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
           { status: 401, headers: { "Content-Type": "application/json" } }
         );
       }
