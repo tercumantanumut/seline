@@ -14,6 +14,79 @@ import type {
     ExecuteCommandToolResult,
 } from "@/lib/command-execution/types";
 
+function isPythonExecutable(command: string): boolean {
+    const normalized = command.trim().replace(/^["']|["']$/g, "").toLowerCase();
+    return (
+        normalized === "python" ||
+        normalized === "python3" ||
+        normalized === "python.exe" ||
+        normalized === "python3.exe" ||
+        normalized === "py" ||
+        normalized === "py.exe"
+    );
+}
+
+function stripOuterQuotes(value: string): string {
+    const trimmed = value.trim();
+    if (trimmed.length < 2) return trimmed;
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === "\"" && last === "\"") || (first === "'" && last === "'")) {
+        return trimmed.slice(1, -1).trim();
+    }
+    return trimmed;
+}
+
+/**
+ * Narrow compatibility shim for common LLM mistakes around Python inline scripts.
+ * Keeps behavior unchanged for all other command shapes.
+ */
+export function normalizeExecuteCommandInput(
+    command: string,
+    args: string[]
+): { command: string; args: string[] } {
+    const trimmedCommand = command.trim();
+    const normalizedArgs = Array.isArray(args) ? [...args] : [];
+
+    // Case 1: command is a single string like:
+    // "python -c from PIL import Image; print('ok')"
+    if (normalizedArgs.length === 0) {
+        const firstSpace = trimmedCommand.indexOf(" ");
+        if (firstSpace > 0) {
+            const executable = trimmedCommand.slice(0, firstSpace).trim();
+            const remainder = trimmedCommand.slice(firstSpace + 1).trim();
+            if (isPythonExecutable(executable) && remainder.startsWith("-c ")) {
+                const script = stripOuterQuotes(remainder.slice(3));
+                if (script.length > 0) {
+                    return {
+                        command: executable,
+                        args: ["-c", script],
+                    };
+                }
+            }
+        }
+    }
+
+    // Case 2: args are split incorrectly after -c, e.g.:
+    // args: ["-c", "from", "PIL", "import", "Image;print('ok')"]
+    if (isPythonExecutable(trimmedCommand)) {
+        const scriptFlagIndex = normalizedArgs.indexOf("-c");
+        if (scriptFlagIndex >= 0 && normalizedArgs.length > scriptFlagIndex + 2) {
+            const before = normalizedArgs.slice(0, scriptFlagIndex + 1);
+            const script = stripOuterQuotes(normalizedArgs.slice(scriptFlagIndex + 1).join(" "));
+            return {
+                command: trimmedCommand,
+                args: [...before, script],
+            };
+        }
+    }
+
+    return {
+        command: trimmedCommand,
+        args: normalizedArgs,
+    };
+}
+
 /**
  * JSON Schema definition for the executeCommand tool input
  */
@@ -106,11 +179,13 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
 - Run tests: executeCommand({ command: "npm", args: ["test"] })
 - Check git status: executeCommand({ command: "git", args: ["status"] })
 - Install deps: executeCommand({ command: "npm", args: ["install"] })
-- List files: executeCommand({ command: "ls", args: ["-la"] })
+- List files (Windows): executeCommand({ command: "dir" })
+- List files (macOS/Linux): executeCommand({ command: "ls", args: ["-la"] })
+- Python inline scripts: executeCommand({ command: "python", args: ["-c", "print('hello')"] })
 
 **Parameters:**
-- command: The executable to run
-- args: Array of arguments (optional)
+- command: The executable only (e.g., "python", not "python -c ...")
+- args: Array of arguments (optional). For Python inline scripts, pass script as ONE arg after "-c"
 - cwd: Working directory (optional, defaults to first synced folder)
 - timeout: Max execution time in ms (optional, default 30000)`,
 
@@ -165,11 +240,13 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
             }
 
             try {
+                const normalizedInput = normalizeExecuteCommandInput(command, args);
+
                 // Execute command with validation using the core executor
                 const result = await executeCommandWithValidation(
                     {
-                        command: command.trim(),
-                        args,
+                        command: normalizedInput.command,
+                        args: normalizedInput.args,
                         cwd: executionDir,
                         timeout: Math.min(timeout || 30000, 300000), // Max 5 minutes
                         characterId: characterId,
