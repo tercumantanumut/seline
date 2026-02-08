@@ -1,201 +1,465 @@
 /**
- * Bundle whisper-cli and its dylibs for Electron distribution.
+ * Bundle whisper-cli and shared libraries for Electron distribution.
  *
- * This script copies the whisper-cli binary and its required shared libraries
- * from the Homebrew installation into a self-contained directory that can be
- * included in the Electron app bundle.
+ * Supported platforms:
+ * - macOS: copies whisper-cli and referenced dylibs, rewrites @rpath references
+ * - Windows: copies whisper-cli.exe and nearby DLL dependencies (auto-download fallback)
+ * - Linux/other: copies binary only
  *
- * The bundled binary has its @rpath references rewritten to use @executable_path
- * so it works without Homebrew installed on the target machine.
+ * Usage:
+ *   node scripts/bundle-whisper.js [--output <dir>]
  *
- * Usage: node scripts/bundle-whisper.js [--output <dir>]
- *
- * Prerequisites: brew install whisper-cpp
+ * Optional env var:
+ *   WHISPER_CPP_PATH=/absolute/path/to/whisper-cli(.exe)
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { execSync, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const DEFAULT_OUTPUT = path.join(__dirname, '..', 'binaries', 'whisper');
 
-function main() {
+async function main() {
     const outputDir = process.argv.includes('--output')
         ? process.argv[process.argv.indexOf('--output') + 1]
         : DEFAULT_OUTPUT;
 
     console.log('=== Bundle whisper-cli for Electron ===');
+    console.log(`Platform: ${process.platform}`);
 
-    // 1. Find whisper-cli
-    const whisperBin = findWhisperCli();
+    let whisperBin = findWhisperCli();
+    let tempCleanupDir = null;
+
     if (!whisperBin) {
-        console.error('Error: whisper-cli not found. Install with: brew install whisper-cpp');
-        process.exit(1);
+        if (hasExistingBundle(outputDir)) {
+            console.log('No local whisper-cli found, keeping existing binaries/whisper bundle.');
+            return;
+        }
+
+        if (process.platform === 'win32') {
+            const downloaded = await tryAutoDownloadWhisperForWindows();
+            if (downloaded) {
+                whisperBin = downloaded.binaryPath;
+                tempCleanupDir = downloaded.tempDir;
+            }
+        }
+
+        if (!whisperBin) {
+            throw new Error(getInstallHint());
+        }
     }
-    console.log(`Found whisper-cli: ${whisperBin}`);
 
-    // 2. Resolve the real binary (follow symlinks)
-    const realBin = fs.realpathSync(whisperBin);
-    console.log(`Real binary: ${realBin}`);
+    try {
+        console.log(`Found whisper binary: ${whisperBin}`);
 
-    // 3. Find the lib directory (sibling to bin)
-    const libDir = path.join(path.dirname(realBin), '..', 'lib');
-    if (!fs.existsSync(libDir)) {
-        console.error(`Error: lib directory not found at ${libDir}`);
-        process.exit(1);
+        const realBin = fs.realpathSync(whisperBin);
+        console.log(`Resolved binary: ${realBin}`);
+
+        const binOutDir = path.join(outputDir, 'bin');
+        const libOutDir = path.join(outputDir, 'lib');
+        fs.mkdirSync(binOutDir, { recursive: true });
+        fs.mkdirSync(libOutDir, { recursive: true });
+
+        if (process.platform === 'darwin') {
+            bundleForMac(realBin, binOutDir, libOutDir);
+            return;
+        }
+
+        if (process.platform === 'win32') {
+            bundleForWindows(realBin, binOutDir, libOutDir);
+            return;
+        }
+
+        bundleGeneric(realBin, binOutDir);
+    } finally {
+        if (tempCleanupDir) {
+            safeRemoveDir(tempCleanupDir);
+        }
     }
-    console.log(`Lib directory: ${libDir}`);
+}
 
-    // 4. Create output directory
-    const binOutDir = path.join(outputDir, 'bin');
-    const libOutDir = path.join(outputDir, 'lib');
-    fs.mkdirSync(binOutDir, { recursive: true });
-    fs.mkdirSync(libOutDir, { recursive: true });
-
-    // 5. Copy the binary
+function bundleForMac(realBin, binOutDir, libOutDir) {
     const destBin = path.join(binOutDir, 'whisper-cli');
     fs.copyFileSync(realBin, destBin);
     fs.chmodSync(destBin, 0o755);
-    console.log(`Copied binary: ${destBin} (${(fs.statSync(destBin).size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`Copied binary: ${destBin} (${toMb(fs.statSync(destBin).size)} MB)`);
 
-    // 6. Copy required dylibs (only the ones whisper-cli actually links to)
-    const requiredLibs = getRequiredLibs(realBin);
+    const requiredLibs = getRequiredDylibs(realBin);
     let totalLibSize = 0;
 
     for (const libPath of requiredLibs) {
-        // Resolve symlinks to get the actual file
         const realLib = fs.realpathSync(libPath);
-        const libName = path.basename(libPath); // Keep the symlink name for @rpath resolution
+        const libName = path.basename(libPath);
         const destLib = path.join(libOutDir, libName);
-
         fs.copyFileSync(realLib, destLib);
         fs.chmodSync(destLib, 0o755);
         const size = fs.statSync(destLib).size;
         totalLibSize += size;
-        console.log(`  Copied lib: ${libName} (${(size / 1024).toFixed(0)} KB)`);
+        console.log(`  Copied dylib: ${libName} (${Math.round(size / 1024)} KB)`);
     }
 
-    // 7. Rewrite the binary's dylib references to use @executable_path/../lib/
-    console.log('\nRewriting dylib references...');
-    rewriteDylibPaths(destBin, requiredLibs, libOutDir);
-
-    // 8. Also rewrite inter-lib references (libs that depend on other libs)
+    console.log('Rewriting dylib references...');
+    rewriteMacDylibPaths(destBin, requiredLibs, true);
     for (const libPath of requiredLibs) {
         const libName = path.basename(libPath);
         const destLib = path.join(libOutDir, libName);
-        rewriteDylibPaths(destLib, requiredLibs, libOutDir);
+        rewriteMacDylibPaths(destLib, requiredLibs, false);
     }
 
-    // 9. Verify
-    console.log('\nVerifying bundle...');
-    try {
-        const output = execFileSync(destBin, ['--help'], {
-            timeout: 5000,
-            stdio: 'pipe',
-            env: {
-                ...process.env,
-                DYLD_LIBRARY_PATH: libOutDir,
-            },
-        });
-    } catch (e) {
-        // --help exits with code 0 or 1, both are fine
-    }
-    console.log('✓ Bundle verified');
+    verifyBinary(destBin, { DYLD_LIBRARY_PATH: libOutDir });
+    const totalSize = fs.statSync(destBin).size + totalLibSize;
+    console.log(`Bundle size: ${toMb(totalSize)} MB`);
+    console.log(`Output: ${path.join(binOutDir, '..')}`);
+}
 
-    const binSize = fs.statSync(destBin).size;
-    const totalSize = binSize + totalLibSize;
-    console.log(`\nBundle size: ${(totalSize / 1024 / 1024).toFixed(1)} MB`);
-    console.log(`Output: ${outputDir}`);
+function bundleForWindows(realBin, binOutDir, libOutDir) {
+    const destBin = path.join(binOutDir, 'whisper-cli.exe');
+    fs.copyFileSync(realBin, destBin);
+    console.log(`Copied binary: ${destBin} (${toMb(fs.statSync(destBin).size)} MB)`);
+
+    const dllCandidates = collectWindowsDlls(realBin);
+    let copied = 0;
+    let totalLibSize = 0;
+
+    for (const dllPath of dllCandidates) {
+        const dllName = path.basename(dllPath);
+        const destDll = path.join(libOutDir, dllName);
+        try {
+            fs.copyFileSync(dllPath, destDll);
+            copied += 1;
+            totalLibSize += fs.statSync(destDll).size;
+            console.log(`  Copied dll: ${dllName}`);
+        } catch (err) {
+            console.warn(`  Warning: could not copy ${dllName}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
+
+    if (copied === 0) {
+        console.log('No companion DLL files detected near whisper binary.');
+    }
+
+    verifyBinary(destBin, { PATH: `${libOutDir};${process.env.PATH || ''}` });
+    const totalSize = fs.statSync(destBin).size + totalLibSize;
+    console.log(`Bundle size: ${toMb(totalSize)} MB`);
+    console.log(`Output: ${path.join(binOutDir, '..')}`);
+}
+
+function bundleGeneric(realBin, binOutDir) {
+    const ext = path.extname(realBin);
+    const destName = ext ? `whisper-cli${ext}` : 'whisper-cli';
+    const destBin = path.join(binOutDir, destName);
+    fs.copyFileSync(realBin, destBin);
+    fs.chmodSync(destBin, 0o755);
+    console.log(`Copied binary: ${destBin} (${toMb(fs.statSync(destBin).size)} MB)`);
+    verifyBinary(destBin, {});
+    console.log(`Output: ${path.join(binOutDir, '..')}`);
+}
+
+function hasExistingBundle(outputDir) {
+    const candidates = [
+        path.join(outputDir, 'bin', 'whisper-cli'),
+        path.join(outputDir, 'bin', 'whisper-cli.exe'),
+        path.join(outputDir, 'bin', 'main.exe'),
+    ];
+    return candidates.some((p) => fs.existsSync(p));
 }
 
 function findWhisperCli() {
-    const paths = [
-        '/opt/homebrew/bin/whisper-cli',
-        '/usr/local/bin/whisper-cli',
-    ];
-    for (const p of paths) {
-        if (fs.existsSync(p)) return p;
+    const envPath = process.env.WHISPER_CPP_PATH;
+    if (envPath && fs.existsSync(envPath)) {
+        return envPath;
     }
+
+    const candidates = getCandidatePaths();
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+
+    const fromPath = findInPath(process.platform === 'win32'
+        ? ['whisper-cli.exe', 'whisper-cli', 'main.exe']
+        : ['whisper-cli']);
+    return fromPath;
+}
+
+async function tryAutoDownloadWhisperForWindows() {
+    const assetUrl = process.env.WHISPER_CPP_WIN_ASSET_URL
+        || 'https://github.com/ggml-org/whisper.cpp/releases/latest/download/whisper-bin-x64.zip';
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seline-whispercpp-'));
+    const zipPath = path.join(tempDir, 'whisper-bin-x64.zip');
+    const extractDir = path.join(tempDir, 'extracted');
+
+    console.log('whisper-cli not found locally. Attempting automatic download of whisper.cpp Windows binaries...');
+    console.log(`Download URL: ${assetUrl}`);
+
     try {
-        return execSync('which whisper-cli', { encoding: 'utf-8', timeout: 3000 }).trim();
-    } catch {
+        await downloadToFile(assetUrl, zipPath);
+        extractZipArchive(zipPath, extractDir);
+
+        const binaryPath = findFileRecursive(extractDir, ['whisper-cli.exe', 'main.exe']);
+        if (!binaryPath) {
+            throw new Error('Downloaded archive did not contain whisper-cli.exe or main.exe');
+        }
+
+        console.log(`Auto-downloaded whisper binary: ${binaryPath}`);
+        return { binaryPath, tempDir };
+    } catch (err) {
+        console.warn(`Automatic whisper.cpp download failed: ${err instanceof Error ? err.message : String(err)}`);
+        safeRemoveDir(tempDir);
         return null;
     }
 }
 
-function getRequiredLibs(binaryPath) {
-    // Use otool to find linked dylibs
-    const output = execSync(`otool -L "${binaryPath}"`, { encoding: 'utf-8' });
+async function downloadToFile(url, destinationPath) {
+    if (typeof fetch !== 'function') {
+        throw new Error('Global fetch is unavailable in this Node runtime');
+    }
+
+    const response = await fetch(url, { redirect: 'follow' });
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} while downloading ${url}`);
+    }
+
+    const data = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(destinationPath, data);
+}
+
+function extractZipArchive(zipPath, extractDir) {
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    try {
+        execFileSync('tar', ['-xf', zipPath, '-C', extractDir], { stdio: 'pipe' });
+        return;
+    } catch {
+        // Fallback to PowerShell below.
+    }
+
+    const psCommand = `Expand-Archive -LiteralPath '${escapePowerShellString(zipPath)}' -DestinationPath '${escapePowerShellString(extractDir)}' -Force`;
+    execFileSync('powershell', ['-NoProfile', '-Command', psCommand], { stdio: 'pipe' });
+}
+
+function findFileRecursive(rootDir, fileNames) {
+    const wanted = new Set(fileNames.map((name) => name.toLowerCase()));
+    const stack = [rootDir];
+
+    while (stack.length > 0) {
+        const dir = stack.pop();
+        let entries = [];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                stack.push(fullPath);
+                continue;
+            }
+            if (entry.isFile() && wanted.has(entry.name.toLowerCase())) {
+                return fullPath;
+            }
+        }
+    }
+
+    return null;
+}
+
+function escapePowerShellString(input) {
+    return String(input).replace(/'/g, "''");
+}
+
+function safeRemoveDir(targetDir) {
+    try {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+    } catch {
+        // best-effort cleanup
+    }
+}
+
+function getCandidatePaths() {
+    if (process.platform === 'darwin') {
+        return [
+            '/opt/homebrew/bin/whisper-cli',
+            '/usr/local/bin/whisper-cli',
+        ];
+    }
+
+    if (process.platform === 'win32') {
+        const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+        const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+        const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData', 'Local');
+        return [
+            path.join(programFiles, 'whisper.cpp', 'whisper-cli.exe'),
+            path.join(programFiles, 'whisper.cpp', 'main.exe'),
+            path.join(programFiles, 'whisper.cpp', 'build', 'bin', 'Release', 'whisper-cli.exe'),
+            path.join(programFilesX86, 'whisper.cpp', 'whisper-cli.exe'),
+            path.join(programFilesX86, 'whisper.cpp', 'main.exe'),
+            path.join(localAppData, 'Programs', 'whisper.cpp', 'whisper-cli.exe'),
+            path.join(localAppData, 'Programs', 'whisper.cpp', 'main.exe'),
+        ];
+    }
+
+    return ['/usr/local/bin/whisper-cli', '/usr/bin/whisper-cli'];
+}
+
+function findInPath(executableNames) {
+    const lookupCommand = process.platform === 'win32' ? 'where' : 'which';
+    for (const name of executableNames) {
+        try {
+            const output = execFileSync(lookupCommand, [name], {
+                timeout: 3000,
+                stdio: 'pipe',
+                encoding: 'utf-8',
+            }).trim();
+
+            if (!output) continue;
+            const results = output.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+            for (const result of results) {
+                if (fs.existsSync(result)) return result;
+            }
+        } catch {
+            // continue searching
+        }
+    }
+    return null;
+}
+
+function getRequiredDylibs(binaryPath) {
+    const output = execFileSync('otool', ['-L', binaryPath], { encoding: 'utf-8' });
     const libs = [];
+    const seen = new Set();
+    const libDir = path.join(path.dirname(fs.realpathSync(binaryPath)), '..', 'lib');
 
     for (const line of output.split('\n')) {
         const match = line.match(/\s+(@rpath\/\S+)/);
-        if (match) {
-            const rpathRef = match[1];
-            const libName = rpathRef.replace('@rpath/', '');
+        if (!match) continue;
+        const rpathRef = match[1];
+        const libName = rpathRef.replace('@rpath/', '');
+        const libPath = path.join(libDir, libName);
 
-            // Find the actual lib file
-            const binDir = path.dirname(fs.realpathSync(binaryPath));
-            const libDir = path.join(binDir, '..', 'lib');
-            const libPath = path.join(libDir, libName);
-
-            if (fs.existsSync(libPath)) {
-                libs.push(libPath);
-            } else {
-                console.warn(`  Warning: Could not find ${libName} at ${libPath}`);
-            }
+        if (!fs.existsSync(libPath)) {
+            console.warn(`  Warning: missing dylib ${libName} at ${libPath}`);
+            continue;
+        }
+        if (!seen.has(libPath)) {
+            seen.add(libPath);
+            libs.push(libPath);
         }
     }
 
     return libs;
 }
 
-function rewriteDylibPaths(binaryPath, requiredLibs, libOutDir) {
+function rewriteMacDylibPaths(targetPath, requiredLibs, isMainBinary) {
+    const otoolOutput = execFileSync('otool', ['-L', targetPath], { encoding: 'utf-8' });
+    const refs = otoolOutput
+        .split('\n')
+        .map((line) => line.match(/\s+(@rpath\/\S+)/))
+        .filter(Boolean)
+        .map((match) => match[1]);
+
     for (const libPath of requiredLibs) {
         const libName = path.basename(libPath);
+        const oldPath = refs.find((ref) => ref.endsWith(`/${libName}`) || ref.includes(libName));
+        if (!oldPath) continue;
 
-        // Find the original @rpath reference in the binary
-        const output = execSync(`otool -L "${binaryPath}"`, { encoding: 'utf-8' });
-        for (const line of output.split('\n')) {
-            const match = line.match(/\s+(@rpath\/\S+)/);
-            if (match && match[1].includes(libName)) {
-                const oldPath = match[1];
-                // For the main binary: use @executable_path/../lib/
-                // For libs: use @loader_path/
-                const isBinary = binaryPath.endsWith('whisper-cli');
-                const newPath = isBinary
-                    ? `@executable_path/../lib/${libName}`
-                    : `@loader_path/${libName}`;
+        const newPath = isMainBinary
+            ? `@executable_path/../lib/${libName}`
+            : `@loader_path/${libName}`;
 
-                try {
-                    execSync(`install_name_tool -change "${oldPath}" "${newPath}" "${binaryPath}"`, {
-                        stdio: 'pipe',
-                    });
-                } catch (e) {
-                    // Some changes may fail if the reference doesn't exist in this specific binary
-                }
-            }
-        }
-    }
-
-    // Also rewrite the install name for dylibs themselves
-    if (!binaryPath.endsWith('whisper-cli')) {
-        const libName = path.basename(binaryPath);
         try {
-            execSync(`install_name_tool -id "@loader_path/${libName}" "${binaryPath}"`, {
+            execFileSync('install_name_tool', ['-change', oldPath, newPath, targetPath], {
                 stdio: 'pipe',
             });
-        } catch (e) {
-            // May fail for some libs
+        } catch {
+            // Non-fatal for missing/immutable references
         }
     }
 
-    // Ad-hoc codesign (required on Apple Silicon after modifying binaries)
+    if (!isMainBinary) {
+        const libName = path.basename(targetPath);
+        try {
+            execFileSync('install_name_tool', ['-id', `@loader_path/${libName}`, targetPath], {
+                stdio: 'pipe',
+            });
+        } catch {
+            // Non-fatal
+        }
+    }
+
     try {
-        execSync(`codesign --force --sign - "${binaryPath}"`, { stdio: 'pipe' });
-    } catch (e) {
+        execFileSync('codesign', ['--force', '--sign', '-', targetPath], { stdio: 'pipe' });
+    } catch {
         // Non-fatal
     }
 }
 
-main();
+function collectWindowsDlls(binaryPath) {
+    const binDir = path.dirname(binaryPath);
+    const siblingDirs = [
+        binDir,
+        path.join(binDir, '..'),
+        path.join(binDir, '..', 'bin'),
+        path.join(binDir, '..', 'lib'),
+    ];
+    const result = [];
+    const seen = new Set();
+
+    for (const dir of siblingDirs) {
+        if (!fs.existsSync(dir)) continue;
+        let entries;
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+        for (const entry of entries) {
+            if (!entry.isFile()) continue;
+            if (!entry.name.toLowerCase().endsWith('.dll')) continue;
+            const fullPath = path.join(dir, entry.name);
+            if (!seen.has(fullPath)) {
+                seen.add(fullPath);
+                result.push(fullPath);
+            }
+        }
+    }
+
+    return result;
+}
+
+function verifyBinary(binaryPath, extraEnv) {
+    console.log('Verifying bundle with --help...');
+    try {
+        execFileSync(binaryPath, ['--help'], {
+            timeout: 5000,
+            stdio: 'pipe',
+            env: { ...process.env, ...extraEnv },
+        });
+    } catch {
+        // --help may still exit non-zero; existence/runtime check is enough
+    }
+    console.log('Bundle verification completed.');
+}
+
+function getInstallHint() {
+    if (process.platform === 'darwin') {
+        return 'Error: whisper-cli not found. Install with: brew install whisper-cpp';
+    }
+    if (process.platform === 'win32') {
+        return 'Error: whisper-cli not found. Install from https://github.com/ggml-org/whisper.cpp/releases (whisper-bin-x64.zip), or set WHISPER_CPP_PATH.';
+    }
+    return 'Error: whisper-cli not found in PATH. Install whisper.cpp and retry.';
+}
+
+function toMb(bytes) {
+    return (bytes / 1024 / 1024).toFixed(1);
+}
+
+main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+});

@@ -28,6 +28,12 @@ extraResources:
     filter:
       - "**/*"
       - "!**/node_modules"
+      - "!**/comfyui_backend"
+      - "!**/comfyui_backend/**"
+      - "!**/models"
+      - "!**/models/**"
+      - "!**/binaries"
+      - "!**/binaries/**"
       - "!**/.local-data"
       - "!**/dist-electron"
       - "!**/.git"

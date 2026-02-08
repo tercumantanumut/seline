@@ -16,7 +16,7 @@ interface TranscribeInput {
 
 export function createTranscribeTool({ sessionId }: { sessionId: string }) {
   return tool({
-    description: `Check audio transcription status and capabilities. Use when the user asks about transcription settings or audio processing. Audio attachments in channel messages are automatically transcribed — this tool reports the current configuration.`,
+    description: "Check audio transcription status and capabilities. Use when the user asks about transcription settings or audio processing. Audio attachments in channel messages are automatically transcribed; this tool reports the current configuration.",
 
     inputSchema: jsonSchema<TranscribeInput>({
       type: "object",
@@ -60,9 +60,9 @@ export function createTranscribeTool({ sessionId }: { sessionId: string }) {
         const model = getWhisperModel(modelId);
         const hasBinary = !!findWhisperBinaryNote();
         if (!hasBinary) {
-          note = `Local whisper.cpp selected but whisper-cli binary not found. Install with: brew install whisper-cpp`;
+          note = "Local whisper.cpp selected but whisper-cli binary not found. Install whisper.cpp (macOS: brew install whisper-cpp, Windows: download whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases).";
         } else {
-          note = `Local whisper.cpp selected (model: ${model?.name || modelId}) but the model file is not downloaded. Download it in Settings → Voice & Audio.`;
+          note = `Local whisper.cpp selected (model: ${model?.name || modelId}) but the model file is not downloaded. Download it in Settings -> Voice & Audio.`;
         }
       } else {
         note = "Transcription is not configured. An OpenAI API key is required for Whisper transcription, or switch to local whisper.cpp.";
@@ -85,8 +85,52 @@ export function createTranscribeTool({ sessionId }: { sessionId: string }) {
 function findWhisperBinaryNote(): boolean {
   try {
     const { existsSync } = require("node:fs");
-    const paths = ["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"];
-    return paths.some((p: string) => existsSync(p));
+    const { execFileSync } = require("node:child_process");
+    const { join } = require("node:path");
+    const { homedir } = require("node:os");
+
+    const paths = [
+      "/opt/homebrew/bin/whisper-cli",
+      "/usr/local/bin/whisper-cli",
+      join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-cli.exe"),
+      join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "main.exe"),
+      join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-cli.exe"),
+      join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "main.exe"),
+      join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-cli.exe"),
+      join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
+    ];
+
+    if (paths.some((p: string) => existsSync(p))) {
+      return true;
+    }
+
+    const lookupCommand = process.platform === "win32" ? "where" : "which";
+    const candidates = process.platform === "win32"
+      ? ["whisper-cli.exe", "whisper-cli", "main.exe"]
+      : ["whisper-cli"];
+
+    for (const candidate of candidates) {
+      try {
+        const output = execFileSync(lookupCommand, [candidate], {
+          timeout: 3000,
+          stdio: "pipe",
+          encoding: "utf-8",
+        }).trim();
+
+        if (!output) {
+          continue;
+        }
+
+        const resolved = output.split(/\r?\n/).map((p: string) => p.trim()).filter(Boolean);
+        if (resolved.some((p: string) => existsSync(p))) {
+          return true;
+        }
+      } catch {
+        // Not found in PATH
+      }
+    }
+
+    return false;
   } catch {
     return false;
   }
