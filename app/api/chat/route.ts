@@ -856,6 +856,88 @@ function normalizeToolCallInput(
   return null;
 }
 
+/**
+ * Attempt to repair truncated JSON from streaming tool calls.
+ * Handles common patterns where the stream was interrupted mid-JSON:
+ * - Missing closing braces/brackets: {"command": "python", "args": ["-c"
+ * - Truncated string values: {"command": "python", "args": ["-c", "from PIL
+ * Returns parsed object or null if repair is not possible.
+ */
+function attemptJsonRepair(malformedJson: string): Record<string, unknown> | null {
+  if (!malformedJson || malformedJson.trim().length === 0) {
+    return null;
+  }
+
+  const trimmed = malformedJson.trim();
+
+  // If it doesn't start with {, it's not a recoverable JSON object
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+
+  // Strategy: Track string/escape state and count open braces/brackets,
+  // then append the necessary closing characters.
+  let inString = false;
+  let escapeNext = false;
+  const stack: string[] = [];
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const char = trimmed[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      if (inString) escapeNext = true;
+      continue;
+    }
+
+    if (char === '"' && !escapeNext) {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === "{" || char === "[") {
+      stack.push(char === "{" ? "}" : "]");
+    } else if (char === "}" || char === "]") {
+      if (stack.length > 0 && stack[stack.length - 1] === char) {
+        stack.pop();
+      }
+    }
+  }
+
+  // If nothing is unclosed, the JSON is structurally complete but still
+  // failed to parse — we can't repair syntax errors, only truncation.
+  if (stack.length === 0 && !inString) {
+    return null;
+  }
+
+  // Build a repaired string: close any open string, then close brackets/braces
+  let repaired = trimmed;
+  if (inString) {
+    repaired += '"';
+  }
+  // Close all open brackets/braces in reverse order
+  while (stack.length > 0) {
+    repaired += stack.pop();
+  }
+
+  try {
+    const parsed = JSON.parse(repaired);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Repair attempt didn't produce valid JSON
+  }
+
+  return null;
+}
+
 interface StreamingMessageState {
   parts: DBContentPart[];
   toolCallParts: Map<string, DBToolCallPart>;
@@ -944,12 +1026,32 @@ function finalizeStreamingToolCalls(state: StreamingMessageState): boolean {
           changed = true;
           console.log(`[CHAT API] Finalized streaming tool call: ${part.toolName} (${part.toolCallId})`);
         } catch (error) {
-          // If argsText is invalid JSON, default to empty object
-          // This can happen with malformed streaming or early interruption
-          console.warn(`[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}), using empty args:`, error);
-          part.args = {};
-          part.state = "input-available";
-          changed = true;
+          // argsText is invalid JSON - log full details for debugging
+          console.warn(
+            `[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}).\n` +
+            `  Error: ${error instanceof Error ? error.message : String(error)}\n` +
+            `  argsText length: ${part.argsText.length}\n` +
+            `  Full argsText: ${part.argsText}`
+          );
+
+          // Attempt to repair truncated JSON (e.g. missing closing braces/brackets)
+          const repaired = attemptJsonRepair(part.argsText);
+          if (repaired !== null) {
+            console.log(
+              `[CHAT API] Successfully repaired malformed JSON for ${part.toolName} (${part.toolCallId})`
+            );
+            part.args = repaired;
+            part.state = "input-available";
+            changed = true;
+          } else {
+            // Last resort: empty object so the tool call doesn't crash downstream
+            console.warn(
+              `[CHAT API] JSON repair failed for ${part.toolName} (${part.toolCallId}), using empty args`
+            );
+            part.args = {};
+            part.state = "input-available";
+            changed = true;
+          }
         }
       } else {
         // No argsText means the tool was called with empty args (no tool-input-delta chunks sent)
@@ -1209,6 +1311,25 @@ export async function POST(req: Request) {
                 );
               }
               return false; // Don't persist incomplete streaming tool calls
+            }
+
+            // Also validate that argsText (if present without parsed args) is valid JSON
+            // This prevents malformed JSON from reaching the client via the database
+            if (!hasCompleteArgs && part.argsText) {
+              try {
+                JSON.parse(part.argsText);
+              } catch {
+                const logKey = `malformed:${part.toolCallId}:${part.toolName ?? "tool"}`;
+                if (!streamingState.loggedIncompleteToolCalls.has(logKey)) {
+                  streamingState.loggedIncompleteToolCalls.add(logKey);
+                  console.warn(
+                    `[CHAT API] Filtering tool call with malformed argsText from persistence: ` +
+                    `${part.toolName} (${part.toolCallId}), argsText length: ${part.argsText.length}, ` +
+                    `preview: ${part.argsText.substring(0, 120)}...`
+                  );
+                }
+                return false; // Don't persist tool calls with invalid JSON argsText
+              }
             }
           }
           return true; // Keep all other parts

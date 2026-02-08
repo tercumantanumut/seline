@@ -40,9 +40,29 @@ interface ErrorBoundaryState {
 }
 
 /**
+ * Check if an error is a recoverable streaming/tool-related error that should
+ * auto-retry rather than crash the page.
+ */
+function isRecoverableStreamingError(error: Error): boolean {
+  const msg = error.message || "";
+  // assistant-ui internal: argsText append ordering error
+  if (msg.includes("argsText can only be appended")) return true;
+  // JSON parse failures from malformed tool call argsText during streaming
+  if (error instanceof SyntaxError && msg.includes("JSON")) return true;
+  // assistant-ui internal: controller closed during streaming
+  if (msg.includes("controller was closed")) return true;
+  // Generic tool invocation errors from assistant-ui
+  if (msg.includes("toolCallId") && msg.includes("not found")) return true;
+  return false;
+}
+
+/**
  * Error boundary that catches tool argument streaming errors from assistant-ui.
- * When the "argsText can only be appended" error occurs, it shows a loading state
- * and auto-retries after a short delay.
+ * Handles:
+ * - "argsText can only be appended" errors from tool streaming
+ * - JSON SyntaxError from malformed argsText reaching the client
+ * - Controller-closed errors from interrupted streams
+ * Shows a loading state and auto-retries after a short delay.
  */
 class ChatErrorBoundary extends Component<
   { children: ReactNode; processingText: string; genericError: string },
@@ -58,9 +78,8 @@ class ChatErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Check if it's the specific streaming error
-    if (error.message.includes("argsText can only be appended")) {
-      console.warn("[ChatErrorBoundary] Tool argument streaming error - will retry", error);
+    if (isRecoverableStreamingError(error)) {
+      console.warn("[ChatErrorBoundary] Recoverable streaming error - will retry", error.message);
       // Auto-reset after a short delay to retry rendering
       setTimeout(() => {
         this.setState({ hasError: false, error: null });
@@ -72,8 +91,8 @@ class ChatErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
-      // Show loading state for streaming errors
-      if (this.state.error?.message.includes("argsText can only be appended")) {
+      // Show loading state for recoverable streaming errors
+      if (this.state.error && isRecoverableStreamingError(this.state.error)) {
         return (
           <div className="flex items-center justify-center p-8 bg-terminal-cream min-h-full">
             <div className="flex flex-col items-center gap-4">

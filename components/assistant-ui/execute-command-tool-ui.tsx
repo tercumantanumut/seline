@@ -16,11 +16,29 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
     args,
     result,
 }) => {
+    // Guard against missing or incomplete args (can happen when streaming
+    // is interrupted and argsText was malformed/truncated JSON)
+    if (!args || !args.command) {
+        if (result) {
+            // We have a result but no valid args - show result with fallback command
+            return (
+                <CommandOutput
+                    command="(unknown command)"
+                    stdout={result.stdout}
+                    stderr={result.stderr}
+                    exitCode={result.exitCode}
+                    executionTime={result.executionTime}
+                    success={result.status === "success"}
+                    error={result.status === "error" || result.status === "blocked" || result.status === "no_folders" ? result.error || result.message : undefined}
+                    defaultCollapsed={false}
+                />
+            );
+        }
+        return null;
+    }
+
     // If no result yet, show running state
     if (!result) {
-        // Guard against missing args
-        if (!args) return null;
-
         return (
             <CommandOutput
                 command={args.command}
