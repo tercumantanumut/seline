@@ -61,7 +61,7 @@ describe("Audio Transcription", () => {
     fsMock.existsSync.mockReturnValue(false);
   });
 
-  // ── isAudioMimeType ────────────────────────────────────────────────────
+  // â”€â”€ isAudioMimeType â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("isAudioMimeType", () => {
     it("detects standard audio MIME types", () => {
@@ -86,7 +86,7 @@ describe("Audio Transcription", () => {
     });
   });
 
-  // ── isTranscriptionAvailable ───────────────────────────────────────────
+  // â”€â”€ isTranscriptionAvailable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("isTranscriptionAvailable", () => {
     it("returns false when STT is disabled", () => {
@@ -135,13 +135,13 @@ describe("Audio Transcription", () => {
         sttProvider: "local",
         sttLocalModel: "ggml-tiny.en",
       };
-      // existsSync is called for binary path and model path — both should return true
+      // existsSync is called for binary path and model path â€” both should return true
       fsMock.existsSync.mockReturnValue(true);
       expect(isTranscriptionAvailable()).toBe(true);
     });
   });
 
-  // ── isWhisperCppAvailable ──────────────────────────────────────────────
+  // â”€â”€ isWhisperCppAvailable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("isWhisperCppAvailable", () => {
     it("returns false when whisper-cli binary is not found", () => {
@@ -160,7 +160,7 @@ describe("Audio Transcription", () => {
     });
 
     it("returns false when binary exists but model does not", () => {
-      // First call (binary check) → true, subsequent calls (model path) → false
+      // First call (binary check) â†’ true, subsequent calls (model path) â†’ false
       fsMock.existsSync
         .mockReturnValueOnce(true)   // /opt/homebrew/bin/whisper-cli
         .mockReturnValue(false);     // all model paths
@@ -184,15 +184,16 @@ describe("Audio Transcription", () => {
       };
       // Binary found at /opt/homebrew/bin/whisper-cli, model found via userData fallback
       fsMock.existsSync.mockImplementation((p: string) => {
-        if (typeof p === "string" && p.includes("whisper-cli")) return true;
-        if (typeof p === "string" && p.includes("models/whisper") && p.endsWith("ggml-tiny.en.bin")) return true;
+        const normalized = typeof p === "string" ? p.replace(/\\/g, "/") : "";
+        if (normalized.includes("whisper-cli")) return true;
+        if (normalized.includes("models/whisper") && normalized.endsWith("ggml-tiny.en.bin")) return true;
         return false;
       });
       expect(isWhisperCppAvailable()).toBe(true);
     });
   });
 
-  // ── transcribeAudio ────────────────────────────────────────────────────
+  // â”€â”€ transcribeAudio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("transcribeAudio", () => {
     const fakeAudio = Buffer.from("fake-audio-data");

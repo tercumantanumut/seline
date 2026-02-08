@@ -130,7 +130,7 @@ async function transcribeWithOpenAI(
  * parses the result, and returns TranscriptionResult.
  *
  * Requires:
- *   - whisper-cli binary in PATH (install via `brew install whisper-cpp`)
+ *   - whisper-cli binary in PATH
  *     or a custom path in settings.whisperCppPath
  *   - A downloaded GGML model file (.bin)
  */
@@ -154,7 +154,7 @@ async function transcribeWithWhisperCpp(
   const binaryPath = findWhisperBinary();
   if (!binaryPath) {
     throw new Error(
-      "whisper-cli not found. Install it with: brew install whisper-cpp\n" +
+      "whisper-cli not found. Install whisper.cpp (macOS: brew install whisper-cpp, Windows: download whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases)\n" +
       "Or set a custom path in Settings → Voice & Audio."
     );
   }
@@ -183,7 +183,7 @@ async function transcribeWithWhisperCpp(
     if (!ffmpegPath) {
       throw new Error(
         "ffmpeg is required for local whisper.cpp transcription but was not found. " +
-        "Install it with: brew install ffmpeg"
+        "Install it with your package manager and ensure it is in PATH."
       );
     }
 
@@ -318,7 +318,7 @@ export function isWhisperCppAvailable(): boolean {
 
 /**
  * Find the whisper-cli binary.
- * Checks: bundled in Electron resources > settings > Homebrew > PATH
+ * Checks: settings path > bundled in Electron resources > common install paths > PATH
  */
 function findWhisperBinary(): string | null {
   const settings = loadSettings();
@@ -329,31 +329,31 @@ function findWhisperBinary(): string | null {
   }
 
   // 2. Bundled in Electron app resources (production builds)
-  const bundledPaths = getBundledBinaryPaths("whisper", join("bin", "whisper-cli"));
-  for (const p of bundledPaths) {
-    if (existsSync(p)) return p;
+  for (const relativePath of getWhisperBundledRelativePaths()) {
+    const bundledPaths = getBundledBinaryPaths("whisper", relativePath);
+    for (const p of bundledPaths) {
+      if (existsSync(p)) return p;
+    }
   }
 
-  // 3. Common Homebrew paths (macOS)
-  const brewPaths = [
+  // 3. Common system install paths
+  const commonPaths = [
     "/opt/homebrew/bin/whisper-cli",   // Apple Silicon
     "/usr/local/bin/whisper-cli",      // Intel Mac
+    join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-cli.exe"),
+    join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "main.exe"),
+    join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-cli.exe"),
+    join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "main.exe"),
+    join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-cli.exe"),
+    join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
   ];
-  for (const p of brewPaths) {
+  for (const p of commonPaths) {
     if (existsSync(p)) return p;
   }
 
-  // 4. Check PATH via `which`
-  try {
-    const result = execFileSync("which", ["whisper-cli"], {
-      timeout: 3000,
-      stdio: "pipe",
-      encoding: "utf-8",
-    }).trim();
-    if (result && existsSync(result)) return result;
-  } catch {
-    // which failed — not in PATH
-  }
+  // 4. Check PATH
+  const fromPath = findExecutableInPath(["whisper-cli", "whisper-cli.exe", "main.exe"]);
+  if (fromPath) return fromPath;
 
   return null;
 }
@@ -361,7 +361,7 @@ function findWhisperBinary(): string | null {
 /**
  * Find the ffmpeg binary.
  * Required for converting audio to WAV before whisper-cli processing.
- * Checks: ffmpeg-static (bundled) > Homebrew > PATH
+ * Checks: ffmpeg-static (bundled) > bundled fallback path > common install paths > PATH
  */
 function findFfmpegBinary(): string | null {
   // 1. ffmpeg-static npm package (bundled in Electron builds)
@@ -374,32 +374,65 @@ function findFfmpegBinary(): string | null {
   }
 
   // 2. Bundled in Electron app resources (standalone builds)
-  const bundledPaths = getBundledBinaryPaths("standalone", join("node_modules", ".bin", "ffmpeg"));
-  for (const p of bundledPaths) {
-    if (existsSync(p)) return p;
+  for (const relativePath of getFfmpegBundledRelativePaths()) {
+    const bundledPaths = getBundledBinaryPaths("standalone", relativePath);
+    for (const p of bundledPaths) {
+      if (existsSync(p)) return p;
+    }
   }
 
-  // 3. Common Homebrew paths (macOS)
-  const brewPaths = [
+  // 3. Common system paths
+  const commonPaths = [
     "/opt/homebrew/bin/ffmpeg",   // Apple Silicon
     "/usr/local/bin/ffmpeg",      // Intel Mac
+    join(process.env.ProgramFiles || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
+    join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "ffmpeg", "bin", "ffmpeg.exe"),
   ];
-  for (const p of brewPaths) {
+  for (const p of commonPaths) {
     if (existsSync(p)) return p;
   }
 
-  // 4. Check PATH via `which`
-  try {
-    const result = execFileSync("which", ["ffmpeg"], {
-      timeout: 3000,
-      stdio: "pipe",
-      encoding: "utf-8",
-    }).trim();
-    if (result && existsSync(result)) return result;
-  } catch {
-    // which failed — not in PATH
-  }
+  // 4. Check PATH
+  const fromPath = findExecutableInPath(["ffmpeg", "ffmpeg.exe"]);
+  if (fromPath) return fromPath;
 
+  return null;
+}
+
+function getWhisperBundledRelativePaths(): string[] {
+  return [
+    join("bin", "whisper-cli"),
+    join("bin", "whisper-cli.exe"),
+    join("bin", "main.exe"),
+  ];
+}
+
+function getFfmpegBundledRelativePaths(): string[] {
+  return [
+    join("node_modules", ".bin", "ffmpeg"),
+    join("node_modules", ".bin", "ffmpeg.exe"),
+  ];
+}
+
+function findExecutableInPath(candidates: string[]): string | null {
+  const lookupCommand = platform() === "win32" ? "where" : "which";
+  for (const candidate of candidates) {
+    try {
+      const output = execFileSync(lookupCommand, [candidate], {
+        timeout: 3000,
+        stdio: "pipe",
+        encoding: "utf-8",
+      }).trim();
+      if (!output) continue;
+
+      const paths = output.split(/\r?\n/).map((p) => p.trim()).filter(Boolean);
+      for (const p of paths) {
+        if (existsSync(p)) return p;
+      }
+    } catch {
+      // Not found in PATH
+    }
+  }
   return null;
 }
 
