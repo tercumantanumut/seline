@@ -71,6 +71,17 @@ interface ToolResult {
   iterationPerformed?: boolean;
 }
 
+function hasVisualMedia(result?: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const r = result as Record<string, unknown>;
+  if (Array.isArray(r.images) && (r.images as Array<Record<string, unknown>>).length) return true;
+  if (Array.isArray(r.videos) && (r.videos as Array<Record<string, unknown>>).length) return true;
+  if (Array.isArray(r.results)) {
+    return r.results.some((item) => hasVisualMedia(item));
+  }
+  return false;
+}
+
 // Memoized Icon Component
 const ToolIcon: FC<{
   toolName: string;
@@ -555,14 +566,18 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
       )}
 
       {/* Show result in collapsible section */}
-      {parsedResult && (
-        <details className="text-xs text-terminal-muted">
-          <summary className="cursor-pointer hover:text-terminal-dark">
-            View output
-          </summary>
-          <ToolResultDisplay toolName={toolName} result={parsedResult} />
-        </details>
-      )}
+  {parsedResult && (
+    hasVisualMedia(parsedResult) ? (
+      <ToolResultDisplay toolName={toolName} result={parsedResult} />
+    ) : (
+      <details className="text-xs text-terminal-muted">
+        <summary className="cursor-pointer hover:text-terminal-dark">
+          View output
+        </summary>
+        <ToolResultDisplay toolName={toolName} result={parsedResult} />
+      </details>
+    )
+  )}
     </div>
   );
 });
