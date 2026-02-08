@@ -183,15 +183,15 @@ function hasUsableExistingBundle(outputDir) {
 function findWhisperCli() {
     const envPath = process.env.WHISPER_CPP_PATH;
     if (envPath && fs.existsSync(envPath)) {
-        const preferred = preferNewWhisperBinary(envPath);
-        if (!isDeprecatedWhisperStub(preferred)) return preferred;
+        const resolved = resolvePreferredWhisperBinary(envPath);
+        if (resolved) return resolved;
     }
 
     const candidates = getCandidatePaths();
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) {
-            const preferred = preferNewWhisperBinary(candidate);
-            if (!isDeprecatedWhisperStub(preferred)) return preferred;
+            const resolved = resolvePreferredWhisperBinary(candidate);
+            if (resolved) return resolved;
         }
     }
 
@@ -201,8 +201,7 @@ function findWhisperCli() {
 
     if (!fromPath) return null;
 
-    const preferred = preferNewWhisperBinary(fromPath);
-    return isDeprecatedWhisperStub(preferred) ? null : preferred;
+    return resolvePreferredWhisperBinary(fromPath);
 }
 
 async function tryAutoDownloadWhisperForWindows() {
@@ -330,6 +329,13 @@ function preferNewWhisperBinary(binaryPath) {
     }
 
     return binaryPath;
+}
+
+function resolvePreferredWhisperBinary(binaryPath) {
+    const preferred = preferNewWhisperBinary(binaryPath);
+    if (!isDeprecatedWhisperStub(preferred)) return preferred;
+    if (preferred !== binaryPath && !isDeprecatedWhisperStub(binaryPath)) return binaryPath;
+    return null;
 }
 
 function isDeprecatedWhisperStub(binaryPath) {

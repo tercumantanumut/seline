@@ -321,7 +321,8 @@ function findWhisperBinary(): string | null {
 
   // 1. Custom path from settings
   if (settings.whisperCppPath && existsSync(settings.whisperCppPath)) {
-    return preferNewWhisperBinary(settings.whisperCppPath);
+    const resolved = resolvePreferredWhisperBinary(settings.whisperCppPath);
+    if (resolved) return resolved;
   }
 
   // 2. Bundled in Electron app resources (production builds)
@@ -349,7 +350,9 @@ function findWhisperBinary(): string | null {
     join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
   ];
   for (const p of commonPaths) {
-    if (existsSync(p)) return preferNewWhisperBinary(p);
+    if (!existsSync(p)) continue;
+    const resolved = resolvePreferredWhisperBinary(p);
+    if (resolved) return resolved;
   }
 
   // 4. Check PATH
@@ -360,7 +363,10 @@ function findWhisperBinary(): string | null {
     "whisper-cli.exe",
     "main.exe",
   ]);
-  if (fromPath) return preferNewWhisperBinary(fromPath);
+  if (fromPath) {
+    const resolved = resolvePreferredWhisperBinary(fromPath);
+    if (resolved) return resolved;
+  }
 
   return null;
 }
@@ -431,6 +437,27 @@ function preferNewWhisperBinary(binaryPath: string): string {
   }
 
   return binaryPath;
+}
+
+function resolvePreferredWhisperBinary(binaryPath: string): string | null {
+  const preferred = preferNewWhisperBinary(binaryPath);
+  if (!isDeprecatedWhisperStub(preferred)) return preferred;
+  if (preferred !== binaryPath && !isDeprecatedWhisperStub(binaryPath)) return binaryPath;
+  return null;
+}
+
+function isDeprecatedWhisperStub(binaryPath: string): boolean {
+  try {
+    const output = execFileSync(binaryPath, ["--help"], {
+      timeout: 5000,
+      stdio: "pipe",
+      encoding: "utf-8",
+    });
+    return /is deprecated/i.test(output || "");
+  } catch (err) {
+    const output = getProcessErrorOutput(err);
+    return /is deprecated/i.test(output);
+  }
 }
 
 function runWhisperCli(binaryPath: string, args: string[]): string {
