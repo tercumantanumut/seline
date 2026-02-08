@@ -3,6 +3,68 @@ import type { Context } from "grammy";
 import { ChannelConnector, ChannelInboundMessage, ChannelSendPayload, ChannelSendResult, TelegramConnectionConfig } from "../types";
 import { normalizeChannelText } from "../utils";
 
+/**
+ * Telegram caption limit for voice notes, photos, and other media.
+ * Regular messages support 4096 chars, but captions are capped at 1024.
+ * @see https://core.telegram.org/bots/api#sendvoice
+ */
+const TELEGRAM_CAPTION_LIMIT = 1024;
+
+/** Matches YouTube URLs (watch, shorts, youtu.be). Same pattern as lib/youtube/extract.ts */
+const YOUTUBE_URL_REGEX =
+  /\bhttps?:\/\/(?:www\.)?(?:youtube\.com\/watch\?[^\s)]+|youtube\.com\/shorts\/[^\s)]+|youtu\.be\/[^\s)]+)/gi;
+
+/**
+ * Strip YouTube URLs from text.
+ * Returns the cleaned text and whether any URLs were removed.
+ */
+function stripYouTubeUrls(text: string): { cleaned: string; hadUrls: boolean } {
+  const cleaned = text
+    .replace(YOUTUBE_URL_REGEX, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/  +/g, " ")
+    .trim();
+  return { cleaned, hadUrls: cleaned !== text.trim() };
+}
+
+/**
+ * Truncate text to fit Telegram's caption limit for media messages.
+ *
+ * When text exceeds the limit, it is hard-truncated at a word boundary with
+ * an ellipsis. The full original text is returned as `overflow` so the caller
+ * can send it as a separate follow-up message — no content is lost.
+ *
+ * @returns `{ caption, overflow }` — overflow contains the full original text
+ *         when truncation occurred (so caller can send it as a separate message).
+ */
+function truncateTelegramCaption(
+  text: string,
+  limit: number = TELEGRAM_CAPTION_LIMIT,
+): { caption: string | undefined; overflow: string | null } {
+  // Empty / whitespace-only → no caption
+  if (!text || text.trim().length === 0 || text.trim() === " ") {
+    return { caption: undefined, overflow: null };
+  }
+
+  // Fast path: already within limit
+  if (text.length <= limit) {
+    return { caption: text, overflow: null };
+  }
+
+  // Hard truncate at word boundary with ellipsis
+  const ellipsis = "…";
+  const maxLen = limit - ellipsis.length;
+  let truncated = text.slice(0, maxLen);
+
+  // Try to break at last space to avoid cutting mid-word
+  const lastSpace = truncated.lastIndexOf(" ");
+  if (lastSpace > maxLen * 0.7) {
+    truncated = truncated.slice(0, lastSpace);
+  }
+
+  return { caption: truncated + ellipsis, overflow: text };
+}
+
 type TelegramConnectorOptions = {
   connectionId: string;
   characterId: string;
@@ -110,11 +172,16 @@ export class TelegramConnector implements ChannelConnector {
     const audioAttachment = payload.attachments?.find((a) => a.type === "audio");
 
     if (imageAttachment) {
+      const { caption, overflow } = truncateTelegramCaption(text);
       const sent = await this.bot.api.sendPhoto(chatId, new InputFile(imageAttachment.data, imageAttachment.filename), {
-        caption: text || undefined,
+        caption,
         message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
         reply_parameters: replyParameters,
       });
+      // If caption was truncated, send the full text as a follow-up message
+      if (overflow) {
+        await this.sendOverflowText(chatId, overflow, payload.threadId, sent.message_id);
+      }
       return {
         externalMessageId: String(sent.message_id),
         chunkIndex: payload.chunkIndex,
@@ -124,11 +191,45 @@ export class TelegramConnector implements ChannelConnector {
 
     // Send voice note for audio attachments (Telegram voice bubble UX)
     if (audioAttachment) {
-      const sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
-        caption: text && text.trim() !== " " ? text : undefined,
-        message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
-        reply_parameters: replyParameters,
-      });
+      // Always strip YouTube URLs from voice captions — they don't belong in
+      // a voice bubble. The full text (with URLs) is sent as a follow-up.
+      const { cleaned: voiceText, hadUrls } = stripYouTubeUrls(text);
+      const { caption, overflow } = truncateTelegramCaption(voiceText);
+      // If we stripped URLs or truncated, send the full original text as follow-up
+      const needsOverflow = hadUrls || overflow !== null;
+      let sent;
+      try {
+        sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
+          caption,
+          message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+          reply_parameters: replyParameters,
+        });
+      } catch (error) {
+        // Retry without caption if Telegram still rejects it (e.g. encoding edge cases)
+        if (isCaptionTooLongError(error)) {
+          console.warn(
+            `[Telegram] Caption too long after truncation (${caption?.length ?? 0} chars), retrying without caption`,
+          );
+          sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
+            message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+            reply_parameters: replyParameters,
+          });
+          // Send the full text as a separate message so content isn't lost
+          if (text && text.trim().length > 0) {
+            await this.sendOverflowText(chatId, text, payload.threadId, sent.message_id);
+          }
+          return {
+            externalMessageId: String(sent.message_id),
+            chunkIndex: payload.chunkIndex,
+            totalChunks: payload.totalChunks,
+          };
+        }
+        throw error;
+      }
+      // If URLs were stripped or caption was truncated, send the full original text as follow-up
+      if (needsOverflow) {
+        await this.sendOverflowText(chatId, text, payload.threadId, sent.message_id);
+      }
       return {
         externalMessageId: String(sent.message_id),
         chunkIndex: payload.chunkIndex,
@@ -186,6 +287,26 @@ export class TelegramConnector implements ChannelConnector {
     this.handlersAttached = true;
   }
 
+  /**
+   * Send overflow text as a separate reply when caption was truncated.
+   * Silently logs failures — the voice/photo was already delivered.
+   */
+  private async sendOverflowText(
+    chatId: number,
+    text: string,
+    threadId?: string | null,
+    replyToMessageId?: number,
+  ): Promise<void> {
+    try {
+      await this.bot.api.sendMessage(chatId, text, {
+        message_thread_id: threadId ? Number(threadId) : undefined,
+        reply_parameters: replyToMessageId ? { message_id: replyToMessageId } : undefined,
+      });
+    } catch (err) {
+      console.warn("[Telegram] Failed to send overflow text after caption truncation:", err);
+    }
+  }
+
   private handleTelegramError(error: unknown): void {
     if (this.status === "disconnected") {
       return;
@@ -221,6 +342,24 @@ function formatTelegramError(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+/**
+ * Detect Telegram's "message caption is too long" error.
+ * Grammy wraps API errors as GrammyError with the description from Telegram.
+ */
+function isCaptionTooLongError(error: unknown): boolean {
+  if (error instanceof GrammyError) {
+    return (
+      error.error_code === 400 &&
+      error.message.toLowerCase().includes("caption")
+    );
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes("caption") && (msg.includes("too long") || msg.includes("400"));
+  }
+  return false;
 }
 
 async function extractTelegramAttachments(ctx: Context, botToken: string): Promise<ChannelInboundMessage["attachments"]> {
