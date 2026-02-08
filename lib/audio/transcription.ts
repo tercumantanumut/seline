@@ -318,7 +318,7 @@ export function isWhisperCppAvailable(): boolean {
 
 /**
  * Find the whisper-cli binary.
- * Checks: settings.whisperCppPath > common Homebrew paths > PATH
+ * Checks: bundled in Electron resources > settings > Homebrew > PATH
  */
 function findWhisperBinary(): string | null {
   const settings = loadSettings();
@@ -328,7 +328,13 @@ function findWhisperBinary(): string | null {
     return settings.whisperCppPath;
   }
 
-  // 2. Common Homebrew paths (macOS)
+  // 2. Bundled in Electron app resources (production builds)
+  const bundledPaths = getBundledBinaryPaths("whisper", join("bin", "whisper-cli"));
+  for (const p of bundledPaths) {
+    if (existsSync(p)) return p;
+  }
+
+  // 3. Common Homebrew paths (macOS)
   const brewPaths = [
     "/opt/homebrew/bin/whisper-cli",   // Apple Silicon
     "/usr/local/bin/whisper-cli",      // Intel Mac
@@ -337,7 +343,7 @@ function findWhisperBinary(): string | null {
     if (existsSync(p)) return p;
   }
 
-  // 3. Check PATH via `which`
+  // 4. Check PATH via `which`
   try {
     const result = execFileSync("which", ["whisper-cli"], {
       timeout: 3000,
@@ -355,9 +361,25 @@ function findWhisperBinary(): string | null {
 /**
  * Find the ffmpeg binary.
  * Required for converting audio to WAV before whisper-cli processing.
+ * Checks: ffmpeg-static (bundled) > Homebrew > PATH
  */
 function findFfmpegBinary(): string | null {
-  // 1. Common Homebrew paths (macOS)
+  // 1. ffmpeg-static npm package (bundled in Electron builds)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ffmpegStaticPath = require("ffmpeg-static") as string;
+    if (ffmpegStaticPath && existsSync(ffmpegStaticPath)) return ffmpegStaticPath;
+  } catch {
+    // ffmpeg-static not installed
+  }
+
+  // 2. Bundled in Electron app resources (standalone builds)
+  const bundledPaths = getBundledBinaryPaths("standalone", join("node_modules", ".bin", "ffmpeg"));
+  for (const p of bundledPaths) {
+    if (existsSync(p)) return p;
+  }
+
+  // 3. Common Homebrew paths (macOS)
   const brewPaths = [
     "/opt/homebrew/bin/ffmpeg",   // Apple Silicon
     "/usr/local/bin/ffmpeg",      // Intel Mac
@@ -366,7 +388,7 @@ function findFfmpegBinary(): string | null {
     if (existsSync(p)) return p;
   }
 
-  // 2. Check PATH via `which`
+  // 4. Check PATH via `which`
   try {
     const result = execFileSync("which", ["ffmpeg"], {
       timeout: 3000,
@@ -379,6 +401,32 @@ function findFfmpegBinary(): string | null {
   }
 
   return null;
+}
+
+/**
+ * Get possible paths for bundled binaries in Electron app resources.
+ * In production Electron builds, binaries are in:
+ *   - resources/binaries/<name>/<relativePath>   (extraResources)
+ *   - resources/standalone/binaries/<name>/<relativePath> (inside standalone)
+ */
+function getBundledBinaryPaths(name: string, relativePath: string): string[] {
+  const paths: string[] = [];
+
+  // ELECTRON_RESOURCES_PATH is set by Electron main process
+  const resourcesPath = process.env.ELECTRON_RESOURCES_PATH;
+  if (resourcesPath) {
+    paths.push(join(resourcesPath, "binaries", name, relativePath));
+    paths.push(join(resourcesPath, "standalone", "binaries", name, relativePath));
+  }
+
+  // Also check relative to the running server (standalone dir)
+  const cwd = process.cwd();
+  paths.push(join(cwd, "binaries", name, relativePath));
+
+  // Dev mode: check project root
+  paths.push(join(cwd, "..", "binaries", name, relativePath));
+
+  return paths;
 }
 
 /**

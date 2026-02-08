@@ -322,7 +322,55 @@ for (const mod of nativeModuleBinaries) {
 console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);
 
-// 12. Bundle Node.js executable for MCP subprocess spawning
+// 12. Bundle ffmpeg static binary for audio conversion (whisper.cpp preprocessing)
+console.log('Bundling ffmpeg static binary...');
+try {
+    const ffmpegStaticPath = require.resolve('ffmpeg-static');
+    if (fs.existsSync(ffmpegStaticPath)) {
+        const ffmpegDestDir = path.join(standaloneDir, 'node_modules', '.bin');
+        ensureDir(ffmpegDestDir);
+        const ffmpegDest = path.join(ffmpegDestDir, 'ffmpeg');
+        fs.copyFileSync(ffmpegStaticPath, ffmpegDest);
+        fs.chmodSync(ffmpegDest, 0o755);
+        const stats = fs.statSync(ffmpegDest);
+        console.log(`  Bundled ffmpeg: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+    } else {
+        console.warn('  Warning: ffmpeg-static binary not found');
+    }
+} catch (e) {
+    console.warn('  Warning: ffmpeg-static package not installed, skipping ffmpeg bundling');
+}
+
+// 13. Bundle whisper-cli and its dylibs for local speech-to-text
+console.log('Bundling whisper-cli for local STT...');
+const whisperBundleDir = path.join(rootDir, 'binaries', 'whisper');
+if (fs.existsSync(whisperBundleDir)) {
+    const whisperDestDir = path.join(standaloneDir, 'binaries', 'whisper');
+    ensureDir(whisperDestDir);
+    copyRecursive(whisperBundleDir, whisperDestDir);
+    // Ensure binaries are executable
+    const whisperBin = path.join(whisperDestDir, 'bin', 'whisper-cli');
+    if (fs.existsSync(whisperBin)) {
+        fs.chmodSync(whisperBin, 0o755);
+        console.log(`  Bundled whisper-cli + dylibs`);
+    }
+    // Calculate total size
+    let totalSize = 0;
+    const walkDir = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) walkDir(fullPath);
+            else totalSize += fs.statSync(fullPath).size;
+        }
+    };
+    walkDir(whisperDestDir);
+    console.log(`  Total whisper bundle: ${(totalSize / 1024 / 1024).toFixed(1)} MB`);
+} else {
+    console.log('  Whisper bundle not found at binaries/whisper — run: node scripts/bundle-whisper.js');
+    console.log('  Users will need to install whisper-cpp separately (brew install whisper-cpp)');
+}
+
+// 14. Bundle Node.js executable for MCP subprocess spawning
 // This avoids console window flashing on Windows and provides a clean Node.js runtime on Mac
 // Using a real Node.js binary instead of ELECTRON_RUN_AS_NODE improves compatibility
 if (process.platform === 'win32' || process.platform === 'darwin') {

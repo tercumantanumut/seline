@@ -49,6 +49,7 @@ public/ort-*.wasm
 # Electron
 electron-dist
 dist-electron
+binaries/
 
 # Local development data (SQLite, media, settings)
 .local-data/
