@@ -113,7 +113,18 @@ console.log('--- Electron Prepare ---');
 
 // 0. Remove build artifacts and sensitive files that Next.js standalone copies from project root
 // These would otherwise bloat the final package (dist-electron alone is 600MB+)
-const standaloneJunk = ['dist-electron', '.git', '.env.local', '.env.example'];
+// Keep heavy resources (models/comfyui/binaries) out of standalone; they are copied via
+// dedicated electron-builder extraResources rules with platform-aware filtering.
+const standaloneJunk = [
+    'dist-electron',
+    '.git',
+    '.env.local',
+    '.env.example',
+    '.local-data',
+    'comfyui_backend',
+    'models',
+    'binaries',
+];
 for (const name of standaloneJunk) {
     const target = path.join(standaloneDir, name);
     if (fs.existsSync(target)) {
@@ -329,9 +340,12 @@ try {
     if (fs.existsSync(ffmpegStaticPath)) {
         const ffmpegDestDir = path.join(standaloneDir, 'node_modules', '.bin');
         ensureDir(ffmpegDestDir);
-        const ffmpegDest = path.join(ffmpegDestDir, 'ffmpeg');
+        const ffmpegBinaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+        const ffmpegDest = path.join(ffmpegDestDir, ffmpegBinaryName);
         fs.copyFileSync(ffmpegStaticPath, ffmpegDest);
-        fs.chmodSync(ffmpegDest, 0o755);
+        if (process.platform !== 'win32') {
+            fs.chmodSync(ffmpegDest, 0o755);
+        }
         const stats = fs.statSync(ffmpegDest);
         console.log(`  Bundled ffmpeg: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
     } else {
@@ -349,10 +363,17 @@ if (fs.existsSync(whisperBundleDir)) {
     ensureDir(whisperDestDir);
     copyRecursive(whisperBundleDir, whisperDestDir);
     // Ensure binaries are executable
-    const whisperBin = path.join(whisperDestDir, 'bin', 'whisper-cli');
-    if (fs.existsSync(whisperBin)) {
-        fs.chmodSync(whisperBin, 0o755);
-        console.log(`  Bundled whisper-cli + dylibs`);
+    const whisperBinCandidates = [
+        path.join(whisperDestDir, 'bin', 'whisper-cli'),
+        path.join(whisperDestDir, 'bin', 'whisper-cli.exe'),
+        path.join(whisperDestDir, 'bin', 'main.exe'),
+    ];
+    const whisperBin = whisperBinCandidates.find((p) => fs.existsSync(p));
+    if (whisperBin) {
+        if (process.platform !== 'win32') {
+            fs.chmodSync(whisperBin, 0o755);
+        }
+        console.log(`  Bundled whisper-cli binary`);
     }
     // Calculate total size
     let totalSize = 0;
@@ -367,7 +388,7 @@ if (fs.existsSync(whisperBundleDir)) {
     console.log(`  Total whisper bundle: ${(totalSize / 1024 / 1024).toFixed(1)} MB`);
 } else {
     console.log('  Whisper bundle not found at binaries/whisper — run: node scripts/bundle-whisper.js');
-    console.log('  Users will need to install whisper-cpp separately (brew install whisper-cpp)');
+    console.log('  Users will need to install whisper.cpp separately (macOS: brew install whisper-cpp, Windows: download whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases)');
 }
 
 // 14. Bundle Node.js executable for MCP subprocess spawning
