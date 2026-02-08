@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readdir, readFile, stat } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join, basename, extname } from "path";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "@/lib/vectordb/ignore-patterns";
-import { isDangerousPath } from "@/lib/vectordb/dangerous-paths";
+import { validateSyncFolderPath } from "@/lib/vectordb/path-validation";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
 const TEXT_FILE_EXTENSIONS = new Set([
@@ -87,26 +87,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Reject dangerous / overly-broad paths before touching the filesystem
-    const dangerError = isDangerousPath(folderPath);
-    if (dangerError) {
-      return NextResponse.json({ error: dangerError }, { status: 400 });
-    }
-
-    // Check if folder exists
-    if (!existsSync(folderPath)) {
-      return NextResponse.json(
-        { error: "Folder does not exist" },
-        { status: 404 }
-      );
-    }
-
-    const folderStat = await stat(folderPath);
-    if (!folderStat.isDirectory()) {
-      return NextResponse.json(
-        { error: "Path is not a directory" },
-        { status: 400 }
-      );
+    const { normalizedPath, error } = await validateSyncFolderPath(folderPath);
+    if (error) {
+      const statusCode = error === "Folder does not exist." ? 404 : 400;
+      return NextResponse.json({ error }, { status: statusCode });
     }
 
     // Detect ignore patterns from common ignore files
@@ -114,7 +98,7 @@ export async function POST(request: NextRequest) {
     const ignoreFiles = [".gitignore", ".dockerignore", ".npmignore", ".eslintignore"];
 
     for (const ignoreFile of ignoreFiles) {
-      const ignoreFilePath = join(folderPath, ignoreFile);
+      const ignoreFilePath = join(normalizedPath, ignoreFile);
       if (existsSync(ignoreFilePath)) {
         try {
           const content = await readFile(ignoreFilePath, "utf-8");
@@ -133,7 +117,7 @@ export async function POST(request: NextRequest) {
     // Count files that would be indexed (with a limit to avoid slowness)
     const extensions = includeExtensions || [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"];
     const excludes = excludePatterns || allPatterns;
-    const shouldIgnore = createIgnoreMatcher(excludes, folderPath);
+    const shouldIgnore = createIgnoreMatcher(excludes, normalizedPath);
     const shouldRecurse = recursive !== false;
 
     let fileCount = 0;
@@ -200,11 +184,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await countFiles(folderPath);
+    await countFiles(normalizedPath);
 
     return NextResponse.json({
-      folderPath,
-      folderName: basename(folderPath),
+      folderPath: normalizedPath,
+      folderName: basename(normalizedPath),
       detectedPatterns,
       mergedPatterns: allPatterns,
       fileCountPreview: fileCount,

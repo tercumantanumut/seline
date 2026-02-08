@@ -11,7 +11,6 @@ import {
   setPrimaryFolder,
   cancelSyncById,
 } from "@/lib/vectordb/sync-service";
-import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
 import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
 
@@ -186,13 +185,6 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    if (!isVectorDBEnabled()) {
-      return NextResponse.json(
-        { error: "Vector search is not enabled" },
-        { status: 400 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const folderId = searchParams.get("folderId");
 
