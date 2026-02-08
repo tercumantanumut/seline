@@ -90,12 +90,17 @@ function findWhisperBinaryNote(): boolean {
     const { homedir } = require("node:os");
 
     const paths = [
+      "/opt/homebrew/bin/whisper-whisper-cli",
+      "/usr/local/bin/whisper-whisper-cli",
       "/opt/homebrew/bin/whisper-cli",
       "/usr/local/bin/whisper-cli",
+      join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-whisper-cli.exe"),
       join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-cli.exe"),
       join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "main.exe"),
+      join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-whisper-cli.exe"),
       join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "whisper-cli.exe"),
       join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "whisper.cpp", "main.exe"),
+      join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-whisper-cli.exe"),
       join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-cli.exe"),
       join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
     ];
@@ -106,8 +111,8 @@ function findWhisperBinaryNote(): boolean {
 
     const lookupCommand = process.platform === "win32" ? "where" : "which";
     const candidates = process.platform === "win32"
-      ? ["whisper-cli.exe", "whisper-cli", "main.exe"]
-      : ["whisper-cli"];
+      ? ["whisper-whisper-cli.exe", "whisper-whisper-cli", "whisper-cli.exe", "whisper-cli", "main.exe"]
+      : ["whisper-whisper-cli", "whisper-cli"];
 
     for (const candidate of candidates) {
       try {
