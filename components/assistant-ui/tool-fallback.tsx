@@ -325,6 +325,8 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
               <video
                 src={video.url}
                 controls
+                width={video.width || undefined}
+                height={video.height || undefined}
                 className="w-full max-w-lg h-auto rounded-lg shadow-sm"
                 preload="metadata"
               >
@@ -370,7 +372,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
               <img
                 src={img.url}
                 alt={`Generated image ${idx + 1}`}
+                width={img.width || undefined}
+                height={img.height || undefined}
                 className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                loading="eager"
               />
             </a>
           ))}
@@ -428,7 +433,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
                     <img
                       src={img.url}
                       alt={`Variation ${idx + 1} - ${imgIdx + 1}`}
+                      width={img.width || undefined}
+                      height={img.height || undefined}
                       className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                      loading="eager"
                     />
                   </a>
                 ))}
