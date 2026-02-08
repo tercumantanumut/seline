@@ -90,6 +90,10 @@ const nextConfig: NextConfig = {
     "grammy",
     "@slack/bolt",
     "qrcode",
+    // Native addons used by Baileys (zlib-sync is a CJS native module)
+    "zlib-sync",
+    // Static ffmpeg binary for audio conversion
+    "ffmpeg-static",
     // MCP SDK - uses Node.js child_process and should never run in browser
     "@modelcontextprotocol/sdk",
     "cross-spawn",

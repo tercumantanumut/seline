@@ -1125,9 +1125,8 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
       {/* Install hint */}
       <div className="rounded border border-terminal-border bg-terminal-cream/30 p-3">
         <p className="font-mono text-xs text-terminal-muted">
-          <strong>Setup:</strong> Install dependencies with{" "}
-          <code className="rounded bg-terminal-dark/10 px-1">brew install whisper-cpp ffmpeg</code>,
-          then download a model above. Transcription runs entirely on your device — no API key or internet needed.
+          <strong>Setup:</strong> Download a model above — whisper-cli and ffmpeg are bundled with the app.
+          Transcription runs entirely on your device — no API key or internet needed.
         </p>
       </div>
     </div>
@@ -2323,7 +2322,7 @@ function SettingsPanel({
                         Local (whisper.cpp)
                       </span>
                       <p className="font-mono text-xs text-terminal-muted">
-                        On-device transcription using whisper.cpp. No API key needed. Requires <code className="rounded bg-terminal-dark/10 px-1">brew install whisper-cpp</code>.
+                        On-device transcription using whisper.cpp. No API key needed. whisper-cli and ffmpeg are bundled.
                       </p>
                     </div>
                   </label>
