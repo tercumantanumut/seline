@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { getOrCreateLocalUser, getOrCreateCharacterSession, createSession, listSessionsByCharacterId, getSessionWithMessages } from "@/lib/db/queries";
+import {
+  getOrCreateLocalUser,
+  getOrCreateCharacterSession,
+  createSession,
+  listSessionsPaginated,
+  getSessionWithMessages,
+} from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import ChatInterface from "@/components/chat/chat-interface";
@@ -111,15 +117,21 @@ export default async function CharacterChatPage({ params, searchParams }: Props)
       suggestedPrompts: [],
     };
 
-    // Fetch all sessions for history sidebar
-    const sessions = await listSessionsByCharacterId(dbUser.id, characterId, 50);
+    // Fetch initial session page for history sidebar
+    const sessionPage = await listSessionsPaginated({
+      userId: dbUser.id,
+      characterId,
+      limit: 20,
+    });
 
     return (
       <ChatInterface
         character={charData as any}
         characterDisplay={characterDisplay}
         initialSessionId={activeSessionId}
-        initialSessions={sessions as any}
+        initialSessions={sessionPage.sessions as any}
+        initialNextCursor={sessionPage.nextCursor}
+        initialTotalSessionCount={sessionPage.totalCount}
         initialMessages={initialMessages}
       />
     );

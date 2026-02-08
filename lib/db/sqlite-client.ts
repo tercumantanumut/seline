@@ -3,6 +3,7 @@ import { drizzle, BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./sqlite-schema";
 import { existsSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
+import { runSessionMaintenance } from "./maintenance";
 
 // Get the database path from environment or use default
 function getDbPath(): string {
@@ -31,7 +32,7 @@ const globalForDb = globalThis as unknown as {
   schemaVersion?: number;
 };
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function createConnection(): { sqlite: Database.Database; db: BetterSQLite3Database<typeof schema> } {
   const dbPath = getDbPath();
@@ -113,6 +114,88 @@ function initializeTables(sqlite: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       metadata TEXT NOT NULL DEFAULT '{}'
     )
+  `);
+
+  // Migration: Promote frequently queried session metadata to first-class columns
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN character_id TEXT`);
+    console.log("[SQLite Migration] Added character_id column to sessions");
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0`);
+    console.log("[SQLite Migration] Added message_count column to sessions");
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN total_token_count INTEGER NOT NULL DEFAULT 0`);
+    console.log("[SQLite Migration] Added total_token_count column to sessions");
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN last_message_at TEXT`);
+    console.log("[SQLite Migration] Added last_message_at column to sessions");
+  } catch {
+    // Column already exists
+  }
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN channel_type TEXT`);
+    console.log("[SQLite Migration] Added channel_type column to sessions");
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    sqlite.exec(`
+      UPDATE sessions
+      SET
+        character_id = COALESCE(character_id, json_extract(metadata, '$.characterId')),
+        channel_type = COALESCE(channel_type, json_extract(metadata, '$.channelType'))
+      WHERE character_id IS NULL OR channel_type IS NULL
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to backfill sessions metadata columns:", error);
+  }
+
+  try {
+    sqlite.exec(`
+      UPDATE sessions
+      SET
+        message_count = COALESCE((
+          SELECT COUNT(*)
+          FROM messages
+          WHERE messages.session_id = sessions.id
+        ), 0),
+        total_token_count = COALESCE((
+          SELECT SUM(COALESCE(messages.token_count, 0))
+          FROM messages
+          WHERE messages.session_id = sessions.id
+        ), 0),
+        last_message_at = (
+          SELECT MAX(messages.created_at)
+          FROM messages
+          WHERE messages.session_id = sessions.id
+        )
+      WHERE message_count = 0 AND total_token_count = 0 AND last_message_at IS NULL
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to backfill sessions counters:", error);
+  }
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_character
+      ON sessions (user_id, character_id, status)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_updated
+      ON sessions (user_id, updated_at DESC)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_character_updated
+      ON sessions (character_id, updated_at DESC)
   `);
 
   // Messages table
@@ -767,6 +850,7 @@ function initializeTables(sqlite: Database.Database): void {
 
   // Run data migrations
   runDataMigrations(sqlite);
+  runSessionMaintenance(sqlite);
 }
 
 /**

@@ -45,6 +45,34 @@ function getStatus(part: ToolCallPart): ToolCallBadgeStatus {
   return "completed";
 }
 
+function extractMediaFromResult(result: unknown): Array<{ type: "image" | "video"; url: string }> {
+  if (!result || typeof result !== "object") return [];
+  const r = result as Record<string, unknown>;
+  const media: Array<{ type: "image" | "video"; url: string }> = [];
+
+  if (Array.isArray(r.images)) {
+    for (const item of r.images) {
+      if (item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string") {
+        media.push({ type: "image", url: (item as { url: string }).url });
+      }
+    }
+  }
+  if (Array.isArray(r.videos)) {
+    for (const item of r.videos) {
+      if (item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string") {
+        media.push({ type: "video", url: (item as { url: string }).url });
+      }
+    }
+  }
+  if (Array.isArray(r.results)) {
+    for (const nested of r.results) {
+      media.push(...extractMediaFromResult(nested));
+    }
+  }
+
+  return media;
+}
+
 export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   startIndex,
   endIndex,
@@ -64,9 +92,24 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     return toolParts.some((part) => getStatus(part) === "error");
   }, [toolParts]);
 
+  const mediaPreviews = useMemo(() => {
+    const seen = new Set<string>();
+    const collected: Array<{ type: "image" | "video"; url: string }> = [];
+    for (const part of toolParts) {
+      for (const media of extractMediaFromResult(part.result)) {
+        if (seen.has(media.url)) continue;
+        seen.add(media.url);
+        collected.push(media);
+      }
+    }
+    return collected;
+  }, [toolParts]);
+
+  const hasMedia = mediaPreviews.length > 0;
+
   useEffect(() => {
-    if (hasError) setIsExpanded(true);
-  }, [hasError]);
+    if (hasError || hasMedia) setIsExpanded(true);
+  }, [hasError, hasMedia]);
 
   if (toolParts.length === 0) {
     return <>{children}</>;
@@ -95,6 +138,35 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
           );
         })}
       </div>
+
+      {!isExpanded && mediaPreviews.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {mediaPreviews.map((media, index) =>
+            media.type === "image" ? (
+              <a
+                key={`${media.url}-${index}`}
+                href={media.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={media.url}
+                  alt={`Tool output preview ${index + 1}`}
+                  className="h-24 w-auto rounded-md border border-terminal-dark/10 object-cover shadow-sm"
+                />
+              </a>
+            ) : (
+              <video
+                key={`${media.url}-${index}`}
+                src={media.url}
+                controls
+                className="h-24 w-auto rounded-md border border-terminal-dark/10 shadow-sm"
+              />
+            )
+          )}
+        </div>
+      )}
 
       {/* Button always visible */}
       <div className="flex justify-end mt-2">

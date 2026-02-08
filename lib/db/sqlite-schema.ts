@@ -4,6 +4,7 @@ import {
   integer,
   real,
   blob,
+  index,
 } from "drizzle-orm/sqlite-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -29,18 +30,31 @@ export const users = sqliteTable("users", {
 // SESSIONS TABLE
 // ============================================================================
 
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id").references(() => users.id),
-  title: text("title"),
-  status: text("status", { enum: ["active", "archived", "deleted"] }).default("active").notNull(),
-  providerSessionId: text("provider_session_id"),
-  summary: text("summary"),
-  summaryUpToMessageId: text("summary_up_to_message_id"),
-  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
-  updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
-  metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
-});
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").references(() => users.id),
+    title: text("title"),
+    status: text("status", { enum: ["active", "archived", "deleted"] }).default("active").notNull(),
+    providerSessionId: text("provider_session_id"),
+    summary: text("summary"),
+    summaryUpToMessageId: text("summary_up_to_message_id"),
+    characterId: text("character_id"),
+    messageCount: integer("message_count").default(0).notNull(),
+    totalTokenCount: integer("total_token_count").default(0).notNull(),
+    lastMessageAt: text("last_message_at"),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+    updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
+    metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
+  },
+  (table) => ({
+    idxSessionsUserCharacter: index("idx_sessions_user_character").on(table.userId, table.characterId, table.status),
+    idxSessionsUserUpdated: index("idx_sessions_user_updated").on(table.userId, table.updatedAt),
+    idxSessionsCharacterUpdated: index("idx_sessions_character_updated").on(table.characterId, table.updatedAt),
+  })
+);
 
 // ============================================================================
 // MESSAGES TABLE

@@ -71,6 +71,17 @@ interface ToolResult {
   iterationPerformed?: boolean;
 }
 
+function hasVisualMedia(result?: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const r = result as Record<string, unknown>;
+  if (Array.isArray(r.images) && (r.images as Array<Record<string, unknown>>).length) return true;
+  if (Array.isArray(r.videos) && (r.videos as Array<Record<string, unknown>>).length) return true;
+  if (Array.isArray(r.results)) {
+    return r.results.some((item) => hasVisualMedia(item));
+  }
+  return false;
+}
+
 // Memoized Icon Component
 const ToolIcon: FC<{
   toolName: string;
@@ -314,6 +325,8 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
               <video
                 src={video.url}
                 controls
+                width={video.width || undefined}
+                height={video.height || undefined}
                 className="w-full max-w-lg h-auto rounded-lg shadow-sm"
                 preload="metadata"
               >
@@ -359,7 +372,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
               <img
                 src={img.url}
                 alt={`Generated image ${idx + 1}`}
+                width={img.width || undefined}
+                height={img.height || undefined}
                 className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                loading="eager"
               />
             </a>
           ))}
@@ -417,7 +433,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
                     <img
                       src={img.url}
                       alt={`Variation ${idx + 1} - ${imgIdx + 1}`}
+                      width={img.width || undefined}
+                      height={img.height || undefined}
                       className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                      loading="eager"
                     />
                   </a>
                 ))}
@@ -555,14 +574,18 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
       )}
 
       {/* Show result in collapsible section */}
-      {parsedResult && (
-        <details className="text-xs text-terminal-muted">
-          <summary className="cursor-pointer hover:text-terminal-dark">
-            View output
-          </summary>
-          <ToolResultDisplay toolName={toolName} result={parsedResult} />
-        </details>
-      )}
+  {parsedResult && (
+    hasVisualMedia(parsedResult) ? (
+      <ToolResultDisplay toolName={toolName} result={parsedResult} />
+    ) : (
+      <details className="text-xs text-terminal-muted">
+        <summary className="cursor-pointer hover:text-terminal-dark">
+          View output
+        </summary>
+        <ToolResultDisplay toolName={toolName} result={parsedResult} />
+      </details>
+    )
+  )}
     </div>
   );
 });

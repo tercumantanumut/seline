@@ -101,6 +101,8 @@ function buildUIPartsFromDBContent(
     }
   }
 
+  const seenToolCallIds = new Set<string>();
+
   for (const part of content) {
     if (part.type === "tool-result") {
       toolResults.set(part.toolCallId, {
@@ -125,6 +127,10 @@ function buildUIPartsFromDBContent(
         url: part.image,
       });
     } else if (part.type === "tool-call") {
+      if (seenToolCallIds.has(part.toolCallId)) {
+        continue;
+      }
+      seenToolCallIds.add(part.toolCallId);
       const toolResult = toolResults.get(part.toolCallId);
       const inferredState: ToolInvocationState =
         toolResult?.state ||

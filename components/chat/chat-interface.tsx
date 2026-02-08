@@ -1,39 +1,21 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, PlusCircle, MessageCircle, Trash2, Clock, BarChart2, Camera, Brain, Pencil, Calendar, CircleStop, Plug, Hash, Phone, Send, RotateCcw } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Loader2, CircleStop } from "lucide-react";
 import type { UIMessage } from "ai";
-import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { DocumentsPanel } from "@/components/documents/documents-panel";
-import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
-import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useTranslations, useFormatter } from "next-intl";
+import { useTranslations } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import type { TaskEvent } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
+import { CharacterSidebar } from "@/components/chat/chat-sidebar";
+import type { SessionInfo, SessionChannelType } from "@/components/chat/chat-sidebar/types";
 
 interface CharacterFullData {
     id: string;
@@ -58,31 +40,12 @@ interface DBMessage {
     createdAt: Date | string;
 }
 
-interface SessionInfo {
-    id: string;
-    title: string | null;
-    createdAt: string;
-    updatedAt: string;
-    metadata: {
-        characterId?: string;
-        characterName?: string;
-        channelType?: "whatsapp" | "telegram" | "slack";
-        channelPeerName?: string | null;
-        channelPeerId?: string | null;
-    };
-}
-
-interface ChannelConnectionSummary {
-    id: string;
-    channelType: "whatsapp" | "telegram" | "slack";
-    status: "disconnected" | "connecting" | "connected" | "error";
-    displayName?: string | null;
-}
-
 interface ChatInterfaceProps {
     character: CharacterFullData;
     initialSessionId: string;
     initialSessions: SessionInfo[];
+    initialNextCursor: string | null;
+    initialTotalSessionCount: number;
     initialMessages: UIMessage[];
     characterDisplay: CharacterDisplayData;
 }
@@ -141,12 +104,6 @@ const getMessagesSignature = (messages: UIMessage[]) => {
     return `${messages.length}:${getMessageSignature(lastMessage)}`;
 };
 
-const CHANNEL_TYPE_ICONS = {
-    whatsapp: Phone,
-    telegram: Send,
-    slack: Hash,
-};
-
 // Combined state to ensure sessionId and messages always update atomically
 interface SessionState {
     sessionId: string;
@@ -159,10 +116,15 @@ interface ActiveRunState {
     startedAt: string;
 }
 
+type ChannelFilter = "all" | SessionChannelType;
+type DateRangeFilter = "all" | "today" | "week" | "month";
+
 export default function ChatInterface({
     character,
     initialSessionId,
     initialSessions,
+    initialNextCursor,
+    initialTotalSessionCount,
     initialMessages,
     characterDisplay: initialCharacterDisplay,
 }: ChatInterfaceProps) {
@@ -180,6 +142,12 @@ export default function ChatInterface({
     const { sessionId, messages } = sessionState;
     // Sort initialSessions to ensure consistent ordering (most recent first)
     const [sessions, setSessions] = useState<SessionInfo[]>(() => sortSessionsByUpdatedAt(initialSessions));
+    const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
+    const [hasMoreSessions, setHasMoreSessions] = useState(Boolean(initialNextCursor));
+    const [totalSessionCount, setTotalSessionCount] = useState(initialTotalSessionCount);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
+    const [dateRange, setDateRange] = useState<DateRangeFilter>("all");
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
@@ -204,8 +172,14 @@ export default function ChatInterface({
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const adaptivePollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const adaptivePollBackoffRef = useRef(5000);
+    const nextCursorRef = useRef<string | null>(initialNextCursor);
+    const filterKeyRef = useRef(`${searchQuery}|${channelFilter}|${dateRange}`);
+    const isPollingRef = useRef(false);
     const lastProgressTimeRef = useRef<number>(0);
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
+    const sessionListSignatureRef = useRef<string>(sessions.map(getSessionSignature).join("||"));
     const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
 
     // Sync server-provided initial data when props change (e.g., after navigation)
@@ -240,26 +214,71 @@ export default function ChatInterface({
         });
     }, []);
 
-    const loadSessions = useCallback(async (options?: { silent?: boolean }) => {
+    const loadSessions = useCallback(async (options?: {
+        silent?: boolean;
+        append?: boolean;
+        overrideCursor?: string | null;
+    }) => {
         const silent = options?.silent ?? false;
+        const append = options?.append ?? false;
+        const cursor = options?.overrideCursor !== undefined
+            ? options.overrideCursor
+            : (append ? nextCursorRef.current : null);
+
         try {
             if (!silent) {
                 setLoadingSessions(true);
             }
-            const response = await fetch(`/api/sessions?characterId=${character.id}`);
-            if (response.ok) {
-                const data = await response.json();
-                const nextSessions = sortSessionsByUpdatedAt(data.sessions || []);
-                setSessions((prev) => (areSessionsEquivalent(prev, nextSessions) ? prev : nextSessions));
+
+            const params = new URLSearchParams({
+                characterId: character.id,
+                limit: "20",
+            });
+            if (cursor) {
+                params.set("cursor", cursor);
             }
+            if (searchQuery.trim()) {
+                params.set("search", searchQuery.trim());
+            }
+            if (channelFilter !== "all") {
+                params.set("channelType", channelFilter);
+            }
+            if (dateRange !== "all") {
+                params.set("dateRange", dateRange);
+            }
+
+            const response = await fetch(`/api/sessions?${params.toString()}`, {
+                cache: "no-store",
+                headers: { "Cache-Control": "no-cache" },
+            });
+            if (!response.ok) {
+                return false;
+            }
+
+            const data = await response.json();
+            const pageSessions = sortSessionsByUpdatedAt((data.sessions || []) as SessionInfo[]);
+            setSessions((prev) => {
+                if (!append) {
+                    return areSessionsEquivalent(prev, pageSessions) ? prev : pageSessions;
+                }
+                const existingIds = new Set(prev.map((session) => session.id));
+                const merged = [...prev, ...pageSessions.filter((session) => !existingIds.has(session.id))];
+                return sortSessionsByUpdatedAt(merged);
+            });
+            nextCursorRef.current = data.nextCursor ?? null;
+            setNextCursor(data.nextCursor ?? null);
+            setHasMoreSessions(Boolean(data.nextCursor));
+            setTotalSessionCount(typeof data.totalCount === "number" ? data.totalCount : pageSessions.length);
+            return true;
         } catch (err) {
             console.error("Failed to load sessions:", err);
+            return false;
         } finally {
             if (!silent) {
                 setLoadingSessions(false);
             }
         }
-    }, [character.id]);
+    }, [character.id, searchQuery, channelFilter, dateRange]);
 
     const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
         try {
@@ -277,6 +296,28 @@ export default function ChatInterface({
         }
         return null;
     }, []);
+
+    const loadMoreSessions = useCallback(async () => {
+        if (!hasMoreSessions || loadingSessions) {
+            return;
+        }
+        await loadSessions({ append: true });
+    }, [hasMoreSessions, loadingSessions, loadSessions]);
+
+    useEffect(() => {
+        const filterKey = `${searchQuery}|${channelFilter}|${dateRange}`;
+        if (filterKey === filterKeyRef.current) {
+            return;
+        }
+        filterKeyRef.current = filterKey;
+        nextCursorRef.current = null;
+        setNextCursor(null);
+        setHasMoreSessions(true);
+        const timeout = setTimeout(() => {
+            void loadSessions({ overrideCursor: null });
+        }, 250);
+        return () => clearTimeout(timeout);
+    }, [searchQuery, channelFilter, dateRange, loadSessions]);
 
     const reloadSessionMessages = useCallback(async (
         targetSessionId: string,
@@ -760,18 +801,65 @@ export default function ChatInterface({
             return;
         }
 
-      const intervalMs = isChannelSession || isProcessingInBackground ? 2500 : 20000;
-      const interval = setInterval(() => {
-          if (document.visibilityState !== "visible") {
-              return;
-          }
-          void loadSessions({ silent: true });
-          if (isChannelSession || isProcessingInBackground) {
-              void reloadSessionMessages(sessionId, { remount: true });
-          }
-      }, intervalMs);
+        if (adaptivePollTimeoutRef.current) {
+            clearTimeout(adaptivePollTimeoutRef.current);
+            adaptivePollTimeoutRef.current = null;
+        }
 
-        return () => clearInterval(interval);
+        if (isChannelSession || isProcessingInBackground) {
+            const interval = setInterval(() => {
+                if (document.visibilityState !== "visible") {
+                    return;
+                }
+                void loadSessions({ silent: true, overrideCursor: null });
+                void reloadSessionMessages(sessionId, { remount: true });
+            }, 2500);
+
+            return () => clearInterval(interval);
+        }
+
+        adaptivePollBackoffRef.current = 5000;
+        let cancelled = false;
+
+        const schedulePoll = () => {
+            if (cancelled || isPollingRef.current) {
+                return;
+            }
+            const delay = adaptivePollBackoffRef.current;
+            adaptivePollTimeoutRef.current = setTimeout(async () => {
+                if (cancelled || isPollingRef.current) {
+                    return;
+                }
+                if (document.visibilityState !== "visible") {
+                    schedulePoll();
+                    return;
+                }
+                const previousSignature = sessionListSignatureRef.current;
+                isPollingRef.current = true;
+                try {
+                    const success = await loadSessions({ silent: true, overrideCursor: null });
+                    const nextSignature = sessionListSignatureRef.current;
+                    if (success && previousSignature !== nextSignature) {
+                        adaptivePollBackoffRef.current = 5000;
+                    } else {
+                        adaptivePollBackoffRef.current = Math.min(Math.floor(adaptivePollBackoffRef.current * 1.5), 60000);
+                    }
+                } finally {
+                    isPollingRef.current = false;
+                }
+                schedulePoll();
+            }, delay);
+        };
+
+        schedulePoll();
+
+        return () => {
+            cancelled = true;
+            if (adaptivePollTimeoutRef.current) {
+                clearTimeout(adaptivePollTimeoutRef.current);
+                adaptivePollTimeoutRef.current = null;
+            }
+        };
     }, [isChannelSession, isProcessingInBackground, loadSessions, reloadSessionMessages, sessionId]);
 
     // Cleanup on unmount
@@ -871,6 +959,34 @@ export default function ChatInterface({
         [loadSessions, tc]
     );
 
+    const exportSession = useCallback(async (
+        sessionToExportId: string,
+        format: "markdown" | "json" | "text"
+    ) => {
+        try {
+            const response = await fetch(`/api/sessions/${sessionToExportId}/export?format=${format}`);
+            if (!response.ok) {
+                throw new Error("Failed to export session");
+            }
+            const data = await response.json();
+            const content = typeof data.content === "string" ? data.content : "";
+            const filename = typeof data.filename === "string" ? data.filename : `session-${sessionToExportId}.${format === "markdown" ? "md" : format}`;
+            const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = filename;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+            toast.success(t("sidebar.exportSuccess"));
+        } catch (error) {
+            console.error("Failed to export session:", error);
+            toast.error(t("sidebar.exportError"));
+        }
+    }, [t]);
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -887,6 +1003,10 @@ export default function ChatInterface({
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
     }, [messages]);
+
+    useEffect(() => {
+        sessionListSignatureRef.current = sessions.map(getSessionSignature).join("||");
+    }, [sessions]);
 
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) {
@@ -916,11 +1036,21 @@ export default function ChatInterface({
                     sessions={sessions}
                     currentSessionId={sessionId}
                     loadingSessions={loadingSessions}
+                    hasMore={hasMoreSessions}
+                    totalCount={totalSessionCount}
+                    searchQuery={searchQuery}
+                    channelFilter={channelFilter}
+                    dateRange={dateRange}
+                    onSearchChange={setSearchQuery}
+                    onChannelFilterChange={setChannelFilter}
+                    onDateRangeChange={setDateRange}
+                    onLoadMore={loadMoreSessions}
                     onNewSession={createNewSession}
                     onSwitchSession={switchSession}
                     onDeleteSession={deleteSession}
                     onResetChannelSession={resetChannelSession}
                     onRenameSession={renameSession}
+                    onExportSession={exportSession}
                     onAvatarChange={handleAvatarChange}
                 />
             }
@@ -1003,571 +1133,6 @@ function BackgroundProgressPlaceholder() {
                 <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
                 <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
                 <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
-            </div>
-        </div>
-    );
-}
-
-function CharacterSidebar({
-    character,
-    characterDisplay,
-    sessions,
-    currentSessionId,
-    loadingSessions,
-    onNewSession,
-    onSwitchSession,
-    onDeleteSession,
-    onResetChannelSession,
-    onRenameSession,
-    onAvatarChange,
-}: {
-    character: CharacterFullData;
-    characterDisplay: CharacterDisplayData | null;
-    sessions: SessionInfo[];
-    currentSessionId: string | null;
-    loadingSessions: boolean;
-    onNewSession: () => void;
-    onSwitchSession: (sessionId: string) => void;
-    onDeleteSession: (sessionId: string) => void;
-    onResetChannelSession: (sessionId: string, options?: { archiveOld?: boolean }) => Promise<void>;
-    onRenameSession: (sessionId: string, title: string) => Promise<boolean>;
-    onAvatarChange: (newAvatarUrl: string | null) => void;
-}) {
-    const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
-    const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-    const [editTitle, setEditTitle] = useState("");
-    const editInputRef = useRef<HTMLInputElement | null>(null);
-    const skipBlurRef = useRef(false);
-    const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
-    const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
-    const t = useTranslations("chat");
-    const tChannels = useTranslations("channels");
-    const formatter = useFormatter();
-    const [channelsOpen, setChannelsOpen] = useState(false);
-    const [channelConnections, setChannelConnections] = useState<ChannelConnectionSummary[]>([]);
-    const [channelsLoading, setChannelsLoading] = useState(false);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [pendingDeleteSession, setPendingDeleteSession] = useState<SessionInfo | null>(null);
-
-    const stopEditing = useCallback(() => {
-        setEditingSessionId(null);
-        setEditTitle("");
-        editInputRef.current = null;
-        skipBlurRef.current = false;
-    }, []);
-
-    const startEditingSession = useCallback((session: SessionInfo) => {
-        setEditingSessionId(session.id);
-        setEditTitle(session.title || "");
-        skipBlurRef.current = false;
-    }, []);
-
-    useEffect(() => {
-        if (editingSessionId && editInputRef.current) {
-            editInputRef.current.focus();
-            editInputRef.current.select();
-        }
-    }, [editingSessionId]);
-
-    const handleRename = useCallback(async () => {
-        if (!editingSessionId) {
-            return;
-        }
-        const success = await onRenameSession(editingSessionId, editTitle);
-        if (success) {
-            stopEditing();
-        }
-    }, [editTitle, editingSessionId, onRenameSession, stopEditing]);
-
-    const closeDeleteDialog = useCallback(() => {
-        setDeleteDialogOpen(false);
-        setPendingDeleteSession(null);
-    }, []);
-
-    const isChannelBoundSession = useCallback(
-        (session: SessionInfo) => Boolean(session.metadata?.channelType),
-        []
-    );
-
-    const handleDeleteRequest = useCallback(
-        (session: SessionInfo) => {
-            if (isChannelBoundSession(session)) {
-                setPendingDeleteSession(session);
-                setDeleteDialogOpen(true);
-                return;
-            }
-            onDeleteSession(session.id);
-        },
-        [isChannelBoundSession, onDeleteSession]
-    );
-
-    const handleArchiveAndReset = useCallback(async () => {
-        if (!pendingDeleteSession) {
-            return;
-        }
-        await onResetChannelSession(pendingDeleteSession.id, { archiveOld: true });
-        closeDeleteDialog();
-    }, [closeDeleteDialog, onResetChannelSession, pendingDeleteSession]);
-
-    const handleConfirmDelete = useCallback(async () => {
-        if (!pendingDeleteSession) {
-            return;
-        }
-        await onDeleteSession(pendingDeleteSession.id);
-        closeDeleteDialog();
-    }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
-
-    const handleInputBlur = useCallback(() => {
-        if (skipBlurRef.current) {
-            skipBlurRef.current = false;
-            return;
-        }
-        void handleRename();
-    }, [handleRename]);
-
-    const handleInputKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLInputElement>) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                void handleRename();
-            } else if (event.key === "Escape") {
-                event.preventDefault();
-                stopEditing();
-            }
-        },
-        [handleRename, stopEditing]
-    );
-
-    const handleActionMouseDown = useCallback(() => {
-        skipBlurRef.current = true;
-    }, []);
-
-    const handleSaveClick = useCallback(
-        (event: MouseEvent<HTMLButtonElement>) => {
-            event.stopPropagation();
-            void handleRename();
-        },
-        [handleRename]
-    );
-
-    const handleCancelClick = useCallback(
-        (event: MouseEvent<HTMLButtonElement>) => {
-            event.stopPropagation();
-            stopEditing();
-        },
-        [stopEditing]
-    );
-
-    const parseAsUTC = (dateStr: string): Date => {
-        const normalized =
-            dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("-", 10)
-                ? dateStr
-                : dateStr.replace(" ", "T") + "Z";
-        return new Date(normalized);
-    };
-
-    const formatSessionDate = (dateStr: string): string => {
-        const date = parseAsUTC(dateStr);
-
-        if (isNaN(date.getTime())) {
-            return t("session.invalid");
-        }
-
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-        if (days === 0) {
-            return formatter.dateTime(date, {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-            });
-        } else if (days === 1) {
-            return t("session.yesterday");
-        } else if (days < 7) {
-            return formatter.dateTime(date, { weekday: "short" });
-        } else {
-            return formatter.dateTime(date, { month: "short", day: "numeric" });
-        }
-    };
-
-    const loadChannelConnections = useCallback(async () => {
-        try {
-            setChannelsLoading(true);
-            const response = await fetch(`/api/channels/connections?characterId=${character.id}`);
-            if (response.ok) {
-                const data = await response.json();
-                setChannelConnections((data.connections || []) as ChannelConnectionSummary[]);
-            }
-        } catch (error) {
-            console.error("Failed to load channel connections:", error);
-        } finally {
-            setChannelsLoading(false);
-        }
-    }, [character.id]);
-
-    useEffect(() => {
-        void loadChannelConnections();
-    }, [loadChannelConnections]);
-
-    const connectedCount = channelConnections.filter((connection) => connection.status === "connected").length;
-
-    return (
-        <div className="flex h-full flex-col overflow-hidden">
-            <AvatarSelectionDialog
-                open={avatarDialogOpen}
-                onOpenChange={setAvatarDialogOpen}
-                characterId={character.id}
-                characterName={character.displayName || character.name}
-                currentAvatarUrl={avatarUrl || null}
-                onAvatarChange={(url) => {
-                    onAvatarChange(url);
-                    setAvatarDialogOpen(false);
-                }}
-            />
-            <ChannelConnectionsDialog
-                open={channelsOpen}
-                onOpenChange={setChannelsOpen}
-                characterId={character.id}
-                characterName={character.displayName || character.name}
-                onConnectionsChange={setChannelConnections}
-            />
-            <AlertDialog
-                open={deleteDialogOpen}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        closeDeleteDialog();
-                    } else {
-                        setDeleteDialogOpen(true);
-                    }
-                }}
-            >
-                <AlertDialogContent className="font-mono">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">
-                            {t("channelSession.deleteTitle")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-terminal-muted">
-                            {t("channelSession.deleteDescription")}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="font-mono">
-                            {t("sidebar.cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            className="font-mono bg-terminal-green text-terminal-cream hover:bg-terminal-green/90"
-                            onClick={() => void handleArchiveAndReset()}
-                        >
-                            {t("channelSession.archiveReset")}
-                        </AlertDialogAction>
-                        <AlertDialogAction
-                            className="font-mono bg-red-600 text-white hover:bg-red-600/90"
-                            onClick={() => void handleConfirmDelete()}
-                        >
-                            {t("channelSession.deleteAnyway")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <div className="shrink-0 px-4 pt-3 pb-3">
-                <div
-                    className={cn(
-                        "flex flex-col items-center text-center gap-3 p-4 rounded-lg",
-                        "bg-terminal-cream/80 border border-terminal-border/30",
-                        "shadow-sm transition-all duration-200",
-                        "hover:bg-terminal-cream/90 hover:border-terminal-border/50"
-                    )}
-                >
-                    <button
-                        onClick={() => setAvatarDialogOpen(true)}
-                        className="relative group cursor-pointer"
-                        title={t("sidebar.changeAvatar")}
-                    >
-                        <Avatar className="w-16 h-16 shadow-md transition-transform duration-200 group-hover:scale-105">
-                            {avatarUrl ? <AvatarImage src={avatarUrl} alt={character.name} /> : null}
-                            <AvatarFallback className="bg-terminal-green/10 text-xl font-mono text-terminal-green">
-                                {initials}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="absolute inset-0 rounded-full bg-terminal-dark/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                            <Camera className="w-5 h-5 text-terminal-cream" />
-                        </div>
-                    </button>
-                    <div>
-                        <h2 className="font-semibold font-mono text-terminal-dark">
-                            {character.displayName || character.name}
-                        </h2>
-                        {character.tagline && (
-                            <p className="text-xs text-terminal-muted/80 font-mono mt-1.5 line-clamp-2 leading-relaxed">
-                                {character.tagline}
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setChannelsOpen(true)}
-                            className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-                        >
-                            <Plug className="mr-1 h-3.5 w-3.5" />
-                            <span className="text-xs font-mono">{t("sidebar.channels")}</span>
-                        </Button>
-                        <div className="flex flex-wrap items-center justify-center gap-1">
-                            {channelsLoading ? (
-                                <span className="text-[11px] font-mono text-terminal-muted">
-                                    {tChannels("connections.loading")}
-                                </span>
-                            ) : channelConnections.length === 0 ? (
-                                <span className="text-[11px] font-mono text-terminal-muted">
-                                    {tChannels("connections.empty")}
-                                </span>
-                            ) : (
-                                channelConnections.map((connection) => {
-                                    const Icon = CHANNEL_TYPE_ICONS[connection.channelType];
-                                    const badgeClass = connection.status === "connected"
-                                        ? "bg-emerald-500/15 text-emerald-700"
-                                        : connection.status === "connecting"
-                                            ? "bg-amber-500/15 text-amber-700"
-                                            : connection.status === "error"
-                                                ? "bg-red-500/15 text-red-700"
-                                                : "bg-terminal-dark/10 text-terminal-muted";
-                                    return (
-                                        <Badge
-                                            key={connection.id}
-                                            className={cn("border border-transparent px-2 py-0.5 text-[10px] font-mono", badgeClass)}
-                                        >
-                                            <Icon className="mr-1 h-3 w-3" />
-                                            {tChannels(`types.${connection.channelType}`)}
-                                        </Badge>
-                                    );
-                                })
-                            )}
-                        </div>
-                        {connectedCount > 0 && (
-                            <span className="text-[11px] font-mono text-terminal-muted">
-                                {tChannels("connections.connectedCount", { count: connectedCount })}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                    <div className="shrink-0 flex items-center justify-between px-4 py-2 mb-1">
-                        <h3 className="text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
-                            {t("sidebar.history")}
-                        </h3>
-                        <div className="flex items-center gap-1.5">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
-                                title={t("sidebar.agentMemory")}
-                            >
-                                <Link href={`/agents/${character.id}/memory`}>
-                                    <Brain className="h-4 w-4" />
-                                </Link>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
-                                title={t("sidebar.schedules")}
-                            >
-                                <Link href={`/agents/${character.id}/schedules`}>
-                                    <Calendar className="h-4 w-4" />
-                                </Link>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
-                                title={t("sidebar.usage")}
-                            >
-                                <Link href="/usage">
-                                    <BarChart2 className="h-4 w-4" />
-                                </Link>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={onNewSession}
-                                className="h-8 px-2.5 text-terminal-green hover:bg-terminal-green/10 transition-all duration-200 active:bg-terminal-green/15"
-                                title={t("sidebar.startNew")}
-                            >
-                                <PlusCircle className="h-4 w-4 mr-1" />
-                                <span className="text-xs font-mono font-medium">{t("sidebar.new")}</span>
-                            </Button>
-                        </div>
-                    </div>
-
-                    <ScrollArea className="flex-1 min-h-0 px-4">
-                        <div className="space-y-1.5 pr-2 pb-2">
-                            {loadingSessions ? (
-                                <div className="flex items-center justify-center py-6">
-                                    <Loader2 className="h-4 w-4 animate-spin text-terminal-muted" />
-                                </div>
-                            ) : sessions.length === 0 ? (
-                                <p className="text-xs text-terminal-muted font-mono py-6 text-center">
-                                    {t("sidebar.empty")}
-                                </p>
-                            ) : (
-                                sessions.map((session) => {
-                                    const isCurrent = session.id === currentSessionId;
-                                    const isEditing = editingSessionId === session.id;
-                                    return (
-                                        <div
-                                            key={session.id}
-                                            className={cn(
-                                                "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer",
-                                                "transition-all duration-200 ease-out",
-                                                isCurrent
-                                                    ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
-                                                    : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
-                                            )}
-                                            onClick={() => {
-                                                if (isEditing) {
-                                                    return;
-                                                }
-                                                onSwitchSession(session.id);
-                                            }}
-                                        >
-                                            <MessageCircle
-                                                className={cn(
-                                                    "h-4 w-4 flex-shrink-0 transition-colors duration-200",
-                                                    isCurrent ? "text-terminal-green" : "text-terminal-muted"
-                                                )}
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                {isEditing ? (
-                                                    <div
-                                                        className="space-y-2"
-                                                        onClick={(event) => event.stopPropagation()}
-                                                    >
-                                                        <Input
-                                                            ref={isEditing ? editInputRef : undefined}
-                                                            type="text"
-                                                            value={editTitle}
-                                                            onChange={(event) => setEditTitle(event.target.value)}
-                                                            onKeyDown={handleInputKeyDown}
-                                                            onBlur={handleInputBlur}
-                                                            onClick={(event) => event.stopPropagation()}
-                                                            placeholder={t("sidebar.edit")}
-                                                            className="h-8 text-sm font-mono"
-                                                            aria-label={t("sidebar.edit")}
-                                                        />
-                                                        <div className="flex items-center gap-2">
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="h-7 px-3 text-xs font-mono"
-                                                                onMouseDown={handleActionMouseDown}
-                                                                onClick={handleSaveClick}
-                                                            >
-                                                                {t("sidebar.save")}
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-7 px-3 text-xs font-mono"
-                                                                onMouseDown={handleActionMouseDown}
-                                                                onClick={handleCancelClick}
-                                                            >
-                                                                {t("sidebar.cancel")}
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <p
-                                                        className={cn(
-                                                            "text-sm font-mono truncate transition-colors duration-200",
-                                                            isCurrent ? "text-terminal-dark font-medium" : "text-terminal-muted"
-                                                        )}
-                                                    >
-                                                        {session.title || t("session.untitled")}
-                                                    </p>
-                                                )}
-                                                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70">
-                                                    <span className="flex items-center gap-1">
-                                                        <Clock className="h-3 w-3" />
-                                                        {formatSessionDate(session.updatedAt)}
-                                                    </span>
-                                                    {session.metadata?.channelType && (
-                                                        <Badge className="border border-terminal-dark/10 bg-terminal-cream/80 px-2 py-0.5 text-[10px] font-mono text-terminal-dark">
-                                                            {(() => {
-                                                                const Icon = CHANNEL_TYPE_ICONS[session.metadata.channelType];
-                                                                return (
-                                                                    <>
-                                                                        <Icon className="mr-1 h-3 w-3" />
-                                                                        {tChannels(`types.${session.metadata.channelType}`)}
-                                                                    </>
-                                                                );
-                                                            })()}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {!isEditing && (
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 rounded hover:shadow-sm"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            startEditingSession(session);
-                                                        }}
-                                                        title={t("sidebar.rename")}
-                                                    >
-                                                        <Pencil className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    {session.metadata?.channelType && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-7 w-7 p-0 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10 rounded hover:shadow-sm"
-                                                            onClick={(event) => {
-                                                                event.stopPropagation();
-                                                                onResetChannelSession(session.id);
-                                                            }}
-                                                            title={t("sidebar.resetChannel")}
-                                                        >
-                                                            <RotateCcw className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 rounded hover:shadow-sm"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            handleDeleteRequest(session);
-                                                        }}
-                                                        title={t("sidebar.delete")}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </ScrollArea>
-                </div>
-
-                <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-4 pb-4">
-                    <DocumentsPanel agentId={character.id} agentName={character.name} />
-                </div>
             </div>
         </div>
     );
