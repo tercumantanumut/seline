@@ -585,12 +585,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
             console.error(`[FileWatcher] Error closing watcher:`, closeError);
           }
 
-          // Mark folder as errored in the database
+          // Mark folder as paused in the database
           await db
             .update(agentSyncFolders)
             .set({
-              status: "error",
-              lastError: `Stopped: repeated permission errors watching ${folderPath}. ` +
+              status: "paused",
+              lastError: `Paused: repeated permission errors watching ${folderPath}. ` +
                          `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
               updatedAt: new Date().toISOString(),
             })

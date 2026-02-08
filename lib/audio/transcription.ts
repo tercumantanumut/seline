@@ -491,21 +491,27 @@ function getElectronUserDataModelsDir(): string | null {
 
   // Compute platform-specific userData path (mirrors Electron's app.getPath("userData"))
   const appName = "seline";
+  const appNameCandidates = [appName];
+  if (process.env.NODE_ENV === "development") {
+    appNameCandidates.unshift(`${appName}-dev`);
+  }
   const os = platform();
   let userDataDir: string | null = null;
 
-  if (os === "darwin") {
-    userDataDir = join(homedir(), "Library", "Application Support", appName);
-  } else if (os === "win32") {
-    userDataDir = join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), appName);
-  } else {
-    // Linux: ~/.config/<appName>
-    userDataDir = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), appName);
-  }
+  for (const name of appNameCandidates) {
+    if (os === "darwin") {
+      userDataDir = join(homedir(), "Library", "Application Support", name);
+    } else if (os === "win32") {
+      userDataDir = join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), name);
+    } else {
+      // Linux: ~/.config/<appName>
+      userDataDir = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), name);
+    }
 
-  if (userDataDir) {
-    const modelsDir = join(userDataDir, "models", "whisper");
-    if (existsSync(modelsDir)) return modelsDir;
+    if (userDataDir) {
+      const modelsDir = join(userDataDir, "models", "whisper");
+      if (existsSync(modelsDir)) return modelsDir;
+    }
   }
 
   return null;

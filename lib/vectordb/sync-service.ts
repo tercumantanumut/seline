@@ -12,18 +12,18 @@ import { join, relative, extname } from "path";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 import { db } from "@/lib/db/sqlite-client";
-import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
+import { agentSyncFolders, agentSyncFiles, characters } from "@/lib/db/sqlite-character-schema";
 import { eq, and, sql, lt, or } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
-import { deleteAgentTable } from "./collections";
+import { deleteAgentTable, listAgentTables } from "./collections";
 import { isVectorDBEnabled } from "./client";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
-import { isDangerousPath } from "./dangerous-paths";
+import { normalizeFolderPath, validateSyncFolderPath } from "./path-validation";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
 export { onFolderChange, notifyFolderChange };
 export type { FolderChangeEvent };
@@ -327,17 +327,21 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     indexingMode = "auto",
   } = config;
 
-  // Reject dangerous paths (filesystem root, system directories, etc.)
-  const dangerError = isDangerousPath(folderPath);
-  if (dangerError) {
-    throw new Error(dangerError);
+  const { normalizedPath, error } = await validateSyncFolderPath(folderPath);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const existingFolders = await getSyncFolders(characterId);
+  const existingPaths = new Set(existingFolders.map((folder) => normalizeFolderPath(folder.folderPath)));
+  if (existingPaths.has(normalizedPath)) {
+    throw new Error("This folder is already synced.");
   }
 
   // Normalize extensions to ensure consistent format (without dots)
   const normalizedExtensions = normalizeExtensions(includeExtensions);
 
   // Check if this is the first folder for this character
-  const existingFolders = await getSyncFolders(characterId);
   const isPrimary = existingFolders.length === 0;
 
   const [folder] = await db
@@ -345,8 +349,8 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     .values({
       userId,
       characterId,
-      folderPath,
-      displayName: displayName || folderPath.split("/").pop(),
+      folderPath: normalizedPath,
+      displayName: displayName || normalizedPath.split(/[/\\]/).pop(),
       isPrimary,
       recursive,
       // Note: Drizzle handles JSON serialization automatically for mode: "json" columns
@@ -444,17 +448,29 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     .from(agentSyncFolders)
     .where(eq(agentSyncFolders.id, folderId));
 
-  if (folder) {
-    // Cancel any running sync for this path
-    if (syncingPaths.has(folder.folderPath)) {
-      console.log(`[SyncService] Cancelling running sync for folder: ${folder.folderPath}`);
-      await cancelSyncByPath(folder.folderPath);
-    }
+  if (!folder) {
+    console.warn(`[SyncService] Tried to remove missing sync folder: ${folderId}`);
+    return;
+  }
 
-    // Stop file watcher if running
-    if (isWatching(folderId)) {
-      stopWatching(folderId);
-    }
+  await db
+    .update(agentSyncFolders)
+    .set({
+      status: "paused",
+      lastError: "Removing folder...",
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentSyncFolders.id, folderId));
+
+  // Cancel any running sync for this path
+  if (isSyncingPath(folder.folderPath)) {
+    console.log(`[SyncService] Cancelling running sync for folder: ${folder.folderPath}`);
+    await cancelSyncByPath(folder.folderPath);
+  }
+
+  // Stop file watcher if running
+  if (isWatching(folderId)) {
+    stopWatching(folderId);
   }
 
   // Get all files for this folder
@@ -483,12 +499,14 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
   console.log(`[SyncService] Removed sync folder: ${folderId}`);
 
   // If it was primary, promote the next folder if available
-  if (wasPrimary) {
-    const remainingFolders = await getSyncFolders(characterId);
-    if (remainingFolders.length > 0) {
-      await setPrimaryFolder(remainingFolders[0].id, characterId);
-      console.log(`[SyncService] Promoted folder ${remainingFolders[0].id} to primary`);
-    }
+  const remainingFolders = await getSyncFolders(characterId);
+  if (wasPrimary && remainingFolders.length > 0) {
+    await setPrimaryFolder(remainingFolders[0].id, characterId);
+    console.log(`[SyncService] Promoted folder ${remainingFolders[0].id} to primary`);
+  }
+
+  if (remainingFolders.length === 0) {
+    await deleteAgentTable(characterId);
   }
 
   notifyFolderChange(characterId, {
@@ -532,13 +550,40 @@ export async function syncFolder(
     return result;
   }
 
+  const { normalizedPath, error: pathError } = await validateSyncFolderPath(folder.folderPath);
+  if (pathError) {
+    const pauseMessage = `Paused: ${pathError}`;
+    await db
+      .update(agentSyncFolders)
+      .set({
+        status: "paused",
+        lastError: pauseMessage,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(agentSyncFolders.id, folderId));
+
+    result.errors.push(pathError);
+    return result;
+  }
+
+  let folderPath = normalizedPath;
+  if (folderPath !== folder.folderPath) {
+    await db
+      .update(agentSyncFolders)
+      .set({
+        folderPath,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(agentSyncFolders.id, folderId));
+  }
+
   // Determine if we should create embeddings based on indexing mode
   const shouldCreateEmbeddings =
     folder.indexingMode === "full" ||
     (folder.indexingMode === "auto" && isVectorDBEnabled());
 
   console.log(
-    `[SyncService] Syncing folder ${folder.displayName || folder.folderPath} with mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+    `[SyncService] Syncing folder ${folder.displayName || folderPath} with mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
   );
 
   // Check if already syncing (in memory) by folder ID
@@ -550,10 +595,10 @@ export async function syncFolder(
 
   // Check if the same path is already being synced (by a different folder ID)
   // This can happen if the folder was removed and re-added quickly
-  if (syncingPaths.has(folder.folderPath)) {
-    const existingSync = syncingPaths.get(folder.folderPath)!;
+  if (syncingPaths.has(folderPath)) {
+    const existingSync = syncingPaths.get(folderPath)!;
     if (existingSync.folderId !== folderId) {
-      console.log(`[SyncService] Path ${folder.folderPath} is already being synced by folder ${existingSync.folderId}, cancelling old sync`);
+      console.log(`[SyncService] Path ${folderPath} is already being synced by folder ${existingSync.folderId}, cancelling old sync`);
       existingSync.abortController.abort();
       // Wait briefly for cleanup
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -565,7 +610,7 @@ export async function syncFolder(
 
   // Track this folder as syncing (both by ID and by path)
   syncingFolders.add(folderId);
-  syncingPaths.set(folder.folderPath, {
+  syncingPaths.set(folderPath, {
     folderId,
     abortController: syncAbortController,
   });
@@ -589,25 +634,25 @@ export async function syncFolder(
     const mergedExcludePatterns = Array.from(
       new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
     );
-    const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folder.folderPath);
+    const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
 
-    console.log(`[SyncService] Discovering files in ${folder.folderPath}`);
+    console.log(`[SyncService] Discovering files in ${folderPath}`);
     console.log(`[SyncService] Include extensions: ${JSON.stringify(includeExtensions)}`);
     console.log(`[SyncService] Exclude patterns: ${JSON.stringify(mergedExcludePatterns)}`);
     console.log(`[SyncService] Parallel config: concurrency=${config.concurrency}, staggerDelayMs=${config.staggerDelayMs}`);
     if (forceReindex) {
-      console.log(`[SyncService] Force reindex enabled for folder ${folder.folderPath}`);
+      console.log(`[SyncService] Force reindex enabled for folder ${folderPath}`);
     }
 
     // Discover files
     const discoveredFiles = await discoverFiles(
-      folder.folderPath,
-      folder.folderPath,
+      folderPath,
+      folderPath,
       folder.recursive,
       includeExtensions,
       shouldIgnore
     );
-    warnIfLargeLocalEmbeddingSync(folder.folderPath, discoveredFiles.length);
+    warnIfLargeLocalEmbeddingSync(folderPath, discoveredFiles.length);
 
     console.log(`[SyncService] Discovered ${discoveredFiles.length} files to process`);
 
@@ -918,7 +963,7 @@ export async function syncFolder(
       const watchConfig = {
         folderId,
         characterId: folder.characterId,
-        folderPath: folder.folderPath,
+        folderPath,
         recursive: folder.recursive,
         includeExtensions,
         excludePatterns,
@@ -926,7 +971,7 @@ export async function syncFolder(
 
       // Start watching in the background (don't await to avoid blocking)
       startWatching(watchConfig).catch(err => {
-        console.error(`[SyncService] Failed to start file watcher for ${folder.folderPath}:`, err);
+        console.error(`[SyncService] Failed to start file watcher for ${folderPath}:`, err);
       });
     }
 
@@ -945,7 +990,7 @@ export async function syncFolder(
   } finally {
     // Always remove from syncing tracking sets (both ID and path)
     syncingFolders.delete(folderId);
-    syncingPaths.delete(folder.folderPath);
+    syncingPaths.delete(folderPath);
   }
 
   console.log(`[SyncService] Sync complete for folder ${folderId}:`, result);
@@ -1030,6 +1075,50 @@ export async function reindexAllCharacters(
   return results;
 }
 
+function decodeAgentTableName(tableName: string): string | null {
+  if (!tableName.startsWith("agent_")) return null;
+  const suffix = tableName.slice("agent_".length);
+  if (!suffix) return null;
+  return suffix.replace(/_/g, "-");
+}
+
+/**
+ * Remove orphaned LanceDB tables that no longer have a matching character.
+ */
+export async function cleanupOrphanedVectorTables(): Promise<{ removed: string[]; kept: string[] }> {
+  const tables = await listAgentTables();
+  if (tables.length === 0) {
+    return { removed: [], kept: [] };
+  }
+
+  const rows = await db.select({ id: characters.id }).from(characters);
+  const validIds = new Set(rows.map(row => row.id));
+  const removed: string[] = [];
+  const kept: string[] = [];
+
+  for (const table of tables) {
+    const characterId = decodeAgentTableName(table);
+    if (!characterId) {
+      kept.push(table);
+      continue;
+    }
+
+    if (!validIds.has(characterId)) {
+      await deleteAgentTable(characterId);
+      removed.push(table);
+      continue;
+    }
+
+    kept.push(table);
+  }
+
+  if (removed.length > 0) {
+    console.log(`[SyncService] Cleaned up ${removed.length} orphaned vector table(s): ${removed.join(", ")}`);
+  }
+
+  return { removed, kept };
+}
+
 // Track folders currently being synced - by folder ID
 const syncingFolders = new Set<string>();
 
@@ -1058,7 +1147,8 @@ export function isSyncing(folderId: string): boolean {
  * Check if a folder path is currently being synced (by any folder ID)
  */
 export function isSyncingPath(folderPath: string): boolean {
-  return syncingPaths.has(folderPath);
+  const normalizedPath = normalizeFolderPath(folderPath);
+  return syncingPaths.has(normalizedPath) || syncingPaths.has(folderPath);
 }
 
 /**
@@ -1066,12 +1156,13 @@ export function isSyncingPath(folderPath: string): boolean {
  * @returns true if a sync was cancelled, false if no sync was running
  */
 export async function cancelSyncByPath(folderPath: string): Promise<boolean> {
-  const tracking = syncingPaths.get(folderPath);
+  const normalizedPath = normalizeFolderPath(folderPath);
+  const tracking = syncingPaths.get(normalizedPath) ?? syncingPaths.get(folderPath);
   if (!tracking) {
     return false;
   }
 
-  console.log(`[SyncService] Cancelling sync for path: ${folderPath} (folder ID: ${tracking.folderId})`);
+  console.log(`[SyncService] Cancelling sync for path: ${normalizedPath} (folder ID: ${tracking.folderId})`);
   tracking.abortController.abort();
 
   // Wait briefly for the sync to acknowledge the abort
@@ -1120,9 +1211,14 @@ export async function recoverStuckSyncingFolders(): Promise<number> {
     if (updatedAt < cutoffTime) {
       console.log(`[SyncService] Recovering stuck syncing folder: ${folder.id} (${folder.folderPath})`);
 
-      // Reset to synced or error based on whether files were indexed
-      const newStatus = (folder.fileCount ?? 0) > 0 ? "synced" : "error";
-      const errorMsg = newStatus === "error" ? "Sync process was interrupted" : null;
+      let newStatus: "synced" | "error" | "paused" = (folder.fileCount ?? 0) > 0 ? "synced" : "error";
+      let errorMsg: string | null = newStatus === "error" ? "Sync process was interrupted" : null;
+
+      const { error: pathError } = await validateSyncFolderPath(folder.folderPath);
+      if (pathError) {
+        newStatus = "paused";
+        errorMsg = `Paused: ${pathError}`;
+      }
 
       await db
         .update(agentSyncFolders)
@@ -1175,8 +1271,10 @@ export async function forceCleanupStuckFolders(): Promise<{ syncingCleaned: numb
     }
 
     const wasStatus = folder.status;
-    // Always reset to synced - interrupted syncs are not errors, just incomplete
-    const newStatus = "synced";
+    const { error: pathError } = await validateSyncFolderPath(folder.folderPath);
+
+    const newStatus = pathError ? "paused" : "synced";
+    const nextError = pathError ? `Paused: ${pathError}` : null;
 
     console.log(`[SyncService] Cleaning up folder: ${folder.id} (${folder.folderPath}) - ${wasStatus} -> ${newStatus}`);
 
@@ -1184,7 +1282,7 @@ export async function forceCleanupStuckFolders(): Promise<{ syncingCleaned: numb
       .update(agentSyncFolders)
       .set({
         status: newStatus,
-        lastError: null,
+        lastError: nextError,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(agentSyncFolders.id, folder.id));
@@ -1216,14 +1314,50 @@ export async function getSyncedFoldersNeedingWatch(): Promise<Array<{
     .from(agentSyncFolders)
     .where(eq(agentSyncFolders.status, "synced"));
 
-  return folders.map(folder => ({
-    folderId: folder.id,
-    characterId: folder.characterId,
-    folderPath: folder.folderPath,
-    recursive: folder.recursive,
-    includeExtensions: parseJsonArray(folder.includeExtensions),
-    excludePatterns: parseJsonArray(folder.excludePatterns),
-  }));
+  const results: Array<{
+    folderId: string;
+    characterId: string;
+    folderPath: string;
+    recursive: boolean;
+    includeExtensions: string[];
+    excludePatterns: string[];
+  }> = [];
+
+  for (const folder of folders) {
+    const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath);
+    if (error) {
+      await db
+        .update(agentSyncFolders)
+        .set({
+          status: "paused",
+          lastError: `Paused: ${error}`,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(agentSyncFolders.id, folder.id));
+      continue;
+    }
+
+    if (normalizedPath !== folder.folderPath) {
+      await db
+        .update(agentSyncFolders)
+        .set({
+          folderPath: normalizedPath,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(agentSyncFolders.id, folder.id));
+    }
+
+    results.push({
+      folderId: folder.id,
+      characterId: folder.characterId,
+      folderPath: normalizedPath,
+      recursive: folder.recursive,
+      includeExtensions: parseJsonArray(folder.includeExtensions),
+      excludePatterns: parseJsonArray(folder.excludePatterns),
+    });
+  }
+
+  return results;
 }
 
 /**
