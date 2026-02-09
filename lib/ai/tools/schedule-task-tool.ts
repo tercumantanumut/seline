@@ -452,7 +452,7 @@ async function resolveDeliveryChannel(
     const { findActiveChannelConnection } = await import("@/lib/db/queries");
     if (typeof findActiveChannelConnection === "function") {
       const connection = await findActiveChannelConnection(
-        session.userId,
+        session.userId!,
         deliveryChannel
       );
       if (connection) {
@@ -561,7 +561,7 @@ async function mirrorToGoogleCalendar(params: {
       `[scheduleTask] Mirroring to Google Calendar via MCP: ${calendarTool.serverName}/${calendarTool.toolName}`
     );
 
-    const result = await manager.callTool(
+    const result = await manager.executeTool(
       calendarTool.serverName,
       calendarTool.toolName,
       eventArgs

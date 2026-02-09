@@ -444,20 +444,29 @@ export default function ChatInterface({
 
     // Check for active run on mount and when sessionId changes
     useEffect(() => {
+        let cancelled = false;
+
         async function checkActiveRun() {
             try {
                 const response = await fetch(`/api/sessions/${sessionId}/active-run`, {
                     cache: "no-store",
                     headers: { "Cache-Control": "no-cache" },
                 });
+                if (cancelled) return;
                 if (response.ok) {
                     const data = await response.json();
+                    if (cancelled) return;
                     if (data.hasActiveRun) {
                         console.log("[Background Processing] Detected active run:", data.runId);
                         setIsProcessingInBackground(true);
                         setProcessingRunId(data.runId);
                         startPollingForCompletion(data.runId);
                         void reloadSessionMessages(sessionId, { remount: true });
+                    } else {
+                        // No active run on this session — clear any stale state
+                        setIsProcessingInBackground(false);
+                        setProcessingRunId(null);
+                        setIsZombieRun(false);
                     }
                 }
             } catch (error) {
@@ -471,6 +480,7 @@ export default function ChatInterface({
 
         // Cleanup polling on unmount or session change
         return () => {
+            cancelled = true;
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
@@ -574,6 +584,19 @@ export default function ChatInterface({
         async (newSessionId: string) => {
             try {
                 setIsLoading(true);
+
+                // Eagerly clear background processing state from the previous session.
+                // The checkActiveRun effect will re-enable it if the *new* session has one.
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
+                }
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                setActiveRun(null);
+                setIsZombieRun(false);
+                setIsCancellingBackgroundRun(false);
+
                 const uiMessages = await fetchSessionMessages(newSessionId);
                 if (!uiMessages) return;
                 setSessionState({
@@ -604,6 +627,18 @@ export default function ChatInterface({
                 });
                 if (response.ok) {
                     const { session } = await response.json();
+
+                    // Clear background processing state from the previous session
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    setIsProcessingInBackground(false);
+                    setProcessingRunId(null);
+                    setActiveRun(null);
+                    setIsZombieRun(false);
+                    setIsCancellingBackgroundRun(false);
+
                     // CRITICAL: Update sessionId and messages atomically
                     setSessionState({
                         sessionId: session.id,
@@ -1088,6 +1123,7 @@ export default function ChatInterface({
                             onSessionActivity={handleSessionActivity}
                             footer={isProcessingInBackground ? <BackgroundProgressPlaceholder /> : null}
                             isBackgroundTaskRunning={Boolean(activeRun || isProcessingInBackground)}
+                            sessionId={sessionId}
                         />
                     </div>
                 </ChatProvider>

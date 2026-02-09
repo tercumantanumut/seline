@@ -1,5 +1,6 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
 import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, getProviderTemperature } from "@/lib/ai/providers";
+import { resolveSessionLanguageModel } from "@/lib/ai/session-model-resolver";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -2060,7 +2061,8 @@ export async function POST(req: Request) {
         characterId: characterId || undefined,
       },
       async () => streamText({
-        model: getLanguageModel(),
+        // Use session-level model override if present, otherwise fall back to global
+        model: resolveSessionLanguageModel(sessionMetadata),
         // Conditionally include system prompt to reduce token usage
         // It's sent on first message, then periodically based on token/message thresholds
         // Use cacheable blocks if caching is enabled (Anthropic only)
