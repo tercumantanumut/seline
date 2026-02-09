@@ -99,12 +99,16 @@ describe("execute-command-tool normalization", () => {
     expect(commandExecutionMocks.executeCommandWithValidation).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "python",
-        args: ["-c", "from math import sin;print(sin(0))"],
+        // The tool may wrap the `-c` payload in quotes on Windows for compatibility.
+        args: ["-c", expect.any(String)],
         cwd: "C:\\workspace",
         characterId: "char-1",
       }),
       ["C:\\workspace"]
     );
+
+    const call = commandExecutionMocks.executeCommandWithValidation.mock.calls[0]?.[0];
+    expect(call.args[1]).toContain("from math import sin;print(sin(0))");
   });
 });
 

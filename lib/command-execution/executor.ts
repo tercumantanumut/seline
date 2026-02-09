@@ -107,10 +107,28 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
             //
             // Note for AI: On Windows use 'dir' instead of 'ls', 'type' instead of 'cat'
             const isWindows = process.platform === "win32";
+
+            // On Windows, `shell: true` causes cmd.exe to re-parse the argument string, which can
+            // break tools like `python -c` where the *entire* script must remain a single argv item.
+            // Only enable the shell for cmd.exe built-ins or batch scripts.
+            const windowsNeedsShell = (() => {
+                if (!isWindows) return false;
+                const normalized = command.trim().toLowerCase();
+                if (normalized.endsWith(".cmd") || normalized.endsWith(".bat")) return true;
+                // cmd.exe built-ins (non-exhaustive; add as needed)
+                return (
+                    normalized === "dir" ||
+                    normalized === "type" ||
+                    normalized === "copy" ||
+                    normalized === "move" ||
+                    normalized === "echo"
+                );
+            })();
+
             child = spawn(command, args, {
                 cwd,
                 timeout, // Built-in timeout
-                shell: isWindows, // Only use shell on Windows
+                shell: windowsNeedsShell,
                 windowsHide: true, // Hide console window on Windows
                 env: buildSafeEnvironment() as NodeJS.ProcessEnv,
             });
