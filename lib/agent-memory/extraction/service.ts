@@ -9,6 +9,7 @@ import { getUtilityModel } from "@/lib/ai/providers";
 import { AgentMemoryManager } from "../memory-manager";
 import { buildExtractionPrompt } from "./prompt";
 import { calculateImportance, meetsThreshold, normalizeFactors } from "./importance";
+import { loadSettings } from "@/lib/settings/settings-manager";
 import type { MemoryEntry, MemoryCategory, ExtractedMemory } from "../types";
 
 export interface ExtractionInput {
@@ -81,6 +82,7 @@ export async function extractMemories(input: ExtractionInput): Promise<Extractio
     // Process each extracted memory
     const newMemories: MemoryEntry[] = [];
     let skipped = 0;
+    const autoApprove = loadSettings().memoryAutoApprove === true;
 
     for (const memory of extracted) {
       // Normalize and validate factors
@@ -107,7 +109,8 @@ export async function extractMemories(input: ExtractionInput): Promise<Extractio
         continue;
       }
 
-      // Add as pending memory
+      // Add memory — auto-approve if setting is enabled
+      const memoryStatus = autoApprove ? "approved" : "pending";
       const entry = await manager.addMemory({
         category: memory.category,
         content: memory.content,
@@ -115,14 +118,14 @@ export async function extractMemories(input: ExtractionInput): Promise<Extractio
         confidence: Math.max(0, Math.min(1, memory.confidence)),
         importance: calculateImportance(normalizedFactors),
         factors: normalizedFactors,
-        status: "pending",
+        status: memoryStatus,
         source: "auto",
         sessionId,
         messageIds: messages.map((m) => m.id),
       });
 
       newMemories.push(entry);
-      console.log(`[Memory Extraction] Added pending memory: ${entry.content.substring(0, 50)}...`);
+      console.log(`[Memory Extraction] Added ${memoryStatus} memory: ${entry.content.substring(0, 50)}...`);
     }
 
     await manager.markExtractionTime();

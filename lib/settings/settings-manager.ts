@@ -199,6 +199,9 @@ export interface AppSettings {
     sttProvider?: "openai" | "local";
     sttLocalModel?: string;          // Selected whisper.cpp model ID (default: "ggml-tiny.en")
     whisperCppPath?: string;         // Custom path to whisper-cli binary (auto-detected if empty)
+
+    // Memory settings
+    memoryAutoApprove?: boolean;     // Auto-approve background-extracted memories (default: false)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
