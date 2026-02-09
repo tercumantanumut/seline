@@ -89,6 +89,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "showProductImages", category: "utility" },
   { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", category: "utility" },
+  { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },
   { id: "updatePlan", category: "utility" },
   // OpenRouter Image Tools

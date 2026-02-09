@@ -61,6 +61,7 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "showProductImages", nameKey: "showProductImages", descKey: "showProductImagesDesc", category: "utility" },
   { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", nameKey: "scheduleTask", descKey: "scheduleTaskDesc", category: "utility" },
+  { id: "memorize", nameKey: "memorize", descKey: "memorizeDesc", category: "utility" },
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
   // OpenRouter Image Tools
