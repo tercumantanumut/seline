@@ -2185,7 +2185,11 @@ export async function POST(req: Request) {
           // the interleaved sequence: tool-call → tool-result → text per step
           const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
           const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
-          const seenToolCallIds = new Set<string>();
+          // Separate dedup sets: tool-calls and tool-results naturally share the same
+          // toolCallId (a result references its call). Using a single shared set caused
+          // all tool-results to be dropped because the call was already recorded.
+          const seenToolCalls = new Set<string>();
+          const seenToolResults = new Set<string>();
 
           if (steps && steps.length > 0) {
             for (const step of steps) {
@@ -2200,10 +2204,10 @@ export async function POST(req: Request) {
                   if (!normalizedInput) {
                     continue;
                   }
-                  if (seenToolCallIds.has(call.toolCallId)) {
+                  if (seenToolCalls.has(call.toolCallId)) {
                     continue;
                   }
-                  seenToolCallIds.add(call.toolCallId);
+                  seenToolCalls.add(call.toolCallId);
                   content.push({
                     type: "tool-call",
                     toolCallId: call.toolCallId,
@@ -2228,10 +2232,10 @@ export async function POST(req: Request) {
                     status === "error" || status === "failed"
                       ? "output-error"
                       : "output-available";
-                  if (seenToolCallIds.has(res.toolCallId)) {
+                  if (seenToolResults.has(res.toolCallId)) {
                     continue;
                   }
-                  seenToolCallIds.add(res.toolCallId);
+                  seenToolResults.add(res.toolCallId);
                   content.push({
                     type: "tool-result",
                     toolCallId: res.toolCallId,
@@ -2496,17 +2500,19 @@ export async function POST(req: Request) {
             // This preserves the partial response so AI has context on subsequent messages
             const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
             const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
-            const seenPartialToolCallIds = new Set<string>();
+            // Separate dedup sets (same fix as onFinish path above)
+            const seenPartialToolCalls = new Set<string>();
+            const seenPartialToolResults = new Set<string>();
 
             if (steps && steps.length > 0) {
               for (const step of steps) {
                 // Add tool calls from this step (if any)
                 if (step.toolCalls) {
                   for (const call of step.toolCalls) {
-                    if (seenPartialToolCallIds.has(call.toolCallId)) {
+                    if (seenPartialToolCalls.has(call.toolCallId)) {
                       continue;
                     }
-                    seenPartialToolCallIds.add(call.toolCallId);
+                    seenPartialToolCalls.add(call.toolCallId);
                     content.push({
                       type: "tool-call",
                       toolCallId: call.toolCallId,
@@ -2523,10 +2529,10 @@ export async function POST(req: Request) {
                 // Add tool results from this step (if any)
                 if (step.toolResults) {
                   for (const res of step.toolResults) {
-                    if (seenPartialToolCallIds.has(res.toolCallId)) {
+                    if (seenPartialToolResults.has(res.toolCallId)) {
                       continue;
                     }
-                    seenPartialToolCallIds.add(res.toolCallId);
+                    seenPartialToolResults.add(res.toolCallId);
                     const meta = toolCallMetadata.get(res.toolCallId);
                     const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
                     const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
