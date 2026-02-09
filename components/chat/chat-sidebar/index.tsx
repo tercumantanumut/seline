@@ -51,6 +51,8 @@ import {
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
+import { SessionItem } from "./session-item";
+import { CHANNEL_TYPE_ICONS } from "./constants";
 import { cn } from "@/lib/utils";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import type { SessionChannelType, SessionInfo } from "./types";
@@ -95,11 +97,7 @@ interface CharacterSidebarProps {
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
 
-const CHANNEL_TYPE_ICONS: Record<SessionChannelType, typeof Phone> = {
-  whatsapp: Phone,
-  telegram: Send,
-  slack: Hash,
-};
+
 
 function parseAsUTC(dateStr: string): Date {
   const normalized =
@@ -144,8 +142,6 @@ export function CharacterSidebar({
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const editInputRef = useRef<HTMLInputElement | null>(null);
-  const skipBlurRef = useRef(false);
   const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
   const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
   const t = useTranslations("chat");
@@ -163,21 +159,15 @@ export function CharacterSidebar({
   const stopEditing = useCallback(() => {
     setEditingSessionId(null);
     setEditTitle("");
-    editInputRef.current = null;
-    skipBlurRef.current = false;
   }, []);
 
   const startEditingSession = useCallback((session: SessionInfo) => {
     setEditingSessionId(session.id);
     setEditTitle(session.title || "");
-    skipBlurRef.current = false;
   }, []);
 
   useEffect(() => {
-    if (editingSessionId && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
-    }
+    // Refs removed, logic moved to SessionItem
   }, [editingSessionId]);
 
   const handleRename = useCallback(async () => {
@@ -228,70 +218,7 @@ export function CharacterSidebar({
     closeDeleteDialog();
   }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
 
-  const handleInputBlur = useCallback(() => {
-    if (skipBlurRef.current) {
-      skipBlurRef.current = false;
-      return;
-    }
-    void handleRename();
-  }, [handleRename]);
 
-  const handleInputKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void handleRename();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        stopEditing();
-      }
-    },
-    [handleRename, stopEditing]
-  );
-
-  const handleActionMouseDown = useCallback(() => {
-    skipBlurRef.current = true;
-  }, []);
-
-  const handleSaveClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      void handleRename();
-    },
-    [handleRename]
-  );
-
-  const handleCancelClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      stopEditing();
-    },
-    [stopEditing]
-  );
-
-  const formatSessionDate = useCallback((dateStr: string): string => {
-    const date = parseAsUTC(dateStr);
-    if (isNaN(date.getTime())) {
-      return t("session.invalid");
-    }
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) {
-      return formatter.dateTime(date, {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-    }
-    if (days === 1) {
-      return t("session.yesterday");
-    }
-    if (days < 7) {
-      return formatter.dateTime(date, { weekday: "short" });
-    }
-    return formatter.dateTime(date, { month: "short", day: "numeric" });
-  }, [formatter, t]);
 
   const groupedSessions = useMemo(() => {
     const groups: Record<"today" | "week" | "older", SessionInfo[]> = {
@@ -347,138 +274,22 @@ export function CharacterSidebar({
         {values.map((session) => {
           const isCurrent = session.id === currentSessionId;
           const isEditing = editingSessionId === session.id;
-          const effectiveChannel = session.channelType ?? session.metadata?.channelType;
-          const messageCount = session.messageCount ?? 0;
           return (
-            <div
+            <SessionItem
               key={session.id}
-              className={cn(
-                "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer",
-                "transition-all duration-200 ease-out",
-                isCurrent
-                  ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
-                  : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
-              )}
-              onClick={() => {
-                if (!isEditing) {
-                  onSwitchSession(session.id);
-                }
-              }}
-            >
-              <MessageCircle
-                className={cn(
-                  "h-4 w-4 flex-shrink-0 transition-colors duration-200",
-                  isCurrent ? "text-terminal-green" : "text-terminal-muted"
-                )}
-              />
-              <div className="flex-1 min-w-0">
-                {isEditing ? (
-                  <div className="space-y-2" onClick={(event) => event.stopPropagation()}>
-                    <Input
-                      ref={isEditing ? editInputRef : undefined}
-                      type="text"
-                      value={editTitle}
-                      onChange={(event) => setEditTitle(event.target.value)}
-                      onKeyDown={handleInputKeyDown}
-                      onBlur={handleInputBlur}
-                      onClick={(event) => event.stopPropagation()}
-                      placeholder={t("sidebar.edit")}
-                      className="h-8 text-sm font-mono"
-                    />
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-3 text-xs font-mono"
-                        onMouseDown={handleActionMouseDown}
-                        onClick={handleSaveClick}
-                      >
-                        {t("sidebar.save")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-3 text-xs font-mono"
-                        onMouseDown={handleActionMouseDown}
-                        onClick={handleCancelClick}
-                      >
-                        {t("sidebar.cancel")}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p
-                      className={cn(
-                        "text-sm font-mono truncate transition-colors duration-200",
-                        isCurrent ? "text-terminal-dark font-medium" : "text-terminal-muted"
-                      )}
-                    >
-                      {session.title || t("session.untitled")}
-                    </p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatSessionDate(session.updatedAt)}
-                      </span>
-                      {messageCount > 0 ? <span>{t("sidebar.messageCount", { count: messageCount })}</span> : null}
-                      {effectiveChannel ? (
-                        <Badge className="border border-terminal-dark/10 bg-terminal-cream/80 px-2 py-0.5 text-[10px] font-mono text-terminal-dark">
-                          {(() => {
-                            const Icon = CHANNEL_TYPE_ICONS[effectiveChannel];
-                            return (
-                              <>
-                                <Icon className="mr-1 h-3 w-3" />
-                                {tChannels(`types.${effectiveChannel}`)}
-                              </>
-                            );
-                          })()}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </>
-                )}
-              </div>
-              {!isEditing ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-                    <DropdownMenuItem onSelect={() => startEditingSession(session)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      {t("sidebar.rename")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void onExportSession(session.id, "markdown")}>
-                      <Download className="h-3.5 w-3.5" />
-                      {t("sidebar.exportMarkdown")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void onExportSession(session.id, "json")}>
-                      <Download className="h-3.5 w-3.5" />
-                      {t("sidebar.exportJson")}
-                    </DropdownMenuItem>
-                    {effectiveChannel ? (
-                      <DropdownMenuItem onSelect={() => void onResetChannelSession(session.id)}>
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        {t("sidebar.resetChannel")}
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600 hover:!text-red-600" onSelect={() => handleDeleteRequest(session)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {t("sidebar.delete")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
-            </div>
+              session={session}
+              isCurrent={isCurrent}
+              isEditing={isEditing}
+              editTitle={editTitle}
+              setEditTitle={setEditTitle}
+              onSwitch={() => onSwitchSession(session.id)}
+              onSaveEdit={() => void handleRename()}
+              onCancelEdit={stopEditing}
+              onStartEdit={() => startEditingSession(session)}
+              onDelete={() => handleDeleteRequest(session)}
+              onExport={(format) => void onExportSession(session.id, format)}
+              onResetChannel={() => void onResetChannelSession(session.id)}
+            />
           );
         })}
       </div>

@@ -10,6 +10,7 @@ export interface SessionInfo {
   messageCount?: number | null;
   totalTokenCount?: number | null;
   channelType?: SessionChannelType | null;
+  hasActiveRun?: boolean;
   metadata: {
     characterId?: string;
     characterName?: string;

@@ -14,8 +14,14 @@ import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import type { TaskEvent } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
+import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import type { SessionInfo, SessionChannelType } from "@/components/chat/chat-sidebar/types";
+import { useSessionSyncNotifier } from "@/lib/hooks/use-session-sync";
+import {
+    useSessionSyncStore,
+    sessionInfoArrayToSyncData,
+} from "@/lib/stores/session-sync-store";
 
 interface CharacterFullData {
     id: string;
@@ -151,6 +157,7 @@ export default function ChatInterface({
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [isLoading, setIsLoading] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const { syncSessions, updateSession: notifySessionUpdate, notifySessionDeleted: notifySessionRemoval } = useSessionSync();
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
     const activeTaskForSession = sessionId
@@ -182,6 +189,17 @@ export default function ChatInterface({
     const sessionListSignatureRef = useRef<string>(sessions.map(getSessionSignature).join("||"));
     const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
 
+    // Session sync for cross-component synchronization
+    const sessionSyncNotifier = useSessionSyncNotifier();
+    const setSyncSessions = useSessionSyncStore((state) => state.setSessions);
+
+    // Sync sessions to global store whenever local sessions change
+    useEffect(() => {
+        if (sessions.length > 0) {
+            setSyncSessions(sessionInfoArrayToSyncData(sessions), character.id);
+        }
+    }, [sessions, character.id, setSyncSessions]);
+
     // Sync server-provided initial data when props change (e.g., after navigation)
     // This handles the case where the component is reused but props are different
     useEffect(() => {
@@ -198,6 +216,10 @@ export default function ChatInterface({
 
     const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
         const nextUpdatedAt = new Date().toISOString();
+        
+        // Notify global store
+        notifySessionUpdate(targetSessionId, { updatedAt: nextUpdatedAt });
+
         setSessions((prev) => {
             let updated = false;
             const next = prev.map((session) => {
@@ -257,6 +279,10 @@ export default function ChatInterface({
 
             const data = await response.json();
             const pageSessions = sortSessionsByUpdatedAt((data.sessions || []) as SessionInfo[]);
+            
+            // Sync loaded sessions with global store
+            syncSessions(pageSessions);
+
             setSessions((prev) => {
                 if (!append) {
                     return areSessionsEquivalent(prev, pageSessions) ? prev : pageSessions;
@@ -369,6 +395,13 @@ export default function ChatInterface({
 
                 // Increment counter to force ChatProvider remount with new messages
                 setBackgroundRefreshCounter(prev => prev + 1);
+                
+                // Update global store with new message count and timestamp
+                notifySessionUpdate(sessionId, { 
+                    updatedAt: new Date().toISOString(),
+                    messageCount: data.messages?.length || 0
+                });
+
                 console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
             } else {
                 console.error("[Background Processing] Failed to fetch messages:", response.status, response.statusText);
@@ -644,6 +677,10 @@ export default function ChatInterface({
                         sessionId: session.id,
                         messages: [],
                     });
+                    
+                    // Sync new session to global store
+                    syncSessions([session]);
+                    
                     await loadSessions();
                     router.replace(`/chat/${character.id}?sessionId=${session.id}`, { scroll: false });
                 }
@@ -690,6 +727,7 @@ export default function ChatInterface({
                     method: "DELETE",
                 });
                 if (response.ok) {
+                    notifySessionRemoval(sessionToDeleteId);
                     if (sessionToDeleteId === sessionId) {
                         const remainingSessions = sessions.filter((s) => s.id !== sessionToDeleteId);
                         if (remainingSessions.length > 0) {
@@ -973,6 +1011,9 @@ export default function ChatInterface({
             if (!changed) {
                 return true;
             }
+            
+            // Optimistic update to global store
+            notifySessionUpdate(sessionToRenameId, { title: normalizedTitle, updatedAt: optimisticUpdatedAt });
 
             try {
                 const response = await fetch(`/api/sessions/${sessionToRenameId}`, {

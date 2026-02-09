@@ -32,11 +32,12 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   speed: "standard",
 };
 
-const MODEL_METADATA: Record<
+export const MODEL_METADATA: Record<
   string,
   Partial<Pick<ModelItem, "tier"> & { capabilities: Partial<ModelCapabilities> }>
 > = {
   // Anthropic direct
+  // --- 4.5 Series (Future/Beta) ---
   "claude-sonnet-4-5-20250929": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
@@ -44,6 +45,48 @@ const MODEL_METADATA: Record<
   "claude-haiku-4-5-20251001": {
     tier: "utility",
     capabilities: { vision: true, contextWindow: "200K", speed: "fast" },
+  },
+  "claude-opus-4-5-20251001": {
+    tier: "flagship",
+    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
+  },
+
+  // --- 3.5 Series ---
+  "claude-3-5-sonnet-20241022": {
+    tier: "flagship",
+    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
+  },
+  "claude-3-5-haiku-20241022": {
+    tier: "utility",
+    capabilities: { vision: false, contextWindow: "200K", speed: "fast" },
+  },
+
+  // --- 3.0 Series ---
+  "claude-3-opus-20240229": {
+    tier: "flagship",
+    capabilities: { vision: true, contextWindow: "200K", speed: "slow" },
+  },
+  "claude-3-sonnet-20240229": {
+    tier: "standard",
+    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
+  },
+  "claude-3-haiku-20240307": {
+    tier: "utility",
+    capabilities: { vision: true, contextWindow: "200K", speed: "fast" },
+  },
+
+  // --- Legacy ---
+  "claude-2.1": {
+    tier: "legacy",
+    capabilities: { vision: false, contextWindow: "200K", speed: "slow" },
+  },
+  "claude-2.0": {
+    tier: "legacy",
+    capabilities: { vision: false, contextWindow: "100K", speed: "slow" },
+  },
+  "claude-instant-1.2": {
+    tier: "legacy",
+    capabilities: { vision: false, contextWindow: "100K", speed: "fast" },
   },
 
   // Antigravity
@@ -168,10 +211,23 @@ export function buildModelCatalog(
   const catalog: ModelItem[] = [];
   const roleInverse = invertAssignments(currentAssignments);
 
-  // Anthropic (no existing getAnthropicModels — hardcoded)
+  // Anthropic (expanded to include full roster)
   const anthropicModels = [
+    // 4.5 Series
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
+    { id: "claude-opus-4-5-20251001", name: "Claude Opus 4.5" },
+    // 3.5 Series
+    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
+    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
+    // 3.0 Series
+    { id: "claude-3-opus-20240229", name: "Claude 3 Opus" },
+    { id: "claude-3-sonnet-20240229", name: "Claude 3 Sonnet" },
+    { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
+    // Legacy
+    { id: "claude-2.1", name: "Claude 2.1" },
+    { id: "claude-2.0", name: "Claude 2.0" },
+    { id: "claude-instant-1.2", name: "Claude Instant 1.2" },
   ];
 
   const allSources: Array<{

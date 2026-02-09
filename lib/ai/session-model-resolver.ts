@@ -42,6 +42,36 @@ const SESSION_MODEL_KEYS = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Get the model ID string for a session (for context window lookups).
+ * Returns the session override if present, otherwise the global setting.
+ */
+export function getSessionModelId(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+): string {
+  const config = extractSessionModelConfig(sessionMetadata);
+  if (config?.sessionChatModel) {
+    return config.sessionChatModel;
+  }
+  // Fall back to global settings
+  const settings = loadSettings();
+  return settings.chatModel || "claude-sonnet-4-5-20250929";
+}
+
+/**
+ * Get the provider for a session (for context window lookups).
+ * Returns the session override if present, otherwise the global setting.
+ */
+export function getSessionProvider(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+): LLMProvider {
+  const config = extractSessionModelConfig(sessionMetadata);
+  if (config?.sessionProvider) {
+    return config.sessionProvider;
+  }
+  return getConfiguredProvider();
+}
+
+/**
  * Extract SessionModelConfig from session metadata.
  * Returns null if no overrides are present.
  */

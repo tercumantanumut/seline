@@ -38,6 +38,9 @@ import { Label } from "@/components/ui/label";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
+import { useSessionSync } from "@/lib/hooks/use-session-sync";
+import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
+import { useShallow } from "zustand/react/shallow";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -168,6 +171,28 @@ export function CharacterPicker() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<CharacterSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Session sync
+  useSessionSync({ enablePolling: true, pollingInterval: 10000 });
+  const sessionsById = useSessionSyncStore(useShallow(state => state.sessionsById));
+  const sessionsByCharacter = useSessionSyncStore(useShallow(state => state.sessionsByCharacter));
+  const activeRuns = useSessionSyncStore(useShallow(state => state.activeRuns));
+
+  const hasActiveSession = useCallback((charId: string, initialStatus?: boolean) => {
+    // Check store first
+    const sessionIds = sessionsByCharacter.get(charId);
+    if (sessionIds && sessionIds.size > 0) {
+      for (const sid of sessionIds) {
+        if (activeRuns.has(sid)) return true;
+        const s = sessionsById.get(sid);
+        if (s?.hasActiveRun) return true;
+      }
+      // If we have sessions in store but none active, return false (store is authoritative)
+      return false;
+    }
+    // Fallback to initial status if store doesn't have info yet
+    return !!initialStatus;
+  }, [sessionsByCharacter, sessionsById, activeRuns]);
 
   const t = useTranslations("picker");
   const tc = useTranslations("common");
@@ -777,7 +802,7 @@ export function CharacterPicker() {
                       </AvatarFallback>
                     </Avatar>
                     {/* Active session indicator */}
-                    {character.hasActiveSession && (
+                    {hasActiveSession(character.id, character.hasActiveSession) && (
                       <div
                         className="absolute -top-1 -right-1 z-10"
                         title={t("activeSession.tooltip")}

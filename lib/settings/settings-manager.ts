@@ -303,7 +303,7 @@ const MODEL_PREFIXES: Record<string, string[]> = {
   // Anthropic models always have a date suffix (e.g. "claude-sonnet-4-5-20250929")
   // Using "claude-" prefix is safe here because Antigravity models are checked
   // via exact match first (see isCompatibleWithProvider below)
-  anthropic: ["claude-", "claude3", "claude4"],
+  anthropic: ["claude-", "claude-3", "claude-2", "claude-instant"],
   kimi: ["kimi-", "moonshot-"],
   codex: ["gpt-5", "codex"],
   // Antigravity uses exact match (see ANTIGRAVITY_EXACT_MODELS), not prefixes

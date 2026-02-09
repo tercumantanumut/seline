@@ -8,9 +8,9 @@ import {
 } from "@/lib/db/queries";
 import { estimateMessageTokens } from "@/lib/utils";
 import type { Message } from "@/lib/db/schema";
+import { getCompactionThreshold } from "@/lib/ai/context-limits";
+import type { LLMProvider } from "@/components/model-bag/model-bag.types";
 
-// Compaction threshold - trigger when we estimate 70% of context is used
-const TOKEN_THRESHOLD = 140000; // ~70% of 200k context
 const MIN_MESSAGES_FOR_COMPACTION = 10;
 const KEEP_RECENT_MESSAGES = 6; // Keep last N messages uncompacted
 
@@ -27,7 +27,11 @@ Create a summary that would allow continuing the conversation naturally. Be conc
 Previous conversation:
 `;
 
-export async function compactIfNeeded(sessionId: string): Promise<void> {
+export async function compactIfNeeded(
+  sessionId: string, 
+  modelId: string, 
+  provider: LLMProvider
+): Promise<void> {
   const session = await getSession(sessionId);
   if (!session) return;
 
@@ -45,7 +49,11 @@ export async function compactIfNeeded(sessionId: string): Promise<void> {
     totalTokens += estimateMessageTokens({ content: session.summary });
   }
 
-  if (totalTokens < TOKEN_THRESHOLD) return;
+  // Calculate dynamic threshold based on the model's context window
+  // Use 75% of the context window as the trigger point
+  const tokenThreshold = getCompactionThreshold(modelId, provider, 0.75);
+
+  if (totalTokens < tokenThreshold) return;
 
   // Need to compact - keep recent messages, summarize older ones
   const messagesToCompact = messages.slice(0, -KEEP_RECENT_MESSAGES);

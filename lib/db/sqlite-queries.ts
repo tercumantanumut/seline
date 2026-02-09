@@ -11,6 +11,7 @@ import {
   channelConnections,
   channelConversations,
   channelMessages,
+  agentRuns,
 } from "./sqlite-schema";
 import type {
   NewSession,
@@ -49,7 +50,7 @@ export interface ListSessionsPaginatedParams {
 }
 
 export interface ListSessionsPaginatedResult {
-  sessions: Session[];
+  sessions: (Session & { hasActiveRun?: boolean })[];
   nextCursor: string | null;
   totalCount: number;
 }
@@ -276,13 +277,29 @@ export async function listSessionsPaginated(
   const page = hasMore ? rows.slice(0, pageSize) : rows;
   const nextCursor = hasMore ? page[page.length - 1]?.updatedAt ?? null : null;
 
+  // Check for active runs
+  let sessionsWithStatus = page;
+  if (page.length > 0) {
+    const sessionIds = page.map((s) => s.id);
+    const activeRuns = await db
+      .select({ sessionId: agentRuns.sessionId })
+      .from(agentRuns)
+      .where(and(inArray(agentRuns.sessionId, sessionIds), eq(agentRuns.status, "running")));
+
+    const activeSessionIds = new Set(activeRuns.map((r) => r.sessionId));
+    sessionsWithStatus = page.map((s) => ({
+      ...s,
+      hasActiveRun: activeSessionIds.has(s.id),
+    }));
+  }
+
   const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(sessions)
     .where(and(...baseConditions));
 
   return {
-    sessions: page,
+    sessions: sessionsWithStatus,
     nextCursor,
     totalCount: countResult[0]?.count ?? page.length,
   };

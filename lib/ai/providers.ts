@@ -96,7 +96,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
 };
 
 // Claude model prefixes - models that should use Anthropic provider
-const CLAUDE_MODEL_PREFIXES = ["claude-", "claude3", "claude4"];
+const CLAUDE_MODEL_PREFIXES = ["claude-", "claude-3", "claude-2", "claude-instant"];
 
 // Antigravity models - route only known IDs to avoid false positives
 const ANTIGRAVITY_MODEL_ID_SET = new Set(

@@ -16,6 +16,8 @@ import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
+import { ContextWindowManager } from "@/lib/context-window";
+import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
@@ -1463,8 +1465,66 @@ export async function POST(req: Request) {
     const injectContext = shouldInjectContext(contextTracking, isNewSession, toolLoadingMode);
     console.log(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
 
-    // Run auto-compaction if needed
-    await compactIfNeeded(sessionId);
+    // ========================================================================
+    // CONTEXT WINDOW MANAGEMENT - Pre-flight check before API call
+    // ========================================================================
+    // Get model ID and provider for context window lookups
+    const currentModelId = getSessionModelId(sessionMetadata);
+    const currentProvider = getSessionProvider(sessionMetadata);
+    
+    // Estimate system prompt length (will be refined after building actual prompt)
+    const estimatedSystemPromptLength = 5000; // Conservative estimate
+    
+    // Run pre-flight context window check
+    const contextCheck = await ContextWindowManager.preFlightCheck(
+      sessionId,
+      currentModelId,
+      estimatedSystemPromptLength,
+      currentProvider
+    );
+    
+    // If context window is exceeded and compaction failed, return error with recovery options
+    if (!contextCheck.canProceed) {
+      console.error(
+        `[CHAT API] Context window check failed: ${contextCheck.error}`,
+        contextCheck.status
+      );
+      
+      return new Response(
+        JSON.stringify({
+          error: "Context window limit exceeded",
+          details: ContextWindowManager.getStatusMessage(contextCheck.status),
+          status: contextCheck.status.status,
+          recovery: contextCheck.recovery,
+          compactionResult: contextCheck.compactionResult
+            ? {
+                success: contextCheck.compactionResult.success,
+                tokensFreed: contextCheck.compactionResult.tokensFreed,
+                messagesCompacted: contextCheck.compactionResult.messagesCompacted,
+              }
+            : undefined,
+        }),
+        { 
+          status: 413, // Payload Too Large
+          headers: { "Content-Type": "application/json" } 
+        }
+      );
+    }
+    
+    // Log context window status
+    console.log(
+      `[CHAT API] Context window status: ${contextCheck.status.status} ` +
+      `(${contextCheck.status.formatted.current}/${contextCheck.status.formatted.max}, ` +
+      `${contextCheck.status.formatted.percentage})`
+    );
+    
+    // If compaction was performed, log the result
+    if (contextCheck.compactionResult?.success) {
+      console.log(
+        `[CHAT API] Compaction completed: ${contextCheck.compactionResult.messagesCompacted} messages, ` +
+        `${contextCheck.compactionResult.tokensFreed} tokens freed`
+      );
+    }
 
     // Create agent run for observability
     agentRun = await createAgentRun({
