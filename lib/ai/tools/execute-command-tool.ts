@@ -242,17 +242,35 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
             try {
                 const normalizedInput = normalizeExecuteCommandInput(command, args);
 
+                // Guardrail: Python on Windows is commonly invoked via cmd.exe (shell parsing),
+                // but our executor uses spawn(argv) so the `-c` payload must be a single arg.
+                // Some environments require the script itself to be quoted.
+                if (
+                    isPythonExecutable(normalizedInput.command) &&
+                    normalizedInput.args[0] === "-c" &&
+                    typeof normalizedInput.args[1] === "string"
+                ) {
+                    const script = normalizedInput.args[1];
+                    const needsQuoteWrap =
+                        script.length > 0 &&
+                        !/^["']/.test(script.trim()) &&
+                        /\s|;|\(|\)|\n/.test(script);
+                    if (needsQuoteWrap) {
+                        normalizedInput.args[1] = `"${script.replace(/\"/g, "\\\"")}"`;
+                    }
+                }
+
                 // Execute command with validation using the core executor
                 const result = await executeCommandWithValidation(
-                    {
-                        command: normalizedInput.command,
-                        args: normalizedInput.args,
-                        cwd: executionDir,
-                        timeout: Math.min(timeout || 30000, 300000), // Max 5 minutes
-                        characterId: characterId,
-                    },
-                    syncedFolders // Whitelist of allowed directories (second parameter)
-                );
+                     {
+                         command: normalizedInput.command,
+                         args: normalizedInput.args,
+                         cwd: executionDir,
+                         timeout: Math.min(timeout || 30000, 300000), // Max 5 minutes
+                         characterId: characterId,
+                     },
+                     syncedFolders // Whitelist of allowed directories (second parameter)
+                 );
 
                 const toolResult: ExecuteCommandToolResult = {
                     status: result.success
