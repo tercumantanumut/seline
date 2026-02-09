@@ -297,3 +297,129 @@ describe("TelegramConnector voice caption truncation", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 });
+
+describe("TelegramConnector image + voice coexistence", () => {
+  beforeEach(() => {
+    sendMessage.mockReset();
+    sendPhoto.mockReset();
+    sendVoice.mockReset();
+  });
+
+  it("sends both photo and voice when both attachments are present", async () => {
+    sendPhoto.mockResolvedValue({ message_id: 500 });
+    sendVoice.mockResolvedValue({ message_id: 501 });
+    const connector = createConnector();
+
+    const result = await connector.sendMessage({
+      peerId: "123",
+      text: "Here is the image you requested",
+      attachments: [
+        { type: "image", filename: "photo.jpg", mimeType: "image/jpeg", data: Buffer.from("img") },
+        { type: "audio", filename: "voice.ogg", mimeType: "audio/ogg", data: Buffer.from("audio") },
+      ],
+    });
+
+    // Both sendPhoto and sendVoice must be called
+    expect(sendPhoto).toHaveBeenCalledTimes(1);
+    expect(sendVoice).toHaveBeenCalledTimes(1);
+    // Photo should be sent without caption (text goes to voice)
+    expect(sendPhoto.mock.calls[0][2].caption).toBeUndefined();
+    // Voice should carry the text as caption
+    expect(sendVoice.mock.calls[0][2].caption).toBe("Here is the image you requested");
+    // Voice should be threaded as a reply to the photo
+    expect(sendVoice.mock.calls[0][2].reply_parameters).toEqual({ message_id: 500 });
+    // Return the first (photo) message ID
+    expect(result.externalMessageId).toBe("500");
+  });
+
+  it("threads voice to photo and sends overflow when caption is long", async () => {
+    sendPhoto.mockResolvedValue({ message_id: 510 });
+    sendVoice.mockResolvedValue({ message_id: 511 });
+    sendMessage.mockResolvedValue({ message_id: 512 });
+    const connector = createConnector();
+    const longText = "C".repeat(1200);
+
+    await connector.sendMessage({
+      peerId: "123",
+      text: longText,
+      attachments: [
+        { type: "image", filename: "photo.jpg", mimeType: "image/jpeg", data: Buffer.from("img") },
+        { type: "audio", filename: "voice.ogg", mimeType: "audio/ogg", data: Buffer.from("audio") },
+      ],
+    });
+
+    expect(sendPhoto).toHaveBeenCalledTimes(1);
+    expect(sendVoice).toHaveBeenCalledTimes(1);
+    // Voice caption should be truncated
+    const voiceCaption = sendVoice.mock.calls[0][2].caption;
+    expect(voiceCaption.length).toBeLessThanOrEqual(1024);
+    expect(voiceCaption).toContain("\u2026");
+    // Overflow text sent as follow-up
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0][1]).toBe(longText);
+  });
+
+  it("sends image-only without voice when no audio attachment", async () => {
+    sendPhoto.mockResolvedValue({ message_id: 520 });
+    const connector = createConnector();
+
+    const result = await connector.sendMessage({
+      peerId: "123",
+      text: "Just an image",
+      attachments: [
+        { type: "image", filename: "photo.jpg", mimeType: "image/jpeg", data: Buffer.from("img") },
+      ],
+    });
+
+    expect(sendPhoto).toHaveBeenCalledTimes(1);
+    expect(sendPhoto.mock.calls[0][2].caption).toBe("Just an image");
+    expect(sendVoice).not.toHaveBeenCalled();
+    expect(result.externalMessageId).toBe("520");
+  });
+
+  it("sends voice-only without photo when no image attachment", async () => {
+    sendVoice.mockResolvedValue({ message_id: 530 });
+    const connector = createConnector();
+
+    const result = await connector.sendMessage({
+      peerId: "123",
+      text: "Just a voice note",
+      attachments: [
+        { type: "audio", filename: "voice.ogg", mimeType: "audio/ogg", data: Buffer.from("audio") },
+      ],
+    });
+
+    expect(sendVoice).toHaveBeenCalledTimes(1);
+    expect(sendVoice.mock.calls[0][2].caption).toBe("Just a voice note");
+    expect(sendPhoto).not.toHaveBeenCalled();
+    // Voice reply_parameters should use the original (undefined in this case)
+    expect(sendVoice.mock.calls[0][2].reply_parameters).toBeUndefined();
+    expect(result.externalMessageId).toBe("530");
+  });
+
+  it("returns photo message ID when caption retry happens with both attachments", async () => {
+    const { GrammyError } = await import("grammy");
+    const captionError = new GrammyError("Bad Request: message caption is too long", 400);
+
+    sendPhoto.mockResolvedValue({ message_id: 540 });
+    sendVoice
+      .mockRejectedValueOnce(captionError)
+      .mockResolvedValueOnce({ message_id: 541 });
+    sendMessage.mockResolvedValue({ message_id: 542 });
+    const connector = createConnector();
+
+    const result = await connector.sendMessage({
+      peerId: "123",
+      text: "Some text",
+      attachments: [
+        { type: "image", filename: "photo.jpg", mimeType: "image/jpeg", data: Buffer.from("img") },
+        { type: "audio", filename: "voice.ogg", mimeType: "audio/ogg", data: Buffer.from("audio") },
+      ],
+    });
+
+    expect(sendPhoto).toHaveBeenCalledTimes(1);
+    expect(sendVoice).toHaveBeenCalledTimes(2);
+    // Should return the photo's message ID (first message sent)
+    expect(result.externalMessageId).toBe("540");
+  });
+});

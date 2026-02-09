@@ -171,25 +171,31 @@ export class TelegramConnector implements ChannelConnector {
     const imageAttachment = payload.attachments?.find((a) => a.type === "image");
     const audioAttachment = payload.attachments?.find((a) => a.type === "audio");
 
+    // Track the first sent message ID for threading and return value
+    let firstMessageId: number | undefined;
+
+    // ── Step 1: Send image (if present) ──────────────────────────────────
     if (imageAttachment) {
-      const { caption, overflow } = truncateTelegramCaption(text);
+      // When voice follows, send photo without caption — the text will
+      // accompany the voice note instead (more natural UX).
+      const captionText = audioAttachment ? "" : text;
+      const { caption, overflow } = truncateTelegramCaption(captionText);
       const sent = await this.bot.api.sendPhoto(chatId, new InputFile(imageAttachment.data, imageAttachment.filename), {
-        caption,
+        caption: caption || undefined,
         message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
         reply_parameters: replyParameters,
       });
-      // If caption was truncated, send the full text as a follow-up message
-      if (overflow) {
+      firstMessageId = sent.message_id;
+
+      // If no audio follows and caption was truncated, send overflow
+      if (!audioAttachment && overflow) {
         await this.sendOverflowText(chatId, overflow, payload.threadId, sent.message_id);
       }
-      return {
-        externalMessageId: String(sent.message_id),
-        chunkIndex: payload.chunkIndex,
-        totalChunks: payload.totalChunks,
-      };
     }
 
-    // Send voice note for audio attachments (Telegram voice bubble UX)
+    // ── Step 2: Send voice note (if present) ─────────────────────────────
+    // When both image and voice exist, the voice is threaded as a reply to
+    // the image so they appear grouped in the chat.
     if (audioAttachment) {
       // Always strip YouTube URLs from voice captions — they don't belong in
       // a voice bubble. The full text (with URLs) is sent as a follow-up.
@@ -197,12 +203,18 @@ export class TelegramConnector implements ChannelConnector {
       const { caption, overflow } = truncateTelegramCaption(voiceText);
       // If we stripped URLs or truncated, send the full original text as follow-up
       const needsOverflow = hadUrls || overflow !== null;
+
+      // Thread voice to the image when both are present
+      const voiceReplyParams = firstMessageId
+        ? { message_id: firstMessageId }
+        : replyParameters;
+
       let sent;
       try {
         sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
           caption,
           message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
-          reply_parameters: replyParameters,
+          reply_parameters: voiceReplyParams,
         });
       } catch (error) {
         // Retry without caption if Telegram still rejects it (e.g. encoding edge cases)
@@ -212,14 +224,14 @@ export class TelegramConnector implements ChannelConnector {
           );
           sent = await this.bot.api.sendVoice(chatId, new InputFile(audioAttachment.data, audioAttachment.filename), {
             message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
-            reply_parameters: replyParameters,
+            reply_parameters: voiceReplyParams,
           });
           // Send the full text as a separate message so content isn't lost
           if (text && text.trim().length > 0) {
             await this.sendOverflowText(chatId, text, payload.threadId, sent.message_id);
           }
           return {
-            externalMessageId: String(sent.message_id),
+            externalMessageId: String(firstMessageId ?? sent.message_id),
             chunkIndex: payload.chunkIndex,
             totalChunks: payload.totalChunks,
           };
@@ -231,12 +243,22 @@ export class TelegramConnector implements ChannelConnector {
         await this.sendOverflowText(chatId, text, payload.threadId, sent.message_id);
       }
       return {
-        externalMessageId: String(sent.message_id),
+        externalMessageId: String(firstMessageId ?? sent.message_id),
         chunkIndex: payload.chunkIndex,
         totalChunks: payload.totalChunks,
       };
     }
 
+    // ── Step 3: Image-only (already sent above) ──────────────────────────
+    if (firstMessageId) {
+      return {
+        externalMessageId: String(firstMessageId),
+        chunkIndex: payload.chunkIndex,
+        totalChunks: payload.totalChunks,
+      };
+    }
+
+    // ── Step 4: Plain text fallback (no attachments) ─────────────────────
     const sent = await this.bot.api.sendMessage(chatId, text || " ", {
       message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
       reply_parameters: replyParameters,

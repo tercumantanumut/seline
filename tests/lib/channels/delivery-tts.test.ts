@@ -248,6 +248,67 @@ describe("Channel Delivery with TTS", () => {
 
     expect(sendMessageMock).not.toHaveBeenCalled();
   });
+
+  it("delivers both image and TTS audio attachments in a single payload", async () => {
+    ttsMocks.isTTSAvailable.mockReturnValue(true);
+    ttsMocks.synthesizeSpeech.mockResolvedValue({
+      audio: Buffer.from("fake-tts-audio"),
+      mimeType: "audio/mpeg",
+    });
+    ttsMocks.getAudioForChannel.mockReturnValue({
+      audio: Buffer.from("fake-ogg-audio"),
+      mimeType: "audio/ogg",
+      extension: "ogg",
+    });
+
+    await deliverChannelReply({
+      sessionId: "sess-1",
+      messageId: "msg-1",
+      content: [
+        { type: "text", text: "Here is the design you asked for" },
+        { type: "image", image: "/api/media/sessions/sess-1/uploads/design.jpg" },
+      ],
+      sessionMetadata: { channelConversationId: "conv-1" },
+    });
+
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    const callArgs = sendMessageMock.mock.calls[0][1];
+    const imageAttachments = (callArgs.attachments || []).filter(
+      (a: any) => a.type === "image"
+    );
+    const audioAttachments = (callArgs.attachments || []).filter(
+      (a: any) => a.type === "audio"
+    );
+    // Both image and audio must be present in the same payload
+    expect(imageAttachments).toHaveLength(1);
+    expect(audioAttachments).toHaveLength(1);
+    expect(audioAttachments[0].mimeType).toBe("audio/ogg");
+  });
+
+  it("delivers image without audio when TTS is disabled", async () => {
+    settingsMock.state.settings.ttsEnabled = false;
+    ttsMocks.isTTSAvailable.mockReturnValue(false);
+
+    await deliverChannelReply({
+      sessionId: "sess-1",
+      messageId: "msg-1",
+      content: [
+        { type: "text", text: "Here is the design" },
+        { type: "image", image: "/api/media/sessions/sess-1/uploads/design.jpg" },
+      ],
+      sessionMetadata: { channelConversationId: "conv-1" },
+    });
+
+    const callArgs = sendMessageMock.mock.calls[0][1];
+    const imageAttachments = (callArgs.attachments || []).filter(
+      (a: any) => a.type === "image"
+    );
+    const audioAttachments = (callArgs.attachments || []).filter(
+      (a: any) => a.type === "audio"
+    );
+    expect(imageAttachments).toHaveLength(1);
+    expect(audioAttachments).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -218,48 +218,19 @@ export function registerAllTools(): void {
       ],
       shortDescription:
         "Intelligent semantic search across your codebase with AI-powered result synthesis",
-      fullInstructions: `## Vector Search Tool (AI-Powered)
+      fullInstructions: `## Vector Search (AI-Powered Codebase Search)
 
-Intelligent code search across your indexed codebase folders. Uses a secondary AI to interpret your query and synthesize results with explanations.
+Semantic + keyword hybrid search with AI synthesis. Finds code by concept, not just text.
 
-### Capabilities
-- **Semantic Understanding**: Searches by concept, not just keywords
-- **Smart Synthesis**: AI analyzes and explains results with confidence scores
-- **Contextual Refinement**: Learns from your search history in this session
-- **Organized Findings**: Groups results by file with explanations
+**Query format:** Always phrase as a short question with keywords.
+- Good: "Where is getUserById implemented?" / "How are errors handled in API routes?"
+- Bad: "getUserById" (bare keyword) or "database issue" (vague)
+- Max 5 searches per request; stop once you have context.
 
-### Question-First Queries (Required)
-- Always phrase **query** as a short, precise question that contains the relevant keywords (e.g., "Where is habit reminders cron completed today timezone handled?").
-- Ask about flows, handlers, or files rather than listing comma-separated keywords.
-- You may run up to **five** question-form searches per user request; stop once you have enough context.
-
-### When to Use
-- Finding functionality: "Where is authentication logic handled?"
-- Locating definitions: "Where is getUserById implemented?"
-- Pattern discovery: "How are errors handled in API routes?"
-- Code exploration: "Which functions interact with the database?"
-
-### Parameters
-- **query** (required): Short, precise question describing what you're looking for (include filenames/functions directly in the question)
-- **maxResults** (optional): Maximum results to return (default 50 when unspecified; you may increase up to 150 only when the secondary LLM genuinely needs broader coverage)
-- **minScore** (optional): Minimum relevance score 0-1 (default: 0.3)
-- **folderIds** (optional): Limit search to specific synced folders
-
-### Result Format
-Returns organized findings with:
-- Search strategy used and reasoning
-- File locations with line ranges
-- Code snippets and explanations
-- Confidence scores
-- Suggested refinements
-
-### Tips
-- Keep each question ≤ 2 sentences and include concrete identifiers when possible
-- Prefer multiple question-form searches (max 5) over a single unfocused query
-- Increase **maxResults** (up to 150) only when you need more raw snippets for synthesis; default 50 is fastest
-- Use follow-up questions to refine results
-- Check suggested refinements for better results
-- Higher minScore = more precise, fewer results`,
+**Tips:**
+- Default maxResults=50 is fastest; increase to 150 only for broad coverage
+- Higher minScore = more precise, fewer results
+- Use follow-up questions to refine; check suggested refinements`,
       loading: { deferLoading: true },
       requiresSession: true,  // Needs session for LLM synthesis
     } satisfies ToolMetadata,
@@ -298,42 +269,14 @@ Returns organized findings with:
       ],
       shortDescription:
         "Read full file content from Knowledge Base documents or synced folders",
-      fullInstructions: `## Read File Tool
+      fullInstructions: `## Read File
 
-Read complete file content or specific line ranges from Knowledge Base documents or synced folders.
+Read full file content or line ranges from Knowledge Base docs or synced folders.
 
-### Supported Sources
-1. **Knowledge Base documents** - Uploaded PDFs, text, Markdown, HTML. Reference by filename or title.
-2. **Synced folder files** - Files from indexed folders. Use paths from vectorSearch results.
+**Sources:** Knowledge Base (PDFs, Markdown, HTML by filename/title) and synced folders (paths from vectorSearch).
+**Limits:** Max 1MB / 5000 lines. Use startLine/endLine for larger files.
 
-### When to Use
-- After docsSearch returns passages and you need full document context
-- After vectorSearch returns snippets and you need full file context
-- When a user mentions a specific document by name
-- When following imports/exports between files
-- To read a complete function, class, or module
-
-### Parameters
-- **filePath** (required): Document name or file path (tries Knowledge Base first, then synced folders)
-- **startLine** (optional): Start line number (1-indexed)
-- **endLine** (optional): End line number (1-indexed)
-
-### Limits
-- Max file size: 1MB
-- Max lines: 5000 (use line ranges for larger files)
-
-### Example Workflow
-1. Use docsSearch to find relevant passages in Knowledge Base documents
-2. Use readFile to get full document context
-3. Or use vectorSearch to find code snippets, then readFile for complete files
-
-### Example Usage
-\`\`\`
-readFile({ filePath: "company-policy.pdf" })
-readFile({ filePath: "API Documentation" })
-readFile({ filePath: "src/components/Button.tsx" })
-readFile({ filePath: "lib/utils.ts", startLine: 50, endLine: 100 })
-\`\`\``,
+**When to use:** After vectorSearch/docsSearch finds snippets and you need full context, or to follow imports/exports.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -376,36 +319,12 @@ readFile({ filePath: "lib/utils.ts", startLine: 50, endLine: 100 })
       ],
       shortDescription:
         "Fast exact or regex pattern search across files using ripgrep",
-      fullInstructions: `## Local Grep Tool (ripgrep)
+      fullInstructions: `## Local Grep (ripgrep)
 
-Fast pattern search using ripgrep. Unlike vectorSearch (semantic), this finds EXACT text matches.
+Fast EXACT text/regex search. Use for function names, imports, symbol tracing, specific patterns.
+Use vectorSearch instead for conceptual/intent-based queries where you don't know exact wording.
 
-### When to Use
-- **Exact string match**: Function names, variable names, imports
-- **Regex patterns**: \`async.*await\`, \`TODO:.*\`, \`import.*from\`
-- **Symbol tracing**: Find all usages of \`getUserById\`
-- **Code patterns**: Find specific syntax patterns
-
-### When to Use vectorSearch Instead
-- Conceptual queries: "authentication logic"
-- Intent-based: "error handling patterns"
-- When you don't know exact wording
-
-### Parameters
-- **pattern** (required): Search pattern (exact text or regex)
-- **paths** (optional): Paths to search. If omitted, uses agent's synced folders
-- **regex** (optional): Treat as regex (default: false = literal)
-- **caseInsensitive** (optional): Ignore case (default: true)
-- **maxResults** (optional): Max results (default: 50)
-- **fileTypes** (optional): Extensions to include, e.g., ["ts", "js"]
-- **contextLines** (optional): Lines of context (default: 2)
-
-### Examples
-\`\`\`
-localGrep({ pattern: "getUserById" })
-localGrep({ pattern: "async.*await", regex: true, fileTypes: ["ts"] })
-localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
-\`\`\``,
+**Examples:** \`localGrep({ pattern: "getUserById" })\` / \`localGrep({ pattern: "async.*await", regex: true, fileTypes: ["ts"] })\``,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -441,28 +360,15 @@ localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
       ],
       shortDescription:
         "Execute shell commands safely within synced directories",
-      fullInstructions: `Execute shell commands within the user's synced/indexed directories.
+      fullInstructions: `## Execute Command
 
-**Security Restrictions:**
-- Commands only run within synced folders (user-approved directories)
-- Dangerous commands (rm, sudo, format, chmod, etc.) are blocked
-- 30-second timeout by default (max 5 minutes)
-- Output limited to prevent memory issues
+Run shell commands safely within synced folders. Dangerous commands (rm, sudo, format) are blocked.
 
-**Common Use Cases:**
-- Run tests: executeCommand({ command: "npm", args: ["test"] })
-- Check git status: executeCommand({ command: "git", args: ["status"] })
-- Install dependencies: executeCommand({ command: "npm", args: ["install"] })
-- Build project: executeCommand({ command: "npm", args: ["run", "build"] })
-- List files (Windows): executeCommand({ command: "dir" })
-- List files (macOS/Linux): executeCommand({ command: "ls", args: ["-la"] })
-- Python inline scripts: executeCommand({ command: "python", args: ["-c", "print('hello')"] })
-
-**Parameters:**
-- command: The executable only (npm, git, python, etc.), not a full shell line
-- args: Array of command arguments. For Python inline scripts, pass script as ONE arg after "-c"
-- cwd: Working directory (defaults to first synced folder)
-- timeout: Max execution time in ms (default 30000)`,
+**Key rules:**
+- \`command\` = executable only (e.g., "npm"), NOT a full shell line
+- \`args\` = array of arguments (e.g., ["run", "build"])
+- Python inline: \`{ command: "python", args: ["-c", "print('hello')"] }\`
+- 30s default timeout (max 5min)`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -498,74 +404,15 @@ localGrep({ pattern: "TODO:", paths: ["/path/to/project"] })
       ],
       shortDescription:
         "Schedule tasks for future execution (one-time, recurring, or interval-based)",
-      fullInstructions: `## Schedule Task Tool
+      fullInstructions: `## Schedule Task
 
-Schedule tasks to be executed at a future time. The task runs with the agent's full context and tools.
+Schedule future tasks (cron/interval/once). Task runs with agent's full context and tools.
 
-### Schedule Types
+**Types:** cron (\`cronExpression\`), interval (\`intervalMinutes\`), once (\`scheduledAt\` ISO timestamp).
 
-**1. Cron (Recurring)**
-Execute on a cron schedule for complex recurring patterns.
-\`\`\`
-scheduleTask({
-  name: "Daily Standup Reminder",
-  scheduleType: "cron",
-  cronExpression: "0 9 * * 1-5",  // 9am weekdays
-  timezone: "America/New_York",
-  prompt: "Remind the team about the daily standup meeting"
-})
-\`\`\`
+**Cron patterns:** \`0 9 * * 1-5\` (9am weekdays), \`0 0 * * *\` (midnight daily), \`*/30 * * * *\` (every 30min), \`0 0 1 * *\` (monthly).
 
-**2. Interval (Periodic)**
-Execute every N minutes.
-\`\`\`
-scheduleTask({
-  name: "Check Server Health",
-  scheduleType: "interval",
-  intervalMinutes: 30,
-  prompt: "Check the server status and report any issues"
-})
-\`\`\`
-
-**3. Once (One-Time)**
-Execute once at a specific time.
-\`\`\`
-scheduleTask({
-  name: "Birthday Reminder",
-  scheduleType: "once",
-  scheduledAt: "2026-02-15T09:00:00Z",
-  prompt: "Remind about the team birthday celebration"
-})
-\`\`\`
-
-### Common Cron Patterns
-- \`0 9 * * 1-5\` - 9:00 AM on weekdays (Mon-Fri)
-- \`0 0 * * *\` - Midnight daily
-- \`0 17 * * 2,3,4,5\` - 5:00 PM on Tue-Fri
-- \`*/30 * * * *\` - Every 30 minutes
-- \`0 8 * * 1,3,5\` - 8:00 AM on Mon, Wed, Fri
-- \`0 0 1 * *\` - First day of each month at midnight
-
-### Template Variables for Prompts
-Use these in the prompt to include dynamic values at execution time:
-- \`{{NOW}}\` - Current ISO timestamp
-- \`{{TODAY}}\` - Today's date (YYYY-MM-DD)
-- \`{{YESTERDAY}}\` - Yesterday's date
-- \`{{WEEKDAY}}\` - Current day name (Monday, etc.)
-- \`{{MONTH}}\` - Current month name
-- \`{{LAST_7_DAYS}}\` - Date range for last 7 days
-- \`{{LAST_30_DAYS}}\` - Date range for last 30 days
-
-### Parameters
-- **name** (required): Human-readable name for the task
-- **scheduleType** (required): "cron", "interval", or "once"
-- **cronExpression**: Cron expression (required for cron type)
-- **intervalMinutes**: Interval in minutes (required for interval type)
-- **scheduledAt**: ISO timestamp (required for once type)
-- **timezone**: Timezone (default: UTC)
-- **prompt** (required): Instruction to execute when task runs
-- **priority**: "high", "normal", or "low" (default: normal)
-- **enabled**: Whether task is active (default: true)`,
+**Template variables in prompts:** \`{{NOW}}\`, \`{{TODAY}}\`, \`{{YESTERDAY}}\`, \`{{WEEKDAY}}\`, \`{{MONTH}}\`, \`{{LAST_7_DAYS}}\`, \`{{LAST_30_DAYS}}\` — resolved at execution time.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -614,39 +461,13 @@ Use these in the prompt to include dynamic values at execution time:
       ],
       shortDescription:
         "Perform accurate mathematical calculations - arithmetic, statistics, trigonometry, unit conversions",
-      fullInstructions: `## Calculator Tool
+      fullInstructions: `## Calculator
 
-Use this tool instead of doing math yourself. Returns deterministic, accurate results.
+Use instead of doing math yourself — returns deterministic, accurate results.
 
-### Capabilities
-- **Arithmetic**: +, -, *, /, ^, %, sqrt, cbrt
-- **Trigonometry**: sin, cos, tan, asin, acos, atan (radians)
-- **Logarithms**: log, log10, log2, exp
-- **Constants**: pi, e, phi, tau
-- **Statistics**: mean, median, std, variance, sum, prod
-- **Units**: "5 miles to km", "100 fahrenheit to celsius"
-- **Matrix**: [[1,2],[3,4]] * [[5,6],[7,8]]
-- **Complex**: "2 + 3i"
+**Supports:** arithmetic, trig (radians), log, constants (pi/e/phi), statistics (mean/median/std), units ("5 miles to km"), matrix, complex numbers.
 
-### Parameters
-- **expression** (required): Math expression to evaluate
-- **precision** (optional): Decimal precision (default: 10, max: 20)
-
-### Examples
-\`\`\`
-calculator({ expression: "2 + 2 * 3" })  // 8
-calculator({ expression: "sqrt(16) + cbrt(27)" })  // 7
-calculator({ expression: "10000 * (1 + 0.07)^30" })  // 76122.55
-calculator({ expression: "mean([85, 90, 78, 92, 88])" })  // 86.6
-calculator({ expression: "5 miles to km" })  // 8.047 km
-calculator({ expression: "45.99 * 1.085", precision: 2 })  // 49.90
-\`\`\`
-
-### When to Use
-- Financial calculations (interest, tax, percentages)
-- Unit conversions
-- Statistical analysis
-- Any math where accuracy matters`,
+**Example:** \`calculator({ expression: "10000 * (1 + 0.07)^30", precision: 2 })\``,
       loading: { deferLoading: true },
       requiresSession: false,
     } satisfies ToolMetadata,
@@ -665,63 +486,16 @@ calculator({ expression: "45.99 * 1.085", precision: 2 })  // 49.90
       ],
       shortDescription:
         "Create or update a visible task plan with step statuses across the conversation",
-      fullInstructions: `## Update Plan Tool
+      fullInstructions: `## Update Plan
 
-**Creates a plan if none exists. Updates the existing plan if one does.**
-This is the single entry point for all plan operations — first call creates, subsequent calls update.
+Creates or updates a visible task plan. First call creates; subsequent calls update.
 
-The plan is visible to the user as a persistent panel and persists across messages and page refreshes.
+**Quick decision:**
+- No plan yet → call with steps (mode="replace" is default)
+- Update a step → pass its id + new status, mode="merge"
+- Redo entirely → new steps, mode="replace"
 
-### When to Use
-- **First time**: Call with your steps to CREATE the plan (mode defaults to "replace")
-- **Subsequently**: Call with changed steps + mode="merge" to UPDATE specific steps
-- When breaking down a complex request into steps
-- When you want the user to see your progress on a multi-step task
-- To update step statuses as work progresses (pending → in_progress → completed)
-
-### Quick Decision
-- **No plan exists yet?** → just call with steps (mode="replace" is default, creates the plan)
-- **Plan exists, want to change a step?** → call with that step's id + new status, mode="merge"
-- **Want to completely redo the plan?** → call with new steps, mode="replace"
-
-### Parameters
-- **steps** (required): Array of step objects:
-  - **id** (optional): Stable identifier. If omitted, one is generated. Use the returned id in future merge calls to target that step.
-  - **text** (required): 1-sentence step description (max 120 chars)
-  - **status** (optional): "pending" | "in_progress" | "completed" | "canceled". Default: "pending"
-- **explanation** (optional): Brief reason for the update (shown in UI as a note, not as a step)
-- **mode** (optional): "replace" (default) replaces entire plan. "merge" updates existing steps by id/text and appends new ones.
-
-### Constraints
-- Max 20 steps (extras are truncated with a warning)
-- At most 1 step can be in_progress at a time (auto-enforced, extras downgraded to pending)
-- Plan version auto-increments on each call
-
-### Example — Create a Plan
-\`\`\`
-updatePlan({
-  steps: [
-    { text: "Research current API endpoints" },
-    { text: "Design new database schema" },
-    { text: "Implement migration script" },
-    { text: "Write tests" },
-    { text: "Deploy to staging" }
-  ],
-  explanation: "Starting the implementation plan"
-})
-\`\`\`
-
-### Example — Merge Update (mark step done, advance next)
-\`\`\`
-updatePlan({
-  steps: [
-    { id: "step_abc_0", text: "Research current API endpoints", status: "completed" },
-    { id: "step_def_1", text: "Design new database schema", status: "in_progress" }
-  ],
-  mode: "merge",
-  explanation: "Research complete, starting schema design"
-})
-\`\`\``,
+**Constraints:** Max 20 steps. Only 1 step can be "in_progress" at a time. Use returned step ids for merge updates.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -743,24 +517,10 @@ updatePlan({
         "audio", "listen", "sound", "narrate", "pronounce",
       ],
       shortDescription: "Synthesize text to speech audio using the configured TTS provider",
-      fullInstructions: `## Speak Aloud Tool
+      fullInstructions: `## Speak Aloud
 
-Converts text to speech audio using the configured TTS provider (Edge TTS, OpenAI, or ElevenLabs).
-
-### When to Use
-- User asks to "read this aloud", "say this", "speak", or "read to me"
-- User wants to hear a response spoken
-- User requests audio output
-
-### Parameters
-- \`text\` (required): The text to speak. Keep concise for natural-sounding speech.
-- \`voice\` (optional): Voice identifier. Omit to use the agent's configured voice.
-- \`speed\` (optional): Speed multiplier (0.5 to 2.0). Default: 1.0.
-
-### Notes
-- TTS must be enabled in Settings → Voice & Audio
-- Long text is automatically truncated to avoid excessively long audio
-- The audio is played automatically in the desktop UI`,
+Text-to-speech using configured TTS provider. Use when user asks to "read aloud", "say this", or "speak".
+TTS must be enabled in Settings → Voice & Audio. Audio plays automatically in desktop UI.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -778,19 +538,9 @@ Converts text to speech audio using the configured TTS provider (Edge TTS, OpenA
         "voice note", "audio", "whisper", "dictation",
       ],
       shortDescription: "Check audio transcription capabilities and status",
-      fullInstructions: `## Transcribe Tool
+      fullInstructions: `## Transcribe
 
-Reports on audio transcription capabilities. Voice notes from WhatsApp, Telegram, Slack, and Discord are automatically transcribed — this tool provides status information.
-
-### When to Use
-- User asks "can you transcribe audio?"
-- User wants to know about voice note processing
-- User asks about STT/speech-to-text settings
-
-### Notes
-- Inbound voice notes are automatically transcribed (no manual trigger needed)
-- Uses OpenAI Whisper API for transcription
-- Transcripts are injected as text messages in the conversation`,
+Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are auto-transcribed via Whisper — no manual trigger needed.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -815,52 +565,14 @@ Reports on audio transcription capabilities. Voice notes from WhatsApp, Telegram
         "image", "virtual", "try-on", "try on", "tryon"
       ],
       shortDescription: "Analyze any image using vision AI - people, rooms, products, clothing. ALWAYS use before making assumptions about visual content.",
-      fullInstructions: `## Describe Image Tool (Vision AI)
+      fullInstructions: `## Describe Image (Vision AI)
 
-This tool uses the configured vision-capable AI model (Claude or OpenRouter) to analyze images and provide detailed descriptions.
+⚠️ **MUST call FIRST** before virtual try-on, furniture visualization, or any task where you'd guess visual details.
+Skipping → wrong gender/body assumptions → poor edit results.
 
-### ⚠️ MANDATORY FIRST STEP - NEVER SKIP
+**Analysis types:** person (appearance/body/style), room (layout/materials), product (type/color/material), general.
 
-**This tool MUST be called FIRST when:**
-- User uploads a photo and requests virtual try-on
-- User uploads a room image and requests furniture visualization
-- You would otherwise guess visual details (gender, body type, room style, etc.) without looking
-
-**Skipping describeImage leads to:**
-- ❌ Wrong gender/body type assumptions
-- ❌ Poor editImage results due to incorrect prompts
-- ❌ Inaccurate room/product descriptions
-
-### Analysis Types
-- **person**: For photos of people - describes appearance, body type, style, clothing
-- **room**: For interior spaces - describes layout, style, materials, lighting
-- **product**: For items/clothing - describes type, color, material, style
-- **general**: For any other image
-
-### Parameters
-- **imageUrl** (required): URL of the image to analyze
-- **focusAreas** (optional): Specific aspects to focus on (e.g., "body type", "skin tone", "room layout")
-- **analysisType** (optional): Type of analysis - "person", "room", "product", or "general"
-
-### Workflow Integration
-After calling describeImage, use the analysis in your editImage prompt:
-\`\`\`
-// Step 1: Analyze
-const analysis = await describeImage({
-  imageUrl: userPhotoUrl,
-  analysisType: "person",
-  focusAreas: ["body type", "skin tone", "current style"]
-});
-
-// Step 2: Use analysis in edit prompt
-editImage({
-  image_url: userPhotoUrl,
-  second_image_url: referenceImageUrl,
-  prompt: \`Dress person in shirt. Analysis shows: \${analysis}. Match their build.\`
-});
-\`\`\`
-
-### CRITICAL: Never assume - always analyze first.`,
+**Workflow:** describeImage → use analysis in editImage prompt to ensure accurate results. Never assume — always analyze first.`,
       loading: { alwaysLoad: true },  // Always available - essential for virtual try-on
       requiresSession: false,
       // No enableEnvVar - uses getVisionModel() which falls back to Claude (always available)
@@ -897,44 +609,12 @@ editImage({
       ],
       shortDescription:
         "Search the web for URLs, then use webBrowse to read them",
-      fullInstructions: `## Web Search Tool
+      fullInstructions: `## Web Search
 
-Search the web to find relevant URLs. **After finding URLs, use \`webBrowse\` to read and analyze them.**
+Find URLs, then use \`webBrowse\` to read them. Max 2 webSearch calls per conversation.
 
-### Workflow
-1. Use \`webSearch\` to find URLs for your topic
-2. Use \`webBrowse\` with the discovered URLs to read and synthesize content
-3. \`webBrowse\` returns a consolidated answer - no need for additional tool calls
-
-### When to Use
-- Finding URLs for a topic you want to research
-- Quick fact-checking (when you just need the search snippet)
-- Looking up current events or recent news
-- **Maximum 2 webSearch calls per conversation**
-
-### When NOT to Use
-- ❌ For comprehensive research (use Deep Research instead)
-- ❌ When you have a specific URL (use \`webBrowse\` directly)
-- ❌ For reading/analyzing URL content (use \`webBrowse\` instead)
-- ❌ If you've made 2+ webSearch calls already
-
-### Parameters
-- **query** (required): The search query
-- **maxResults** (optional): 1-10 results, default 5
-- **includeAnswer** (optional): Get AI-generated summary, default true
-
-### Next Step After Search
-After getting URLs from webSearch, use \`webBrowse\`:
-\`\`\`
-webBrowse({
-  urls: ["https://found-url-1.com", "https://found-url-2.com"],
-  query: "What specific information do you need?"
-})
-\`\`\`
-
-### Example Usage
-- "Latest news on AI regulation" → then webBrowse the article URLs
-- "Current price of Bitcoin" → snippet may be enough, or webBrowse for details`,
+**Workflow:** webSearch → get URLs → webBrowse(urls, query) for content.
+**Don't use for:** reading URL content (use webBrowse directly), comprehensive research (use Deep Research).`,
       loading: { deferLoading: true },
       requiresSession: false,
       enableEnvVar: "TAVILY_API_KEY",
@@ -963,29 +643,10 @@ webBrowse({
         "documentation",
       ],
       shortDescription: "Crawl multiple pages from a website starting from a URL",
-      fullInstructions: `## Firecrawl Website Crawler
+      fullInstructions: `## Firecrawl Crawler
 
-Crawl multiple pages from a website and extract content as markdown.
-
-### When to Use
-- Reading documentation sites
-- Extracting content from multiple related pages
-- Building knowledge from an entire section of a website
-
-### Parameters
-- **url** (required): Starting URL to crawl from
-- **maxPages** (optional): Maximum pages to crawl (1-50, default: 10)
-- **includePaths** (optional): URL patterns to include (e.g., ["/docs/*"])
-- **excludePaths** (optional): URL patterns to exclude (e.g., ["/blog/*"])
-
-### Notes
-- Crawling is async and may take up to 60 seconds
-- Results include markdown for each crawled page
-- Use includePaths/excludePaths to focus on specific sections
-- Uses the configured web scraping provider from Settings (Firecrawl or Local)
-
-### Example Usage
-"Crawl the documentation at https://docs.example.com/ with a limit of 20 pages"`,
+Crawl multiple pages from a website as markdown. Good for documentation sites.
+Async — may take up to 60s. Use includePaths/excludePaths to focus on specific sections.`,
       loading: { deferLoading: true },
       requiresSession: false,
       enableEnvVar: "FIRECRAWL_API_KEY",
@@ -1022,32 +683,8 @@ Crawl multiple pages from a website and extract content as markdown.
       shortDescription: "Fetch web pages and synthesize information in one operation",
       fullInstructions: `## Web Browse
 
-Fetch one or more web pages and get a synthesized answer to your question.
-
-### When to Use
-- When you have specific URLs and need to extract information
-- Reading and analyzing articles, documentation, or product pages
-- When you need a consolidated answer from multiple sources
-- For follow-up questions about web content (use webQuery instead)
-
-### When NOT to Use
-- For searching the web without URLs (use webSearch first to find URLs)
-- When you need to crawl an entire site (use firecrawlCrawl)
-
-### Parameters
-- **urls** (required): 1-5 URLs to fetch and analyze
-- **query** (required): What you want to know from the content
-
-### How It Works
-1. Fetches all requested URLs
-2. Stores content in session cache (temporary, not permanent)
-3. Uses AI to synthesize an answer from the content
-4. Returns a consolidated response
-
-### Tips
-- Be specific with your query for better synthesis
-- Content is cached for this conversation only
-- Use webQuery for follow-up questions about the same content`,
+Fetch 1-5 URLs and get a synthesized answer. Content cached for this conversation.
+Use webQuery for follow-up questions on already-fetched content. Use webSearch first if you need to find URLs.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FIRECRAWL_API_KEY",
@@ -1073,24 +710,8 @@ Fetch one or more web pages and get a synthesized answer to your question.
       shortDescription: "Query previously fetched web content from this conversation",
       fullInstructions: `## Web Query
 
-Ask follow-up questions about web content already fetched in this conversation.
-
-### When to Use
-- After using webBrowse to fetch URLs
-- For follow-up questions about the same content
-- To extract different information from already-fetched pages
-
-### When NOT to Use
-- If you haven't fetched any URLs yet (use webBrowse first)
-- For new URLs (use webBrowse instead)
-
-### Parameters
-- **query** (required): Your question about the cached content
-
-### Tips
-- Only works with content fetched in the current conversation
-- Content expires after 2 hours
-- More efficient than re-fetching the same URLs`,
+Follow-up questions on already-fetched web content (from webBrowse). Content expires after 2 hours.
+Use webBrowse for new URLs; this is for re-querying cached content.`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -1116,16 +737,7 @@ Ask follow-up questions about web content already fetched in this conversation.
       shortDescription: "Generate images locally using Z-Image Turbo FP8 via ComfyUI",
       fullInstructions: `## Z-Image Turbo FP8 (Local ComfyUI)
 
-Generate high-quality images locally using the Z-Image Turbo FP8 model.
-
-
-### Parameters
-- **prompt** (required): Text description of the image
-- **seed** (optional): For reproducibility (-1 = random)
-- **width/height** (optional): Default 1024x1024
-- **steps** (optional): Default 9 (optimized)
-- **cfg** (optional): Default 1.0 (optimized)
-- **lora_strength** (optional): Detailer LoRA strength (0-2, default 0.5)`,
+Fast local image generation. Defaults optimized (steps=9, cfg=1.0). Seed=-1 for random.`,
       loading: { deferLoading: true },
       requiresSession: false,
       // Only available when local ComfyUI is enabled
@@ -1148,23 +760,8 @@ Generate high-quality images locally using the Z-Image Turbo FP8 model.
       shortDescription: "Generate or edit images locally using FLUX.2 Klein 4B via ComfyUI",
       fullInstructions: `## FLUX.2 Klein 4B (Local ComfyUI)
 
-Generate or edit high-quality images locally using the FLUX.2 Klein 4B model.
-Supports dual modes:
-- **Text-to-Image**: No reference_images → generates from prompt
-- **Image Editing**: With reference_images → edits based on references
-
-### Parameters
-- **prompt** (required): Text description of the image or edit
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0
-- **reference_images** (optional): Array of base64 images for editing mode (max 10)
-
-### Performance
-- Text-to-image: ~7-8 seconds
-- Image editing: ~10-14 seconds
-- Requires ~12GB VRAM`,
+Dual-mode: text-to-image (no reference_images) or image editing (with reference_images).
+~7-8s generation, ~10-14s editing. Requires ~12GB VRAM. Dimensions must be divisible by 8.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
@@ -1183,18 +780,9 @@ Supports dual modes:
         "image-to-image", "img2img", "reference", "transform", "inpaint", "variations",
       ],
       shortDescription: "Edit images locally using FLUX.2 Klein 4B via ComfyUI",
-      fullInstructions: `## FLUX.2 Klein 4B Editing (Local ComfyUI)
+      fullInstructions: `## FLUX.2 Klein 4B Editing (Local)
 
-Edit one or more images locally using the FLUX.2 Klein 4B model.
-Supports multiple source images for composition or style mixing.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_urls** (required): Array of images to edit (1-10)
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0`,
+Edit images locally. Supports multiple source images (1-10) for composition/style mixing. Dimensions divisible by 8.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
@@ -1213,17 +801,9 @@ Supports multiple source images for composition or style mixing.
         "guided generation", "style transfer", "image-to-image",
       ],
       shortDescription: "Reference-guided generation using FLUX.2 Klein 4B via ComfyUI",
-      fullInstructions: `## FLUX.2 Klein 4B Reference (Local ComfyUI)
+      fullInstructions: `## FLUX.2 Klein 4B Reference (Local)
 
-Generate images guided by one or more reference images locally using the FLUX.2 Klein 4B model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_urls** (required): Array of reference images (1-10)
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0`,
+Generate images guided by 1-10 reference images locally. Style transfer and content-guided generation.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_4B_ENABLED",
@@ -1245,24 +825,8 @@ Generate images guided by one or more reference images locally using the FLUX.2 
       shortDescription: "Generate or edit high-quality images locally using FLUX.2 Klein 9B via ComfyUI",
       fullInstructions: `## FLUX.2 Klein 9B (Local ComfyUI)
 
-Generate or edit premium quality images locally using the FLUX.2 Klein 9B model.
-Higher quality and more detailed output compared to 4B variant.
-Supports dual modes:
-- **Text-to-Image**: No reference_images → generates from prompt
-- **Image Editing**: With reference_images → edits based on references
-
-### Parameters
-- **prompt** (required): Text description of the image or edit
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0
-- **reference_images** (optional): Array of base64 images for editing mode (max 10)
-
-### Performance
-- Text-to-image: ~10-12 seconds
-- Image editing: ~14-18 seconds
-- Requires ~16GB+ VRAM`,
+Premium quality variant of 4B. Dual-mode: text-to-image or image editing (with reference_images).
+~10-12s generation, ~14-18s editing. Requires ~16GB+ VRAM. Dimensions divisible by 8.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
@@ -1281,18 +845,9 @@ Supports dual modes:
         "image-to-image", "img2img", "reference", "transform", "inpaint", "variations",
       ],
       shortDescription: "Edit images locally using FLUX.2 Klein 9B via ComfyUI",
-      fullInstructions: `## FLUX.2 Klein 9B Editing (Local ComfyUI)
+      fullInstructions: `## FLUX.2 Klein 9B Editing (Local)
 
-Edit one or more images locally using the FLUX.2 Klein 9B model.
-Supports multiple source images for composition or style mixing.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_urls** (required): Array of images to edit (1-10)
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0`,
+Premium local image editing. Supports multiple source images (1-10). Dimensions divisible by 8.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
@@ -1311,17 +866,9 @@ Supports multiple source images for composition or style mixing.
         "guided generation", "style transfer", "image-to-image",
       ],
       shortDescription: "Reference-guided generation using FLUX.2 Klein 9B via ComfyUI",
-      fullInstructions: `## FLUX.2 Klein 9B Reference (Local ComfyUI)
+      fullInstructions: `## FLUX.2 Klein 9B Reference (Local)
 
-Generate images guided by one or more reference images locally using the FLUX.2 Klein 9B model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_urls** (required): Array of reference images (1-10)
-- **seed** (optional): For reproducibility
-- **width/height** (optional): Default 1024x1024 (must be divisible by 8)
-- **steps** (optional): Default 20
-- **guidance** (optional): CFG scale, default 4.0`,
+Premium reference-guided generation with 1-10 reference images locally.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "FLUX2_KLEIN_9B_ENABLED",
@@ -1366,74 +913,14 @@ Generate images guided by one or more reference images locally using the FLUX.2 
         shortDescription: "Edit images, combine elements from two images, or create virtual try-on visualizations",
         fullInstructions: `## Image Editor (Gemini)
 
-Edit existing images using text instructions with Gemini 2.5 Flash. Combines elements from two images for virtual try-on and furniture visualization.
+Edit images with Gemini 2.5 Flash. Two modes: single image edit, or two-image combine (try-on/furniture).
 
-### ⚠️ MANDATORY 3-STEP WORKFLOW FOR VIRTUAL TRY-ON
+**⚠️ Virtual Try-On Workflow (3 mandatory steps):**
+1. \`describeImage\` FIRST → analyze user's photo (never skip!)
+2. Get reference image URL (webSearch/webBrowse)
+3. \`editImage\` with BOTH image_url + second_image_url + insights from step 1
 
-**You MUST complete ALL THREE steps in order:**
-
-**Step 1: Call \`describeImage\` FIRST (MANDATORY - NEVER SKIP)**
-\`\`\`
-describeImage({
-  imageUrl: "[user's photo URL]",
-  analysisType: "person",
-  focusAreas: ["body type", "skin tone", "current style"]
-})
-\`\`\`
-Skipping this step causes: wrong gender assumptions, poor fitting, inaccurate results.
-
-**Step 2: Fetch reference image**
-- Use \`webSearch\` to find product pages, then \`webBrowse\` to read them
-- Or use \`webBrowse\` directly if you have the URL
-- Extract the reference image URL from the response
-
-**Step 3: Call \`editImage\` with BOTH images**
-\`\`\`
-editImage({
-  image_url: "[user's photo]",              // REQUIRED
-  second_image_url: "[reference image]",    // REQUIRED for try-on
-  prompt: "Dress person in [item]. [Use insights from describeImage]"
-})
-\`\`\`
-
-### ❌ COMMON MISTAKES - AVOID THESE
-- ❌ Calling editImage WITHOUT first calling describeImage
-- ❌ Using text-only prompt without second_image_url for try-on
-- ❌ Assuming gender/body type without image analysis
-- ❌ Re-searching for items you already fetched
-
-### Parameters
-- **prompt** (required): Instructions for the edit, including insights from describeImage
-- **image_url** (required): User's photo URL
-- **second_image_url** (REQUIRED for try-on/visualization): Reference image URL
-- **temperature** (optional): 0-2, controls creativity. Default: 1.0
-
-### When to Use
-- **Virtual Try-On**: Clothing/accessories on user's photo
-- **Furniture Visualization**: Furniture in room photos
-- **Image Variations**: Creating edits of any image
-- **Style Transfer**: Applying styles from one image to another
-
-### Two Modes
-1. **Single Image Edit**: One image + describe changes
-2. **Two Image Combine (REQUIRED for try-on)**: Both images to blend elements
-
-### Finding Image URLs in Conversation
-- Uploaded images: \`[Image URL: https://...]\` or \`[filename URL: https://...]\`
-- Generated images: \`[Previous editImage result - Generated image URLs: https://...]\`
-
-### Example Prompts for Try-On
-- "Dress the person in this formal shirt, maintaining realistic proportions"
-- "Show how this blazer would look on the person in the photo"
-- "Apply this clothing item to the user's photo naturally"
-
-### Example Prompts for Furniture/Room
-- "Place this bookcase against the wall in the room"
-- "Add this sofa to the living room scene"
-
-### Example Prompts for Single Image Edit
-- "Make the sky more dramatic with sunset colors"
-- "Change the wall color to sage green"`,
+**Common mistakes:** Skipping describeImage, omitting second_image_url for try-on, assuming gender without analysis.`,
         loading: { deferLoading: true }, // Deferred - discover via searchTools
         requiresSession: true,
         enableEnvVar: "STYLY_AI_API_KEY",
@@ -1458,47 +945,13 @@ editImage({
           "reference",
         ],
         shortDescription: "Generate or edit images with Flux2 text-to-image model",
-        fullInstructions: `## Flux2 Image Generation & Editing
+        fullInstructions: `## Flux2 Generation & Editing
 
-Powerful dual-mode tool for text-to-image generation AND image editing.
+Dual-mode: text-to-image (no referenceImages) or image editing (with referenceImages array).
 
-### CRITICAL: Dual-Mode Operation
-
-**Mode 1: Pure Generation (WITHOUT referenceImages)**
-- Creates new images from text descriptions
-- Use when: User asks to create/generate/make something new from scratch
-- Do NOT include referenceImages parameter
-
-**Mode 2: Image Editing (WITH referenceImages)**
-- Modifies/transforms existing images based on the prompt
-- Use when: User wants to edit, change, or modify a previously generated or uploaded image
-- MUST include the image URL(s) in the referenceImages array
-
-### Edit Detection Rules
-
-**Use referenceImages when user says:**
-- "edit", "modify", "change", "adjust", "update", "fix", "alter", "transform", "add to", "remove from"
-- AND there is a previously generated image OR user uploaded an image
-
-### Finding Image URLs in Conversation
-- Generated images: Look for \`[Previous generateImageFlux2 result - Generated image URLs: https://...]\`
-- Uploaded images: Look for \`[Image URL: https://...]\` or \`[uploaded image URL: https://...]\`
-
-### Parameters
-- **prompt** (required): Text description. For edits, focus on the CHANGE only (concise!)
-- **referenceImages** (optional): Array of up to 10 image URLs for editing mode
-- **width/height**: 256-2048 (divisible by 8). OMIT for default 1024x1024
-- **guidance**: OMIT for default 4.0
-- **steps**: OMIT for default 20
-- **seed**: For reproducibility
-
-### Edit Prompt Writing (CONCISE!)
-When editing, write SHORT change-focused prompts:
-- "Add the Istanbul sunset painting to the white wall"
-- "Place the cat sitting on the yellow armchair"
-- "Replace the cat with a woman in the same pose"
-
-DO NOT describe the entire scene - reference images provide visual context.`,
+**Mode detection:** If user says "edit/modify/change" + existing image → use referenceImages. Otherwise → pure generation.
+**Edit prompts:** Write SHORT, change-focused prompts (e.g., "Add sunset painting to wall"). Don't describe the full scene.
+**Image URLs:** Look for \`[Image URL: ...]\` or \`[Previous generateImageFlux2 result - Generated image URLs: ...]\` in conversation.`,
         loading: { deferLoading: true }, // Deferred - discover via searchTools
         requiresSession: true,
         enableEnvVar: "STYLY_AI_API_KEY",
@@ -1529,19 +982,7 @@ DO NOT describe the entire scene - reference images provide visual context.`,
         shortDescription: "Generate anime-style or artistic images with WAN 2.2",
         fullInstructions: `## WAN 2.2 Image Generation
 
-Generate anime-style or artistic images from text prompts.
-
-### When to Use
-- Creating anime-style or artistic images
-- Generating character portraits or illustrations
-- When you need a specific artistic style
-
-### Parameters
-- **positive** (required): Text prompt describing the image
-- **negative** (optional): What to avoid. Default includes Chinese quality terms.
-- **width**: 512, 768, 1024, or 1536. Default: 768
-- **height**: 512, 768, 1024, 1344, or 1536. Default: 1344
-- **seed**: For reproducibility`,
+Anime-style/artistic image generation. Default 768x1344. Use \`positive\` for prompt, \`negative\` to exclude unwanted elements.`,
         loading: { deferLoading: true }, // Deferred - discover via searchTools
         requiresSession: true,
         enableEnvVar: "STYLY_AI_API_KEY",
@@ -1566,27 +1007,8 @@ Generate anime-style or artistic images from text prompts.
         shortDescription: "Animate images into videos with WAN 2.2",
         fullInstructions: `## WAN 2.2 Video Generation
 
-Animate still images into videos using PainterI2V motion synthesis.
-
-### When to Use
-- Animating a still image with specific motion
-- Creating short video clips from generated images
-- Adding camera movements or character animations to static images
-
-### Parameters
-- **image_url** OR **base64_image** (one required): The input image to animate
-- **positive** (required): Motion prompt describing desired motion (e.g., "camera slowly pans left while character waves")
-- **negative** (optional): What to avoid. Default: "static, blurry, distorted"
-- **fps**: 10, 15, 21, 24, 30, or 60. Default: 21
-- **duration**: 0.5, 1, 1.5, 2, 2.5, 3, or 5 seconds. Default: 2.0
-- **motion_amplitude**: 0.1-1.1, controls motion intensity. Default: 1.0
-- **seed**: For reproducibility
-
-### Motion Prompt Tips
-Be specific about actions, movements, and camera angles:
-- "Wind blowing through hair, subtle breathing motion"
-- "Camera slowly zooms in, eyes blink naturally"
-- "Gentle head turn to the right, smile appears"`,
+Animate still images into video. Provide image_url + motion prompt (\`positive\`).
+Be specific about motion: "Wind blowing through hair" not just "moving". Default fps=21, duration=2s.`,
         loading: { deferLoading: true }, // Deferred - discover via searchTools
         requiresSession: true,
         enableEnvVar: "STYLY_AI_API_KEY",
@@ -1616,59 +1038,13 @@ Be specific about actions, movements, and camera angles:
           "Generate pixel art character sprite animations with WAN 2.2",
         fullInstructions: `## WAN 2.2 Pixel Animation
 
-Generate pixel art character sprite animations using WAN 2.2 with specialized LoRA for pixel art animation.
+Pixel art sprite animations using specialized LoRA. DO NOT change lora_name or lora_strength defaults.
 
-### When to Use
-- Creating pixel art character sprite animations for games
-- Generating retro-style character animations (walking, attacking, idle, etc.)
-- Animating character sprites with visual effects (particles, glows, trails)
-- Game development requiring sprite-based character animations
+**CRITICAL prompt style:** Use simple 1-2 sentence natural descriptions. DO NOT write phase-by-phase or frame-by-frame specs.
+- Good: "Pixel knight swings sword in a powerful slash. Cape billows, glowing trail effect."
+- Bad: "Phase 1 (0-20%): Wind-up... Phase 2 (20-45%): Acceleration..." ← produces poor results
 
-### Parameters
-- **image_url** OR **base64_image** (one required): The character sprite base image to animate
-- **positive** (required): Simple, natural description of the desired animation (1-2 sentences)
-- **negative** (optional): Negative prompt for unwanted elements (e.g., "blurry, distorted, low quality")
-- **fps**: 10, 15, 21, 24, 30, or 60. **Recommended: 21-24** for smooth pixel animations
-- **duration**: 0.5, 1, 1.5, 2, 2.5, 3, or 5 seconds. Default: 2.0
-- **seed**: For reproducibility
-- **lora_name**: LoRA model name. Default: "wan2.2_animate_adapter_epoch_95.safetensors" (DO NOT CHANGE)
-- **lora_strength**: LoRA strength 0.0-2.0. Default: 1.0 (DO NOT CHANGE)
-
-### CRITICAL: Prompt Style
-
-**USE SIMPLE, NATURAL DESCRIPTIONS.** The model works MUCH better with concise prompts (1-2 sentences) that describe the overall motion naturally.
-
-**DO NOT** write technical phase-by-phase breakdowns or frame-by-frame specifications - this produces poor results.
-
-### Good Prompt Examples
-
-**Walking animation:**
-"Pixel adventurer character performs a smooth walking animation cycle. The character strides forward with alternating leg movements, arm swings, backpack bounce, and small dust particle effects from the feet."
-
-**Attack animation:**
-"Pixel knight swings sword in a powerful horizontal slash. Arm extends, sword arcs through the air with a glowing trail effect, cape billows from the motion."
-
-**Idle animation:**
-"Pixel mage character stands in a gentle breathing idle pose. Robe sways slightly, magical particles float around the staff, eyes blink occasionally."
-
-**Jump animation:**
-"Pixel warrior performs an energetic jump. Legs push off the ground, arms raise for balance, cape flutters upward, lands with a small dust cloud."
-
-### Bad Prompt Example
-
-DO NOT write prompts like this:
-"Phase 1 (0-20%): Wind-up - character pulls weapon back, slight crouch. Phase 2 (20-45%): Acceleration - weapon swings forward in arc. Phase 3 (45-70%): Strike contact - full extension. Phase 4 (70-85%): Follow-through - momentum carries forward. Phase 5 (85-100%): Recovery - return to stance..."
-
-This overly technical approach produces poor quality results.
-
-### Prompt Guidelines
-- Keep prompts to 1-2 sentences describing the overall action
-- Describe what the animation LOOKS LIKE, not technical frame data
-- Mention key visual elements: main motion, secondary motion (hair, cape, accessories), effects (particles, trails)
-- Use natural language: "walks smoothly", "swings powerfully", "bounces gently"
-- Include style words if needed: "smooth", "energetic", "gentle", "powerful"
-- Use fps=21 or fps=24 for smooth animations (NOT fps=10)
-- Always include a negative prompt: "blurry, distorted, low quality, smeared"`,
+Use fps=21-24 for smooth animations. Always add negative: "blurry, distorted, low quality, smeared".`,
         loading: { deferLoading: true }, // Deferred - discover via searchTools
         requiresSession: true,
         enableEnvVar: "STYLY_AI_API_KEY",
@@ -1690,18 +1066,9 @@ This overly technical approach produces poor quality results.
       category: "image-generation",
       keywords: ["generate", "create", "image", "flux", "text-to-image", "art", "illustration"],
       shortDescription: "Generate images from text using Flux.2 Flex via OpenRouter",
-      fullInstructions: `## Flux.2 Flex Image Generation
+      fullInstructions: `## Flux.2 Flex (OpenRouter)
 
-Generate high-quality images from text descriptions using Black Forest Labs' Flux.2 Flex model via OpenRouter.
-
-### When to Use
-- Creating new images from text descriptions
-- High-quality, versatile image generation
-- When you need detailed, artistic images
-
-### Parameters
-- **prompt** (required): Detailed text description of the image to generate
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+High-quality text-to-image generation via OpenRouter.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1717,20 +1084,9 @@ Generate high-quality images from text descriptions using Black Forest Labs' Flu
       category: "image-editing",
       keywords: ["edit", "modify", "transform", "image", "flux", "image-to-image"],
       shortDescription: "Edit existing images using Flux.2 Flex via OpenRouter",
-      fullInstructions: `## Flux.2 Flex Image Editing
+      fullInstructions: `## Flux.2 Flex Editing (OpenRouter)
 
-Edit and transform existing images using Black Forest Labs' Flux.2 Flex model via OpenRouter.
-
-### When to Use
-- Modifying existing images
-- Adding or removing elements
-- Transforming image style or content
-
-### Parameters
-- **prompt** (required): Edit instructions describing what to change
-- **source_image_url** (required): URL or base64 data URL of the image to edit
-- **mask_url** (optional): Mask for inpainting (white = edit, black = preserve)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Edit/transform images via OpenRouter. Supports mask for inpainting (white=edit, black=preserve).`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1746,20 +1102,9 @@ Edit and transform existing images using Black Forest Labs' Flux.2 Flex model vi
       category: "image-generation",
       keywords: ["reference", "style", "transfer", "image", "flux", "guided"],
       shortDescription: "Generate images guided by a reference using Flux.2 Flex via OpenRouter",
-      fullInstructions: `## Flux.2 Flex Reference-Guided Generation
+      fullInstructions: `## Flux.2 Flex Reference (OpenRouter)
 
-Generate new images guided by a reference image for style transfer and content-guided generation.
-
-### When to Use
-- Style transfer from one image to generated content
-- Creating variations based on a reference
-- Maintaining consistency across generated images
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_url** (required): URL or base64 data URL of the reference image
-- **reference_strength** (optional): How strongly to follow the reference (0.0-1.0)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Reference-guided generation for style transfer and consistency. Adjust reference_strength (0-1) to control influence.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1775,18 +1120,9 @@ Generate new images guided by a reference image for style transfer and content-g
       category: "image-generation",
       keywords: ["generate", "create", "image", "gpt", "openai", "fast", "mini"],
       shortDescription: "Generate images quickly using GPT-5 Image Mini via OpenRouter",
-      fullInstructions: `## GPT-5 Image Mini Generation
+      fullInstructions: `## GPT-5 Image Mini (OpenRouter)
 
-Fast, efficient image generation using OpenAI's GPT-5 Image Mini model via OpenRouter.
-
-### When to Use
-- Quick image generation
-- When speed is more important than maximum quality
-- Iterative design exploration
-
-### Parameters
-- **prompt** (required): Text description of the image to generate
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast image generation. Good for quick iterations where speed > max quality.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1807,15 +1143,9 @@ Fast, efficient image generation using OpenAI's GPT-5 Image Mini model via OpenR
         "image editing", "photo editing", "transform",
       ],
       shortDescription: "Edit images quickly using GPT-5 Image Mini via OpenRouter",
-      fullInstructions: `## GPT-5 Image Mini Editing
+      fullInstructions: `## GPT-5 Image Mini Editing (OpenRouter)
 
-Quick image editing using OpenAI's GPT-5 Image Mini model via OpenRouter.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_url** (required): URL or base64 data URL of the image to edit
-- **mask_url** (optional): Mask for inpainting
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast image editing. Supports mask for inpainting.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1836,15 +1166,9 @@ Quick image editing using OpenAI's GPT-5 Image Mini model via OpenRouter.
         "style transfer", "guided generation",
       ],
       shortDescription: "Generate images with reference using GPT-5 Image Mini via OpenRouter",
-      fullInstructions: `## GPT-5 Image Mini Reference-Guided Generation
+      fullInstructions: `## GPT-5 Image Mini Reference (OpenRouter)
 
-Quick reference-guided image generation using OpenAI's GPT-5 Image Mini model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_url** (required): URL or base64 data URL of the reference image
-- **reference_strength** (optional): Reference influence (0.0-1.0)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast reference-guided generation. Adjust reference_strength (0-1).`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1860,18 +1184,9 @@ Quick reference-guided image generation using OpenAI's GPT-5 Image Mini model.
       category: "image-generation",
       keywords: ["generate", "create", "image", "gpt", "openai", "premium", "quality"],
       shortDescription: "Generate premium quality images using GPT-5 Image via OpenRouter",
-      fullInstructions: `## GPT-5 Image Generation
+      fullInstructions: `## GPT-5 Image (OpenRouter)
 
-Premium quality image generation using OpenAI's GPT-5 Image model via OpenRouter.
-
-### When to Use
-- When you need the highest quality results
-- Complex, detailed image generation
-- Professional-grade outputs
-
-### Parameters
-- **prompt** (required): Detailed text description of the image to generate
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Premium quality image generation for complex, detailed, professional-grade outputs.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1892,15 +1207,9 @@ Premium quality image generation using OpenAI's GPT-5 Image model via OpenRouter
         "image editing", "photo editing",
       ],
       shortDescription: "Premium image editing using GPT-5 Image via OpenRouter",
-      fullInstructions: `## GPT-5 Image Editing
+      fullInstructions: `## GPT-5 Image Editing (OpenRouter)
 
-Premium image editing using OpenAI's GPT-5 Image model via OpenRouter.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_url** (required): URL or base64 data URL of the image to edit
-- **mask_url** (optional): Mask for inpainting
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Premium image editing. Supports mask for inpainting.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1921,15 +1230,9 @@ Premium image editing using OpenAI's GPT-5 Image model via OpenRouter.
         "style transfer", "guided generation",
       ],
       shortDescription: "Premium reference-guided generation using GPT-5 Image via OpenRouter",
-      fullInstructions: `## GPT-5 Image Reference-Guided Generation
+      fullInstructions: `## GPT-5 Image Reference (OpenRouter)
 
-Premium style transfer and reference-guided generation using OpenAI's GPT-5 Image model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_url** (required): URL or base64 data URL of the reference image
-- **reference_strength** (optional): Reference influence (0.0-1.0)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Premium reference-guided generation and style transfer. Adjust reference_strength (0-1).`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1945,18 +1248,9 @@ Premium style transfer and reference-guided generation using OpenAI's GPT-5 Imag
       category: "image-generation",
       keywords: ["generate", "create", "image", "gemini", "google", "flash", "fast"],
       shortDescription: "Fast image generation using Gemini 2.5 Flash Image via OpenRouter",
-      fullInstructions: `## Gemini 2.5 Flash Image Generation
+      fullInstructions: `## Gemini 2.5 Flash Image (OpenRouter)
 
-Fast, high-quality image generation using Google's Gemini 2.5 Flash Image model via OpenRouter.
-
-### When to Use
-- Fast image generation with good quality
-- When you need quick iterations
-- Google's latest image model
-
-### Parameters
-- **prompt** (required): Text description of the image to generate
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast, high-quality generation via Google's Gemini 2.5 Flash.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -1977,15 +1271,9 @@ Fast, high-quality image generation using Google's Gemini 2.5 Flash Image model 
         "image editing", "photo editing", "transform",
       ],
       shortDescription: "Fast image editing using Gemini 2.5 Flash Image via OpenRouter",
-      fullInstructions: `## Gemini 2.5 Flash Image Editing
+      fullInstructions: `## Gemini 2.5 Flash Editing (OpenRouter)
 
-Fast image editing using Google's Gemini 2.5 Flash Image model via OpenRouter.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_url** (required): URL or base64 data URL of the image to edit
-- **mask_url** (optional): Mask for inpainting
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast image editing. Supports mask for inpainting.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -2006,15 +1294,9 @@ Fast image editing using Google's Gemini 2.5 Flash Image model via OpenRouter.
         "style transfer", "guided generation",
       ],
       shortDescription: "Fast reference-guided generation using Gemini 2.5 Flash Image via OpenRouter",
-      fullInstructions: `## Gemini 2.5 Flash Image Reference-Guided Generation
+      fullInstructions: `## Gemini 2.5 Flash Reference (OpenRouter)
 
-Fast reference-guided image generation using Google's Gemini 2.5 Flash Image model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_url** (required): URL or base64 data URL of the reference image
-- **reference_strength** (optional): Reference influence (0.0-1.0)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Fast reference-guided generation. Adjust reference_strength (0-1).`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -2030,18 +1312,9 @@ Fast reference-guided image generation using Google's Gemini 2.5 Flash Image mod
       category: "image-generation",
       keywords: ["generate", "create", "image", "gemini", "google", "pro", "latest"],
       shortDescription: "Latest Gemini image generation using Gemini 3 Pro Image via OpenRouter",
-      fullInstructions: `## Gemini 3 Pro Image Generation
+      fullInstructions: `## Gemini 3 Pro Image (OpenRouter)
 
-Latest image generation using Google's Gemini 3 Pro Image model (preview) via OpenRouter.
-
-### When to Use
-- When you need Google's most advanced image model
-- Complex, detailed image generation
-- Testing latest capabilities
-
-### Parameters
-- **prompt** (required): Text description of the image to generate
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Google's most advanced image model (preview). Best for complex, detailed generation.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -2062,15 +1335,9 @@ Latest image generation using Google's Gemini 3 Pro Image model (preview) via Op
         "image editing", "photo editing", "transform",
       ],
       shortDescription: "Advanced image editing using Gemini 3 Pro Image via OpenRouter",
-      fullInstructions: `## Gemini 3 Pro Image Editing
+      fullInstructions: `## Gemini 3 Pro Editing (OpenRouter)
 
-Advanced image editing using Google's Gemini 3 Pro Image model (preview) via OpenRouter.
-
-### Parameters
-- **prompt** (required): Edit instructions
-- **source_image_url** (required): URL or base64 data URL of the image to edit
-- **mask_url** (optional): Mask for inpainting
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Advanced image editing with Google's latest model. Supports mask for inpainting.`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -2091,15 +1358,9 @@ Advanced image editing using Google's Gemini 3 Pro Image model (preview) via Ope
         "style transfer", "guided generation",
       ],
       shortDescription: "Advanced reference-guided generation using Gemini 3 Pro Image via OpenRouter",
-      fullInstructions: `## Gemini 3 Pro Image Reference-Guided Generation
+      fullInstructions: `## Gemini 3 Pro Reference (OpenRouter)
 
-Advanced style transfer and reference-guided generation using Google's Gemini 3 Pro Image model.
-
-### Parameters
-- **prompt** (required): Generation instructions
-- **reference_image_url** (required): URL or base64 data URL of the reference image
-- **reference_strength** (optional): Reference influence (0.0-1.0)
-- **aspect_ratio** (optional): "1:1", "16:9", "9:16", "4:3", "3:4"`,
+Advanced reference-guided generation and style transfer. Adjust reference_strength (0-1).`,
       loading: { deferLoading: true },
       requiresSession: true,
       enableEnvVar: "OPENROUTER_API_KEY",
@@ -2127,40 +1388,10 @@ Advanced style transfer and reference-guided generation using Google's Gemini 3 
       ],
       shortDescription:
         "Assemble session images and videos into a cohesive video with transitions and effects",
-      fullInstructions: `## Video Assembly Tool
+      fullInstructions: `## Video Assembly
 
-Assemble images and videos generated during this chat session into a cohesive, professionally-edited video using Remotion.
-
-### When to Use
-- After generating multiple images or videos in a session
-- User wants to create a montage, slideshow, or compilation
-- Combining generated assets into a final video product
-
-### Features
-- AI-driven scene planning and sequencing
-- Professional transitions (fade, crossfade, slide, wipe, zoom)
-- Ken Burns effect on images
-- AI-generated text overlays (titles, captions)
-- Configurable duration and FPS
-
-### Parameters
-- **theme** (optional): Overall theme or concept for the video
-- **style** (optional): Visual style ('cinematic', 'documentary', 'dynamic', 'calm')
-- **targetDuration** (optional): Target duration in seconds. Default: 30
-- **fps** (optional): 24, 30, or 60. Default: 30
-- **width/height** (optional): Output dimensions. Default: 1920x1080
-- **transitionDuration** (optional): Transition duration in seconds. Default: 0.5
-- **defaultTransition** (optional): Transition type. Default: crossfade
-- **includeTextOverlays** (optional): Include AI text overlays. Default: true
-- **instructions** (optional): Additional AI guidance for video planning
-
-### Example Usage
-"Assemble all the images I generated into a 30-second cinematic video with smooth transitions"
-
-### Notes
-- The tool automatically analyzes all images and videos in the current session
-- AI plans optimal scene sequencing based on content and theme
-- Rendering may take some time for longer videos`,
+Assemble session images/videos into a cohesive video using Remotion. AI-driven scene planning, transitions (fade/crossfade/slide/wipe/zoom), Ken Burns, text overlays.
+Automatically uses all media from the current session. Rendering may take time for longer videos.`,
       loading: { deferLoading: true }, // Deferred - discover via searchTools
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -2198,75 +1429,12 @@ Assemble images and videos generated during this chat session into a cohesive, p
       ],
       shortDescription:
         "REQUIRED: Display products with images and purchase links for ALL shopping/product queries",
-      fullInstructions: `## Product Gallery Tool - MANDATORY FOR ALL PRODUCT QUERIES
+      fullInstructions: `## Product Gallery — MANDATORY for product queries
 
-**⚠️ CRITICAL: This tool is REQUIRED whenever you find or recommend products.**
+**ALWAYS call** after finding products via webSearch/webBrowse. Never skip when you have product info.
 
-Display product images in a visual gallery with purchase links so users can see, compare, and buy products.
-
-### When to Use - MANDATORY TRIGGERS
-- **ALWAYS** when user asks to find/recommend/suggest products (e.g., "find me floor tiles", "recommend a sofa")
-- **ALWAYS** after finding products via webSearch/webBrowse
-- **ALWAYS** before virtual try-on (editImage)
-- **NEVER** skip this tool when you have product information
-
-### Why This is MANDATORY
-- Users MUST see product images to make informed decisions
-- Users MUST have purchase links to buy products
-- Text-only product descriptions are insufficient
-- Skipping this tool = poor user experience
-
-### Parameters
-- **query** (required): The search query used to find these products
-- **products** (required): Array of products with:
-  - **id**: Unique identifier
-  - **name**: Product name
-  - **imageUrl**: Product image URL (REQUIRED - extract from webBrowse)
-  - **price**: Product price (include when available)
-  - **sourceUrl**: Purchase link (REQUIRED - provide the product page URL)
-  - **description**: Brief description (optional)
-
-### Workflow for Product Shopping Queries
-1. User asks for product recommendations (e.g., "find floor tiles for my kitchen")
-2. Use \`webSearch\` to find product pages
-3. Use \`webBrowse\` to extract product details, images, and prices
-4. **IMMEDIATELY call \`showProductImages\`** with the products ← REQUIRED
-5. Wait for user to review/select products
-6. (Optional) Proceed with virtual try-on if requested
-
-### Example - Shopping Query
-User: "Find me floor tiles for my kitchen"
-→ webSearch for floor tiles
-→ webBrowse to get product details
-→ showProductImages:
-\`\`\`
-showProductImages({
-  query: "kitchen floor tiles",
-  products: [
-    {
-      id: "1",
-      name: "Marble Look Porcelain Tile 24x24",
-      imageUrl: "https://example.com/tile1.jpg",
-      price: "$4.99/sq ft",
-      sourceUrl: "https://homedepot.com/p/marble-tile",
-      description: "Durable porcelain tile with marble pattern"
-    },
-    {
-      id: "2",
-      name: "Ceramic Kitchen Floor Tile",
-      imageUrl: "https://example.com/tile2.jpg",
-      price: "$2.49/sq ft",
-      sourceUrl: "https://lowes.com/p/ceramic-tile"
-    }
-  ]
-})
-\`\`\`
-
-### Common Shopping Scenarios (ALL require showProductImages)
-- "Find me floor tiles for my kitchen" → webSearch + webBrowse + **showProductImages**
-- "Recommend a comfortable sofa" → webSearch + webBrowse + **showProductImages**
-- "Show me summer dresses under $50" → webSearch + webBrowse + **showProductImages**
-- "What furniture would fit my room?" → webSearch + webBrowse + **showProductImages**`,
+**Workflow:** webSearch → webBrowse (extract images/prices/URLs) → showProductImages immediately.
+Each product needs: id, name, imageUrl (required), price, sourceUrl (purchase link).`,
       loading: { deferLoading: true }, // Deferred - discovered via searchTools when shopping
       requiresSession: false,
     } satisfies ToolMetadata,
