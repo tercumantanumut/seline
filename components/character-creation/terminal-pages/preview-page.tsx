@@ -28,6 +28,9 @@ const TOOL_TRANSLATION_KEYS: Record<string, string> = {
   referenceImageFlux2Klein9B: "referenceImageFlux2Klein9B",
   showProductImages: "showProductImages",
   executeCommand: "executeCommand",
+  editFile: "editFile",
+  writeFile: "writeFile",
+  patchFile: "patchFile",
 };
 
 interface PreviewPageProps {

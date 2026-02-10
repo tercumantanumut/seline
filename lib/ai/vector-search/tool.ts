@@ -533,10 +533,12 @@ Note: Requires prior vectorSearch calls in this session.`,
 import { readFile } from "fs/promises";
 import { resolve, join } from "path";
 import { findAgentDocumentByName, getAgentDocumentChunksByDocumentId } from "@/lib/db/queries";
+import { isPathAllowed, findSimilarFiles, recordFileRead } from "@/lib/ai/filesystem";
 
 // File read limits
 const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1MB
 const MAX_LINE_COUNT = 5000;
+const MAX_LINE_WIDTH = 2000;
 
 // Schema for readFile tool
 const readFileSchema = jsonSchema<{
@@ -565,44 +567,7 @@ const readFileSchema = jsonSchema<{
   additionalProperties: false,
 });
 
-/**
- * Validate that a file path is within allowed folders (security check)
- *
- * Handles both:
- * 1. Absolute paths - checks if within any allowed folder
- * 2. Relative paths - tries resolving relative to each allowed folder
- */
-function isPathAllowed(filePath: string, allowedFolderPaths: string[]): string | null {
-  const { isAbsolute, join, normalize, sep } = require("path");
-
-  // Case 1: Path is already absolute
-  if (isAbsolute(filePath)) {
-    const normalizedPath = normalize(filePath);
-    for (const allowedPath of allowedFolderPaths) {
-      const resolvedAllowed = resolve(allowedPath);
-      // Use platform-specific path separator for Windows compatibility
-      if (normalizedPath.startsWith(resolvedAllowed + sep) || normalizedPath === resolvedAllowed) {
-        return normalizedPath;
-      }
-    }
-    return null;
-  }
-
-  // Case 2: Relative path - try resolving relative to each allowed folder
-  for (const allowedPath of allowedFolderPaths) {
-    const resolvedAllowed = resolve(allowedPath);
-    const candidatePath = normalize(join(resolvedAllowed, filePath));
-
-    // Security: Ensure the resolved path is still within the allowed folder
-    // (prevents path traversal attacks like "../../../etc/passwd")
-    // Use platform-specific path separator for Windows compatibility
-    if (candidatePath.startsWith(resolvedAllowed + sep) || candidatePath === resolvedAllowed) {
-      return candidatePath;
-    }
-  }
-
-  return null;
-}
+// isPathAllowed imported from @/lib/ai/filesystem
 
 /**
  * Get code language for syntax highlighting
@@ -746,6 +711,7 @@ async function tryReadFromKnowledgeBase(
  */
 async function executeReadFile(
   characterId: string | null | undefined,
+  sessionId: string | null | undefined,
   args: { filePath: string; startLine?: number; endLine?: number }
 ): Promise<ReadFileResult> {
   const { filePath, startLine, endLine } = args;
@@ -781,9 +747,15 @@ async function executeReadFile(
   // Security: Check if path is allowed
   const validPath = isPathAllowed(filePath, allowedFolderPaths);
   if (!validPath) {
+    // Try to suggest similar files
+    const suggestions = await findSimilarFiles(characterId, filePath);
+    const suggestionText = suggestions.length > 0
+      ? ` Did you mean: ${suggestions.map(s => `"${s}"`).join(", ")}?`
+      : "";
+
     return {
       status: "error" as const,
-      error: `File not found in Knowledge Base or synced folders. Tried matching "${filePath}" against KB documents and synced folder paths.`,
+      error: `File not found in Knowledge Base or synced folders. Tried matching "${filePath}" against KB documents and synced folder paths.${suggestionText}`,
       allowedFolders: allowedFolderPaths,
     };
   }
@@ -824,10 +796,21 @@ async function executeReadFile(
     // Format with line numbers
     const lang = getCodeLanguage(filePath);
     const formattedContent = selectedLines
-      .map((line, idx) => `${String(actualStartLine + idx).padStart(4, " ")} | ${line}`)
+      .map((line, idx) => {
+        const lineNum = `${String(actualStartLine + idx).padStart(4, " ")} | `;
+        const truncatedLine = line.length > MAX_LINE_WIDTH
+          ? line.slice(0, MAX_LINE_WIDTH) + `... [${line.length - MAX_LINE_WIDTH} chars truncated]`
+          : line;
+        return lineNum + truncatedLine;
+      })
       .join("\n");
 
     const truncated = selectedLines.length < lines.length;
+
+    // Record read time for stale detection by editFile/writeFile
+    if (sessionId) {
+      recordFileRead(sessionId, validPath);
+    }
 
     return {
       status: "success" as const,
@@ -863,7 +846,7 @@ export function createReadFileTool(options: ReadFileToolOptions) {
     "readFile",
     sessionId,
     (args: { filePath: string; startLine?: number; endLine?: number }) =>
-      executeReadFile(characterId, args)
+      executeReadFile(characterId, sessionId, args)
   );
 
   return tool({

@@ -55,6 +55,9 @@ import { createFirecrawlCrawlTool } from "../firecrawl";
 import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
 import { createExecuteCommandTool } from "../tools/execute-command-tool";
+import { createEditFileTool } from "../tools/edit-file-tool";
+import { createWriteFileTool } from "../tools/write-file-tool";
+import { createPatchFileTool } from "../tools/patch-file-tool";
 import { createZImageGenerateTool } from "../tools/zimage-generate-tool";
 import {
   createFlux2Klein4BGenerateTool,
@@ -375,6 +378,134 @@ Run shell commands safely within synced folders. Dangerous commands (rm, sudo, f
     } satisfies ToolMetadata,
     ({ sessionId }) =>
       createExecuteCommandTool({
+        sessionId: sessionId || "UNSCOPED",
+        characterId: null,
+      })
+  );
+
+  // Edit File Tool - Targeted string replacement in files
+  registry.register(
+    "editFile",
+    {
+      displayName: "Edit File",
+      category: "knowledge",
+      keywords: [
+        "edit",
+        "file",
+        "modify",
+        "change",
+        "replace",
+        "code",
+        "update",
+        "refactor",
+        "fix",
+        "patch",
+        "string",
+        "write",
+      ],
+      shortDescription:
+        "Edit a file by replacing a specific string with new content",
+      fullInstructions: `## Edit File
+
+Replace a unique string in a file within synced folders. Also creates new files.
+
+**Modes:**
+- Edit: \`{ filePath, oldString: "unique text", newString: "replacement" }\`
+- Create: \`{ filePath, oldString: "", newString: "file content" }\`
+- Delete text: \`{ filePath, oldString: "text to remove", newString: "" }\`
+
+**Rules:**
+- oldString must appear EXACTLY once in the file (add context if not unique)
+- File must be read with readFile before editing
+- Stale detection: re-read if file was modified externally
+- Diagnostics (tsc/eslint) run automatically after edit`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createEditFileTool({
+        sessionId: sessionId || "UNSCOPED",
+        characterId: null,
+      })
+  );
+
+  // Write File Tool - Full file write/create
+  registry.register(
+    "writeFile",
+    {
+      displayName: "Write File",
+      category: "knowledge",
+      keywords: [
+        "write",
+        "file",
+        "create",
+        "overwrite",
+        "save",
+        "new",
+        "content",
+        "output",
+      ],
+      shortDescription:
+        "Write full content to a file (create new or overwrite existing)",
+      fullInstructions: `## Write File
+
+Write full content to a file within synced folders. Creates or overwrites.
+
+**Usage:** \`{ filePath: "src/utils.ts", content: "// Full file content here" }\`
+
+**Rules:**
+- For existing files: prefer editFile for small changes (preserves unmodified content)
+- Stale detection: warns if file modified since last read
+- Max 1MB content size
+- Diagnostics run automatically after write`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createWriteFileTool({
+        sessionId: sessionId || "UNSCOPED",
+        characterId: null,
+      })
+  );
+
+  // Patch File Tool - Multi-file batch operations
+  registry.register(
+    "patchFile",
+    {
+      displayName: "Patch Files",
+      category: "knowledge",
+      keywords: [
+        "patch",
+        "multi",
+        "batch",
+        "bulk",
+        "refactor",
+        "multiple",
+        "files",
+        "atomic",
+        "update",
+        "create",
+        "delete",
+      ],
+      shortDescription:
+        "Apply multiple file operations atomically (update/create/delete)",
+      fullInstructions: `## Patch Files
+
+Apply batch operations across multiple files atomically. All operations validated before any writes.
+
+**Operations:**
+- update: \`{ action: "update", filePath, oldString, newString }\`
+- create: \`{ action: "create", filePath, newString: "content" }\`
+- delete: \`{ action: "delete", filePath }\`
+
+**Example:** \`{ operations: [{ action: "update", filePath: "a.ts", oldString: "old", newString: "new" }, { action: "create", filePath: "b.ts", newString: "content" }] }\`
+
+**Safety:** If any operation fails validation, NO files are modified.`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createPatchFileTool({
         sessionId: sessionId || "UNSCOPED",
         characterId: null,
       })
