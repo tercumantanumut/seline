@@ -16,6 +16,7 @@ import {
   TOOL_DISCOVERY_MINIMAL,
   TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
+  getChannelFormattingBlock,
 } from "./prompts";
 import { combineBlocks } from "./prompts/shared-blocks";
 import type { CacheableSystemBlock } from "./cache/types";
@@ -46,13 +47,17 @@ export function getCharacterAvatarUrl(character: CharacterFull): string | null {
  */
 export function buildCharacterSystemPrompt(
   character: CharacterFull,
-  options: { toolLoadingMode?: "deferred" | "always" } = {}
+  options: { 
+    toolLoadingMode?: "deferred" | "always";
+    channelType?: string | null;
+  } = {}
 ): string {
   // Check for custom prompt override first
   const metadata = character.metadata as Record<string, any> || {};
   if (metadata.systemPromptOverride && typeof metadata.systemPromptOverride === "string" && metadata.systemPromptOverride.trim()) {
     console.log(`[Character Prompt] Using custom system prompt override for ${character.name}`);
-    return metadata.systemPromptOverride;
+    const channelBlock = getChannelFormattingBlock(options.channelType);
+    return channelBlock ? `${metadata.systemPromptOverride}\n\n${channelBlock}` : metadata.systemPromptOverride;
   }
 
   const sections: string[] = [];
@@ -101,6 +106,12 @@ export function buildCharacterSystemPrompt(
   sections.push(options.toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL);
   sections.push(MULTI_IMAGE_TOOL_USAGE); // Multi-image guidance for edit/reference tools
 
+  // Channel-aware formatting guidance (prevents broken Markdown in chat apps)
+  const channelBlock = getChannelFormattingBlock(options.channelType);
+  if (channelBlock) {
+    sections.push(channelBlock);
+  }
+
   // Prepend temporal context for accurate date/time awareness
   const temporalContext = getTemporalContextBlock();
   return `${temporalContext}\n\n${sections.join("\n\n")}`;
@@ -122,12 +133,14 @@ export function buildCacheableCharacterPrompt(
   character: CharacterFull,
   options: {
     toolLoadingMode?: "deferred" | "always";
+    channelType?: string | null;
     enableCaching?: boolean;
     cacheTtl?: "5m" | "1h";
   } = {}
 ): CacheableSystemBlock[] {
   const {
     toolLoadingMode = "deferred",
+    channelType,
     enableCaching = false,
     cacheTtl = "5m",
   } = options;
@@ -239,6 +252,14 @@ export function buildCacheableCharacterPrompt(
       },
     }),
   });
+
+  const channelBlock = getChannelFormattingBlock(channelType);
+  if (channelBlock) {
+    blocks.push({
+      role: "system",
+      content: channelBlock,
+    });
+  }
 
   return blocks;
 }

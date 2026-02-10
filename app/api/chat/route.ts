@@ -1777,13 +1777,15 @@ export async function POST(req: Request) {
       const character = await getCharacterFull(characterId);
       if (character && character.userId === dbUser.id) {
         // Build character-specific system prompt (includes shared blocks)
+        const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
         systemPromptValue = useCaching
           ? buildCacheableCharacterPrompt(character, {
               toolLoadingMode,
+              channelType,
               enableCaching: true,
               cacheTtl: cacheConfig.defaultTtl,
             })
-          : buildCharacterSystemPrompt(character, { toolLoadingMode });
+          : buildCharacterSystemPrompt(character, { toolLoadingMode, channelType });
 
         // Get character avatar and appearance for tool context
         characterAvatarUrl = getCharacterAvatarUrl(character);

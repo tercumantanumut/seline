@@ -21,6 +21,12 @@ export {
   combineBlocks,
 } from "./shared-blocks";
 
+// Channel-aware formatting rules
+export {
+  getChannelFormattingBlock,
+  channelNeedsFormattingGuidance,
+} from "./channel-formatting";
+
 // Base system prompt builder
 export {
   buildBaseSystemPrompt,
