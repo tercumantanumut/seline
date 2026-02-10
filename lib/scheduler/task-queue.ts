@@ -472,6 +472,20 @@ export class TaskQueue {
       sessionId = task.existingSessionId;
     } else {
       const character = await getCharacterFull(task.characterId);
+
+      // Best-effort: propagate channel delivery metadata into the scheduled run session
+      // so the LLM can format outputs correctly for Telegram/Slack/WhatsApp.
+      let channelType: string | undefined;
+      try {
+        const scheduledTask = await db.query.scheduledTasks.findFirst({
+          where: eq(scheduledTasks.id, task.taskId),
+        });
+        const deliveryConfig = (scheduledTask?.deliveryConfig || {}) as Record<string, unknown>;
+        channelType = typeof deliveryConfig.channelType === "string" ? deliveryConfig.channelType : undefined;
+      } catch {
+        // Ignore lookup failures; session will still run.
+      }
+
       const session = await createSession({
         title: `Scheduled: ${character?.name || "Agent"} - ${new Date().toLocaleDateString()}`,
         userId: task.userId,
@@ -480,6 +494,7 @@ export class TaskQueue {
           scheduledTaskId: task.taskId,
           scheduledRunId: task.runId,
           isScheduledRun: true,
+          ...(channelType ? { channelType } : {}),
         },
       });
       sessionId = session.id;

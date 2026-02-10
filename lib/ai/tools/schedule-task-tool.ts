@@ -18,6 +18,10 @@ import { eq } from "drizzle-orm";
 import { CronJob } from "cron";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
 import { normalizeTimezone, isValidTimezone } from "@/lib/utils/timezone";
+import {
+  parseScheduledAtToUtcIso,
+  isScheduledAtInFutureUtc,
+} from "@/lib/ai/tools/schedule-task-helpers";
 
 /**
  * Input schema for the scheduleTask tool
@@ -231,16 +235,16 @@ The task will execute with the agent's full context and tools. Use template vari
         }
       }
 
-      // Validate scheduled time is in the future for one-time schedules
+      // Validate scheduled time is in the future for one-time schedules.
+      // IMPORTANT: avoid locale-dependent `new Date(string)` parsing.
+      let scheduledAtUtcIso: string | null = null;
       if (scheduleType === "once" && scheduledAt) {
-        const scheduledDate = new Date(scheduledAt);
-        if (isNaN(scheduledDate.getTime())) {
-          return {
-            success: false,
-            error: `Invalid scheduledAt timestamp "${scheduledAt}". Use ISO format: '2026-01-29T10:00:00Z'`,
-          };
+        const parsed = parseScheduledAtToUtcIso(scheduledAt, timezone);
+        if (!parsed.ok) {
+          return { success: false, error: parsed.error };
         }
-        if (scheduledDate <= new Date()) {
+        scheduledAtUtcIso = parsed.scheduledAtIsoUtc;
+        if (!isScheduledAtInFutureUtc(scheduledAtUtcIso)) {
           return {
             success: false,
             error: "scheduledAt must be in the future for one-time schedules",
@@ -277,7 +281,8 @@ The task will execute with the agent's full context and tools. Use template vari
           const nextDate = job.nextDate();
           nextRunAt = nextDate.toISO();
         } else if (scheduleType === "once" && scheduledAt) {
-          nextRunAt = scheduledAt;
+          // Store canonical UTC ISO for deterministic comparisons/execution.
+          nextRunAt = scheduledAtUtcIso ?? scheduledAt;
         } else if (scheduleType === "interval" && intervalMinutes) {
           const next = new Date(Date.now() + intervalMinutes * 60 * 1000);
           nextRunAt = next.toISOString();
@@ -294,7 +299,7 @@ The task will execute with the agent's full context and tools. Use template vari
             scheduleType,
             cronExpression: cronExpression || null,
             intervalMinutes: intervalMinutes || null,
-            scheduledAt: scheduledAt || null,
+            scheduledAt: scheduledAtUtcIso ?? scheduledAt ?? null,
             timezone,
             initialPrompt: prompt,
             enabled,
@@ -339,7 +344,8 @@ The task will execute with the agent's full context and tools. Use template vari
         } else if (scheduleType === "interval" && intervalMinutes) {
           scheduleDescription = `Every ${intervalMinutes} minutes`;
         } else if (scheduleType === "once" && scheduledAt) {
-          scheduleDescription = `Once at ${new Date(scheduledAt).toLocaleString()} (${timezone})`;
+          const displayIso = scheduledAtUtcIso ?? scheduledAt;
+          scheduleDescription = `Once at ${new Date(displayIso).toLocaleString()} (${timezone})`;
         } else {
           scheduleDescription = "Unknown schedule type";
         }
