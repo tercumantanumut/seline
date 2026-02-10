@@ -199,6 +199,9 @@ export interface AppSettings {
     sttProvider?: "openai" | "local";
     sttLocalModel?: string;          // Selected whisper.cpp model ID (default: "ggml-tiny.en")
     whisperCppPath?: string;         // Custom path to whisper-cli binary (auto-detected if empty)
+
+    // Memory settings
+    memoryAutoApprove?: boolean;     // Auto-approve background-extracted memories (default: false)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -300,7 +303,7 @@ const MODEL_PREFIXES: Record<string, string[]> = {
   // Anthropic models always have a date suffix (e.g. "claude-sonnet-4-5-20250929")
   // Using "claude-" prefix is safe here because Antigravity models are checked
   // via exact match first (see isCompatibleWithProvider below)
-  anthropic: ["claude-", "claude3", "claude4"],
+  anthropic: ["claude-", "claude-3", "claude-2", "claude-instant"],
   kimi: ["kimi-", "moonshot-"],
   codex: ["gpt-5", "codex"],
   // Antigravity uses exact match (see ANTIGRAVITY_EXACT_MODELS), not prefixes

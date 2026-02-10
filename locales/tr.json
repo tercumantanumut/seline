@@ -351,6 +351,10 @@
         "name": "Görev Zamanla",
         "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
       },
+      "memorize": {
+        "name": "Hafiza",
+        "description": "Gelecekteki konusmalarda hatirlamak icin bilgi veya tercihleri kaydet"
+      },
       "calculator": {
         "name": "Hesap Makinesi",
         "description": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)"

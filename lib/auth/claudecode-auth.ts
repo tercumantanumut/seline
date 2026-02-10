@@ -77,7 +77,7 @@ export function needsClaudeCodeTokenRefresh(): boolean {
 
   const now = Date.now();
   const expiresAt = token.expires_at;
-  return expiresAt <= (now + CLAUDECODE_CONFIG.REFRESH_THRESHOLD_MS) && expiresAt > now;
+  return expiresAt <= (now + CLAUDECODE_CONFIG.REFRESH_THRESHOLD_MS);
 }
 
 export function saveClaudeCodeToken(

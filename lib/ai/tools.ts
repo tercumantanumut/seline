@@ -1374,9 +1374,10 @@ const videoAssemblySchema = jsonSchema<{
     },
     fps: {
       type: "number",
-      enum: [24, 30, 60],
       default: 30,
-      description: "Frames per second. Default: 30",
+      minimum: 24,
+      maximum: 60,
+      description: "Frames per second (24, 30, or 60). Default: 30",
     },
     width: {
       type: "number",
