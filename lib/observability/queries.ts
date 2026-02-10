@@ -118,6 +118,22 @@ export async function listAgentRunsBySession(
   });
 }
 
+/**
+ * Find running agent runs for a character across all sessions
+ */
+export async function listRunningRunsByCharacter(
+  characterId: string
+): Promise<AgentRun[]> {
+  return db.query.agentRuns.findMany({
+    where: and(
+      eq(agentRuns.characterId, characterId),
+      eq(agentRuns.status, "running")
+    ),
+    orderBy: desc(agentRuns.startedAt),
+    limit: 10,
+  });
+}
+
 // ============================================================================
 // Agent Run Events
 // ============================================================================

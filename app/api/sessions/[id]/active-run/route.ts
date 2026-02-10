@@ -22,10 +22,10 @@ export async function GET(req: Request, { params }: RouteParams) {
     const runs = await listAgentRunsBySession(sessionId);
     let activeRun = runs.find(r => r.status === "running");
 
-    // Auto-expire stale runs (>10 min) as a safety net
+    // Auto-expire stale runs (>30 min with no activity) as a safety net
     if (activeRun) {
-      const TEN_MINUTES = 10 * 60 * 1000;
-      if (isStale(activeRun.startedAt, TEN_MINUTES)) {
+      const THIRTY_MINUTES = 30 * 60 * 1000;
+      if (isStale(activeRun.updatedAt ?? activeRun.startedAt, THIRTY_MINUTES)) {
         await completeAgentRun(activeRun.id, "failed", { error: "stale_run_cleanup" });
         activeRun = undefined;
       }

@@ -412,6 +412,8 @@ export default function ChatInterface({
     }, [sessionId, refreshSessionTimestamp]);
 
     // Poll for completion of background processing
+    // No hard timeout — uses zombie detection instead to handle truly stuck runs.
+    // SSE task:completed is the authoritative termination signal.
     const startPollingForCompletion = useCallback((runId: string) => {
         // Clear any existing polling interval
         if (pollingIntervalRef.current) {
@@ -419,26 +421,9 @@ export default function ChatInterface({
         }
 
         setIsZombieRun(false);
-        let pollCount = 0;
         const pollIntervalMs = 2000;
-        const maxPolls = 300; // 10 minutes at 2s intervals
 
         pollingIntervalRef.current = setInterval(async () => {
-            pollCount++;
-
-            // Stop polling after 5 minutes (assume stale)
-            if (pollCount >= maxPolls) {
-                console.warn("[Background Processing] Polling timeout - stopping after 10 minutes");
-                if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current);
-                    pollingIntervalRef.current = null;
-                }
-                setIsProcessingInBackground(false);
-                setProcessingRunId(null);
-                setIsZombieRun(false);
-                return;
-            }
-
             try {
                 const response = await fetch(`/api/agent-runs/${runId}/status`, {
                     cache: "no-store",
@@ -446,33 +431,38 @@ export default function ChatInterface({
                 });
                 const data = await response.json();
 
-                console.log(`[Background Processing] Poll #${pollCount}: status=${data.status}`);
-
                 if (data.status === "running") {
                     setIsZombieRun(Boolean(data.isZombie));
+                    // If zombie detected, stop polling — SSE or user action will handle cleanup
+                    if (data.isZombie) {
+                        console.warn("[Background Processing] Zombie run detected, stopping polling");
+                        if (pollingIntervalRef.current) {
+                            clearInterval(pollingIntervalRef.current);
+                            pollingIntervalRef.current = null;
+                        }
+                        return;
+                    }
                     if (sessionId && document.visibilityState === "visible") {
                         await reloadSessionMessages(sessionId, { remount: true });
                     }
                     return;
                 }
 
-                if (data.status !== "running") {
-                    // Run completed - fetch updated messages
-                    console.log("[Background Processing] Run completed with status:", data.status);
-                    if (pollingIntervalRef.current) {
-                        clearInterval(pollingIntervalRef.current);
-                        pollingIntervalRef.current = null;
-                    }
-                    setIsProcessingInBackground(false);
-                    setProcessingRunId(null);
-                    setIsZombieRun(false);
-                    await refreshMessages();
+                // Run completed - fetch updated messages
+                console.log("[Background Processing] Run completed with status:", data.status);
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                    pollingIntervalRef.current = null;
                 }
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                setIsZombieRun(false);
+                await refreshMessages();
             } catch (error) {
                 console.error("[Background Processing] Polling error:", error);
                 // Continue polling on error (network might recover)
             }
-        }, pollIntervalMs); // Poll every 2 seconds
+        }, pollIntervalMs);
     }, [refreshMessages, reloadSessionMessages, sessionId]);
 
     // Check for active run on mount and when sessionId changes
@@ -625,12 +615,8 @@ export default function ChatInterface({
                     pollingIntervalRef.current = null;
                 }
                 
-                // Clear local state AND notify global store to maintain consistency
-                // This ensures sidebar indicators update correctly when switching sessions
-                if (sessionId && processingRunId) {
-                    sessionSyncNotifier.notifyRunCompleted(sessionId);
-                }
-                
+                // Only clear LOCAL state — the old session's run may still be active.
+                // The SSE task:completed event will clear session-sync-store when it truly completes.
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
                 setActiveRun(null);
@@ -674,12 +660,8 @@ export default function ChatInterface({
                         pollingIntervalRef.current = null;
                     }
                     
-                    // Clear local state AND notify global store to maintain consistency
-                    // This ensures the previous session's running indicator is cleared properly
-                    if (sessionId && processingRunId) {
-                        sessionSyncNotifier.notifyRunCompleted(sessionId);
-                    }
-                    
+                    // Only clear LOCAL state — the old session's run may still be active.
+                    // The SSE task:completed event will clear session-sync-store when it truly completes.
                     setIsProcessingInBackground(false);
                     setProcessingRunId(null);
                     setActiveRun(null);

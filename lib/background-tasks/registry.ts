@@ -113,6 +113,12 @@ class TaskRegistry extends EventEmitter {
       currentTaskCount: this.tasks.size,
     });
 
+    // Update lastActivityAt for stale detection
+    if (task) {
+      task.lastActivityAt = nowISO();
+      this.tasks.set(runId, task);
+    }
+
     if (!task) {
       if (!details?.userId || !details?.type) {
         console.warn("[TaskRegistry] Progress event dropped; task not in registry and missing details:", {
@@ -250,7 +256,7 @@ class TaskRegistry extends EventEmitter {
     const staleRunIds: string[] = [];
 
     for (const [runId, task] of this.tasks) {
-      if (isStale(task.startedAt, STALE_THRESHOLD_MS)) {
+      if (isStale(task.lastActivityAt ?? task.startedAt, STALE_THRESHOLD_MS)) {
         staleRunIds.push(runId);
       }
     }
