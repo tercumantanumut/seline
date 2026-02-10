@@ -124,6 +124,13 @@ const standaloneJunk = [
     'comfyui_backend',
     'models',
     'binaries',
+    // Source code directories - Next.js standalone copies the project root,
+    // but we only need the compiled server.js and .next/ output, not source code
+    'app',
+    'components',
+    'hooks',
+    'i18n',
+    'seline-source',
 ];
 for (const name of standaloneJunk) {
     const target = path.join(standaloneDir, name);
@@ -158,48 +165,6 @@ console.log('Copying lib folder...');
 const libSrc = path.join(rootDir, 'lib');
 const libDest = path.join(standaloneDir, 'lib');
 copyRecursive(libSrc, libDest);
-
-// 4.5. Copy source code for "Seline Codebase" agent sync
-console.log('Copying source code for Seline agent...');
-const sourceCodeDest = path.join(standaloneDir, 'seline-source');
-ensureDir(sourceCodeDest);
-
-// Copy relevant source directories
-const sourceDirs = [
-    { name: 'app', src: 'app' },
-    { name: 'components', src: 'components' },
-    { name: 'lib', src: 'lib' },
-    { name: 'electron', src: 'electron' },
-    { name: 'hooks', src: 'hooks' },
-    { name: 'i18n', src: 'i18n' },
-];
-
-for (const dir of sourceDirs) {
-    const srcPath = path.join(rootDir, dir.src);
-    const destPath = path.join(sourceCodeDest, dir.name);
-    if (fs.existsSync(srcPath)) {
-        console.log(`  - Copying ${dir.name}/`);
-        copyRecursive(srcPath, destPath);
-    }
-}
-
-// Copy root config files
-const sourceFiles = [
-    'package.json',
-    'tsconfig.json',
-    'next.config.ts',
-    'tailwind.config.ts',
-    'README.md',
-];
-
-for (const file of sourceFiles) {
-    const srcPath = path.join(rootDir, file);
-    const destPath = path.join(sourceCodeDest, file);
-    if (fs.existsSync(srcPath)) {
-        console.log(`  - Copying ${file}`);
-        fs.copyFileSync(srcPath, destPath);
-    }
-}
 
 // 5. Copy @remotion folder
 console.log('Copying @remotion folder...');

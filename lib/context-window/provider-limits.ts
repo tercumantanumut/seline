@@ -64,12 +64,12 @@ export function parseContextWindowString(contextWindow: string): number {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_CONTEXT_CONFIG: ContextWindowConfig = {
-  maxTokens: 128000, // 128K - conservative default
+  maxTokens: 128000, // 128K - conservative default for unknown models
   warningThreshold: 0.75, // 75% - trigger background compaction
   criticalThreshold: 0.90, // 90% - force compaction before request
   hardLimit: 0.95, // 95% - block request, require compaction
   supportsStreaming: true,
-  minMessagesForCompaction: 10,
+  minMessagesForCompaction: 3, // Lowered from 10 to allow sparse long-running sessions
   keepRecentMessages: 6,
 };
 
@@ -82,11 +82,11 @@ const DEFAULT_CONTEXT_CONFIG: ContextWindowConfig = {
  * Used when model-specific limits are not available.
  */
 export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
-  anthropic: 200000, // 200K for Claude models
-  claudecode: 200000, // 200K for Claude Code
-  antigravity: 200000, // Varies, but Claude-based models common
+  anthropic: 200000, // 200K for all Claude models (standard context window per Anthropic docs)
+  claudecode: 200000, // 200K for Claude Code (Claude Opus 4.6 = 200K standard)
+  antigravity: 200000, // Claude-based models = 200K; Gemini models use model-specific overrides
   openrouter: 128000, // Varies widely, conservative default
-  codex: 128000, // GPT models range 128K-256K
+  codex: 400000, // GPT-5 models are 400K context
   kimi: 128000, // Kimi K2 models range 128K-256K
   ollama: 32000, // Local models typically have smaller context
 };
@@ -100,7 +100,8 @@ export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
  * Overrides defaults for known models with specific limits.
  */
 export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>> = {
-  // Anthropic Direct
+  // Anthropic Direct — 200K standard context window per Anthropic docs
+  // (1M available only via opt-in beta header "context-1m-2025-08-07")
   "claude-sonnet-4-5-20250929": {
     maxTokens: 200000,
     supportsStreaming: true,
@@ -110,7 +111,7 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     supportsStreaming: true,
   },
 
-  // Antigravity (Claude-based)
+  // Antigravity (Claude-based) — 200K standard context window
   "claude-sonnet-4-5": {
     maxTokens: 200000,
     supportsStreaming: true,
@@ -153,39 +154,39 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     supportsStreaming: true,
   },
 
-  // Claude Code
+  // Claude Code — Claude Opus 4.6 has 200K standard context window
   "claude-opus-4-6": {
     maxTokens: 200000,
     supportsStreaming: true,
   },
 
-  // Codex (GPT models)
+  // Codex (GPT-5 models — all 400K context)
   "gpt-5.3-codex": {
-    maxTokens: 256000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.2-codex": {
-    maxTokens: 256000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.2": {
-    maxTokens: 256000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.1-codex-max": {
-    maxTokens: 256000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.1-codex": {
-    maxTokens: 128000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.1-codex-mini": {
-    maxTokens: 128000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
   "gpt-5.1": {
-    maxTokens: 128000,
+    maxTokens: 400000,
     supportsStreaming: true,
   },
 

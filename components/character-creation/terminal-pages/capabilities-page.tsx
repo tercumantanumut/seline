@@ -45,6 +45,9 @@ const BASE_TOOLS: ToolCapability[] = [
     dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"],
   },
   { id: "readFile", nameKey: "readFile", descKey: "readFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
+  { id: "editFile", nameKey: "editFile", descKey: "editFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
+  { id: "writeFile", nameKey: "writeFile", descKey: "writeFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
+  { id: "patchFile", nameKey: "patchFile", descKey: "patchFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
   {
     id: "localGrep",
     nameKey: "localGrep",

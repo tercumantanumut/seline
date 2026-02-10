@@ -51,11 +51,14 @@ import { ToolCallGroup } from "./tool-call-group";
 import { VectorSearchToolUI } from "./vector-search-inline";
 import { ProductGalleryToolUI } from "./product-gallery-inline";
 import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
+import { EditFileToolUI } from "./edit-file-tool-ui";
+import { PatchFileToolUI } from "./patch-file-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
+import FileMentionAutocomplete from "./file-mention-autocomplete";
 import { useCharacter, DEFAULT_CHARACTER } from "./character-context";
 import { useOptionalDeepResearch } from "./deep-research-context";
 import { DeepResearchPanel } from "./deep-research-panel";
@@ -357,6 +360,10 @@ const Composer: FC<{
   const [inputValue, setInputValue] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Cursor position for @ mention autocomplete
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const mentionRef = useRef<HTMLDivElement>(null);
+
   // Prompt enhancement state
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementInfo, setEnhancementInfo] = useState<{
@@ -469,8 +476,32 @@ const Composer: FC<{
     }
   }, [inputValue, isQueueBlocked, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext]);
 
+  // Insert a file mention from the autocomplete dropdown
+  const handleInsertMention = useCallback((mention: string, atIndex: number, queryLength: number) => {
+    // Replace @query with @mention (including the @ sign)
+    const before = inputValue.slice(0, atIndex);
+    const after = inputValue.slice(atIndex + 1 + queryLength); // +1 for the @ character
+    const newValue = `${before}@${mention} ${after}`;
+    setInputValue(newValue);
+    // Move cursor to after the inserted mention + space
+    const newCursor = atIndex + mention.length + 2; // @ + mention + space
+    setCursorPosition(newCursor);
+    // Focus and set cursor position in textarea
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursor, newCursor);
+      }
+    });
+  }, [inputValue]);
+
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Let the mention autocomplete handle navigation keys first
+    if (mentionRef.current) {
+      const handler = (mentionRef.current as unknown as { handleKeyDown?: (e: React.KeyboardEvent) => boolean }).handleKeyDown;
+      if (handler && handler(e)) return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -728,6 +759,15 @@ const Composer: FC<{
         </div>
       )}
 
+      {/* File mention autocomplete dropdown */}
+      <FileMentionAutocomplete
+        ref={mentionRef}
+        characterId={character?.id ?? null}
+        inputValue={inputValue}
+        cursorPosition={cursorPosition}
+        onInsertMention={handleInsertMention}
+      />
+
       <ComposerPrimitive.Root
         ref={composerRef}
         className={cn(
@@ -770,11 +810,15 @@ const Composer: FC<{
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value);
+              setCursorPosition(e.target.selectionStart ?? 0);
               // Clear enhancement state when user edits (they may be modifying the enhanced text)
               if (enhancedContext || enhancementInfo) {
                 setEnhancedContext(null);
                 setEnhancementInfo(null);
               }
+            }}
+            onSelect={(e) => {
+              setCursorPosition((e.target as HTMLTextAreaElement).selectionStart ?? 0);
             }}
             onKeyDown={handleKeyDown}
             autoFocus
@@ -1016,11 +1060,13 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           toast.error(errorMsg);
           return;
         }
+        // Update global assignment for display purposes only (doesn't affect this session)
         await bag.assignModelToRole(model.id, "chat");
-        if (model.provider !== bag.activeProvider && model.provider !== "openrouter" && model.provider !== "ollama") {
-          await bag.switchProvider(model.provider);
-        }
-        toast.success(`Switched to ${model.name}`);
+        // NOTE: We do NOT call switchProvider here because:
+        // 1. This is a per-session override, not a global change
+        // 2. switchProvider clears all model assignments and can cause race conditions
+        // 3. The session override takes precedence via session-model-resolver.ts
+        toast.success(`Switched to ${model.name} for this session`);
         setOpen(false);
       } catch {
         toast.error("Failed to switch model");
@@ -1555,6 +1601,9 @@ const AssistantMessage: FC = () => {
                   vectorSearch: VectorSearchToolUI,
                   showProductImages: ProductGalleryToolUI,
                   executeCommand: ExecuteCommandToolUI,
+                  editFile: EditFileToolUI,
+                  writeFile: EditFileToolUI,
+                  patchFile: PatchFileToolUI,
                   calculator: CalculatorToolUI,
                   updatePlan: PlanToolUI,
                   speakAloud: SpeakAloudToolUI,

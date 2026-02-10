@@ -125,34 +125,34 @@ export const MODEL_METADATA: Record<
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
 
-  // Codex (representative — the rest inherit defaults)
+  // Codex (GPT-5 models — all 400K context)
   "gpt-5.3-codex": {
     tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "256K", speed: "standard" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
   "gpt-5.2-codex": {
     tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "256K", speed: "standard" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
   "gpt-5.2": {
     tier: "standard",
-    capabilities: { vision: true, thinking: true, contextWindow: "256K", speed: "standard" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
   "gpt-5.1-codex-max": {
     tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "256K", speed: "slow" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "slow" },
   },
   "gpt-5.1-codex": {
     tier: "standard",
-    capabilities: { vision: true, thinking: true, contextWindow: "128K", speed: "standard" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
   "gpt-5.1-codex-mini": {
     tier: "utility",
-    capabilities: { vision: true, contextWindow: "128K", speed: "fast" },
+    capabilities: { vision: true, contextWindow: "400K", speed: "fast" },
   },
   "gpt-5.1": {
     tier: "standard",
-    capabilities: { vision: true, thinking: true, contextWindow: "128K", speed: "standard" },
+    capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
 
   // Kimi

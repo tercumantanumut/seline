@@ -192,6 +192,12 @@
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
     "mcpToolsTitle": "Configure MCP Tools",
+    "mcpRemovalWarning": {
+      "title": "Active Session Detected",
+      "description": "This agent has an active session that may be using MCP tools. Removing tools during an active session could cause errors in running tasks.",
+      "toolsBeingRemoved": "The following MCP tools will be removed:",
+      "confirm": "Save Anyway"
+    },
     "toolsEnabled": "{count, plural, one {# tool enabled} other {# tools enabled}}",
     "empty": "No agents yet. Configure your first agent to get started.",
     "emptyTitle": "Create Your First Agent",
@@ -298,6 +304,18 @@
       "readFile": {
         "name": "Read File",
         "description": "Read full file content from synced folders"
+      },
+      "editFile": {
+        "name": "Edit File",
+        "description": "Edit files with exact string replacement"
+      },
+      "writeFile": {
+        "name": "Write File",
+        "description": "Create or overwrite files in synced folders"
+      },
+      "patchFile": {
+        "name": "Patch File",
+        "description": "Batch create, update, or delete multiple files"
       },
       "localGrep": {
         "name": "Local Grep",
@@ -587,6 +605,9 @@
       "vectorSearch": "Vector Search",
       "docsSearch": "Document Search",
       "readFile": "Read File",
+      "editFile": "Edit File",
+      "writeFile": "Write File",
+      "patchFile": "Patch File",
       "localGrep": "Local Grep",
       "editImage": "Image Editor",
       "describeImage": "Image Analysis",
@@ -771,6 +792,12 @@
         "vectorSearchDesc": "Semantic search across indexed folders",
         "readFile": "Read File",
         "readFileDesc": "Read full file content from synced folders",
+        "editFile": "Edit File",
+        "editFileDesc": "Edit files with exact string replacement in synced folders",
+        "writeFile": "Write File",
+        "writeFileDesc": "Create new files or overwrite existing files in synced folders",
+        "patchFile": "Patch File",
+        "patchFileDesc": "Batch create, update, or delete multiple files atomically",
         "localGrep": "Local Grep",
         "localGrepDesc": "Fast exact/regex pattern search using ripgrep",
         "webSearch": "Web Search",

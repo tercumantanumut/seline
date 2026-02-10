@@ -6,11 +6,11 @@ import type { LLMProvider } from "@/components/model-bag/model-bag.types";
  * Used as fallback when model metadata doesn't specify a limit
  */
 const DEFAULT_PROVIDER_LIMITS: Record<LLMProvider, number> = {
-  anthropic: 200000,   // Claude 3.5 Sonnet = 200K
+  anthropic: 200000,   // All Claude models = 200K standard (per Anthropic docs)
   openrouter: 128000,  // Safe default for most modern models
-  antigravity: 200000, // Matches Claude/Gemini high tier
-  codex: 128000,       // GPT-4 class standard
-  claudecode: 200000,  // Matches Anthropic
+  antigravity: 200000, // Claude-based = 200K; Gemini uses model-specific overrides
+  codex: 400000,       // GPT-5 models are 400K context
+  claudecode: 200000,  // Claude Opus 4.6 = 200K standard
   kimi: 128000,        // Kimi standard
   ollama: 8192,        // Llama 3 default (conservative)
 };

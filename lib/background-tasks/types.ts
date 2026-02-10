@@ -22,6 +22,7 @@ export interface BaseTask {
   sessionId?: string;
   characterId?: string;
   startedAt: string;
+  lastActivityAt?: string;
   completedAt?: string;
   durationMs?: number;
   error?: string;

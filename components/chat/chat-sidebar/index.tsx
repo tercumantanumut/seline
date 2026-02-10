@@ -91,13 +91,17 @@ interface CharacterSidebarProps {
   onNewSession: () => void;
   onSwitchSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
-  onResetChannelSession: (sessionId: string, options?: { archiveOld?: boolean }) => Promise<void>;
+  onResetChannelSession: (
+    sessionId: string,
+    options?: { archiveOld?: boolean },
+  ) => Promise<void>;
   onRenameSession: (sessionId: string, title: string) => Promise<boolean>;
-  onExportSession: (sessionId: string, format: "markdown" | "json" | "text") => Promise<void>;
+  onExportSession: (
+    sessionId: string,
+    format: "markdown" | "json" | "text",
+  ) => Promise<void>;
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
-
-
 
 function parseAsUTC(dateStr: string): Date {
   const normalized =
@@ -142,16 +146,21 @@ export function CharacterSidebar({
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const avatarUrl = characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
-  const initials = characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
+  const avatarUrl =
+    characterDisplay?.avatarUrl || characterDisplay?.primaryImageUrl;
+  const initials =
+    characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
   const formatter = useFormatter();
   const [channelsOpen, setChannelsOpen] = useState(false);
-  const [channelConnections, setChannelConnections] = useState<ChannelConnectionSummary[]>([]);
+  const [channelConnections, setChannelConnections] = useState<
+    ChannelConnectionSummary[]
+  >([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [pendingDeleteSession, setPendingDeleteSession] = useState<SessionInfo | null>(null);
+  const [pendingDeleteSession, setPendingDeleteSession] =
+    useState<SessionInfo | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
@@ -186,8 +195,9 @@ export function CharacterSidebar({
   }, []);
 
   const isChannelBoundSession = useCallback(
-    (session: SessionInfo) => Boolean(session.metadata?.channelType || session.channelType),
-    []
+    (session: SessionInfo) =>
+      Boolean(session.metadata?.channelType || session.channelType),
+    [],
   );
 
   const handleDeleteRequest = useCallback(
@@ -199,7 +209,7 @@ export function CharacterSidebar({
       }
       onDeleteSession(session.id);
     },
-    [isChannelBoundSession, onDeleteSession]
+    [isChannelBoundSession, onDeleteSession],
   );
 
   const handleArchiveAndReset = useCallback(async () => {
@@ -217,8 +227,6 @@ export function CharacterSidebar({
     await onDeleteSession(pendingDeleteSession.id);
     closeDeleteDialog();
   }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
-
-
 
   const groupedSessions = useMemo(() => {
     const groups: Record<"today" | "week" | "older", SessionInfo[]> = {
@@ -240,10 +248,14 @@ export function CharacterSidebar({
   const loadChannelConnections = useCallback(async () => {
     try {
       setChannelsLoading(true);
-      const response = await fetch(`/api/channels/connections?characterId=${character.id}`);
+      const response = await fetch(
+        `/api/channels/connections?characterId=${character.id}`,
+      );
       if (response.ok) {
         const data = await response.json();
-        setChannelConnections((data.connections || []) as ChannelConnectionSummary[]);
+        setChannelConnections(
+          (data.connections || []) as ChannelConnectionSummary[],
+        );
       }
     } catch (error) {
       console.error("Failed to load channel connections:", error);
@@ -256,21 +268,32 @@ export function CharacterSidebar({
     void loadChannelConnections();
   }, [loadChannelConnections]);
 
-  const connectedCount = channelConnections.filter((connection) => connection.status === "connected").length;
+  const connectedCount = channelConnections.filter(
+    (connection) => connection.status === "connected",
+  ).length;
   const loadedCount = sessions.length;
   const hasNoResults = !loadingSessions && loadedCount === 0;
   const shouldGroupSessions = sessions.length > 5;
-  const activeFilterCount = Number(channelFilter !== "all") + Number(dateRange !== "all");
+  const activeFilterCount =
+    Number(channelFilter !== "all") + Number(dateRange !== "all");
   const orderedSessions = useMemo(
-    () => [...groupedSessions.today, ...groupedSessions.week, ...groupedSessions.older],
-    [groupedSessions]
+    () => [
+      ...groupedSessions.today,
+      ...groupedSessions.week,
+      ...groupedSessions.older,
+    ],
+    [groupedSessions],
   );
 
   const renderSessionList = (values: SessionInfo[], label?: string) => {
     if (values.length === 0) return null;
     return (
       <div className="space-y-1.5">
-        {label ? <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-muted/80">{label}</p> : null}
+        {label ? (
+          <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-muted/80">
+            {label}
+          </p>
+        ) : null}
         {values.map((session) => {
           const isCurrent = session.id === currentSessionId;
           const isEditing = editingSessionId === session.id;
@@ -336,14 +359,19 @@ export function CharacterSidebar({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono">{t("sidebar.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel className="font-mono">
+              {t("sidebar.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="font-mono bg-terminal-green text-terminal-cream hover:bg-terminal-green/90"
               onClick={() => void handleArchiveAndReset()}
             >
               {t("channelSession.archiveReset")}
             </AlertDialogAction>
-            <AlertDialogAction className="font-mono bg-red-600 text-white hover:bg-red-600/90" onClick={() => void handleConfirmDelete()}>
+            <AlertDialogAction
+              className="font-mono bg-red-600 text-white hover:bg-red-600/90"
+              onClick={() => void handleConfirmDelete()}
+            >
               {t("channelSession.deleteAnyway")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -353,10 +381,18 @@ export function CharacterSidebar({
       <div className="shrink-0 px-4 pt-3 pb-2">
         <div className="rounded-lg border border-terminal-border/30 bg-terminal-cream/80 p-3 shadow-sm">
           <div className="flex items-center gap-2.5">
-            <button onClick={() => setAvatarDialogOpen(true)} className="relative group cursor-pointer" title={t("sidebar.changeAvatar")}>
+            <button
+              onClick={() => setAvatarDialogOpen(true)}
+              className="relative group cursor-pointer"
+              title={t("sidebar.changeAvatar")}
+            >
               <Avatar className="h-10 w-10 shadow-sm">
-                {avatarUrl ? <AvatarImage src={avatarUrl} alt={character.name} /> : null}
-                <AvatarFallback className="bg-terminal-green/10 text-sm font-mono text-terminal-green">{initials}</AvatarFallback>
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt={character.name} />
+                ) : null}
+                <AvatarFallback className="bg-terminal-green/10 text-sm font-mono text-terminal-green">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 rounded-full bg-terminal-dark/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
                 <Camera className="h-3.5 w-3.5 text-terminal-cream" />
@@ -364,7 +400,9 @@ export function CharacterSidebar({
             </button>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="truncate font-semibold font-mono text-terminal-dark">{character.displayName || character.name}</h2>
+                <h2 className="truncate font-semibold font-mono text-terminal-dark">
+                  {character.displayName || character.name}
+                </h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -372,13 +410,21 @@ export function CharacterSidebar({
                   className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
                 >
                   <Plug className="mr-1 h-3.5 w-3.5" />
-                  <span className="text-[11px] font-mono">{t("sidebar.channels")}</span>
+                  <span className="text-[11px] font-mono">
+                    {t("sidebar.channels")}
+                  </span>
                 </Button>
               </div>
-              {character.tagline ? <p className="mt-0.5 truncate text-[11px] text-terminal-muted/80 font-mono">{character.tagline}</p> : null}
+              {character.tagline ? (
+                <p className="mt-0.5 truncate text-[11px] text-terminal-muted/80 font-mono">
+                  {character.tagline}
+                </p>
+              ) : null}
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {channelsLoading ? (
-                  <span className="text-[10px] font-mono text-terminal-muted">{tChannels("connections.loading")}</span>
+                  <span className="text-[10px] font-mono text-terminal-muted">
+                    {tChannels("connections.loading")}
+                  </span>
                 ) : connectedCount > 0 ? (
                   channelConnections
                     .filter((connection) => connection.status === "connected")
@@ -395,7 +441,9 @@ export function CharacterSidebar({
                       );
                     })
                 ) : (
-                  <span className="text-[10px] font-mono text-terminal-muted">{t("sidebar.noActiveChannels")}</span>
+                  <span className="text-[10px] font-mono text-terminal-muted">
+                    {t("sidebar.noActiveChannels")}
+                  </span>
                 )}
               </div>
             </div>
@@ -405,7 +453,9 @@ export function CharacterSidebar({
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="shrink-0 px-4 pb-2">
-          <h3 className="mb-2 text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">{t("sidebar.history")}</h3>
+          <h3 className="mb-2 text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
+            {t("sidebar.history")}
+          </h3>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-terminal-muted" />
@@ -416,9 +466,16 @@ export function CharacterSidebar({
                 placeholder={t("sidebar.searchPlaceholder")}
               />
             </div>
-            <Button variant="ghost" size="sm" onClick={onNewSession} className="h-9 px-2.5 text-terminal-green hover:bg-terminal-green/10">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onNewSession}
+              className="h-9 px-2.5 text-terminal-green hover:bg-terminal-green/10"
+            >
               <PlusCircle className="h-4 w-4 mr-1" />
-              <span className="text-xs font-mono font-medium">{t("sidebar.new")}</span>
+              <span className="text-xs font-mono font-medium">
+                {t("sidebar.new")}
+              </span>
             </Button>
           </div>
         </div>
@@ -435,26 +492,38 @@ export function CharacterSidebar({
             </span>
             <div className="flex items-center gap-1.5">
               {activeFilterCount > 0 ? (
-                <Badge className="border-terminal-border bg-terminal-dark/10 px-1.5 py-0 text-[10px] font-mono text-terminal-dark">{activeFilterCount}</Badge>
+                <Badge className="border-terminal-border bg-terminal-dark/10 px-1.5 py-0 text-[10px] font-mono text-terminal-dark">
+                  {activeFilterCount}
+                </Badge>
               ) : null}
-              {filtersOpen ? <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" /> : <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />}
+              {filtersOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
+              )}
             </div>
           </button>
           {filtersOpen ? (
             <div className="space-y-2 rounded-md border border-terminal-border/40 bg-terminal-cream/40 p-2.5">
               {connectedCount > 0 || channelFilter !== "all" ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {(["all", "whatsapp", "telegram", "slack"] as const).map((option) => (
-                    <Button
-                      key={option}
-                      variant={channelFilter === option ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 px-2.5 text-[11px] font-mono"
-                      onClick={() => onChannelFilterChange(option)}
-                    >
-                      {option === "all" ? t("sidebar.channelAll") : tChannels(`types.${option}`)}
-                    </Button>
-                  ))}
+                  {(["all", "whatsapp", "telegram", "slack"] as const).map(
+                    (option) => (
+                      <Button
+                        key={option}
+                        variant={
+                          channelFilter === option ? "default" : "outline"
+                        }
+                        size="sm"
+                        className="h-7 px-2.5 text-[11px] font-mono"
+                        onClick={() => onChannelFilterChange(option)}
+                      >
+                        {option === "all"
+                          ? t("sidebar.channelAll")
+                          : tChannels(`types.${option}`)}
+                      </Button>
+                    ),
+                  )}
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-1.5">
@@ -482,31 +551,57 @@ export function CharacterSidebar({
               </div>
             ) : hasNoResults ? (
               <div className="rounded-lg border border-dashed border-terminal-border/60 bg-terminal-cream/40 p-4 text-center">
-                <p className="text-sm text-terminal-muted font-mono">{t("sidebar.empty")}</p>
-                <p className="mt-1 text-xs text-terminal-muted/80 font-mono">{t("sidebar.emptyHint")}</p>
-                <Button className="mt-3 h-8 font-mono" size="sm" onClick={onNewSession}>
+                <p className="text-sm text-terminal-muted font-mono">
+                  {t("sidebar.empty")}
+                </p>
+                <p className="mt-1 text-xs text-terminal-muted/80 font-mono">
+                  {t("sidebar.emptyHint")}
+                </p>
+                <Button
+                  className="mt-3 h-8 font-mono"
+                  size="sm"
+                  onClick={onNewSession}
+                >
                   <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
                   {t("sidebar.startNew")}
                 </Button>
               </div>
             ) : shouldGroupSessions ? (
               <>
-                {renderSessionList(groupedSessions.today, t("sidebar.groups.today"))}
-                {renderSessionList(groupedSessions.week, t("sidebar.groups.week"))}
-                {renderSessionList(groupedSessions.older, t("sidebar.groups.older"))}
+                {renderSessionList(
+                  groupedSessions.today,
+                  t("sidebar.groups.today"),
+                )}
+                {renderSessionList(
+                  groupedSessions.week,
+                  t("sidebar.groups.week"),
+                )}
+                {renderSessionList(
+                  groupedSessions.older,
+                  t("sidebar.groups.older"),
+                )}
               </>
             ) : (
               renderSessionList(orderedSessions)
             )}
             {hasMore && !hasNoResults ? (
-              <Button variant="outline" size="sm" className="w-full h-8 font-mono text-xs" onClick={onLoadMore} disabled={loadingSessions}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 font-mono text-xs"
+                onClick={onLoadMore}
+                disabled={loadingSessions}
+              >
                 {loadingSessions ? (
                   <>
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     {t("sidebar.loadingMore")}
                   </>
                 ) : (
-                  t("sidebar.loadMore", { loaded: loadedCount, total: totalCount })
+                  t("sidebar.loadMore", {
+                    loaded: loadedCount,
+                    total: totalCount,
+                  })
                 )}
               </Button>
             ) : null}
@@ -523,18 +618,73 @@ export function CharacterSidebar({
               <Link2 className="h-3.5 w-3.5" />
               {t("sidebar.quickLinks")}
             </span>
-            {resourcesOpen ? <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" /> : <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />}
+            {resourcesOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
+            )}
           </button>
           {resourcesOpen ? (
             <div className="grid grid-cols-3 gap-1.5">
-              <Button variant="outline" size="sm" className="h-7 px-2 text-[11px] font-mono" asChild>
-                <Link href={`/agents/${character.id}/memory`}>{t("sidebar.agentMemoryShort")}</Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[11px] font-mono"
+                asChild
+              >
+                <Link
+                  href={`/agents/${character.id}/memory`}
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(
+                        "seline-return-url",
+                        window.location.href,
+                      );
+                    }
+                  }}
+                >
+                  {t("sidebar.agentMemoryShort")}
+                </Link>
               </Button>
-              <Button variant="outline" size="sm" className="h-7 px-2 text-[11px] font-mono" asChild>
-                <Link href={`/agents/${character.id}/schedules`}>{t("sidebar.schedulesShort")}</Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[11px] font-mono"
+                asChild
+              >
+                <Link
+                  href={`/agents/${character.id}/schedules`}
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(
+                        "seline-return-url",
+                        window.location.href,
+                      );
+                    }
+                  }}
+                >
+                  {t("sidebar.schedulesShort")}
+                </Link>
               </Button>
-              <Button variant="outline" size="sm" className="h-7 px-2 text-[11px] font-mono" asChild>
-                <Link href="/usage">{t("sidebar.usageShort")}</Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[11px] font-mono"
+                asChild
+              >
+                <Link
+                  href="/usage"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(
+                        "seline-return-url",
+                        window.location.href,
+                      );
+                    }
+                  }}
+                >
+                  {t("sidebar.usageShort")}
+                </Link>
               </Button>
             </div>
           ) : null}
@@ -548,11 +698,18 @@ export function CharacterSidebar({
               <BookText className="h-3.5 w-3.5" />
               {t("sidebar.knowledgeBase")}
             </span>
-            {docsOpen ? <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" /> : <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />}
+            {docsOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
+            )}
           </button>
           {docsOpen ? (
             <div className="max-h-56 overflow-y-auto rounded-md border border-terminal-border/40 bg-terminal-cream/30 p-2">
-              <DocumentsPanel agentId={character.id} agentName={character.name} />
+              <DocumentsPanel
+                agentId={character.id}
+                agentName={character.name}
+              />
             </div>
           ) : null}
         </div>

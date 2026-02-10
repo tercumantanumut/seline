@@ -7,6 +7,9 @@ import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
 import { createVectorSearchToolV2, createReadFileTool } from "@/lib/ai/vector-search";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
 import { createExecuteCommandTool } from "@/lib/ai/tools/execute-command-tool";
+import { createEditFileTool } from "@/lib/ai/tools/edit-file-tool";
+import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
+import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
@@ -1963,6 +1966,24 @@ export async function POST(req: Request) {
       }),
       ...(allTools.executeCommand && {
         executeCommand: createExecuteCommandTool({
+          sessionId,
+          characterId: characterId || null,
+        }),
+      }),
+      ...(allTools.editFile && {
+        editFile: createEditFileTool({
+          sessionId,
+          characterId: characterId || null,
+        }),
+      }),
+      ...(allTools.writeFile && {
+        writeFile: createWriteFileTool({
+          sessionId,
+          characterId: characterId || null,
+        }),
+      }),
+      ...(allTools.patchFile && {
+        patchFile: createPatchFileTool({
           sessionId,
           characterId: characterId || null,
         }),

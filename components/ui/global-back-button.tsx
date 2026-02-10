@@ -33,22 +33,27 @@ export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
   }
 
   const handleBack = (): void => {
-    // Check for stored return URL (set when navigating to settings)
-    if (typeof window !== 'undefined') {
-      const returnUrl = sessionStorage.getItem('seline-return-url');
+    // Prefer navigating back to a stored return URL (when we intentionally want
+    // to avoid a popstate restore and force a clean navigation back).
+    if (typeof window !== "undefined") {
+      const returnUrl = sessionStorage.getItem("seline-return-url");
 
-      if (returnUrl && pathname === '/settings') {
-        // Clear the stored URL
-        sessionStorage.removeItem('seline-return-url');
+      if (returnUrl) {
+        // Clear first to avoid loops if navigation throws.
+        sessionStorage.removeItem("seline-return-url");
 
-        // Parse the URL to get the pathname and search params
         try {
           const url = new URL(returnUrl);
-          // Use push with the full path to ensure server component re-runs
-          router.push(url.pathname + url.search);
-          return;
+          const target = `${url.pathname}${url.search}${url.hash}`;
+          const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+          if (target && target !== current) {
+            // Use replace: this is a "Back" affordance and should not add another history entry.
+            router.replace(target);
+            return;
+          }
         } catch {
-          // If URL parsing fails, fall through to router.back()
+          // If URL parsing fails, fall through to router.back().
         }
       }
     }
@@ -65,7 +70,7 @@ export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
       className={cn(
         "flex items-center gap-1 text-terminal-dark hover:bg-terminal-dark/10 h-9 px-3",
         isElectron && "webkit-app-region-no-drag",
-        className
+        className,
       )}
       aria-label={t("goBack")}
     >
@@ -74,4 +79,3 @@ export const GlobalBackButton: FC<GlobalBackButtonProps> = ({
     </Button>
   );
 };
-

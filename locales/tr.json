@@ -192,6 +192,12 @@
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
+    "mcpRemovalWarning": {
+      "title": "Aktif Oturum Tespit Edildi",
+      "description": "Bu ajanın MCP araçlarını kullanıyor olabilecek aktif bir oturumu var. Aktif oturum sırasında araçları kaldırmak çalışan görevlerde hatalara neden olabilir.",
+      "toolsBeingRemoved": "Aşağıdaki MCP araçları kaldırılacak:",
+      "confirm": "Yine de Kaydet"
+    },
     "toolsEnabled": "{count, plural, one {# araç etkin} other {# araç etkin}}",
     "empty": "Henüz ajan yok. Başlamak için ilk ajanınızı yapılandırın.",
     "emptyTitle": "İlk Ajanınızı Oluşturun",
@@ -294,6 +300,18 @@
       "readFile": {
         "name": "Dosya Oku",
         "description": "Senkronize klasörlerdeki dosyaları okuyun"
+      },
+      "editFile": {
+        "name": "Dosya Düzenle",
+        "description": "Tam metin eşleştirmesi ile dosyaları düzenleyin"
+      },
+      "writeFile": {
+        "name": "Dosya Yaz",
+        "description": "Senkronize klasörlerde dosya oluşturun veya üzerine yazın"
+      },
+      "patchFile": {
+        "name": "Toplu Düzenleme",
+        "description": "Birden fazla dosyayı toplu olarak oluşturun, güncelleyin veya silin"
       },
       "webSearch": {
         "name": "Web Arama",
@@ -583,6 +601,9 @@
       "vectorSearch": "Vektör Arama",
       "docsSearch": "Belge Arama",
       "readFile": "Dosya Oku",
+      "editFile": "Dosya Düzenle",
+      "writeFile": "Dosya Yaz",
+      "patchFile": "Toplu Düzenleme",
       "editImage": "Görsel Düzenleyici",
       "describeImage": "Görsel Analizi",
       "generateImageFlux2": "Flux2 Görsel Oluşturma",
@@ -767,6 +788,12 @@
         "vectorSearchDesc": "İndekslenmiş klasörlerde anlamsal arama",
         "readFile": "Dosya Oku",
         "readFileDesc": "Senkronize klasörlerden tam dosya içeriğini oku",
+        "editFile": "Dosya Düzenle",
+        "editFileDesc": "Senkronize klasörlerdeki dosyaları tam metin eşleştirmesi ile düzenle",
+        "writeFile": "Dosya Yaz",
+        "writeFileDesc": "Senkronize klasörlerde yeni dosya oluştur veya mevcut dosyanın üzerine yaz",
+        "patchFile": "Toplu Düzenleme",
+        "patchFileDesc": "Birden fazla dosyayı atomik olarak toplu oluştur, güncelle veya sil",
         "webSearch": "Web Araması",
         "webSearchDesc": "Web'de URL ve bilgi ara",
         "webBrowse": "Web Gezintisi",

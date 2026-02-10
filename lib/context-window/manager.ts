@@ -211,7 +211,11 @@ export class ContextWindowManager {
         `[ContextWindowManager] Context ${status.status}, forcing compaction`
       );
 
-      const compactionResult = await CompactionService.compact(sessionId);
+      const config = getContextWindowConfig(modelId, provider);
+      const targetTokensToFree = status.currentTokens - Math.floor(config.maxTokens * 0.7);
+      const compactionResult = await CompactionService.compact(sessionId, {
+        targetTokensToFree: Math.max(0, targetTokensToFree),
+      });
 
       if (compactionResult.success) {
         // Re-check status after compaction
@@ -249,11 +253,31 @@ export class ContextWindowManager {
           compactionResult,
         };
       } else {
-        // Compaction failed
+        // Compaction failed - implement graceful fallback
         console.error(
           `[ContextWindowManager] Compaction failed: ${compactionResult.error}`
         );
 
+        // GRACEFUL DEGRADATION: If compaction fails due to insufficient messages
+        // but we're not critically over the limit, allow the request to proceed
+        // with a warning instead of blocking the entire chat.
+        const isInsufficientMessages = compactionResult.error?.includes("Not enough messages");
+        const canProceedWithWarning = isInsufficientMessages && status.status === "critical";
+
+        if (canProceedWithWarning) {
+          console.warn(
+            `[ContextWindowManager] Allowing request despite compaction failure ` +
+            `(insufficient messages for compaction, but not critically exceeded)`
+          );
+          return {
+            canProceed: true,
+            status,
+            compactionResult,
+            error: `Warning: ${compactionResult.error}. Proceeding with caution.`,
+          };
+        }
+
+        // For other failures or if truly exceeded, block the request
         return {
           canProceed: false,
           status,
@@ -302,7 +326,11 @@ export class ContextWindowManager {
         `[ContextWindowManager] Compaction triggered: ${status.status}`
       );
 
-      const result = await CompactionService.compact(sessionId);
+      const cwConfig = getContextWindowConfig(modelId, provider);
+      const targetTokensToFree = status.currentTokens - Math.floor(cwConfig.maxTokens * 0.7);
+      const result = await CompactionService.compact(sessionId, {
+        targetTokensToFree: Math.max(0, targetTokensToFree),
+      });
 
       if (result.success) {
         console.log(

@@ -18,6 +18,7 @@ vi.mock("@/lib/db/queries", () => ({
 import { ContextWindowManager } from "@/lib/context-window/manager";
 import { TokenTracker } from "@/lib/context-window/token-tracker";
 import { CompactionService } from "@/lib/context-window/compaction-service";
+import { getContextWindowConfig, getTokenThresholds } from "@/lib/context-window/provider-limits";
 
 function makeUsage(totalTokens: number) {
   return {
@@ -33,7 +34,7 @@ function makeUsage(totalTokens: number) {
 
 describe("ContextWindowManager.preFlightCheck compaction", () => {
   const sessionId = "session-1";
-  const modelId = "claude-sonnet-4-5-20250929"; // maxTokens=200000, hardLimit=190000
+  const modelId = "gpt-5.1-codex"; // maxTokens=400000, hardLimit=380000 (GPT-5 models have 400K context)
   const systemPromptLength = 0;
 
   beforeEach(() => {
@@ -51,12 +52,12 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
   it("forces compaction when exceeded, then proceeds if compaction reduces tokens under limit", async () => {
     const usageSpy = vi
       .spyOn(TokenTracker, "calculateUsage")
-      .mockResolvedValueOnce(makeUsage(195_000))
-      .mockResolvedValueOnce(makeUsage(100_000));
+      .mockResolvedValueOnce(makeUsage(385_000)) // Above 380K hard limit
+      .mockResolvedValueOnce(makeUsage(200_000)); // After compaction, back to safe
 
     const compactSpy = vi.spyOn(CompactionService, "compact").mockResolvedValue({
       success: true,
-      tokensFreed: 95_000,
+      tokensFreed: 185_000,
       messagesCompacted: 42,
       newSummary: "summary",
     });
@@ -77,8 +78,8 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
 
   it("blocks when compaction succeeds but context is still exceeded", async () => {
     vi.spyOn(TokenTracker, "calculateUsage")
-      .mockResolvedValueOnce(makeUsage(195_000))
-      .mockResolvedValueOnce(makeUsage(195_000));
+      .mockResolvedValueOnce(makeUsage(385_000)) // Above 380K hard limit
+      .mockResolvedValueOnce(makeUsage(385_000)); // Still exceeded after compaction
 
     vi.spyOn(CompactionService, "compact").mockResolvedValue({
       success: true,
@@ -99,15 +100,40 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
     expect(result.recovery?.action).toBe("new_session");
   });
 
-  it("blocks with recovery when compaction fails", async () => {
-    vi.spyOn(TokenTracker, "calculateUsage").mockResolvedValueOnce(makeUsage(195_000));
+  it("allows with warning when compaction fails due to insufficient messages at critical level", async () => {
+    // Test the graceful fallback: insufficient messages at critical level should allow continuation
+    vi.spyOn(TokenTracker, "calculateUsage").mockResolvedValueOnce(makeUsage(365_000)); // Critical (90-95%)
 
     vi.spyOn(CompactionService, "compact").mockResolvedValue({
       success: false,
       tokensFreed: 0,
       messagesCompacted: 0,
       newSummary: "",
-      error: "simulated failure",
+      error: "Not enough messages to compact (5 < 10)",
+    });
+
+    const result = await ContextWindowManager.preFlightCheck(
+      sessionId,
+      modelId,
+      systemPromptLength
+    );
+
+    // With graceful fallback, this should now allow continuation with a warning
+    expect(result.canProceed).toBe(true);
+    expect(result.error).toContain("Warning:");
+    expect(result.error).toContain("Not enough messages");
+  });
+
+  it("blocks with recovery when compaction fails with other errors", async () => {
+    // Non-insufficient-messages errors should still block
+    vi.spyOn(TokenTracker, "calculateUsage").mockResolvedValueOnce(makeUsage(365_000));
+
+    vi.spyOn(CompactionService, "compact").mockResolvedValue({
+      success: false,
+      tokensFreed: 0,
+      messagesCompacted: 0,
+      newSummary: "",
+      error: "Database connection failed",
     });
 
     const result = await ContextWindowManager.preFlightCheck(
@@ -119,5 +145,75 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
     expect(result.canProceed).toBe(false);
     expect(result.error).toContain("Compaction failed:");
     expect(result.recovery?.action).toBe("new_session");
+  });
+
+  it("passes targetTokensToFree to compaction when context is critical", async () => {
+    vi.spyOn(TokenTracker, "calculateUsage")
+      .mockResolvedValueOnce(makeUsage(385_000)) // Exceeded
+      .mockResolvedValueOnce(makeUsage(200_000)); // After compaction
+
+    const compactSpy = vi.spyOn(CompactionService, "compact").mockResolvedValue({
+      success: true,
+      tokensFreed: 185_000,
+      messagesCompacted: 42,
+      newSummary: "summary",
+    });
+
+    await ContextWindowManager.preFlightCheck(sessionId, modelId, systemPromptLength);
+
+    // targetTokensToFree = 385000 - floor(400000 * 0.7) = 385000 - 280000 = 105000
+    expect(compactSpy).toHaveBeenCalledWith(sessionId, {
+      targetTokensToFree: 105_000,
+    });
+  });
+});
+
+describe("Codex model context window limits", () => {
+  it("returns 400K for all codex models", () => {
+    const codexModels = [
+      "gpt-5.3-codex",
+      "gpt-5.2-codex",
+      "gpt-5.2",
+      "gpt-5.1-codex-max",
+      "gpt-5.1-codex",
+      "gpt-5.1-codex-mini",
+      "gpt-5.1",
+    ];
+
+    for (const modelId of codexModels) {
+      const config = getContextWindowConfig(modelId, "codex");
+      expect(config.maxTokens, `${modelId} should have 400K context`).toBe(400_000);
+    }
+  });
+
+  it("returns 400K for codex provider default (unknown model)", () => {
+    const config = getContextWindowConfig("unknown-codex-model", "codex");
+    expect(config.maxTokens).toBe(400_000);
+  });
+
+  it("returns correct thresholds for codex models", () => {
+    const thresholds = getTokenThresholds("gpt-5.1-codex", "codex");
+    expect(thresholds.maxTokens).toBe(400_000);
+    expect(thresholds.warningTokens).toBe(300_000);  // 75% of 400K
+    expect(thresholds.criticalTokens).toBe(360_000); // 90% of 400K
+    expect(thresholds.hardLimitTokens).toBe(380_000); // 95% of 400K
+  });
+
+  it("reports 208K on a 400K codex model as safe", async () => {
+    const sessionId = "codex-session";
+    const modelId = "gpt-5.1-codex";
+
+    dbMocks.getSession.mockResolvedValue({ id: sessionId, summary: null });
+    dbMocks.getNonCompactedMessages.mockResolvedValue([]);
+
+    vi.spyOn(TokenTracker, "calculateUsage").mockResolvedValueOnce(makeUsage(208_000));
+
+    const result = await ContextWindowManager.preFlightCheck(sessionId, modelId, 0, "codex");
+
+    expect(result.canProceed).toBe(true);
+    expect(result.status.status).toBe("safe");
+    expect(result.status.maxTokens).toBe(400_000);
+    // 208K / 400K = 52%
+    expect(result.status.usagePercentage).toBeCloseTo(0.52, 2);
   });
 });

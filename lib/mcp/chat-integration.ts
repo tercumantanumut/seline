@@ -124,7 +124,15 @@ export async function loadMCPToolsForCharacter(
     }
 
     // Get filtered MCP tools for this agent
-    const mcpTools = getMCPToolsForAgent(enabledServers, enabledTools);
+    // Guard: getMCPToolsForAgent may return an empty array if tools were deleted
+    // between metadata save and this load. This is expected and handled gracefully.
+    let mcpTools: ReturnType<typeof getMCPToolsForAgent>;
+    try {
+        mcpTools = getMCPToolsForAgent(enabledServers, enabledTools);
+    } catch (error) {
+        console.warn("[MCP] Failed to get MCP tools for agent, falling back to empty set:", error);
+        mcpTools = [];
+    }
 
     // Convert to AI SDK tools with loading mode awareness
     const allTools: Record<string, Tool> = {};
@@ -132,10 +140,18 @@ export async function loadMCPToolsForCharacter(
     const deferredToolIds: string[] = [];
 
     for (const mcpTool of mcpTools) {
+        // Defensive: skip tools with missing critical fields (can happen if
+        // the tool was removed from the MCP server between discovery and use)
+        if (!mcpTool.name || !mcpTool.serverName) {
+            console.warn("[MCP] Skipping tool with missing name or serverName:", mcpTool);
+            continue;
+        }
+
         const toolKey = `${mcpTool.serverName}:${mcpTool.name}`;
         const toolId = getMCPToolId(mcpTool.serverName, mcpTool.name);
 
         // Get per-tool preference (default: enabled with deferred loading)
+        // Guard: if metadata references a deleted tool's preference, fall back to defaults
         const preference = mcpToolPreferences[toolKey] ?? {
             enabled: true,
             loadingMode: "deferred" as const,
@@ -147,14 +163,15 @@ export async function loadMCPToolsForCharacter(
         }
 
         // Register with ToolRegistry using preference-aware metadata
-        const metadata = mcpToolToMetadata(mcpTool, preference);
+        // Wrap in try/catch to tolerate schema errors or missing tool data
         try {
+            const toolMetadata = mcpToolToMetadata(mcpTool, preference);
             const factory = () => createMCPToolWrapper(mcpTool);
-            registry.register(toolId, metadata, factory);
+            registry.register(toolId, toolMetadata, factory);
 
             allTools[toolId] = createMCPToolWrapper(mcpTool);
         } catch (error) {
-            console.warn(`[MCP] Skipping tool ${toolId} due to schema error:`, error);
+            console.warn(`[MCP] Skipping tool ${toolId} due to error (tool may have been removed):`, error);
             continue;
         }
 
@@ -163,6 +180,15 @@ export async function loadMCPToolsForCharacter(
             alwaysLoadToolIds.push(toolId);
         } else {
             deferredToolIds.push(toolId);
+        }
+    }
+
+    // Log when metadata references tools that no longer exist (stale references)
+    if (enabledTools && enabledTools.length > 0) {
+        const loadedToolKeys = new Set(mcpTools.map(t => `${t.serverName}:${t.name}`));
+        const staleRefs = enabledTools.filter(t => !loadedToolKeys.has(t));
+        if (staleRefs.length > 0) {
+            console.warn(`[MCP] Agent metadata references ${staleRefs.length} MCP tool(s) that no longer exist: ${staleRefs.join(", ")}. These will be skipped.`);
         }
     }
 

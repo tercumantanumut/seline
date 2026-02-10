@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
+import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import type { TaskEvent, UnifiedTask } from "@/lib/background-tasks/types";
 import { formatDuration } from "@/lib/utils/timestamp";
 
@@ -87,6 +88,10 @@ export function useTaskNotifications() {
       console.log("[TaskNotifications] Task started:", displayName, task.runId);
 
       addTask(task);
+      // Bridge to session-sync-store for sidebar/character picker indicators
+      if (task.sessionId) {
+        useSessionSyncStore.getState().setActiveRun(task.sessionId, task.runId);
+      }
       dispatchLifecycleEvent("background-task-started", event);
 
       const runningKey =
@@ -134,6 +139,10 @@ export function useTaskNotifications() {
       console.log("[TaskNotifications] Task completed:", displayName, task.status);
 
       completeTask(task);
+      // Bridge to session-sync-store for sidebar/character picker indicators
+      if (task.sessionId) {
+        useSessionSyncStore.getState().setActiveRun(task.sessionId, null);
+      }
       dispatchLifecycleEvent("background-task-completed", event);
 
       if (task.status === "succeeded") {
@@ -265,6 +274,20 @@ export function useTaskNotifications() {
           } else {
             console.log(`[TaskNotifications] Adding missing task: ${task.runId}`);
             addTask(task);
+          }
+        }
+
+        // Sync active runs to session-sync-store for sidebar/character indicators
+        const sessionSyncState = useSessionSyncStore.getState();
+        const currentActiveRuns = sessionSyncState.activeRuns;
+        for (const [sessionId] of currentActiveRuns) {
+          if (!tasks.some(t => t.sessionId === sessionId)) {
+            sessionSyncState.setActiveRun(sessionId, null);
+          }
+        }
+        for (const task of tasks) {
+          if (task.sessionId) {
+            sessionSyncState.setActiveRun(task.sessionId, task.runId);
           }
         }
 

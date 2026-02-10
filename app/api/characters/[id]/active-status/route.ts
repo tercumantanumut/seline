@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { listAgentRunsBySession, completeAgentRun } from "@/lib/observability/queries";
-import { getSessionByCharacterId } from "@/lib/db/queries";
+import { listRunningRunsByCharacter, completeAgentRun } from "@/lib/observability/queries";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { isStale } from "@/lib/utils/timestamp";
@@ -11,6 +10,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 /**
  * GET - Check if a character has active operations
  * Returns hasActiveSession and activeSessionId if any runs are "running"
+ * Checks all sessions for the character, not just the most recent one.
  */
 export async function GET(req: Request, { params }: RouteParams) {
   try {
@@ -19,33 +19,24 @@ export async function GET(req: Request, { params }: RouteParams) {
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
     const { id: characterId } = await params;
 
-    // Find most recent session for this character
-    const session = await getSessionByCharacterId(dbUser.id, characterId);
-
-    if (!session) {
-      return NextResponse.json({
-        hasActiveSession: false,
-        activeSessionId: null,
-      });
-    }
-
-    // Check if any runs for this session are still running
-    const runs = await listAgentRunsBySession(session.id);
-    const TEN_MINUTES = 10 * 60 * 1000;
-    const runningRuns = runs.filter((r) => r.status === "running");
+    // Find running runs across all sessions for this character
+    const runs = await listRunningRunsByCharacter(characterId);
+    const THIRTY_MINUTES = 30 * 60 * 1000;
 
     let hasRunning = false;
-    for (const run of runningRuns) {
-      if (isStale(run.startedAt, TEN_MINUTES)) {
+    let activeSessionId: string | null = null;
+    for (const run of runs) {
+      if (isStale(run.updatedAt ?? run.startedAt, THIRTY_MINUTES)) {
         await completeAgentRun(run.id, "failed", { error: "stale_run_cleanup" });
         continue;
       }
       hasRunning = true;
+      activeSessionId = run.sessionId;
     }
 
     return NextResponse.json({
       hasActiveSession: hasRunning,
-      activeSessionId: hasRunning ? session.id : null,
+      activeSessionId,
     });
   } catch (error) {
     console.error("Check active status error:", error);
