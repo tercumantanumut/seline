@@ -645,6 +645,32 @@ export async function markMessagesAsCompacted(
     );
 }
 
+/**
+ * Mark specific messages as compacted by their IDs.
+ * Used by auto-prune strategies to compact individual messages.
+ *
+ * @returns The number of messages actually marked as compacted.
+ */
+export async function markMessagesAsCompactedByIds(
+  sessionId: string,
+  messageIds: string[]
+): Promise<number> {
+  if (messageIds.length === 0) return 0;
+
+  const result = await db
+    .update(messages)
+    .set({ isCompacted: true })
+    .where(
+      and(
+        eq(messages.sessionId, sessionId),
+        inArray(messages.id, messageIds)
+      )
+    );
+
+  // Drizzle returns { changes } for SQLite updates
+  return (result as unknown as { changes?: number })?.changes ?? messageIds.length;
+}
+
 // Tool Runs
 export async function createToolRun(data: NewToolRun) {
   const [toolRun] = await db.insert(toolRuns).values(data).returning();

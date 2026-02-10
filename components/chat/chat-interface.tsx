@@ -1139,32 +1139,25 @@ export default function ChatInterface({
                     initialMessages={messages}
                 >
                     <div className="flex h-full flex-col gap-3">
-                        {(activeRun || isProcessingInBackground) && (
+                        {activeRun && (
                             <div className="px-4 pt-2 space-y-2">
-                                {activeRun && (
-                                    <ScheduledRunBanner
-                                        run={activeRun}
-                                        onCancel={handleCancelRun}
-                                        cancelling={isCancellingRun}
-                                    />
-                                )}
-                                {isProcessingInBackground && !activeRun && (
-                                    <BackgroundProcessingBanner
-                                        title={t("processingInBackground")}
-                                        hint={isZombieRun ? t("backgroundRun.zombieHint") : t("processingInBackgroundHint")}
-                                        onCancel={handleCancelBackgroundRun}
-                                        cancelling={isCancellingBackgroundRun}
-                                        canCancel={Boolean(processingRunId)}
-                                        isZombie={isZombieRun}
-                                    />
-                                )}
+                                <ScheduledRunBanner
+                                    run={activeRun}
+                                    onCancel={handleCancelRun}
+                                    cancelling={isCancellingRun}
+                                />
                             </div>
                         )}
                         <Thread
                             onSessionActivity={handleSessionActivity}
-                            footer={isProcessingInBackground ? <BackgroundProgressPlaceholder /> : null}
+                            footer={null}
                             isBackgroundTaskRunning={Boolean(activeRun || isProcessingInBackground)}
+                            isProcessingInBackground={isProcessingInBackground}
                             sessionId={sessionId}
+                            onCancelBackgroundRun={handleCancelBackgroundRun}
+                            isCancellingBackgroundRun={isCancellingBackgroundRun}
+                            canCancelBackgroundRun={Boolean(processingRunId)}
+                            isZombieBackgroundRun={isZombieRun}
                         />
                     </div>
                 </ChatProvider>
@@ -1193,27 +1186,7 @@ function ChatSidebarHeader({
     );
 }
 
-function BackgroundProgressPlaceholder() {
-    return (
-        <div className="mx-auto mb-10 mt-6 w-full max-w-4xl rounded-2xl bg-terminal-cream/70 p-6 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-                <Loader2 className="h-3 w-3 animate-spin text-terminal-green" />
-                <span>Fetching live updates...</span>
-            </div>
-            <div className="mt-5 space-y-3">
-                <div className="h-3 w-11/12 rounded-full bg-terminal-green/15 animate-pulse" />
-                <div className="h-3 w-5/6 rounded-full bg-terminal-green/10 animate-pulse" />
-                <div className="h-3 w-4/6 rounded-full bg-terminal-green/10 animate-pulse" />
-                <div className="h-3 w-2/3 rounded-full bg-terminal-green/10 animate-pulse" />
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
-                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
-                <div className="h-8 rounded-lg bg-terminal-green/10 animate-pulse" />
-            </div>
-        </div>
-    );
-}
+// BackgroundProgressPlaceholder removed - background processing UI now lives inline with the prompt input in thread.tsx
 
 function ScheduledRunBanner({
     run,
@@ -1262,64 +1235,6 @@ function ScheduledRunBanner({
                             <>
                                 <CircleStop className="mr-2 h-4 w-4" />
                                 {t("scheduledRun.stop")}
-                            </>
-                        )}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function BackgroundProcessingBanner({
-    title,
-    hint,
-    onCancel,
-    cancelling,
-    canCancel,
-    isZombie,
-}: {
-    title: string;
-    hint: string;
-    onCancel: () => void;
-    cancelling: boolean;
-    canCancel: boolean;
-    isZombie: boolean;
-}) {
-    const t = useTranslations("chat");
-
-    return (
-        <div className="rounded-xl border border-terminal-border/50 bg-terminal-cream/70 shadow-sm">
-            <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/30" />
-                <div className="flex items-start gap-2 flex-1">
-                    <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-terminal-green" />
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-sm text-terminal-dark font-mono font-medium">
-                            {title}
-                        </span>
-                        <span className="text-xs text-terminal-muted font-mono">
-                            {hint}
-                        </span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        className="font-mono"
-                        onClick={onCancel}
-                        disabled={cancelling || !canCancel}
-                    >
-                        {cancelling ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {t("backgroundRun.stopping")}
-                            </>
-                        ) : (
-                            <>
-                                <CircleStop className="mr-2 h-4 w-4" />
-                                {isZombie ? t("backgroundRun.forceStop") : t("backgroundRun.stop")}
                             </>
                         )}
                     </Button>

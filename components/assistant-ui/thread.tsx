@@ -75,10 +75,25 @@ interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
   footer?: React.ReactNode;
   isBackgroundTaskRunning?: boolean;
+  isProcessingInBackground?: boolean;
   sessionId?: string;
+  onCancelBackgroundRun?: () => void;
+  isCancellingBackgroundRun?: boolean;
+  canCancelBackgroundRun?: boolean;
+  isZombieBackgroundRun?: boolean;
 }
 
-export const Thread: FC<ThreadProps> = ({ onSessionActivity, footer, isBackgroundTaskRunning = false, sessionId }) => {
+export const Thread: FC<ThreadProps> = ({
+  onSessionActivity,
+  footer,
+  isBackgroundTaskRunning = false,
+  isProcessingInBackground = false,
+  sessionId,
+  onCancelBackgroundRun,
+  isCancellingBackgroundRun = false,
+  canCancelBackgroundRun = false,
+  isZombieBackgroundRun = false,
+}) => {
   const isRunning = useThread((t) => t.isRunning);
 
   return (
@@ -105,7 +120,15 @@ export const Thread: FC<ThreadProps> = ({ onSessionActivity, footer, isBackgroun
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
             <ThreadScrollToBottom />
-            <Composer isBackgroundTaskRunning={isBackgroundTaskRunning} sessionId={sessionId} />
+            <Composer 
+              isBackgroundTaskRunning={isBackgroundTaskRunning} 
+              isProcessingInBackground={isProcessingInBackground}
+              sessionId={sessionId}
+              onCancelBackgroundRun={onCancelBackgroundRun}
+              isCancellingBackgroundRun={isCancellingBackgroundRun}
+              canCancelBackgroundRun={canCancelBackgroundRun}
+              isZombieBackgroundRun={isZombieBackgroundRun}
+            />
           </div>
         </GalleryWrapper>
       </ThreadPrimitive.Root>
@@ -308,7 +331,23 @@ interface QueuedMessage {
   mode: "chat" | "deep-research";
 }
 
-const Composer: FC<{ isBackgroundTaskRunning?: boolean; sessionId?: string }> = ({ isBackgroundTaskRunning = false, sessionId }) => {
+const Composer: FC<{
+  isBackgroundTaskRunning?: boolean;
+  isProcessingInBackground?: boolean;
+  sessionId?: string;
+  onCancelBackgroundRun?: () => void;
+  isCancellingBackgroundRun?: boolean;
+  canCancelBackgroundRun?: boolean;
+  isZombieBackgroundRun?: boolean;
+}> = ({
+  isBackgroundTaskRunning = false,
+  isProcessingInBackground = false,
+  sessionId,
+  onCancelBackgroundRun,
+  isCancellingBackgroundRun = false,
+  canCancelBackgroundRun = false,
+  isZombieBackgroundRun = false,
+}) => {
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
@@ -335,6 +374,7 @@ const Composer: FC<{ isBackgroundTaskRunning?: boolean; sessionId?: string }> = 
   const threadRuntime = useThreadRuntime();
   const attachmentCount = useThreadComposer((c) => c.attachments.length);
   const t = useTranslations("assistantUi");
+  const tChat = useTranslations("chat");
   const te = useTranslations("errors");
 
   // MCP reload status
@@ -613,6 +653,48 @@ const Composer: FC<{ isBackgroundTaskRunning?: boolean; sessionId?: string }> = 
           onCancel={handleCancel}
           onReset={deepResearch.reset}
         />
+      )}
+
+      {/* Background Processing Indicator - compact inline version */}
+      {isProcessingInBackground && (
+        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-terminal-green/30 bg-terminal-green/5 px-3 py-2">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex gap-1">
+              <span className="size-1.5 rounded-full bg-terminal-green animate-dot-pulse" />
+              <span className="size-1.5 rounded-full bg-terminal-green animate-dot-pulse-delay-1" />
+              <span className="size-1.5 rounded-full bg-terminal-green animate-dot-pulse-delay-2" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-mono font-medium text-terminal-dark">
+                {tChat("processingInBackground")}
+              </span>
+              <span className="text-[11px] font-mono text-terminal-muted">
+                {isZombieBackgroundRun ? tChat("backgroundRun.zombieHint") : tChat("processingInBackgroundHint")}
+              </span>
+            </div>
+          </div>
+          {onCancelBackgroundRun && canCancelBackgroundRun && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 px-2 text-xs font-mono shrink-0"
+              onClick={onCancelBackgroundRun}
+              disabled={isCancellingBackgroundRun || !canCancelBackgroundRun}
+            >
+              {isCancellingBackgroundRun ? (
+                <>
+                  <Loader2Icon className="mr-1.5 h-3 w-3 animate-spin" />
+                  {tChat("backgroundRun.stopping")}
+                </>
+              ) : (
+                <>
+                  <CircleStopIcon className="mr-1.5 h-3 w-3" />
+                  {isZombieBackgroundRun ? tChat("backgroundRun.forceStop") : tChat("backgroundRun.stop")}
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       )}
 
       {/* Queued messages indicator */}
@@ -918,11 +1000,22 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
     async (model: ModelItem) => {
       setSaving(true);
       try {
-        await fetch(`/api/sessions/${sessionId}/model-config`, {
+        const response = await fetch(`/api/sessions/${sessionId}/model-config`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionChatModel: model.id, sessionProvider: model.provider }),
         });
+        if (!response.ok) {
+          let errorMsg = `Server error (${response.status})`;
+          try {
+            const body = await response.json();
+            if (body?.error) errorMsg = body.error;
+          } catch {
+            // ignore JSON parse failures — use the status-based message
+          }
+          toast.error(errorMsg);
+          return;
+        }
         await bag.assignModelToRole(model.id, "chat");
         if (model.provider !== bag.activeProvider && model.provider !== "openrouter" && model.provider !== "ollama") {
           await bag.switchProvider(model.provider);
