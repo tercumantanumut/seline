@@ -624,6 +624,13 @@ export default function ChatInterface({
                     clearInterval(pollingIntervalRef.current);
                     pollingIntervalRef.current = null;
                 }
+                
+                // Clear local state AND notify global store to maintain consistency
+                // This ensures sidebar indicators update correctly when switching sessions
+                if (sessionId && processingRunId) {
+                    sessionSyncNotifier.notifyRunCompleted(sessionId);
+                }
+                
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
                 setActiveRun(null);
@@ -643,7 +650,7 @@ export default function ChatInterface({
                 setIsLoading(false);
             }
         },
-        [character.id, router, fetchSessionMessages, refreshSessionTimestamp]
+        [character.id, router, fetchSessionMessages, refreshSessionTimestamp, sessionId, processingRunId, sessionSyncNotifier]
     );
 
     const createNewSession = useCallback(
@@ -666,6 +673,13 @@ export default function ChatInterface({
                         clearInterval(pollingIntervalRef.current);
                         pollingIntervalRef.current = null;
                     }
+                    
+                    // Clear local state AND notify global store to maintain consistency
+                    // This ensures the previous session's running indicator is cleared properly
+                    if (sessionId && processingRunId) {
+                        sessionSyncNotifier.notifyRunCompleted(sessionId);
+                    }
+                    
                     setIsProcessingInBackground(false);
                     setProcessingRunId(null);
                     setActiveRun(null);

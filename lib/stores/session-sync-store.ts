@@ -121,9 +121,16 @@ export const useSessionSyncStore = create<SessionSyncState>((set, get) => ({
         newSessionsByCharacter.set(characterId, new Set());
       }
 
-      // Add new sessions
+      // Add new sessions, preserving hasActiveRun from in-memory activeRuns if available
       for (const session of sessions) {
-        newSessionsById.set(session.id, session);
+        // If we have an active run in memory for this session, prefer that over DB-derived flag
+        const hasInMemoryActiveRun = state.activeRuns.has(session.id);
+        const mergedSession = {
+          ...session,
+          // Prefer in-memory activeRuns over DB-derived hasActiveRun to avoid stale data
+          hasActiveRun: hasInMemoryActiveRun || session.hasActiveRun,
+        };
+        newSessionsById.set(session.id, mergedSession);
         if (session.characterId) {
           const characterSessions =
             newSessionsByCharacter.get(session.characterId) || new Set();
@@ -285,11 +292,18 @@ export const useCharacterSessions = (characterId: string | null | undefined) =>
 
 /**
  * Check if a session has an active run
+ * 
+ * Priority order:
+ * 1. In-memory activeRuns Map (most up-to-date)
+ * 2. DB-derived hasActiveRun flag from sessionsById
+ * 
+ * This dual-check ensures indicators remain visible even during race conditions
+ * where DB queries might be stale or session data is being refreshed.
  */
 export const useSessionHasActiveRun = (sessionId: string | null | undefined) =>
   useSessionSyncStore((state) => {
     if (!sessionId) return false;
-    // Prefer explicit in-memory run tracking, but fall back to DB-derived flag.
+    // Prefer explicit in-memory run tracking (most reliable), but fall back to DB-derived flag.
     return state.activeRuns.has(sessionId) || state.sessionsById.get(sessionId)?.hasActiveRun === true;
   });
 

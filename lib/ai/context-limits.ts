@@ -9,7 +9,7 @@ const DEFAULT_PROVIDER_LIMITS: Record<LLMProvider, number> = {
   anthropic: 200000,   // Claude 3.5 Sonnet = 200K
   openrouter: 128000,  // Safe default for most modern models
   antigravity: 200000, // Matches Claude/Gemini high tier
-  codex: 128000,       // GPT-4 class standard
+  codex: 400000,       // GPT-5 models are 400K context
   claudecode: 200000,  // Matches Anthropic
   kimi: 128000,        // Kimi standard
   ollama: 8192,        // Llama 3 default (conservative)

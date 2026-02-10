@@ -53,6 +53,9 @@ function isRecoverableStreamingError(error: Error): boolean {
   if (msg.includes("controller was closed")) return true;
   // Generic tool invocation errors from assistant-ui
   if (msg.includes("toolCallId") && msg.includes("not found")) return true;
+  // Tool result processing errors (e.g., accessing undefined properties during streaming)
+  if (msg.includes("Cannot read properties of undefined")) return true;
+  if (msg.includes("Cannot read property") && msg.includes("undefined")) return true;
   return false;
 }
 
