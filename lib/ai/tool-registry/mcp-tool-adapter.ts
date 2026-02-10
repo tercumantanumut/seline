@@ -461,18 +461,23 @@ export function mcpToolToMetadata(
         ? { alwaysLoad: true, deferLoading: false }
         : { alwaysLoad: false, deferLoading: true };  // Default to deferred
 
+    // Defensive: handle missing name/serverName from a deleted or partially-loaded tool
+    const toolName = mcpTool.name || "unknown_tool";
+    const serverName = mcpTool.serverName || "unknown_server";
+    const description = mcpTool.description || "";
+
     return {
-        displayName: `${mcpTool.name} (${mcpTool.serverName})`,
+        displayName: `${toolName} (${serverName})`,
         category: MCP_TOOL_CATEGORY,
         keywords: [
-            mcpTool.name,
-            mcpTool.serverName,
+            toolName,
+            serverName,
             "mcp",
             "external",
-            ...(mcpTool.description?.toLowerCase().split(/\s+/).slice(0, 5) || []),
-        ],
-        shortDescription: mcpTool.description || `MCP tool from ${mcpTool.serverName}`,
-        fullInstructions: mcpTool.description,
+            ...(description.toLowerCase().split(/\s+/).slice(0, 5)),
+        ].filter(Boolean),
+        shortDescription: description || `MCP tool from ${serverName}`,
+        fullInstructions: description || undefined,
         loading: loadingConfig,  // Now dynamic based on preference
         requiresSession: false,
         // MCP tool results are shown in UI but excluded from AI conversation history
@@ -487,34 +492,51 @@ export function mcpToolToMetadata(
 export function createMCPToolWrapper(mcpTool: MCPDiscoveredTool): Tool {
     const manager = MCPClientManager.getInstance();
 
+    // Defensive: ensure we have valid identifiers even if tool was partially deleted
+    const toolName = mcpTool.name || "unknown_tool";
+    const serverName = mcpTool.serverName || "unknown_server";
+
     // Convert MCP input schema to AI SDK jsonSchema format
     const normalizedSchema = normalizeMcpInputSchema(mcpTool.inputSchema, mcpTool);
-    console.log(`[MCP] Normalized schema for ${mcpTool.serverName}:${mcpTool.name}:`, JSON.stringify(normalizedSchema));
+    console.log(`[MCP] Normalized schema for ${serverName}:${toolName}:`, JSON.stringify(normalizedSchema));
     const schema = jsonSchema<Record<string, unknown>>(normalizedSchema as any);
 
     return tool({
-        description: mcpTool.description || `MCP tool: ${mcpTool.name}`,
+        description: mcpTool.description || `MCP tool: ${toolName}`,
         inputSchema: schema,
         execute: async (args: Record<string, unknown>) => {
             try {
+                // Guard: check if the server is still connected before executing.
+                // The tool may have been removed from the agent's config mid-session.
+                if (!manager.isConnected(serverName)) {
+                    const msg = `MCP server "${serverName}" is no longer connected. The tool "${toolName}" may have been removed.`;
+                    console.warn(`[MCP Tool] ${msg}`);
+                    return await formatMCPToolResult(
+                        serverName,
+                        toolName,
+                        msg,
+                        true
+                    );
+                }
+
                 const result = await manager.executeTool(
-                    mcpTool.serverName,
-                    mcpTool.name,
+                    serverName,
+                    toolName,
                     args
                 );
 
                 // Format result according to Seline's conventions (strip base64 payloads)
                 return await formatMCPToolResult(
-                    mcpTool.serverName,
-                    mcpTool.name,
+                    serverName,
+                    toolName,
                     result,
                     false
                 );
             } catch (error) {
-                console.error(`[MCP Tool] Error executing ${mcpTool.serverName}:${mcpTool.name}:`, error);
+                console.error(`[MCP Tool] Error executing ${serverName}:${toolName}:`, error);
                 return await formatMCPToolResult(
-                    mcpTool.serverName,
-                    mcpTool.name,
+                    serverName,
+                    toolName,
                     error instanceof Error ? error.message : String(error),
                     true
                 );
@@ -555,17 +577,32 @@ export function registerMCPTools(): void {
 }
 
 /**
- * Get MCP tools filtered by enabled servers/tools for an agent
+ * Get MCP tools filtered by enabled servers/tools for an agent.
+ * 
+ * Returns only tools that are currently available from connected MCP servers.
+ * If the agent's metadata references tools that no longer exist (e.g., removed
+ * mid-session), those tools are silently excluded rather than causing errors.
  */
 export function getMCPToolsForAgent(
     enabledServers?: string[],
     enabledTools?: string[]
 ): MCPDiscoveredTool[] {
     const manager = MCPClientManager.getInstance();
-    let tools = manager.getAllTools();
+    let tools: MCPDiscoveredTool[];
+
+    try {
+        tools = manager.getAllTools();
+    } catch (error) {
+        console.warn("[MCP] Failed to retrieve tools from MCPClientManager:", error);
+        return [];
+    }
+
+    // Defensive: filter out any tools with missing critical fields
+    tools = tools.filter(t => t && t.name && t.serverName);
 
     // If enabled tools are explicitly specified, honor that list directly.
     // This allows per-tool enablement even when a server isn't globally enabled.
+    // Tools referenced in enabledTools but not present in the manager are silently skipped.
     if (enabledTools) {
         if (enabledTools.length === 0) {
             return [];

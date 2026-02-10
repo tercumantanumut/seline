@@ -655,8 +655,36 @@ export function CharacterPicker() {
     setMcpToolEditorOpen(true);
   };
 
-  // Save MCP tool selections
+  // Determine which MCP tools are being removed compared to the saved state
+  const getMcpToolsBeingRemoved = useCallback((): string[] => {
+    if (!editingCharacter) return [];
+    const existingMetadata = editingCharacter.metadata as any;
+    const previousTools: string[] = existingMetadata?.enabledMcpTools || [];
+    return previousTools.filter((t: string) => !mcpTools.includes(t));
+  }, [editingCharacter, mcpTools]);
+
+  // Active-session-aware MCP tool confirmation state
+  const [mcpRemovalWarningOpen, setMcpRemovalWarningOpen] = useState(false);
+  const [mcpToolsBeingRemoved, setMcpToolsBeingRemoved] = useState<string[]>([]);
+
+  // Save MCP tool selections (with active-session guard)
   const saveMcpTools = async () => {
+    if (!editingCharacter) return;
+
+    // Check if tools are being removed while the agent has active sessions
+    const removedTools = getMcpToolsBeingRemoved();
+    if (removedTools.length > 0 && hasActiveSession(editingCharacter.id, editingCharacter.hasActiveSession)) {
+      // Show confirmation dialog instead of saving immediately
+      setMcpToolsBeingRemoved(removedTools);
+      setMcpRemovalWarningOpen(true);
+      return;
+    }
+
+    await performMcpToolSave();
+  };
+
+  // Actual save logic (called directly or after user confirms removal warning)
+  const performMcpToolSave = async () => {
     if (!editingCharacter) return;
     setIsSaving(true);
     try {
@@ -673,6 +701,7 @@ export function CharacterPicker() {
       });
       if (response.ok) {
         setMcpToolEditorOpen(false);
+        setMcpRemovalWarningOpen(false);
         loadCharacters();
       }
     } catch (error) {
@@ -1395,6 +1424,56 @@ export function CharacterPicker() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* MCP Tool Removal Warning Dialog */}
+      <AlertDialog open={mcpRemovalWarningOpen} onOpenChange={setMcpRemovalWarningOpen}>
+        <AlertDialogContent className="bg-terminal-cream">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <Plug className="w-5 h-5 text-amber-500" />
+              {t("mcpRemovalWarning.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="font-mono text-terminal-muted">
+              {t("mcpRemovalWarning.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded border border-amber-200 bg-amber-50 p-3 my-4">
+            <p className="font-mono text-xs text-amber-800 mb-2">
+              {t("mcpRemovalWarning.toolsBeingRemoved")}
+            </p>
+            <ul className="list-disc list-inside font-mono text-xs text-amber-900">
+              {mcpToolsBeingRemoved.map((toolKey) => (
+                <li key={toolKey}>{toolKey}</li>
+              ))}
+            </ul>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono" disabled={isSaving}>
+              {tc("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                performMcpToolSave();
+              }}
+              disabled={isSaving}
+              className="bg-amber-500 hover:bg-amber-600 text-white font-mono"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  {tc("save")}
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  {t("mcpRemovalWarning.confirm")}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

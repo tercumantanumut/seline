@@ -192,6 +192,12 @@
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
     "mcpToolsTitle": "Configure MCP Tools",
+    "mcpRemovalWarning": {
+      "title": "Active Session Detected",
+      "description": "This agent has an active session that may be using MCP tools. Removing tools during an active session could cause errors in running tasks.",
+      "toolsBeingRemoved": "The following MCP tools will be removed:",
+      "confirm": "Save Anyway"
+    },
     "toolsEnabled": "{count, plural, one {# tool enabled} other {# tools enabled}}",
     "empty": "No agents yet. Configure your first agent to get started.",
     "emptyTitle": "Create Your First Agent",
