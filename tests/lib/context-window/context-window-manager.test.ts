@@ -34,7 +34,7 @@ function makeUsage(totalTokens: number) {
 
 describe("ContextWindowManager.preFlightCheck compaction", () => {
   const sessionId = "session-1";
-  const modelId = "claude-sonnet-4-5-20250929"; // maxTokens=400000, hardLimit=380000
+  const modelId = "gpt-5.1-codex"; // maxTokens=400000, hardLimit=380000 (GPT-5 models have 400K context)
   const systemPromptLength = 0;
 
   beforeEach(() => {

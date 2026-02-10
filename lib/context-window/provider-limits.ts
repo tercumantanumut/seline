@@ -82,9 +82,9 @@ const DEFAULT_CONTEXT_CONFIG: ContextWindowConfig = {
  * Used when model-specific limits are not available.
  */
 export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
-  anthropic: 400000, // 400K for Claude 3.5+ models (updated 2026-02)
-  claudecode: 400000, // 400K for Claude Code
-  antigravity: 400000, // Varies, but Claude-based models common (conservative: 400K)
+  anthropic: 200000, // 200K for all Claude models (standard context window per Anthropic docs)
+  claudecode: 200000, // 200K for Claude Code (Claude Opus 4.6 = 200K standard)
+  antigravity: 200000, // Claude-based models = 200K; Gemini models use model-specific overrides
   openrouter: 128000, // Varies widely, conservative default
   codex: 400000, // GPT-5 models are 400K context
   kimi: 128000, // Kimi K2 models range 128K-256K
@@ -100,27 +100,28 @@ export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
  * Overrides defaults for known models with specific limits.
  */
 export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>> = {
-  // Anthropic Direct (400K context window for Claude 3.5+)
+  // Anthropic Direct — 200K standard context window per Anthropic docs
+  // (1M available only via opt-in beta header "context-1m-2025-08-07")
   "claude-sonnet-4-5-20250929": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
   "claude-haiku-4-5-20251001": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
 
-  // Antigravity (Claude-based) - 400K context window
+  // Antigravity (Claude-based) — 200K standard context window
   "claude-sonnet-4-5": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
   "claude-sonnet-4-5-thinking": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
   "claude-opus-4-5-thinking": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
 
@@ -153,9 +154,9 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     supportsStreaming: true,
   },
 
-  // Claude Code
+  // Claude Code — Claude Opus 4.6 has 200K standard context window
   "claude-opus-4-6": {
-    maxTokens: 400000,
+    maxTokens: 200000,
     supportsStreaming: true,
   },
 
