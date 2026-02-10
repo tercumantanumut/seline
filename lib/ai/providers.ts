@@ -6,6 +6,7 @@
  * - openrouter: OpenRouter (OpenAI-compatible API with access to many models)
  * - antigravity: Antigravity free models via Google OAuth (Gemini 3, Claude Sonnet 4.5, etc.)
  * - codex: OpenAI Codex models via ChatGPT OAuth
+ * - claudecode: Claude models via Claude Pro/MAX OAuth (Claude Code)
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
@@ -24,11 +25,19 @@ import {
 import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
 import { KIMI_MODEL_IDS, KIMI_CONFIG } from "@/lib/auth/kimi-models";
+import {
+  isClaudeCodeAuthenticated,
+  needsClaudeCodeTokenRefresh,
+  refreshClaudeCodeToken,
+  getClaudeCodeToken,
+} from "@/lib/auth/claudecode-auth";
+import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
 import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
+import { createClaudeCodeProvider } from "@/lib/ai/providers/claudecode-provider";
 
 // Provider types
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
 export type EmbeddingProvider = "openrouter" | "local";
 
 // Provider configuration
@@ -70,6 +79,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   openrouter: "x-ai/grok-4.1-fast",
   antigravity: "claude-sonnet-4-5", // Free via Antigravity
   codex: "gpt-5.1-codex",
+  claudecode: "claude-sonnet-4-5-20250929", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
   ollama: "llama3.1:8b",
 };
@@ -80,6 +90,7 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   openrouter: "google/gemini-2.5-flash",
   antigravity: "gemini-3-flash", // Free via Antigravity
   codex: "gpt-5.1-codex-mini",
+  claudecode: "claude-haiku-4-5-20251001", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2-turbo-preview", // Fast Kimi model for utility tasks
   ollama: "llama3.1:8b",
 };
@@ -101,6 +112,11 @@ const KIMI_MODEL_ID_SET = new Set(
   KIMI_MODEL_IDS.map((modelId) => modelId.toLowerCase())
 );
 
+// Claude Code model ID set for routing
+const CLAUDECODE_MODEL_ID_SET = new Set(
+  CLAUDECODE_MODEL_IDS.map((modelId) => modelId.toLowerCase())
+);
+
 // Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
 let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
 let _openrouterClientApiKey: string | undefined = undefined;
@@ -111,6 +127,10 @@ let _antigravityProviderToken: string | undefined = undefined;
 
 // Lazy-initialized Codex provider
 let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
+
+// Lazy-initialized Claude Code provider
+let _claudecodeProvider: ReturnType<typeof createClaudeCodeProvider> | null = null;
+let _claudecodeProviderToken: string | undefined = undefined;
 
 // Lazy-initialized Kimi client (OpenAI-compatible)
 let _kimiClient: ReturnType<typeof createOpenAICompatible> | null = null;
@@ -347,6 +367,82 @@ function getAntigravityProvider(): ((modelId: string) => LanguageModel) {
 }
 
 /**
+ * Ensure Claude Code token is valid, refreshing if needed.
+ * This should be called before making API requests with Claude Code.
+ */
+export async function ensureClaudeCodeTokenValid(): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { invalidateSettingsCache } = require("@/lib/settings/settings-manager");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { invalidateClaudeCodeAuthCache } = require("@/lib/auth/claudecode-auth");
+  invalidateSettingsCache();
+  invalidateClaudeCodeAuthCache();
+
+  let token = getClaudeCodeToken();
+  if (!token) {
+    return false;
+  }
+
+  const isExpired = token.expires_at <= Date.now();
+  const needsRefresh = needsClaudeCodeTokenRefresh() || isExpired;
+
+  if (needsRefresh) {
+    if (!token.refresh_token) {
+      return false;
+    }
+
+    console.log("[PROVIDERS] Claude Code token needs refresh, attempting...");
+    const refreshed = await refreshClaudeCodeToken();
+    if (!refreshed) {
+      return false;
+    }
+
+    // Invalidate provider so it picks up new token
+    _claudecodeProvider = null;
+    _claudecodeProviderToken = undefined;
+
+    token = getClaudeCodeToken();
+    if (!token) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Get Claude Code provider instance
+ */
+function getClaudeCodeProviderInstance(): ((modelId: string) => LanguageModel) {
+  const token = getClaudeCodeToken();
+  const currentToken = token?.access_token;
+
+  // Recreate provider if token changed
+  if (_claudecodeProvider && _claudecodeProviderToken !== currentToken) {
+    _claudecodeProvider = null;
+  }
+
+  if (!_claudecodeProvider) {
+    _claudecodeProviderToken = currentToken;
+    _claudecodeProvider = createClaudeCodeProvider();
+  }
+
+  if (!_claudecodeProvider) {
+    throw new Error("Claude Code provider not available - not authenticated");
+  }
+
+  return _claudecodeProvider;
+}
+
+/**
+ * Check if a model ID is a Claude Code model
+ */
+function isClaudeCodeOAuthModel(modelId: string): boolean {
+  const lowerModel = modelId.toLowerCase();
+  return CLAUDECODE_MODEL_ID_SET.has(lowerModel);
+}
+
+/**
  * Check if a model ID is an Antigravity model
  */
 function isAntigravityModel(modelId: string): boolean {
@@ -394,6 +490,8 @@ export function invalidateProviderCache(): void {
   _antigravityProvider = null;
   _antigravityProviderToken = undefined;
   _codexProvider = null;
+  _claudecodeProvider = null;
+  _claudecodeProviderToken = undefined;
   _kimiClient = null;
   _kimiClientApiKey = undefined;
   _ollamaClient = null;
@@ -441,6 +539,14 @@ export function getConfiguredProvider(): LLMProvider {
       return "anthropic";
     }
     return "codex";
+  }
+
+  if (provider === "claudecode") {
+    if (!isClaudeCodeAuthenticated()) {
+      console.warn("[PROVIDERS] Claude Code selected but not authenticated, falling back to anthropic");
+      return "anthropic";
+    }
+    return "claudecode";
   }
 
   if (provider === "openrouter") {
@@ -520,6 +626,13 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
       return _codexProvider(model);
     }
 
+    case "claudecode": {
+      if (!isClaudeCodeAuthenticated()) {
+        throw new Error("Claude Code authentication required. Please login via Settings.");
+      }
+      return getClaudeCodeProviderInstance()(model);
+    }
+
     case "kimi": {
       const apiKey = getKimiApiKey();
       if (!apiKey) {
@@ -562,6 +675,7 @@ function isClaudeModel(modelId: string): boolean {
     switch (provider) {
       case "antigravity": return isAntigravityModel(model);
       case "codex": return isCodexModel(model);
+      case "claudecode": return isClaudeCodeOAuthModel(model) || isClaudeModel(model);
       case "kimi": return isKimiModel(model);
       case "ollama": return true;
       case "anthropic": return isClaudeModel(model);
@@ -571,7 +685,7 @@ function isClaudeModel(modelId: string): boolean {
           return true;
         }
         // Avoid routing bare provider-specific IDs through OpenRouter.
-        if (isAntigravityModel(trimmed) || isCodexModel(trimmed) || isKimiModel(trimmed) || isClaudeModel(trimmed)) {
+        if (isAntigravityModel(trimmed) || isCodexModel(trimmed) || isClaudeCodeOAuthModel(trimmed) || isKimiModel(trimmed) || isClaudeModel(trimmed)) {
           return false;
         }
         return true;
@@ -619,6 +733,12 @@ export function getModelByName(modelId: string): LanguageModel {
       _codexProvider = createCodexProvider();
     }
     return _codexProvider(modelId);
+  }
+
+  // Check if model should use Claude Code OAuth
+  if (isClaudeCodeOAuthModel(modelId) && isClaudeCodeAuthenticated()) {
+    console.log(`[PROVIDERS] Using Claude Code for model: ${modelId}`);
+    return getClaudeCodeProviderInstance()(modelId);
   }
 
   // Check if model should use Kimi (Moonshot)
@@ -783,6 +903,13 @@ export function getUtilityModel(): LanguageModel {
         _codexProvider = createCodexProvider();
       }
       return _codexProvider(model);
+    }
+
+    case "claudecode": {
+      if (!isClaudeCodeAuthenticated()) {
+        throw new Error("Claude Code authentication required. Please login via Settings.");
+      }
+      return getClaudeCodeProviderInstance()(model);
     }
 
     case "kimi": {
@@ -964,6 +1091,8 @@ export function getProviderDisplayName(): string {
       return `Antigravity (${model}) [Free]`;
     case "codex":
       return `Codex (${model})`;
+    case "claudecode":
+      return `Claude Code (${model})`;
     case "kimi":
       return `Kimi (${model})`;
     case "ollama":
@@ -988,6 +1117,7 @@ export function providerSupportsFeature(feature: "tools" | "streaming" | "images
     openrouter: { tools: true, streaming: true, images: true },
     antigravity: { tools: true, streaming: true, images: true },
     codex: { tools: true, streaming: true, images: true },
+    claudecode: { tools: true, streaming: true, images: true },
     kimi: { tools: true, streaming: true, images: true },
     ollama: { tools: false, streaming: true, images: false },
   };

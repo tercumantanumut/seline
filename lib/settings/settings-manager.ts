@@ -5,7 +5,7 @@ import type { MCPConfig } from "@/lib/mcp/types";
 
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
@@ -59,6 +59,28 @@ export interface AppSettings {
         access_token: string;
         refresh_token: string;
         expires_at: number;
+    };
+
+    // Claude Code OAuth authentication (Claude Pro/MAX subscription)
+    claudecodeAuth?: {
+        isAuthenticated: boolean;
+        email?: string;
+        expiresAt?: number;
+        lastRefresh?: number;
+    };
+    claudecodeToken?: {
+        type: "oauth";
+        access_token: string;
+        refresh_token: string;
+        expires_at: number;
+    };
+
+    // Pending Claude Code OAuth state (persisted to survive dev recompilation)
+    pendingClaudeCodeOAuth?: {
+        state: string;
+        verifier: string;
+        origin: string;
+        createdAt: number;
     };
 
     // Model selection for different tasks
@@ -255,31 +277,73 @@ function getSettingsPath(): string {
     return join(dataDir, "settings.json");
 }
 
-// Prefix-based compatibility check to clear stale model values after a provider switch.
-// Uses simple prefixes to avoid circular dependencies with providers.ts.
+// Compatibility check to clear stale model values after a provider switch.
+// Uses exact model IDs for providers with ambiguous names (Antigravity's short
+// IDs like "claude-sonnet-4-5" overlap with Anthropic's "claude-" prefix),
+// and prefixes only for unambiguous providers.
+//
+// IMPORTANT: Antigravity uses exact-match to prevent its short model IDs
+// (e.g. "claude-sonnet-4-5") from passing the Anthropic prefix check ("claude-").
+// Without this, switching from Antigravity → Anthropic would keep the stale
+// Antigravity model ID, which the Anthropic API doesn't recognize.
+const ANTIGRAVITY_EXACT_MODELS = new Set([
+  "gemini-3-pro-high",
+  "gemini-3-pro-low",
+  "gemini-3-flash",
+  "claude-sonnet-4-5",
+  "claude-sonnet-4-5-thinking",
+  "claude-opus-4-5-thinking",
+  "gpt-oss-120b-medium",
+]);
+
 const MODEL_PREFIXES: Record<string, string[]> = {
+  // Anthropic models always have a date suffix (e.g. "claude-sonnet-4-5-20250929")
+  // Using "claude-" prefix is safe here because Antigravity models are checked
+  // via exact match first (see isCompatibleWithProvider below)
   anthropic: ["claude-", "claude3", "claude4"],
   kimi: ["kimi-", "moonshot-"],
   codex: ["gpt-5", "codex"],
-  antigravity: ["gemini-3", "claude-sonnet-4-5", "claude-haiku-4-5"],
+  // Antigravity uses exact match (see ANTIGRAVITY_EXACT_MODELS), not prefixes
+  antigravity: [],
+  claudecode: ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"],
   ollama: [], // accepts any model name
   openrouter: [], // accepts anything
 };
+
+function isCompatibleWithProvider(model: string, provider: string): boolean {
+  const lowerModel = model.toLowerCase();
+
+  // Antigravity uses exact model ID matching to avoid ambiguity
+  if (provider === "antigravity") {
+    return ANTIGRAVITY_EXACT_MODELS.has(lowerModel);
+  }
+
+  // For Anthropic: model must match a prefix BUT must NOT be an Antigravity exact model
+  // This prevents "claude-sonnet-4-5" (Antigravity) from being accepted as Anthropic
+  if (provider === "anthropic") {
+    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) {
+      return false;
+    }
+  }
+
+  const prefixes = MODEL_PREFIXES[provider];
+  if (!prefixes || prefixes.length === 0) return true; // ollama, openrouter accept anything
+
+  return prefixes.some((p) => lowerModel.startsWith(p));
+}
 
 function normalizeModelsForProvider(settings: AppSettings): void {
   const provider = settings.llmProvider;
   if (!provider || provider === "openrouter") return;
 
-  const prefixes = MODEL_PREFIXES[provider];
-  if (!prefixes || prefixes.length === 0) return;
-
-  const isCompatible = (model: string) =>
-    prefixes.some((p) => model.toLowerCase().startsWith(p));
+  // ollama accepts any model name
+  if (provider === "ollama") return;
 
   const fields: (keyof AppSettings)[] = ["chatModel", "researchModel", "visionModel", "utilityModel"];
   for (const field of fields) {
     const val = settings[field];
-    if (typeof val === "string" && val && !isCompatible(val)) {
+    if (typeof val === "string" && val && !isCompatibleWithProvider(val, provider)) {
+      console.log(`[Settings] Clearing incompatible ${field} "${val}" for provider "${provider}"`);
       (settings as unknown as Record<string, unknown>)[field] = "";
     }
   }
@@ -542,6 +606,10 @@ export function hasRequiredApiKeys(): boolean {
     }
     // Kimi requires an API key from Moonshot
     if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
+        return false;
+    }
+    // Claude Code requires OAuth authentication (Claude Pro/MAX subscription)
+    if (settings.llmProvider === "claudecode" && !settings.claudecodeAuth?.isAuthenticated) {
         return false;
     }
     // Ollama runs locally and does not require an API key

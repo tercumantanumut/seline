@@ -53,6 +53,10 @@
           "title": "OpenAI Codex (ChatGPT Plus)",
           "desc": "ChatGPT Plus/Pro aboneliğinizi GPT-4o ve o1 için kullanın"
         },
+        "claudecode": {
+          "title": "Claude Code (Pro / MAX)",
+          "desc": "Claude Pro veya MAX aboneliğinizi Opus 4.6, Sonnet 4.5 ve Haiku 4.5 için kullanın"
+        },
         "kimi": {
           "title": "Moonshot Kimi",
           "desc": "256K bağlam ve görüntü desteği ile Kimi K2.5 kullanın"

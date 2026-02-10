@@ -2,11 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Key, Globe, Zap, MessageSquare } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Sparkles, Key, Globe, Zap, MessageSquare, Terminal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi";
+export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "claudecode";
 
 interface ProviderStepProps {
     selectedProvider: LLMProvider;
@@ -24,6 +24,11 @@ const providers = [
     {
         id: "codex" as const,
         icon: Zap,
+        recommended: false,
+    },
+    {
+        id: "claudecode" as const,
+        icon: Terminal,
         recommended: false,
     },
     {

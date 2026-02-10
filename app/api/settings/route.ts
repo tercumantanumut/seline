@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadSettings, saveSettings, type AppSettings } from "@/lib/settings/settings-manager";
+import { invalidateProviderCache } from "@/lib/ai/providers";
 import { validateModelConfiguration } from "@/lib/config/embedding-models";
 
 /**
@@ -38,20 +39,28 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const currentSettings = loadSettings();
 
+    // Detect provider change early so we can clear stale model fields
+    const newProvider = body.llmProvider ?? currentSettings.llmProvider;
+    const providerIsChanging = newProvider !== currentSettings.llmProvider;
+
     // Build updated settings, preserving API keys if not explicitly changed
+    // When provider changes and the request doesn't explicitly set model fields,
+    // clear them so the new provider uses its own defaults instead of inheriting
+    // incompatible model IDs from the previous provider.
     const updatedSettings: AppSettings = {
       ...currentSettings,
-      llmProvider: body.llmProvider ?? currentSettings.llmProvider,
+      llmProvider: newProvider,
       ollamaBaseUrl: body.ollamaBaseUrl !== undefined ? body.ollamaBaseUrl : currentSettings.ollamaBaseUrl,
       theme: body.theme ?? currentSettings.theme,
       webScraperProvider: body.webScraperProvider ?? currentSettings.webScraperProvider,
       // Model settings - allow empty string to clear, undefined to keep current
-      chatModel: body.chatModel !== undefined ? body.chatModel : currentSettings.chatModel,
+      // On provider switch: clear model fields unless the request explicitly provides new values
+      chatModel: body.chatModel !== undefined ? body.chatModel : (providerIsChanging ? "" : currentSettings.chatModel),
       embeddingProvider: body.embeddingProvider !== undefined ? body.embeddingProvider : currentSettings.embeddingProvider,
       embeddingModel: body.embeddingModel !== undefined ? body.embeddingModel : currentSettings.embeddingModel,
-      researchModel: body.researchModel !== undefined ? body.researchModel : currentSettings.researchModel,
-      visionModel: body.visionModel !== undefined ? body.visionModel : currentSettings.visionModel,
-      utilityModel: body.utilityModel !== undefined ? body.utilityModel : currentSettings.utilityModel,
+      researchModel: body.researchModel !== undefined ? body.researchModel : (providerIsChanging ? "" : currentSettings.researchModel),
+      visionModel: body.visionModel !== undefined ? body.visionModel : (providerIsChanging ? "" : currentSettings.visionModel),
+      utilityModel: body.utilityModel !== undefined ? body.utilityModel : (providerIsChanging ? "" : currentSettings.utilityModel),
       openrouterArgs: body.openrouterArgs !== undefined ? body.openrouterArgs : currentSettings.openrouterArgs,
       embeddingReindexRequired: body.embeddingReindexRequired !== undefined
         ? body.embeddingReindexRequired
@@ -174,7 +183,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // CRITICAL: If provider changed, clear cached provider instances so the new
+    // provider is used immediately. Without this, stale Antigravity/ClaudeCode/etc.
+    // client instances persist in memory even after switching providers.
     saveSettings(updatedSettings);
+
+    if (providerIsChanging) {
+      invalidateProviderCache();
+      console.log(
+        `[Settings API] Provider changed: ${currentSettings.llmProvider} -> ${newProvider}, ` +
+        `invalidated provider cache and cleared model fields`
+      );
+    }
 
     // Include warnings in successful response so the UI can display them
     const responsePayload: Record<string, unknown> = { success: true };

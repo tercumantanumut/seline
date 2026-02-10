@@ -22,6 +22,8 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
     const [loading, setLoading] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [claudeCodePasteMode, setClaudeCodePasteMode] = useState(false);
+    const [claudeCodePasteValue, setClaudeCodePasteValue] = useState("");
 
     // Check if already authenticated for OAuth providers
     useEffect(() => {
@@ -29,6 +31,8 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             checkOAuthAuth("/api/auth/antigravity");
         } else if (provider === "codex") {
             checkOAuthAuth("/api/auth/codex");
+        } else if (provider === "claudecode") {
+            checkOAuthAuth("/api/auth/claudecode");
         }
     }, [provider]);
 
@@ -252,6 +256,74 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         }
     };
 
+    const handleClaudeCodeLogin = async () => {
+        setLoading(true);
+        setError(null);
+
+        const electronAPI = typeof window !== "undefined" && "electronAPI" in window
+            ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
+            : undefined;
+        const isElectron = !!electronAPI?.isElectron;
+
+        try {
+            // Get the OAuth authorization URL from our backend
+            const authResponse = await fetch("/api/auth/claudecode/authorize");
+            const authData = await authResponse.json();
+
+            if (!authData.success || !authData.url) {
+                throw new Error(authData.error || "Failed to get authorization URL");
+            }
+
+            // Open the Anthropic authorization page
+            if (isElectron && electronAPI?.shell?.openExternal) {
+                await electronAPI.shell.openExternal(authData.url);
+            } else {
+                window.open(authData.url, "_blank");
+            }
+
+            // Switch to paste mode so the user can enter the code from the console page
+            setClaudeCodePasteMode(true);
+            setLoading(false);
+        } catch (err) {
+            console.error("Claude Code login failed:", err);
+            setError(err instanceof Error ? err.message : "Authentication failed");
+            setLoading(false);
+        }
+    };
+
+    const handleClaudeCodePasteSubmit = async () => {
+        if (!claudeCodePasteValue.trim()) {
+            setError("Please paste the authorization code");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch("/api/auth/claudecode/exchange", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: claudeCodePasteValue.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || "Failed to exchange authorization code");
+            }
+
+            setIsAuthenticated(true);
+            setClaudeCodePasteMode(false);
+            setClaudeCodePasteValue("");
+        } catch (err) {
+            console.error("Claude Code code exchange failed:", err);
+            setError(err instanceof Error ? err.message : "Code exchange failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleApiKeySubmit = async () => {
         if (!apiKey.trim()) {
             setError("Please enter an API key");
@@ -313,7 +385,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                     {t("title")}
                 </h1>
 
-                {provider === "antigravity" || provider === "codex" ? (
+                {provider === "antigravity" || provider === "codex" || provider === "claudecode" ? (
                     <div className="space-y-6 mt-8">
                         {isAuthenticated ? (
                             <motion.div
@@ -323,13 +395,73 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             >
                                 <CheckCircle2 className="w-12 h-12 text-terminal-green mx-auto mb-4" />
                                 <p className="font-mono text-terminal-green font-semibold">
-                                    Connected to {provider === "antigravity" ? "Antigravity" : "Codex"}!
+                                    Connected to {provider === "antigravity" ? "Antigravity" : provider === "codex" ? "Codex" : "Claude Code"}!
                                 </p>
                             </motion.div>
+                        ) : provider === "claudecode" && claudeCodePasteMode ? (
+                            <>
+                                <div className="text-left space-y-3">
+                                    <p className="text-sm text-terminal-muted font-mono">
+                                        A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.
+                                    </p>
+                                    <label className="block font-mono text-sm text-terminal-muted">
+                                        Authorization Code
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={claudeCodePasteValue}
+                                        onChange={(e) => setClaudeCodePasteValue(e.target.value)}
+                                        placeholder="Paste the code here..."
+                                        className="w-full rounded-lg border border-terminal-border bg-white px-4 py-3 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-2 focus:ring-terminal-green/20"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                void handleClaudeCodePasteSubmit();
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {error && (
+                                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                        <span className="text-sm font-mono">{error}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            setClaudeCodePasteMode(false);
+                                            setClaudeCodePasteValue("");
+                                            setError(null);
+                                        }}
+                                        disabled={loading}
+                                        className="font-mono text-terminal-muted hover:text-terminal-dark"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={handleClaudeCodePasteSubmit}
+                                        disabled={loading || !claudeCodePasteValue.trim()}
+                                        className="flex-1 gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Verifying...
+                                            </>
+                                        ) : (
+                                            "Submit Code"
+                                        )}
+                                    </Button>
+                                </div>
+                            </>
                         ) : (
                             <>
                                 <Button
-                                    onClick={provider === "antigravity" ? handleAntigravityLogin : handleCodexLogin}
+                                    onClick={provider === "antigravity" ? handleAntigravityLogin : provider === "codex" ? handleCodexLogin : handleClaudeCodeLogin}
                                     disabled={loading}
                                     className="w-full gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono py-6"
                                 >
@@ -340,6 +472,8 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         </>
                                     ) : provider === "codex" ? (
                                         "Sign in with OpenAI"
+                                    ) : provider === "claudecode" ? (
+                                        "Sign in with Anthropic"
                                     ) : (
                                         t("oauth.button")
                                     )}
