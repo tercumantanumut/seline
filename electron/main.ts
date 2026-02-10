@@ -9,11 +9,12 @@ import {
   net,
   nativeTheme,
   dialog,
+  utilityProcess,
 } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import * as https from "https";
-import { spawn, exec, ChildProcess } from "child_process";
+import { spawn, exec } from "child_process";
 import { listFiles, downloadFile } from "@huggingface/hub";
 
 // Determine if we're in development mode
@@ -141,7 +142,7 @@ fixMacOSPath();
 
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
-let nextServer: ChildProcess | null = null;
+let nextServer: Electron.UtilityProcess | null = null;
 let isAppQuitting = false;
 let serverRestartCount = 0;
 let serverRestartResetTimer: NodeJS.Timeout | null = null;
@@ -751,6 +752,7 @@ async function startNextServer(): Promise<void> {
     debugLog("[Next.js] Standalone server path:", standaloneServer);
     debugLog("[Next.js] Standalone dir:", standaloneDir);
     debugLog("[Next.js] Server exists:", fs.existsSync(standaloneServer));
+    debugLog("[Next.js] Using execPath:", process.execPath);
 
     if (!fs.existsSync(standaloneServer)) {
       debugError("[Next.js] Standalone server not found at:", standaloneServer);
@@ -769,30 +771,35 @@ async function startNextServer(): Promise<void> {
     }
 
     debugLog("[Next.js] Spawning server process...");
-    debugLog("[Next.js] Using execPath:", process.execPath);
     debugLog("[Next.js] Working directory:", standaloneDir);
     debugLog("[Next.js] Environment PORT:", PROD_SERVER_PORT);
 
-    // Use ELECTRON_RUN_AS_NODE=1 to make Electron binary behave like Node.js
-    // This is required because process.execPath in packaged Electron apps
-    // points to the Electron binary, not a Node.js binary
-    nextServer = spawn(process.execPath, [standaloneServer], {
-      cwd: standaloneDir,
-      env: {
-        ...process.env,
-        NODE_ENV: "production",
-        PORT: String(PROD_SERVER_PORT),
-        HOSTNAME: "localhost",
-        ELECTRON_RUN_AS_NODE: "1", // Critical: Makes Electron binary run as Node.js
-        LOCAL_DATA_PATH: path.join(userDataPath, "data"), // Ensure database path is passed
-        NEXT_TELEMETRY_DISABLED: "1",
-        // Pass resources path to Next.js server for MCP spawning
-        ELECTRON_RESOURCES_PATH: resourcesPath,
-        // Explicitly mark as production build for MCP terminal hiding
-        SELINE_PRODUCTION_BUILD: "1",
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    // Use utilityProcess.fork() to run the Next.js standalone server.
+    // This uses Electron's built-in Node.js runtime (correct ABI for native
+    // modules like better-sqlite3) without spawning a visible OS process.
+    // Unlike spawn(process.execPath) with ELECTRON_RUN_AS_NODE, this does NOT
+    // cause a Terminal/dock icon to appear on macOS.
+    try {
+      nextServer = utilityProcess.fork(standaloneServer, [], {
+        cwd: standaloneDir,
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+          PORT: String(PROD_SERVER_PORT),
+          HOSTNAME: "localhost",
+          LOCAL_DATA_PATH: path.join(userDataPath, "data"),
+          NEXT_TELEMETRY_DISABLED: "1",
+          ELECTRON_RESOURCES_PATH: resourcesPath,
+          SELINE_PRODUCTION_BUILD: "1",
+        },
+        stdio: "pipe",
+        serviceName: "next-server",
+      });
+    } catch (error) {
+      debugError("[Next.js] Failed to fork utility process:", error);
+      reject(error);
+      return;
+    }
 
     debugLog("[Next.js] Spawn called, pid:", nextServer.pid);
 
@@ -809,17 +816,8 @@ async function startNextServer(): Promise<void> {
       debugError("[Next.js stderr]", data.toString());
     });
 
-    nextServer.on("error", (error) => {
-      debugError("[Next.js] Process spawn error:", error);
-      reject(error);
-    });
-
-    nextServer.on("close", (code, signal) => {
-      debugLog("[Next.js] Process closed with code:", code, "signal:", signal);
-    });
-
-    nextServer.on("exit", (code, signal) => {
-      debugLog("[Next.js] Process exited with code:", code, "signal:", signal);
+    nextServer.on("exit", (code) => {
+      debugLog("[Next.js] Process exited with code:", code);
       nextServer = null;
 
       // Don't auto-restart on intentional shutdown or when no window exists.
