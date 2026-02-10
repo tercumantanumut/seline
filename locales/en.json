@@ -287,6 +287,10 @@
         "name": "Document Search",
         "description": "Search agent's knowledge base"
       },
+      "memorize": {
+        "name": "Memory",
+        "description": "Save facts or preferences to remember across future conversations"
+      },
       "vectorSearch": {
         "name": "Vector Search",
         "description": "Semantic search across indexed folders"
@@ -797,6 +801,8 @@
         "executeCommandDesc": "Run shell commands safely within synced directories",
         "scheduleTask": "Schedule Task",
         "scheduleTaskDesc": "Schedule tasks for future execution (one-time, recurring, or interval)",
+        "memorize": "Memory",
+        "memorizeDesc": "Save facts or preferences to remember across future conversations",
         "calculator": "Calculator",
         "calculatorDesc": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)",
         "updatePlan": "Update Plan",

@@ -67,6 +67,7 @@ import {
   createFlux2Klein9BReferenceTool,
 } from "../tools/flux2-klein-9b-generate-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
+import { createMemorizeTool } from "../tools/memorize-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
@@ -412,7 +413,13 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
 
 **Cron patterns:** \`0 9 * * 1-5\` (9am weekdays), \`0 0 * * *\` (midnight daily), \`*/30 * * * *\` (every 30min), \`0 0 1 * *\` (monthly).
 
-**Template variables in prompts:** \`{{NOW}}\`, \`{{TODAY}}\`, \`{{YESTERDAY}}\`, \`{{WEEKDAY}}\`, \`{{MONTH}}\`, \`{{LAST_7_DAYS}}\`, \`{{LAST_30_DAYS}}\` — resolved at execution time.`,
+**Template variables in prompts:** \`{{NOW}}\`, \`{{TODAY}}\`, \`{{YESTERDAY}}\`, \`{{WEEKDAY}}\`, \`{{MONTH}}\`, \`{{LAST_7_DAYS}}\`, \`{{LAST_30_DAYS}}\` — resolved at execution time.
+
+**Timezone:** Always use IANA format (e.g., "Europe/Berlin"). The tool auto-converts common formats: GMT+1, CET, EST, city names ("Berlin", "Tokyo"). If ambiguous, ask the user to confirm their city.
+
+**Delivery channel:** Use \`deliveryChannel: "auto"\` (default) to deliver results to the same channel the user is chatting from (e.g., Telegram → Telegram). Override with "app", "telegram", "slack", "whatsapp".
+
+**Calendar mirroring:** Set \`mirrorToCalendar: true\` to also create a Google Calendar event via configured MCP. Requires a calendar MCP server (e.g., Composio). Use \`calendarDurationMinutes\` for event length (default: 15).`,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -420,6 +427,40 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
       createScheduleTaskTool({
         sessionId: sessionId || "UNSCOPED",
         userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
+      })
+  );
+
+  // Memorize Tool - Save memories on demand
+  registry.register(
+    "memorize",
+    {
+      displayName: "Memorize",
+      category: "utility",
+      keywords: [
+        "memorize", "remember", "memory", "save", "note",
+        "preference", "fact", "learn", "store",
+        "always", "never", "my name", "I prefer",
+        "note for future", "keep in mind",
+      ],
+      shortDescription:
+        "Save a fact, preference, or instruction to remember across conversations",
+      fullInstructions: `## Memorize
+
+Save memories when the user says "remember that...", "memorize this", "note for future reference", "my name is...", "I prefer...", "always do X", etc.
+
+**Guidelines:**
+- One fact per memory — keep it concise and specific
+- Don't duplicate existing memories (tool checks automatically)
+- Pick the best category or omit to default to domain_knowledge
+- Categories: visual_preferences, communication_style, workflow_patterns, domain_knowledge, business_rules
+- Memories are immediately active in all future conversations`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, characterId }) =>
+      createMemorizeTool({
+        sessionId: sessionId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",
       })
   );

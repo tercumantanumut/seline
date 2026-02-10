@@ -537,7 +537,12 @@ function coerceAnthropicSchema(schema: Record<string, unknown>): Record<string, 
   }
 
   if (Array.isArray(schema.enum)) {
-    result.enum = schema.enum.map((value) => (typeof value === "string" ? value : String(value)));
+    // Gemini only supports enum on STRING type — strip for non-string types
+    if (type && type !== "string") {
+      // Don't include enum for number/boolean/etc types
+    } else {
+      result.enum = schema.enum.map((value) => (typeof value === "string" ? value : String(value)));
+    }
   }
 
   if (typeof schema.minimum === "number") result.minimum = schema.minimum;
@@ -641,8 +646,16 @@ function normalizeAntigravityToolSchemas(tools: unknown): void {
     const enumValues = Array.isArray(schema.enum) ? schema.enum : undefined;
 
     if (enumValues) {
-      // Antigravity/Gemini expects enum values to be strings in function schemas.
-      schema.enum = enumValues.map((value) => (typeof value === "string" ? value : String(value)));
+      // Gemini API only supports enum on STRING type properties.
+      // For non-string types (number, boolean, etc.), remove enum entirely
+      // to avoid: "only allowed for STRING type fields" API errors.
+      const schemaType = typeof schema.type === "string" ? schema.type : undefined;
+      if (schemaType && schemaType !== "string" && schemaType !== "STRING") {
+        delete schema.enum;
+      } else {
+        // For string types, ensure all enum values are strings.
+        schema.enum = enumValues.map((value) => (typeof value === "string" ? value : String(value)));
+      }
     }
 
     for (const value of Object.values(schema)) {
@@ -819,11 +832,13 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
           };
         }
 
-        // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
-        const isClaudeModel = effectiveModel.includes("claude");
-        if (isClaudeModel && parsedBody.tools) {
+        // Normalize tool schemas for ALL models (Gemini requires string enums, etc.)
+        if (parsedBody.tools) {
           normalizeAntigravityToolSchemas(parsedBody.tools);
         }
+
+        // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
+        const isClaudeModel = effectiveModel.includes("claude");
         if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
           // Track functionCall IDs by name+index for matching with functionResponse
           const functionCallIds = new Map<string, string[]>();

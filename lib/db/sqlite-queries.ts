@@ -11,6 +11,7 @@ import {
   channelConnections,
   channelConversations,
   channelMessages,
+  agentRuns,
 } from "./sqlite-schema";
 import type {
   NewSession,
@@ -49,7 +50,7 @@ export interface ListSessionsPaginatedParams {
 }
 
 export interface ListSessionsPaginatedResult {
-  sessions: Session[];
+  sessions: (Session & { hasActiveRun?: boolean })[];
   nextCursor: string | null;
   totalCount: number;
 }
@@ -276,13 +277,29 @@ export async function listSessionsPaginated(
   const page = hasMore ? rows.slice(0, pageSize) : rows;
   const nextCursor = hasMore ? page[page.length - 1]?.updatedAt ?? null : null;
 
+  // Check for active runs
+  let sessionsWithStatus = page;
+  if (page.length > 0) {
+    const sessionIds = page.map((s) => s.id);
+    const activeRuns = await db
+      .select({ sessionId: agentRuns.sessionId })
+      .from(agentRuns)
+      .where(and(inArray(agentRuns.sessionId, sessionIds), eq(agentRuns.status, "running")));
+
+    const activeSessionIds = new Set(activeRuns.map((r) => r.sessionId));
+    sessionsWithStatus = page.map((s) => ({
+      ...s,
+      hasActiveRun: activeSessionIds.has(s.id),
+    }));
+  }
+
   const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(sessions)
     .where(and(...baseConditions));
 
   return {
-    sessions: page,
+    sessions: sessionsWithStatus,
     nextCursor,
     totalCount: countResult[0]?.count ?? page.length,
   };
@@ -392,6 +409,26 @@ export async function deleteChannelConnection(id: string): Promise<void> {
   await db.delete(channelConnections).where(eq(channelConnections.id, id));
 }
 
+/**
+ * Find an active (connected) channel connection for a user by channel type.
+ * Used by scheduleTask to resolve delivery channel when user explicitly
+ * requests a specific channel (e.g., "telegram") but the schedule isn't
+ * being created from that channel's session.
+ */
+export async function findActiveChannelConnection(
+  userId: string,
+  channelType: string
+): Promise<ChannelConnection | undefined> {
+  return db.query.channelConnections.findFirst({
+    where: and(
+      eq(channelConnections.userId, userId),
+      eq(channelConnections.channelType, channelType as any),
+      eq(channelConnections.status, "connected")
+    ),
+    orderBy: desc(channelConnections.updatedAt),
+  });
+}
+
 // ============================================================================
 // CHANNEL CONVERSATIONS
 // ============================================================================
@@ -461,6 +498,20 @@ export async function touchChannelConversation(
     .where(eq(channelConversations.id, id))
     .returning();
   return conversation;
+}
+
+/**
+ * Find the most recent channel conversation for a given connection.
+ * Used by scheduleTask to resolve peerId/threadId when the user
+ * explicitly requests delivery to a specific channel type.
+ */
+export async function findRecentChannelConversation(
+  connectionId: string
+): Promise<ChannelConversation | undefined> {
+  return db.query.channelConversations.findFirst({
+    where: eq(channelConversations.connectionId, connectionId),
+    orderBy: desc(channelConversations.updatedAt),
+  });
 }
 
 // ============================================================================

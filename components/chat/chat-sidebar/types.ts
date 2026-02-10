@@ -10,12 +10,19 @@ export interface SessionInfo {
   messageCount?: number | null;
   totalTokenCount?: number | null;
   channelType?: SessionChannelType | null;
+  hasActiveRun?: boolean;
   metadata: {
     characterId?: string;
     characterName?: string;
     channelType?: SessionChannelType;
     channelPeerName?: string | null;
     channelPeerId?: string | null;
+    // Per-session model overrides (Bag of Models feature)
+    sessionProvider?: string;
+    sessionChatModel?: string;
+    sessionResearchModel?: string;
+    sessionVisionModel?: string;
+    sessionUtilityModel?: string;
   };
 }
 
