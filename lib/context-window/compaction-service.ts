@@ -16,6 +16,7 @@ import {
   getNonCompactedMessages,
   updateSessionSummary,
   markMessagesAsCompacted,
+  markMessagesAsCompactedByIds,
   getSession,
 } from "@/lib/db/queries";
 import { estimateMessageTokens } from "@/lib/utils";
@@ -132,9 +133,8 @@ async function deduplicateToolResults(
   sessionId: string,
   messages: Message[]
 ): Promise<{ tokensFreed: number; prunedCount: number }> {
-  const toolCallMap = new Map<string, { index: number; tokens: number }>();
-  let tokensFreed = 0;
-  let prunedCount = 0;
+  const toolCallMap = new Map<string, { index: number; tokens: number; messageId: string }>();
+  const messagesToPrune: { id: string; tokens: number }[] = [];
 
   // Find duplicate tool calls (same tool + same args hash)
   for (let i = 0; i < messages.length; i++) {
@@ -158,26 +158,30 @@ async function deduplicateToolResults(
     const existing = toolCallMap.get(key);
 
     if (existing) {
-      // Mark the older one for compaction (keep the newer one)
-      const olderIndex = existing.index;
-      const olderTokens = existing.tokens;
-      
-      // In a real implementation, we'd mark the message as compacted
-      // For now, just track the potential savings
-      tokensFreed += olderTokens;
-      prunedCount++;
+      // Collect the older duplicate for pruning (keep the newer one)
+      messagesToPrune.push({ id: existing.messageId, tokens: existing.tokens });
     }
 
-    // Track this occurrence
+    // Track this occurrence (always update to the latest)
     const tokens = msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
-    toolCallMap.set(key, { index: i, tokens });
+    toolCallMap.set(key, { index: i, tokens, messageId: msg.id });
   }
 
-  if (prunedCount > 0) {
-    console.log(
-      `[CompactionService] Deduplication: ${prunedCount} duplicate tool results, ` +
-      `${formatTokenCount(tokensFreed)} tokens saved`
-    );
+  // Actually mark the duplicate messages as compacted
+  let tokensFreed = 0;
+  let prunedCount = 0;
+
+  if (messagesToPrune.length > 0) {
+    const ids = messagesToPrune.map((m) => m.id);
+    const compactedCount = await markMessagesAsCompactedByIds(sessionId, ids);
+    if (compactedCount > 0) {
+      tokensFreed = messagesToPrune.reduce((sum, m) => sum + m.tokens, 0);
+      prunedCount = compactedCount;
+      console.log(
+        `[CompactionService] Deduplication: ${prunedCount} duplicate tool results pruned, ` +
+        `${formatTokenCount(tokensFreed)} tokens freed`
+      );
+    }
   }
 
   return { tokensFreed, prunedCount };
@@ -191,10 +195,8 @@ async function supersedeWrites(
   sessionId: string,
   messages: Message[]
 ): Promise<{ tokensFreed: number; prunedCount: number }> {
-  const writeOperations = new Map<string, { index: number; tokens: number }>();
   const readOperations = new Set<string>();
-  let tokensFreed = 0;
-  let prunedCount = 0;
+  const messagesToPrune: { id: string; tokens: number }[] = [];
 
   // First pass: identify read operations
   for (const msg of messages) {
@@ -230,20 +232,29 @@ async function supersedeWrites(
           (p) => p.type === "tool-result"
         );
         if (resultPart?.path && readOperations.has(resultPart.path)) {
-          // This write was superseded by a read
+          // This write was superseded by a read — collect for pruning
           const tokens = msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
-          tokensFreed += tokens;
-          prunedCount++;
+          messagesToPrune.push({ id: msg.id, tokens });
         }
       }
     }
   }
 
-  if (prunedCount > 0) {
-    console.log(
-      `[CompactionService] Supersede writes: ${prunedCount} write operations superseded, ` +
-      `${formatTokenCount(tokensFreed)} tokens saved`
-    );
+  // Actually mark the superseded messages as compacted
+  let tokensFreed = 0;
+  let prunedCount = 0;
+
+  if (messagesToPrune.length > 0) {
+    const ids = messagesToPrune.map((m) => m.id);
+    const compactedCount = await markMessagesAsCompactedByIds(sessionId, ids);
+    if (compactedCount > 0) {
+      tokensFreed = messagesToPrune.reduce((sum, m) => sum + m.tokens, 0);
+      prunedCount = compactedCount;
+      console.log(
+        `[CompactionService] Supersede writes: ${prunedCount} write operations pruned, ` +
+        `${formatTokenCount(tokensFreed)} tokens freed`
+      );
+    }
   }
 
   return { tokensFreed, prunedCount };
@@ -258,16 +269,13 @@ async function purgeOldErrors(
   messages: Message[],
   maxAge: number = 4
 ): Promise<{ tokensFreed: number; prunedCount: number }> {
-  let tokensFreed = 0;
-  let prunedCount = 0;
+  const messagesToPrune: { id: string; tokens: number }[] = [];
   
   // Count user messages to determine "turns"
-  let turnCount = 0;
   const turnIndices: number[] = [];
   
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") {
-      turnCount++;
       turnIndices.push(i);
     }
   }
@@ -296,16 +304,25 @@ async function purgeOldErrors(
 
     if (age > maxAge) {
       const tokens = msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
-      tokensFreed += tokens;
-      prunedCount++;
+      messagesToPrune.push({ id: msg.id, tokens });
     }
   }
 
-  if (prunedCount > 0) {
-    console.log(
-      `[CompactionService] Purge old errors: ${prunedCount} old error results, ` +
-      `${formatTokenCount(tokensFreed)} tokens saved`
-    );
+  // Actually mark the old error messages as compacted
+  let tokensFreed = 0;
+  let prunedCount = 0;
+
+  if (messagesToPrune.length > 0) {
+    const ids = messagesToPrune.map((m) => m.id);
+    const compactedCount = await markMessagesAsCompactedByIds(sessionId, ids);
+    if (compactedCount > 0) {
+      tokensFreed = messagesToPrune.reduce((sum, m) => sum + m.tokens, 0);
+      prunedCount = compactedCount;
+      console.log(
+        `[CompactionService] Purge old errors: ${prunedCount} old error results pruned, ` +
+        `${formatTokenCount(tokensFreed)} tokens freed`
+      );
+    }
   }
 
   return { tokensFreed, prunedCount };

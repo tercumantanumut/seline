@@ -244,6 +244,31 @@
   animation: shimmer 2s infinite;
 }
 
+/* Dot pulse animation for background processing indicator */
+@keyframes dot-pulse {
+  0%, 20% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+.animate-dot-pulse {
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+.animate-dot-pulse-delay-1 {
+  animation: dot-pulse 1.4s ease-in-out 0.2s infinite;
+}
+
+.animate-dot-pulse-delay-2 {
+  animation: dot-pulse 1.4s ease-in-out 0.4s infinite;
+}
+
 /* Character creation styles */
 .creation-card {
   @apply bg-terminal-cream rounded-xl shadow-sm transition-all duration-300;
