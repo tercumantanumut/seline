@@ -1016,11 +1016,13 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           toast.error(errorMsg);
           return;
         }
+        // Update global assignment for display purposes only (doesn't affect this session)
         await bag.assignModelToRole(model.id, "chat");
-        if (model.provider !== bag.activeProvider && model.provider !== "openrouter" && model.provider !== "ollama") {
-          await bag.switchProvider(model.provider);
-        }
-        toast.success(`Switched to ${model.name}`);
+        // NOTE: We do NOT call switchProvider here because:
+        // 1. This is a per-session override, not a global change
+        // 2. switchProvider clears all model assignments and can cause race conditions
+        // 3. The session override takes precedence via session-model-resolver.ts
+        toast.success(`Switched to ${model.name} for this session`);
         setOpen(false);
       } catch {
         toast.error("Failed to switch model");

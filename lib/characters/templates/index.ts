@@ -28,21 +28,17 @@ export function getDefaultTemplate(): AgentTemplate | undefined {
 }
 
 function resolvePathVariable(pathVar: string): string {
-  if (pathVar === "${SETUP_FOLDER}") {
-    // In production, use the bundled source code
-    const resourcesPath = process.env.ELECTRON_RESOURCES_PATH ||
-                         (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-
-    if (resourcesPath) {
-      const { join } = require("path");
-      // Source code is bundled inside standalone folder
-      return join(resourcesPath, "standalone", "seline-source");
-    }
-
-    // Development: use current working directory
-    return process.cwd();
-  }
   if (pathVar === "${USER_WORKSPACE}") {
+    return getUserWorkspacePath();
+  }
+  // ${SETUP_FOLDER} has been removed - it was used for bundling Seline's source code
+  // into production builds, which is no longer supported.
+  // If a template still references ${SETUP_FOLDER}, fall back to user workspace.
+  if (pathVar === "${SETUP_FOLDER}") {
+    console.warn(
+      "[Templates] ${SETUP_FOLDER} is deprecated and has been removed. " +
+      "Falling back to ${USER_WORKSPACE}. Please update your template configuration."
+    );
     return getUserWorkspacePath();
   }
   return pathVar;

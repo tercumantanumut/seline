@@ -60,6 +60,8 @@ export interface CompactionOptions {
   enableAutoPruning: boolean;
   /** Maximum age in turns for error results before purging (default: 4) */
   errorPurgeAge: number;
+  /** Target number of tokens to free — used for adaptive keepRecentMessages */
+  targetTokensToFree?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +73,7 @@ const DEFAULT_OPTIONS: CompactionOptions = {
   maxSummaryTokens: 2000,
   preserveRules: true,
   preserveToolResults: ["updatePlan", "executeCommand", "mcp_filesystem_write_file", "mcp_filesystem_edit_file"],
-  minMessagesForCompaction: 10,
+  minMessagesForCompaction: 3, // Lowered from 10 to support sparse long-running sessions
   enableAutoPruning: true,
   errorPurgeAge: 4,
 };
@@ -399,7 +401,32 @@ export class CompactionService {
     }
 
     const messages = await getNonCompactedMessages(sessionId);
+    
+    // Check if we have enough messages for full compaction
     if (messages.length < opts.minMessagesForCompaction) {
+      // FALLBACK STRATEGY: For sparse sessions, try auto-pruning only
+      console.log(
+        `[CompactionService] Insufficient messages for full compaction (${messages.length} < ${opts.minMessagesForCompaction}), ` +
+        `attempting auto-pruning only`
+      );
+      
+      if (opts.enableAutoPruning) {
+        const autoPrunedTokens = await this.autoPrune(sessionId, messages, opts);
+        if (autoPrunedTokens > 0) {
+          console.log(
+            `[CompactionService] Auto-pruning freed ${formatTokenCount(autoPrunedTokens)} tokens without summarization`
+          );
+          return {
+            success: true,
+            tokensFreed: autoPrunedTokens,
+            messagesCompacted: 0,
+            newSummary: session.summary || "",
+            breakdown: { autoPruned: autoPrunedTokens, summarized: 0 },
+          };
+        }
+      }
+      
+      // If auto-pruning didn't help, return the error
       return {
         success: false,
         tokensFreed: 0,
@@ -415,8 +442,37 @@ export class CompactionService {
       autoPrunedTokens = await this.autoPrune(sessionId, messages, opts);
     }
 
-    // Step 2: Identify messages to compact (keep recent N)
-    const messagesToCompact = messages.slice(0, -opts.keepRecentMessages);
+    // Step 2: Identify messages to compact (adaptive keepRecentMessages)
+    let keepRecent = opts.keepRecentMessages;
+    let messagesToCompact = messages.length > keepRecent
+      ? messages.slice(0, -keepRecent)
+      : [];
+
+    // If targetTokensToFree is set, adaptively reduce keepRecent to free enough tokens
+    if (messagesToCompact.length > 0 && opts.targetTokensToFree && opts.targetTokensToFree > 0) {
+      let compactableTokens = 0;
+      for (const msg of messagesToCompact) {
+        compactableTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+      }
+
+      while (compactableTokens < opts.targetTokensToFree && keepRecent > 1) {
+        keepRecent = Math.max(1, keepRecent - 2);
+        messagesToCompact = messages.slice(0, -keepRecent);
+        compactableTokens = 0;
+        for (const msg of messagesToCompact) {
+          compactableTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+        }
+      }
+
+      if (keepRecent !== opts.keepRecentMessages) {
+        console.log(
+          `[CompactionService] Adaptive keepRecent: ${opts.keepRecentMessages} → ${keepRecent} ` +
+          `(need to free ${formatTokenCount(opts.targetTokensToFree)}, ` +
+          `compactable: ${formatTokenCount(compactableTokens)})`
+        );
+      }
+    }
+
     if (messagesToCompact.length === 0) {
       return {
         success: false,

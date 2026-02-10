@@ -41,6 +41,21 @@ const BLOCKED_UNIX: string[] = [
 export function isDangerousPath(folderPath: string): string | null {
   const resolved = resolve(folderPath);
 
+  // --- Block app bundle resources (Electron production) ---
+  // Prevent syncing/indexing paths inside the packaged app's Resources folder.
+  // This prevents agents from accessing Seline's own bundled code in production.
+  const resourcesPath = process.env.ELECTRON_RESOURCES_PATH ||
+                       (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    const normalizedResources = resolve(resourcesPath).toLowerCase();
+    const normalizedResolved = resolved.toLowerCase();
+    // Block exact match or any path inside Resources
+    if (normalizedResolved === normalizedResources ||
+        normalizedResolved.startsWith(normalizedResources + sep)) {
+      return "Cannot sync application resources folder. This is a protected system directory used by the app itself.";
+    }
+  }
+
   // --- Windows drive roots (e.g. "C:\", "D:\") ---
   if (/^[A-Za-z]:[/\\]?$/.test(resolved)) {
     return `Cannot sync a drive root (${resolved}). Please choose a specific folder inside it.`;
