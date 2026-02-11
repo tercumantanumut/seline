@@ -628,21 +628,13 @@ export async function markMessagesAsCompacted(
   sessionId: string,
   beforeMessageId: string
 ) {
-  const targetMessage = await db.query.messages.findFirst({
-    where: eq(messages.id, beforeMessageId),
-  });
+  const sessionMessages = await getNonCompactedMessages(sessionId);
+  const targetIndex = sessionMessages.findIndex((message) => message.id === beforeMessageId);
+  if (targetIndex < 0) return;
 
-  if (!targetMessage) return;
-
-  await db
-    .update(messages)
-    .set({ isCompacted: true })
-    .where(
-      and(
-        eq(messages.sessionId, sessionId),
-        lt(messages.createdAt, targetMessage.createdAt)
-      )
-    );
+  // Keep backward compatibility: compact up to and including the boundary message.
+  const idsToCompact = sessionMessages.slice(0, targetIndex + 1).map((message) => message.id);
+  await markMessagesAsCompactedByIds(sessionId, idsToCompact);
 }
 
 /**

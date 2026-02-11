@@ -5,6 +5,7 @@ import * as syncService from "@/lib/vectordb/sync-service";
 // Mock the sync service
 vi.mock("@/lib/vectordb/sync-service", () => ({
     getSyncFolders: vi.fn(),
+    getAllSyncFolders: vi.fn(),
     getPrimarySyncFolder: vi.fn(),
     onFolderChange: vi.fn(),
 }));
@@ -95,14 +96,22 @@ describe("MCP Synced Folders Variable Resolution", () => {
         expect(resolved.env?.["API_KEY"]).toBe(apiKey);
     });
 
-    it("should handle missing characterId by resolving to empty strings", async () => {
+    it("should resolve synced folders without characterId using global primary folder", async () => {
+        (syncService as any).getAllSyncFolders.mockResolvedValue([
+            { folderPath: "/app/data/global-primary", isPrimary: true },
+            { folderPath: "/app/data/global-secondary", isPrimary: false },
+        ]);
+
         const config = {
             command: "ls",
             args: ["${SYNCED_FOLDER}", "${SYNCED_FOLDERS}"]
         };
 
         const resolved = await resolveMCPConfig("test", config as any, {});
-        expect(resolved.args).toEqual(["", ""]);
+        expect(resolved.args).toEqual([
+            "/app/data/global-primary",
+            "/app/data/global-primary,/app/data/global-secondary",
+        ]);
         expect(syncService.getPrimarySyncFolder).not.toHaveBeenCalled();
     });
 });

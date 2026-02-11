@@ -108,6 +108,7 @@
     "jimp": "^1.6.0",
     "lru-cache": "^11.2.4",
     "lucide-react": "^0.468.0",
+    "luxon": "^3.7.2",
     "mathjs": "^15.1.0",
     "meilisearch": "^0.54.0",
     "nanoid": "^5.0.9",

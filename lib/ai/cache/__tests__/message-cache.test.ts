@@ -31,13 +31,13 @@ describe("applyCacheToMessages", () => {
       minHistorySize: 5,
     });
 
-    // Message at index 7 (10 - 2 - 1) should have cache_control
-    expect((result[7] as any).experimental_cache_control).toBeDefined();
-    expect((result[7] as any).experimental_cache_control.type).toBe("ephemeral");
+    // Message at index 7 (10 - 2 - 1) should have provider cache control.
+    expect((result[7] as any).providerOptions?.anthropic?.cacheControl).toBeDefined();
+    expect((result[7] as any).providerOptions?.anthropic?.cacheControl?.type).toBe("ephemeral");
 
-    // Last 2 messages should not have cache_control
-    expect((result[8] as any).experimental_cache_control).toBeUndefined();
-    expect((result[9] as any).experimental_cache_control).toBeUndefined();
+    // Last 2 messages should not have cache control.
+    expect((result[8] as any).providerOptions?.anthropic?.cacheControl).toBeUndefined();
+    expect((result[9] as any).providerOptions?.anthropic?.cacheControl).toBeUndefined();
   });
 
   it("should use correct TTL", () => {
@@ -53,7 +53,7 @@ describe("applyCacheToMessages", () => {
     });
 
     // Message at index 7 should have 1h TTL
-    expect((result[7] as any).experimental_cache_control?.ttl).toBe("1h");
+    expect((result[7] as any).providerOptions?.anthropic?.cacheControl?.ttl).toBe("1h");
   });
 
   it("should return original messages when caching disabled", () => {

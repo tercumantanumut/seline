@@ -1395,7 +1395,32 @@
     },
     "processingInBackground": "Agent is processing in background",
     "processingInBackgroundHint": "Your response will appear automatically when ready",
-    "processingComplete": "Response ready"
+    "processingComplete": "Response ready",
+    "contextWindow": {
+      "status": {
+        "safe": "Context usage: {percentage}",
+        "warning": "Context window filling up: {percentage}",
+        "critical": "Context window near limit: {percentage}",
+        "exceeded": "Context window limit exceeded"
+      },
+      "indicator": {
+        "tooltip": "Context: {current}/{max} ({percentage})",
+        "compactNow": "Compact now",
+        "newSession": "Start new session"
+      },
+      "blocked": {
+        "title": "Context window limit exceeded",
+        "message": "The conversation is too long for the current model's context window.",
+        "compacting": "Attempting to compact conversation history...",
+        "compactSuccess": "Compacted {messagesCompacted} messages, freed {tokensFreed} tokens",
+        "compactFailed": "Automatic compaction could not free enough space.",
+        "actions": {
+          "tryCompact": "Try compacting",
+          "newSession": "Start new session",
+          "switchModel": "Switch to larger model"
+        }
+      }
+    }
   },
   "channels": {
     "title": "Channel inbox for {name}",

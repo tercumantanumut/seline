@@ -7,8 +7,9 @@ import {
 
 describe("lexical vectors", () => {
   it("should tokenize camelCase and snake_case", () => {
-    expect(tokenizeForLex("getUserById")).toEqual(["get", "user", "by", "id"]);
-    expect(tokenizeForLex("get_user_by_id")).toEqual(["get", "user", "by", "id"]);
+    // Common stop words (e.g. "by") are removed.
+    expect(tokenizeForLex("getUserById")).toEqual(["get", "user", "id"]);
+    expect(tokenizeForLex("get_user_by_id")).toEqual(["get", "user", "id"]);
   });
 
   it("should generate normalized vector", () => {

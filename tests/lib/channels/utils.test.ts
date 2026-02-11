@@ -17,6 +17,7 @@ describe("channel utils", () => {
     expect(ensureChannelType("whatsapp")).toBe("whatsapp");
     expect(ensureChannelType("telegram")).toBe("telegram");
     expect(ensureChannelType("slack")).toBe("slack");
-    expect(() => ensureChannelType("discord")).toThrow("Unsupported channel type");
+    expect(ensureChannelType("discord")).toBe("discord");
+    expect(() => ensureChannelType("unknown")).toThrow("Unsupported channel type");
   });
 });

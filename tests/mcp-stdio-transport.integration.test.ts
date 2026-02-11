@@ -119,7 +119,13 @@ describe("StdioClientTransport (integration)", () => {
         }
       }
 
-      expect(payload.execPath).toBe(expectedExecPath);
+      const resolvedPayloadExecPath = fs.existsSync(payload.execPath)
+        ? fs.realpathSync(payload.execPath)
+        : payload.execPath;
+      const resolvedExpectedExecPath = fs.existsSync(expectedExecPath)
+        ? fs.realpathSync(expectedExecPath)
+        : expectedExecPath;
+      expect(resolvedPayloadExecPath).toBe(resolvedExpectedExecPath);
       if (expectRunAsNode) {
         expect(payload.env.ELECTRON_RUN_AS_NODE).toBe("1");
       } else {
