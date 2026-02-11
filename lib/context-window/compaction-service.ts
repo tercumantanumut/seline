@@ -15,7 +15,6 @@ import { getUtilityModel } from "@/lib/ai/providers";
 import {
   getNonCompactedMessages,
   updateSessionSummary,
-  markMessagesAsCompacted,
   markMessagesAsCompactedByIds,
   getSession,
 } from "@/lib/db/queries";
@@ -444,24 +443,30 @@ export class CompactionService {
 
     // Step 2: Identify messages to compact (adaptive keepRecentMessages)
     let keepRecent = opts.keepRecentMessages;
-    let messagesToCompact = messages.length > keepRecent
-      ? messages.slice(0, -keepRecent)
-      : [];
+    // NOTE: slice(0, -0) returns [] in JS, so handle keepRecent=0 explicitly
+    let messagesToCompact = keepRecent === 0
+      ? [...messages]
+      : (messages.length > keepRecent ? messages.slice(0, -keepRecent) : []);
 
     // If targetTokensToFree is set, adaptively reduce keepRecent to free enough tokens
-    if (messagesToCompact.length > 0 && opts.targetTokensToFree && opts.targetTokensToFree > 0) {
-      let compactableTokens = 0;
-      for (const msg of messagesToCompact) {
-        compactableTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+    const computeCompactableTokens = (msgs: Message[]) => {
+      let total = 0;
+      for (const msg of msgs) {
+        total += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
       }
+      return total;
+    };
 
-      while (compactableTokens < opts.targetTokensToFree && keepRecent > 1) {
-        keepRecent = Math.max(1, keepRecent - 2);
-        messagesToCompact = messages.slice(0, -keepRecent);
-        compactableTokens = 0;
-        for (const msg of messagesToCompact) {
-          compactableTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
-        }
+    if (opts.targetTokensToFree && opts.targetTokensToFree > 0) {
+      let compactableTokens = computeCompactableTokens(messagesToCompact);
+
+      // Reduce keepRecent until we can free enough tokens (allow going to 0)
+      while (compactableTokens < opts.targetTokensToFree && keepRecent > 0) {
+        keepRecent = Math.max(0, keepRecent - 2);
+        messagesToCompact = keepRecent === 0
+          ? [...messages]
+          : messages.slice(0, -keepRecent);
+        compactableTokens = computeCompactableTokens(messagesToCompact);
       }
 
       if (keepRecent !== opts.keepRecentMessages) {
@@ -529,7 +534,10 @@ export class CompactionService {
 
       // Step 8: Update database
       await updateSessionSummary(sessionId, newSummary, lastMessageToCompact.id);
-      await markMessagesAsCompacted(sessionId, lastMessageToCompact.id);
+
+      // Mark exactly the messages that were summarized to avoid timestamp-boundary drift.
+      const compactedIds = messagesToCompact.map((message) => message.id);
+      await markMessagesAsCompactedByIds(sessionId, compactedIds);
 
       const duration = Date.now() - startTime;
       console.log(

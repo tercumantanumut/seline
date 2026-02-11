@@ -39,14 +39,11 @@ describe("Antigravity Provider", () => {
         if (!provider) throw new Error("Provider not created");
 
         const model = provider("antigravity-gemini-3-flash");
-        await model.doGenerate({ input: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
+        await model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
 
-        expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining("models/gemini-3-flash:generateContent"),
-            expect.objectContaining({
-                body: expect.stringContaining('"model":"gemini-3-flash"'),
-            })
-        );
+        const callArgs = vi.mocked(global.fetch).mock.calls[0];
+        expect(callArgs[0]).toBe("https://api.test/v1beta:generateContent");
+        expect(callArgs[1]?.body).toEqual(expect.stringContaining('"model":"gemini-3-flash"'));
     });
 
     it("should map 'gemini-3-pro' to 'gemini-3-pro-low'", async () => {
@@ -54,14 +51,11 @@ describe("Antigravity Provider", () => {
         if (!provider) throw new Error("Provider not created");
 
         const model = provider("gemini-3-pro");
-        await model.doGenerate({ input: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
+        await model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
 
-        expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining("models/gemini-3-pro-low:generateContent"),
-            expect.objectContaining({
-                body: expect.stringContaining('"model":"gemini-3-pro-low"'),
-            })
-        );
+        const callArgs = vi.mocked(global.fetch).mock.calls[0];
+        expect(callArgs[0]).toBe("https://api.test/v1beta:generateContent");
+        expect(callArgs[1]?.body).toEqual(expect.stringContaining('"model":"gemini-3-pro-low"'));
     });
 
     it("should inject 'requestType: agent' in the wrapped body", async () => {
@@ -69,7 +63,7 @@ describe("Antigravity Provider", () => {
         if (!provider) throw new Error("Provider not created");
 
         const model = provider("claude-sonnet-4-5");
-        await model.doGenerate({ input: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
+        await model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }] } as any);
 
         expect(global.fetch).toHaveBeenCalledWith(
             expect.any(String),
@@ -85,7 +79,7 @@ describe("Antigravity Provider", () => {
 
         const model = provider("gemini-3-flash");
         await model.doGenerate({
-            input: [{ role: "user", content: [{ type: "text", text: "hi" }] }]
+            prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }]
         } as any);
 
         const callArgs = vi.mocked(global.fetch).mock.calls[0];

@@ -219,7 +219,7 @@ export class ContextWindowManager {
 
       if (compactionResult.success) {
         // Re-check status after compaction
-        const newStatus = await this.checkContextWindow(
+        let newStatus = await this.checkContextWindow(
           sessionId,
           modelId,
           systemPromptLength,
@@ -231,7 +231,63 @@ export class ContextWindowManager {
           `(${newStatus.formatted.current}/${newStatus.formatted.max})`
         );
 
-        // If still exceeded after compaction, block
+        // RETRY: If still exceeded, attempt aggressive compaction (keepRecent=0)
+        if (newStatus.status === "exceeded") {
+          console.warn(
+            `[ContextWindowManager] First compaction insufficient, retrying with aggressive strategy (keepRecent=0)`
+          );
+
+          const aggressiveTarget = newStatus.currentTokens - Math.floor(config.maxTokens * 0.5);
+          const retryResult = await CompactionService.compact(sessionId, {
+            targetTokensToFree: Math.max(0, aggressiveTarget),
+            keepRecentMessages: 0, // Compact ALL messages into summary
+          });
+
+          if (retryResult.success) {
+            newStatus = await this.checkContextWindow(
+              sessionId,
+              modelId,
+              systemPromptLength,
+              provider
+            );
+
+            console.log(
+              `[ContextWindowManager] Post-aggressive-compaction status: ${newStatus.status} ` +
+              `(${newStatus.formatted.current}/${newStatus.formatted.max})`
+            );
+
+            // Merge compaction results for reporting
+            compactionResult.tokensFreed += retryResult.tokensFreed;
+            compactionResult.messagesCompacted += retryResult.messagesCompacted;
+            compactionResult.newSummary = retryResult.newSummary;
+          }
+        }
+
+        // FORCE-PROCEED: If compaction freed tokens but we're still slightly over,
+        // allow the request through. The provider may accept it (context limits are
+        // approximate), and blocking permanently is worse than a potential truncation.
+        if (newStatus.status === "exceeded" && compactionResult.tokensFreed > 0) {
+          console.warn(
+            `[ContextWindowManager] Compaction freed ${formatTokenCount(compactionResult.tokensFreed)} ` +
+            `but still at ${newStatus.formatted.current}/${newStatus.formatted.max}. ` +
+            `Allowing request to proceed (provider may handle overflow).`
+          );
+          return {
+            canProceed: true,
+            status: newStatus,
+            compactionResult,
+            error:
+              `Warning: Context window at ${newStatus.formatted.percentage} after compaction. ` +
+              `Consider starting a new conversation soon.`,
+            recovery: {
+              action: "compact",
+              message:
+                "Context window is near its limit. Use /compact or start a new conversation to free space.",
+            },
+          };
+        }
+
+        // If still exceeded and compaction freed NOTHING, block as last resort
         if (newStatus.status === "exceeded") {
           return {
             canProceed: false,
@@ -347,6 +403,96 @@ export class ContextWindowManager {
     }
 
     return false;
+  }
+
+  /**
+   * Force-compact a session regardless of thresholds.
+   * Used by the /compact command and force-compact API endpoint.
+   * Runs aggressive compaction (keepRecent=2) to maximize token savings.
+   *
+   * @param sessionId - Session to compact
+   * @param modelId - Model being used
+   * @param systemPromptLength - System prompt length
+   * @param provider - Optional provider
+   * @returns Compaction result with before/after status
+   */
+  static async forceCompact(
+    sessionId: string,
+    modelId: string,
+    systemPromptLength: number,
+    provider?: LLMProvider
+  ): Promise<{
+    success: boolean;
+    beforeStatus: ContextWindowStatus;
+    afterStatus: ContextWindowStatus;
+    compactionResult: CompactionResult;
+  }> {
+    const beforeStatus = await this.checkContextWindow(
+      sessionId,
+      modelId,
+      systemPromptLength,
+      provider
+    );
+
+    console.log(
+      `[ContextWindowManager] Force compaction requested: ${beforeStatus.formatted.current}/${beforeStatus.formatted.max} ` +
+      `(${beforeStatus.formatted.percentage})`
+    );
+
+    const config = getContextWindowConfig(modelId, provider);
+    // Target 50% usage after compaction for maximum headroom
+    const targetTokensToFree = beforeStatus.currentTokens - Math.floor(config.maxTokens * 0.5);
+
+    // Run aggressive compaction with keepRecent=2 (keep only the last exchange)
+    const compactionResult = await CompactionService.compact(sessionId, {
+      targetTokensToFree: Math.max(0, targetTokensToFree),
+      keepRecentMessages: 2,
+    });
+
+    // If first pass didn't free enough, retry with keepRecent=0
+    if (compactionResult.success) {
+      const midStatus = await this.checkContextWindow(
+        sessionId,
+        modelId,
+        systemPromptLength,
+        provider
+      );
+
+      if (midStatus.status === "exceeded" || midStatus.status === "critical") {
+        console.log(
+          `[ContextWindowManager] Force compaction: first pass at ${midStatus.formatted.percentage}, retrying with keepRecent=0`
+        );
+        const retryResult = await CompactionService.compact(sessionId, {
+          targetTokensToFree: midStatus.currentTokens - Math.floor(config.maxTokens * 0.5),
+          keepRecentMessages: 0,
+        });
+        if (retryResult.success) {
+          compactionResult.tokensFreed += retryResult.tokensFreed;
+          compactionResult.messagesCompacted += retryResult.messagesCompacted;
+          compactionResult.newSummary = retryResult.newSummary;
+        }
+      }
+    }
+
+    const afterStatus = await this.checkContextWindow(
+      sessionId,
+      modelId,
+      systemPromptLength,
+      provider
+    );
+
+    console.log(
+      `[ContextWindowManager] Force compaction complete: ` +
+      `${beforeStatus.formatted.current} → ${afterStatus.formatted.current} ` +
+      `(freed ${formatTokenCount(compactionResult.tokensFreed)})`
+    );
+
+    return {
+      success: compactionResult.success,
+      beforeStatus,
+      afterStatus,
+      compactionResult,
+    };
   }
 
   /**

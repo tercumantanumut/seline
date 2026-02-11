@@ -119,16 +119,8 @@ export async function POST(
     // Estimate system prompt length
     const estimatedSystemPromptLength = 5000;
 
-    // Force compaction
-    const compacted = await ContextWindowManager.compactIfNeeded(
-      sessionId,
-      modelId,
-      estimatedSystemPromptLength,
-      provider
-    );
-
-    // Get updated status
-    const status = await ContextWindowManager.checkContextWindow(
+    // Force compaction (aggressive — used by /compact command and UI button)
+    const result = await ContextWindowManager.forceCompact(
       sessionId,
       modelId,
       estimatedSystemPromptLength,
@@ -136,14 +128,22 @@ export async function POST(
     );
 
     return NextResponse.json({
-      success: true,
-      compacted,
+      success: result.success,
+      compacted: result.success,
+      tokensFreed: result.compactionResult.tokensFreed,
+      messagesCompacted: result.compactionResult.messagesCompacted,
+      before: {
+        percentage: result.beforeStatus.usagePercentage * 100,
+        status: result.beforeStatus.status,
+        currentTokens: result.beforeStatus.currentTokens,
+        formatted: result.beforeStatus.formatted,
+      },
       status: {
-        percentage: status.usagePercentage * 100,
-        status: status.status,
-        currentTokens: status.currentTokens,
-        maxTokens: status.maxTokens,
-        formatted: status.formatted,
+        percentage: result.afterStatus.usagePercentage * 100,
+        status: result.afterStatus.status,
+        currentTokens: result.afterStatus.currentTokens,
+        maxTokens: result.afterStatus.maxTokens,
+        formatted: result.afterStatus.formatted,
       },
     });
   } catch (error) {

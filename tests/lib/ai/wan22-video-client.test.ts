@@ -191,7 +191,7 @@ describe("WAN 2.2 Video Client", () => {
       }
     });
 
-    it("should use custom motion amplitude", async () => {
+    it("should keep motion amplitude fixed at 1.0", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ result: "base64-video", time_taken: 20.0 }),
@@ -207,7 +207,7 @@ describe("WAN 2.2 Video Client", () => {
 
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.motion_amplitude).toBe(3.0);
+      expect(body.motion_amplitude).toBe(1.0);
     });
 
     it("should use seed for reproducibility", async () => {
@@ -367,4 +367,3 @@ describe("WAN 2.2 Video Client", () => {
     });
   });
 });
-

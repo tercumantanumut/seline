@@ -3,7 +3,7 @@ import { getUtilityModel } from "@/lib/ai/providers";
 import {
   getNonCompactedMessages,
   updateSessionSummary,
-  markMessagesAsCompacted,
+  markMessagesAsCompactedByIds,
   getSession,
 } from "@/lib/db/queries";
 import { estimateMessageTokens } from "@/lib/utils";
@@ -79,8 +79,9 @@ export async function compactIfNeeded(
     // Update session with new summary
     await updateSessionSummary(sessionId, newSummary, lastMessageToCompact.id);
 
-    // Mark messages as compacted
-    await markMessagesAsCompacted(sessionId, lastMessageToCompact.id);
+    // Mark exactly the messages included in the summary.
+    const compactedIds = messagesToCompact.map((message) => message.id);
+    await markMessagesAsCompactedByIds(sessionId, compactedIds);
   } catch (error) {
     console.error("Failed to compact session:", error);
     // Don't throw - compaction failure shouldn't break the chat

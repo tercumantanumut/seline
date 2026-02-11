@@ -77,16 +77,24 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
   });
 
   it("blocks when compaction succeeds but context is still exceeded", async () => {
-    vi.spyOn(TokenTracker, "calculateUsage")
+    const usageSpy = vi.spyOn(TokenTracker, "calculateUsage")
       .mockResolvedValueOnce(makeUsage(385_000)) // Above 380K hard limit
-      .mockResolvedValueOnce(makeUsage(385_000)); // Still exceeded after compaction
+      .mockResolvedValueOnce(makeUsage(385_000)) // Still exceeded after first compaction
+      .mockResolvedValueOnce(makeUsage(4));       // After aggressive retry (keepRecent=0)
 
-    vi.spyOn(CompactionService, "compact").mockResolvedValue({
-      success: true,
-      tokensFreed: 1_000,
-      messagesCompacted: 1,
-      newSummary: "summary",
-    });
+    const compactSpy = vi.spyOn(CompactionService, "compact")
+      .mockResolvedValueOnce({
+        success: true,
+        tokensFreed: 1_000,
+        messagesCompacted: 1,
+        newSummary: "summary",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        tokensFreed: 380_000,
+        messagesCompacted: 50,
+        newSummary: "aggressive summary",
+      });
 
     const result = await ContextWindowManager.preFlightCheck(
       sessionId,
@@ -94,10 +102,50 @@ describe("ContextWindowManager.preFlightCheck compaction", () => {
       systemPromptLength
     );
 
-    expect(result.canProceed).toBe(false);
+    // After aggressive retry succeeds, should proceed
+    expect(compactSpy).toHaveBeenCalledTimes(2);
+    expect(usageSpy).toHaveBeenCalledTimes(3);
+    expect(result.canProceed).toBe(true);
+    expect(result.status.status).toBe("safe");
+    // Merged compaction results
+    expect(result.compactionResult?.tokensFreed).toBe(381_000);
+    expect(result.compactionResult?.messagesCompacted).toBe(51);
+  });
+
+  it("force-proceeds with warning when compaction freed tokens but still exceeded", async () => {
+    // Scenario: Compaction freed tokens but couldn't get below the hard limit
+    // New behavior: allow the request through with a warning instead of permanently blocking
+    vi.spyOn(TokenTracker, "calculateUsage")
+      .mockResolvedValueOnce(makeUsage(395_000)) // Above 380K hard limit
+      .mockResolvedValueOnce(makeUsage(390_000)) // Still exceeded after first compaction
+      .mockResolvedValueOnce(makeUsage(385_000)); // Still exceeded after aggressive retry
+
+    vi.spyOn(CompactionService, "compact")
+      .mockResolvedValueOnce({
+        success: true,
+        tokensFreed: 5_000,
+        messagesCompacted: 3,
+        newSummary: "summary",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        tokensFreed: 5_000,
+        messagesCompacted: 2,
+        newSummary: "aggressive summary",
+      });
+
+    const result = await ContextWindowManager.preFlightCheck(
+      sessionId,
+      modelId,
+      systemPromptLength
+    );
+
+    // Should proceed with warning since tokens were freed (10K total)
+    expect(result.canProceed).toBe(true);
     expect(result.status.status).toBe("exceeded");
-    expect(result.error).toBe("Context window still exceeded after compaction");
-    expect(result.recovery?.action).toBe("new_session");
+    expect(result.error).toContain("Warning:");
+    expect(result.recovery?.action).toBe("compact");
+    expect(result.compactionResult?.tokensFreed).toBe(10_000);
   });
 
   it("allows with warning when compaction fails due to insufficient messages at critical level", async () => {

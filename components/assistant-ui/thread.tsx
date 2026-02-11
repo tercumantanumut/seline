@@ -72,6 +72,12 @@ import { useModelBag } from "@/components/model-bag/use-model-bag";
 import { PROVIDER_THEME } from "@/components/model-bag/model-bag.constants";
 import { getModelIcon } from "@/components/model-bag/model-bag.utils";
 import type { ModelItem, LLMProvider } from "@/components/model-bag/model-bag.types";
+import { useContextStatus } from "@/lib/hooks/use-context-status";
+import { ContextWindowIndicator } from "./context-window-indicator";
+import {
+  ContextWindowBlockedBanner,
+  type ContextWindowBlockedPayload,
+} from "./context-window-blocked-banner";
 
 
 interface ThreadProps {
@@ -99,10 +105,35 @@ export const Thread: FC<ThreadProps> = ({
 }) => {
   const isRunning = useThread((t) => t.isRunning);
 
+  // Context window status tracking
+  const {
+    status: contextStatus,
+    isLoading: contextLoading,
+    refresh: refreshContextStatus,
+    compact: triggerCompact,
+    isCompacting,
+  } = useContextStatus({ sessionId });
+
+  // Blocked banner state — set when a 413 error is received
+  const [blockedPayload, setBlockedPayload] =
+    useState<ContextWindowBlockedPayload | null>(null);
+
+  // Refresh context status after each session activity (message sent/received)
+  const wrappedOnSessionActivity = useCallback(
+    (message: { id?: string; role: "user" | "assistant" }) => {
+      onSessionActivity?.(message);
+      // Refresh context status after assistant responds (slight delay for DB to settle)
+      if (message.role === "assistant") {
+        setTimeout(() => refreshContextStatus(), 1500);
+      }
+    },
+    [onSessionActivity, refreshContextStatus]
+  );
+
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root className="flex h-full flex-col bg-terminal-cream">
-        <SessionActivityWatcher onSessionActivity={onSessionActivity} />
+        <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(
             "flex flex-1 flex-col items-center overflow-y-auto px-4 pt-8 [overflow-anchor:auto]",
@@ -117,6 +148,21 @@ export const Thread: FC<ThreadProps> = ({
                 EditComposer,
               }}
             />
+            {/* Context window blocked banner */}
+            {blockedPayload && (
+              <ContextWindowBlockedBanner
+                payload={blockedPayload}
+                onCompact={async () => {
+                  const result = await triggerCompact();
+                  if (result.success) {
+                    setTimeout(() => setBlockedPayload(null), 2000);
+                  }
+                  return result;
+                }}
+                onDismiss={() => setBlockedPayload(null)}
+                isCompacting={isCompacting}
+              />
+            )}
             {footer}
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
@@ -131,6 +177,10 @@ export const Thread: FC<ThreadProps> = ({
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
               isZombieBackgroundRun={isZombieBackgroundRun}
+              contextStatus={contextStatus}
+              contextLoading={contextLoading}
+              onCompact={triggerCompact}
+              isCompacting={isCompacting}
             />
           </div>
         </GalleryWrapper>
@@ -342,6 +392,10 @@ const Composer: FC<{
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+  contextStatus?: import("@/lib/hooks/use-context-status").ContextWindowStatus | null;
+  contextLoading?: boolean;
+  onCompact?: () => Promise<{ success: boolean; compacted: boolean }>;
+  isCompacting?: boolean;
 }> = ({
   isBackgroundTaskRunning = false,
   isProcessingInBackground = false,
@@ -350,6 +404,10 @@ const Composer: FC<{
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
+  contextStatus = null,
+  contextLoading = false,
+  onCompact,
+  isCompacting = false,
 }) => {
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -977,6 +1035,19 @@ const Composer: FC<{
           </div>
         </div>
       </ComposerPrimitive.Root>
+
+      {/* Context window indicator — shown below composer when status is not safe */}
+      {contextStatus && contextStatus.status !== "safe" && (
+        <div className="mt-1.5 w-full px-1">
+          <ContextWindowIndicator
+            status={contextStatus}
+            isLoading={contextLoading}
+            onCompact={onCompact}
+            isCompacting={isCompacting}
+            compact
+          />
+        </div>
+      )}
     </div>
   );
 };

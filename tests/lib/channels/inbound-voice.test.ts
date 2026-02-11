@@ -94,10 +94,11 @@ describe("Inbound Voice Message Flow", () => {
       expect(isTranscriptionAvailable()).toBe(false);
     });
 
-    it("reports unavailable for local provider (Phase 1)", () => {
+    it("reports unavailable for local provider when local model is missing", () => {
       settingsMock.state.settings = {
         sttEnabled: true,
         sttProvider: "local",
+        sttLocalModel: "missing-model-id",
       };
       expect(isTranscriptionAvailable()).toBe(false);
     });
@@ -257,20 +258,20 @@ describe("Inbound Voice Message Flow", () => {
       expect(result.language).toBe("ru");
     });
 
-    it("Voice note with local provider → coming soon error", async () => {
+    it("Voice note with local provider and missing model → configuration error", async () => {
       settingsMock.state.settings = {
         sttEnabled: true,
         sttProvider: "local",
-        sttLocalModel: "ggml-tiny.en",
+        sttLocalModel: "missing-model-id",
       };
 
-      // Availability check returns false (Phase 1)
+      // Availability check returns false when model is unavailable.
       expect(isTranscriptionAvailable()).toBe(false);
 
-      // But if somehow called directly, it throws
+      // Direct call should surface a clear configuration error.
       await expect(
         transcribeAudio(Buffer.from("audio"), "audio/ogg")
-      ).rejects.toThrow("coming soon");
+      ).rejects.toThrow("not found");
     });
   });
 });

@@ -99,6 +99,9 @@ describe("hybridSearchV2", () => {
 
     const mockTable = {
       vectorSearch: vi.fn().mockReturnValue(mockChain),
+      schema: vi.fn().mockResolvedValue({
+        fields: [{ name: "lexicalVector" }],
+      }),
     };
 
     const mockDb = {

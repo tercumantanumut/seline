@@ -1372,7 +1372,32 @@
       "zombieHint": "Bu çalışma takılmış görünüyor. Zorla durdurabilirsiniz.",
       "forceStop": "Zorla Durdur"
     },
-    "processingComplete": "Yanıt hazır"
+    "processingComplete": "Yanıt hazır",
+    "contextWindow": {
+      "status": {
+        "safe": "Bağlam kullanımı: {percentage}",
+        "warning": "Bağlam penceresi doluyor: {percentage}",
+        "critical": "Bağlam penceresi sınıra yaklaşıyor: {percentage}",
+        "exceeded": "Bağlam penceresi sınırı aşıldı"
+      },
+      "indicator": {
+        "tooltip": "Bağlam: {current}/{max} ({percentage})",
+        "compactNow": "Şimdi sıkıştır",
+        "newSession": "Yeni oturum başlat"
+      },
+      "blocked": {
+        "title": "Bağlam penceresi sınırı aşıldı",
+        "message": "Konuşma, mevcut modelin bağlam penceresi için çok uzun.",
+        "compacting": "Konuşma geçmişi sıkıştırılmaya çalışılıyor...",
+        "compactSuccess": "{messagesCompacted} mesaj sıkıştırıldı, {tokensFreed} token serbest bırakıldı",
+        "compactFailed": "Otomatik sıkıştırma yeterli alan açamadı.",
+        "actions": {
+          "tryCompact": "Sıkıştırmayı dene",
+          "newSession": "Yeni oturum başlat",
+          "switchModel": "Daha büyük modele geç"
+        }
+      }
+    }
   },
   "channels": {
     "title": "{name} için kanal gelen kutusu",
