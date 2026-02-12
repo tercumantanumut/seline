@@ -15,6 +15,7 @@ import type {
   TaskProgressEvent,
 } from "./types";
 import { nowISO, isStale } from "@/lib/utils/timestamp";
+import { limitProgressContent } from "./progress-content-limiter";
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
@@ -112,6 +113,25 @@ class TaskRegistry extends EventEmitter {
       hasTask: !!task,
       currentTaskCount: this.tasks.size,
     });
+
+    // Safety net: limit progressContent to prevent oversized payloads
+    // from being serialized into SSE events and consuming excessive memory.
+    // The primary guard should be applied by callers before reaching here,
+    // but this ensures no oversized content escapes into the event system.
+    if (details?.progressContent && Array.isArray(details.progressContent)) {
+      const limitResult = limitProgressContent(details.progressContent);
+      if (limitResult.wasTruncated) {
+        console.warn(
+          `[TaskRegistry] progressContent truncated for ${runId}: ` +
+          `~${limitResult.originalTokens.toLocaleString()} → ~${limitResult.finalTokens.toLocaleString()} tokens ` +
+          `(${limitResult.truncatedParts} tool-result parts truncated)`
+        );
+        details = {
+          ...details,
+          progressContent: limitResult.content,
+        };
+      }
+    }
 
     // Update lastActivityAt for stale detection
     if (task) {

@@ -18,6 +18,9 @@ interface UpdatePlanArgs {
 interface UpdatePlanResult {
   status: "success" | "error";
   plan?: PlanState;
+  version?: number;
+  stepCount?: number;
+  updatedStepIds?: string[];
   warnings?: string[];
   error?: string;
 }
@@ -75,11 +78,33 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
 
   // --- Success state ---
   const plan = result.plan;
-  // Defensive check: ensure plan exists and has a valid steps array
-  if (!plan || !plan.steps || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
+  // Compact result from merge-mode updates (no full plan, just confirmation)
+  if (!plan || !plan.steps || !Array.isArray(plan.steps) || plan.steps.length === 0) {
+    if (result.version != null) {
+      const updatedCount = result.updatedStepIds?.length ?? 0;
+      return (
+        <div className="my-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 font-mono text-xs">
+          <ClipboardListIcon className="w-3.5 h-3.5 text-terminal-green" />
+          <span className="text-terminal-dark font-semibold">Plan</span>
+          <span className="text-terminal-muted">v{result.version}</span>
+          <span className="text-terminal-border/50">&middot;</span>
+          <span className="text-terminal-green">
+            {updatedCount} step{updatedCount !== 1 ? "s" : ""} updated
+          </span>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const counts = { completed: 0, in_progress: 0, pending: 0, canceled: 0 };
-  plan.steps.forEach((s) => { counts[s.status]++; });
+  plan.steps.forEach((s) => {
+    // Guard against malformed step objects during streaming
+    const status = s?.status;
+    if (status && status in counts) {
+      counts[status]++;
+    }
+  });
 
   return (
     <div className="my-1">
@@ -105,10 +130,11 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
       {/* Step list — shown when expanded */}
       {expanded && (
         <div className="mt-1.5 ml-0.5 border-l-2 border-terminal-border/30 pl-3 space-y-0.5">
-          {plan.steps.map((step) => {
-            const cfg = STATUS_CONFIG[step.status];
+          {plan.steps.map((step, idx) => {
+            if (!step?.text || !step?.status) return null;
+            const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
             return (
-              <div key={step.id} className="flex items-baseline gap-2">
+              <div key={step.id ?? `step-${idx}`} className="flex items-baseline gap-2">
                 <span className={cn("font-mono text-xs shrink-0", cfg.color)}>{cfg.glyph}</span>
                 <span className={cn("font-mono text-sm", cfg.textClass)}>{step.text}</span>
               </div>

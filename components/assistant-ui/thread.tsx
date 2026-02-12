@@ -618,6 +618,9 @@ const Composer: FC<{
         characterId: character.id,
         useLLM: true,
         conversationContext: recentMessages,
+      }, {
+        timeout: 60_000, // 60s — enhancement runs semantic search + LLM synthesis
+        retries: 0,      // Don't retry LLM enhancement — it's idempotent but expensive
       });
 
       if (fetchError || !data) {
