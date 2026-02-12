@@ -76,6 +76,10 @@ export interface ExecuteCommandInput {
   cwd?: string;
   /** Timeout in milliseconds */
   timeout?: number;
+  /** Run in background and return processId immediately */
+  background?: boolean;
+  /** Process ID to check status of a background process (instead of executing a new command) */
+  processId?: string;
 }
 
 /**
@@ -83,7 +87,7 @@ export interface ExecuteCommandInput {
  */
 export interface ExecuteCommandToolResult {
   /** Execution status */
-  status: "success" | "error" | "no_folders" | "blocked";
+  status: "success" | "error" | "no_folders" | "blocked" | "running" | "background_started";
   /** Standard output */
   stdout?: string;
   /** Standard error */
@@ -96,6 +100,38 @@ export interface ExecuteCommandToolResult {
   message?: string;
   /** Error details */
   error?: string;
+  /** Process ID for background processes */
+  processId?: string;
+}
+
+/**
+ * Info about a background process being tracked
+ */
+export interface BackgroundProcessInfo {
+  /** Unique process identifier */
+  id: string;
+  /** The command that was executed */
+  command: string;
+  /** Command arguments */
+  args: string[];
+  /** Working directory */
+  cwd: string;
+  /** When the process started */
+  startedAt: number;
+  /** Whether the process is still running */
+  running: boolean;
+  /** Accumulated stdout */
+  stdout: string;
+  /** Accumulated stderr */
+  stderr: string;
+  /** Exit code (null if still running) */
+  exitCode: number | null;
+  /** Signal that killed the process */
+  signal: string | null;
+  /** The child process reference */
+  process: import("child_process").ChildProcess;
+  /** Timeout timer reference */
+  timeoutId: NodeJS.Timeout | null;
 }
 
 /**

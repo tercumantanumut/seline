@@ -14,6 +14,7 @@ export type {
     ExecuteCommandInput,
     ExecuteCommandToolResult,
     CommandLogEntry,
+    BackgroundProcessInfo,
 } from "./types";
 
 // Export validator functions
@@ -25,7 +26,15 @@ export {
 } from "./validator";
 
 // Export executor functions
-export { executeCommand, executeCommandWithValidation } from "./executor";
+export {
+    executeCommand,
+    executeCommandWithValidation,
+    startBackgroundProcess,
+    getBackgroundProcess,
+    killBackgroundProcess,
+    listBackgroundProcesses,
+    cleanupBackgroundProcesses,
+} from "./executor";
 
 // Export logger
 export { commandLogger } from "./logger";
