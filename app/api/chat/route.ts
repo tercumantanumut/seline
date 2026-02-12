@@ -30,6 +30,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { limitProgressContent } from "@/lib/background-tasks/progress-content-limiter";
 import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { combineAbortSignals } from "@/lib/utils/abort";
 import type { ChatTask } from "@/lib/background-tasks/types";
@@ -1358,7 +1359,27 @@ export async function POST(req: Request) {
 
         const partsSnapshot = cloneContentParts(filteredParts);
         const now = Date.now();
-        const signature = JSON.stringify(partsSnapshot);
+
+        // Build a lightweight signature for change detection.
+        // Avoid JSON.stringify on the full partsSnapshot which can be 400K+ chars
+        // when tool results are large (e.g., localGrep with many matches).
+        // Instead, use a structural fingerprint: part types, IDs, states, and text previews.
+        const signature = partsSnapshot.map((p) => {
+          if (p.type === "text") return `t:${p.text.length}:${p.text.slice(0, 100)}`;
+          if (p.type === "tool-call") return `tc:${(p as DBToolCallPart).toolCallId}:${(p as DBToolCallPart).state ?? ""}`;
+          if (p.type === "tool-result") {
+            const tr = p as DBToolResultPart;
+            // Use a cheap size estimate to avoid JSON.stringify on massive tool results
+            let resultFingerprint = "null";
+            if (typeof tr.result === "string") {
+              resultFingerprint = `s${tr.result.length}`;
+            } else if (tr.result && typeof tr.result === "object") {
+              resultFingerprint = `o${Object.keys(tr.result as Record<string, unknown>).length}`;
+            }
+            return `tr:${tr.toolCallId}:${tr.state ?? ""}:${resultFingerprint}`;
+          }
+          return `o:${p.type}`;
+        }).join("|");
 
         // Skip if content hasn't changed
         if (signature === streamingState.lastBroadcastSignature) {
@@ -1441,6 +1462,18 @@ export async function POST(req: Request) {
           });
 
           if (progressRunId && progressType) {
+            // Limit progressContent before emitting to prevent oversized payloads
+            // from being serialized into SSE events. The full partsSnapshot is
+            // already persisted to the database above — this only affects the
+            // real-time progress display sent to clients.
+            const progressLimit = limitProgressContent(partsSnapshot);
+            if (progressLimit.wasTruncated) {
+              console.log(
+                `[CHAT API] Progress content truncated: ` +
+                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens`
+              );
+            }
+
             taskRegistry.emitProgress(
               progressRunId,
               progressText,
@@ -1453,7 +1486,7 @@ export async function POST(req: Request) {
                 characterId: eventCharacterId,
                 sessionId,
                 assistantMessageId: streamingState.messageId,
-                progressContent: partsSnapshot,
+                progressContent: progressLimit.content as DBContentPart[],
                 startedAt: nowISO(),
               }
             );

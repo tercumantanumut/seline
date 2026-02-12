@@ -663,9 +663,13 @@ Use instead of doing math yourself — returns deterministic, accurate results.
 Creates or updates a visible task plan. First call creates; subsequent calls update.
 
 **Quick decision:**
-- No plan yet → call with steps (mode="replace" is default)
-- Update a step → pass its id + new status, mode="merge"
-- Redo entirely → new steps, mode="replace"
+- No plan yet → call with steps and text for each (mode="replace" is default)
+- Update step status → pass only its id + new status, mode="merge" (text is optional — existing text preserved)
+- Change step text → pass id + new text + status, mode="merge"
+- Redo entirely → new steps with text, mode="replace"
+
+**IMPORTANT for merge updates:** Only send the steps that changed. Do NOT resend all steps.
+Example: \`{ "steps": [{"id": "step_abc", "status": "completed"}], "mode": "merge" }\`
 
 **Constraints:** Max 20 steps. Only 1 step can be "in_progress" at a time. Use returned step ids for merge updates.`,
       loading: { deferLoading: true },

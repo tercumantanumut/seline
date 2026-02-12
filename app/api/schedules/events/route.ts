@@ -77,6 +77,28 @@ export async function GET(request: NextRequest) {
             type: "task:progress",
             data: event,
           });
+
+          // Safety guard: drop excessively large SSE messages (> 1MB)
+          const MAX_SSE_MESSAGE_BYTES = 1_000_000;
+          if (message.length > MAX_SSE_MESSAGE_BYTES) {
+            console.error(
+              `[SSE] Dropping oversized progress event (${(message.length / 1024).toFixed(0)}KB) for run ${runId}. ` +
+              `This indicates a missing upstream truncation guard.`
+            );
+            const fallback = JSON.stringify({
+              type: "task:progress",
+              data: {
+                runId,
+                eventType: "task:progress",
+                progressText: "Progress update (content too large for display)",
+                timestamp: new Date().toISOString(),
+                _oversizedDropped: true,
+              },
+            });
+            controller.enqueue(encoder.encode(`data: ${fallback}\n\n`));
+            return;
+          }
+
           controller.enqueue(encoder.encode(`data: ${message}\n\n`));
         } catch (err) {
           console.error(`[SSE] Failed to send task:progress event:`, err);

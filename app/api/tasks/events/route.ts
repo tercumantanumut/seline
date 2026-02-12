@@ -66,6 +66,32 @@ export async function GET(request: NextRequest) {
             type: event.eventType,
             data: event,
           });
+
+          // Safety guard: drop excessively large SSE messages (> 1MB)
+          // This prevents memory spikes from serialized oversized progressContent
+          // that somehow bypassed upstream truncation guards.
+          const MAX_SSE_MESSAGE_BYTES = 1_000_000; // 1MB
+          if (message.length > MAX_SSE_MESSAGE_BYTES) {
+            console.error(
+              `[SSE] Dropping oversized event (${(message.length / 1024).toFixed(0)}KB): ` +
+              `type=${event.eventType}, runId=${"runId" in event ? event.runId : "task" in event ? event.task.runId : "?"}. ` +
+              `This indicates a missing upstream truncation guard.`
+            );
+            // Send a lightweight fallback event so the client knows something happened
+            const fallback = JSON.stringify({
+              type: event.eventType,
+              data: {
+                ...("runId" in event ? { runId: event.runId, type: event.type, userId: event.userId } : {}),
+                eventType: event.eventType,
+                progressText: "Progress update (content too large for display)",
+                timestamp: event.timestamp ?? new Date().toISOString(),
+                _oversizedDropped: true,
+              },
+            });
+            controller.enqueue(encoder.encode(`data: ${fallback}\n\n`));
+            return;
+          }
+
           controller.enqueue(encoder.encode(`data: ${message}\n\n`));
         } catch (err) {
           console.error("[SSE] Failed to send task event:", err);
