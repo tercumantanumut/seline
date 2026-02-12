@@ -10,6 +10,8 @@ import type { MCPServerConfig } from "@/lib/mcp/types";
 
 async function main() {
     console.log("🧪 Testing MCP Custom Headers Implementation\n");
+    let passed = 0;
+    let failed = 0;
 
     // Test 1: Basic header resolution
     console.log("Test 1: Basic header with environment variable");
@@ -33,11 +35,14 @@ async function main() {
         
         if (resolved1.headers?.["Authorization"] === "Bearer secret123") {
             console.log("✅ Authorization header resolved correctly\n");
+            passed++;
         } else {
             console.error("❌ Authorization header not resolved:", resolved1.headers?.["Authorization"], "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 1 failed:", error, "\n");
+        failed++;
     }
 
     // Test 2: Multiple variables in one header
@@ -57,11 +62,14 @@ async function main() {
         
         if (resolved2.headers?.["X-Auth"] === "user123:key456") {
             console.log("✅ Multi-variable header resolved correctly:", resolved2.headers?.["X-Auth"], "\n");
+            passed++;
         } else {
             console.error("❌ Multi-variable header failed:", resolved2.headers?.["X-Auth"], "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 2 failed:", error, "\n");
+        failed++;
     }
 
     // Test 3: Missing environment variable
@@ -81,11 +89,14 @@ async function main() {
         
         if (resolved3.headers?.["Authorization"] === "Bearer ") {
             console.log("✅ Missing variable handled correctly (empty string)\n");
+            passed++;
         } else {
             console.error("❌ Missing variable not handled:", resolved3.headers?.["Authorization"], "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 3 failed:", error, "\n");
+        failed++;
     }
 
     // Test 4: No headers (should work)
@@ -100,11 +111,14 @@ async function main() {
         
         if (!resolved4.headers || Object.keys(resolved4.headers).length === 0) {
             console.log("✅ Server without headers resolved correctly\n");
+            passed++;
         } else {
             console.error("❌ Unexpected headers:", resolved4.headers, "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 4 failed:", error, "\n");
+        failed++;
     }
 
     // Test 5: Complex real-world example (Composio V3)
@@ -136,14 +150,17 @@ async function main() {
             console.log("✅ Composio V3 config resolved correctly");
             console.log("   URL:", resolved5.url);
             console.log("   Headers:", resolved5.headers, "\n");
+            passed++;
         } else {
             console.error("❌ Composio V3 config failed:", {
                 url: resolved5.url,
                 headers: resolved5.headers
             }, "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 5 failed:", error, "\n");
+        failed++;
     }
 
     // Test 6: URL with variables (bonus)
@@ -166,13 +183,16 @@ async function main() {
             console.log("✅ URL and header variables both resolved");
             console.log("   URL:", resolved6.url);
             console.log("   Headers:", resolved6.headers, "\n");
+            passed++;
         } else {
             console.error("❌ URL/header variables failed");
             console.error("   URL:", resolved6.url);
             console.error("   Headers:", resolved6.headers, "\n");
+            failed++;
         }
     } catch (error) {
         console.error("❌ Test 6 failed:", error, "\n");
+        failed++;
     }
 
     console.log("🏁 All tests completed!\n");
@@ -185,7 +205,13 @@ async function main() {
     console.log("- No headers (optional)");
     console.log("- Real-world Composio V3 example");
     console.log("- URL + header variables");
-    console.log("\n✅ Implementation is working correctly!");
+    
+    if (failed === 0) {
+        console.log(`\n✅ All ${passed} tests passed!`);
+    } else {
+        console.error(`\n❌ ${failed} test(s) failed out of ${passed + failed}`);
+        process.exit(1);
+    }
 }
 
 main().catch(console.error);

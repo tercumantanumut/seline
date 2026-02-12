@@ -254,8 +254,11 @@ export function useTaskNotifications() {
 
     const reconcileTasks = async (showToast: boolean) => {
       try {
-        const { data } = await resilientFetch<{ tasks: UnifiedTask[] }>("/api/tasks/active");
-        if (!data) return;
+        const { data, error } = await resilientFetch<{ tasks: UnifiedTask[] }>("/api/tasks/active");
+        if (!data) {
+          if (error) console.warn("[TaskNotifications] Failed to fetch active tasks:", error);
+          return;
+        }
         const tasks = data.tasks;
 
         const currentTasks = useUnifiedTasksStore.getState().tasks;

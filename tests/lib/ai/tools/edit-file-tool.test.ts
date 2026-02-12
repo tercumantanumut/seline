@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "path";
 
 // Hoist all mocks
 const syncServiceMocks = vi.hoisted(() => ({
@@ -61,8 +62,10 @@ import { recordFileRead } from "@/lib/ai/filesystem/file-history";
 describe("edit-file-tool", () => {
   const SESSION_ID = "test-session-edit-" + Date.now();
   const CHAR_ID = "char-123";
-  const FOLDER = "/home/user/workspace";
-  const FILE = "/home/user/workspace/src/index.ts";
+  
+  // Use platform-specific paths
+  const FOLDER = path.resolve(process.cwd(), "test-workspace");
+  const FILE = path.join(FOLDER, "src", "index.ts");
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,8 +85,9 @@ describe("edit-file-tool", () => {
   describe("security", () => {
     it("rejects paths outside synced folders", async () => {
       const tool = createTool();
+      const outsidePath = path.resolve(process.cwd(), "outside", "passwd");
       const result = await tool.execute(
-        { filePath: "/etc/passwd", oldString: "root", newString: "hacked" },
+        { filePath: outsidePath, oldString: "root", newString: "hacked" },
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
       expect(result.status).toBe("error");
@@ -92,8 +96,9 @@ describe("edit-file-tool", () => {
 
     it("rejects path traversal attacks", async () => {
       const tool = createTool();
+      const traversalPath = path.join(FOLDER, "..", "..", "etc", "passwd");
       const result = await tool.execute(
-        { filePath: "../../../etc/passwd", oldString: "root", newString: "hacked" },
+        { filePath: traversalPath, oldString: "root", newString: "hacked" },
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
       expect(result.status).toBe("error");

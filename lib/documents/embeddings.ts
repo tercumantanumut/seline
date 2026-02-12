@@ -78,8 +78,10 @@ export async function indexAgentDocumentEmbeddings(params: {
 
   // Pre-flight: verify local model exists before attempting embedding
   const embeddingProvider = process.env.EMBEDDING_PROVIDER;
+  const embeddingModelId = getEmbeddingModelId();
+
   if (embeddingProvider === "local") {
-    const validation = validateLocalModelExists();
+    const validation = validateLocalModelExists(embeddingModelId);
     if (!validation.exists) {
       throw new DocumentProcessingError(
         DocumentErrorCode.MODEL_NOT_DOWNLOADED,
@@ -91,7 +93,6 @@ export async function indexAgentDocumentEmbeddings(params: {
     }
   }
 
-  const embeddingModelId = getEmbeddingModelId();
   const embeddingModel = getEmbeddingModel(embeddingModelId);
 
   const chunksToEmbed = chunks.filter(

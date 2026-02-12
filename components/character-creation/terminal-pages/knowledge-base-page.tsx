@@ -57,7 +57,8 @@ export function KnowledgeBasePage({
         if (data?.documents) {
           setDocuments(data.documents);
         }
-      });
+      })
+      .catch((err) => console.error("Failed to load documents:", err));
   }, [agentId]);
 
   const handleFileSelect = useCallback(async (files: FileList | null) => {

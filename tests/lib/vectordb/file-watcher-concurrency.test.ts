@@ -1,7 +1,4 @@
-
-import assert from "assert";
-
-console.log("Running Concurrency Tests...");
+import { describe, it, expect } from "vitest";
 
 async function processWithConcurrency<T>(
     items: T[],
@@ -34,61 +31,48 @@ async function processWithConcurrency<T>(
     }
 }
 
-async function runTests() {
-    try {
-        // Test 1: Process all items
-        {
-            const items = [1, 2, 3, 4, 5];
-            const processed: number[] = [];
+describe("Concurrency Tests", () => {
+    it("Should process all 5 items", async () => {
+        const items = [1, 2, 3, 4, 5];
+        const processed: number[] = [];
 
-            await processWithConcurrency(items, 2, async (item) => {
-                await new Promise(resolve => setTimeout(resolve, 10));
-                processed.push(item);
-            });
+        await processWithConcurrency(items, 2, async (item) => {
+            await new Promise(resolve => setTimeout(resolve, 10));
+            processed.push(item);
+        });
 
-            assert.strictEqual(processed.length, 5, "Should process all 5 items");
-            items.forEach(i => assert.ok(processed.includes(i), `Should include ${i}`));
-        }
+        expect(processed.length).toBe(5);
+        items.forEach(i => expect(processed.includes(i)).toBe(true));
+    });
 
-        // Test 2: Error handling
-        {
-            const items = [1, 2, 3, 4, 5];
-            const processed: number[] = [];
+    it("Should process 4 items (skipping failed one)", async () => {
+        const items = [1, 2, 3, 4, 5];
+        const processed: number[] = [];
 
-            await processWithConcurrency(items, 2, async (item) => {
-                if (item === 3) throw new Error("Fail");
-                await new Promise(resolve => setTimeout(resolve, 10));
-                processed.push(item);
-            });
+        await processWithConcurrency(items, 2, async (item) => {
+            if (item === 3) throw new Error("Fail");
+            await new Promise(resolve => setTimeout(resolve, 10));
+            processed.push(item);
+        });
 
-            // Should process all except 3
-            assert.strictEqual(processed.length, 4, "Should process 4 items (skipping failed one)");
-            assert.ok(!processed.includes(3), "Should not include failed item 3");
-        }
+        expect(processed.length).toBe(4);
+        expect(processed.includes(3)).toBe(false);
+    });
 
-        // Test 3: Concurrency Limit
-        {
-            const items = [1, 2, 3, 4, 5];
-            let maxActive = 0;
-            let currentActive = 0;
+    it("Max active should be <= concurrency (2)", async () => {
+        const items = [1, 2, 3, 4, 5];
+        let maxActive = 0;
+        let currentActive = 0;
 
-            await processWithConcurrency(items, 2, async (item) => {
-                currentActive++;
-                if (currentActive > maxActive) maxActive = currentActive;
+        await processWithConcurrency(items, 2, async (item) => {
+            currentActive++;
+            if (currentActive > maxActive) maxActive = currentActive;
 
-                await new Promise(resolve => setTimeout(resolve, 20));
+            await new Promise(resolve => setTimeout(resolve, 20));
 
-                currentActive--;
-            });
+            currentActive--;
+        });
 
-            assert.ok(maxActive <= 2, `Max active (${maxActive}) should be <= concurrency (2)`);
-        }
-
-        console.log("✅ All Concurrency Tests Passed!");
-    } catch (e: any) {
-        console.error("❌ Test Failed:", e.message);
-        process.exit(1);
-    }
-}
-
-runTests();
+        expect(maxActive).toBeLessThanOrEqual(2);
+    });
+});

@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const idsParam = searchParams.get("ids") || "";
-    const ids = idsParam.split(",").map((id) => id.trim()).filter(Boolean);
+    const ids = idsParam.split(",").map((id) => id.trim()).filter(Boolean).slice(0, 100);
 
     if (ids.length === 0) {
       return NextResponse.json({ statuses: {} });
