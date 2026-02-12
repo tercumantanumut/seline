@@ -676,7 +676,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                   )}
                 </div>
                 {/* Warning for large files */}
-                {folderAnalysis.largeFileCount && folderAnalysis.largeFileCount > 0 && (
+                {(folderAnalysis.largeFileCount ?? 0) > 0 && (
                   <div className="rounded bg-terminal-amber/10 border border-terminal-amber/30 p-2 mt-2">
                     <div className="flex items-start gap-2">
                       <AlertCircleIcon className="w-4 h-4 text-terminal-amber flex-shrink-0 mt-0.5" />

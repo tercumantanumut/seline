@@ -85,6 +85,27 @@ interface WatcherConfig {
   recursive: boolean;
   includeExtensions: string[];
   excludePatterns: string[];
+  forcePolling?: boolean;
+}
+
+// Track EMFILE retry attempts per folder to prevent infinite restart loops
+const emfileRetryCounts = new Map<string, number>();
+const MAX_EMFILE_RETRIES = 3;
+const EMFILE_BACKOFF_MS = [3000, 10000, 30000]; // Exponential backoff
+
+/**
+ * Safely close a watcher, even when file descriptors are exhausted.
+ * Always removes the watcher from the map regardless of close() success.
+ */
+async function safeCloseWatcher(folderId: string): Promise<void> {
+  const watcher = watchers.get(folderId);
+  if (!watcher) return;
+  try {
+    await watcher.close();
+  } catch (err) {
+    console.error(`[FileWatcher] Error closing watcher for ${folderId}, force-removing:`, err);
+  }
+  watchers.delete(folderId);
 }
 
 /**
@@ -251,7 +272,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   // Stop existing watcher if any
   await stopWatching(config.folderId);
 
-  const { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns } = config;
+  const { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns, forcePolling: configForcePolling } = config;
 
   console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
 
@@ -450,12 +471,13 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     '**/temp/**',
   ];
 
-  // For large codebases (project root) or folders that previously hit EMFILE,
-  // use polling mode to prevent file descriptor exhaustion
-  // This is less efficient but much more reliable and doesn't hit file descriptor limits
+  // For large codebases (project root), folders with many files, or folders that
+  // previously hit EMFILE, use polling mode to prevent file descriptor exhaustion.
+  // Polling uses stat() instead of native FSEvents — slightly higher latency but
+  // doesn't consume a file descriptor per watched file.
   const isProjectRoot = await isProjectRootDirectory(folderPath);
   const forcedPolling = pollingModeWatchers.has(folderId);
-  const usePolling = isProjectRoot || forcedPolling;
+  const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
 
   if (usePolling) {
     console.log(
@@ -602,29 +624,53 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
 
       console.error(`[FileWatcher] Error watching ${folderPath}:`, error);
 
-      // --- File-descriptor exhaustion (EMFILE) ---
+      // --- File-descriptor exhaustion (EMFILE / EBADF) ---
       // Restart the watcher in polling mode which uses stat() instead of native watches.
-      if (error?.code === 'EMFILE' && !pollingModeWatchers.has(folderId)) {
-        console.warn(
-          `[FileWatcher] Hit file descriptor limit for ${folderPath}, ` +
-          `will restart in polling mode after cleanup...`
-        );
+      // Uses exponential backoff and a retry limit to prevent infinite restart loops
+      // that would starve the entire Node.js process of file descriptors.
+      if (error?.code === 'EMFILE' || error?.code === 'EBADF') {
+        const retryCount = (emfileRetryCounts.get(folderId) ?? 0) + 1;
+        emfileRetryCounts.set(folderId, retryCount);
 
+        // Always mark for polling mode on first EMFILE
         pollingModeWatchers.add(folderId);
 
-        try {
-          await watcher.close();
-          watchers.delete(folderId);
-        } catch (closeError) {
-          console.error(`[FileWatcher] Error closing watcher:`, closeError);
+        // Safe close — won't throw even if FDs are exhausted
+        await safeCloseWatcher(folderId);
+
+        if (retryCount > MAX_EMFILE_RETRIES) {
+          console.error(
+            `[FileWatcher] EMFILE recovery exhausted (${MAX_EMFILE_RETRIES} retries) for ${folderPath}. ` +
+            `Pausing folder to prevent app hang.`
+          );
+          emfileRetryCounts.delete(folderId);
+
+          // Mark folder as paused so the UI shows the issue clearly
+          await db
+            .update(agentSyncFolders)
+            .set({
+              status: "paused",
+              lastError: `File descriptor limit reached after ${MAX_EMFILE_RETRIES} retries. ` +
+                         `This folder has too many files for real-time watching. ` +
+                         `Synced data is preserved. Try syncing a more specific subfolder.`,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(agentSyncFolders.id, folderId));
+          return;
         }
 
+        const backoffMs = EMFILE_BACKOFF_MS[retryCount - 1] ?? EMFILE_BACKOFF_MS[EMFILE_BACKOFF_MS.length - 1];
+        console.warn(
+          `[FileWatcher] Hit file descriptor limit for ${folderPath} (attempt ${retryCount}/${MAX_EMFILE_RETRIES}), ` +
+          `will retry in polling mode after ${backoffMs / 1000}s...`
+        );
+
         setTimeout(() => {
-          console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode...`);
-          startWatching(config).catch(err => {
+          console.log(`[FileWatcher] Restarting watcher for ${folderPath} in polling mode (attempt ${retryCount})...`);
+          startWatching({ ...config, forcePolling: true }).catch(err => {
             console.error(`[FileWatcher] Failed to restart watcher in polling mode:`, err);
           });
-        }, 3000);
+        }, backoffMs);
       }
     });
 
@@ -646,10 +692,8 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
  * Stop watching a folder
  */
 export async function stopWatching(folderId: string): Promise<void> {
-  const watcher = watchers.get(folderId);
-  if (watcher) {
-    await watcher.close();
-    watchers.delete(folderId);
+  if (watchers.has(folderId)) {
+    await safeCloseWatcher(folderId);
     console.log(`[FileWatcher] Stopped watching folder: ${folderId}`);
   }
 
@@ -675,6 +719,7 @@ export async function stopWatching(folderId: string): Promise<void> {
   activeBatchProcessing.delete(folderId);
   pollingModeWatchers.delete(folderId);
   permissionErrorCounts.delete(folderId);
+  emfileRetryCounts.delete(folderId);
 }
 
 /**

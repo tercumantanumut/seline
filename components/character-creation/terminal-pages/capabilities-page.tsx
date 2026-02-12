@@ -225,6 +225,18 @@ const BASE_TOOLS: ToolCapability[] = [
   },
 ];
 
+/** Category display order — matches character-picker's CATEGORY_ICONS */
+const CATEGORY_ORDER: Record<string, number> = {
+  knowledge: 0,
+  search: 1,
+  "image-generation": 2,
+  "image-editing": 3,
+  "video-generation": 4,
+  analysis: 5,
+  utility: 6,
+  "custom-comfyui": 7,
+};
+
 /** Category translation keys */
 const CATEGORY_KEYS: Record<string, string> = {
   knowledge: "knowledge",
@@ -270,7 +282,13 @@ export function CapabilitiesPage({
         : "",
     }));
 
-    setAvailableTools(baseTools);
+    const sortedBaseTools = [...baseTools].sort((a, b) => {
+      const catA = CATEGORY_ORDER[a.category] ?? 99;
+      const catB = CATEGORY_ORDER[b.category] ?? 99;
+      if (catA !== catB) return catA - catB;
+      return (a.displayName || a.id).localeCompare(b.displayName || b.id);
+    });
+    setAvailableTools(sortedBaseTools);
 
     let cancelled = false;
     const loadTools = async () => {
@@ -312,7 +330,9 @@ export function CapabilitiesPage({
         });
 
         const mergedList = Array.from(merged.values()).sort((a, b) => {
-          if (a.category !== b.category) return a.category.localeCompare(b.category);
+          const catA = CATEGORY_ORDER[a.category] ?? 99;
+          const catB = CATEGORY_ORDER[b.category] ?? 99;
+          if (catA !== catB) return catA - catB;
           return (a.displayName || a.id).localeCompare(b.displayName || b.id);
         });
         setAvailableTools(mergedList);
@@ -356,7 +376,10 @@ export function CapabilitiesPage({
   // Check dependencies on mount
   useEffect(() => {
     const checkDependencies = async () => {
-      let foldersCount = 0;
+      // Fetch folder count — on failure, preserve previous state instead of
+      // resetting to 0 (which would lock all folder-dependent tools).
+      // A folder in any status (pending/syncing/synced) counts as configured.
+      let foldersCount: number | null = null; // null = unknown (fetch failed)
       if (agentId) {
         try {
           const res = await fetch(`/api/vector-sync?characterId=${agentId}`);
@@ -369,43 +392,41 @@ export function CapabilitiesPage({
         }
       }
 
-      fetch("/api/settings").then((r) => r.json())
-        .then((settingsData) => {
-          const webScraperReady = settingsData.webScraperProvider === "local"
-            || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
-          const hasEmbeddingModel = typeof settingsData.embeddingModel === "string"
-            && settingsData.embeddingModel.trim().length > 0;
-          const hasOpenRouterKey = typeof settingsData.openrouterApiKey === "string"
-            && settingsData.openrouterApiKey.trim().length > 0;
-          const embeddingsReady = hasEmbeddingModel || settingsData.embeddingProvider === "local" || hasOpenRouterKey;
+      try {
+        const settingsRes = await fetch("/api/settings");
+        const settingsData = await settingsRes.json();
 
-          setDependencyStatus({
+        const webScraperReady = settingsData.webScraperProvider === "local"
+          || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
+        const hasEmbeddingModel = typeof settingsData.embeddingModel === "string"
+          && settingsData.embeddingModel.trim().length > 0;
+        const hasOpenRouterKey = typeof settingsData.openrouterApiKey === "string"
+          && settingsData.openrouterApiKey.trim().length > 0;
+        const embeddingsReady = hasEmbeddingModel || settingsData.embeddingProvider === "local" || hasOpenRouterKey;
+
+        setDependencyStatus((prev) => ({
+          // If folder fetch failed, keep the previous value instead of resetting to false
+          syncedFolders: foldersCount !== null ? foldersCount > 0 : prev.syncedFolders,
+          embeddings: embeddingsReady,
+          vectorDbEnabled: settingsData.vectorDBEnabled === true,
+          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
+          webScraper: webScraperReady,
+          openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
+          comfyuiEnabled: settingsData.comfyuiEnabled === true,
+          flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
+          flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
+          localGrepEnabled: settingsData.localGrepEnabled !== false,
+        }));
+      } catch {
+        // Settings fetch failed — only update syncedFolders if we got a valid count
+        if (foldersCount !== null) {
+          setDependencyStatus((prev) => ({
+            ...prev,
             syncedFolders: foldersCount > 0,
-            embeddings: embeddingsReady,
-            vectorDbEnabled: settingsData.vectorDBEnabled === true,
-            tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
-            webScraper: webScraperReady,
-            openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
-            comfyuiEnabled: settingsData.comfyuiEnabled === true,
-            flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
-            flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
-            localGrepEnabled: settingsData.localGrepEnabled !== false,
-          });
-        })
-        .catch(() => {
-          setDependencyStatus({
-            syncedFolders: foldersCount > 0,
-            embeddings: false,
-            vectorDbEnabled: false,
-            tavilyKey: false,
-            webScraper: false,
-            openrouterKey: false,
-            comfyuiEnabled: false,
-            flux2Klein4bEnabled: false,
-            flux2Klein9bEnabled: false,
-            localGrepEnabled: true,
-          });
-        });
+          }));
+        }
+        // Otherwise preserve all previous state — don't reset to false
+      }
     };
 
     checkDependencies();
