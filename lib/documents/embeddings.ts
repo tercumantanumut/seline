@@ -13,6 +13,8 @@ import { agentDocumentChunks } from "@/lib/db/sqlite-schema";
 import { getEmbeddingModel, getEmbeddingModelId } from "@/lib/ai/providers";
 import { normalizeEmbedding, normalizeEmbeddings } from "@/lib/ai/embedding-utils";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
+import { validateLocalModelExists } from "@/lib/ai/local-embeddings";
+import { DocumentProcessingError, DocumentErrorCode } from "@/lib/documents/errors";
 
 export interface AgentDocumentEmbeddingIndexResult {
   documentId: string;
@@ -72,6 +74,21 @@ export async function indexAgentDocumentEmbeddings(params: {
       embeddingModel: null,
       embeddingDimensions: null,
     };
+  }
+
+  // Pre-flight: verify local model exists before attempting embedding
+  const embeddingProvider = process.env.EMBEDDING_PROVIDER;
+  if (embeddingProvider === "local") {
+    const validation = validateLocalModelExists();
+    if (!validation.exists) {
+      throw new DocumentProcessingError(
+        DocumentErrorCode.MODEL_NOT_DOWNLOADED,
+        `Local embedding model "${validation.modelId}" is not available. ` +
+        `Missing: ${validation.missingFiles.join(", ")} at ${validation.expectedPath}`,
+        undefined,
+        "Download the model from Settings → Embeddings, or switch to OpenRouter embeddings.",
+      );
+    }
   }
 
   const embeddingModelId = getEmbeddingModelId();
