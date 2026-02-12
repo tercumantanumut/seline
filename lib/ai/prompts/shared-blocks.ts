@@ -67,6 +67,9 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 - ❌ Writing \`searchTools{"query":"..."}\` as plain text
 - ❌ Writing \`editImageFlux2Flex{"prompt":"...", "source_image_url":"..."}\` in chat
 - ❌ Any pattern like \`toolName{...}\` or \`toolName({...})\` in your text output
+- ❌ Writing \`{"type":"tool-call","toolCallId":"...","toolName":"...","args":{...}}\` as text
+- ❌ Writing \`{"type":"tool-result","toolCallId":"...","result":{...}}\` as text
+- ❌ Any JSON resembling internal tool protocol messages (these are system-level formats, NEVER for text output)
 
 ### What TO do (CORRECT):
 - ✅ Make actual structured tool calls using the tool calling interface
@@ -78,6 +81,7 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 2. If you find yourself typing a tool name followed by JSON/parameters, STOP - that's wrong
 3. The system provides a tool calling interface - USE IT, don't simulate it with text
 4. Writing tool syntax as text does NOTHING - the tool won't execute
+5. NEVER output JSON objects containing "type":"tool-call" or "type":"tool-result" - these are internal protocol formats
 
 ---
 
