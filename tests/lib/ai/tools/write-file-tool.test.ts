@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "path";
 
 // Hoist all mocks
 const syncServiceMocks = vi.hoisted(() => ({
@@ -61,8 +62,10 @@ import { recordFileRead } from "@/lib/ai/filesystem/file-history";
 describe("write-file-tool", () => {
   const SESSION_ID = "test-session-write-" + Date.now();
   const CHAR_ID = "char-456";
-  const FOLDER = "/home/user/workspace";
-  const FILE = "/home/user/workspace/src/new-file.ts";
+  
+  // Use platform-specific paths
+  const FOLDER = path.resolve(process.cwd(), "test-workspace");
+  const FILE = path.join(FOLDER, "src", "new-file.ts");
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,8 +85,9 @@ describe("write-file-tool", () => {
   describe("security", () => {
     it("rejects paths outside synced folders", async () => {
       const tool = createTool();
+      const outsidePath = path.resolve(process.cwd(), "outside", "shadow");
       const result = await tool.execute(
-        { filePath: "/etc/shadow", content: "malicious" },
+        { filePath: outsidePath, content: "malicious" },
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
       expect(result.status).toBe("error");

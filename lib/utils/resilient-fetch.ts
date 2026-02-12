@@ -74,8 +74,23 @@ export async function resilientFetch<T = unknown>(
 
       // Don't retry client errors (4xx) — they won't succeed on retry
       if (response.ok) {
-        const data = (await response.json()) as T;
-        return { data, error: null, timedOut: false, status: response.status };
+        if (response.status === 204 || response.status === 205) {
+          return { data: null, error: null, timedOut: false, status: response.status };
+        }
+        const contentType = response.headers.get("content-type") || "";
+        const raw = await response.text();
+        if (!raw) {
+          return { data: null, error: null, timedOut: false, status: response.status };
+        }
+        if (contentType.includes("application/json")) {
+          try {
+            const data = JSON.parse(raw) as T;
+            return { data, error: null, timedOut: false, status: response.status };
+          } catch {
+            return { data: null, error: "Invalid JSON response", timedOut: false, status: response.status };
+          }
+        }
+        return { data: raw as unknown as T, error: null, timedOut: false, status: response.status };
       }
 
       // Retry on server errors (5xx)

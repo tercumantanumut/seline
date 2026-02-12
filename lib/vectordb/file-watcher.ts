@@ -675,6 +675,10 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     });
 
   watchers.set(folderId, watcher);
+
+  // Watcher started successfully — reset any EMFILE retry state
+  emfileRetryCounts.delete(folderId);
+
   folderProcessors.set(folderId, {
     processBatch,
     characterId,
@@ -719,7 +723,8 @@ export async function stopWatching(folderId: string): Promise<void> {
   activeBatchProcessing.delete(folderId);
   pollingModeWatchers.delete(folderId);
   permissionErrorCounts.delete(folderId);
-  emfileRetryCounts.delete(folderId);
+  // Do not clear emfileRetryCounts here so retries can escalate across restarts
+  // emfileRetryCounts.delete(folderId);
 }
 
 /**

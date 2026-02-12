@@ -56,14 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setNoUsers(false);
 
       // Also store in localStorage for fallback
-      localStorage.setItem(
-        "zlutty-settings",
-        JSON.stringify({
-          ...JSON.parse(localStorage.getItem("zlutty-settings") || "{}"),
-          localUserId: result.data.user.id,
-          localUserEmail: result.data.user.email,
-        })
-      );
+      try {
+        localStorage.setItem(
+          "zlutty-settings",
+          JSON.stringify({
+            ...JSON.parse(localStorage.getItem("zlutty-settings") || "{}"),
+            localUserId: result.data.user.id,
+            localUserEmail: result.data.user.email,
+          })
+        );
+      } catch {
+        // Ignore localStorage errors
+      }
 
       return { authenticated: true, noUsers: false };
     }

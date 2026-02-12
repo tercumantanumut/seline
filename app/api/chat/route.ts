@@ -1369,12 +1369,21 @@ export async function POST(req: Request) {
           if (p.type === "tool-call") return `tc:${(p as DBToolCallPart).toolCallId}:${(p as DBToolCallPart).state ?? ""}`;
           if (p.type === "tool-result") {
             const tr = p as DBToolResultPart;
-            // Use a cheap size estimate to avoid JSON.stringify on massive tool results
+            // Add a shallow value preview to catch value-only changes.
             let resultFingerprint = "null";
             if (typeof tr.result === "string") {
-              resultFingerprint = `s${tr.result.length}`;
+              resultFingerprint = `s${tr.result.length}:${tr.result.slice(0, 120)}`;
             } else if (tr.result && typeof tr.result === "object") {
-              resultFingerprint = `o${Object.keys(tr.result as Record<string, unknown>).length}`;
+              const entries = Object.entries(tr.result as Record<string, unknown>)
+                .slice(0, 5)
+                .map(([key, value]) => {
+                  if (typeof value === "string") return `${key}:${value.slice(0, 60)}`;
+                  if (typeof value === "number" || typeof value === "boolean") return `${key}:${value}`;
+                  if (Array.isArray(value)) return `${key}:arr${value.length}`;
+                  return `${key}:${typeof value}`;
+                })
+                .join(",");
+              resultFingerprint = `o${Object.keys(tr.result as Record<string, unknown>).length}:${entries}`;
             }
             return `tr:${tr.toolCallId}:${tr.state ?? ""}:${resultFingerprint}`;
           }
