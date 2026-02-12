@@ -10,9 +10,11 @@
  */
 
 import { spawn, ChildProcess } from "child_process";
+import { existsSync } from "fs";
+import { join } from "path";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
-import type { ExecuteOptions, ExecuteResult } from "./types";
+import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./types";
 
 /**
  * Default configuration values
@@ -24,12 +26,52 @@ const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
 // to ensure consistent behavior across all tools (bash, MCP, custom).
 
 /**
+ * Get the bundled Node.js binaries directory
+ * Returns the path to standalone/node_modules/.bin if it exists in the packaged app
+ */
+function getBundledBinariesPath(): string | null {
+    // In packaged Electron apps:
+    // - Main process: process.resourcesPath is available
+    // - Renderer/Next.js server: ELECTRON_RESOURCES_PATH env var is set
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+        || process.env.ELECTRON_RESOURCES_PATH;
+
+    if (!resourcesPath) {
+        return null;
+    }
+
+    const binPath = join(resourcesPath, "standalone", "node_modules", ".bin");
+
+    try {
+        if (existsSync(binPath)) {
+            return binPath;
+        }
+    } catch {
+        // Ignore filesystem errors
+    }
+
+    return null;
+}
+
+/**
  * Build a minimal, safe environment for command execution
+ * Includes bundled Node.js binaries in PATH for packaged apps
  */
 function buildSafeEnvironment(): Record<string, string | undefined> {
+    // Start with system PATH
+    let pathValue = process.env.PATH || "";
+
+    // Prepend bundled binaries directory if available
+    const bundledBinPath = getBundledBinariesPath();
+    if (bundledBinPath) {
+        const pathSeparator = process.platform === "win32" ? ";" : ":";
+        pathValue = bundledBinPath + pathSeparator + pathValue;
+        console.log(`[Command Executor] Prepending bundled binaries to PATH: ${bundledBinPath}`);
+    }
+
     return {
         // Minimal environment - only pass safe variables
-        PATH: process.env.PATH,
+        PATH: pathValue,
         HOME: process.env.HOME || process.env.USERPROFILE,
         USER: process.env.USER || process.env.USERNAME,
         LANG: process.env.LANG,
@@ -40,9 +82,226 @@ function buildSafeEnvironment(): Record<string, string | undefined> {
         TEMP: process.env.TEMP,
         TMP: process.env.TMP,
         USERPROFILE: process.env.USERPROFILE,
+        // Pass ELECTRON_RESOURCES_PATH for child processes (like MCP servers)
+        ELECTRON_RESOURCES_PATH: process.env.ELECTRON_RESOURCES_PATH,
         // Explicitly unset dangerous vars by not including them
         // NODE_OPTIONS, LD_PRELOAD, etc. are NOT passed
     };
+}
+
+// ── Background Process Registry ──────────────────────────────────────────────
+const backgroundProcesses = new Map<string, BackgroundProcessInfo>();
+const MAX_BACKGROUND_OUTPUT = 1048576; // 1MB per stream
+let bgIdCounter = 0;
+
+function nextBgId(): string {
+    return `bg-${Date.now()}-${++bgIdCounter}`;
+}
+
+/**
+ * Commands that typically need longer timeouts (package managers, scaffolders)
+ */
+const LONG_RUNNING_COMMANDS = new Set([
+    "npm", "npx", "yarn", "pnpm", "pnpx",
+    "pip", "pip3", "cargo", "go", "dotnet",
+    "composer", "bundle", "gem", "mvn", "gradle",
+]);
+
+const LONG_RUNNING_TIMEOUT = 120_000; // 2 minutes
+const BACKGROUND_TIMEOUT = 600_000;   // 10 minutes for background processes
+
+/**
+ * Resolve a smart default timeout: long-running package-manager commands get
+ * 2 minutes instead of 30 seconds unless the caller explicitly overrides.
+ */
+function resolveTimeout(command: string, explicit?: number): number {
+    if (explicit != null) return explicit;
+    const base = command.trim().toLowerCase().replace(/\.(?:cmd|bat|exe)$/i, "");
+    if (LONG_RUNNING_COMMANDS.has(base)) return LONG_RUNNING_TIMEOUT;
+    return DEFAULT_TIMEOUT;
+}
+
+/**
+ * Determine if a command needs `shell: true` on Windows.
+ */
+function needsWindowsShell(command: string): boolean {
+    if (process.platform !== "win32") return false;
+    const normalized = command.trim().toLowerCase();
+    if (normalized.endsWith(".cmd") || normalized.endsWith(".bat")) return true;
+    const cmdShimCommands = new Set([
+        "npm", "npx", "yarn", "pnpm", "pnpx",
+        "tsc", "eslint", "prettier", "jest", "vitest",
+        "next", "nuxt", "vite", "webpack",
+        "ts-node", "tsx",
+    ]);
+    if (cmdShimCommands.has(normalized)) return true;
+    // cmd.exe built-ins
+    return ["dir", "type", "copy", "move", "echo"].includes(normalized);
+}
+
+/**
+ * Start a command in the background. Returns immediately with a process ID.
+ * The process continues running; call `getBackgroundProcess` to poll for output.
+ */
+export function startBackgroundProcess(options: ExecuteOptions): {
+    processId: string;
+    error?: string;
+} {
+    const { command, args, cwd, characterId } = options;
+    const timeout = options.timeout ?? BACKGROUND_TIMEOUT;
+    const maxOutputSize = options.maxOutputSize ?? MAX_BACKGROUND_OUTPUT;
+
+    // Validate command
+    const cmdValidation = validateCommand(command, args);
+    if (!cmdValidation.valid) {
+        return { processId: "", error: cmdValidation.error };
+    }
+
+    const id = nextBgId();
+
+    try {
+        const child = spawn(command, args, {
+            cwd,
+            shell: needsWindowsShell(command),
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+            env: buildSafeEnvironment() as NodeJS.ProcessEnv,
+        });
+
+        const info: BackgroundProcessInfo = {
+            id,
+            command,
+            args,
+            cwd,
+            startedAt: Date.now(),
+            running: true,
+            stdout: "",
+            stderr: "",
+            exitCode: null,
+            signal: null,
+            process: child,
+            timeoutId: null,
+        };
+
+        let outputSize = 0;
+
+        // Capture stdout
+        child.stdout?.on("data", (chunk: Buffer) => {
+            const data = chunk.toString();
+            outputSize += data.length;
+            if (outputSize <= maxOutputSize) {
+                info.stdout += data;
+            }
+        });
+
+        // Capture stderr
+        child.stderr?.on("data", (chunk: Buffer) => {
+            const data = chunk.toString();
+            outputSize += data.length;
+            if (outputSize <= maxOutputSize) {
+                info.stderr += data;
+            }
+        });
+
+        // Handle completion
+        child.on("close", (code, signal) => {
+            if (info.timeoutId) clearTimeout(info.timeoutId);
+            info.running = false;
+            info.exitCode = code;
+            info.signal = signal;
+            commandLogger.logExecutionComplete(
+                command, code, Date.now() - info.startedAt,
+                { stdout: info.stdout.length, stderr: info.stderr.length },
+                { characterId },
+            );
+        });
+
+        // Handle spawn errors
+        child.on("error", (error) => {
+            if (info.timeoutId) clearTimeout(info.timeoutId);
+            info.running = false;
+            info.stderr += `\n[Spawn error] ${error.message}`;
+            commandLogger.logExecutionError(command, error.message, { characterId });
+        });
+
+        // Background timeout
+        info.timeoutId = setTimeout(() => {
+            if (info.running) {
+                info.running = false;
+                info.stderr += "\n[Background process timed out]";
+                try { child.kill("SIGTERM"); } catch { /* already dead */ }
+                setTimeout(() => {
+                    try { child.kill("SIGKILL"); } catch { /* already dead */ }
+                }, 5000);
+            }
+        }, timeout);
+
+        backgroundProcesses.set(id, info);
+        commandLogger.logExecutionStart(command, args, cwd, { characterId });
+
+        return { processId: id };
+    } catch (error) {
+        return {
+            processId: "",
+            error: error instanceof Error ? error.message : "Failed to spawn background process",
+        };
+    }
+}
+
+/**
+ * Get the current status of a background process.
+ */
+export function getBackgroundProcess(processId: string): BackgroundProcessInfo | null {
+    return backgroundProcesses.get(processId) ?? null;
+}
+
+/**
+ * Kill a background process.
+ */
+export function killBackgroundProcess(processId: string): boolean {
+    const info = backgroundProcesses.get(processId);
+    if (!info) return false;
+    if (!info.running) return true; // already done
+
+    info.running = false;
+    if (info.timeoutId) clearTimeout(info.timeoutId);
+    try {
+        info.process.kill("SIGTERM");
+        setTimeout(() => {
+            try { info.process.kill("SIGKILL"); } catch { /* ok */ }
+        }, 3000);
+    } catch { /* already dead */ }
+    return true;
+}
+
+/**
+ * List all background processes (for diagnostics).
+ */
+export function listBackgroundProcesses(): Array<{
+    id: string;
+    command: string;
+    running: boolean;
+    elapsed: number;
+}> {
+    const now = Date.now();
+    return Array.from(backgroundProcesses.values()).map((p) => ({
+        id: p.id,
+        command: `${p.command} ${p.args.join(" ")}`,
+        running: p.running,
+        elapsed: now - p.startedAt,
+    }));
+}
+
+/**
+ * Clean up finished background processes older than the given age (ms).
+ */
+export function cleanupBackgroundProcesses(maxAge = 600_000): void {
+    const now = Date.now();
+    for (const [id, info] of backgroundProcesses) {
+        if (!info.running && now - info.startedAt > maxAge) {
+            backgroundProcesses.delete(id);
+        }
+    }
 }
 
 /**
@@ -54,10 +313,10 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         args,
         cwd,
         characterId,
-        timeout = DEFAULT_TIMEOUT,
         maxOutputSize = DEFAULT_MAX_OUTPUT_SIZE,
     } = options;
 
+    const timeout = resolveTimeout(command, options.timeout);
     const context = { characterId };
     const startTime = Date.now();
 
@@ -86,11 +345,6 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         };
     }
 
-    // Get allowed paths for this character (passed from caller or fetched)
-    // The caller is responsible for fetching synced folders
-    // For now, we trust the cwd has been validated externally
-    // In the full implementation, we'd call getSyncFolders here
-
     return new Promise((resolve) => {
         let stdout = "";
         let stderr = "";
@@ -106,29 +360,11 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
             // Security is provided by command validation (blocklist) and path validation.
             //
             // Note for AI: On Windows use 'dir' instead of 'ls', 'type' instead of 'cat'
-            const isWindows = process.platform === "win32";
-
-            // On Windows, `shell: true` causes cmd.exe to re-parse the argument string, which can
-            // break tools like `python -c` where the *entire* script must remain a single argv item.
-            // Only enable the shell for cmd.exe built-ins or batch scripts.
-            const windowsNeedsShell = (() => {
-                if (!isWindows) return false;
-                const normalized = command.trim().toLowerCase();
-                if (normalized.endsWith(".cmd") || normalized.endsWith(".bat")) return true;
-                // cmd.exe built-ins (non-exhaustive; add as needed)
-                return (
-                    normalized === "dir" ||
-                    normalized === "type" ||
-                    normalized === "copy" ||
-                    normalized === "move" ||
-                    normalized === "echo"
-                );
-            })();
-
             child = spawn(command, args, {
                 cwd,
                 timeout, // Built-in timeout
-                shell: windowsNeedsShell,
+                shell: needsWindowsShell(command),
+                stdio: ["ignore", "pipe", "pipe"], // No stdin – prevents hangs on Windows .cmd shims
                 windowsHide: true, // Hide console window on Windows
                 env: buildSafeEnvironment() as NodeJS.ProcessEnv,
             });
@@ -216,7 +452,21 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 if (timeoutId) clearTimeout(timeoutId);
 
                 const executionTime = Date.now() - startTime;
-                commandLogger.logExecutionError(command, error.message, context);
+                
+                // Provide more helpful error messages for common issues
+                let errorMessage = error.message;
+                
+                // Check if it's a "command not found" error
+                if (error.message.includes("ENOENT") || error.message.includes("spawn") && error.message.includes("not found")) {
+                    const bundledBinPath = getBundledBinariesPath();
+                    const pathInfo = bundledBinPath 
+                        ? `\n\nBundled binaries path: ${bundledBinPath}\nCurrent PATH: ${process.env.PATH?.split(process.platform === "win32" ? ";" : ":").slice(0, 3).join("\n  ")}`
+                        : "\n\nNo bundled binaries found. Running in development mode or binaries not packaged.";
+                    
+                    errorMessage = `Command '${command}' not found. ${errorMessage}${pathInfo}\n\nTip: For Node.js commands (npm, npx, node), ensure the app is properly packaged with bundled binaries.`;
+                }
+                
+                commandLogger.logExecutionError(command, errorMessage, context);
 
                 resolve({
                     success: false,
@@ -224,7 +474,7 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                     stderr: stderr.trim(),
                     exitCode: null,
                     signal: null,
-                    error: error.message,
+                    error: errorMessage,
                     executionTime,
                 });
             });

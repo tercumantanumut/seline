@@ -45,7 +45,9 @@
     "electron:pack": "npm run electron:build && electron-builder --dir && npm run electron:verify-package",
     "electron:dist": "npm run electron:build && electron-builder && npm run electron:verify-package",
     "electron:dist:mac": "npm run typecheck && npm run electron:build && electron-builder --mac && npm run electron:verify-package",
-    "electron:dist:win": "npm run typecheck && rimraf dist-electron && npm run electron:build && electron-builder --win && npm run electron:verify-package",
+    "electron:dist:win": "npm run typecheck && rimraf dist-electron && npm run electron:build && electron-builder --win --x64 && npm run electron:verify-package",
+    "electron:dist:win64": "npm run typecheck && rimraf dist-electron && npm run electron:build && electron-builder --win --x64 && npm run electron:verify-package",
+    "electron:dist:win32": "npm run typecheck && rimraf dist-electron && npm run electron:build && electron-builder --win --ia32 && npm run electron:verify-package",
     "embedding:test": "node scripts/embedding-test.mjs",
     "embedding:pipeline-test": "tsx scripts/embedding-pipeline-test.ts",
     "postinstall": "electron-builder install-app-deps"
