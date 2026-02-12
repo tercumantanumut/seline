@@ -58,7 +58,8 @@ export function buildToolSummary(toolName: string, input?: unknown, output?: unk
   const result = output as Record<string, unknown>;
   const inputObj = getRecord(input);
   const status = getString(result.status);
-  const error = getString(result.error) || getString(result.message);
+  const isErrorStatus = status === "error" || status === "failed";
+  const error = getString(result.error) || (isErrorStatus ? getString(result.message) : undefined);
 
   if (error) {
     const statusTag = status ? ` (${status})` : "";

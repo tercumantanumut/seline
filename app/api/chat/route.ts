@@ -341,6 +341,22 @@ function sanitizeTextContent(text: string, context: string, sessionId?: string):
   return text;
 }
 
+/**
+ * Strip fake tool call JSON from model text output.
+ * The LLM sometimes outputs raw JSON like {"type":"tool-call",...} or {"type":"tool-result",...}
+ * as plain text instead of using structured tool calls. This creates a feedback loop where
+ * the next turn sees this text and mimics it. Stripping it breaks the cycle.
+ */
+function stripFakeToolCallJson(text: string): string {
+  // Line-level: remove entire lines that are fake tool-call/result JSON objects
+  const linePattern = /^\s*\{[^}]*"type"\s*:\s*"tool-(call|result)"[^\n]*\}\s*$/gm;
+  let cleaned = text.replace(linePattern, '');
+  // Inline: remove embedded fake tool JSON objects
+  const inlinePattern = /\{"type"\s*:\s*"tool-(call|result)"\s*,\s*"toolCallId"\s*:\s*"[^"]*"[^}]*\}/g;
+  cleaned = cleaned.replace(inlinePattern, '');
+  return cleaned.trim();
+}
+
 // Helper to extract content from assistant-ui message format
 // assistant-ui sends messages with `parts` array, but AI SDK expects `content`
 // Also handles `experimental_attachments` from AI SDK format
@@ -381,7 +397,10 @@ async function extractContent(
 ): Promise<string | Array<{ type: string; text?: string; image?: string }>> {
   // If content exists and is a string, use it directly (with sanitization)
   if (typeof msg.content === "string" && msg.content) {
-    return sanitizeTextContent(msg.content, "string content", sessionId);
+    // Strip fake tool call JSON that may have been saved from previous model outputs
+    const stripped = stripFakeToolCallJson(msg.content);
+    if (!stripped.trim()) return "";
+    return sanitizeTextContent(stripped, "string content", sessionId);
   }
 
   // Determine if this is a user message (only user images should be converted to base64)
@@ -395,8 +414,11 @@ async function extractContent(
 
     for (const part of msg.parts) {
       if (part.type === "text" && part.text?.trim()) {
+        // Strip fake tool call JSON that the model may have output as text in previous turns
+        const strippedText = stripFakeToolCallJson(part.text);
+        if (!strippedText.trim()) continue; // Skip entirely empty parts after stripping
         // Sanitize text to prevent base64 leakage (with smart truncation if sessionId provided)
-        const sanitizedText = sanitizeTextContent(part.text, `text part in ${msg.role} message`, sessionId);
+        const sanitizedText = sanitizeTextContent(strippedText, `text part in ${msg.role} message`, sessionId);
         contentParts.push({ type: "text", text: sanitizedText });
       } else if (part.type === "image" && (part.image || part.url)) {
         const imageUrl = (part.image || part.url) as string;
@@ -2376,8 +2398,12 @@ export async function POST(req: Request) {
               }
 
               // Add text from this step (if any and non-empty)
+              // Strip fake tool call JSON to prevent feedback loop
               if (step.text?.trim()) {
-                content.push({ type: "text", text: step.text });
+                const cleanedStepText = stripFakeToolCallJson(step.text);
+                if (cleanedStepText.trim()) {
+                  content.push({ type: "text", text: cleanedStepText });
+                }
               }
             }
           }
@@ -2385,30 +2411,37 @@ export async function POST(req: Request) {
           // Fallback: if no steps but we have final text, add it
           // (this handles simple responses without tool calls)
           if (content.length === 0 && text?.trim()) {
-            content.push({ type: "text", text });
+            const cleanedFallbackText = stripFakeToolCallJson(text);
+            if (cleanedFallbackText.trim()) {
+              content.push({ type: "text", text: cleanedFallbackText });
+            }
           }
 
           // DEFENSIVE CHECK: Detect "fake tool calls" where model outputs tool syntax as text
           // This helps monitor for cases where the model attempts to call a tool but outputs
           // the invocation as plain text instead of using structured tool calls.
-          // Pattern matches: toolName{"param": "value"} or toolName{ ... }
+          // Pattern 1: toolName{"param": "value"} or toolName{ ... }
+          // Pattern 2: {"type":"tool-call",...} or {"type":"tool-result",...} JSON protocol format
           const fakeToolCallPattern = /\b([a-zA-Z][a-zA-Z0-9]*)\s*\{[\s\S]*?"[^"]+"\s*:/;
+          const fakeToolJsonPattern = /\{"type"\s*:\s*"tool-(call|result)"/;
           for (const step of steps || []) {
-            if (step.text && fakeToolCallPattern.test(step.text)) {
-              const match = step.text.match(fakeToolCallPattern);
-              const suspectedToolName = match?.[1] || "unknown";
-              const textSnippet = step.text.substring(0, 150).replace(/\n/g, " ");
-              console.warn(
-                `[CHAT API] FAKE TOOL CALL DETECTED: Model output tool-like syntax as text. ` +
-                `Suspected tool: "${suspectedToolName}". Text: "${textSnippet}..."`
-              );
-              // Log additional context for debugging
-              console.warn(
-                `[CHAT API] Fake tool call context: ` +
-                `activeTools at start: ${initialActiveToolNames.length}, ` +
-                `discoveredTools: ${discoveredTools.size}, ` +
-                `previouslyDiscovered: ${previouslyDiscoveredTools.size}`
-              );
+            if (step.text) {
+              const hasFakeToolCall = fakeToolCallPattern.test(step.text);
+              const hasFakeToolJson = fakeToolJsonPattern.test(step.text);
+              if (hasFakeToolCall || hasFakeToolJson) {
+                const format = hasFakeToolJson ? 'JSON protocol format' : 'toolName{} format';
+                const textSnippet = step.text.substring(0, 200).replace(/\n/g, " ");
+                console.warn(
+                  `[CHAT API] FAKE TOOL CALL DETECTED (${format}): ` +
+                  `Model output tool-like syntax as text. Text: "${textSnippet}..."`
+                );
+                console.warn(
+                  `[CHAT API] Fake tool call context: ` +
+                  `activeTools at start: ${initialActiveToolNames.length}, ` +
+                  `discoveredTools: ${discoveredTools.size}, ` +
+                  `previouslyDiscovered: ${previouslyDiscoveredTools.size}`
+                );
+              }
             }
           }
 
@@ -2681,8 +2714,12 @@ export async function POST(req: Request) {
                 }
 
                 // Add text from this step (if any and non-empty)
+                // Strip fake tool call JSON to prevent feedback loop
                 if (step.text?.trim()) {
-                  content.push({ type: "text", text: step.text });
+                  const cleanedStepText = stripFakeToolCallJson(step.text);
+                  if (cleanedStepText.trim()) {
+                    content.push({ type: "text", text: cleanedStepText });
+                  }
                 }
               }
             }
