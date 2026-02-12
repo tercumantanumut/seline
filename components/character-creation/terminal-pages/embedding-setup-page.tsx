@@ -7,6 +7,7 @@ import { TypewriterText } from "@/components/ui/typewriter-text";
 import { TerminalPrompt } from "@/components/ui/terminal-prompt";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { useTranslations } from "next-intl";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import {
     CloudIcon,
     HardDriveIcon,
@@ -62,17 +63,15 @@ export function EmbeddingSetupPage({
 
     // Check if OpenRouter API key is configured
     useEffect(() => {
-        fetch("/api/settings")
-            .then((res) => res.json())
-            .then((data) => {
-                setHasOpenRouterKey(!!data.openrouterApiKey);
+        resilientFetch<{ openrouterApiKey?: string }>("/api/settings")
+            .then(({ data }) => {
+                setHasOpenRouterKey(!!data?.openrouterApiKey);
                 // If no OpenRouter key, default to local
-                if (!data.openrouterApiKey) {
+                if (!data?.openrouterApiKey) {
                     setProvider("local");
                     setSelectedModel(LOCAL_MODELS[0].id);
                 }
-            })
-            .catch(() => setHasOpenRouterKey(false));
+            });
     }, []);
 
     // Check local model status in Electron

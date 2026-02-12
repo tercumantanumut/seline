@@ -20,6 +20,7 @@ import {
     PlusCircle, AlertTriangle, ChevronDown, Edit2, Key
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPut, resilientPost } from "@/lib/utils/resilient-fetch";
 import type { MCPServerConfig } from "@/lib/mcp/types";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
@@ -269,88 +270,78 @@ export function MCPSettings() {
     }, []);
 
     const loadSyncedFolders = async () => {
-        try {
-            const res = await fetch("/api/vector-sync");
-            if (res.ok) {
-                const data = await res.json();
-                setSyncedFolders(data.folders || []);
-            }
-        } catch (error) {
+        const { data, error } = await resilientFetch<{ folders?: Array<{ folderPath: string; isPrimary: boolean; characterId: string }> }>("/api/vector-sync");
+        if (data) {
+            setSyncedFolders(data.folders || []);
+        }
+        if (error) {
             console.error("Failed to load synced folders:", error);
         }
     };
 
     const loadConfig = async () => {
         setIsLoading(true);
-        try {
-            const res = await fetch("/api/mcp");
-            const data = await res.json();
+        const { data, error } = await resilientFetch<{
+            config: { mcpServers?: Record<string, MCPServerConfig> };
+            environment?: Record<string, string>;
+            status?: MCPServerStatus[];
+        }>("/api/mcp");
+        if (data) {
             setMcpServers(data.config.mcpServers || {});
             setRawJson(JSON.stringify({ mcpServers: data.config.mcpServers || {} }, null, 2));
             setEnvironment(data.environment || {});
             setStatus(data.status || []);
-        } catch (error) {
+        }
+        if (error) {
             console.error("Failed to load MCP config:", error);
             toast.error("Failed to load MCP configuration");
-        } finally {
-            setIsLoading(false);
         }
+        setIsLoading(false);
     };
 
     const saveAll = async (updatedServers = mcpServers, updatedEnv = environment) => {
         setIsSaving(true);
-        try {
-            const res = await fetch("/api/mcp", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mcpServers: { mcpServers: updatedServers }, mcpEnvironment: updatedEnv }),
-            });
-
-            if (!res.ok) throw new Error("Failed to save");
-
+        const { error } = await resilientPut("/api/mcp", {
+            mcpServers: { mcpServers: updatedServers },
+            mcpEnvironment: updatedEnv,
+        });
+        if (!error) {
             setMcpServers(updatedServers);
             setRawJson(JSON.stringify({ mcpServers: updatedServers }, null, 2));
             setEnvironment(updatedEnv);
             toast.success("Configuration saved");
-        } catch (error) {
+        } else {
             console.error("Failed to save MCP config:", error);
             toast.error("Failed to save configuration");
-        } finally {
-            setIsSaving(false);
         }
+        setIsSaving(false);
     };
 
     const connectServer = async (serverName: string) => {
         setConnectingState(prev => ({ ...prev, [serverName]: true }));
-        try {
-            // Get characterId from the first synced folder if available
-            const characterId = syncedFolders[0]?.characterId;
+        // Get characterId from the first synced folder if available
+        const characterId = syncedFolders[0]?.characterId;
 
-            const res = await fetch("/api/mcp/connect", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    serverNames: [serverName],
-                    characterId
-                }),
-            });
+        const { data, error } = await resilientPost<{
+            results: Record<string, { success?: boolean; error?: string }>;
+        }>("/api/mcp/connect", {
+            serverNames: [serverName],
+            characterId,
+        });
 
-            const data = await res.json();
+        if (data) {
             const result = data.results[serverName];
-
             if (result?.success) {
                 toast.success(`Connected to ${serverName}`);
             } else {
                 toast.error(`Failed to connect to ${serverName}: ${result?.error}`);
             }
-
             await loadConfig();
-        } catch (error) {
+        } else {
             console.error(`Failed to connect to ${serverName}:`, error);
-            toast.error(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-        } finally {
-            setConnectingState(prev => ({ ...prev, [serverName]: false }));
+            toast.error(`Connection failed: ${error || "Unknown error"}`);
         }
+        setConnectingState(prev => ({ ...prev, [serverName]: false }));
     };
 
     // Handle form save (for both add and edit)

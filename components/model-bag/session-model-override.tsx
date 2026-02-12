@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 import { PROVIDER_THEME, PROVIDER_DISPLAY_NAMES, ROLE_THEME } from "./model-bag.constants";
 import type { LLMProvider, ModelRole, SessionModelConfig } from "./model-bag.types";
 import { CpuIcon, XIcon, Loader2Icon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
@@ -55,20 +56,22 @@ export function SessionModelOverride({
 
   // Fetch current session model config
   const fetchConfig = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/sessions/${sessionId}/model-config`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setState((prev) => ({
-        ...prev,
-        hasOverrides: data.hasOverrides,
-        config: data.config,
-        globalDefaults: data.globalDefaults,
-        isLoading: false,
-      }));
-    } catch {
+    const { data, error } = await resilientFetch<{
+      hasOverrides: boolean;
+      config: SessionModelConfig;
+      globalDefaults: SessionModelState["globalDefaults"];
+    }>(`/api/sessions/${sessionId}/model-config`);
+    if (error || !data) {
       setState((prev) => ({ ...prev, isLoading: false }));
+      return;
     }
+    setState((prev) => ({
+      ...prev,
+      hasOverrides: data.hasOverrides,
+      config: data.config,
+      globalDefaults: data.globalDefaults,
+      isLoading: false,
+    }));
   }, [sessionId]);
 
   useEffect(() => {
@@ -79,25 +82,22 @@ export function SessionModelOverride({
   const saveOverride = useCallback(
     async (update: Partial<SessionModelConfig>) => {
       setState((prev) => ({ ...prev, isSaving: true }));
-      try {
-        const res = await fetch(`/api/sessions/${sessionId}/model-config`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...state.config, ...update }),
-        });
-        if (!res.ok) throw new Error("Save failed");
-        const data = await res.json();
-        setState((prev) => ({
-          ...prev,
-          hasOverrides: true,
-          config: data.config,
-          isSaving: false,
-        }));
-        toast.success("Session model updated");
-      } catch {
+      const { data, error } = await resilientPut<{ config: SessionModelConfig }>(
+        `/api/sessions/${sessionId}/model-config`,
+        { ...state.config, ...update },
+      );
+      if (error || !data) {
         toast.error("Failed to update session model");
         setState((prev) => ({ ...prev, isSaving: false }));
+        return;
       }
+      setState((prev) => ({
+        ...prev,
+        hasOverrides: true,
+        config: data.config,
+        isSaving: false,
+      }));
+      toast.success("Session model updated");
     },
     [sessionId, state.config],
   );
@@ -105,24 +105,22 @@ export function SessionModelOverride({
   // Clear all overrides
   const clearOverrides = useCallback(async () => {
     setState((prev) => ({ ...prev, isSaving: true }));
-    try {
-      const res = await fetch(`/api/sessions/${sessionId}/model-config`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clear: true }),
-      });
-      if (!res.ok) throw new Error("Clear failed");
-      setState((prev) => ({
-        ...prev,
-        hasOverrides: false,
-        config: {},
-        isSaving: false,
-      }));
-      toast.success("Session model overrides cleared");
-    } catch {
+    const { error } = await resilientPut(
+      `/api/sessions/${sessionId}/model-config`,
+      { clear: true },
+    );
+    if (error) {
       toast.error("Failed to clear overrides");
       setState((prev) => ({ ...prev, isSaving: false }));
+      return;
     }
+    setState((prev) => ({
+      ...prev,
+      hasOverrides: false,
+      config: {},
+      isSaving: false,
+    }));
+    toast.success("Session model overrides cleared");
   }, [sessionId]);
 
   if (state.isLoading) {

@@ -8,6 +8,7 @@ import { TerminalPrompt } from "@/components/ui/terminal-prompt";
 import { useTranslations } from "next-intl";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { AlertTriangleIcon, LockIcon } from "lucide-react";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 /** Tool capability definition for the wizard */
 export interface ToolCapability {
@@ -293,11 +294,10 @@ export function CapabilitiesPage({
     let cancelled = false;
     const loadTools = async () => {
       try {
-        const response = await fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
-        if (!response.ok) throw new Error("Failed to load tools");
-        const data = (await response.json()) as {
+        const { data, error } = await resilientFetch<{
           tools?: Array<{ id: string; displayName: string; description: string; category: string }>;
-        };
+        }>("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
+        if (error || !data) throw new Error(error || "Failed to load tools");
         if (cancelled) return;
 
         const merged = new Map<string, ToolCapability>();
@@ -381,20 +381,15 @@ export function CapabilitiesPage({
       // A folder in any status (pending/syncing/synced) counts as configured.
       let foldersCount: number | null = null; // null = unknown (fetch failed)
       if (agentId) {
-        try {
-          const res = await fetch(`/api/vector-sync?characterId=${agentId}`);
-          if (res.ok) {
-            const data = await res.json();
-            foldersCount = data.folders?.length ?? 0;
-          }
-        } catch (e) {
-          console.error("Failed to check synced folders", e);
-        }
+        const { data } = await resilientFetch<{ folders?: unknown[] }>(
+          `/api/vector-sync?characterId=${agentId}`
+        );
+        if (data) foldersCount = data.folders?.length ?? 0;
       }
 
       try {
-        const settingsRes = await fetch("/api/settings");
-        const settingsData = await settingsRes.json();
+        const { data: settingsData, error } = await resilientFetch<Record<string, unknown>>("/api/settings");
+        if (!settingsData || error) throw new Error(error || "Failed to load settings");
 
         const webScraperReady = settingsData.webScraperProvider === "local"
           || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);

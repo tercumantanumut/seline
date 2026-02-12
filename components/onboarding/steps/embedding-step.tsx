@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Cloud, HardDrive, Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 
 interface EmbeddingStepProps {
     onContinue: () => void;
@@ -59,9 +60,8 @@ export function EmbeddingStep({ onContinue, onBack, onSkip }: EmbeddingStepProps
 
             // Check if OpenRouter key exists
             try {
-                const res = await fetch("/api/settings");
-                if (res.ok) {
-                    const data = await res.json();
+                const { data } = await resilientFetch<{ openrouterApiKey?: string }>("/api/settings");
+                if (data) {
                     setHasOpenRouterKey(!!data.openrouterApiKey);
                     // Default to local if no OpenRouter key
                     if (!data.openrouterApiKey) {
@@ -137,13 +137,9 @@ export function EmbeddingStep({ onContinue, onBack, onSkip }: EmbeddingStepProps
                 settings.embeddingModel = "openai/text-embedding-3-small";
             }
 
-            const res = await fetch("/api/settings", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(settings),
-            });
+            const { error: saveError } = await resilientPut("/api/settings", settings);
 
-            if (res.ok) {
+            if (!saveError) {
                 setSaved(true);
                 setTimeout(() => onContinue(), 500);
             }
