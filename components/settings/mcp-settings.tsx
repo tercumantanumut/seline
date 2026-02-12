@@ -102,18 +102,20 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "composio",
         name: "Composio",
-        description: "100+ tool integrations (SSE)",
+        description: "100+ tool integrations (V3/Router)",
         config: {
             type: "sse" as const,
-            url: "https://backend.composio.dev/api/v1/mcp",
+            // Supports V3: https://backend.composio.dev/v3/mcp/{connection_id}/mcp
+            // Supports Router: https://backend.composio.dev/tool_router/{router_id}/mcp
+            url: "https://backend.composio.dev/v3/mcp/${COMPOSIO_CONNECTION_ID}/mcp",
             headers: {
                 "X-API-Key": "${COMPOSIO_API_KEY}"
             }
         },
-        requiredEnv: ["COMPOSIO_API_KEY"],
-        setupInstructions: "Get your API key from https://app.composio.dev/settings",
-        authType: "Header auth",
-        difficulty: "Easy"
+        requiredEnv: ["COMPOSIO_API_KEY", "COMPOSIO_CONNECTION_ID"],
+        setupInstructions: "Get Connection ID from Composio. For Tool Router, replace URL with: https://backend.composio.dev/tool_router/{router_id}/mcp",
+        authType: "Header + URL",
+        difficulty: "Medium"
     },
     {
         id: "linear",
