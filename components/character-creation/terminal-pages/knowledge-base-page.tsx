@@ -7,6 +7,7 @@ import { TypewriterText } from "@/components/ui/typewriter-text";
 import { TerminalPrompt } from "@/components/ui/terminal-prompt";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
 import { useTranslations } from "next-intl";
+import { resilientFetch, resilientDelete } from "@/lib/utils/resilient-fetch";
 
 export interface UploadedDocument {
   id: string;
@@ -51,14 +52,12 @@ export function KnowledgeBasePage({
   // Fetch existing documents on mount
   useEffect(() => {
     if (!agentId) return;
-    fetch(`/api/characters/${agentId}/documents`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.documents) {
+    resilientFetch<{ documents?: UploadedDocument[] }>(`/api/characters/${agentId}/documents`)
+      .then(({ data }) => {
+        if (data?.documents) {
           setDocuments(data.documents);
         }
-      })
-      .catch(console.error);
+      });
   }, [agentId]);
 
   const handleFileSelect = useCallback(async (files: FileList | null) => {
@@ -71,35 +70,26 @@ export function KnowledgeBasePage({
       formData.append("file", file);
       formData.append("title", file.name);
 
-      try {
-        const res = await fetch(`/api/characters/${agentId}/documents`, {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Upload failed");
-          continue;
-        }
-        setDocuments((prev) => [...prev, data.document]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed");
+      const { data, error: uploadError } = await resilientFetch<{ document: UploadedDocument; error?: string }>(
+        `/api/characters/${agentId}/documents`,
+        { method: "POST", body: formData, timeout: 30_000 },
+      );
+      if (uploadError || !data) {
+        setError(data?.error || uploadError || "Upload failed");
+        continue;
       }
+      setDocuments((prev) => [...prev, data.document]);
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [agentId]);
 
   const handleDelete = useCallback(async (docId: string) => {
-    try {
-      const res = await fetch(`/api/characters/${agentId}/documents?documentId=${docId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setDocuments((prev) => prev.filter((d) => d.id !== docId));
-      }
-    } catch (err) {
-      console.error("Delete failed:", err);
+    const { error } = await resilientDelete(`/api/characters/${agentId}/documents?documentId=${docId}`);
+    if (!error) {
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } else {
+      console.error("Delete failed:", error);
     }
   }, [agentId]);
 

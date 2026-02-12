@@ -78,6 +78,7 @@ import {
   ContextWindowBlockedBanner,
   type ContextWindowBlockedPayload,
 } from "./context-window-blocked-banner";
+import { resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
 
 
 interface ThreadProps {
@@ -604,34 +605,36 @@ const Composer: FC<{
         };
       });
 
-      const response = await fetch("/api/enhance-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: trimmedInput,
-          characterId: character.id,
-          useLLM: true,
-          conversationContext: recentMessages,
-        }),
+      const { data, error: fetchError } = await resilientPost<{
+        success?: boolean;
+        enhancedPrompt?: string;
+        filesFound?: number;
+        chunksRetrieved?: number;
+        usedLLM?: boolean;
+        skipReason?: string;
+        error?: string;
+      }>("/api/enhance-prompt", {
+        input: trimmedInput,
+        characterId: character.id,
+        useLLM: true,
+        conversationContext: recentMessages,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast.error(data.error || t("enhance.failed"));
+      if (fetchError || !data) {
+        toast.error(data?.error || fetchError || t("enhance.failed"));
         return;
       }
 
       if (data.success) {
         // Display the enhanced prompt in the input field so user can see/edit it
-        setInputValue(data.enhancedPrompt);
-        setEnhancedContext(data.enhancedPrompt);
+        setInputValue(data.enhancedPrompt!);
+        setEnhancedContext(data.enhancedPrompt!);
         setEnhancementInfo({
           filesFound: data.filesFound,
           chunksRetrieved: data.chunksRetrieved,
         });
         const llmIndicator = data.usedLLM ? " (LLM)" : "";
-        toast.success(t("enhance.success", { files: data.filesFound, chunks: data.chunksRetrieved, llmIndicator }));
+        toast.success(t("enhance.success", { files: data.filesFound ?? 0, chunks: data.chunksRetrieved ?? 0, llmIndicator }));
       } else {
         toast.info(data.skipReason || t("enhance.skipped"));
         setEnhancedContext(null);
@@ -1115,20 +1118,12 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
     async (model: ModelItem) => {
       setSaving(true);
       try {
-        const response = await fetch(`/api/sessions/${sessionId}/model-config`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionChatModel: model.id, sessionProvider: model.provider }),
-        });
-        if (!response.ok) {
-          let errorMsg = `Server error (${response.status})`;
-          try {
-            const body = await response.json();
-            if (body?.error) errorMsg = body.error;
-          } catch {
-            // ignore JSON parse failures — use the status-based message
-          }
-          toast.error(errorMsg);
+        const { error: putError, status: putStatus } = await resilientPut(
+          `/api/sessions/${sessionId}/model-config`,
+          { sessionChatModel: model.id, sessionProvider: model.provider },
+        );
+        if (putError) {
+          toast.error(putError);
           return;
         }
         // Update global assignment for display purposes only (doesn't affect this session)

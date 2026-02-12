@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { resilientFetch, resilientPost, resilientDelete } from "@/lib/utils/resilient-fetch";
 
 interface SyncFolder {
   id: string;
@@ -146,12 +147,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const loadFolders = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/vector-sync?characterId=${characterId}`);
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to load folders");
-      }
-      const data = await response.json();
+      const { data, error } = await resilientFetch<{ folders?: SyncFolder[]; error?: string }>(
+        `/api/vector-sync?characterId=${characterId}`
+      );
+      if (error || !data) throw new Error(error || "Failed to load folders");
       setFolders(data.folders || []);
       setError(null);
     } catch (err) {
@@ -179,11 +178,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
   const handleCancelSync = async (folderId: string) => {
     try {
-      await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cancel", folderId }),
-      });
+      await resilientPost("/api/vector-sync", { action: "cancel", folderId });
       // Give the server a moment to propagate, then reload
       setTimeout(loadFolders, 600);
     } catch (err) {
@@ -202,19 +197,14 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     setIsAnalyzing(true);
     setAnalysisError(null);
     try {
-      const response = await fetch("/api/folder-picker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folderPath: path.trim(),
-          includeExtensions: newExtensions.split(",").map((e) => e.trim()).filter(Boolean),
-          excludePatterns: newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean),
-          recursive: newRecursive,
-        }),
+      const { data, error } = await resilientPost<FolderAnalysis & { error?: string }>("/api/folder-picker", {
+        folderPath: path.trim(),
+        includeExtensions: newExtensions.split(",").map((e) => e.trim()).filter(Boolean),
+        excludePatterns: newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean),
+        recursive: newRecursive,
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (data && !error) {
         setFolderAnalysis(data);
         setAnalysisError(null);
         // Auto-populate exclude patterns from detected patterns
@@ -231,10 +221,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
         // Clear any previous error messages
         setError(null);
       } else {
-        const data = await response.json();
         setFolderAnalysis(null);
         // Set analysis error but don't block adding - user might know the path is correct
-        setAnalysisError(data.error || "Could not verify folder");
+        setAnalysisError(error || "Could not verify folder");
       }
     } catch (err) {
       setFolderAnalysis(null);
@@ -259,23 +248,18 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
     setIsAdding(true);
     try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add",
-          characterId,
-          folderPath: newFolderPath.trim(),
-          displayName: newDisplayName.trim() || undefined,
-          recursive: newRecursive,
-          includeExtensions: newExtensions.split(",").map((e) => e.trim()).filter(Boolean),
-          excludePatterns: newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean),
-        }),
-      });
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action: "add",
+        characterId,
+        folderPath: newFolderPath.trim(),
+        displayName: newDisplayName.trim() || undefined,
+        recursive: newRecursive,
+        includeExtensions: newExtensions.split(",").map((e) => e.trim()).filter(Boolean),
+        excludePatterns: newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean),
+      }, { timeout: 30_000 });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to add folder");
+      if (error) {
+        throw new Error(error);
       }
 
       // Reset form and reload folders
@@ -315,14 +299,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const handleRemoveFolder = async (folderId: string) => {
     setRemovingFolderId(folderId);
     try {
-      const response = await fetch(`/api/vector-sync?folderId=${folderId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to remove folder");
-      }
+      const { error } = await resilientDelete<{ error?: string }>(
+        `/api/vector-sync?folderId=${folderId}`
+      );
+      if (error) throw new Error(error);
 
       await loadFolders();
     } catch (err) {
@@ -335,16 +315,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const handleSyncFolder = async (folderId: string) => {
     setSyncingFolderId(folderId);
     try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sync", folderId }),
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action: "sync", folderId,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to sync folder");
-      }
+      if (error) throw new Error(error);
 
       await loadFolders();
     } catch (err) {
@@ -356,16 +330,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
   const handleSetPrimary = async (folderId: string) => {
     try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set-primary", folderId, characterId }),
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action: "set-primary", folderId, characterId,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to set primary folder");
-      }
+      if (error) throw new Error(error);
 
       await loadFolders();
     } catch (err) {
@@ -380,16 +348,10 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
     setReindexing(true);
     try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reindex", characterId }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to reindex folders");
-      }
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action: "reindex", characterId,
+      }, { timeout: 30_000 });
+      if (error) throw new Error(error);
 
       await loadFolders();
     } catch (err) {

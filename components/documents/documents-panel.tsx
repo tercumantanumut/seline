@@ -16,6 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
+import { resilientFetch, resilientPost, resilientDelete } from "@/lib/utils/resilient-fetch";
 
 export interface AgentDocument {
   id: string;
@@ -65,19 +66,16 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
     formatter.dateTime(new Date(dateStr), { dateStyle: "medium" });
 
   const fetchDocuments = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await fetch(`/api/characters/${agentId}/documents`);
-      if (!response.ok) {
-        throw new Error(t("error.fetch"));
-      }
-      const data = await response.json();
+    setError(null);
+    const { data, error } = await resilientFetch<{ documents: AgentDocument[] }>(
+      `/api/characters/${agentId}/documents`
+    );
+    if (error || !data) {
+      setError(error || t("error.fetch"));
+    } else {
       setDocuments(data.documents || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("error.fetch"));
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, [agentId, t]);
 
   useEffect(() => {
@@ -107,14 +105,14 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch(`/api/characters/${agentId}/documents`, {
+        const { error } = await resilientFetch(`/api/characters/${agentId}/documents`, {
           method: "POST",
           body: formData,
+          timeout: 30_000,
         });
 
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || t("error.upload", { file: file.name }));
+        if (error) {
+          throw new Error(error || t("error.upload", { file: file.name }));
         }
       }
       await fetchDocuments();
@@ -132,43 +130,32 @@ export function DocumentsPanel({ agentId }: DocumentsPanelProps) {
     setDeletingId(documentId);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/characters/${agentId}/documents?documentId=${documentId}`,
-        { method: "DELETE" }
-      );
+    const { error } = await resilientDelete(
+      `/api/characters/${agentId}/documents?documentId=${documentId}`
+    );
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || t("error.delete"));
-      }
-
+    if (error) {
+      setError(error || t("error.delete"));
+    } else {
       setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("error.delete"));
-    } finally {
-      setDeletingId(null);
     }
+    setDeletingId(null);
   };
 
   const handleRetry = async (documentId: string) => {
-    try {
-      setError(null);
-      // Trigger re-processing by calling the reindex endpoint
-      const response = await fetch(
-        `/api/characters/${agentId}/documents/${documentId}/reindex`,
-        { method: "POST" }
-      );
+    setError(null);
+    // Trigger re-processing by calling the reindex endpoint
+    const { error } = await resilientPost(
+      `/api/characters/${agentId}/documents/${documentId}/reindex`,
+      {}
+    );
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || t("error.retry"));
-      }
-
-      await fetchDocuments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("error.retry"));
+    if (error) {
+      setError(error || t("error.retry"));
+      return;
     }
+
+    await fetchDocuments();
   };
 
   const getFileTypeLabel = (contentType: string): string => {

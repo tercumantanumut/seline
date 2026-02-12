@@ -12,7 +12,8 @@ import type { UIMessage } from "ai";
 import { useTranslations } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
-import type { TaskEvent } from "@/lib/background-tasks/types";
+import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
+import type { TaskEvent, TaskStatus } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { CharacterSidebar } from "@/components/chat/chat-sidebar";
@@ -269,15 +270,14 @@ export default function ChatInterface({
                 params.set("dateRange", dateRange);
             }
 
-            const response = await fetch(`/api/sessions?${params.toString()}`, {
-                cache: "no-store",
-                headers: { "Cache-Control": "no-cache" },
-            });
-            if (!response.ok) {
+            const { data, error } = await resilientFetch<{ sessions: SessionInfo[]; nextCursor?: string; totalCount?: number }>(
+                `/api/sessions?${params.toString()}`,
+                { retries: 0 }
+            );
+            if (error || !data) {
                 return false;
             }
 
-            const data = await response.json();
             const pageSessions = sortSessionsByUpdatedAt((data.sessions || []) as SessionInfo[]);
             
             // Sync loaded sessions with global store
@@ -307,20 +307,18 @@ export default function ChatInterface({
     }, [character.id, searchQuery, channelFilter, dateRange]);
 
     const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
-        try {
-            const response = await fetch(`/api/sessions/${targetSessionId}`, {
-                cache: "no-store",
-                headers: { "Cache-Control": "no-cache" },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const dbMessages = (data.messages || []) as DBMessage[];
-                return convertDBMessagesToUIMessages(dbMessages);
+        const { data, error } = await resilientFetch<{ messages: DBMessage[] }>(
+            `/api/sessions/${targetSessionId}`,
+            { retries: 0 }
+        );
+        if (error || !data) {
+            if (error) {
+                console.error("Failed to fetch session messages:", error);
             }
-        } catch (err) {
-            console.error("Failed to fetch session messages:", err);
+            return null;
         }
-        return null;
+        const dbMessages = (data.messages || []) as DBMessage[];
+        return convertDBMessagesToUIMessages(dbMessages);
     }, []);
 
     const loadMoreSessions = useCallback(async () => {
@@ -374,41 +372,36 @@ export default function ChatInterface({
 
     // Refresh messages when background processing completes
     const refreshMessages = useCallback(async () => {
-        try {
-            console.log("[Background Processing] Fetching updated messages for session:", sessionId);
-            const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-                cache: "no-store",
-                headers: { "Cache-Control": "no-cache" },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                console.log("[Background Processing] Received messages:", data.messages?.length || 0);
-                const uiMessages = convertDBMessagesToUIMessages(data.messages);
-
-                setSessionState(prev => ({
-                    ...prev,
-                    messages: uiMessages
-                }));
-
-                lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
-                refreshSessionTimestamp(sessionId);
-
-                // Increment counter to force ChatProvider remount with new messages
-                setBackgroundRefreshCounter(prev => prev + 1);
-                
-                // Update global store with new message count and timestamp
-                notifySessionUpdate(sessionId, { 
-                    updatedAt: new Date().toISOString(),
-                    messageCount: data.messages?.length || 0
-                });
-
-                console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
-            } else {
-                console.error("[Background Processing] Failed to fetch messages:", response.status, response.statusText);
-            }
-        } catch (error) {
-            console.error("[Background Processing] Failed to refresh messages:", error);
+        console.log("[Background Processing] Fetching updated messages for session:", sessionId);
+        const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
+            `/api/sessions/${sessionId}/messages`,
+            { retries: 0 }
+        );
+        if (error || !data) {
+            console.error("[Background Processing] Failed to fetch messages:", status, error);
+            return;
         }
+        console.log("[Background Processing] Received messages:", data.messages?.length || 0);
+        const uiMessages = convertDBMessagesToUIMessages(data.messages);
+
+        setSessionState(prev => ({
+            ...prev,
+            messages: uiMessages
+        }));
+
+        lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
+        refreshSessionTimestamp(sessionId);
+
+        // Increment counter to force ChatProvider remount with new messages
+        setBackgroundRefreshCounter(prev => prev + 1);
+
+        // Update global store with new message count and timestamp
+        notifySessionUpdate(sessionId, {
+            updatedAt: new Date().toISOString(),
+            messageCount: data.messages?.length || 0
+        });
+
+        console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
     }, [sessionId, refreshSessionTimestamp]);
 
     // Poll for completion of background processing
@@ -425,11 +418,14 @@ export default function ChatInterface({
 
         pollingIntervalRef.current = setInterval(async () => {
             try {
-                const response = await fetch(`/api/agent-runs/${runId}/status`, {
-                    cache: "no-store",
-                    headers: { "Cache-Control": "no-cache" },
-                });
-                const data = await response.json();
+                const { data, error } = await resilientFetch<{ status: string; isZombie?: boolean }>(
+                    `/api/agent-runs/${runId}/status`,
+                    { retries: 0 }
+                );
+                if (error || !data) {
+                    console.error("[Background Processing] Polling error:", error);
+                    return; // Continue polling on error (network might recover)
+                }
 
                 if (data.status === "running") {
                     setIsZombieRun(Boolean(data.isZombie));
@@ -470,30 +466,29 @@ export default function ChatInterface({
         let cancelled = false;
 
         async function checkActiveRun() {
-            try {
-                const response = await fetch(`/api/sessions/${sessionId}/active-run`, {
-                    cache: "no-store",
-                    headers: { "Cache-Control": "no-cache" },
-                });
-                if (cancelled) return;
-                if (response.ok) {
-                    const data = await response.json();
-                    if (cancelled) return;
-                    if (data.hasActiveRun) {
-                        console.log("[Background Processing] Detected active run:", data.runId);
-                        setIsProcessingInBackground(true);
-                        setProcessingRunId(data.runId);
-                        startPollingForCompletion(data.runId);
-                        void reloadSessionMessages(sessionId, { remount: true });
-                    } else {
-                        // No active run on this session — clear any stale state
-                        setIsProcessingInBackground(false);
-                        setProcessingRunId(null);
-                        setIsZombieRun(false);
-                    }
+            const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string }>(
+                `/api/sessions/${sessionId}/active-run`,
+                { retries: 0 }
+            );
+            if (cancelled) return;
+            if (error || !data) {
+                if (error) {
+                    console.error("[Background Processing] Failed to check active run:", error);
                 }
-            } catch (error) {
-                console.error("[Background Processing] Failed to check active run:", error);
+                return;
+            }
+            if (cancelled) return;
+            if (data.hasActiveRun) {
+                console.log("[Background Processing] Detected active run:", data.runId);
+                setIsProcessingInBackground(true);
+                setProcessingRunId(data.runId!);
+                startPollingForCompletion(data.runId!);
+                void reloadSessionMessages(sessionId, { remount: true });
+            } else {
+                // No active run on this session — clear any stale state
+                setIsProcessingInBackground(false);
+                setProcessingRunId(null);
+                setIsZombieRun(false);
             }
         }
 
@@ -564,14 +559,13 @@ export default function ChatInterface({
 
         const pollRunStatus = async () => {
             try {
-                const response = await fetch(`/api/schedules/runs/${activeTaskForSession.runId}/status`, {
-                    cache: "no-store",
-                    headers: { "Cache-Control": "no-cache" },
-                });
-                if (!response.ok) {
+                const { data, error } = await resilientFetch<{ status: TaskStatus; completedAt?: string; durationMs?: number }>(
+                    `/api/schedules/runs/${activeTaskForSession.runId}/status`,
+                    { retries: 0 }
+                );
+                if (error || !data) {
                     return;
                 }
-                const data = await response.json();
                 if (isCancelled) return;
 
                 if (!["pending", "queued", "running"].includes(data.status)) {
@@ -643,16 +637,12 @@ export default function ChatInterface({
         async () => {
             try {
                 setIsLoading(true);
-                const response = await fetch("/api/sessions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        forceNew: true,
-                        metadata: { characterId: character.id, characterName: character.name },
-                    }),
-                });
-                if (response.ok) {
-                    const { session } = await response.json();
+                const { data: createData, error } = await resilientPost<{ session: SessionInfo }>(
+                    "/api/sessions",
+                    { forceNew: true, metadata: { characterId: character.id, characterName: character.name } }
+                );
+                if (!error && createData) {
+                    const { session } = createData;
 
                     // Clear background processing state from the previous session
                     if (pollingIntervalRef.current) {
@@ -693,15 +683,14 @@ export default function ChatInterface({
         async (sessionToResetId: string, options?: { archiveOld?: boolean }) => {
             try {
                 setIsLoading(true);
-                const response = await fetch(`/api/sessions/${sessionToResetId}/reset-channel`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ archiveOld: options?.archiveOld ?? false }),
-                });
-                if (!response.ok) {
+                const { data, error } = await resilientPost<{ session: { id: string } }>(
+                    `/api/sessions/${sessionToResetId}/reset-channel`,
+                    { archiveOld: options?.archiveOld ?? false }
+                );
+                if (error || !data) {
                     throw new Error("Failed to reset channel session");
                 }
-                const { session } = await response.json();
+                const { session } = data;
                 if (session?.id) {
                     await loadSessions();
                     await switchSession(session.id);
@@ -719,10 +708,8 @@ export default function ChatInterface({
     const deleteSession = useCallback(
         async (sessionToDeleteId: string) => {
             try {
-                const response = await fetch(`/api/sessions/${sessionToDeleteId}`, {
-                    method: "DELETE",
-                });
-                if (response.ok) {
+                const { error } = await resilientDelete(`/api/sessions/${sessionToDeleteId}`);
+                if (!error) {
                     notifySessionRemoval(sessionToDeleteId);
                     if (sessionToDeleteId === sessionId) {
                         const remainingSessions = sessions.filter((s) => s.id !== sessionToDeleteId);
@@ -747,10 +734,8 @@ export default function ChatInterface({
         }
         setIsCancellingRun(true);
         try {
-            const response = await fetch(`/api/schedules/runs/${activeRun.runId}/cancel`, {
-                method: "POST",
-            });
-            if (!response.ok) {
+            const { error } = await resilientPost(`/api/schedules/runs/${activeRun.runId}/cancel`, {});
+            if (error) {
                 throw new Error("Failed to cancel run");
             }
             toast.success(t("scheduledRun.cancelled"));
@@ -770,20 +755,13 @@ export default function ChatInterface({
         }
         setIsCancellingBackgroundRun(true);
         try {
-            const response = await fetch(`/api/agent-runs/${runId}/cancel`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-            });
-            if (!response.ok) {
-                let shouldTreatAsCancelled = false;
-                if (response.status === 409) {
-                    try {
-                        const payload = await response.json();
-                        shouldTreatAsCancelled = Boolean(payload?.status && payload.status !== "running");
-                    } catch {
-                        shouldTreatAsCancelled = false;
-                    }
-                }
+            const result = await resilientFetch<{ status?: string }>(
+                `/api/agent-runs/${runId}/cancel`,
+                { method: "POST", headers: { "Content-Type": "application/json" }, retries: 0 }
+            );
+            if (result.error) {
+                // 409 Conflict means the run already finished — treat as cancelled
+                const shouldTreatAsCancelled = result.status === 409;
                 if (!shouldTreatAsCancelled) {
                     throw new Error("Failed to cancel run");
                 }
@@ -1012,12 +990,8 @@ export default function ChatInterface({
             notifySessionUpdate(sessionToRenameId, { title: normalizedTitle, updatedAt: optimisticUpdatedAt });
 
             try {
-                const response = await fetch(`/api/sessions/${sessionToRenameId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ title: normalizedTitle }),
-                });
-                if (!response.ok) {
+                const { error } = await resilientPatch(`/api/sessions/${sessionToRenameId}`, { title: normalizedTitle });
+                if (error) {
                     throw new Error("Failed to rename session");
                 }
                 return true;
@@ -1036,11 +1010,12 @@ export default function ChatInterface({
         format: "markdown" | "json" | "text"
     ) => {
         try {
-            const response = await fetch(`/api/sessions/${sessionToExportId}/export?format=${format}`);
-            if (!response.ok) {
+            const { data, error } = await resilientFetch<{ content: string; filename: string }>(
+                `/api/sessions/${sessionToExportId}/export?format=${format}`
+            );
+            if (error || !data) {
                 throw new Error("Failed to export session");
             }
-            const data = await response.json();
             const content = typeof data.content === "string" ? data.content : "";
             const filename = typeof data.filename === "string" ? data.filename : `session-${sessionToExportId}.${format === "markdown" ? "md" : format}`;
             const blob = new Blob([content], { type: "text/plain;charset=utf-8" });

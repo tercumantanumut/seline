@@ -15,6 +15,7 @@ import {
   MCPToolsPage,
 } from "./terminal-pages";
 import { useReducedMotion } from "./hooks/use-reduced-motion";
+import { resilientFetch, resilientPost, resilientPut, resilientPatch } from "@/lib/utils/resilient-fetch";
 import { useAgentExpansion } from "@/lib/characters/hooks";
 import { WizardProgress, WIZARD_STEPS, type WizardStep } from "@/components/ui/wizard-progress";
 import { WindowsTitleBar } from "@/components/layout/windows-titlebar";
@@ -88,28 +89,22 @@ export function TerminalWizard() {
 
   // Fetch settings to check if Vector Search is enabled
   useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        setVectorDBEnabled(data.vectorDBEnabled === true);
-      })
-      .catch(console.error);
+    resilientFetch<{ vectorDBEnabled?: boolean }>("/api/settings")
+      .then(({ data }) => {
+        setVectorDBEnabled(data?.vectorDBEnabled === true);
+      });
   }, []);
 
   // Check if MCP servers are configured (to decide whether to show MCP step)
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/mcp")
-      .then((res) => res.json())
-      .then((data) => {
+    resilientFetch<{ config?: { mcpServers?: Record<string, { enabled?: boolean }> } }>("/api/mcp")
+      .then(({ data }) => {
         if (cancelled) return;
         const configured = (Object.entries(data?.config?.mcpServers || {}) as [string, { enabled?: boolean }][])
           .filter(([_, serverConfig]) => serverConfig?.enabled !== false)
           .map(([name]) => name);
         setHasMcpServers(configured.length > 0);
-      })
-      .catch(() => {
-        if (!cancelled) setHasMcpServers(null);
       });
     return () => {
       cancelled = true;
@@ -149,27 +144,21 @@ export function TerminalWizard() {
 
     try {
       // Create draft agent via API
-      const response = await fetch("/api/characters/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          character: {
-            name: identity.name,
-            tagline: identity.tagline || undefined,
-          },
-          metadata: {
-            purpose: identity.purpose,
-            enabledTools: state.enabledTools,
-          },
-        }),
+      const { data, error: postError } = await resilientPost<{ character: { id: string }; error?: string }>("/api/characters/draft", {
+        character: {
+          name: identity.name,
+          tagline: identity.tagline || undefined,
+        },
+        metadata: {
+          purpose: identity.purpose,
+          enabledTools: state.enabledTools,
+        },
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create draft agent");
+      if (postError || !data) {
+        throw new Error(data?.error || postError || "Failed to create draft agent");
       }
 
-      const data = await response.json();
       setDraftAgentId(data.character.id);
       navigateTo("knowledge");
     } catch (err) {
@@ -214,16 +203,15 @@ export function TerminalWizard() {
   const handleEmbeddingSetupSubmit = async (config: { provider: string; model: string; apiKey?: string }) => {
     try {
       // Save embedding config to settings and enable vector search
-      await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          embeddingProvider: config.provider,
-          embeddingModel: config.model,
-          openrouterApiKey: config.apiKey || undefined,
-          vectorDBEnabled: true,
-        }),
+      const { error: putError } = await resilientPut("/api/settings", {
+        embeddingProvider: config.provider,
+        embeddingModel: config.model,
+        openrouterApiKey: config.apiKey || undefined,
+        vectorDBEnabled: true,
       });
+      if (putError) {
+        console.error("Failed to save embedding config:", putError);
+      }
       setVectorDBEnabled(true);
       navigateTo("vectorSearch");
     } catch (err) {
@@ -277,28 +265,23 @@ export function TerminalWizard() {
 
     try {
       // Update the draft agent with final configuration and activate it
-      const response = await fetch(`/api/characters/${draftAgentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          character: {
-            name: state.identity.name,
-            tagline: state.identity.tagline || undefined,
-            status: "active",
-          },
-          metadata: {
-            purpose: state.identity.purpose,
-            enabledTools: state.enabledTools,
-            enabledMcpServers: state.enabledMcpServers,
-            enabledMcpTools: state.enabledMcpTools,
-            mcpToolPreferences: state.mcpToolPreferences,
-          },
-        }),
+      const { data, error: patchError } = await resilientPatch<{ error?: string }>(`/api/characters/${draftAgentId}`, {
+        character: {
+          name: state.identity.name,
+          tagline: state.identity.tagline || undefined,
+          status: "active",
+        },
+        metadata: {
+          purpose: state.identity.purpose,
+          enabledTools: state.enabledTools,
+          enabledMcpServers: state.enabledMcpServers,
+          enabledMcpTools: state.enabledMcpTools,
+          mcpToolPreferences: state.mcpToolPreferences,
+        },
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to create agent");
+      if (patchError) {
+        throw new Error(data?.error || patchError || "Failed to create agent");
       }
 
       setState((prev) => ({ ...prev, createdCharacterId: draftAgentId }));

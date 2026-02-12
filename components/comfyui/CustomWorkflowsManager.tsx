@@ -16,6 +16,7 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import { resilientFetch, resilientPost, resilientPut, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type { CustomComfyUIInput, CustomComfyUIOutput, CustomComfyUIWorkflow } from "@/lib/comfyui/custom/types";
 
 const INPUT_TYPES: CustomComfyUIInput["type"][] = [
@@ -179,10 +180,9 @@ export function CustomWorkflowsManager({
   const loadWorkflows = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/comfyui/custom-workflows");
-      if (!response.ok) throw new Error("Failed to load workflows");
-      const data = (await response.json()) as { workflows?: CustomComfyUIWorkflow[] };
-      setWorkflows(data.workflows || []);
+      const { data, error } = await resilientFetch<{ workflows?: CustomComfyUIWorkflow[] }>("/api/comfyui/custom-workflows");
+      if (error) throw new Error(error);
+      setWorkflows(data?.workflows || []);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load workflows");
     } finally {
@@ -201,21 +201,21 @@ export function CustomWorkflowsManager({
     try {
       const workflowJson = parseWorkflowJson();
       setAnalyzing(true);
-      const response = await fetch("/api/comfyui/custom-workflows/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workflow: workflowJson,
-          format,
-          validateWithComfyUI,
-          comfyuiBaseUrl: comfyuiBaseUrl || undefined,
-          comfyuiHost: comfyuiHost || undefined,
-          comfyuiPort: comfyuiPort ? Number(comfyuiPort) : undefined,
-        }),
+      const { data, error: postError } = await resilientPost<{
+        format: "ui" | "api";
+        inputs?: CustomComfyUIInput[];
+        outputs?: CustomComfyUIOutput[];
+        error?: string;
+      }>("/api/comfyui/custom-workflows/analyze", {
+        workflow: workflowJson,
+        format,
+        validateWithComfyUI,
+        comfyuiBaseUrl: comfyuiBaseUrl || undefined,
+        comfyuiHost: comfyuiHost || undefined,
+        comfyuiPort: comfyuiPort ? Number(comfyuiPort) : undefined,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to analyze workflow");
+      if (postError || !data) {
+        throw new Error(data?.error || postError || "Failed to analyze workflow");
       }
       setFormat(data.format);
       setInputs((prev) => {
@@ -288,14 +288,10 @@ export function CustomWorkflowsManager({
         selectedId !== "new"
           ? `/api/comfyui/custom-workflows/${selectedId}`
           : "/api/comfyui/custom-workflows";
-      const response = await fetch(endpoint, {
-        method: selectedId !== "new" ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to save workflow");
+      const saveHelper = selectedId !== "new" ? resilientPut : resilientPost;
+      const { data, error: saveError } = await saveHelper<{ workflow?: { id: string }; error?: string }>(endpoint, payload);
+      if (saveError || !data) {
+        throw new Error(data?.error || saveError || "Failed to save workflow");
       }
       toast.success("Workflow saved");
       setSelectedId(data.workflow?.id || "new");
@@ -311,10 +307,9 @@ export function CustomWorkflowsManager({
     if (selectedId === "new") return;
     try {
       setSaving(true);
-      const response = await fetch(`/api/comfyui/custom-workflows/${selectedId}`, { method: "DELETE" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to delete workflow");
+      const { error: deleteError } = await resilientDelete<{ error?: string }>(`/api/comfyui/custom-workflows/${selectedId}`);
+      if (deleteError) {
+        throw new Error(deleteError);
       }
       toast.success("Workflow deleted");
       setSelectedId("new");

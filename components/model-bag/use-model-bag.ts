@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 import { buildModelCatalog } from "@/lib/config/model-catalog";
 import type {
   ModelBagState,
@@ -20,6 +21,20 @@ import type {
 } from "./model-bag.types";
 import { ROLE_TO_SETTINGS_KEY } from "./model-bag.types";
 import { PROVIDER_THEME, PROVIDER_DISPLAY_NAMES } from "./model-bag.constants";
+
+interface SettingsData {
+  anthropicApiKey?: string;
+  openrouterApiKey?: string;
+  antigravityAuth?: { isAuthenticated?: boolean };
+  codexAuth?: { isAuthenticated?: boolean };
+  claudecodeAuth?: { isAuthenticated?: boolean };
+  kimiApiKey?: string;
+  llmProvider: LLMProvider;
+  chatModel?: string;
+  researchModel?: string;
+  visionModel?: string;
+  utilityModel?: string;
+}
 
 const ALL_PROVIDERS: LLMProvider[] = [
   "anthropic",
@@ -50,62 +65,60 @@ export function useModelBag() {
 
   const fetchSettings = useCallback(async () => {
     setState((prev) => ({ ...prev, isLoading: true }));
-    try {
-      const res = await fetch("/api/settings");
-      if (!res.ok) throw new Error("Failed to load settings");
-      const data = await res.json();
-
-      const authStatus: Record<LLMProvider, boolean> = {
-        anthropic: !!data.anthropicApiKey,
-        openrouter: !!data.openrouterApiKey,
-        antigravity: !!data.antigravityAuth?.isAuthenticated,
-        codex: !!data.codexAuth?.isAuthenticated,
-        claudecode: !!data.claudecodeAuth?.isAuthenticated,
-        kimi: !!data.kimiApiKey,
-        ollama: true,
-      };
-
-      const assignments: Record<string, string> = {
-        chatModel: data.chatModel || "",
-        researchModel: data.researchModel || "",
-        visionModel: data.visionModel || "",
-        utilityModel: data.utilityModel || "",
-      };
-
-      const catalog = buildModelCatalog(
-        data.llmProvider,
-        authStatus,
-        assignments,
-      );
-
-      const providers: ProviderStatus[] = ALL_PROVIDERS.map((id) => ({
-        id,
-        displayName: PROVIDER_DISPLAY_NAMES[id],
-        isActive: id === data.llmProvider,
-        isAuthenticated: authStatus[id],
-        authType: PROVIDER_THEME[id].authType,
-        modelCount: catalog.filter((m) => m.provider === id).length,
-        accentColor: PROVIDER_THEME[id].accentColor,
-        iconEmoji: PROVIDER_THEME[id].iconEmoji,
-      }));
-
-      setState((prev) => ({
-        ...prev,
-        models: catalog,
-        providers,
-        activeProvider: data.llmProvider,
-        roleAssignments: {
-          chat: data.chatModel || "",
-          research: data.researchModel || "",
-          vision: data.visionModel || "",
-          utility: data.utilityModel || "",
-        },
-        isLoading: false,
-      }));
-    } catch {
+    const { data, error } = await resilientFetch<SettingsData>("/api/settings");
+    if (error || !data) {
       toast.error("Failed to load model settings");
       setState((prev) => ({ ...prev, isLoading: false }));
+      return;
     }
+
+    const authStatus: Record<LLMProvider, boolean> = {
+      anthropic: !!data.anthropicApiKey,
+      openrouter: !!data.openrouterApiKey,
+      antigravity: !!data.antigravityAuth?.isAuthenticated,
+      codex: !!data.codexAuth?.isAuthenticated,
+      claudecode: !!data.claudecodeAuth?.isAuthenticated,
+      kimi: !!data.kimiApiKey,
+      ollama: true,
+    };
+
+    const assignments: Record<string, string> = {
+      chatModel: data.chatModel || "",
+      researchModel: data.researchModel || "",
+      visionModel: data.visionModel || "",
+      utilityModel: data.utilityModel || "",
+    };
+
+    const catalog = buildModelCatalog(
+      data.llmProvider,
+      authStatus,
+      assignments,
+    );
+
+    const providers: ProviderStatus[] = ALL_PROVIDERS.map((id) => ({
+      id,
+      displayName: PROVIDER_DISPLAY_NAMES[id],
+      isActive: id === data.llmProvider,
+      isAuthenticated: authStatus[id],
+      authType: PROVIDER_THEME[id].authType,
+      modelCount: catalog.filter((m) => m.provider === id).length,
+      accentColor: PROVIDER_THEME[id].accentColor,
+      iconEmoji: PROVIDER_THEME[id].iconEmoji,
+    }));
+
+    setState((prev) => ({
+      ...prev,
+      models: catalog,
+      providers,
+      activeProvider: data.llmProvider,
+      roleAssignments: {
+        chat: data.chatModel || "",
+        research: data.researchModel || "",
+        vision: data.visionModel || "",
+        utility: data.utilityModel || "",
+      },
+      isLoading: false,
+    }));
   }, []);
 
   useEffect(() => {
@@ -119,32 +132,27 @@ export function useModelBag() {
   const assignModelToRole = useCallback(
     async (modelId: string, role: ModelRole) => {
       setState((prev) => ({ ...prev, isSaving: true }));
-      try {
-        const settingsKey = ROLE_TO_SETTINGS_KEY[role];
-        const res = await fetch("/api/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ [settingsKey]: modelId }),
-        });
-        if (!res.ok) throw new Error("Save failed");
-
-        setState((prev) => ({
-          ...prev,
-          roleAssignments: { ...prev.roleAssignments, [role]: modelId },
-          models: prev.models.map((m) => ({
-            ...m,
-            assignedRoles:
-              m.id === modelId
-                ? [...new Set([...m.assignedRoles, role])]
-                : m.assignedRoles.filter((r) => r !== role),
-          })),
-          isSaving: false,
-        }));
-        toast.success(`${role} model updated`);
-      } catch {
+      const settingsKey = ROLE_TO_SETTINGS_KEY[role];
+      const { error } = await resilientPut("/api/settings", { [settingsKey]: modelId });
+      if (error) {
         toast.error("Failed to update model");
         setState((prev) => ({ ...prev, isSaving: false }));
+        return;
       }
+
+      setState((prev) => ({
+        ...prev,
+        roleAssignments: { ...prev.roleAssignments, [role]: modelId },
+        models: prev.models.map((m) => ({
+          ...m,
+          assignedRoles:
+            m.id === modelId
+              ? [...new Set([...m.assignedRoles, role])]
+              : m.assignedRoles.filter((r) => r !== role),
+        })),
+        isSaving: false,
+      }));
+      toast.success(`${role} model updated`);
     },
     [],
   );
@@ -156,25 +164,20 @@ export function useModelBag() {
   const switchProvider = useCallback(
     async (provider: LLMProvider) => {
       setState((prev) => ({ ...prev, isSaving: true }));
-      try {
-        const res = await fetch("/api/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            llmProvider: provider,
-            chatModel: "",
-            researchModel: "",
-            visionModel: "",
-            utilityModel: "",
-          }),
-        });
-        if (!res.ok) throw new Error("Save failed");
-        await fetchSettings();
-        toast.success(`Switched to ${PROVIDER_DISPLAY_NAMES[provider]}`);
-      } catch {
+      const { error } = await resilientPut("/api/settings", {
+        llmProvider: provider,
+        chatModel: "",
+        researchModel: "",
+        visionModel: "",
+        utilityModel: "",
+      });
+      if (error) {
         toast.error("Failed to switch provider");
         setState((prev) => ({ ...prev, isSaving: false }));
+        return;
       }
+      await fetchSettings();
+      toast.success(`Switched to ${PROVIDER_DISPLAY_NAMES[provider]}`);
     },
     [fetchSettings],
   );

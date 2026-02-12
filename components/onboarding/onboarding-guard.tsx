@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 interface OnboardingGuardProps {
     children: React.ReactNode;
@@ -28,10 +29,9 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
         async function checkOnboarding() {
             try {
-                const res = await fetch("/api/onboarding");
-                const state = await res.json();
+                const { data } = await resilientFetch<{ isComplete: boolean }>("/api/onboarding");
 
-                if (!state.isComplete) {
+                if (data && !data.isComplete) {
                     setShouldRedirect(true);
                     router.push("/onboarding");
                 }

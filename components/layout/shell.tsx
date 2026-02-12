@@ -34,6 +34,7 @@ import { useDesktopSidebarState } from "@/hooks/use-desktop-sidebar-state";
 import { useTranslations } from "next-intl";
 import { DevLogsViewer } from "@/components/dev/dev-logs-viewer";
 import { ActiveTasksIndicator } from "@/components/schedules/active-tasks-indicator";
+import { resilientPost } from "@/lib/utils/resilient-fetch";
 
 // Context to share sidebar collapsed state with children
 interface SidebarContextValue {
@@ -89,9 +90,8 @@ export const Shell: FC<ShellProps> = ({
     }
 
     const bootstrapChannels = async () => {
-      try {
-        await fetch("/api/channels/bootstrap", { method: "POST" });
-      } catch (error) {
+      const { error } = await resilientPost("/api/channels/bootstrap", {});
+      if (error) {
         console.error("[Channels] Bootstrap failed:", error);
       }
     };

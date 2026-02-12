@@ -16,6 +16,7 @@ import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import type { TaskEvent, UnifiedTask } from "@/lib/background-tasks/types";
 import { formatDuration } from "@/lib/utils/timestamp";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 interface SSEMessage {
   type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
@@ -253,9 +254,9 @@ export function useTaskNotifications() {
 
     const reconcileTasks = async (showToast: boolean) => {
       try {
-        const response = await fetch("/api/tasks/active");
-        if (!response.ok) return;
-        const { tasks } = (await response.json()) as { tasks: UnifiedTask[] };
+        const { data } = await resilientFetch<{ tasks: UnifiedTask[] }>("/api/tasks/active");
+        if (!data) return;
+        const tasks = data.tasks;
 
         const currentTasks = useUnifiedTasksStore.getState().tasks;
         const serverRunIds = new Set(tasks.map((task) => task.runId));

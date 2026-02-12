@@ -54,6 +54,7 @@ import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { SessionItem } from "./session-item";
 import { CHANNEL_TYPE_ICONS } from "./constants";
 import { cn } from "@/lib/utils";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import type { SessionChannelType, SessionInfo } from "./types";
 
@@ -246,22 +247,19 @@ export function CharacterSidebar({
   }, [sessions]);
 
   const loadChannelConnections = useCallback(async () => {
-    try {
-      setChannelsLoading(true);
-      const response = await fetch(
-        `/api/channels/connections?characterId=${character.id}`,
+    setChannelsLoading(true);
+    const { data, error } = await resilientFetch<{ connections?: ChannelConnectionSummary[] }>(
+      `/api/channels/connections?characterId=${character.id}`,
+    );
+    if (data) {
+      setChannelConnections(
+        (data.connections || []) as ChannelConnectionSummary[],
       );
-      if (response.ok) {
-        const data = await response.json();
-        setChannelConnections(
-          (data.connections || []) as ChannelConnectionSummary[],
-        );
-      }
-    } catch (error) {
-      console.error("Failed to load channel connections:", error);
-    } finally {
-      setChannelsLoading(false);
     }
+    if (error) {
+      console.error("Failed to load channel connections:", error);
+    }
+    setChannelsLoading(false);
   }, [character.id]);
 
   useEffect(() => {
