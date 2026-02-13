@@ -122,5 +122,34 @@ export function createIgnoreMatcher(patterns: string[], basePath?: string) {
       : normalized;
 
     return matchers.some((matcher) => matcher(normalized, rel));
+    return matchers.some((matcher) => matcher(normalized, rel));
+  };
+}
+
+/**
+ * Creates a highly optimized aggressive ignore function for file watchers.
+ * This function is designed to prevent Chokidar/fsevents from even scanning
+ * massive directories like node_modules, which is critical for avoiding
+ * EMFILE errors and high CPU usage.
+ */
+export function createAggressiveIgnore(patterns: string[]) {
+  // Normalize patterns for consistent checking
+  const normalizedPatterns = patterns.map(p => normalizePattern(p));
+
+  return (path: string) => {
+    // Always ignore common massive directories immediately using fast string checks
+    if (path.includes('/node_modules') || path.includes('/.git') || path.includes('/.next') ||
+      path.includes('/dist') || path.includes('/build') || path.includes('/coverage') ||
+      path.includes('/.local-data') || path.includes('/dist-electron') || path.includes('/comfyui_backend')) {
+      return true;
+    }
+
+    // Check provided exclusion patterns
+    // We use .includes() for speed instead of regex where possible
+    return normalizedPatterns.some(pattern => {
+      // Simple case: exact match (relative or absolute path segment)
+      if (path.includes(`/${pattern}`)) return true;
+      return false;
+    });
   };
 }

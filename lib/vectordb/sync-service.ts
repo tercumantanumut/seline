@@ -248,21 +248,21 @@ async function discoverFiles(
       const relPath = relative(basePath, fullPath);
 
       if (entry.isDirectory()) {
-          if (recursive && !shouldIgnore(fullPath)) {
-            const subFiles = await discoverFiles(
-              fullPath,
-              basePath,
-              recursive,
-              includeExtensions,
-              shouldIgnore
-            );
-            files.push(...subFiles);
-          }
-        } else if (entry.isFile()) {
-          if (shouldIncludeFile(fullPath, includeExtensions, shouldIgnore)) {
-            files.push({ filePath: fullPath, relativePath: relPath });
-          }
+        if (recursive && !shouldIgnore(fullPath)) {
+          const subFiles = await discoverFiles(
+            fullPath,
+            basePath,
+            recursive,
+            includeExtensions,
+            shouldIgnore
+          );
+          files.push(...subFiles);
         }
+      } else if (entry.isFile()) {
+        if (shouldIncludeFile(fullPath, includeExtensions, shouldIgnore)) {
+          files.push({ filePath: fullPath, relativePath: relPath });
+        }
+      }
     }
   } catch (error) {
     console.error(`[SyncService] Error reading folder ${folderPath}:`, error);
@@ -961,8 +961,9 @@ export async function syncFolder(
     // Start file watcher if sync was successful
     if (syncStatus === "synced" && !isWatching(folderId)) {
       // Force polling for large folders (500+ files) to prevent EMFILE from
-      // native FSEvents trying to watch thousands of file descriptors
-      const forcePolling = discoveredFiles.length > 500;
+      // native FSEvents trying to watch thousands of file descriptors.
+      // Exception: macOS uses FSEvents which doesn't suffer from this, so we keep native watching.
+      const forcePolling = process.platform !== 'darwin' && discoveredFiles.length > 500;
       const watchConfig = {
         folderId,
         characterId: folder.characterId,
