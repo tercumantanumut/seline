@@ -9,6 +9,7 @@
 import { Tool } from "ai";
 import { getToolResultsForSession, createMessage } from "@/lib/db/queries";
 import { isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import type { DBToolResultPart } from "@/lib/messages/converter";
 
 // Constants
@@ -113,7 +114,6 @@ async function persistToolResultMessage(params: {
   toolName: string;
   result: unknown;
   status: string;
-  parentMessageTimestamp?: string; // To ensure proper ordering
 }) {
   const resultPart: DBToolResultPart = {
     type: "tool-result",
@@ -125,17 +125,17 @@ async function persistToolResultMessage(params: {
     state: params.status === "error" || params.status === "failed" ? "output-error" : "output-available",
   };
 
+  // Allocate ordering index for bullet-proof message ordering
+  const toolMessageIndex = await nextOrderingIndex(params.sessionId);
+
   await createMessage({
     sessionId: params.sessionId,
     role: "tool",
     toolName: params.toolName,
     toolCallId: params.toolCallId,
     content: [resultPart],
+    orderingIndex: toolMessageIndex,
     metadata: { syntheticToolResult: true },
-    // Use parent message timestamp + small offset to ensure proper ordering
-    createdAt: params.parentMessageTimestamp 
-      ? new Date(new Date(params.parentMessageTimestamp).getTime() + 1).toISOString()
-      : undefined,
   });
 }
 

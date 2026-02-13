@@ -50,6 +50,7 @@ import {
   appendRunEvent,
   initializeToolEventHandler,
 } from "@/lib/observability";
+import { nextOrderingIndex, allocateOrderingIndices } from "@/lib/session/message-ordering";
 import fs from "fs/promises";
 import path from "path";
 
@@ -1379,10 +1380,14 @@ export async function POST(req: Request) {
         streamingState.pendingBroadcast = false;
 
         if (!streamingState.messageId) {
+          // Allocate ordering index for streaming assistant message
+          const assistantMessageIndex = await nextOrderingIndex(sessionId);
+
           const created = await createMessage({
             sessionId,
             role: "assistant",
             content: partsSnapshot,
+            orderingIndex: assistantMessageIndex,
             metadata: {
               isStreaming: true,
               scheduledRunId,
@@ -1604,11 +1609,15 @@ export async function POST(req: Request) {
       // Only use the message ID if it's a valid UUID, otherwise let DB generate one
       const isValidUUID = lastMessage.id && uuidRegex.test(lastMessage.id);
 
+      // Allocate ordering index for bullet-proof message ordering
+      const userMessageIndex = await nextOrderingIndex(sessionId);
+
       const result = await createMessage({
         ...(isValidUUID && { id: lastMessage.id }),
         sessionId,
         role: 'user',
         content: normalizedContent,
+        orderingIndex: userMessageIndex,
         metadata: {},
       });
 
@@ -2442,10 +2451,14 @@ export async function POST(req: Request) {
               `${content.filter(p => p.type === 'tool-result').length} tool results`
             );
           } else {
+            // Allocate ordering index for final assistant message
+            const assistantMessageIndex = await nextOrderingIndex(sessionId);
+
             const created = await createMessage({
               sessionId,
               role: "assistant",
               content: content,  // Always store as array for consistency
+              orderingIndex: assistantMessageIndex,
               model: AI_CONFIG.model,
               tokenCount: usage?.totalTokens,
               metadata: messageMetadata,
@@ -2664,10 +2677,14 @@ export async function POST(req: Request) {
                   metadata: { interrupted: true },
                 });
               } else {
+                // Allocate ordering index for partial assistant message
+                const partialMessageIndex = await nextOrderingIndex(sessionId);
+
                 await createMessage({
                   sessionId,
                   role: "assistant",
                   content: content,
+                  orderingIndex: partialMessageIndex,
                   model: AI_CONFIG.model,
                   metadata: { interrupted: true }, // Mark as partial/interrupted response
                 });
@@ -2677,6 +2694,9 @@ export async function POST(req: Request) {
             // === END FIX ===
 
             // Save system interruption message (existing behavior)
+            // Allocate ordering index for system interruption message
+            const systemMessageIndex = await nextOrderingIndex(sessionId);
+
             await createMessage({
               sessionId,
               role: "system",
@@ -2686,6 +2706,7 @@ export async function POST(req: Request) {
                   text: buildInterruptionMessage("chat", interruptionTimestamp),
                 },
               ],
+              orderingIndex: systemMessageIndex,
               metadata: buildInterruptionMetadata("chat", interruptionTimestamp),
             });
 

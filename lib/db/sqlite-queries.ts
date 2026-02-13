@@ -360,7 +360,7 @@ export async function createMessage(data: NewMessage) {
 export async function getMessages(sessionId: string) {
   return db.query.messages.findMany({
     where: eq(messages.sessionId, sessionId),
-    orderBy: asc(messages.createdAt),
+    orderBy: asc(messages.orderingIndex),
   });
 }
 
@@ -620,7 +620,7 @@ export async function getNonCompactedMessages(sessionId: string) {
       eq(messages.sessionId, sessionId),
       eq(messages.isCompacted, false)
     ),
-    orderBy: asc(messages.createdAt),
+    orderBy: asc(messages.orderingIndex),
   });
 }
 

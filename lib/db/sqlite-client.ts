@@ -216,6 +216,79 @@ function initializeTables(sqlite: Database.Database): void {
     )
   `);
 
+  // Migration: Add ordering_index column for bullet-proof message ordering
+  try {
+    sqlite.exec(`ALTER TABLE messages ADD COLUMN ordering_index INTEGER`);
+    console.log("[SQLite Migration] Added ordering_index column to messages");
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: Add last_ordering_index column to sessions for atomic index allocation
+  try {
+    sqlite.exec(`ALTER TABLE sessions ADD COLUMN last_ordering_index INTEGER DEFAULT 0`);
+    console.log("[SQLite Migration] Added last_ordering_index column to sessions");
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: Backfill ordering_index for existing messages
+  try {
+    const needsBackfill = sqlite.prepare(
+      `SELECT COUNT(*) as count FROM messages WHERE ordering_index IS NULL`
+    ).get() as { count: number };
+
+    if (needsBackfill.count > 0) {
+      console.log(`[SQLite Migration] Backfilling ordering_index for ${needsBackfill.count} messages...`);
+
+      // Get all messages grouped by session, ordered by createdAt
+      const messages = sqlite.prepare(
+        `SELECT id, session_id, created_at FROM messages ORDER BY session_id, created_at, id`
+      ).all() as Array<{ id: string; session_id: string; created_at: string }>;
+
+      // Group by session and assign ordering indices
+      const messagesBySession = new Map<string, Array<{ id: string; created_at: string }>>();
+      for (const msg of messages) {
+        const sessionMessages = messagesBySession.get(msg.session_id) || [];
+        sessionMessages.push({ id: msg.id, created_at: msg.created_at });
+        messagesBySession.set(msg.session_id, sessionMessages);
+      }
+
+      const updateStmt = sqlite.prepare(`UPDATE messages SET ordering_index = ? WHERE id = ?`);
+      const updateSessionStmt = sqlite.prepare(`UPDATE sessions SET last_ordering_index = ? WHERE id = ?`);
+
+      sqlite.exec("BEGIN TRANSACTION");
+      try {
+        for (const [sessionId, sessionMessages] of messagesBySession) {
+          let maxIndex = 0;
+          for (let i = 0; i < sessionMessages.length; i++) {
+            const orderingIndex = i + 1; // 1-based indexing
+            updateStmt.run(orderingIndex, sessionMessages[i].id);
+            maxIndex = orderingIndex;
+          }
+          updateSessionStmt.run(maxIndex, sessionId);
+        }
+        sqlite.exec("COMMIT");
+        console.log(`[SQLite Migration] Backfilled ordering_index for ${messages.length} messages in ${messagesBySession.size} sessions`);
+      } catch (error) {
+        sqlite.exec("ROLLBACK");
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to backfill ordering_index:", error);
+  }
+
+  // Create index for efficient session message ordering
+  try {
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_messages_session_ordering
+        ON messages (session_id, ordering_index)
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to create ordering index:", error);
+  }
+
   // Tool runs table
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS tool_runs (

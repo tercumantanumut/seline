@@ -44,6 +44,8 @@ export const sessions = sqliteTable(
     messageCount: integer("message_count").default(0).notNull(),
     totalTokenCount: integer("total_token_count").default(0).notNull(),
     lastMessageAt: text("last_message_at"),
+    // NEW: Atomic ordering index counter for bullet-proof message ordering
+    lastOrderingIndex: integer("last_ordering_index").default(0).notNull(),
     channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }),
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
@@ -60,22 +62,31 @@ export const sessions = sqliteTable(
 // MESSAGES TABLE
 // ============================================================================
 
-export const messages = sqliteTable("messages", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sessionId: text("session_id")
-    .references(() => sessions.id, { onDelete: "cascade" })
-    .notNull(),
-  parentId: text("parent_id"),
-  role: text("role", { enum: ["system", "user", "assistant", "tool"] }).notNull(),
-  content: text("content", { mode: "json" }).notNull(),
-  model: text("model"),
-  toolName: text("tool_name"),
-  toolCallId: text("tool_call_id"),
-  isCompacted: integer("is_compacted", { mode: "boolean" }).default(false).notNull(),
-  tokenCount: integer("token_count"),
-  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
-  metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
-});
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    sessionId: text("session_id")
+      .references(() => sessions.id, { onDelete: "cascade" })
+      .notNull(),
+    parentId: text("parent_id"),
+    role: text("role", { enum: ["system", "user", "assistant", "tool"] }).notNull(),
+    content: text("content", { mode: "json" }).notNull(),
+    model: text("model"),
+    toolName: text("tool_name"),
+    toolCallId: text("tool_call_id"),
+    isCompacted: integer("is_compacted", { mode: "boolean" }).default(false).notNull(),
+    tokenCount: integer("token_count"),
+    // NEW: Explicit ordering index for bullet-proof ordering (nullable for migration)
+    orderingIndex: integer("ordering_index"),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+    metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
+  },
+  (table) => ({
+    // NEW: Index for fast ordered retrieval
+    idxMessagesSessionOrdering: index("idx_messages_session_ordering").on(table.sessionId, table.orderingIndex),
+  })
+);
 
 // ============================================================================
 // TOOL RUNS TABLE

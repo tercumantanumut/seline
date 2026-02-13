@@ -15,6 +15,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { createMessage, getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 
 export const maxDuration = 600; // 10 minutes for video rendering
 
@@ -102,6 +103,7 @@ export async function POST(req: Request) {
 
           // Save result as assistant message
           if (finalState.outputUrl) {
+            const messageIndex = await nextOrderingIndex(sessionId);
             await createMessage({
               sessionId,
               role: "assistant",
@@ -111,6 +113,7 @@ export async function POST(req: Request) {
                   text: `Video assembled successfully!\n\n**Concept:** ${finalState.plan?.concept || "N/A"}\n\n**Duration:** ${finalState.plan?.totalDuration}s\n\n**Scenes:** ${finalState.plan?.scenes.length}`,
                 },
               ],
+              orderingIndex: messageIndex,
               metadata: {
                 videoAssembly: true,
                 videoUrl: finalState.outputUrl,

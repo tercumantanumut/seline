@@ -16,6 +16,7 @@ import { getDeliveryRouter } from "./delivery";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { ScheduledTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 
 export interface QueuedTask {
   runId: string;
@@ -518,6 +519,7 @@ export class TaskQueue {
           scheduledTaskId: task.taskId,
           scheduledRunId: task.runId,
         },
+        orderingIndex: await nextOrderingIndex(sessionId),
       });
     }
 
