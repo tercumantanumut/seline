@@ -12,7 +12,7 @@ import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, and } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
-import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
+import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher, createAggressiveIgnore } from "./ignore-patterns";
 import { isVectorDBEnabled } from "./client";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { TaskEvent } from "@/lib/background-tasks/types";
@@ -444,38 +444,13 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     );
   };
 
-  // Build efficient ignore patterns for chokidar
-  // Convert exclude patterns to glob patterns that chokidar can use efficiently
-  const ignoredPatterns = excludePatterns.map(pattern => {
-    // If pattern looks like a directory or file name, make it match anywhere in the path
-    if (!pattern.includes('*') && !pattern.includes('/')) {
-      return `**/${pattern}/**`;
-    }
-    return pattern;
-  });
-
-  // Always exclude common large directories to prevent FD exhaustion
-  const alwaysExclude = [
-    '**/node_modules/**',
-    '**/.git/**',
-    '**/.next/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/coverage/**',
-    '**/.local-data/**',
-    '**/dist-electron/**',
-    '**/comfyui_backend/**',
-    '**/.vscode/**',
-    '**/.idea/**',
-    '**/tmp/**',
-    '**/temp/**',
-  ];
+  const aggressiveIgnore = createAggressiveIgnore(excludePatterns);
 
   // For large codebases (project root), folders with many files, or folders that
   // previously hit EMFILE, use polling mode to prevent file descriptor exhaustion.
-  // Polling uses stat() instead of native FSEvents — slightly higher latency but
-  // doesn't consume a file descriptor per watched file.
-  const isProjectRoot = await isProjectRootDirectory(folderPath);
+  // Exception: macOS (darwin) uses FSEvents naturally which doesn't consume FDs
+  // per file, so we can use native watching safely even for large roots.
+  const isProjectRoot = process.platform !== 'darwin' && await isProjectRootDirectory(folderPath);
   const forcedPolling = pollingModeWatchers.has(folderId);
   const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
 
@@ -495,7 +470,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     persistent: true,
     ignoreInitial: true, // Don't trigger on existing files
     depth: recursive ? undefined : 0,
-    ignored: [...alwaysExclude, ...ignoredPatterns],
+    ignored: aggressiveIgnore, // Use function-based ignore for max efficiency
     // Use atomic writes to reduce file descriptor churn
     awaitWriteFinish: {
       stabilityThreshold: 200,
@@ -613,7 +588,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
             .set({
               status: "paused",
               lastError: `Paused: repeated permission errors watching ${folderPath}. ` +
-                         `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
+                `This directory likely contains paths the app cannot access. Pick a more specific folder.`,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(agentSyncFolders.id, folderId));
@@ -651,8 +626,8 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
             .set({
               status: "paused",
               lastError: `File descriptor limit reached after ${MAX_EMFILE_RETRIES} retries. ` +
-                         `This folder has too many files for real-time watching. ` +
-                         `Synced data is preserved. Try syncing a more specific subfolder.`,
+                `This folder has too many files for real-time watching. ` +
+                `Synced data is preserved. Try syncing a more specific subfolder.`,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(agentSyncFolders.id, folderId));
