@@ -112,7 +112,7 @@ export function useContextStatus({
       success?: boolean;
       compacted?: boolean;
       status?: ContextWindowStatus;
-    }>(`/api/sessions/${sessionId}/context-status`, { method: "POST" });
+    }>(`/api/sessions/${sessionId}/context-status`, { method: "POST", retries: 0 });
 
     if (fetchError) {
       setError(fetchError);
