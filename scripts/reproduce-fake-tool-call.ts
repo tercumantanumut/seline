@@ -22,6 +22,7 @@
  *   - Save diagnostics to scripts/diagnosis-results/fake-tool-call-TIMESTAMP.json
  */
 
+import 'dotenv/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -178,57 +179,61 @@ function detectFakeToolJson(text: string): { found: boolean; instances: string[]
  */
 async function authenticate(): Promise<string> {
   console.log('🔐 Authenticating...');
-  
-  // Try to login with provided credentials
+
+  // Load credentials from environment
+  const email = process.env.REPRO_EMAIL;
+  const password = process.env.REPRO_PASSWORD;
+  const passwordAlt = process.env.REPRO_PASSWORD_ALT; // Optional fallback
+
+  if (!email || !password) {
+    throw new Error(
+      'Set REPRO_EMAIL and REPRO_PASSWORD environment variables before running this script\n' +
+      'Optional: REPRO_PASSWORD_ALT for fallback password'
+    );
+  }
+
+  // Try primary password
   const loginResponse = await fetch(`${CONFIG.serverUrl}/api/auth/login`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: 'umut@rltm.ai',
-      password: 'Kreatorn01.',
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
   });
-  
+
   if (loginResponse.ok) {
     const setCookie = loginResponse.headers.get('set-cookie');
     if (setCookie) {
       const match = setCookie.match(/zlutty-session=([^;]+)/);
       if (match) {
         const data = await loginResponse.json();
-        console.log(`✅ Authenticated as ${data.user?.email || 'umut@rltm.ai'}`);
+        console.log(`✅ Authenticated as ${data.user?.email || email}`);
         return match[1];
       }
     }
   }
-  
-  // Try alternate password
-  console.log('⚠️  First password failed, trying alternate...');
-  const loginResponse2 = await fetch(`${CONFIG.serverUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: 'umut@rltm.ai',
-      password: 'Kreatorn001.',
-    }),
-  });
-  
-  if (loginResponse2.ok) {
-    const setCookie = loginResponse2.headers.get('set-cookie');
-    if (setCookie) {
-      const match = setCookie.match(/zlutty-session=([^;]+)/);
-      if (match) {
-        const data = await loginResponse2.json();
-        console.log(`✅ Authenticated as ${data.user?.email || 'umut@rltm.ai'}`);
-        return match[1];
+
+  // Try alternate password if provided
+  if (passwordAlt) {
+    console.log('⚠️  First password failed, trying alternate...');
+    const loginResponse2 = await fetch(`${CONFIG.serverUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: passwordAlt }),
+    });
+
+    if (loginResponse2.ok) {
+      const setCookie = loginResponse2.headers.get('set-cookie');
+      if (setCookie) {
+        const match = setCookie.match(/zlutty-session=([^;]+)/);
+        if (match) {
+          const data = await loginResponse2.json();
+          console.log(`✅ Authenticated as ${data.user?.email || email}`);
+          return match[1];
+        }
       }
     }
   }
-  
-  throw new Error('Login failed with both passwords');
+
+  throw new Error('Login failed — check REPRO_EMAIL and REPRO_PASSWORD');
 }
 
 /**
