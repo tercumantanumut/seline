@@ -5,16 +5,20 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createSession, createMessage, getMessages } from "@/lib/db/queries";
+import { createSession, createMessage, getMessages, getOrCreateLocalUser } from "@/lib/db/queries";
 import { nextOrderingIndex, allocateOrderingIndices, validateSessionOrdering } from "@/lib/session/message-ordering";
 
 describe("Message Ordering", () => {
+  const TEST_USER_ID = "test-user";
+  const TEST_EMAIL = "test@example.com";
+
   beforeEach(async () => {
-    // Clean up test data if needed
+    // Ensure test user exists for foreign key constraint
+    await getOrCreateLocalUser(TEST_USER_ID, TEST_EMAIL);
   });
 
   it("should allocate monotonically increasing orderingIndex", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     const index1 = await nextOrderingIndex(session.id);
@@ -26,7 +30,7 @@ describe("Message Ordering", () => {
   });
 
   it("should return messages in orderingIndex order regardless of createdAt", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     // Create messages with inverted timestamps but correct orderingIndex
@@ -52,7 +56,7 @@ describe("Message Ordering", () => {
   });
 
   it("should handle concurrent index allocation without collision", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     // Simulate concurrent allocations
@@ -74,7 +78,7 @@ describe("Message Ordering", () => {
   });
 
   it("should allocate contiguous blocks with allocateOrderingIndices", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     const block1 = await allocateOrderingIndices(session.id, 3);
@@ -88,7 +92,7 @@ describe("Message Ordering", () => {
   });
 
   it("should validate session ordering without errors for valid sessions", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     // Create properly ordered messages
@@ -106,7 +110,7 @@ describe("Message Ordering", () => {
   });
 
   it("should detect gaps in ordering during validation", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     // Create messages with a gap
@@ -130,7 +134,7 @@ describe("Message Ordering", () => {
   });
 
   it("should detect duplicate indices during validation", async () => {
-    const session = await createSession({ title: "Test", userId: "test-user" });
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
     // Create messages with duplicate indices

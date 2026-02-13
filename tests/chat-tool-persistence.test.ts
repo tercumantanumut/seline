@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createMessage: vi.fn(),
   getToolResultsForSession: vi.fn(),
+  nextOrderingIndex: vi.fn(),
 }));
 
 vi.mock("@/lib/db/queries", () => ({
@@ -15,6 +16,10 @@ vi.mock("@/lib/db/queries", () => ({
   updateMessage: vi.fn(),
 }));
 
+vi.mock("@/lib/session/message-ordering", () => ({
+  nextOrderingIndex: mocks.nextOrderingIndex,
+}));
+
 import {
   enhanceFrontendMessagesWithToolResults,
   safeParseToolArgs,
@@ -24,6 +29,10 @@ describe("enhanceFrontendMessagesWithToolResults", () => {
   beforeEach(() => {
     mocks.createMessage.mockReset();
     mocks.getToolResultsForSession.mockReset();
+    mocks.nextOrderingIndex.mockReset();
+    // Return incrementing indices for ordering
+    let index = 1;
+    mocks.nextOrderingIndex.mockImplementation(() => Promise.resolve(index++));
   });
 
   it("hydrates tool-* parts with db results", async () => {
