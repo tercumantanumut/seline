@@ -45,13 +45,30 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   const filePath = (args?.filePath as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
 
-  // Determine action label
+  // Determine action label based on tool type and result status
   const isWrite = toolName === "writeFile";
   const isCreating = isWrite
     ? (result as WriteFileResult)?.created
     : !(args?.oldString as string);
 
-  const actionLabel = isCreating ? "Created" : isWrite ? "Wrote" : "Edited";
+  // Dynamic label based on result status
+  const getActionLabel = () => {
+    if (!result) {
+      return isCreating ? "Creating..." : isWrite ? "Writing..." : "Editing...";
+    }
+
+    switch (result.status) {
+      case "error":
+        return isCreating ? "Create failed" : isWrite ? "Write failed" : "Edit failed";
+      case "warning":
+        return isCreating ? "Created with warnings" : isWrite ? "Wrote with warnings" : "Edited with warnings";
+      case "success":
+      default:
+        return isCreating ? "Created" : isWrite ? "Wrote" : "Edited";
+    }
+  };
+
+  const actionLabel = getActionLabel();
   const ActionIcon = isCreating ? PlusIcon : PencilIcon;
 
   // Status icon
@@ -92,6 +109,16 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
         {result && "lineCount" in result && result.lineCount !== undefined && (
           <span className="text-terminal-muted ml-auto shrink-0">
             {result.lineCount} line{result.lineCount !== 1 ? "s" : ""}
+          </span>
+        )}
+
+        {/* Error message in collapsed header (truncated) */}
+        {result?.status === "error" && result.message && (
+          <span 
+            className="text-red-600 text-[10px] truncate max-w-[150px] ml-1" 
+            title={result.message}
+          >
+            {result.message}
           </span>
         )}
 

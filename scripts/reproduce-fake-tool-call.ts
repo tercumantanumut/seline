@@ -27,33 +27,33 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 
 // ============================================================================
-// SLOW MODE CONFIGURATION - ADJUST THESE FOR MORE REALISTIC TIMING
+// SLOW MODE CONFIGURATION - EVEN SLOWER FOR REALISTIC TESTING
 // ============================================================================
 const SLOW_CONFIG = {
   // Base delays between turns (simulating user reading/thinking time)
-  baseDelayMs: 8000,           // 8 seconds base delay (was 3s)
-  delayAfterAbortMs: 5000,     // 5 seconds after abort (was 2s)
-  delayAfterErrorMs: 10000,    // 10 seconds after error (was 5s)
-  
-  // Interruption timing - let the agent work longer before interrupting
-  abortMinMs: 5000,            // Minimum 5 seconds before abort (was 2s)
-  abortMaxMs: 12000,           // Maximum 12 seconds before abort (was 5s)
-  
-  // Interruption strategy - fewer but more deliberate interruptions
-  interruptChance: 0.25,       // 25% chance (was 40%)
-  interruptStartTurn: 3,       // Start interrupting at turn 3
+  baseDelayMs: 15000,          // 15 seconds base delay (was 8s)
+  delayAfterAbortMs: 10000,    // 10 seconds after abort (was 5s)
+  delayAfterErrorMs: 20000,    // 20 seconds after error (was 10s)
+
+  // Interruption timing - let the agent work much longer before interrupting
+  abortMinMs: 8000,            // Minimum 8 seconds before abort (was 5s)
+  abortMaxMs: 20000,           // Maximum 20 seconds before abort (was 12s)
+
+  // Interruption strategy - very few, more deliberate interruptions
+  interruptChance: 0.15,       // 15% chance (was 25%)
+  interruptStartTurn: 5,       // Start interrupting at turn 5 (was 3)
   interruptEndTurn: 25,        // Continue through turn 25
-  
+
   // Consecutive interruption patterns (simulates user frustration/impatience)
-  maxConsecutiveInterrupts: 2, // Max 2 interrupts in a row
-  consecutiveInterruptChance: 0.6, // 60% chance to interrupt again after first
-  
+  maxConsecutiveInterrupts: 1, // Max 1 interrupt in a row (was 2)
+  consecutiveInterruptChance: 0.3, // 30% chance to interrupt again after first (was 60%)
+
   // Tool call detection - wait for tool calls before interrupting
-  waitForToolCallMs: 3000,     // Wait at least 3s to see if tools are invoked
-  
+  waitForToolCallMs: 5000,     // Wait at least 5s to see if tools are invoked (was 3s)
+
   // Session pacing
-  turnsPerPhase: 4,            // Number of turns per phase
-  phaseBreakDelayMs: 15000,    // 15 second break between phases
+  turnsPerPhase: 3,            // Number of turns per phase (was 4)
+  phaseBreakDelayMs: 30000,    // 30 second break between phases (was 15s)
 };
 
 // Configuration

@@ -113,6 +113,7 @@ async function persistToolResultMessage(params: {
   toolName: string;
   result: unknown;
   status: string;
+  parentMessageTimestamp?: string; // To ensure proper ordering
 }) {
   const resultPart: DBToolResultPart = {
     type: "tool-result",
@@ -131,6 +132,10 @@ async function persistToolResultMessage(params: {
     toolCallId: params.toolCallId,
     content: [resultPart],
     metadata: { syntheticToolResult: true },
+    // Use parent message timestamp + small offset to ensure proper ordering
+    createdAt: params.parentMessageTimestamp 
+      ? new Date(new Date(params.parentMessageTimestamp).getTime() + 1).toISOString()
+      : undefined,
   });
 }
 
