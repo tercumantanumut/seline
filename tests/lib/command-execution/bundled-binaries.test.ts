@@ -48,10 +48,9 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
                 // Ignore execution errors
             });
 
-            // Check that the bundled bin path was logged
+            // Check that the bundled bin path was logged (single string argument with prefix)
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining("Prepending bundled binaries to PATH:"),
-                expect.stringContaining(expectedBinPath)
+                expect.stringContaining(`[Command Executor] Prepending bundled binaries to PATH: ${expectedBinPath}`)
             );
 
             consoleLogSpy.mockRestore();
