@@ -27,6 +27,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:validate:migration": "tsx scripts/validation/exec-validation.ts validate-message-ordering-migration",
+    "test:validate:migration:dry": "tsx scripts/validation/exec-validation.ts validate-message-ordering-migration --dry-run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
