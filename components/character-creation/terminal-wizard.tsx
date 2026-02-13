@@ -212,7 +212,7 @@ export function TerminalWizard() {
 
       if (putError) {
         console.error("Failed to save embedding config:", putError);
-        setError(`Failed to save embedding configuration: ${putError.message || "Unknown error"}`);
+        setError(`Failed to save embedding configuration: ${putError || "Unknown error"}`);
         return;
       }
 
