@@ -209,14 +209,18 @@ export function TerminalWizard() {
         openrouterApiKey: config.apiKey || undefined,
         vectorDBEnabled: true,
       });
+
       if (putError) {
         console.error("Failed to save embedding config:", putError);
+        setError(`Failed to save embedding configuration: ${putError.message || "Unknown error"}`);
+        return;
       }
+
       setVectorDBEnabled(true);
       navigateTo("vectorSearch");
     } catch (err) {
       console.error("Failed to save embedding config:", err);
-      navigateTo("vectorSearch");
+      setError(`Failed to save embedding configuration: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
