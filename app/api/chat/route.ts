@@ -42,7 +42,7 @@ import {
   type FrontendMessage,
 } from "@/lib/messages/tool-enhancement";
 import { estimateMessageTokens } from "@/lib/utils";
-import { getToolSummaryFromOutput, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import {
   withRunContext,
   createAgentRun,
@@ -54,13 +54,12 @@ import fs from "fs/promises";
 import path from "path";
 
 // ============================================================================
-// System Prompt Injection Optimization
+// System Prompt Injection
 // ============================================================================
-// Instead of sending the system prompt with every message, we only send it:
-// 1. On the first message of a conversation
-// 2. Every 75,000 tokens of conversation history
-// 3. Every 7 user messages
-// This reduces token usage significantly while maintaining context.
+// CRITICAL: System prompt is sent with EVERY request to prevent the model
+// from "forgetting" critical instructions like "don't output [SYSTEM: markers".
+// Previously we tried to optimize by only sending every 7 messages, but this
+// caused the model to start echoing internal markers after the 7th message.
 //
 // NOTE: Tools CANNOT be optimized the same way. Unlike the system prompt (which
 // the AI "remembers" from conversation history), tools are function definitions
@@ -86,42 +85,23 @@ interface DiscoveredToolsMetadata {
   lastUpdatedAt?: string;
 }
 
-// Thresholds for re-injecting context (system prompt + tools)
-const CONTEXT_INJECTION_TOKEN_THRESHOLD = 75000;
-const CONTEXT_INJECTION_MESSAGE_THRESHOLD = 7;
-
 /**
- * Determines whether context (system prompt + tools) should be injected based on:
- * - First message in conversation (no tracking metadata yet)
- * - Token threshold exceeded (75,000 tokens since last injection)
- * - Message threshold exceeded (7 user messages since last injection)
+ * ALWAYS inject context (system prompt + tools) on every request.
+ * This prevents the model from "forgetting" critical negative constraints
+ * like "never output [SYSTEM: markers" after N messages.
+ * 
+ * Previously we tried to optimize by only injecting every 7 messages, but
+ * this caused the model to start echoing internal markers and fake tool
+ * call JSON after the threshold was exceeded.
  */
 function shouldInjectContext(
-  trackingMetadata: ContextInjectionTrackingMetadata | null,
-  isFirstMessage: boolean,
-  toolLoadingMode: "deferred" | "always"
+  _trackingMetadata: ContextInjectionTrackingMetadata | null,
+  _isFirstMessage: boolean,
+  _toolLoadingMode: "deferred" | "always"
 ): boolean {
-  // Always inject on first message
-  if (isFirstMessage || !trackingMetadata) {
-    return true;
-  }
-
-  // Inject if tool loading mode changed (prompt guidance differs)
-  if (!trackingMetadata.toolLoadingMode || trackingMetadata.toolLoadingMode !== toolLoadingMode) {
-    return true;
-  }
-
-  // Inject if token threshold exceeded
-  if (trackingMetadata.tokensSinceLastInjection >= CONTEXT_INJECTION_TOKEN_THRESHOLD) {
-    return true;
-  }
-
-  // Inject if message threshold exceeded
-  if (trackingMetadata.messagesSinceLastInjection >= CONTEXT_INJECTION_MESSAGE_THRESHOLD) {
-    return true;
-  }
-
-  return false;
+  // ALWAYS return true - send system prompt with every request
+  // This is critical to prevent the model from echoing [SYSTEM: markers
+  return true;
 }
 
 /**
@@ -251,11 +231,6 @@ async function imageUrlToBase64(imageUrl: string): Promise<string> {
 // Content exceeding this limit is truncated, with full content stored for on-demand retrieval
 const MAX_TEXT_CONTENT_LENGTH = 10000;
 
-// Maximum length for ephemeral tool results (webSearch, webBrowse, webQuery) in subsequent turns
-// These tools' results are consumed in the turn they're generated - subsequent turns only need a brief reference
-const MAX_EPHEMERAL_TOOL_RESULT_LENGTH = 300;
-const EPHEMERAL_TOOLS = ["webSearch", "webBrowse", "webQuery"];
-
 // Helper to check if a tool has ephemeral results (shown in UI but excluded from AI history)
 // MCP tools have large outputs like browser snapshots that don't need to persist in context
 function isEphemeralTool(toolName: string): boolean {
@@ -299,6 +274,8 @@ function looksLikeBase64ImageData(text: string): boolean {
 /**
  * Sanitize text content with smart truncation:
  * - Detects and removes base64 image data (safety mechanism)
+ * - Strips [SYSTEM: ...] markers that the model may have echoed from context
+ * - Strips fake tool call JSON that may have been output as text
  * - When content exceeds MAX_TEXT_CONTENT_LENGTH:
  *   - Stores full content in session store with unique ID
  *   - Returns truncated content with instructions on how to retrieve full content
@@ -308,6 +285,14 @@ function looksLikeBase64ImageData(text: string): boolean {
  * @param sessionId - Optional session ID for storing full content (enables smart truncation)
  */
 function sanitizeTextContent(text: string, context: string, sessionId?: string): string {
+  // Strip [SYSTEM: ...] markers that the model may have echoed from previous context
+  // These are internal markers and should never be in the model's output
+  const systemMarkerPattern = /\[SYSTEM:\s*Tool\s+[^\]]+\]/gi;
+  text = text.replace(systemMarkerPattern, '');
+  
+  // Strip fake tool call JSON that may have been output as text
+  text = stripFakeToolCallJson(text);
+  
   if (looksLikeBase64ImageData(text)) {
     console.warn(`[CHAT API] Detected base64 image data in ${context}, stripping to prevent token overflow`);
     return `[Base64 image data removed - use image URL instead]`;
@@ -346,14 +331,28 @@ function sanitizeTextContent(text: string, context: string, sessionId?: string):
  * The LLM sometimes outputs raw JSON like {"type":"tool-call",...} or {"type":"tool-result",...}
  * as plain text instead of using structured tool calls. This creates a feedback loop where
  * the next turn sees this text and mimics it. Stripping it breaks the cycle.
+ * 
+ * Also strips [SYSTEM: Tool ...] markers that the model may echo from previous context.
  */
 function stripFakeToolCallJson(text: string): string {
-  // Line-level: remove entire lines that are fake tool-call/result JSON objects
+  // Pattern 1: Multi-line JSON objects with type:tool-call or type:tool-result
+  // Uses lazy matching with [\s\S] to handle newlines within JSON
+  const multilineJsonPattern = /\{\s*"type"\s*:\s*"tool-(call|result)"[\s\S]*?\}/g;
+  let cleaned = text.replace(multilineJsonPattern, '');
+  
+  // Pattern 2: [SYSTEM: Tool ...] markers that the model may echo
+  // These are internal markers injected into context - the model should never output them
+  const systemMarkerPattern = /\[SYSTEM:\s*Tool\s+[^\]]+\]/gi;
+  cleaned = cleaned.replace(systemMarkerPattern, '');
+  
+  // Pattern 3: Legacy single-line patterns (kept as fallback)
   const linePattern = /^\s*\{[^}]*"type"\s*:\s*"tool-(call|result)"[^\n]*\}\s*$/gm;
-  let cleaned = text.replace(linePattern, '');
-  // Inline: remove embedded fake tool JSON objects
+  cleaned = cleaned.replace(linePattern, '');
+  
+  // Pattern 4: Inline tool JSON without newlines
   const inlinePattern = /\{"type"\s*:\s*"tool-(call|result)"\s*,\s*"toolCallId"\s*:\s*"[^"]*"[^}]*\}/g;
   cleaned = cleaned.replace(inlinePattern, '');
+  
   return cleaned.trim();
 }
 
@@ -405,7 +404,6 @@ async function extractContent(
 
   // Determine if this is a user message (only user images should be converted to base64)
   const isUserMessage = msg.role === "user";
-  const useToolSummaries = Boolean(toolSummaryMode);
 
   // If parts array exists (assistant-ui format), convert it
   if (msg.parts && Array.isArray(msg.parts)) {
@@ -467,8 +465,9 @@ async function extractContent(
           });
         }
       } else if (part.type === "dynamic-tool" && part.toolName) {
-        // Handle historical tool calls from DB - include result as text so AI can reference it
-        // This is crucial for the AI to remember previous image/video generation results
+        // Handle historical tool calls from DB
+        // CRITICAL: Tool results are now kept as structured data, NOT converted to text with [SYSTEM: ...] markers
+        // This prevents the model from learning to mimic these markers and causing fake tool call hallucinations
         const toolName = part.toolName || "tool";
 
         // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
@@ -480,9 +479,9 @@ async function extractContent(
 
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
+        
+        // For image/video generation tools, add a natural language reference so AI can use the URLs
         if (output?.images && output.images.length > 0) {
-          // Include generated image URLs so AI can reference them
-          // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
           const urlList = output.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
@@ -490,45 +489,26 @@ async function extractContent(
             text: `Previously generated ${output.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
         } else if (output?.videos && output.videos.length > 0) {
-          // Include generated video URLs so AI can reference them
-          // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
           const urlList = output.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
             text: `Previously generated ${output.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
           });
-        } else if (useToolSummaries) {
-          const summary = getToolSummaryFromOutput(toolName, output, part.input);
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} summary: ${summary}]`,
-          });
-        } else if (output?.text) {
-          // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
-          let resultText = output.text;
-          if (EPHEMERAL_TOOLS.includes(toolName) && resultText.length > MAX_EPHEMERAL_TOOL_RESULT_LENGTH) {
-            resultText = resultText.substring(0, MAX_EPHEMERAL_TOOL_RESULT_LENGTH) + "... [truncated - full result was used in original response]";
-          }
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
-          });
-        } else if (toolName === "searchTools") {
-          // Preserve searchTools results so AI remembers discovered tools
+        }
+        // For other tools, the structured tool-result part is already in the message parts
+        // and will be handled by the AI SDK - no need to add text markers
+        // Just log for debugging purposes
+        else if (toolName === "searchTools") {
           const searchOutput = output as { status?: string; query?: string; results?: Array<{ name?: string; displayName?: string; isAvailable?: boolean }> } | null;
           if (searchOutput?.results && searchOutput.results.length > 0) {
             const toolNames = searchOutput.results
               .filter((t) => t.isAvailable)
               .map((t) => t.displayName || t.name)
               .join(", ");
-            // No synthetic marker needed - searchTools result is already in conversation history
-            // Just log for debugging
             console.log(`[EXTRACT] searchTools found: ${toolNames}`);
           }
         } else if (toolName === "webSearch") {
-          // Preserve webSearch results so AI remembers search findings
-          // This is CRITICAL for preventing redundant searches in virtual try-on workflows
           const webSearchOutput = output as {
             status?: string;
             query?: string;
@@ -536,27 +516,21 @@ async function extractContent(
             answer?: string;
             formattedResults?: string;
           } | null;
-
           if (webSearchOutput?.sources && webSearchOutput.sources.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] webSearch completed: ${webSearchOutput.query} (${webSearchOutput.sources.length} sources)`);
           }
         } else if (toolName === "webBrowse") {
-          // Preserve webBrowse synthesis - contains product details for virtual try-on
           const webBrowseOutput = output as {
             status?: string;
             synthesis?: string;
             fetchedUrls?: string[];
             sourcesUsed?: string[];
           } | null;
-
           if (webBrowseOutput?.synthesis) {
-            // No synthetic marker - tool result already in conversation history
             const urls = webBrowseOutput.fetchedUrls || webBrowseOutput.sourcesUsed;
             console.log(`[EXTRACT] webBrowse completed: fetched ${urls?.length || 0} URLs`);
           }
         } else if (toolName === "vectorSearch") {
-          // Preserve vectorSearch results so AI remembers code search findings
           const vectorSearchOutput = output as {
             status?: string;
             strategy?: string;
@@ -565,13 +539,10 @@ async function extractContent(
             summary?: string;
             suggestedRefinements?: string[];
           } | null;
-
           if (vectorSearchOutput?.findings && vectorSearchOutput.findings.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] vectorSearch completed: ${vectorSearchOutput.findings.length} findings`);
           }
         } else if (toolName === "showProductImages") {
-          // Preserve showProductImages results so AI can reference displayed products
           const productGalleryOutput = output as {
             status?: string;
             query?: string;
@@ -584,27 +555,18 @@ async function extractContent(
               description?: string;
             }>;
           } | null;
-
           if (productGalleryOutput?.products && productGalleryOutput.products.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryOutput.products.length} products for "${productGalleryOutput.query}"`);
           }
         } else {
-          console.log(`[EXTRACT] dynamic-tool ${toolName} has no images, videos, or text in output, adding generic summary`);
-          // Provide fallback so AI knows the tool was called and what it returned
-          // This prevents "memory gaps" and satisfying Anthropic's non-empty requirement
-          const stringifiedOutput = typeof part.output === "string"
-            ? part.output
-            : (part.output ? JSON.stringify(part.output) : "null");
-
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${stringifiedOutput}]`,
-          });
+          // For tools with text output or other results, log but don't add [SYSTEM: ...] markers
+          // The structured tool-result part is already preserved in the message
+          console.log(`[EXTRACT] dynamic-tool ${toolName} output preserved as structured data`);
         }
       } else if (part.type.startsWith("tool-")) {
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
-        // These may include output (AI SDK) or result (legacy format)
+        // CRITICAL: Tool results are kept as structured data in the parts, NOT converted to text
+        // The AI SDK handles tool-result parts natively - no need for [SYSTEM: ...] markers
         const toolName = part.type.replace("tool-", "");
 
         // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
@@ -621,8 +583,8 @@ async function extractContent(
         const toolOutput = partWithOutput.output ?? partWithOutput.result;
         console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(toolOutput, null, 2));
 
+        // For image/video generation tools, add natural language reference so AI can use the URLs
         if (toolOutput?.images && toolOutput.images.length > 0) {
-          // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
           const urlList = toolOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated image URLs to context: ${urlList}`);
           contentParts.push({
@@ -630,69 +592,47 @@ async function extractContent(
             text: `Previously generated ${toolOutput.images.length} image(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
           });
         } else if (toolOutput?.videos && toolOutput.videos.length > 0) {
-          // CRITICAL: Format URLs clearly so AI uses them EXACTLY as provided (no domain hallucination)
           const urlList = toolOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
           console.log(`[EXTRACT] Adding generated video URLs to context: ${urlList}`);
           contentParts.push({
             type: "text",
             text: `Previously generated ${toolOutput.videos.length} video(s) using ${toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
           });
-        } else if (useToolSummaries) {
-          const summary = getToolSummaryFromOutput(toolName, toolOutput, partWithOutput.input);
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} summary: ${summary}]`,
-          });
-        } else if (toolOutput?.text) {
-          // Truncate ephemeral tool results (webSearch, webBrowse, webQuery) to reduce context bloat
-          let resultText = toolOutput.text;
-          if (EPHEMERAL_TOOLS.includes(toolName) && resultText.length > MAX_EPHEMERAL_TOOL_RESULT_LENGTH) {
-            resultText = resultText.substring(0, MAX_EPHEMERAL_TOOL_RESULT_LENGTH) + "... [truncated - full result was used in original response]";
-          }
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
-          });
-        } else if (toolName === "searchTools") {
-          // Preserve searchTools results so AI remembers discovered tools
+        }
+        // For other tools, the structured tool-result part is already in the message parts
+        // and will be handled by the AI SDK - no need to add text markers
+        // Just log for debugging purposes
+        else if (toolName === "searchTools") {
           const searchResult = toolOutput as { status?: string; query?: string; results?: Array<{ name?: string; displayName?: string; isAvailable?: boolean }> } | undefined;
           if (searchResult?.results && searchResult.results.length > 0) {
             const toolNames = searchResult.results
               .filter((t) => t.isAvailable)
               .map((t) => t.displayName || t.name)
               .join(", ");
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] searchTools found: ${toolNames}`);
           }
         } else if (toolName === "webSearch") {
-          // Preserve webSearch results from streaming format
           const webSearchResult = toolOutput as {
             status?: string;
             query?: string;
             sources?: Array<{ url: string; title: string; snippet: string }>;
             answer?: string;
           } | undefined;
-
           if (webSearchResult?.sources && webSearchResult.sources.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] webSearch completed: ${webSearchResult.query} (${webSearchResult.sources.length} sources)`);
           }
         } else if (toolName === "webBrowse") {
-          // Preserve webBrowse synthesis from streaming format
           const webBrowseResult = toolOutput as {
             status?: string;
             synthesis?: string;
             fetchedUrls?: string[];
             sourcesUsed?: string[];
           } | undefined;
-
           if (webBrowseResult?.synthesis) {
-            // No synthetic marker - tool result already in conversation history
             const urls = webBrowseResult.fetchedUrls || webBrowseResult.sourcesUsed;
             console.log(`[EXTRACT] webBrowse completed: fetched ${urls?.length || 0} URLs`);
           }
         } else if (toolName === "vectorSearch") {
-          // Preserve vectorSearch results from streaming format
           const vectorSearchResult = toolOutput as {
             status?: string;
             strategy?: string;
@@ -701,13 +641,10 @@ async function extractContent(
             summary?: string;
             suggestedRefinements?: string[];
           } | undefined;
-
           if (vectorSearchResult?.findings && vectorSearchResult.findings.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] vectorSearch completed: ${vectorSearchResult.findings.length} findings`);
           }
         } else if (toolName === "showProductImages") {
-          // Preserve showProductImages results so AI can reference displayed products
           const productGalleryResult = toolOutput as {
             status?: string;
             query?: string;
@@ -720,18 +657,13 @@ async function extractContent(
               description?: string;
             }>;
           } | undefined;
-
           if (productGalleryResult?.products && productGalleryResult.products.length > 0) {
-            // No synthetic marker - tool result already in conversation history
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryResult.products.length} products for "${productGalleryResult.query}"`);
           }
         } else {
-          console.log(`[EXTRACT] tool-${toolName} has no images, videos, or text in result, adding generic summary`);
-          const resultText = toolOutput ? JSON.stringify(toolOutput) : "null";
-          contentParts.push({
-            type: "text",
-            text: `[SYSTEM: Tool ${toolName} was previously called and returned: ${resultText}]`,
-          });
+          // For tools with other output, log but don't add [SYSTEM: ...] markers
+          // The structured tool-result part is already preserved in the message
+          console.log(`[EXTRACT] tool-${toolName} output preserved as structured data`);
         }
       }
     }
