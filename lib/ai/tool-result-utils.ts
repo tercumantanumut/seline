@@ -260,3 +260,45 @@ export function normalizeToolResultOutput(
 export function isMissingToolResult(output: unknown): boolean {
   return output === null || output === undefined;
 }
+
+/**
+ * Normalize legacy tool results to structured format.
+ * 
+ * Handles migration from old text-based [SYSTEM: ...] markers to structured tool-result parts.
+ * If the result is a string (legacy format), wraps it in a structured object.
+ * If already structured, returns as-is.
+ * 
+ * @param result - The tool result from database (could be string or object)
+ * @returns Structured tool result object
+ */
+export function normalizeLegacyToolResult(result: unknown): Record<string, unknown> {
+  // If null/undefined, return empty error result
+  if (result === null || result === undefined) {
+    return { status: "error", error: "No result available" };
+  }
+
+  // If already an object, return as-is (already structured)
+  if (typeof result === "object" && !Array.isArray(result)) {
+    return result as Record<string, unknown>;
+  }
+
+  // If string, wrap in structured format (legacy text result)
+  if (typeof result === "string") {
+    // Check if it looks like a [SYSTEM: ...] marker and extract the actual content
+    // Note: Using [\s\S] instead of . with 's' flag for ES2015 compatibility
+    const systemMarkerMatch = result.match(/\[SYSTEM: Tool [^\]]+\]\s*([\s\S]+)/);
+    const content = systemMarkerMatch ? systemMarkerMatch[1] : result;
+    
+    return {
+      status: "success",
+      text: content,
+      summary: content.slice(0, 100) + (content.length > 100 ? "..." : ""),
+    };
+  }
+
+  // For arrays or other types, wrap in content field
+  return {
+    status: "success",
+    content: result,
+  };
+}
