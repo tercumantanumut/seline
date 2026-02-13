@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
 
 import type { LLMProvider } from "./provider-step";
 
@@ -38,12 +39,9 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
 
     const checkOAuthAuth = async (endpoint: string) => {
         try {
-            const response = await fetch(`${endpoint}?t=${Date.now()}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.authenticated) {
-                    setIsAuthenticated(true);
-                }
+            const { data } = await resilientFetch<{ authenticated: boolean }>(`${endpoint}?t=${Date.now()}`, { retries: 0 });
+            if (data?.authenticated) {
+                setIsAuthenticated(true);
             }
         } catch (err) {
             console.error(`Failed to check auth for ${endpoint}:`, err);
@@ -89,12 +87,11 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             }
 
             // Get the OAuth authorization URL
-            const authResponse = await fetch("/api/auth/antigravity/authorize");
-            const authData = await authResponse.json();
+            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url: string; error?: string }>("/api/auth/antigravity/authorize", { retries: 1 });
 
-            if (!authData.success || !authData.url) {
+            if (authError || !authData?.success || !authData?.url) {
                 popup?.close();
-                throw new Error(authData.error || "Failed to get authorization URL");
+                throw new Error(authData?.error || authError || "Failed to get authorization URL");
             }
 
             if (isElectron && electronAPI?.shell?.openExternal) {
@@ -192,12 +189,11 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             }
 
             // Get the OAuth authorization URL
-            const authResponse = await fetch("/api/auth/codex/authorize");
-            const authData = await authResponse.json();
+            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url: string; error?: string }>("/api/auth/codex/authorize", { retries: 1 });
 
-            if (!authData.success || !authData.url) {
+            if (authError || !authData?.success || !authData?.url) {
                 popup?.close();
-                throw new Error(authData.error || "Failed to get authorization URL");
+                throw new Error(authData?.error || authError || "Failed to get authorization URL");
             }
 
             if (isElectron && electronAPI?.shell?.openExternal) {
@@ -267,11 +263,10 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
 
         try {
             // Get the OAuth authorization URL from our backend
-            const authResponse = await fetch("/api/auth/claudecode/authorize");
-            const authData = await authResponse.json();
+            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url: string; error?: string }>("/api/auth/claudecode/authorize", { retries: 1 });
 
-            if (!authData.success || !authData.url) {
-                throw new Error(authData.error || "Failed to get authorization URL");
+            if (authError || !authData?.success || !authData?.url) {
+                throw new Error(authData?.error || authError || "Failed to get authorization URL");
             }
 
             // Open the Anthropic authorization page
@@ -301,16 +296,10 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         setError(null);
 
         try {
-            const response = await fetch("/api/auth/claudecode/exchange", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ code: claudeCodePasteValue.trim() }),
-            });
+            const { data, error: fetchError } = await resilientPost<{ success: boolean; error?: string }>("/api/auth/claudecode/exchange", { code: claudeCodePasteValue.trim() });
 
-            const data = await response.json();
-
-            if (!data.success) {
-                throw new Error(data.error || "Failed to exchange authorization code");
+            if (fetchError || !data?.success) {
+                throw new Error(data?.error || fetchError || "Failed to exchange authorization code");
             }
 
             setIsAuthenticated(true);
@@ -345,16 +334,12 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 throw new Error("Invalid provider for API key");
             }
 
-            const response = await fetch("/api/settings", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    llmProvider: provider,
-                    [keyField]: apiKey,
-                }),
+            const { error: saveError } = await resilientPut("/api/settings", {
+                llmProvider: provider,
+                [keyField]: apiKey,
             });
 
-            if (!response.ok) {
+            if (saveError) {
                 throw new Error("Failed to save API key");
             }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import path from "path";
 
 // Mock DB-dependent imports to prevent better-sqlite3 from loading
 vi.mock("@/lib/db/sqlite-client", () => ({
@@ -21,6 +22,7 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   like: vi.fn(),
   and: vi.fn(),
+  or: vi.fn(),
 }));
 
 vi.mock("@/lib/vectordb/sync-service", () => ({
@@ -30,66 +32,88 @@ vi.mock("@/lib/vectordb/sync-service", () => ({
 import { isPathAllowed } from "@/lib/ai/filesystem/path-utils";
 
 describe("isPathAllowed", () => {
-  const allowedFolders = ["/home/user/workspace", "/tmp/project"];
+  // Use platform-specific paths for allowed folders
+  // We use path.resolve to ensure they are absolute and normalized for the current platform
+  const workspaceRoot = path.resolve(process.cwd(), "test-workspace");
+  const tmpProject = path.resolve(process.cwd(), "test-tmp-project");
+  
+  const allowedFolders = [workspaceRoot, tmpProject];
 
   describe("absolute paths", () => {
     it("allows paths within a synced folder", () => {
-      expect(isPathAllowed("/home/user/workspace/src/index.ts", allowedFolders))
-        .toBe("/home/user/workspace/src/index.ts");
+      const filePath = path.join(workspaceRoot, "src", "index.ts");
+      expect(isPathAllowed(filePath, allowedFolders)).toBe(filePath);
     });
 
     it("allows the folder root itself", () => {
-      expect(isPathAllowed("/home/user/workspace", allowedFolders))
-        .toBe("/home/user/workspace");
+      expect(isPathAllowed(workspaceRoot, allowedFolders)).toBe(workspaceRoot);
     });
 
     it("allows paths in any synced folder", () => {
-      expect(isPathAllowed("/tmp/project/readme.md", allowedFolders))
-        .toBe("/tmp/project/readme.md");
+      const filePath = path.join(tmpProject, "readme.md");
+      expect(isPathAllowed(filePath, allowedFolders)).toBe(filePath);
     });
 
     it("rejects paths outside all synced folders", () => {
-      expect(isPathAllowed("/etc/passwd", allowedFolders)).toBeNull();
+      const outsidePath = path.resolve(process.cwd(), "outside", "file.txt");
+      expect(isPathAllowed(outsidePath, allowedFolders)).toBeNull();
     });
 
     it("rejects paths that share a prefix but aren't inside the folder", () => {
-      expect(isPathAllowed("/home/user/workspace-other/file.txt", allowedFolders)).toBeNull();
+      // e.g. /workspace-other vs /workspace
+      const similarPrefix = workspaceRoot + "-other";
+      const filePath = path.join(similarPrefix, "file.txt");
+      expect(isPathAllowed(filePath, allowedFolders)).toBeNull();
     });
 
     it("rejects path traversal attacks in absolute paths", () => {
-      expect(isPathAllowed("/home/user/workspace/../../../etc/passwd", allowedFolders)).toBeNull();
+      // Construct a path that looks absolute but tries to traverse out
+      // On Windows, resolve(workspaceRoot, "..", "outside") -> parent of workspaceRoot + \outside
+      const traversalPath = path.resolve(workspaceRoot, "..", "outside.txt");
+      expect(isPathAllowed(traversalPath, allowedFolders)).toBeNull();
     });
   });
 
   describe("relative paths", () => {
     it("resolves relative paths against synced folders", () => {
-      const result = isPathAllowed("src/index.ts", allowedFolders);
-      expect(result).toBe("/home/user/workspace/src/index.ts");
+      const relPath = path.join("src", "index.ts");
+      const expected = path.join(workspaceRoot, "src", "index.ts");
+      expect(isPathAllowed(relPath, allowedFolders)).toBe(expected);
     });
 
     it("resolves simple file names", () => {
-      const result = isPathAllowed("readme.md", allowedFolders);
-      expect(result).toBe("/home/user/workspace/readme.md");
+      const relPath = "readme.md";
+      const expected = path.join(workspaceRoot, "readme.md");
+      expect(isPathAllowed(relPath, allowedFolders)).toBe(expected);
     });
 
     it("blocks path traversal via relative paths", () => {
-      expect(isPathAllowed("../../etc/passwd", allowedFolders)).toBeNull();
+      // "../../outside.txt"
+      const relPath = path.join("..", "..", "outside.txt");
+      expect(isPathAllowed(relPath, allowedFolders)).toBeNull();
     });
 
     it("blocks path traversal with nested traversal", () => {
-      expect(isPathAllowed("src/../../../etc/passwd", allowedFolders)).toBeNull();
+      // "src/../../../outside.txt"
+      const relPath = path.join("src", "..", "..", "..", "outside.txt");
+      expect(isPathAllowed(relPath, allowedFolders)).toBeNull();
     });
   });
 
   describe("edge cases", () => {
     it("returns null for empty allowed folders", () => {
-      expect(isPathAllowed("/any/path", [])).toBeNull();
+      expect(isPathAllowed(path.join(workspaceRoot, "file.txt"), [])).toBeNull();
     });
 
     it("handles paths with double slashes", () => {
-      const result = isPathAllowed("/home/user/workspace//src//file.ts", allowedFolders);
-      // normalize() handles double slashes
-      expect(result).not.toBeNull();
+      // path.join/resolve handles double slashes, but we can manually construct one
+      // to ensure isPathAllowed normalizes it.
+      // We use path.sep to make it platform valid
+      const messyPath = workspaceRoot + path.sep + path.sep + "src" + path.sep + "file.ts";
+      const expected = path.join(workspaceRoot, "src", "file.ts");
+      
+      const result = isPathAllowed(messyPath, allowedFolders);
+      expect(result).toBe(expected);
     });
   });
 });

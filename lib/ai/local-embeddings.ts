@@ -110,6 +110,54 @@ function resolveModelDir(override?: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Check whether the required model files exist locally before
+ * attempting to load the pipeline.  This avoids the opaque
+ * "@huggingface/transformers model not found" error.
+ */
+export function validateLocalModelExists(modelId?: string): {
+  exists: boolean;
+  modelId: string;
+  expectedPath: string;
+  missingFiles: string[];
+} {
+  const id = modelId ?? DEFAULT_LOCAL_EMBEDDING_MODEL;
+  const modelDir = resolveModelDir();
+
+  if (!modelDir) {
+    return {
+      exists: false,
+      modelId: id,
+      expectedPath: "(EMBEDDING_MODEL_DIR not set)",
+      missingFiles: ["EMBEDDING_MODEL_DIR not configured"],
+    };
+  }
+
+  const modelPath = path.join(modelDir, ...id.split("/"));
+
+  if (!fs.existsSync(modelPath)) {
+    return {
+      exists: false,
+      modelId: id,
+      expectedPath: modelPath,
+      missingFiles: ["(entire model directory missing)"],
+    };
+  }
+
+  // These are the minimum files @huggingface/transformers needs
+  const requiredFiles = ["config.json", "tokenizer.json"];
+  const missing = requiredFiles.filter(
+    (f) => !fs.existsSync(path.join(modelPath, f)),
+  );
+
+  return {
+    exists: missing.length === 0,
+    modelId: id,
+    expectedPath: modelPath,
+    missingFiles: missing,
+  };
+}
+
 function resolveQueryPrefix(override?: string | null): string {
   if (override !== undefined) return override ?? "";
   if (process.env.LOCAL_EMBEDDING_QUERY_PREFIX !== undefined) {

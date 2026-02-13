@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useState, type FC } from "react";
 import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
@@ -488,14 +489,12 @@ async function loadToolNameCache(): Promise<Record<string, string>> {
   if (toolNameCache) return toolNameCache;
   if (toolNameCachePromise) return toolNameCachePromise;
 
-  toolNameCachePromise = fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true")
-    .then(async (response) => {
-      if (!response.ok) throw new Error("Failed to load tool catalog");
-      const data = (await response.json()) as {
-        tools?: Array<{ id: string; displayName: string }>;
-      };
+  toolNameCachePromise = resilientFetch<{
+    tools?: Array<{ id: string; displayName: string }>;
+  }>("/api/tools?includeDisabled=true&includeAlwaysLoad=true")
+    .then(({ data }) => {
       const map: Record<string, string> = {};
-      (data.tools || []).forEach((tool) => {
+      (data?.tools || []).forEach((tool) => {
         if (tool.id && tool.displayName) {
           map[tool.id] = tool.displayName;
         }

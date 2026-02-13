@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 
 // Local user type for auth
 interface LocalUser {
@@ -48,35 +49,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const verifyAuth = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/verify");
-      const data = await res.json();
+    const result = await resilientFetch<{ authenticated: boolean; user: LocalUser; noUsers?: boolean }>("/api/auth/verify");
 
-      if (data.authenticated && data.user) {
-        setUser(data.user);
-        setNoUsers(false);
+    if (result.data?.authenticated && result.data?.user) {
+      setUser(result.data.user);
+      setNoUsers(false);
 
-        // Also store in localStorage for fallback
+      // Also store in localStorage for fallback
+      try {
         localStorage.setItem(
           "zlutty-settings",
           JSON.stringify({
             ...JSON.parse(localStorage.getItem("zlutty-settings") || "{}"),
-            localUserId: data.user.id,
-            localUserEmail: data.user.email,
+            localUserId: result.data.user.id,
+            localUserEmail: result.data.user.email,
           })
         );
-
-        return { authenticated: true, noUsers: false };
+      } catch {
+        // Ignore localStorage errors
       }
 
-      setUser(null);
-      setNoUsers(Boolean(data.noUsers));
-      return { authenticated: false, noUsers: Boolean(data.noUsers) };
-    } catch {
-      setUser(null);
-      setNoUsers(false);
-      return { authenticated: false, noUsers: false };
+      return { authenticated: true, noUsers: false };
     }
+
+    setUser(null);
+    setNoUsers(Boolean(result.data?.noUsers));
+    return { authenticated: false, noUsers: Boolean(result.data?.noUsers) };
   }, []);
 
   useEffect(() => {
@@ -116,9 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
     const triggerRefresh = async () => {
-      try {
-        await fetch("/api/auth/antigravity/refresh", { method: "POST" });
-      } catch (error) {
+      const { error } = await resilientPost("/api/auth/antigravity/refresh", {}, { retries: 0 });
+      if (error) {
         console.error("[AntigravityAuth] Background refresh error:", error);
       }
     };
@@ -131,11 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      // Ignore errors
-    }
+    await resilientPost("/api/auth/logout", {}, { retries: 0 });
 
     setUser(null);
 

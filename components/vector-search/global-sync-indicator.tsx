@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useVectorSyncStatus } from "@/hooks/use-vector-sync-status";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { resilientPost } from "@/lib/utils/resilient-fetch";
 
 /**
  * GlobalSyncIndicator - Shows vector database sync status globally
@@ -38,13 +39,12 @@ export function GlobalSyncIndicator() {
   const handleCleanup = useCallback(async () => {
     setIsCleaningUp(true);
     try {
-      const response = await fetch("/api/vector-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cleanup" }),
-      });
-      const result = await response.json();
-      console.log("[SyncIndicator] Cleanup result:", result);
+      const { data: result, error } = await resilientPost("/api/vector-sync", { action: "cleanup" });
+      if (error) {
+        console.error("[SyncIndicator] Cleanup failed:", error);
+      } else {
+        console.log("[SyncIndicator] Cleanup result:", result);
+      }
       // Refresh status after cleanup
       refresh();
       // Dismiss the indicator since we just cleaned up

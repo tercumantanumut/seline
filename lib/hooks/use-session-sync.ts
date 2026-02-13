@@ -14,6 +14,7 @@ import {
   type SessionSyncData,
   type SessionUpdateEvent,
 } from "@/lib/stores/session-sync-store";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 interface UseSessionSyncOptions {
   /**
@@ -148,13 +149,15 @@ export function useSessionSync(
           params.set("characterId", characterId);
         }
 
-        const response = await fetch(`/api/sessions?${params.toString()}`, {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
-        });
+        const { data } = await resilientFetch<{ sessions?: SessionInfo[] }>(
+          `/api/sessions?${params.toString()}`,
+          {
+            retries: 0,
+            headers: { "Cache-Control": "no-cache" },
+          }
+        );
 
-        if (response.ok) {
-          const data = await response.json();
+        if (data) {
           const sessions = (data.sessions || []) as SessionInfo[];
           actions.setSessions(sessionInfoArrayToSyncData(sessions), characterId);
         }

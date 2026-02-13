@@ -7,6 +7,7 @@
 
 import { requireAuth } from "@/lib/auth/local-auth";
 import { createMessage, getOrCreateLocalUser } from "@/lib/db/queries";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { browseAndSynthesize, type WebBrowseEvent } from "@/lib/ai/web-browse";
 import { getWebScraperProvider } from "@/lib/ai/web-scraper/provider";
@@ -142,6 +143,9 @@ export async function POST(req: Request) {
                   timestamp: new Date(),
                 });
                 const interruptionTimestamp = new Date();
+                // Allocate ordering index for system interruption message
+                const systemMessageIndex = await nextOrderingIndex(sessionId);
+
                 await createMessage({
                   sessionId,
                   role: "system",
@@ -151,6 +155,7 @@ export async function POST(req: Request) {
                       text: buildInterruptionMessage("web-browse", interruptionTimestamp),
                     },
                   ],
+                  orderingIndex: systemMessageIndex,
                   metadata: buildInterruptionMetadata("web-browse", interruptionTimestamp),
                 });
                 // Complete agent run as cancelled

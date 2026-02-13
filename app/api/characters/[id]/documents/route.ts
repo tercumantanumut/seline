@@ -11,6 +11,7 @@ import { chunkText } from "@/lib/documents/chunking";
 import { indexAgentDocumentEmbeddings } from "@/lib/documents/embeddings";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import type { NewAgentDocumentChunk } from "@/lib/db/sqlite-schema";
+import { DocumentProcessingError } from "@/lib/documents/errors";
 
 // Route params type (Next.js App Router with async params)
 type RouteParams = { params: Promise<{ id: string }> };
@@ -205,11 +206,22 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 	    } catch (error) {
 	      // On error: update document to "failed" with error message
 	      console.error("Document processing error:", error);
-	      const errorMessage = error instanceof Error ? error.message : "Failed to process document";
+
+	      let errorMessage = "Failed to process document";
+	      let errorCode: string | undefined;
+	      let suggestedAction: string | undefined;
+
+	      if (error instanceof DocumentProcessingError) {
+	        errorMessage = error.message;
+	        errorCode = error.code;
+	        suggestedAction = error.suggestedAction;
+	      } else if (error instanceof Error) {
+	        errorMessage = error.message;
+	      }
 
 	      await updateAgentDocument(document.id, dbUser.id, {
 	        status: "failed",
-	        errorMessage: errorMessage,
+	        errorMessage,
 	      });
 
 	      // Return the failed document (still 201 - document was created)
@@ -220,6 +232,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 	          chunkCount: chunkRows.length,
 	          embeddedChunkCount: 0,
 	          error: errorMessage,
+	          errorCode,
+	          suggestedAction,
 	        },
 	        { status: 201 } // 201 = created, just failed to process
 	      );

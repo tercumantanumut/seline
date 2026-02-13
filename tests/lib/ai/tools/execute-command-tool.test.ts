@@ -8,12 +8,20 @@ const commandExecutionMocks = vi.hoisted(() => ({
   executeCommandWithValidation: vi.fn(),
 }));
 
+const validatorMocks = vi.hoisted(() => ({
+  validateExecutionDirectory: vi.fn(),
+}));
+
 vi.mock("@/lib/vectordb/sync-service", () => ({
   getSyncFolders: syncServiceMocks.getSyncFolders,
 }));
 
 vi.mock("@/lib/command-execution", () => ({
   executeCommandWithValidation: commandExecutionMocks.executeCommandWithValidation,
+}));
+
+vi.mock("@/lib/command-execution/validator", () => ({
+  validateExecutionDirectory: validatorMocks.validateExecutionDirectory,
 }));
 
 import {
@@ -36,6 +44,12 @@ describe("execute-command-tool normalization", () => {
     syncServiceMocks.getSyncFolders.mockResolvedValue([
       { folderPath: "C:\\workspace" },
     ]);
+
+    // Mock path validation to pass (returns valid result with resolved path)
+    validatorMocks.validateExecutionDirectory.mockResolvedValue({
+      valid: true,
+      resolvedPath: "C:\\workspace",
+    });
 
     commandExecutionMocks.executeCommandWithValidation.mockResolvedValue({
       success: true,

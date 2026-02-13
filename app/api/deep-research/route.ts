@@ -8,6 +8,7 @@
 import { runDeepResearch, type DeepResearchEvent, type DeepResearchConfig } from '@/lib/ai/deep-research';
 import { requireAuth } from '@/lib/auth/local-auth';
 import { createSession, createMessage, getOrCreateLocalUser } from '@/lib/db/queries';
+import { nextOrderingIndex } from '@/lib/session/message-ordering';
 import { loadSettings } from '@/lib/settings/settings-manager';
 import {
   createAgentRun,
@@ -175,6 +176,7 @@ export async function POST(req: Request) {
                     },
                   ],
                   metadata: buildInterruptionMetadata('deep-research', interruptionTimestamp),
+                  orderingIndex: await nextOrderingIndex(sessionId),
                 });
                 // Complete agent run as cancelled
                 await completeAgentRun(agentRun.id, "cancelled", { reason: "user_cancelled" });

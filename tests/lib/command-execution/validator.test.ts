@@ -1,38 +1,68 @@
-
+import { describe, it, expect } from "vitest";
 import { validateCommand } from "@/lib/command-execution/validator";
-import assert from "assert";
 
-console.log("Running Command Validator Tests...");
+describe("Command Validator Tests", () => {
+    it("Should reject commands with single quotes", () => {
+        expect(validateCommand("echo 'hacked'", []).valid).toBe(false);
+    });
 
-try {
-    // Dangerous Characters
-    assert.strictEqual(validateCommand("echo 'hacked'", []).valid, false, "Should reject commands with single quotes");
-    assert.strictEqual(validateCommand('echo "hacked"', []).valid, false, "Should reject commands with double quotes");
-    assert.strictEqual(validateCommand("echo; rm -rf", []).valid, false, "Should reject ;");
-    assert.strictEqual(validateCommand("echo && rm -rf", []).valid, false, "Should reject &&");
-    assert.strictEqual(validateCommand("echo | bash", []).valid, false, "Should reject |");
+    it("Should reject commands with double quotes", () => {
+        expect(validateCommand('echo "hacked"', []).valid).toBe(false);
+    });
 
-    // Safe commands
-    assert.strictEqual(validateCommand("echo", ["hello"]).valid, true, "Should allow safe echo");
-    assert.strictEqual(validateCommand("ls", ["-la"]).valid, true, "Should allow safe ls");
+    it("Should reject ;", () => {
+        expect(validateCommand("echo; rm -rf", []).valid).toBe(false);
+    });
 
-    // Dangerous Commands Blocklist
-    assert.strictEqual(validateCommand("rm", []).valid, false, "Should block rm");
-    assert.strictEqual(validateCommand("format", []).valid, false, "Should block format");
+    it("Should reject &&", () => {
+        expect(validateCommand("echo && rm -rf", []).valid).toBe(false);
+    });
 
-    // Safe commands with dangerous substrings
-    assert.strictEqual(validateCommand("format-json", []).valid, true, "Should allow format-json");
-    assert.strictEqual(validateCommand("my-rm-tool", []).valid, true, "Should allow my-rm-tool");
-    assert.strictEqual(validateCommand("performance", []).valid, true, "Should allow performance");
+    it("Should reject |", () => {
+        expect(validateCommand("echo | bash", []).valid).toBe(false);
+    });
 
-    // Path Traversal
-    assert.strictEqual(validateCommand("ls", [".."]).valid, false, "Should block .. arg");
-    assert.strictEqual(validateCommand("ls", ["../secret"]).valid, false, "Should block ../secret arg");
-    assert.strictEqual(validateCommand("ls", ["-p=../secret"]).valid, false, "Should block .. in flag");
-    assert.strictEqual(validateCommand("ls", ["--path=../secret"]).valid, false, "Should block .. in long flag");
+    it("Should allow safe echo", () => {
+        expect(validateCommand("echo", ["hello"]).valid).toBe(true);
+    });
 
-    console.log("✅ All Validator Tests Passed!");
-} catch (e: any) {
-    console.error("❌ Test Failed:", e.message);
-    process.exit(1);
-}
+    it("Should allow safe ls", () => {
+        expect(validateCommand("ls", ["-la"]).valid).toBe(true);
+    });
+
+    it("Should block rm", () => {
+        expect(validateCommand("rm", []).valid).toBe(false);
+    });
+
+    it("Should block format", () => {
+        expect(validateCommand("format", []).valid).toBe(false);
+    });
+
+    it("Should allow format-json", () => {
+        expect(validateCommand("format-json", []).valid).toBe(true);
+    });
+
+    it("Should allow my-rm-tool", () => {
+        expect(validateCommand("my-rm-tool", []).valid).toBe(true);
+    });
+
+    it("Should allow performance", () => {
+        expect(validateCommand("performance", []).valid).toBe(true);
+    });
+
+    it("Should block .. arg", () => {
+        expect(validateCommand("ls", [".."]).valid).toBe(false);
+    });
+
+    it("Should block ../secret arg", () => {
+        expect(validateCommand("ls", ["../secret"]).valid).toBe(false);
+    });
+
+    it("Should block .. in flag", () => {
+        expect(validateCommand("ls", ["-p=../secret"]).valid).toBe(false);
+    });
+
+    it("Should block .. in long flag", () => {
+        expect(validateCommand("ls", ["--path=../secret"]).valid).toBe(false);
+    });
+});

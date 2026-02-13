@@ -14,6 +14,7 @@ import Link from "next/link";
 import type { MCPTool } from "@/lib/mcp/types";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 
 interface MCPToolPreference {
     enabled: boolean;
@@ -86,38 +87,35 @@ export function MCPToolsPage({
     const loadData = async (autoConnectIfNeeded = true) => {
         try {
             // Load config and status
-            const configRes = await fetch("/api/mcp");
-            const configData = await configRes.json();
-            setStatus(configData.status || []);
-            setConfig(configData.config || null);
+            const { data: configData } = await resilientFetch<{
+                config?: { mcpServers?: Record<string, { enabled?: boolean }> };
+                status?: MCPServerStatus[];
+            }>("/api/mcp");
+            setStatus(configData?.status || []);
+            setConfig(configData?.config || null);
 
             // Load tools
-            const toolsRes = await fetch("/api/mcp/tools");
-            const toolsData = await toolsRes.json();
-            const loadedTools = toolsData.tools || [];
+            const { data: toolsData } = await resilientFetch<{ tools?: MCPTool[] }>("/api/mcp/tools");
+            const loadedTools = toolsData?.tools || [];
             setTools(loadedTools);
 
             // Auto-connect if: servers are configured but no tools discovered yet
             // This handles the case where the app restarted and servers need reconnection
-            const hasConfiguredServers = configData.config?.mcpServers &&
+            const hasConfiguredServers = configData?.config?.mcpServers &&
                 Object.keys(configData.config.mcpServers).length > 0;
             const hasNoTools = loadedTools.length === 0;
 
             if (autoConnectIfNeeded && hasConfiguredServers && hasNoTools) {
                 console.log("[MCPToolsPage] Auto-connecting to configured MCP servers...");
                 setIsConnecting(true);
-                try {
-                    await fetch("/api/mcp/connect", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({}),
-                    });
+                const { error: connectError } = await resilientPost("/api/mcp/connect", {});
+                if (connectError) {
+                    console.error("[MCPToolsPage] Auto-connect failed:", connectError);
+                }
+                setIsConnecting(false);
+                if (!connectError) {
                     // Reload data after connection (without auto-connect to prevent loop)
                     return loadData(false);
-                } catch (connectError) {
-                    console.error("[MCPToolsPage] Auto-connect failed:", connectError);
-                } finally {
-                    setIsConnecting(false);
                 }
             }
 
@@ -156,18 +154,13 @@ export function MCPToolsPage({
 
     const connectServers = async () => {
         setIsConnecting(true);
-        try {
-            await fetch("/api/mcp/connect", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-            });
-            await loadData();
-        } catch (error) {
+        const { error } = await resilientPost("/api/mcp/connect", {});
+        if (error) {
             console.error("Failed to connect to MCP servers:", error);
-        } finally {
-            setIsConnecting(false);
+        } else {
+            await loadData();
         }
+        setIsConnecting(false);
     };
 
     // Group tools by server

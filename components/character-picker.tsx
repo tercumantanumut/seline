@@ -41,6 +41,7 @@ import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { useShallow } from "zustand/react/shallow";
+import { resilientFetch, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -139,7 +140,7 @@ interface CharacterSummary {
   }>;
   // Active session tracking
   hasActiveSession?: boolean;
-  activeSessionId?: string;
+  activeSessionId?: string | null;
 }
 
 export function CharacterPicker() {
@@ -271,11 +272,10 @@ export function CharacterPicker() {
 
     const loadTools = async () => {
       try {
-        const response = await fetch("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
-        if (!response.ok) throw new Error("Failed to load tools");
-        const data = (await response.json()) as {
+        const { data, error } = await resilientFetch<{
           tools?: Array<{ id: string; displayName: string; description: string; category: string }>;
-        };
+        }>("/api/tools?includeDisabled=true&includeAlwaysLoad=true");
+        if (error || !data) throw new Error(error || "Failed to load tools");
         if (cancelled) return;
 
         const merged = new Map<string, ToolDefinition>();
@@ -385,12 +385,9 @@ export function CharacterPicker() {
 
   // Fetch settings to check if Vector Search is enabled
   useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        setVectorDBEnabled(data.vectorDBEnabled === true);
-      })
-      .catch(console.error);
+    resilientFetch<{ vectorDBEnabled?: boolean }>("/api/settings").then(({ data }) => {
+      if (data) setVectorDBEnabled(data.vectorDBEnabled === true);
+    });
   }, []);
 
   useEffect(() => {
@@ -400,21 +397,15 @@ export function CharacterPicker() {
     const loadDependencyStatus = async () => {
       let foldersCount = 0;
       if (editingCharacter?.id) {
-        try {
-          const res = await fetch(`/api/vector-sync?characterId=${editingCharacter.id}`);
-          if (res.ok) {
-            const data = await res.json();
-            foldersCount = data.folders?.length ?? 0;
-          }
-        } catch (e) {
-          console.error("Failed to check synced folders", e);
-        }
+        const { data } = await resilientFetch<{ folders?: unknown[] }>(
+          `/api/vector-sync?characterId=${editingCharacter.id}`
+        );
+        if (data) foldersCount = data.folders?.length ?? 0;
       }
 
       try {
-        const settingsRes = await fetch("/api/settings");
-        if (!settingsRes.ok) throw new Error("Failed to load settings");
-        const settingsData = await settingsRes.json();
+        const { data: settingsData, error } = await resilientFetch<Record<string, unknown>>("/api/settings");
+        if (!settingsData || error) throw new Error(error || "Failed to load settings");
         const webScraperReady = settingsData.webScraperProvider === "local"
           || (typeof settingsData.firecrawlApiKey === "string" && settingsData.firecrawlApiKey.trim().length > 0);
         const hasEmbeddingModel = typeof settingsData.embeddingModel === "string"
@@ -481,33 +472,36 @@ export function CharacterPicker() {
 
   const loadCharacters = useCallback(async () => {
     try {
-      const response = await fetch("/api/characters");
-      if (response.ok) {
-        const data = await response.json();
-        // Filter to only show active characters
-        const activeChars = (data.characters || []).filter(
-          (c: CharacterSummary) => c.status === "active"
-        );
+      const { data } = await resilientFetch<{ characters: CharacterSummary[] }>("/api/characters");
+      if (!data) {
+        setIsLoading(false);
+        return;
+      }
 
-        // Enrich with active session status
-        const enriched = await Promise.all(
-          activeChars.map(async (char: CharacterSummary) => {
-            try {
-              const statusRes = await fetch(`/api/characters/${char.id}/active-status`);
-              const statusData = await statusRes.json();
-              return {
-                ...char,
-                hasActiveSession: statusData.hasActiveSession,
-                activeSessionId: statusData.activeSessionId,
-              };
-            } catch (err) {
-              console.warn(`Failed to fetch active status for ${char.id}:`, err);
-              return char;
-            }
-          })
-        );
+      // Filter to only show active characters
+      const activeChars = (data.characters || []).filter(
+        (c: CharacterSummary) => c.status === "active"
+      );
 
-        setCharacters(enriched);
+      // Batch active-status check (single request instead of N)
+      if (activeChars.length > 0) {
+        const ids = activeChars.map((c: CharacterSummary) => c.id).join(",");
+        const { data: statusData } = await resilientFetch<{
+          statuses: Record<string, { hasActiveSession: boolean; activeSessionId: string | null }>;
+        }>(`/api/characters/active-status?ids=${ids}`);
+
+        if (statusData?.statuses) {
+          const enriched = activeChars.map((char: CharacterSummary) => ({
+            ...char,
+            hasActiveSession: statusData.statuses[char.id]?.hasActiveSession ?? false,
+            activeSessionId: statusData.statuses[char.id]?.activeSessionId ?? null,
+          }));
+          setCharacters(enriched);
+        } else {
+          setCharacters(activeChars);
+        }
+      } else {
+        setCharacters(activeChars);
       }
     } catch (error) {
       console.error("Failed to load characters:", error);
@@ -541,12 +535,10 @@ export function CharacterPicker() {
     if (!editingCharacter) return;
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/characters/${editingCharacter.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metadata: { enabledTools: selectedTools } }),
+      const { error } = await resilientPatch(`/api/characters/${editingCharacter.id}`, {
+        metadata: { enabledTools: selectedTools },
       });
-      if (response.ok) {
+      if (!error) {
         setToolEditorOpen(false);
         loadCharacters(); // Refresh the list
       }
@@ -572,16 +564,10 @@ export function CharacterPicker() {
     setShowAdvancedPrompt(!!hasCustomPrompt);
 
     // Fetch the current generated prompt
-    try {
-      const response = await fetch(`/api/characters/${character.id}/prompt-preview`);
-      if (response.ok) {
-        const data = await response.json();
-        setGeneratedPrompt(data.prompt || "");
-      }
-    } catch (error) {
-      console.error("Failed to fetch prompt preview:", error);
-      setGeneratedPrompt("");
-    }
+    const { data: promptData } = await resilientFetch<{ prompt?: string }>(
+      `/api/characters/${character.id}/prompt-preview`
+    );
+    setGeneratedPrompt(promptData?.prompt || "");
 
     setIdentityEditorOpen(true);
   };
@@ -591,22 +577,18 @@ export function CharacterPicker() {
     if (!editingCharacter) return;
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/characters/${editingCharacter.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          character: {
-            name: identityForm.name,
-            displayName: identityForm.displayName || undefined,
-            tagline: identityForm.tagline || undefined,
-          },
-          metadata: {
-            purpose: identityForm.purpose || undefined,
-            systemPromptOverride: identityForm.systemPromptOverride || undefined,
-          },
-        }),
+      const { error } = await resilientPatch(`/api/characters/${editingCharacter.id}`, {
+        character: {
+          name: identityForm.name,
+          displayName: identityForm.displayName || undefined,
+          tagline: identityForm.tagline || undefined,
+        },
+        metadata: {
+          purpose: identityForm.purpose || undefined,
+          systemPromptOverride: identityForm.systemPromptOverride || undefined,
+        },
       });
-      if (response.ok) {
+      if (!error) {
         setIdentityEditorOpen(false);
         loadCharacters(); // Refresh the list
       }
@@ -628,10 +610,8 @@ export function CharacterPicker() {
     if (!characterToDelete) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/characters/${characterToDelete.id}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
+      const { error } = await resilientDelete(`/api/characters/${characterToDelete.id}`);
+      if (!error) {
         setDeleteDialogOpen(false);
         setCharacterToDelete(null);
         loadCharacters(); // Refresh the list
@@ -688,18 +668,14 @@ export function CharacterPicker() {
     if (!editingCharacter) return;
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/characters/${editingCharacter.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          metadata: {
-            enabledMcpServers: mcpServers,
-            enabledMcpTools: mcpTools,
-            mcpToolPreferences: mcpToolPreferences,
-          },
-        }),
+      const { error } = await resilientPatch(`/api/characters/${editingCharacter.id}`, {
+        metadata: {
+          enabledMcpServers: mcpServers,
+          enabledMcpTools: mcpTools,
+          mcpToolPreferences: mcpToolPreferences,
+        },
       });
-      if (response.ok) {
+      if (!error) {
         setMcpToolEditorOpen(false);
         setMcpRemovalWarningOpen(false);
         loadCharacters();

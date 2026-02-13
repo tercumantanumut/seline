@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
 import { Hash, Loader2, MessageCircle, Phone, RefreshCw, Send, Trash2, Plug, Pencil } from "lucide-react";
 
@@ -98,44 +99,41 @@ export function ChannelConnectionsDialog({
   const loadConnections = useCallback(async () => {
     if (!characterId) return;
     setIsLoading(true);
-    try {
-      const response = await fetch(`/api/channels/connections?characterId=${characterId}`);
-      if (!response.ok) {
-        throw new Error(t("errors.load"));
-      }
-      const data = await response.json();
-      const nextConnections = (data.connections || []) as ChannelConnection[];
-      setConnections(nextConnections);
-      onConnectionsChange?.(nextConnections);
-
-      setQrCodes((prev) => {
-        const next = { ...prev };
-        for (const connection of nextConnections) {
-          if (connection.channelType !== "whatsapp" || connection.status !== "connecting") {
-            delete next[connection.id];
-          }
-        }
-        return next;
-      });
-    } catch (error) {
+    const { data, error } = await resilientFetch<{ connections: ChannelConnection[] }>(
+      `/api/channels/connections?characterId=${characterId}`
+    );
+    if (error || !data) {
       console.error("[Channels] Load error:", error);
       toast.error(t("errors.load"));
-    } finally {
       setIsLoading(false);
+      return;
     }
+    const nextConnections = (data.connections || []) as ChannelConnection[];
+    setConnections(nextConnections);
+    onConnectionsChange?.(nextConnections);
+
+    setQrCodes((prev) => {
+      const next = { ...prev };
+      for (const connection of nextConnections) {
+        if (connection.channelType !== "whatsapp" || connection.status !== "connecting") {
+          delete next[connection.id];
+        }
+      }
+      return next;
+    });
+    setIsLoading(false);
   }, [characterId, onConnectionsChange, t]);
 
   const fetchQr = useCallback(async (connectionId: string) => {
-    try {
-      const response = await fetch(`/api/channels/connections/${connectionId}/qr`);
-      if (!response.ok) {
-        return;
-      }
-      const data = await response.json();
-      setQrCodes((prev) => ({ ...prev, [connectionId]: data.dataUrl || null }));
-    } catch (error) {
-      console.error("[Channels] QR fetch error:", error);
+    const { data, error } = await resilientFetch<{ dataUrl: string | null }>(
+      `/api/channels/connections/${connectionId}/qr`,
+      { retries: 0 }
+    );
+    if (error || !data) {
+      if (error) console.error("[Channels] QR fetch error:", error);
+      return;
     }
+    setQrCodes((prev) => ({ ...prev, [connectionId]: data.dataUrl || null }));
   }, []);
 
   useEffect(() => {
@@ -192,27 +190,24 @@ export function ChannelConnectionsDialog({
         if (slackSigningSecret.trim()) config.signingSecret = slackSigningSecret.trim();
       }
       if (isEditing && editingConnection) {
-        const response = await fetch(`/api/channels/connections/${editingConnection.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const { error } = await resilientPatch(
+          `/api/channels/connections/${editingConnection.id}`,
+          {
             displayName: displayName.trim() || null,
             config: {
               ...config,
               ...(formType === "whatsapp" ? { selfChatMode: whatsappSelfChat } : {}),
             },
-          }),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || t("errors.update"));
+          }
+        );
+        if (error) {
+          throw new Error(error || t("errors.update"));
         }
         toast.success(t("notices.updated"));
       } else {
-        const response = await fetch("/api/channels/connections", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const { data, error } = await resilientPost<{ connection?: { id: string } }>(
+          "/api/channels/connections",
+          {
             characterId,
             channelType: formType,
             displayName: displayName.trim() || null,
@@ -220,16 +215,14 @@ export function ChannelConnectionsDialog({
               ...config,
               ...(formType === "whatsapp" ? { selfChatMode: whatsappSelfChat } : {}),
             },
-          }),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || t("errors.create"));
+          }
+        );
+        if (error) {
+          throw new Error(error || t("errors.create"));
         }
-        const data = await response.json();
-        const connectionId = data.connection?.id as string | undefined;
+        const connectionId = data?.connection?.id;
         if (connectionId) {
-          await fetch(`/api/channels/connections/${connectionId}/connect`, { method: "POST" });
+          await resilientPost(`/api/channels/connections/${connectionId}/connect`, {});
         }
         toast.success(t("notices.created"));
         if (formType === "slack") {
@@ -262,20 +255,17 @@ export function ChannelConnectionsDialog({
 
   const handleConnectToggle = useCallback(
     async (connection: ChannelConnection) => {
-      try {
-        const endpoint =
-          connection.status === "connected"
-            ? `/api/channels/connections/${connection.id}/disconnect`
-            : `/api/channels/connections/${connection.id}/connect`;
-        const response = await fetch(endpoint, { method: "POST" });
-        if (!response.ok) {
-          throw new Error(t("errors.update"));
-        }
-        await loadConnections();
-      } catch (error) {
+      const endpoint =
+        connection.status === "connected"
+          ? `/api/channels/connections/${connection.id}/disconnect`
+          : `/api/channels/connections/${connection.id}/connect`;
+      const { error } = await resilientPost(endpoint, {});
+      if (error) {
         console.error("[Channels] Toggle error:", error);
         toast.error(t("errors.update"));
+        return;
       }
+      await loadConnections();
     },
     [loadConnections, t]
   );
@@ -284,17 +274,14 @@ export function ChannelConnectionsDialog({
     async (connection: ChannelConnection) => {
       const confirmed = window.confirm(t("confirmDelete"));
       if (!confirmed) return;
-      try {
-        const response = await fetch(`/api/channels/connections/${connection.id}`, { method: "DELETE" });
-        if (!response.ok) {
-          throw new Error(t("errors.delete"));
-        }
-        toast.success(t("notices.deleted"));
-        await loadConnections();
-      } catch (error) {
+      const { error } = await resilientDelete(`/api/channels/connections/${connection.id}`);
+      if (error) {
         console.error("[Channels] Delete error:", error);
         toast.error(t("errors.delete"));
+        return;
       }
+      toast.success(t("notices.deleted"));
+      await loadConnections();
     },
     [loadConnections, t]
   );

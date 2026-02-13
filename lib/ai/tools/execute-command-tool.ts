@@ -7,7 +7,14 @@
 
 import { tool, jsonSchema } from "ai";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
-import { executeCommandWithValidation } from "@/lib/command-execution";
+import {
+    executeCommandWithValidation,
+    startBackgroundProcess,
+    getBackgroundProcess,
+    killBackgroundProcess,
+    listBackgroundProcesses,
+    cleanupBackgroundProcesses,
+} from "@/lib/command-execution";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,
@@ -98,7 +105,7 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
         command: {
             type: "string",
             description:
-                "Command to execute (e.g., 'npm', 'git', 'ls', 'dir'). Must be a valid executable.",
+                "Command to execute (e.g., 'npm', 'git', 'ls', 'dir'). Must be a valid executable. Not needed when using processId to check a background process.",
         },
         args: {
             type: "array",
@@ -114,10 +121,20 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
         timeout: {
             type: "number",
             description:
-                "Timeout in milliseconds (default: 30000 = 30 seconds). Maximum allowed: 300000 (5 minutes).",
+                "Timeout in milliseconds. Defaults: 30s for most commands, 120s for package managers (npm, npx, yarn, etc.). Max: 600000 (10 min).",
+        },
+        background: {
+            type: "boolean",
+            description:
+                "Run in background mode. Returns immediately with a processId. Use processId to check status later. Ideal for long-running commands like npm install, npx create-*, builds, etc.",
+        },
+        processId: {
+            type: "string",
+            description:
+                'Check status of a background process. Pass the processId returned from a background execution. Use command="kill" with processId to terminate a background process, or command="list" to see all background processes.',
         },
     },
-    required: ["command"],
+    required: [],
     additionalProperties: false,
 });
 
@@ -127,7 +144,13 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
 function formatOutput(result: ExecuteCommandToolResult): string {
     const lines: string[] = [];
 
-    if (result.status === "success") {
+    if (result.status === "background_started") {
+        lines.push(`⟳ Background process started: ${result.processId}`);
+        if (result.message) lines.push(`  ${result.message}`);
+    } else if (result.status === "running") {
+        lines.push(`⟳ Process ${result.processId} still running`);
+        if (result.message) lines.push(`  ${result.message}`);
+    } else if (result.status === "success") {
         lines.push(
             `✓ Command executed successfully (exit code: ${result.exitCode ?? 0})`
         );
@@ -167,27 +190,37 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
     const { characterId } = options;
 
     return tool({
-        description: `Execute shell commands safely within synced directories.
+        description: `Execute shell commands safely within synced directories. Supports foreground and background execution.
 
 **Security:**
 - Commands only run within indexed/synced folders
 - Dangerous commands (rm, sudo, format, etc.) are blocked
-- 30-second timeout by default
+- Smart default timeouts (30s normal, 120s for package managers)
 - Output size limits prevent memory issues
 
 **Common Use Cases:**
 - Run tests: executeCommand({ command: "npm", args: ["test"] })
 - Check git status: executeCommand({ command: "git", args: ["status"] })
 - Install deps: executeCommand({ command: "npm", args: ["install"] })
+- Scaffold project (background): executeCommand({ command: "npx", args: ["-y", "create-vite@latest", "my-app"], background: true })
+- Check background process: executeCommand({ processId: "bg-123" })
+- Kill background process: executeCommand({ command: "kill", processId: "bg-123" })
+- List background processes: executeCommand({ command: "list" })
 - List files (Windows): executeCommand({ command: "dir" })
 - List files (macOS/Linux): executeCommand({ command: "ls", args: ["-la"] })
 - Python inline scripts: executeCommand({ command: "python", args: ["-c", "print('hello')"] })
 
+**Background Mode:**
+Use background: true for commands that take a long time (npm install, npx create-*, builds).
+The tool returns immediately with a processId. Poll with processId to check status and get output.
+
 **Parameters:**
-- command: The executable only (e.g., "python", not "python -c ...")
+- command: The executable (e.g., "python"). Or "kill"/"list" for background process management.
 - args: Array of arguments (optional). For Python inline scripts, pass script as ONE arg after "-c"
 - cwd: Working directory (optional, defaults to first synced folder)
-- timeout: Max execution time in ms (optional, default 30000)`,
+- timeout: Max execution time in ms (auto-detected based on command type)
+- background: Run in background and return processId (default: false)
+- processId: Check/manage a background process by its ID`,
 
         inputSchema: executeCommandSchema,
 
@@ -202,8 +235,64 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
                 };
             }
 
-            const { command, args = [], cwd, timeout } = input;
+            const { command, args = [], cwd, timeout, background, processId } = input;
 
+            // ── Background process management ────────────────────────────
+            // Check status of a background process
+            if (processId && (!command || command === "status")) {
+                const info = getBackgroundProcess(processId);
+                if (!info) {
+                    return {
+                        status: "error",
+                        error: `No background process found with ID '${processId}'. It may have been cleaned up.`,
+                    };
+                }
+                const elapsed = Math.round((Date.now() - info.startedAt) / 1000);
+                if (info.running) {
+                    return {
+                        status: "running",
+                        processId: info.id,
+                        stdout: info.stdout,
+                        stderr: info.stderr,
+                        message: `Process '${info.command} ${info.args.join(" ")}' still running (${elapsed}s elapsed).`,
+                    };
+                }
+                return {
+                    status: info.exitCode === 0 ? "success" : "error",
+                    processId: info.id,
+                    stdout: info.stdout,
+                    stderr: info.stderr,
+                    exitCode: info.exitCode,
+                    executionTime: Date.now() - info.startedAt,
+                    message: `Process finished after ${elapsed}s with exit code ${info.exitCode}.`,
+                };
+            }
+
+            // Kill a background process
+            if (processId && command === "kill") {
+                const killed = killBackgroundProcess(processId);
+                if (!killed) {
+                    return { status: "error", error: `No background process found with ID '${processId}'.` };
+                }
+                return { status: "success", message: `Background process '${processId}' terminated.` };
+            }
+
+            // List all background processes
+            if (command === "list" && !processId) {
+                // Periodically clean up old finished processes
+                cleanupBackgroundProcesses();
+                const procs = listBackgroundProcesses();
+                if (procs.length === 0) {
+                    return { status: "success", message: "No background processes." };
+                }
+                const lines = procs.map((p) => {
+                    const elapsed = Math.round(p.elapsed / 1000);
+                    return `[${p.id}] ${p.running ? "RUNNING" : "DONE"} (${elapsed}s) ${p.command}`;
+                });
+                return { status: "success", stdout: lines.join("\n"), message: `${procs.length} background process(es).` };
+            }
+
+            // ── Normal command execution ─────────────────────────────────
             // Validate command is provided
             if (!command || typeof command !== "string" || command.trim() === "") {
                 return {
@@ -260,13 +349,40 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
                     }
                 }
 
-                // Execute command with validation using the core executor
+                // ── Background execution ────────────────────────────────
+                if (background) {
+                    const maxBgTimeout = 600_000; // 10 min
+                    const bgResult = await startBackgroundProcess(
+                        {
+                            command: normalizedInput.command,
+                            args: normalizedInput.args,
+                            cwd: executionDir,
+                            timeout: Math.min(timeout || 600_000, maxBgTimeout),
+                            characterId: characterId,
+                        },
+                        syncedFolders
+                    );
+
+                    if (bgResult.error) {
+                        return { status: "error", error: bgResult.error };
+                    }
+
+                    console.log(`[executeCommand] Background process started: ${bgResult.processId}`);
+                    return {
+                        status: "background_started",
+                        processId: bgResult.processId,
+                        message: `Background process started. Use processId '${bgResult.processId}' to check status.`,
+                    };
+                }
+
+                // ── Foreground execution ─────────────────────────────────
+                const maxTimeout = 600_000; // 10 min for foreground too
                 const result = await executeCommandWithValidation(
                      {
                          command: normalizedInput.command,
                          args: normalizedInput.args,
                          cwd: executionDir,
-                         timeout: Math.min(timeout || 30000, 300000), // Max 5 minutes
+                         timeout: timeout ? Math.min(timeout, maxTimeout) : undefined, // let executor pick smart default
                          characterId: characterId,
                      },
                      syncedFolders // Whitelist of allowed directories (second parameter)

@@ -960,6 +960,9 @@ export async function syncFolder(
 
     // Start file watcher if sync was successful
     if (syncStatus === "synced" && !isWatching(folderId)) {
+      // Force polling for large folders (500+ files) to prevent EMFILE from
+      // native FSEvents trying to watch thousands of file descriptors
+      const forcePolling = discoveredFiles.length > 500;
       const watchConfig = {
         folderId,
         characterId: folder.characterId,
@@ -967,12 +970,30 @@ export async function syncFolder(
         recursive: folder.recursive,
         includeExtensions,
         excludePatterns,
+        forcePolling,
       };
 
-      // Start watching in the background (don't await to avoid blocking)
-      startWatching(watchConfig).catch(err => {
-        console.error(`[SyncService] Failed to start file watcher for ${folderPath}:`, err);
-      });
+      if (forcePolling) {
+        console.log(
+          `[SyncService] Large folder (${discoveredFiles.length} files), ` +
+          `will start watcher in polling mode after brief delay`
+        );
+      }
+
+      // Delay watcher start for large folders to let file descriptors settle
+      // after the sync process closes its handles
+      const watchDelay = forcePolling ? 5000 : 0;
+      if (watchDelay > 0) {
+        setTimeout(() => {
+          startWatching(watchConfig).catch(err => {
+            console.error(`[SyncService] Failed to start file watcher for ${folderPath}:`, err);
+          });
+        }, watchDelay);
+      } else {
+        startWatching(watchConfig).catch(err => {
+          console.error(`[SyncService] Failed to start file watcher for ${folderPath}:`, err);
+        });
+      }
     }
 
   } catch (error) {

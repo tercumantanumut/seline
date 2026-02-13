@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { Shell } from "@/components/layout/shell";
 import {
     WelcomeStep,
@@ -64,12 +65,7 @@ export function OnboardingWizard() {
 
     const handleComplete = async () => {
         try {
-            await fetch("/api/onboarding", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-            });
-
+            await resilientPost("/api/onboarding", {});
             router.push("/");
         } catch (error) {
             console.error("Failed to complete onboarding:", error);

@@ -17,6 +17,7 @@ import {
   updateChannelConversation,
   updateSession,
 } from "@/lib/db/queries";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { getCharacter } from "@/lib/characters/queries";
 import type { ChannelInboundMessage } from "./types";
 import { buildConversationKey, normalizeChannelText } from "./utils";
@@ -210,10 +211,14 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
       return;
     }
 
+    // Allocate ordering index for bullet-proof message ordering
+    const userMessageIndex = await nextOrderingIndex(sessionId);
+
     const createdMessage = await createMessage({
       sessionId,
       role: "user",
       content: contentParts,
+      orderingIndex: userMessageIndex,
       metadata: {
         channel: {
           connectionId: message.connectionId,

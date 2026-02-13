@@ -64,10 +64,11 @@ export const PlanPanel: FC = () => {
         {/* Steps list — hidden when collapsed */}
         {!collapsed && (
           <div className="border-t border-terminal-border/30 px-3 py-2 space-y-1">
-            {plan.steps.map((step) => {
-              const cfg = STATUS_CONFIG[step.status];
+            {plan.steps.map((step, idx) => {
+              if (!step?.text || !step?.status) return null;
+              const cfg = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
               return (
-                <div key={step.id} className="flex items-start gap-2">
+                <div key={step.id ?? `step-${idx}`} className="flex items-start gap-2">
                   <span className={cn("font-mono text-xs shrink-0 mt-0.5", cfg.color)}>
                     {cfg.glyph}
                   </span>

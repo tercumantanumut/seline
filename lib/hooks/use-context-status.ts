@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 /**
  * Context window status as returned by the API.
@@ -82,26 +83,21 @@ export function useContextStatus({
     setIsLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/context-status`,
-        { signal: controller.signal }
-      );
+    const { data, error: fetchError } = await resilientFetch<ContextWindowStatus>(
+      `/api/sessions/${sessionId}/context-status`,
+      { signal: controller.signal, retries: 0 }
+    );
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${response.status}`);
-      }
+    // Request was aborted (e.g., component unmounted or new request started)
+    if (controller.signal.aborted) return;
 
-      const data: ContextWindowStatus = await response.json();
+    if (fetchError) {
+      setError(fetchError);
+    } else {
       setStatus(data);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setError(message);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   }, [sessionId]);
 
   const compact = useCallback(async (): Promise<{
@@ -111,43 +107,37 @@ export function useContextStatus({
     if (!sessionId) return { success: false, compacted: false };
 
     setIsCompacting(true);
-    try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/context-status`,
-        { method: "POST" }
-      );
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${response.status}`);
-      }
+    const { data, error: fetchError } = await resilientFetch<{
+      success?: boolean;
+      compacted?: boolean;
+      status?: ContextWindowStatus;
+    }>(`/api/sessions/${sessionId}/context-status`, { method: "POST", retries: 0 });
 
-      const data = await response.json();
-
-      // Update status from the response
-      if (data.status) {
-        setStatus({
-          ...data.status,
-          // Ensure all required fields are present
-          shouldCompact: data.status.shouldCompact ?? false,
-          mustCompact: data.status.mustCompact ?? false,
-          recommendedAction: data.status.recommendedAction ?? "",
-          thresholds: data.status.thresholds ?? status?.thresholds ?? {
-            warning: 0,
-            critical: 0,
-            hardLimit: 0,
-          },
-        });
-      }
-
-      return { success: data.success ?? true, compacted: data.compacted ?? false };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Compaction failed";
-      setError(message);
-      return { success: false, compacted: false };
-    } finally {
+    if (fetchError) {
+      setError(fetchError);
       setIsCompacting(false);
+      return { success: false, compacted: false };
     }
+
+    // Update status from the response
+    if (data?.status) {
+      setStatus({
+        ...data.status,
+        // Ensure all required fields are present
+        shouldCompact: data.status.shouldCompact ?? false,
+        mustCompact: data.status.mustCompact ?? false,
+        recommendedAction: data.status.recommendedAction ?? "",
+        thresholds: data.status.thresholds ?? status?.thresholds ?? {
+          warning: 0,
+          critical: 0,
+          hardLimit: 0,
+        },
+      });
+    }
+
+    setIsCompacting(false);
+    return { success: data?.success ?? true, compacted: data?.compacted ?? false };
   }, [sessionId, status?.thresholds]);
 
   // Auto-fetch on mount / sessionId change

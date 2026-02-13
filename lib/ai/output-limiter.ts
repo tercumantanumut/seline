@@ -16,9 +16,9 @@ import { storeFullContent } from "./truncated-content-store";
 // ============================================================================
 
 // ~25,000 tokens = ~100,000 characters (4 chars/token estimate)
-const MAX_TOOL_OUTPUT_TOKENS = 25000;
-const CHARS_PER_TOKEN = 4;
-const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 100,000
+export const MAX_TOOL_OUTPUT_TOKENS = 25000;
+export const CHARS_PER_TOKEN = 4;
+export const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 100,000
 
 // ============================================================================
 // Types
@@ -48,7 +48,7 @@ export interface LimitResult {
  * Handles strings, objects, arrays
  * Uses 4 chars/token heuristic (conservative estimate)
  */
-function estimateTokens(content: unknown): number {
+export function estimateTokens(content: unknown): number {
   if (typeof content === "string") {
     return Math.ceil(content.length / CHARS_PER_TOKEN);
   }

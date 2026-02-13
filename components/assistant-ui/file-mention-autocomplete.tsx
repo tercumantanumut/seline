@@ -3,6 +3,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { FileIcon, FolderIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
 interface FileResult {
   relativePath: string;
@@ -74,20 +75,13 @@ const FileMentionAutocomplete = forwardRef<HTMLDivElement, FileMentionAutocomple
     // Debounced API call
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams({
-          characterId,
-          query: mentionQuery,
-          limit: "15",
-        });
-        const res = await fetch(`/api/files/search?${params}`);
-        if (res.ok) {
-          const data = await res.json();
-          setResults(data.files || []);
-        }
-      } catch {
-        setResults([]);
-      }
+      const params = new URLSearchParams({
+        characterId,
+        query: mentionQuery,
+        limit: "15",
+      });
+      const { data } = await resilientFetch<{ files?: FileResult[] }>(`/api/files/search?${params}`, { retries: 0 });
+      setResults(data?.files || []);
     }, 200);
 
     return () => {

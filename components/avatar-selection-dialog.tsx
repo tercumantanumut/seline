@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Upload, Check, Trash2, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type { CharacterImage } from "@/lib/db/sqlite-character-schema";
 import { useTranslations } from "next-intl";
 
@@ -52,9 +53,8 @@ export function AvatarSelectionDialog({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/characters/${characterId}/images`);
-      if (!res.ok) throw new Error(t("error.fetch"));
-      const data = await res.json();
+      const { data, error: fetchError } = await resilientFetch<{ images: CharacterImage[] }>(`/api/characters/${characterId}/images`);
+      if (fetchError || !data) throw new Error(t("error.fetch"));
       setImages(data.images || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("error.load"));
@@ -86,16 +86,12 @@ export function AvatarSelectionDialog({
         formData.append("file", file);
         formData.append("role", "avatar");
 
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-        if (!uploadRes.ok) throw new Error(t("error.upload"));
-        const { url, localPath } = await uploadRes.json();
+        const { data: uploadData, error: uploadError } = await resilientFetch<{ url: string; localPath: string }>("/api/upload", { method: "POST", body: formData, timeout: 30_000 });
+        if (uploadError || !uploadData) throw new Error(t("error.upload"));
+        const { url, localPath } = uploadData;
 
-        const createRes = await fetch(`/api/characters/${characterId}/images`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, localPath, imageType: "avatar", isPrimary: true }),
-        });
-        if (!createRes.ok) throw new Error(t("error.upload"));
+        const { error: createError } = await resilientPost(`/api/characters/${characterId}/images`, { url, localPath, imageType: "avatar", isPrimary: true });
+        if (createError) throw new Error(t("error.upload"));
 
         await fetchImages();
         onAvatarChange(url);
@@ -111,12 +107,8 @@ export function AvatarSelectionDialog({
   const handleSetPrimary = async (imageId: string, imageUrl: string) => {
     setSettingPrimary(imageId);
     try {
-      const res = await fetch(`/api/characters/${characterId}/images`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageId }),
-      });
-      if (!res.ok) throw new Error(t("error.setPrimary"));
+      const { error: patchError } = await resilientPatch(`/api/characters/${characterId}/images`, { imageId });
+      if (patchError) throw new Error(t("error.setPrimary"));
       await fetchImages();
       onAvatarChange(imageUrl);
     } catch (err) {
@@ -128,10 +120,8 @@ export function AvatarSelectionDialog({
 
   const handleDelete = async (imageId: string) => {
     try {
-      const res = await fetch(`/api/characters/${characterId}/images?imageId=${imageId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(t("error.delete"));
+      const { error: deleteError } = await resilientDelete(`/api/characters/${characterId}/images?imageId=${imageId}`);
+      if (deleteError) throw new Error(t("error.delete"));
       await fetchImages();
       const deleted = images.find((img) => img.id === imageId);
       if (deleted?.isPrimary) {

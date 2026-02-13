@@ -67,6 +67,11 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 - ❌ Writing \`searchTools{"query":"..."}\` as plain text
 - ❌ Writing \`editImageFlux2Flex{"prompt":"...", "source_image_url":"..."}\` in chat
 - ❌ Any pattern like \`toolName{...}\` or \`toolName({...})\` in your text output
+- ❌ Writing \`{"type":"tool-call","toolCallId":"...","toolName":"...","args":{...}}\` as text
+- ❌ Writing \`{"type":"tool-result","toolCallId":"...","result":{...}}\` as text
+- ❌ Any JSON resembling internal tool protocol messages (these are system-level formats, NEVER for text output)
+- ❌ Writing \`[SYSTEM: Tool ...]\` markers - these are INTERNAL markers for context tracking, NEVER output them
+- ❌ Echoing any text that starts with \`[SYSTEM:\` - these are not for user display
 
 ### What TO do (CORRECT):
 - ✅ Make actual structured tool calls using the tool calling interface
@@ -77,7 +82,52 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 1. Tool calls are NEVER made by writing text - they use a separate structured format
 2. If you find yourself typing a tool name followed by JSON/parameters, STOP - that's wrong
 3. The system provides a tool calling interface - USE IT, don't simulate it with text
-4. Writing tool syntax as text does NOTHING - the tool won't execute`;
+4. Writing tool syntax as text does NOTHING - the tool won't execute
+5. NEVER output JSON objects containing "type":"tool-call" or "type":"tool-result" - these are internal protocol formats
+6. NEVER output text starting with \`[SYSTEM:\` - these markers are for internal processing only
+
+---
+
+## Structured Tool Results Pattern
+
+Tool outputs are delivered as **structured tool-result parts** in the conversation, NOT as text markers.
+
+### Correct Pattern:
+1. Assistant makes a tool call → appears as a \`tool-call\` part
+2. System returns result → appears as a \`tool-result\` part with the actual output
+3. Assistant references the result naturally in text (e.g., "The search found 5 files...")
+
+### Tool Result Parts Contain:
+- \`type: "tool-result"\` - identifies this as a tool result
+- \`toolCallId\` - matches the corresponding tool-call
+- \`result\` - the actual output object (can contain images, text, status, etc.)
+- \`status\` - "success", "error", etc.
+
+### Example Flow:
+\`\`\`
+[User]: Find files containing "auth"
+
+[Assistant - tool-call part]:
+  toolCallId: "call_123"
+  toolName: "localGrep"
+  args: { pattern: "auth", fileTypes: ["ts"] }
+
+[System - tool-result part]:
+  type: "tool-result"
+  toolCallId: "call_123"
+  result: { matchCount: 5, results: [...] }
+  status: "success"
+
+[Assistant - text part]:
+  "I found 5 files containing 'auth'. The main ones are..."
+\`\`\`
+
+**NEVER** output tool results as text like \`[SYSTEM: Tool localGrep returned...]\`. 
+Tool results are ONLY in structured \`tool-result\` parts.
+
+---
+
+`;
 
 /**
  * Tool Discovery Instructions (Minimal)

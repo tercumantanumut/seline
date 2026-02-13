@@ -9,6 +9,7 @@
 import { Tool } from "ai";
 import { getToolResultsForSession, createMessage } from "@/lib/db/queries";
 import { isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import type { DBToolResultPart } from "@/lib/messages/converter";
 
 // Constants
@@ -124,12 +125,16 @@ async function persistToolResultMessage(params: {
     state: params.status === "error" || params.status === "failed" ? "output-error" : "output-available",
   };
 
+  // Allocate ordering index for bullet-proof message ordering
+  const toolMessageIndex = await nextOrderingIndex(params.sessionId);
+
   await createMessage({
     sessionId: params.sessionId,
     role: "tool",
     toolName: params.toolName,
     toolCallId: params.toolCallId,
     content: [resultPart],
+    orderingIndex: toolMessageIndex,
     metadata: { syntheticToolResult: true },
   });
 }
