@@ -15,7 +15,6 @@ import {
     listBackgroundProcesses,
     cleanupBackgroundProcesses,
 } from "@/lib/command-execution";
-import { validateExecutionDirectory } from "@/lib/command-execution/validator";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,
@@ -350,23 +349,19 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     }
                 }
 
-                // Validate cwd before background spawn (background bypasses executeCommandWithValidation)
-                const cwdValidation = await validateExecutionDirectory(executionDir, syncedFolders);
-                if (!cwdValidation.valid) {
-                    return { status: "error", error: cwdValidation.error };
-                }
-                const resolvedCwd = cwdValidation.resolvedPath ?? executionDir;
-
                 // ── Background execution ────────────────────────────────
                 if (background) {
                     const maxBgTimeout = 600_000; // 10 min
-                    const bgResult = startBackgroundProcess({
-                        command: normalizedInput.command,
-                        args: normalizedInput.args,
-                        cwd: resolvedCwd,
-                        timeout: Math.min(timeout || 600_000, maxBgTimeout),
-                        characterId: characterId,
-                    });
+                    const bgResult = await startBackgroundProcess(
+                        {
+                            command: normalizedInput.command,
+                            args: normalizedInput.args,
+                            cwd: executionDir,
+                            timeout: Math.min(timeout || 600_000, maxBgTimeout),
+                            characterId: characterId,
+                        },
+                        syncedFolders
+                    );
 
                     if (bgResult.error) {
                         return { status: "error", error: bgResult.error };

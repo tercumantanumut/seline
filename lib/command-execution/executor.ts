@@ -142,11 +142,18 @@ function needsWindowsShell(command: string): boolean {
 /**
  * Start a command in the background. Returns immediately with a process ID.
  * The process continues running; call `getBackgroundProcess` to poll for output.
+ *
+ * @param options - Execution options (command, args, cwd, etc.)
+ * @param allowedPaths - Array of allowed directory paths for validation
+ * @returns Object with processId (or empty string on error) and optional error message
  */
-export function startBackgroundProcess(options: ExecuteOptions): {
+export async function startBackgroundProcess(
+    options: ExecuteOptions,
+    allowedPaths: string[]
+): Promise<{
     processId: string;
     error?: string;
-} {
+}> {
     const { command, args, cwd, characterId } = options;
     const timeout = options.timeout ?? BACKGROUND_TIMEOUT;
     const maxOutputSize = options.maxOutputSize ?? MAX_BACKGROUND_OUTPUT;
@@ -157,11 +164,18 @@ export function startBackgroundProcess(options: ExecuteOptions): {
         return { processId: "", error: cmdValidation.error };
     }
 
+    // Validate working directory against allowed paths
+    const cwdValidation = await validateExecutionDirectory(cwd, allowedPaths);
+    if (!cwdValidation.valid) {
+        return { processId: "", error: cwdValidation.error };
+    }
+    const resolvedCwd = cwdValidation.resolvedPath ?? cwd;
+
     const id = nextBgId();
 
     try {
         const child = spawn(command, args, {
-            cwd,
+            cwd: resolvedCwd,
             shell: needsWindowsShell(command),
             stdio: ["ignore", "pipe", "pipe"],
             windowsHide: true,

@@ -360,7 +360,13 @@ export async function createMessage(data: NewMessage) {
 export async function getMessages(sessionId: string) {
   return db.query.messages.findMany({
     where: eq(messages.sessionId, sessionId),
-    orderBy: asc(messages.orderingIndex),
+    orderBy: [
+      // Push NULL orderingIndex values to the end for backward compatibility
+      asc(sql`case when ${messages.orderingIndex} is null then 1 else 0 end`),
+      asc(messages.orderingIndex),
+      // Fallback to creation time for legacy/NULL rows
+      asc(messages.createdAt),
+    ],
   });
 }
 
@@ -620,7 +626,13 @@ export async function getNonCompactedMessages(sessionId: string) {
       eq(messages.sessionId, sessionId),
       eq(messages.isCompacted, false)
     ),
-    orderBy: asc(messages.orderingIndex),
+    orderBy: [
+      // Push NULL orderingIndex values to the end for backward compatibility
+      asc(sql`case when ${messages.orderingIndex} is null then 1 else 0 end`),
+      asc(messages.orderingIndex),
+      // Fallback to creation time for legacy/NULL rows
+      asc(messages.createdAt),
+    ],
   });
 }
 

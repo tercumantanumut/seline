@@ -83,7 +83,7 @@ beforeEach(() => {
 
 describe("background execution", () => {
     it("should start a background process and return processId", async () => {
-        executorMocks.startBackgroundProcess.mockReturnValue({
+        executorMocks.startBackgroundProcess.mockResolvedValue({
             processId: "bg-123",
         });
 
@@ -106,11 +106,12 @@ describe("background execution", () => {
                 cwd: "C:\\workspace",
                 characterId: "char-1",
             }),
+            expect.any(Array), // allowedPaths (syncedFolders)
         );
     });
 
     it("should return error when background spawn fails", async () => {
-        executorMocks.startBackgroundProcess.mockReturnValue({
+        executorMocks.startBackgroundProcess.mockResolvedValue({
             processId: "",
             error: "spawn failed",
         });

@@ -136,13 +136,13 @@ describe("Background process management", () => {
         cleanupBackgroundProcesses(0);
     });
 
-    it("should start a background process and return a processId", () => {
-        const result = startBackgroundProcess({
+    it("should start a background process and return a processId", async () => {
+        const result = await startBackgroundProcess({
             command: "node",
             args: ["-e", "setTimeout(() => console.log('bg-done'), 500)"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         expect(result.processId).toBeTruthy();
         expect(result.processId).toMatch(/^bg-/);
@@ -150,12 +150,12 @@ describe("Background process management", () => {
     });
 
     it("should track a running background process", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "setTimeout(() => console.log('alive'), 2000)"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         // Immediately after start it should be running
         const info = getBackgroundProcess(processId);
@@ -165,12 +165,12 @@ describe("Background process management", () => {
     });
 
     it("should capture stdout from background process after completion", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "console.log('hello-from-bg')"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         // Wait for it to finish
         await waitFor(() => !getBackgroundProcess(processId)!.running);
@@ -182,12 +182,12 @@ describe("Background process management", () => {
     });
 
     it("should capture stderr from background process", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "console.error('err-output'); process.exit(1)"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         await waitFor(() => !getBackgroundProcess(processId)!.running);
 
@@ -198,12 +198,12 @@ describe("Background process management", () => {
     });
 
     it("should kill a running background process", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "setInterval(() => {}, 1000)"], // runs forever
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         // Ensure it's running
         expect(getBackgroundProcess(processId)!.running).toBe(true);
@@ -221,20 +221,20 @@ describe("Background process management", () => {
         expect(killBackgroundProcess("bg-nonexistent")).toBe(false);
     });
 
-    it("should list background processes", () => {
-        startBackgroundProcess({
+    it("should list background processes", async () => {
+        await startBackgroundProcess({
             command: "node",
             args: ["-e", "setTimeout(() => {}, 2000)"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
-        startBackgroundProcess({
+        await startBackgroundProcess({
             command: "node",
             args: ["-e", "setTimeout(() => {}, 2000)"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         const list = listBackgroundProcesses();
         expect(list.length).toBeGreaterThanOrEqual(2);
@@ -246,12 +246,12 @@ describe("Background process management", () => {
     });
 
     it("should clean up finished background processes", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "console.log('done')"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         await waitFor(() => !getBackgroundProcess(processId)!.running);
 
@@ -264,26 +264,26 @@ describe("Background process management", () => {
         expect(getBackgroundProcess(processId)).toBeNull();
     });
 
-    it("should reject blocked commands in background mode", () => {
-        const result = startBackgroundProcess({
+    it("should reject blocked commands in background mode", async () => {
+        const result = await startBackgroundProcess({
             command: "rm",
             args: ["-rf", "/"],
             cwd: process.cwd(),
             characterId: "test",
-        });
+        }, [process.cwd()]);
 
         expect(result.processId).toBe("");
         expect(result.error).toBeTruthy();
     });
 
     it("should timeout a background process after the specified duration", async () => {
-        const { processId } = startBackgroundProcess({
+        const { processId } = await startBackgroundProcess({
             command: "node",
             args: ["-e", "setInterval(() => {}, 1000)"], // runs forever
             cwd: process.cwd(),
             characterId: "test",
             timeout: 1000, // 1 second timeout
-        });
+        }, [process.cwd()]);
 
         // Wait for timeout to kick in
         await waitFor(() => !getBackgroundProcess(processId)!.running, 15_000);
