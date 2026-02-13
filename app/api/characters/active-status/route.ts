@@ -42,7 +42,9 @@ export async function GET(req: Request) {
               continue;
             }
             hasRunning = true;
-            activeSessionId = run.sessionId;
+            if (!activeSessionId) {
+              activeSessionId = run.sessionId;
+            }
           }
 
           statuses[characterId] = { hasActiveSession: hasRunning, activeSessionId };
