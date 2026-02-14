@@ -68,6 +68,7 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "memorize", nameKey: "memorize", descKey: "memorizeDesc", category: "utility" },
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
+  { id: "sendMessageToChannel", nameKey: "sendMessageToChannel", descKey: "sendMessageToChannelDesc", category: "utility" },
   // OpenRouter Image Tools
   {
     id: "generateImageFlux2Flex",

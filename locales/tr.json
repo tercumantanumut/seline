@@ -469,6 +469,10 @@
         "name": "Referans (FLUX.2 Klein 9B)",
         "description": "FLUX.2 Klein 9B ile referans rehberli üretim (Docker gerektirir)"
       },
+      "sendMessageToChannel": {
+        "name": "Kanala Mesaj Gönder",
+        "description": "Bağlı harici kanallar aracılığıyla kullanıcıya doğrudan mesaj gönder"
+      },
       "localGrep": {
         "name": "Yerel Grep",
         "description": "ripgrep ile hızlı ve regex arama"
@@ -826,6 +830,8 @@
         "calculatorDesc": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)",
         "updatePlan": "Plan Güncelle",
         "updatePlanDesc": "Konuşma boyunca adım durumlarıyla görünür bir görev planı oluştur veya güncelle",
+        "sendMessageToChannel": "Kanala Mesaj Gönder",
+        "sendMessageToChannelDesc": "Bağlı harici kanallar aracılığıyla kullanıcıya doğrudan mesaj gönder",
         "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
         "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",

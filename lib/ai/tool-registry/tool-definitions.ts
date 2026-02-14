@@ -75,6 +75,7 @@ import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
 import { createTranscribeTool } from "../tools/transcribe-tool";
+import { createSendMessageToChannelTool } from "../tools/channel-tools";
 
 /**
  * Register all tools with the registry
@@ -721,6 +722,34 @@ Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are
       requiresSession: true,
     } satisfies ToolMetadata,
     ({ sessionId }) => createTranscribeTool({ sessionId: sessionId || "UNSCOPED" })
+  );
+
+  // Send Message to Channel Tool
+  registry.register(
+    "sendMessageToChannel",
+    {
+      displayName: "Send Message to Channel",
+      category: "utility",
+      keywords: [
+        "message", "send", "channel", "telegram", "slack", "whatsapp",
+        "notify", "dm", "direct message", "contact",
+      ],
+      shortDescription: "Send a direct message to the user via connected external channels",
+      fullInstructions: `## Send Message to Channel
+      
+      Send a message to the user via Telegram, Slack, or WhatsApp.
+      Use when the user asks to be notified or messaged externally.
+      
+      If channelType is omitted, it tries to reply to the current channel conversation or finds the most recent active connection.`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId }) =>
+      createSendMessageToChannelTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+        sessionMetadata: {},
+      })
   );
 
   // Describe Image Tool (ALWAYS LOADED - essential for virtual try-on workflows)
