@@ -16,6 +16,8 @@ import {
     cleanupBackgroundProcesses,
 } from "@/lib/command-execution";
 import { readTerminalLog } from "@/lib/command-execution/log-manager";
+import { generateTruncationMarker } from "../truncation-utils";
+import { estimateTokens, MAX_TOOL_OUTPUT_TOKENS } from "../output-limiter";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,
@@ -174,7 +176,19 @@ function formatOutput(result: ExecuteCommandToolResult): string {
     }
 
     if (result.isTruncated) {
-        lines.push(`\n[NOTE: Output was truncated to save context window space. Full log available via logId: ${result.logId}]`);
+        // Use unified truncation marker if the executor already truncated by lines
+        const stdout = result.stdout || "";
+        const stderr = result.stderr || "";
+        const combined = stdout + (stderr ? "\n" + stderr : "");
+        
+        lines.push(generateTruncationMarker({
+            originalLength: (result.stdout?.length || 0) + (result.stderr?.length || 0) + 5000, // Heuristic for "original" since we don't have exact raw size here easily
+            truncatedLength: combined.length,
+            estimatedTokens: estimateTokens(combined),
+            maxTokens: MAX_TOOL_OUTPUT_TOKENS,
+            id: result.logId || "unknown",
+            idType: "logId"
+        }));
     } else if (result.logId) {
         lines.push(`\n[Log ID: ${result.logId}]`);
     }

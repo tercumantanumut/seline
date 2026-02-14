@@ -12,9 +12,7 @@ import { nanoid } from "nanoid";
 /**
  * Configuration for log management
  */
-const MAX_CONTEXT_LINES = 1000; // Max lines to keep in context (head + tail)
-const HEAD_LINES = 500;        // Lines to keep from the beginning
-const TAIL_LINES = 500;        // Lines to keep from the end
+const MAX_CONTEXT_LINES = 500; // Default max lines to keep in context (head + tail)
 
 /**
  * Get the path to the terminal logs directory
@@ -92,12 +90,18 @@ export function truncateOutput(text: string, maxLines = MAX_CONTEXT_LINES): {
         return { content: text, isTruncated: false, originalLineCount };
     }
     
-    const head = lines.slice(0, HEAD_LINES);
-    const tail = lines.slice(-TAIL_LINES);
+    // Calculate head and tail counts based on maxLines
+    const headCount = Math.ceil(maxLines / 2);
+    const tailCount = Math.max(0, maxLines - headCount);
+    
+    const head = lines.slice(0, headCount);
+    const tail = tailCount > 0 ? lines.slice(-tailCount) : [];
+    
+    const truncatedLineCount = originalLineCount - head.length - tail.length;
     
     const truncatedContent = [
         ...head,
-        `\n... [TRUNCATED ${originalLineCount - maxLines} LINES] ...\n`,
+        `... [TRUNCATED ${truncatedLineCount} LINES] ...`,
         ...tail
     ].join("\n");
     

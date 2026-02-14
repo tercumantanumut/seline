@@ -6,19 +6,20 @@
  *
  * This module provides a universal token limiting mechanism that applies to
  * ALL tool outputs (bash commands, MCP tools, web tools, etc.) to prevent
- * context overflow from massive outputs like `ls -R`, `pip freeze`, etc.
+ * context overflow from massive outputs like `ls -R`, `pip freeze`.
  */
 
 import { storeFullContent } from "./truncated-content-store";
+import { generateTruncationMarker } from "./truncation-utils";
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-// ~25,000 tokens = ~100,000 characters (4 chars/token estimate)
-export const MAX_TOOL_OUTPUT_TOKENS = 25000;
+// ~10,000 tokens = ~40,000 characters (4 chars/token estimate)
+export const MAX_TOOL_OUTPUT_TOKENS = 10000;
 export const CHARS_PER_TOKEN = 4;
-export const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 100,000
+export const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 40,000
 
 // ============================================================================
 // Types
@@ -125,59 +126,6 @@ function extractPrimaryText(output: unknown): string | null {
 }
 
 // ============================================================================
-// Truncation Notice
-// ============================================================================
-
-/**
- * Build truncation notice with retrieval instructions
- */
-function buildTruncationNotice(
-  originalLength: number,
-  truncatedLength: number,
-  estimatedTokens: number,
-  maxTokens: number,
-  contentId: string | undefined,
-  hasSession: boolean
-): string {
-  const notice = `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  OUTPUT TRUNCATED TO PREVENT CONTEXT OVERFLOW
-
-Original: ~${estimatedTokens.toLocaleString()} tokens (${originalLength.toLocaleString()} chars)
-Showing: ~${maxTokens.toLocaleString()} tokens (${truncatedLength.toLocaleString()} chars)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-
-  if (hasSession && contentId) {
-    return (
-      notice +
-      `
-
-📦 FULL OUTPUT AVAILABLE
-   Reference ID: ${contentId}
-
-🔧 TO RETRIEVE FULL OUTPUT:
-   retrieveFullContent({ contentId: "${contentId}" })
-
-💡 RECOMMENDATION:
-   Only retrieve full output if the truncated portion above is
-   insufficient for your task. Consider using grep/filtering
-   commands to get specific information instead.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-    );
-  }
-
-  return (
-    notice +
-    `
-
-⚠️  Full output not available for retrieval.
-   Consider using more specific commands or filters.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
-  );
-}
-
-// ============================================================================
 // Main Limiting Function
 // ============================================================================
 
@@ -185,7 +133,7 @@ Showing: ~${maxTokens.toLocaleString()} tokens (${truncatedLength.toLocaleString
  * Apply token limit to tool output
  *
  * If output exceeds limit:
- * - Truncates to maxTokens (~25,000 tokens = ~100,000 chars)
+ * - Truncates to maxTokens (~10,000 tokens = ~40,000 chars)
  * - Stores full content for retrieval (if sessionId provided)
  * - Adds clear truncation notice with retrieval instructions
  *
@@ -210,11 +158,31 @@ export function limitToolOutput(
   const charsPerToken = options.charsPerToken ?? CHARS_PER_TOKEN;
   const maxChars = maxTokens * charsPerToken;
 
+  // Detect if the tool already provides a logId (common for executeCommand)
+  // We prefer the tool's own logId over generating a new trunc_ ID
+  const obj = (output && typeof output === "object") ? (output as Record<string, any>) : null;
+  const existingLogId = obj?.logId;
+  const alreadyTruncated = obj?.isTruncated || obj?.truncated;
+
   // Estimate tokens for entire output
   const estimatedTokens = estimateTokens(output);
 
-  // No limiting needed - output is within limit
+  // No limiting needed BY THIS TOOL - but check if it was already truncated by the caller
   if (estimatedTokens <= maxTokens) {
+    if (alreadyTruncated && (existingLogId || obj?.truncatedContentId)) {
+      // It was already truncated by lines or something else, but it fits in tokens.
+      // We should still ensure a unified marker is present if the caller didn't add one.
+      // But for now, we'll assume the caller (like executeCommand) handled it
+      // OR we can force a unified marker here if one is missing.
+      return {
+        limited: false,
+        output: output as string,
+        originalLength: 0,
+        truncatedLength: 0,
+        estimatedTokens,
+      };
+    }
+
     return {
       limited: false,
       output: output as string,
@@ -247,9 +215,11 @@ export function limitToolOutput(
   // Truncate to character limit
   const truncatedText = primaryText.slice(0, maxChars);
 
-  // Store full content if session provided
-  let contentId: string | undefined;
-  if (sessionId) {
+  // Store full content if session provided AND no existing logId
+  let contentId: string | undefined = existingLogId;
+  let idType: "logId" | "contentId" = existingLogId ? "logId" : "contentId";
+
+  if (!existingLogId && sessionId) {
     contentId = storeFullContent(
       sessionId,
       `${toolName} output`,
@@ -258,15 +228,15 @@ export function limitToolOutput(
     );
   }
 
-  // Build truncation notice
-  const truncationNotice = buildTruncationNotice(
-    primaryText.length,
-    truncatedText.length,
+  // Build truncation notice using unified utility
+  const truncationNotice = generateTruncationMarker({
+    originalLength: primaryText.length,
+    truncatedLength: truncatedText.length,
     estimatedTokens,
     maxTokens,
-    contentId,
-    !!sessionId
-  );
+    id: contentId || "unknown",
+    idType,
+  });
 
   const finalOutput = truncatedText + truncationNotice;
 
