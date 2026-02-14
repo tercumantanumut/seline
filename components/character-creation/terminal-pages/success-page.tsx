@@ -146,7 +146,7 @@ export function SuccessPage({ characterId, characterName, avatarUrl }: SuccessPa
 	              {t("configureAnother")}
 	            </Link>
             <Link
-              href="/characters"
+              href="/"
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-terminal-border text-terminal-dark font-mono text-sm rounded-lg hover:bg-terminal-bg/30 transition-colors"
             >
 	              <User className="w-4 h-4" />

@@ -143,43 +143,6 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput & { logId?: string }
     additionalProperties: false,
 });
 
-/**
- * Format command output for AI consumption
- */
-function formatOutput(result: ExecuteCommandToolResult): string {
-    const output: Record<string, any> = {
-        status: result.status,
-    };
-
-    if (result.processId) output.processId = result.processId;
-    if (result.exitCode !== undefined && result.exitCode !== null) output.exitCode = result.exitCode;
-    if (result.executionTime) output.executionTime = result.executionTime;
-    if (result.logId) output.logId = result.logId;
-    if (result.isTruncated) output.isTruncated = true;
-
-    if (result.status === "background_started") {
-        output.message = `Background process started: ${result.processId}`;
-        if (result.message) output.detail = result.message;
-    } else if (result.status === "running") {
-        output.message = `Process ${result.processId} still running`;
-        if (result.message) output.detail = result.message;
-    } else if (result.status === "blocked") {
-        output.error = result.error;
-    } else if (result.status === "no_folders") {
-        output.error = result.message;
-    } else if (result.error) {
-        output.error = result.error;
-    }
-
-    if (result.stdout) output.stdout = result.stdout;
-    if (result.stderr) output.stderr = result.stderr;
-
-    // Don't add truncation warning here - it's already handled by the chat layer
-    // The executor already truncated and set isTruncated flag
-    // The logId is available for retrieval via executeCommand({ command: "readLog", logId })
-
-    return JSON.stringify(output, null, 2);
-}
 
 /**
  * Create the executeCommand AI tool
@@ -397,12 +360,6 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     logId: result.logId,
                     isTruncated: result.isTruncated,
                 };
-
-                // Add formatted output for AI consumption and persistence
-                toolResult.message = formatOutput(toolResult);
-
-                // Log formatted output for debugging
-                console.log("[executeCommand]", toolResult.message);
 
                 return toolResult;
             } catch (error) {

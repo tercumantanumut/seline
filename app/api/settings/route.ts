@@ -88,6 +88,10 @@ export async function PUT(request: NextRequest) {
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
       promptCachingEnabled: body.promptCachingEnabled !== undefined ? body.promptCachingEnabled : currentSettings.promptCachingEnabled,
       promptCachingTtl: body.promptCachingTtl !== undefined ? body.promptCachingTtl : currentSettings.promptCachingTtl,
+      // RTK (experimental)
+      rtkEnabled: body.rtkEnabled !== undefined ? body.rtkEnabled : currentSettings.rtkEnabled,
+      rtkVerbosity: body.rtkVerbosity !== undefined ? body.rtkVerbosity : currentSettings.rtkVerbosity,
+      rtkUltraCompact: body.rtkUltraCompact !== undefined ? body.rtkUltraCompact : currentSettings.rtkUltraCompact,
       // ComfyUI / Local Image Generation
       comfyuiEnabled: body.comfyuiEnabled !== undefined ? body.comfyuiEnabled : currentSettings.comfyuiEnabled,
       comfyuiBackendPath: body.comfyuiBackendPath !== undefined ? body.comfyuiBackendPath : currentSettings.comfyuiBackendPath,
