@@ -963,7 +963,8 @@ export async function syncFolder(
       // Force polling for large folders (500+ files) to prevent EMFILE from
       // native FSEvents trying to watch thousands of file descriptors.
       // Exception: macOS uses FSEvents which doesn't suffer from this, so we keep native watching.
-      const forcePolling = process.platform !== 'darwin' && discoveredFiles.length > 500;
+      // Exception: Windows uses ReadDirectoryChangesW which is also efficient and handles recursion natively.
+      const forcePolling = process.platform !== 'darwin' && process.platform !== 'win32' && discoveredFiles.length > 500;
       const watchConfig = {
         folderId,
         characterId: folder.characterId,

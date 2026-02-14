@@ -450,7 +450,8 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   // previously hit EMFILE, use polling mode to prevent file descriptor exhaustion.
   // Exception: macOS (darwin) uses FSEvents naturally which doesn't consume FDs
   // per file, so we can use native watching safely even for large roots.
-  const isProjectRoot = process.platform !== 'darwin' && await isProjectRootDirectory(folderPath);
+  // Exception: Windows (win32) uses ReadDirectoryChangesW which handles recursion natively without FDs per file.
+  const isProjectRoot = process.platform !== 'darwin' && process.platform !== 'win32' && await isProjectRootDirectory(folderPath);
   const forcedPolling = pollingModeWatchers.has(folderId);
   const usePolling = isProjectRoot || forcedPolling || configForcePolling === true;
 
