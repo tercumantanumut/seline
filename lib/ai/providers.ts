@@ -76,7 +76,7 @@ const OPENROUTER_MODEL_PREFIX = "openrouter:";
 // Default models for each provider
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
-  openrouter: "x-ai/grok-4.1-fast",
+  openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-5", // Free via Antigravity
   codex: "gpt-5.1-codex",
   claudecode: "claude-sonnet-4-5-20250929", // Via Claude Pro/MAX OAuth

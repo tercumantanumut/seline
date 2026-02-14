@@ -171,23 +171,36 @@ export function limitToolOutput(
   if (estimatedTokens <= maxTokens) {
     if (alreadyTruncated && (existingLogId || obj?.truncatedContentId)) {
       // It was already truncated by lines or something else, but it fits in tokens.
-      // We should still ensure a unified marker is present if the caller didn't add one.
-      // But for now, we'll assume the caller (like executeCommand) handled it
-      // OR we can force a unified marker here if one is missing.
+      // Extract the actual text content to preserve the real tool result
+      const text = extractPrimaryText(output) ?? JSON.stringify(output);
       return {
         limited: false,
-        output: output as string,
-        originalLength: 0,
-        truncatedLength: 0,
+        output: text,
+        originalLength: text.length,
+        truncatedLength: text.length,
         estimatedTokens,
       };
     }
 
+    // For non-truncated outputs, extract text properly
+    const text = extractPrimaryText(output);
+    if (text !== null) {
+      return {
+        limited: false,
+        output: text,
+        originalLength: text.length,
+        truncatedLength: text.length,
+        estimatedTokens,
+      };
+    }
+
+    // Fallback: serialize object outputs to avoid "[object Object]"
+    const serialized = typeof output === "string" ? output : JSON.stringify(output);
     return {
       limited: false,
-      output: output as string,
-      originalLength: 0,
-      truncatedLength: 0,
+      output: serialized,
+      originalLength: serialized.length,
+      truncatedLength: serialized.length,
       estimatedTokens,
     };
   }
@@ -234,7 +247,7 @@ export function limitToolOutput(
     truncatedLength: truncatedText.length,
     estimatedTokens,
     maxTokens,
-    id: contentId || "unknown",
+    id: contentId, // Will be undefined if no storage available
     idType,
   });
 

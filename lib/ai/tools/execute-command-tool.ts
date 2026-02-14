@@ -181,12 +181,14 @@ function formatOutput(result: ExecuteCommandToolResult): string {
          const stderr = result.stderr || "";
          const combined = stdout + (stderr ? "\n" + stderr : "");
          
+         // Use actual lengths - the executor already truncated the output
+         // so the combined length represents what's being shown
          output.truncationWarning = generateTruncationMarker({
-            originalLength: (result.stdout?.length || 0) + (result.stderr?.length || 0) + 5000, 
+            originalLength: (result.stdout?.length || 0) + (result.stderr?.length || 0),
             truncatedLength: combined.length,
             estimatedTokens: estimateTokens(combined),
             maxTokens: MAX_TOOL_OUTPUT_TOKENS,
-            id: result.logId || "unknown",
+            id: result.logId,
             idType: "logId"
         });
     }
