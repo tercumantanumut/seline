@@ -183,7 +183,9 @@ export function CommandOutput({
                                 "text-xs uppercase tracking-wide pl-6",
                                 success ? "text-terminal-text/40" : "text-red-400/60"
                             )}>
-                                {success ? "System Log" : "Errors"}
+                                {/* Always label as "Diagnostic Output" for successful commands */}
+                                {/* Tests often log to stderr for warnings/debug info, not errors */}
+                                {success ? "Diagnostic Output" : "Errors"}
                             </div>
                             <TerminalOutput
                                 type={success ? "default" : "error"}

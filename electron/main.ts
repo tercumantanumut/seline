@@ -16,6 +16,7 @@ import * as fs from "fs";
 import * as https from "https";
 import { spawn, exec } from "child_process";
 import { listFiles, downloadFile } from "@huggingface/hub";
+import { initializeRTK } from "../lib/rtk";
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === "development";
@@ -949,9 +950,23 @@ function setupIpcHandlers(): void {
     return null;
   });
 
-  ipcMain.handle("settings:save", (_event, settings: Record<string, unknown>) => {
+  ipcMain.handle("settings:save", async (_event, settings: Record<string, unknown>) => {
     const settingsPath = path.join(dataDir, "settings.json");
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+
+    // Re-initialize RTK when related experimental flags change.
+    if (
+      Object.prototype.hasOwnProperty.call(settings, "rtkEnabled")
+      || Object.prototype.hasOwnProperty.call(settings, "rtkVerbosity")
+      || Object.prototype.hasOwnProperty.call(settings, "rtkUltraCompact")
+    ) {
+      try {
+        await initializeRTK();
+      } catch (error) {
+        debugError("[RTK] Failed to apply updated settings:", error);
+      }
+    }
+
     return true;
   });
 
@@ -2400,6 +2415,12 @@ app.whenReady().then(async () => {
 
   debugLog('[App] Setting up IPC handlers...');
   setupIpcHandlers();
+
+  try {
+    await initializeRTK();
+  } catch (error) {
+    debugError("[RTK] Initialization failed:", error);
+  }
 
   // Start Next.js server in production
   if (!isDev) {

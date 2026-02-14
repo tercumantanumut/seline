@@ -15,6 +15,7 @@ import { join } from "path";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
 import { saveTerminalLog, truncateOutput } from "./log-manager";
+import { getRTKBinary, getRTKEnvironment, getRTKFlags, shouldUseRTK } from "@/lib/rtk";
 import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./types";
 
 /**
@@ -141,6 +142,51 @@ function needsWindowsShell(command: string): boolean {
 }
 
 /**
+ * Wrap command with RTK if enabled and supported
+ * Returns modified command/args or original if RTK not applicable
+ */
+function wrapWithRTK(
+    command: string,
+    args: string[],
+    baseEnv: NodeJS.ProcessEnv
+): { command: string; args: string[]; usingRTK: boolean; env: NodeJS.ProcessEnv } {
+    const direct = { command, args, usingRTK: false, env: baseEnv };
+
+    // Check if RTK should be used for this command
+    if (!shouldUseRTK(command)) {
+        return direct;
+    }
+
+    const rtkBinary = getRTKBinary();
+    if (!rtkBinary) {
+        // RTK not available or not enabled - use original command
+        return direct;
+    }
+
+    try {
+        // Get RTK flags from settings
+        const rtkFlags = getRTKFlags();
+
+        // Build RTK command: rtk [flags] <command> <args...>
+        const rtkArgs = [...rtkFlags, command, ...args];
+
+        console.log(`[RTK] Wrapping command: ${command} ${args.join(" ")}`);
+        console.log(`[RTK] RTK command: ${rtkBinary} ${rtkArgs.join(" ")}`);
+
+        return {
+            command: rtkBinary,
+            args: rtkArgs,
+            usingRTK: true,
+            env: getRTKEnvironment(baseEnv),
+        };
+    } catch (error) {
+        // If RTK wrapping fails, fall back to original command
+        console.warn(`[RTK] Failed to wrap command, falling back to direct execution:`, error);
+        return direct;
+    }
+}
+
+/**
  * Start a command in the background. Returns immediately with a process ID.
  * The process continues running; call `getBackgroundProcess` to poll for output.
  *
@@ -172,15 +218,24 @@ export async function startBackgroundProcess(
     }
     const resolvedCwd = cwdValidation.resolvedPath ?? cwd;
 
+    const baseEnv = buildSafeEnvironment() as NodeJS.ProcessEnv;
+
+    // Wrap with RTK if enabled
+    const {
+        command: finalCommand,
+        args: finalArgs,
+        env: finalEnv,
+    } = wrapWithRTK(command, args, baseEnv);
+
     const id = nextBgId();
 
     try {
-        const child = spawn(command, args, {
+        const child = spawn(finalCommand, finalArgs, {
             cwd: resolvedCwd,
-            shell: needsWindowsShell(command),
+            shell: needsWindowsShell(finalCommand),
             stdio: ["ignore", "pipe", "pipe"],
             windowsHide: true,
-            env: buildSafeEnvironment() as NodeJS.ProcessEnv,
+            env: finalEnv,
         });
 
         const info: BackgroundProcessInfo = {
@@ -372,6 +427,13 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         let timeoutId: NodeJS.Timeout | null = null;
         let child: ChildProcess;
 
+        const baseEnv = buildSafeEnvironment() as NodeJS.ProcessEnv;
+        const {
+            command: finalCommand,
+            args: finalArgs,
+            env: finalEnv,
+        } = wrapWithRTK(command, args, baseEnv);
+
         try {
             // Spawn process
             // - Unix: shell: false to pass arguments directly (avoids quote/special char issues)
@@ -379,14 +441,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
             // Security is provided by command validation (blocklist) and path validation.
             //
             // Note for AI: On Windows use 'dir' instead of 'ls', 'type' instead of 'cat'
-            child = spawn(command, args, {
+            child = spawn(finalCommand, finalArgs, {
                 cwd,
                 timeout, // Built-in timeout
-                shell: needsWindowsShell(command),
+                shell: needsWindowsShell(finalCommand),
                 stdio: ["ignore", "pipe", "pipe"], // No stdin – prevents hangs on Windows .cmd shims
                 windowsHide: true, // Hide console window on Windows
-                env: buildSafeEnvironment() as NodeJS.ProcessEnv,
+                env: finalEnv,
             });
+
 
 
             // Set up manual timeout as backup

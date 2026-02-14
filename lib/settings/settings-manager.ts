@@ -202,6 +202,13 @@ export interface AppSettings {
 
     // Memory settings
     memoryAutoApprove?: boolean;     // Auto-approve background-extracted memories (default: false)
+
+    // RTK (Rust Token Killer) - Experimental token optimization
+    rtkEnabled?: boolean;            // Enable RTK proxy for command execution (default: false)
+    rtkInstalled?: boolean;          // Whether RTK binary is available
+    rtkVerbosity?: 0 | 1 | 2 | 3;   // RTK verbosity level: 0=quiet, 1=-v, 2=-vv, 3=-vvv (default: 0)
+    rtkUltraCompact?: boolean;       // Enable RTK ultra-compact mode with -u flag (default: false)
+    rtkDbPath?: string;              // Path to RTK SQLite database (set by Electron)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -269,6 +276,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     sttEnabled: true,
     sttProvider: "openai",
     sttLocalModel: "ggml-tiny.en",
+    // RTK defaults
+    rtkEnabled: false,
+    rtkInstalled: false,
+    rtkVerbosity: 0,
+    rtkUltraCompact: false,
 };
 
 function getSettingsPath(): string {
