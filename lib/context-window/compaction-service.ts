@@ -97,9 +97,11 @@ const ENHANCED_COMPACTION_PROMPT = `You are a conversation summarizer for an AI 
    - Key functions/classes modified
    - Important code snippets (if critical to understanding)
 
-3. **Decisions Made**: Important technical decisions and their rationale.
+3. **Tool Execution**: List important command executions and their Log IDs (logId).
 
-4. **Current State**: 
+4. **Decisions Made**: Important technical decisions and their rationale.
+
+5. **Current State**: 
    - What's working
    - What's in progress
    - What's broken or needs fixing
@@ -116,6 +118,7 @@ const ENHANCED_COMPACTION_PROMPT = `You are a conversation summarizer for an AI 
 - Use bullet points for readability
 - Include exact file paths and function names
 - Preserve error messages and stack traces if they're still relevant
+- Preserve Log IDs (logId) for executed commands so they can be retrieved later
 - DO NOT lose user constraints or preferences
 - Keep the summary under 2000 tokens
 
@@ -640,7 +643,7 @@ export class CompactionService {
                     
                     // Use middle-truncation for terminal output
                     const truncated = truncateOutput(stdout + (stderr ? "\n" + stderr : ""), 200);
-                    resultText = `[Tool result: executeCommand] Status: ${res.status}, ExitCode: ${res.exitCode}, LogID: ${res.logId || "none"}\nOutput: ${truncated.content}`;
+                    resultText = `[Tool result: executeCommand] Status: ${res.status}, ExitCode: ${res.exitCode}, LogID: ${res.logId || "none"} (IMPORTANT: PRESERVE THIS LOG ID)\nOutput: ${truncated.content}`;
                 } else if (toolName === "memorize" && part.result) {
                     const res = part.result as any;
                     resultText = `[Tool result: memorize] Status: ${res.success ? "Success" : "Failed"}, Memory: "${res.message || ""}"`;
