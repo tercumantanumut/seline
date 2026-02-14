@@ -5,6 +5,9 @@ import { join } from "path";
 // Mock fs module
 vi.mock("fs", () => ({
     existsSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    readFileSync: vi.fn(),
 }));
 
 // We need to import after mocking

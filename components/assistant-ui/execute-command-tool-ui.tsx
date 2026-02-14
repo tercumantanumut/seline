@@ -47,6 +47,8 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
                     executionTime={result.executionTime}
                     success={isNonErrorStatus}
                     error={result.status === "error" || result.status === "blocked" || result.status === "no_folders" ? result.error || result.message : undefined}
+                    logId={result.logId}
+                    isTruncated={result.isTruncated}
                     defaultCollapsed={false}
                 />
             );
@@ -86,6 +88,8 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
             executionTime={result.executionTime}
             success={result.status === "success"}
             error={result.status === "error" || result.status === "blocked" || result.status === "no_folders" ? result.error || result.message : undefined}
+            logId={result.logId}
+            isTruncated={result.isTruncated}
             // Auto-collapse if successful and not too much output
             defaultCollapsed={result.status === "success" && (!result.stderr) && (result.stdout?.length || 0) < 500}
         />

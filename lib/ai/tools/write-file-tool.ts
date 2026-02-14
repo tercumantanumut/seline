@@ -18,6 +18,7 @@ import {
   wasFileReadBefore,
   isFileStale,
   runPostWriteDiagnostics,
+  generateContentPreview,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -44,6 +45,7 @@ interface WriteFileResult {
   lineCount?: number;
   created?: boolean;
   diagnostics?: DiagnosticResult;
+  diff?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +194,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
 
         const lineCount = content.split("\n").length;
         const bytesWritten = Buffer.byteLength(content, "utf-8");
+        const diff = generateContentPreview(validPath, content);
 
         // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(
@@ -213,6 +216,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
           lineCount,
           created: !fileExists,
           diagnostics: diagnostics ?? undefined,
+          diff,
         };
       } catch (error) {
         return {

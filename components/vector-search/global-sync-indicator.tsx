@@ -77,10 +77,10 @@ export function GlobalSyncIndicator() {
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 500 }}
         className={cn(
-          "fixed bottom-4 right-4 z-50",
+          "fixed bottom-4 left-4 z-50 max-w-[calc(100vw-2rem)]",
           "bg-terminal-cream border border-terminal-border rounded-lg shadow-lg",
           "font-mono text-sm",
-          isExpanded ? "w-80" : "w-auto"
+          isExpanded ? "w-[min(20rem,calc(100vw-2rem))]" : "w-auto"
         )}
       >
         {/* Header - Always visible */}

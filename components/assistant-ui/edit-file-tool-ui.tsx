@@ -42,6 +42,8 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   result,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [showFullDiff, setShowFullDiff] = useState(false);
+  const [showFullDiagnostics, setShowFullDiagnostics] = useState(false);
   const filePath = (args?.filePath as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
 
@@ -151,16 +153,49 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
           {!isWrite && args?.oldString && args?.newString && (() => {
             const oldStr = String(args.oldString);
             const newStr = String(args.newString);
+            
+            // Count lines for truncation logic
+            const oldLines = oldStr.split('\n');
+            const newLines = newStr.split('\n');
+            const maxLines = 150;
+            const needsTruncation = oldLines.length > maxLines || newLines.length > maxLines;
+            
+            // Determine what to show
+            const displayOldStr = showFullDiff ? oldStr : oldLines.slice(0, maxLines).join('\n');
+            const displayNewStr = showFullDiff ? newStr : newLines.slice(0, maxLines).join('\n');
+            const truncatedOldLines = oldLines.length - maxLines;
+            const truncatedNewLines = newLines.length - maxLines;
+            
             return (
-              <div className="rounded bg-terminal-dark/5 p-2 overflow-x-auto">
-                <div className="text-red-600/80 whitespace-pre-wrap break-all">
-                  - {oldStr.slice(0, 200)}
-                  {oldStr.length > 200 ? "..." : null}
+              <div className="space-y-2">
+                <div className="rounded bg-terminal-dark/5 p-2 overflow-x-auto">
+                  <div className="text-red-600/80 whitespace-pre-wrap break-all font-mono text-[11px]">
+                    - {displayOldStr}
+                    {!showFullDiff && truncatedOldLines > 0 && (
+                      <span className="text-red-600/50 italic">
+                        {'\n'}... {truncatedOldLines} more line{truncatedOldLines !== 1 ? 's' : ''} ...
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-emerald-600/80 whitespace-pre-wrap break-all mt-2 font-mono text-[11px]">
+                    + {displayNewStr}
+                    {!showFullDiff && truncatedNewLines > 0 && (
+                      <span className="text-emerald-600/50 italic">
+                        {'\n'}... {truncatedNewLines} more line{truncatedNewLines !== 1 ? 's' : ''} ...
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-emerald-600/80 whitespace-pre-wrap break-all mt-1">
-                  + {newStr.slice(0, 200)}
-                  {newStr.length > 200 ? "..." : null}
-                </div>
+                
+                {needsTruncation && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullDiff(!showFullDiff)}
+                    className="text-[11px] text-blue-600 hover:text-blue-700 underline"
+                  >
+                    {showFullDiff ? '▲ Hide full diff' : '▼ Show full diff'}
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -173,16 +208,79 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
           )}
 
           {/* Diagnostics */}
-          {result?.diagnostics && result.diagnostics.output && (
-            <div className="rounded bg-terminal-dark/5 p-2">
-              <div className="text-[11px] text-terminal-muted mb-1">
-                Diagnostics ({result.diagnostics.tool})
+          {result?.diagnostics && result.diagnostics.output && (() => {
+            const { errors, warnings, output, tool } = result.diagnostics;
+            const totalIssues = errors + warnings;
+            const outputLines = output.split('\n');
+            const hasMultipleIssues = totalIssues > 1;
+            
+            // Parse output to separate errors and warnings (basic heuristic)
+            const errorLines: string[] = [];
+            const warningLines: string[] = [];
+            const otherLines: string[] = [];
+            
+            outputLines.forEach(line => {
+              if (line.includes('error') || line.includes('✖')) {
+                errorLines.push(line);
+              } else if (line.includes('warning') || line.includes('⚠')) {
+                warningLines.push(line);
+              } else {
+                otherLines.push(line);
+              }
+            });
+            
+            // Reconstruct output with errors first, then warnings
+            const sortedOutput = [
+              ...errorLines,
+              ...warningLines,
+              ...otherLines
+            ].join('\n');
+            
+            return (
+              <div className="rounded bg-terminal-dark/5 p-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-terminal-muted">
+                    Diagnostics ({tool})
+                  </div>
+                  {hasMultipleIssues && (
+                    <div className="text-[11px] flex gap-2">
+                      {errors > 0 && (
+                        <span className="text-red-600 font-medium">
+                          {errors} error{errors !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {warnings > 0 && (
+                        <span className="text-amber-600 font-medium">
+                          {warnings} warning{warnings !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="relative">
+                  <pre 
+                    className={cn(
+                      "text-[11px] text-terminal-dark whitespace-pre-wrap break-all overflow-y-auto",
+                      showFullDiagnostics ? "max-h-none" : "max-h-[300px]"
+                    )}
+                  >
+                    {sortedOutput}
+                  </pre>
+                  
+                  {outputLines.length > 20 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullDiagnostics(!showFullDiagnostics)}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
+                    >
+                      {showFullDiagnostics ? '▲ Show less' : `▼ Show all (${outputLines.length} lines)`}
+                    </button>
+                  )}
+                </div>
               </div>
-              <pre className="text-[11px] text-terminal-dark whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto">
-                {result.diagnostics.output}
-              </pre>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Loading state */}
           {!result && (

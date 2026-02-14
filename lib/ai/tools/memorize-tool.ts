@@ -136,6 +136,7 @@ Memories are organized by category and injected into the system prompt automatic
             success: true,
             alreadyExists: true,
             message: `I already have this memorized: "${duplicate.content}"`,
+            text: `I already have this memorized: "${duplicate.content}"`,
             memoryId: duplicate.id,
             category: duplicate.category,
           };
@@ -169,6 +170,7 @@ Memories are organized by category and injected into the system prompt automatic
           memoryId: memory.id,
           category: memory.category,
           message: `Memorized: "${content.trim()}"`,
+          text: `Successfully memorized: "${content.trim()}"`,
         };
       } catch (error) {
         console.error("[memorize] Failed to save memory:", error);

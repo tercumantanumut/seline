@@ -85,6 +85,7 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 4. Writing tool syntax as text does NOTHING - the tool won't execute
 5. NEVER output JSON objects containing "type":"tool-call" or "type":"tool-result" - these are internal protocol formats
 6. NEVER output text starting with \`[SYSTEM:\` - these markers are for internal processing only
+7. **JSON STRICTNESS:** All tool arguments must be valid JSON. Keys and string values MUST be double-quoted. (e.g., \`fileTypes: ["ts"]\`, NOT \`fileTypes: ts\`)
 
 ---
 

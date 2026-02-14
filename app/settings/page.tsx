@@ -47,6 +47,10 @@ interface AppSettings {
   localUserEmail: string;
   promptCachingEnabled?: boolean;
   promptCachingTtl?: "5m" | "1h";
+  rtkEnabled?: boolean;
+  rtkInstalled?: boolean;
+  rtkVerbosity?: 0 | 1 | 2 | 3;
+  rtkUltraCompact?: boolean;
   vectorDBEnabled?: boolean;
   vectorSearchHybridEnabled?: boolean;
   vectorSearchTokenChunkingEnabled?: boolean;
@@ -119,6 +123,9 @@ export default function SettingsPage() {
     toolLoadingMode: "deferred" as "deferred" | "always",
     promptCachingEnabled: true,
     promptCachingTtl: "5m" as "5m" | "1h",
+    rtkEnabled: false,
+    rtkVerbosity: 0 as 0 | 1 | 2 | 3,
+    rtkUltraCompact: false,
     embeddingReindexRequired: false,
     vectorDBEnabled: false,
     vectorSearchHybridEnabled: false,
@@ -227,6 +234,9 @@ export default function SettingsPage() {
         toolLoadingMode: data.toolLoadingMode || "deferred",
         promptCachingEnabled: data.promptCachingEnabled ?? true,
         promptCachingTtl: data.promptCachingTtl ?? "5m",
+        rtkEnabled: data.rtkEnabled ?? false,
+        rtkVerbosity: data.rtkVerbosity ?? 0,
+        rtkUltraCompact: data.rtkUltraCompact ?? false,
         embeddingReindexRequired: data.embeddingReindexRequired ?? false,
         vectorDBEnabled: data.vectorDBEnabled || false,
         vectorSearchHybridEnabled: data.vectorSearchHybridEnabled ?? false,
@@ -840,6 +850,9 @@ interface FormState {
   toolLoadingMode: "deferred" | "always";
   promptCachingEnabled: boolean;
   promptCachingTtl: "5m" | "1h";
+  rtkEnabled: boolean;
+  rtkVerbosity: 0 | 1 | 2 | 3;
+  rtkUltraCompact: boolean;
   embeddingReindexRequired: boolean;
   vectorDBEnabled: boolean;
   vectorSearchHybridEnabled: boolean;
@@ -2804,6 +2817,59 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             </div>
           </div>
         )}
+      </div>
+
+      {/* RTK (Rust Token Killer) */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">
+            RTK (Experimental)
+          </h3>
+          <p className="font-mono text-xs text-terminal-muted">
+            Bundle-powered command output compaction for token savings on supported tools.
+          </p>
+        </div>
+
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <span className="font-mono text-sm text-terminal-dark">Enable RTK</span>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              Applies only when RTK binary is installed and the command is supported.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={formState.rtkEnabled}
+            onChange={(e) => updateField("rtkEnabled", e.target.checked)}
+            className="size-5 accent-terminal-green"
+          />
+        </label>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">Verbosity</label>
+            <select
+              value={String(formState.rtkVerbosity)}
+              onChange={(e) => updateField("rtkVerbosity", Number(e.target.value) as 0 | 1 | 2 | 3)}
+              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            >
+              <option value="0">0 (quiet)</option>
+              <option value="1">1 (-v)</option>
+              <option value="2">2 (-vv)</option>
+              <option value="3">3 (-vvv)</option>
+            </select>
+          </div>
+
+          <label className="flex items-center gap-3 md:pt-6">
+            <input
+              type="checkbox"
+              checked={formState.rtkUltraCompact}
+              onChange={(e) => updateField("rtkUltraCompact", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+            <span className="font-mono text-sm text-terminal-dark">Ultra Compact (-u)</span>
+          </label>
+        </div>
       </div>
     </div>
   );

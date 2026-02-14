@@ -97,6 +97,11 @@ extraResources:
     to: "binaries/whisper"
     filter:
       - "**/*"
+  # Bundled RTK binaries for experimental command token optimization
+  - from: "binaries/rtk"
+    to: "binaries/rtk"
+    filter:
+      - "**/*"
   # ComfyUI backend infrastructure (lightweight files only - no models)
   - from: "comfyui_backend"
     to: "comfyui_backend"

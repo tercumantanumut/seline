@@ -544,7 +544,17 @@
       "editPlaceholder": "Mesajınızı düzenleyin...",
       "cancel": "İptal",
       "save": "Kaydet",
-      "stop": "Durdur"
+      "stop": "Durdur",
+      "imagePasted": "Panodan görsel yapıştırıldı",
+      "pasteError": "Görsel yapıştırılamadı",
+      "filesDropped": "{count, plural, one {# görsel} other {# görsel}} eklendi",
+      "dropError": "Görseller eklenemedi",
+      "dropHint": "Görselleri buraya bırakın",
+      "dropHintSubtext": "Eklemek için bırakın",
+      "onlyImagesSupported": "Yalnızca görsel dosyaları desteklenir",
+      "fileTooLarge": "Dosya çok büyük ({size}MB). Maksimum: {max}MB",
+      "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} çok büyük. Maksimum: {max}MB",
+      "attachmentsDisabledResearch": "Derin Araştırma modunda ekler kullanılamaz"
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada"
