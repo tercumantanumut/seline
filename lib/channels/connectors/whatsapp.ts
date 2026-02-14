@@ -205,6 +205,30 @@ export class WhatsAppConnector implements ChannelConnector {
     return { externalMessageId };
   }
 
+  async sendTyping(peerId: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      await this.sock.sendPresenceUpdate("composing", peerId);
+    } catch (error) {
+      console.warn("[WhatsApp] Failed to send typing status:", error);
+    }
+  }
+
+  async markAsRead(peerId: string, messageId: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      // Construct the key for the message we want to mark as read
+      const key = {
+        remoteJid: peerId,
+        id: messageId,
+        fromMe: false
+      };
+      await this.sock.readMessages([key]);
+    } catch (error) {
+      console.warn("[WhatsApp] Failed to mark as read:", error);
+    }
+  }
+
   getQrCode(): string | null {
     return null;
   }

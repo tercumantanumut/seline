@@ -40,6 +40,10 @@ export interface ExecuteResult {
   error?: string;
   /** Execution time in milliseconds */
   executionTime?: number;
+  /** Log ID for persistent storage */
+  logId?: string;
+  /** Whether the output was truncated in context */
+  isTruncated?: boolean;
 }
 
 /**
@@ -102,6 +106,10 @@ export interface ExecuteCommandToolResult {
   error?: string;
   /** Process ID for background processes */
   processId?: string;
+  /** Log ID for persistent storage */
+  logId?: string;
+  /** Whether the output was truncated in context */
+  isTruncated?: boolean;
 }
 
 /**
@@ -132,6 +140,8 @@ export interface BackgroundProcessInfo {
   process: import("child_process").ChildProcess;
   /** Timeout timer reference */
   timeoutId: NodeJS.Timeout | null;
+  /** Log ID for persistent storage */
+  logId?: string;
 }
 
 /**

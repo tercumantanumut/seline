@@ -15,6 +15,7 @@ import {
     listBackgroundProcesses,
     cleanupBackgroundProcesses,
 } from "@/lib/command-execution";
+import { readTerminalLog } from "@/lib/command-execution/log-manager";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,
@@ -97,7 +98,7 @@ export function normalizeExecuteCommandInput(
 /**
  * JSON Schema definition for the executeCommand tool input
  */
-const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
+const executeCommandSchema = jsonSchema<ExecuteCommandInput & { logId?: string }>({
     type: "object",
     title: "ExecuteCommandInput",
     description: "Input schema for safe command execution within synced directories",
@@ -105,7 +106,7 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
         command: {
             type: "string",
             description:
-                "Command to execute (e.g., 'npm', 'git', 'ls', 'dir'). Must be a valid executable. Not needed when using processId to check a background process.",
+                "Command to execute (e.g., 'npm', 'git', 'ls', 'dir'). Use 'readLog' to read a full truncated output.",
         },
         args: {
             type: "array",
@@ -132,6 +133,10 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput>({
             type: "string",
             description:
                 'Check status of a background process. Pass the processId returned from a background execution. Use command="kill" with processId to terminate a background process, or command="list" to see all background processes.',
+        },
+        logId: {
+            type: "string",
+            description: "The log ID to read when command is 'readLog'.",
         },
     },
     required: [],
@@ -168,6 +173,10 @@ function formatOutput(result: ExecuteCommandToolResult): string {
         }
     }
 
+    if (result.isTruncated) {
+        lines.push(`\n[NOTE: Output was truncated to save context window space. Full log available via logId: ${result.logId}]`);
+    }
+
     if (result.stdout && result.stdout.trim()) {
         lines.push("");
         lines.push("=== OUTPUT ===");
@@ -202,30 +211,28 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
 - Run tests: executeCommand({ command: "npm", args: ["test"] })
 - Check git status: executeCommand({ command: "git", args: ["status"] })
 - Install deps: executeCommand({ command: "npm", args: ["install"] })
-- Scaffold project (background): executeCommand({ command: "npx", args: ["-y", "create-vite@latest", "my-app"], background: true })
+- Read full truncated log: executeCommand({ command: "readLog", logId: "..." })
 - Check background process: executeCommand({ processId: "bg-123" })
 - Kill background process: executeCommand({ command: "kill", processId: "bg-123" })
 - List background processes: executeCommand({ command: "list" })
-- List files (Windows): executeCommand({ command: "dir" })
-- List files (macOS/Linux): executeCommand({ command: "ls", args: ["-la"] })
-- Python inline scripts: executeCommand({ command: "python", args: ["-c", "print('hello')"] })
 
 **Background Mode:**
 Use background: true for commands that take a long time (npm install, npx create-*, builds).
 The tool returns immediately with a processId. Poll with processId to check status and get output.
 
 **Parameters:**
-- command: The executable (e.g., "python"). Or "kill"/"list" for background process management.
+- command: The executable (e.g., "python"). Or "kill"/"list" for background process management. Or 'readLog' to retrieve full output.
 - args: Array of arguments (optional). For Python inline scripts, pass script as ONE arg after "-c"
 - cwd: Working directory (optional, defaults to first synced folder)
 - timeout: Max execution time in ms (auto-detected based on command type)
 - background: Run in background and return processId (default: false)
-- processId: Check/manage a background process by its ID`,
+- processId: Check/manage a background process by its ID
+- logId: The log ID to read when command is 'readLog'`,
 
         inputSchema: executeCommandSchema,
 
         execute: async (
-            input: ExecuteCommandInput
+            input: ExecuteCommandInput & { logId?: string }
         ): Promise<ExecuteCommandToolResult> => {
             // Validate characterId
             if (!characterId) {
@@ -235,7 +242,23 @@ The tool returns immediately with a processId. Poll with processId to check stat
                 };
             }
 
-            const { command, args = [], cwd, timeout, background, processId } = input;
+            const { command, args = [], cwd, timeout, background, processId, logId } = input;
+
+            // ── Read Log ────────────────────────────────────────────────
+            if (command === "readLog" && logId) {
+                const fullLog = readTerminalLog(logId);
+                if (!fullLog) {
+                    return {
+                        status: "error",
+                        error: `Log with ID '${logId}' not found. It may have been cleaned up or never existed.`,
+                    };
+                }
+                return {
+                    status: "success",
+                    stdout: fullLog,
+                    message: `Retrieved full log for ID '${logId}'.`,
+                };
+            }
 
             // ── Background process management ────────────────────────────
             // Check status of a background process
@@ -265,6 +288,7 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     exitCode: info.exitCode,
                     executionTime: Date.now() - info.startedAt,
                     message: `Process finished after ${elapsed}s with exit code ${info.exitCode}.`,
+                    logId: info.logId,
                 };
             }
 
@@ -399,6 +423,8 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     exitCode: result.exitCode,
                     executionTime: result.executionTime,
                     error: result.error,
+                    logId: result.logId,
+                    isTruncated: result.isTruncated,
                 };
 
                 // Log formatted output for debugging
