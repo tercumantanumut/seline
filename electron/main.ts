@@ -18,8 +18,10 @@ import { spawn, exec } from "child_process";
 import { listFiles, downloadFile } from "@huggingface/hub";
 import { initializeRTK } from "../lib/rtk";
 
-// Determine if we're in development mode
-const isDev = process.env.NODE_ENV === "development";
+// Determine if we're in development mode.
+// Never rely on NODE_ENV alone because packaged apps can inherit NODE_ENV=development
+// from a parent shell/launcher and accidentally boot the dev path (localhost:3000).
+const isDev = !app.isPackaged;
 
 // Keep dev data isolated from production builds to avoid DB collisions.
 if (isDev) {
