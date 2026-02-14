@@ -16,8 +16,6 @@ import {
     cleanupBackgroundProcesses,
 } from "@/lib/command-execution";
 import { readTerminalLog } from "@/lib/command-execution/log-manager";
-import { generateTruncationMarker } from "../truncation-utils";
-import { estimateTokens, MAX_TOOL_OUTPUT_TOKENS } from "../output-limiter";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,

@@ -561,24 +561,7 @@ async function extractContent(
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryOutput.products.length} products for "${productGalleryOutput.query}"`);
           }
         } else if (toolName === "executeCommand") {
-          const cmdOutput = output as any;
-          if (cmdOutput?.message) {
-            contentParts.push({
-              type: "text",
-              text: cmdOutput.message,
-            });
-          } else if (cmdOutput?.logId) {
-            contentParts.push({
-              type: "text",
-              text: JSON.stringify({
-                logId: cmdOutput.logId,
-                status: cmdOutput.isTruncated ? "truncated" : "completed",
-                message: cmdOutput.isTruncated 
-                  ? "Output truncated, use readLog with this ID to see full output"
-                  : "Command execution recorded"
-              }),
-            });
-          }
+          console.log("[EXTRACT] executeCommand output preserved as structured data");
         } else {
           // Handle universal truncation notice from limitToolOutput
           const resultObj = output as any;
@@ -691,24 +674,7 @@ async function extractContent(
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryResult.products.length} products for "${productGalleryResult.query}"`);
           }
         } else if (toolName === "executeCommand") {
-          const cmdOutput = toolOutput as any;
-          if (cmdOutput?.message) {
-            contentParts.push({
-              type: "text",
-              text: cmdOutput.message,
-            });
-          } else if (cmdOutput?.logId) {
-            contentParts.push({
-              type: "text",
-              text: JSON.stringify({
-                logId: cmdOutput.logId,
-                status: cmdOutput.isTruncated ? "truncated" : "completed",
-                message: cmdOutput.isTruncated 
-                  ? "Output truncated, use readLog with this ID to see full output"
-                  : "Command execution recorded"
-              }),
-            });
-          }
+          console.log("[EXTRACT] tool-executeCommand output preserved as structured data");
         } else {
           // Handle universal truncation notice from limitToolOutput
           const resultObj = toolOutput as any;

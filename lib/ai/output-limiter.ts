@@ -16,10 +16,12 @@ import { generateTruncationMarker } from "./truncation-utils";
 // Configuration
 // ============================================================================
 
-// ~10,000 tokens = ~40,000 characters (4 chars/token estimate)
-export const MAX_TOOL_OUTPUT_TOKENS = 10000;
+// Default guardrail for tool outputs included in chat context.
+// Keep this conservative so one noisy tool call cannot crowd out conversation context.
+// ~3,000 tokens = ~12,000 characters (4 chars/token estimate)
+export const MAX_TOOL_OUTPUT_TOKENS = 3000;
 export const CHARS_PER_TOKEN = 4;
-export const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 40,000
+export const MAX_TOOL_OUTPUT_CHARS = MAX_TOOL_OUTPUT_TOKENS * CHARS_PER_TOKEN; // 12,000
 
 // ============================================================================
 // Types

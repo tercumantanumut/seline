@@ -39,9 +39,11 @@ export function saveTerminalLog(stdout: string, stderr: string): string {
     const logId = nanoid();
     const logsDir = getLogsDir();
     const logPath = path.join(logsDir, `${logId}.log`);
-    
-    const content = `=== STDOUT ===\n${stdout}\n\n=== STDERR ===\n${stderr}`;
-    
+
+    const cleanStdout = stripAnsiCodes(stdout || "");
+    const cleanStderr = stripAnsiCodes(stderr || "");
+    const content = `=== STDOUT ===\n${cleanStdout}\n\n=== STDERR ===\n${cleanStderr}`;
+
     try {
         fs.writeFileSync(logPath, content, "utf8");
         return logId;
@@ -58,17 +60,18 @@ export function saveTerminalLog(stdout: string, stderr: string): string {
  */
 export function readTerminalLog(logId: string): string | null {
     if (!logId) return null;
-    
+
     const logPath = path.join(getLogsDir(), `${logId}.log`);
-    
+
     try {
         if (fs.existsSync(logPath)) {
-            return fs.readFileSync(logPath, "utf8");
+            // Defensive sanitize for legacy logs that may still contain ANSI sequences.
+            return stripAnsiCodes(fs.readFileSync(logPath, "utf8"));
         }
     } catch (error) {
         console.error(`[TerminalLogManager] Failed to read log ${logId}:`, error);
     }
-    
+
     return null;
 }
 

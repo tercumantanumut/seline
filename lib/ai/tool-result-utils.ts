@@ -35,6 +35,44 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
   return undefined;
 }
 
+const EXECUTE_COMMAND_CONTEXT_OUTPUT_LIMIT = 2000;
+
+function truncateField(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}\n... [TRUNCATED ${value.length - maxLength} CHARS] ...`;
+}
+
+function compactExecuteCommandOutput(output: unknown): unknown {
+  const result = getRecord(output);
+  if (!result) return output;
+
+  const compact: Record<string, unknown> = {
+    status: result.status ?? "success",
+  };
+
+  if (typeof result.exitCode === "number") compact.exitCode = result.exitCode;
+  if (typeof result.executionTime === "number") compact.executionTime = result.executionTime;
+  if (typeof result.logId === "string") compact.logId = result.logId;
+  if (result.isTruncated === true) compact.isTruncated = true;
+  if (typeof result.error === "string") compact.error = result.error;
+
+  const stdout = truncateField(result.stdout, EXECUTE_COMMAND_CONTEXT_OUTPUT_LIMIT);
+  const stderr = truncateField(result.stderr, EXECUTE_COMMAND_CONTEXT_OUTPUT_LIMIT);
+  if (stdout) compact.stdout = stdout;
+  if (stderr) compact.stderr = stderr;
+
+  const summary = getString(result.summary) || getString(result.message);
+  if (summary) compact.summary = truncateSummary(summary, 220);
+
+  if (result.isTruncated === true && typeof result.logId === "string") {
+    compact.truncated = true;
+    compact.truncatedContentId = result.logId;
+  }
+
+  return compact;
+}
+
 function summarizeToolKeys(result: Record<string, unknown>): string {
   const keys = Object.keys(result)
     .filter((key) => !["content", "summary", "error", "status", "metadata"].includes(key))
@@ -174,12 +212,15 @@ export function normalizeToolResultOutput(
   output: unknown,
   input?: unknown
 ): ToolResultNormalization {
+  // executeCommand already persists full output to logs, so keep context payload compact.
+  let normalizedOutput = toolName === "executeCommand" ? compactExecuteCommandOutput(output) : output;
+
   // Get session ID from run context for content storage
   const sessionId = getRunContext()?.sessionId;
 
   // Apply token limit (universal safety net)
   // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.
-  const limitResult = limitToolOutput(output, toolName, sessionId);
+  const limitResult = limitToolOutput(normalizedOutput, toolName, sessionId);
 
   // If limited, update output with truncated version
   if (limitResult.limited) {
@@ -190,12 +231,12 @@ export function normalizeToolResultOutput(
     );
 
     // Handle string output
-    if (typeof output === "string") {
-      output = limitResult.output;
+    if (typeof normalizedOutput === "string") {
+      normalizedOutput = limitResult.output;
     }
     // Handle object output with text fields
-    else if (output && typeof output === "object") {
-      const obj = output as Record<string, unknown>;
+    else if (normalizedOutput && typeof normalizedOutput === "object") {
+      const obj = normalizedOutput as Record<string, unknown>;
 
       // Update the primary text field
       if (typeof obj.content === "string") {
@@ -215,7 +256,7 @@ export function normalizeToolResultOutput(
   }
 
   // Continue with existing normalization logic
-  if (output === null || output === undefined) {
+  if (normalizedOutput === null || normalizedOutput === undefined) {
     const error = "Tool returned no output.";
     const summary = truncateSummary(buildToolSummary(toolName, input, { status: "error", error }));
     return {
@@ -226,16 +267,16 @@ export function normalizeToolResultOutput(
     };
   }
 
-  if (typeof output !== "object" || Array.isArray(output)) {
-    const summary = truncateSummary(buildToolSummary(toolName, input, output));
+  if (typeof normalizedOutput !== "object" || Array.isArray(normalizedOutput)) {
+    const summary = truncateSummary(buildToolSummary(toolName, input, normalizedOutput));
     return {
-      output: { status: "success", content: output, summary },
+      output: { status: "success", content: normalizedOutput, summary },
       summary,
       status: "success",
     };
   }
 
-  const result = { ...(output as Record<string, unknown>) };
+  const result = { ...(normalizedOutput as Record<string, unknown>) };
   const error = getString(result.error);
   let summary = getString(result.summary);
   if (!summary) {
