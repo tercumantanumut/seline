@@ -358,7 +358,15 @@ if (fs.existsSync(whisperBundleDir)) {
     console.log('  Users will need to install whisper.cpp separately (macOS: brew install whisper-cpp, Windows: download whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases)');
 }
 
-// 14. Bundle Node.js executable for MCP subprocess spawning
+// 14. Bundle RTK binary for experimental command optimization.
+console.log('Bundling RTK binary...');
+try {
+    execSync('node scripts/bundle-rtk.js', { stdio: 'inherit' });
+} catch (error) {
+    console.log('  RTK bundle step failed or skipped; experimental RTK mode will remain unavailable.');
+}
+
+// 15. Bundle Node.js executable for MCP subprocess spawning
 // This avoids console window flashing on Windows and provides a clean Node.js runtime on Mac
 // Using a real Node.js binary instead of ELECTRON_RUN_AS_NODE improves compatibility
 if (process.platform === 'win32' || process.platform === 'darwin') {

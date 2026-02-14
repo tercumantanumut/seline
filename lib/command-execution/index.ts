@@ -36,5 +36,12 @@ export {
     cleanupBackgroundProcesses,
 } from "./executor";
 
+// Export log manager
+export {
+    saveTerminalLog,
+    readTerminalLog,
+    truncateOutput,
+} from "./log-manager";
+
 // Export logger
 export { commandLogger } from "./logger";

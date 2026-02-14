@@ -423,6 +423,9 @@ const Composer: FC<{
   const [cursorPosition, setCursorPosition] = useState(0);
   const mentionRef = useRef<HTMLDivElement>(null);
 
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+
   // Prompt enhancement state
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementInfo, setEnhancementInfo] = useState<{
@@ -566,6 +569,122 @@ const Composer: FC<{
       handleSubmit();
     }
   }, [handleSubmit]);
+
+  // Handle clipboard paste (Ctrl+V / Cmd+V)
+  const handlePaste = useCallback(
+    async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      // Check for images in clipboard
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault(); // Prevent default paste behavior
+          
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          // Validate file size (10 MB limit)
+          const MAX_SIZE = 10 * 1024 * 1024;
+          if (file.size > MAX_SIZE) {
+            toast.error(t("composer.fileTooLarge", { 
+              size: Math.round(file.size / 1024 / 1024),
+              max: 10 
+            }));
+            return;
+          }
+
+          // Add attachment
+          try {
+            await threadRuntime.composer.addAttachment(file);
+            toast.success(t("composer.imagePasted"));
+          } catch (error) {
+            console.error("[Composer] Failed to paste image:", error);
+            toast.error(t("composer.pasteError"));
+          }
+          
+          return; // Only process first image
+        }
+      }
+      // Let text paste through normally (no preventDefault)
+    },
+    [threadRuntime, t]
+  );
+
+  // Handle drag over
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only show drag state if files are being dragged
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  // Handle drag leave
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only clear if leaving the composer root (not child elements)
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  // Handle file drop
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      // Check if in deep research mode
+      if (isDeepResearchMode) {
+        toast.error(t("composer.attachmentsDisabledResearch"));
+        return;
+      }
+
+      const files = Array.from(e.dataTransfer.files);
+      const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+
+      if (imageFiles.length === 0) {
+        toast.error(t("composer.onlyImagesSupported"));
+        return;
+      }
+
+      // Validate file sizes
+      const MAX_SIZE = 10 * 1024 * 1024;
+      const oversizedFiles = imageFiles.filter((f) => f.size > MAX_SIZE);
+      
+      if (oversizedFiles.length > 0) {
+        toast.error(t("composer.someFilesTooLarge", { 
+          count: oversizedFiles.length,
+          max: 10 
+        }));
+        return;
+      }
+
+      // Add all valid images
+      let successCount = 0;
+      for (const file of imageFiles) {
+        try {
+          await threadRuntime.composer.addAttachment(file);
+          successCount++;
+        } catch (error) {
+          console.error("[Composer] Failed to attach dropped file:", file.name, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(t("composer.filesDropped", { count: successCount }));
+      } else {
+        toast.error(t("composer.dropError"));
+      }
+    },
+    [threadRuntime, t, isDeepResearchMode]
+  );
 
   // Remove a message from the queue
   const removeFromQueue = useCallback((id: string) => {
@@ -838,10 +957,29 @@ const Composer: FC<{
           "relative flex w-full flex-col rounded-lg shadow-md transition-shadow focus-within:shadow-lg transform-gpu",
           isDeepResearchMode
             ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200"
-            : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
+            : "bg-terminal-cream/80 focus-within:bg-terminal-cream",
+          isDragging && "ring-2 ring-terminal-green ring-offset-2 bg-terminal-green/5"
         )}
         onFocus={handleFocus}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        {/* Drop Zone Indicator - shows when dragging files */}
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-terminal-green/10 rounded-lg border-2 border-dashed border-terminal-green z-10 pointer-events-none backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-2 text-terminal-green font-mono">
+              <PaperclipIcon className="size-8 animate-bounce" />
+              <span className="text-sm font-medium">
+                {t("composer.dropHint")}
+              </span>
+              <span className="text-xs text-terminal-green/80">
+                {t("composer.dropHintSubtext")}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Status indicator above composer */}
         {statusMessage && (
           <div className="flex items-center gap-2 px-4 py-2 text-xs font-mono text-terminal-muted border-b border-terminal-dark/10">
@@ -885,6 +1023,7 @@ const Composer: FC<{
               setCursorPosition((e.target as HTMLTextAreaElement).selectionStart ?? 0);
             }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             autoFocus
             placeholder={getPlaceholder()}
             rows={1}

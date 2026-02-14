@@ -184,7 +184,7 @@ export const MODEL_METADATA: Record<
 
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
-  openrouter: "x-ai/grok-4.1-fast",
+  openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-5",
   codex: "gpt-5.1-codex",
   claudecode: "claude-sonnet-4-5-20250929",
@@ -230,6 +230,48 @@ export function buildModelCatalog(
     { id: "claude-instant-1.2", name: "Claude Instant 1.2" },
   ];
 
+  // OpenRouter models - organized by category
+  // Users can also enter custom IDs via the input field
+  const openrouterModels = [
+    // --- Routers ---
+    { id: "openrouter/auto", name: "🎯 Auto Router (Smart Selection)" },
+    { id: "openrouter/free", name: "🆓 Free Router (Random Free Model)" },
+    
+    // --- Most Popular (Top Usage) ---
+    { id: "moonshotai/kimi-k2.5", name: "Kimi K2.5 (#1 Most Used)" },
+    { id: "google/gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+    { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek V3.2" },
+    { id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5" },
+    { id: "x-ai/grok-4.1-fast", name: "Grok 4.1 Fast" },
+    
+    // --- Best Value (Performance/Price) ---
+    { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash (Fast)" },
+    { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+    { id: "anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5 (Coding)" },
+    { id: "openai/gpt-oss-120b", name: "GPT-OSS-120B (Open Weight)" },
+    { id: "qwen/qwen3-coder-next", name: "Qwen3 Coder Next" },
+    
+    // --- Free Models (Top Tier) ---
+    { id: "openai/gpt-oss-120b:free", name: "🆓 GPT-OSS-120B Free" },
+    { id: "openai/gpt-oss-20b:free", name: "🆓 GPT-OSS-20B Free" },
+    { id: "deepseek/deepseek-r1-0528:free", name: "🆓 DeepSeek R1 Free" },
+    { id: "z-ai/glm-4.5-air:free", name: "🆓 GLM 4.5 Air Free" },
+    { id: "arcee-ai/trinity-large-preview:free", name: "🆓 Trinity Large Preview Free" },
+    { id: "stepfun/step-3.5-flash:free", name: "🆓 Step 3.5 Flash Free" },
+    { id: "nvidia/nemotron-3-nano-30b-a3b:free", name: "🆓 NVIDIA Nemotron 30B Free" },
+    { id: "upstage/solar-pro-3:free", name: "🆓 Solar Pro 3 Free" },
+    
+    // --- Reasoning Models ---
+    { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (Reasoning)" },
+    { id: "qwen/qwen3-max-thinking", name: "Qwen3 Max Thinking" },
+    { id: "x-ai/grok-code", name: "Grok Code (Reasoning)" },
+    
+    // --- Legacy Popular ---
+    { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+    { id: "openai/gpt-4o", name: "GPT-4o" },
+    { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B" },
+  ];
+
   const allSources: Array<{
     provider: LLMProvider;
     models: Array<{ id: string; name: string }>;
@@ -239,7 +281,8 @@ export function buildModelCatalog(
     { provider: "codex", models: getCodexModels() },
     { provider: "claudecode", models: getClaudeCodeModels() },
     { provider: "kimi", models: getKimiModels() },
-    // openrouter & ollama are free-text — handled separately in UI
+    { provider: "openrouter", models: openrouterModels },
+    // ollama is free-text — handled separately in UI
   ];
 
   for (const { provider, models } of allSources) {

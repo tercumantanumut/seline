@@ -20,7 +20,8 @@ import {
 } from "@/lib/db/queries";
 import { estimateMessageTokens } from "@/lib/utils";
 import type { Message } from "@/lib/db/schema";
-import { TokenTracker, formatTokenCount } from "./token-tracker";
+import { truncateOutput } from "@/lib/command-execution/log-manager";
+import { formatTokenCount } from "./token-tracker";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,7 +72,11 @@ const DEFAULT_OPTIONS: CompactionOptions = {
   keepRecentMessages: 6,
   maxSummaryTokens: 2000,
   preserveRules: true,
-  preserveToolResults: ["updatePlan", "executeCommand", "mcp_filesystem_write_file", "mcp_filesystem_edit_file"],
+  preserveToolResults: [
+    "updatePlan", 
+    "mcp_filesystem_write_file", 
+    "mcp_filesystem_edit_file",
+  ],
   minMessagesForCompaction: 3, // Lowered from 10 to support sparse long-running sessions
   enableAutoPruning: true,
   errorPurgeAge: 4,
@@ -92,9 +97,11 @@ const ENHANCED_COMPACTION_PROMPT = `You are a conversation summarizer for an AI 
    - Key functions/classes modified
    - Important code snippets (if critical to understanding)
 
-3. **Decisions Made**: Important technical decisions and their rationale.
+3. **Tool Execution**: List important command executions and their Log IDs (logId).
 
-4. **Current State**: 
+4. **Decisions Made**: Important technical decisions and their rationale.
+
+5. **Current State**: 
    - What's working
    - What's in progress
    - What's broken or needs fixing
@@ -111,6 +118,7 @@ const ENHANCED_COMPACTION_PROMPT = `You are a conversation summarizer for an AI 
 - Use bullet points for readability
 - Include exact file paths and function names
 - Preserve error messages and stack traces if they're still relevant
+- Preserve Log IDs (logId) for executed commands so they can be retrieved later
 - DO NOT lose user constraints or preferences
 - Keep the summary under 2000 tokens
 
@@ -443,10 +451,20 @@ export class CompactionService {
 
     // Step 2: Identify messages to compact (adaptive keepRecentMessages)
     let keepRecent = opts.keepRecentMessages;
-    // NOTE: slice(0, -0) returns [] in JS, so handle keepRecent=0 explicitly
-    let messagesToCompact = keepRecent === 0
-      ? [...messages]
-      : (messages.length > keepRecent ? messages.slice(0, -keepRecent) : []);
+    
+    // Identify messages to compact, while preserving specific tool results
+    let messagesToCompact: Message[] = [];
+    const recentThreshold = messages.length - keepRecent;
+    
+    for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        const isRecent = i >= recentThreshold;
+        const isPreservedTool = msg.role === "tool" && msg.toolName && opts.preserveToolResults.includes(msg.toolName);
+        
+        if (!isRecent && !isPreservedTool) {
+            messagesToCompact.push(msg);
+        }
+    }
 
     // If targetTokensToFree is set, adaptively reduce keepRecent to free enough tokens
     const computeCompactableTokens = (msgs: Message[]) => {
@@ -463,9 +481,18 @@ export class CompactionService {
       // Reduce keepRecent until we can free enough tokens (allow going to 0)
       while (compactableTokens < opts.targetTokensToFree && keepRecent > 0) {
         keepRecent = Math.max(0, keepRecent - 2);
-        messagesToCompact = keepRecent === 0
-          ? [...messages]
-          : messages.slice(0, -keepRecent);
+        
+        // Re-calculate messages to compact with new threshold
+        const newRecentThreshold = messages.length - keepRecent;
+        messagesToCompact = [];
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const isRecent = i >= newRecentThreshold;
+            const isPreservedTool = msg.role === "tool" && msg.toolName && opts.preserveToolResults.includes(msg.toolName);
+            if (!isRecent && !isPreservedTool) {
+                messagesToCompact.push(msg);
+            }
+        }
         compactableTokens = computeCompactableTokens(messagesToCompact);
       }
 
@@ -597,12 +624,39 @@ export class CompactionService {
           }
         }
       } else if (Array.isArray(msg.content)) {
-        content = (msg.content as Array<{ type: string; text?: string }>)
+        content = (msg.content as Array<any>)
           .map((part) => {
             if (part.type === "text" && part.text) return part.text;
             if (part.type === "image") return "[Image]";
             if (part.type === "tool-call") return `[Tool call: ${msg.toolName || "unknown"}]`;
-            if (part.type === "tool-result") return `[Tool result: ${msg.toolName || "unknown"}]`;
+            
+            // FIX: Include tool result content instead of just the label
+            if (part.type === "tool-result") {
+                const toolName = msg.toolName || "unknown";
+                let resultText = "";
+                
+                // Special handling for executeCommand results
+                if (toolName === "executeCommand" && part.result) {
+                    const res = part.result;
+                    const stdout = res.stdout || "";
+                    const stderr = res.stderr || "";
+                    
+                    // Use middle-truncation for terminal output
+                    const truncated = truncateOutput(stdout + (stderr ? "\n" + stderr : ""), 200);
+                    resultText = `[Tool result: executeCommand] Status: ${res.status}, ExitCode: ${res.exitCode}, LogID: ${res.logId || "none"} (IMPORTANT: PRESERVE THIS LOG ID)\nOutput: ${truncated.content}`;
+                } else if (toolName === "memorize" && part.result) {
+                    const res = part.result as any;
+                    resultText = `[Tool result: memorize] Status: ${res.success ? "Success" : "Failed"}, Memory: "${res.message || ""}"`;
+                } else if (part.result) {
+                    // For other tools, provide a summarized JSON
+                    resultText = `[Tool result: ${toolName}] ${JSON.stringify(part.result).slice(0, 500)}`;
+                } else {
+                    resultText = `[Tool result: ${toolName}]`;
+                }
+                
+                return resultText;
+            }
+            
             return "[Content]";
           })
           .join(" ");
@@ -622,9 +676,9 @@ export class CompactionService {
         content = JSON.stringify(msg.content).slice(0, 500);
       }
 
-      // Truncate very long messages
-      if (content.length > 1000) {
-        content = content.slice(0, 1000) + "... [truncated]";
+      // Truncate very long messages (but we already did smart truncation for tool results)
+      if (content.length > 2000) {
+        content = content.slice(0, 2000) + "... [truncated]";
       }
 
       formatted.push(`${role}: ${content}`);

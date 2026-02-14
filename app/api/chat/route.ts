@@ -560,7 +560,18 @@ async function extractContent(
           if (productGalleryOutput?.products && productGalleryOutput.products.length > 0) {
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryOutput.products.length} products for "${productGalleryOutput.query}"`);
           }
+        } else if (toolName === "executeCommand") {
+          console.log("[EXTRACT] executeCommand output preserved as structured data");
         } else {
+          // Handle universal truncation notice from limitToolOutput
+          const resultObj = output as any;
+          if (resultObj?.truncated && resultObj?.truncatedContentId) {
+            contentParts.push({
+              type: "text",
+              text: `\n---\n⚠️ CONTENT TRUNCATED: Full content available via retrieveFullContent with contentId="${resultObj.truncatedContentId}"\n---`,
+            });
+          }
+
           // For tools with text output or other results, log but don't add [SYSTEM: ...] markers
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] dynamic-tool ${toolName} output preserved as structured data`);
@@ -662,7 +673,18 @@ async function extractContent(
           if (productGalleryResult?.products && productGalleryResult.products.length > 0) {
             console.log(`[EXTRACT] showProductImages completed: ${productGalleryResult.products.length} products for "${productGalleryResult.query}"`);
           }
+        } else if (toolName === "executeCommand") {
+          console.log("[EXTRACT] tool-executeCommand output preserved as structured data");
         } else {
+          // Handle universal truncation notice from limitToolOutput
+          const resultObj = toolOutput as any;
+          if (resultObj?.truncated && resultObj?.truncatedContentId) {
+            contentParts.push({
+              type: "text",
+              text: `\n---\n⚠️ CONTENT TRUNCATED: Full content available via retrieveFullContent with contentId="${resultObj.truncatedContentId}"\n---`,
+            });
+          }
+
           // For tools with other output, log but don't add [SYSTEM: ...] markers
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] tool-${toolName} output preserved as structured data`);

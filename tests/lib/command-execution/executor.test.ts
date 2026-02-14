@@ -4,13 +4,16 @@ import { existsSync } from "fs";
 // Mock fs so bundled-binaries path resolution doesn't touch the real filesystem
 vi.mock("fs", () => ({
     existsSync: vi.fn().mockReturnValue(false),
+    mkdirSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    readFileSync: vi.fn(),
 }));
 
 const {
     executeCommand,
     startBackgroundProcess,
     getBackgroundProcess,
-    killBackgroundProcess,
+    killBackgroundzzsProcess,
     listBackgroundProcesses,
     cleanupBackgroundProcesses,
 } = await import("@/lib/command-execution/executor");

@@ -94,4 +94,6 @@ export interface ChannelConnector {
   disconnect(): Promise<void>;
   sendMessage(payload: ChannelSendPayload): Promise<ChannelSendResult>;
   getQrCode?(): string | null;
+  sendTyping?(peerId: string): Promise<void>;
+  markAsRead?(peerId: string, messageId: string): Promise<void>;
 }
