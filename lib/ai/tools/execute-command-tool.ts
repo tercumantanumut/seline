@@ -175,6 +175,8 @@ function formatOutput(result: ExecuteCommandToolResult): string {
 
     if (result.isTruncated) {
         lines.push(`\n[NOTE: Output was truncated to save context window space. Full log available via logId: ${result.logId}]`);
+    } else if (result.logId) {
+        lines.push(`\n[Log ID: ${result.logId}]`);
     }
 
     if (result.stdout && result.stdout.trim()) {
@@ -409,8 +411,11 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     isTruncated: result.isTruncated,
                 };
 
+                // Add formatted output for AI consumption and persistence
+                toolResult.message = formatOutput(toolResult);
+
                 // Log formatted output for debugging
-                console.log("[executeCommand]", formatOutput(toolResult));
+                console.log("[executeCommand]", toolResult.message);
 
                 return toolResult;
             } catch (error) {
