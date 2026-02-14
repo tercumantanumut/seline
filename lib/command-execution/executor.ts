@@ -14,6 +14,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
+import { saveTerminalLog, truncateOutput } from "./log-manager";
 import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./types";
 
 /**
@@ -223,6 +224,10 @@ export async function startBackgroundProcess(
             info.running = false;
             info.exitCode = code;
             info.signal = signal;
+            
+            // Save full log for background process too
+            info.logId = saveTerminalLog(info.stdout, info.stderr);
+            
             commandLogger.logExecutionComplete(
                 command, code, Date.now() - info.startedAt,
                 { stdout: info.stdout.length, stderr: info.stderr.length },
@@ -311,7 +316,7 @@ export function listBackgroundProcesses(): Array<{
  */
 export function cleanupBackgroundProcesses(maxAge = 600_000): void {
     const now = Date.now();
-    for (const [id, info] of backgroundProcesses) {
+    for (const [id, info] of Array.from(backgroundProcesses.entries())) {
         if (!info.running && now - info.startedAt > maxAge) {
             backgroundProcesses.delete(id);
         }
@@ -450,14 +455,23 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                     context
                 );
 
+                // Save full log
+                const logId = saveTerminalLog(stdout, stderr);
+                
+                // Truncate output for LLM context
+                const truncatedStdout = truncateOutput(stdout);
+                const truncatedStderr = truncateOutput(stderr);
+
                 resolve({
                     success: !killed && code === 0,
-                    stdout: stdout.trim(),
-                    stderr: stderr.trim(),
+                    stdout: truncatedStdout.content.trim(),
+                    stderr: truncatedStderr.content.trim(),
                     exitCode: code,
                     signal: signal,
                     error: killed ? "Process terminated due to timeout or output limit" : undefined,
                     executionTime,
+                    logId,
+                    isTruncated: truncatedStdout.isTruncated || truncatedStderr.isTruncated,
                 });
             });
 

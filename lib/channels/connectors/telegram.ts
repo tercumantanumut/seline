@@ -270,6 +270,20 @@ export class TelegramConnector implements ChannelConnector {
     };
   }
 
+  async sendTyping(peerId: string): Promise<void> {
+    if (!this.bot || this.status !== "connected") return;
+    try {
+      await this.bot.api.sendChatAction(Number(peerId), "typing");
+    } catch (error) {
+      console.warn("[Telegram] Failed to send typing status:", error);
+    }
+  }
+
+  async markAsRead(peerId: string, messageId: string): Promise<void> {
+    // Telegram Bot API does not support marking messages as read.
+    return Promise.resolve();
+  }
+
   private attachHandlers(): void {
     if (this.handlersAttached) {
       return;

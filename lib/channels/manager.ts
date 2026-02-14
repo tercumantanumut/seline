@@ -175,6 +175,20 @@ class ChannelManager {
     }
     return connector.sendMessage(payload);
   }
+
+  async sendTyping(connectionId: string, peerId: string): Promise<void> {
+    const connector = this.connectors.get(connectionId);
+    if (connector && connector.sendTyping) {
+      await connector.sendTyping(peerId);
+    }
+  }
+
+  async markAsRead(connectionId: string, peerId: string, messageId: string): Promise<void> {
+    const connector = this.connectors.get(connectionId);
+    if (connector && connector.markAsRead) {
+      await connector.markAsRead(peerId, messageId);
+    }
+  }
 }
 
 let singleton: ChannelManager | null = null;
