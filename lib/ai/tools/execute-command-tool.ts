@@ -355,24 +355,6 @@ The tool returns immediately with a processId. Poll with processId to check stat
             try {
                 const normalizedInput = normalizeExecuteCommandInput(command, args);
 
-                // Guardrail: Python on Windows is commonly invoked via cmd.exe (shell parsing),
-                // but our executor uses spawn(argv) so the `-c` payload must be a single arg.
-                // Some environments require the script itself to be quoted.
-                if (
-                    isPythonExecutable(normalizedInput.command) &&
-                    normalizedInput.args[0] === "-c" &&
-                    typeof normalizedInput.args[1] === "string"
-                ) {
-                    const script = normalizedInput.args[1];
-                    const needsQuoteWrap =
-                        script.length > 0 &&
-                        !/^["']/.test(script.trim()) &&
-                        /\s|;|\(|\)|\n/.test(script);
-                    if (needsQuoteWrap) {
-                        normalizedInput.args[1] = `"${script.replace(/\"/g, "\\\"")}"`;
-                    }
-                }
-
                 // ── Background execution ────────────────────────────────
                 if (background) {
                     const maxBgTimeout = 600_000; // 10 min
