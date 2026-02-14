@@ -11,6 +11,7 @@ import { createEditFileTool } from "@/lib/ai/tools/edit-file-tool";
 import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
+import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -1654,6 +1655,11 @@ export async function POST(req: Request) {
     console.log(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
 
     const refetchTools: Record<string, Tool> = {
+      sendMessageToChannel: createSendMessageToChannelTool({
+        sessionId,
+        userId: dbUser.id,
+        sessionMetadata
+      }),
       readFile: createReadFileTool({
         sessionId,
         userId: dbUser.id,
@@ -1916,6 +1922,13 @@ export async function POST(req: Request) {
     // This ensures deferred loading is respected - we don't add tools that should be discovered
     const tools: Record<string, Tool> = {
       ...allTools,
+      ...(allTools.sendMessageToChannel && {
+        sendMessageToChannel: createSendMessageToChannelTool({
+          sessionId,
+          userId: dbUser.id,
+          sessionMetadata
+        }),
+      }),
       // searchTools and listAllTools ALWAYS override (they're alwaysLoad: true)
       searchTools: createToolSearchTool(toolSearchContext),
       listAllTools: createListToolsTool(toolSearchContext),

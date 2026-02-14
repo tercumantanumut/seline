@@ -96,6 +96,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },
   { id: "updatePlan", category: "utility" },
+  { id: "sendMessageToChannel", category: "utility" },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },

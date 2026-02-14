@@ -469,6 +469,10 @@
         "name": "Edit (FLUX.2 Klein 9B)",
         "description": "Edit images locally with FLUX.2 Klein 9B (requires Docker)"
       },
+      "sendMessageToChannel": {
+        "name": "Send Message to Channel",
+        "description": "Send a direct message to the user via connected external channels"
+      },
       "referenceImageFlux2Klein9B": {
         "name": "Reference (FLUX.2 Klein 9B)",
         "description": "Reference-guided generation with FLUX.2 Klein 9B (requires Docker)"
@@ -834,6 +838,8 @@
         "calculatorDesc": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)",
         "updatePlan": "Update Plan",
         "updatePlanDesc": "Create or update a visible task plan with step statuses across the conversation",
+        "sendMessageToChannel": "Send Message to Channel",
+        "sendMessageToChannelDesc": "Send a direct message to the user via connected external channels",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",
