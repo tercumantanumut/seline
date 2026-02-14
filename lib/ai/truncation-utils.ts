@@ -11,7 +11,8 @@ export interface TruncationMarkerParams {
   truncatedLength: number;
   estimatedTokens: number;
   maxTokens: number;
-  id: string;
+  /** Optional ID for retrieval. If omitted or "unknown", no retrieval instructions are shown. */
+  id?: string;
   idType: TruncationIdType;
 }
 
@@ -28,10 +29,29 @@ export function generateTruncationMarker(params: TruncationMarkerParams): string
     idType,
   } = params;
 
-  const retrievalCommand =
-    idType === "logId"
-      ? `executeCommand({ command: "readLog", logId: "${id}" })`
-      : `retrieveFullContent({ contentId: "${id}" })`;
+  // Only show retrieval instructions if we have a valid ID
+  const hasValidId = id && id !== "unknown";
+  
+  const retrievalSection = hasValidId
+    ? `📦 FULL OUTPUT AVAILABLE
+   Reference ID: ${id}
+
+🔧 TO RETRIEVE FULL OUTPUT:
+   ${idType === "logId" 
+     ? `executeCommand({ command: "readLog", logId: "${id}" })` 
+     : `retrieveFullContent({ contentId: "${id}" })`}
+
+💡 RECOMMENDATION:
+   Only retrieve full output if the truncated portion above is
+   insufficient for your task. Consider using grep/filtering
+   commands to get specific information instead.`
+    : `⚠️  FULL OUTPUT NOT STORED
+   No session context available for storage.
+   
+💡 TIP:
+   Re-run the command with proper session context if you need
+   the complete output, or use filtering commands (grep, head, tail)
+   to reduce output size.`;
 
   return `
 
@@ -41,15 +61,6 @@ export function generateTruncationMarker(params: TruncationMarkerParams): string
 Original: ~${estimatedTokens.toLocaleString()} tokens (${originalLength.toLocaleString()} chars)
 Showing: ~${maxTokens.toLocaleString()} tokens (${truncatedLength.toLocaleString()} chars)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📦 FULL OUTPUT AVAILABLE
-   Reference ID: ${id}
-
-🔧 TO RETRIEVE FULL OUTPUT:
-   ${retrievalCommand}
-
-💡 RECOMMENDATION:
-   Only retrieve full output if the truncated portion above is
-   insufficient for your task. Consider using grep/filtering
-   commands to get specific information instead.
+${retrievalSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 }
