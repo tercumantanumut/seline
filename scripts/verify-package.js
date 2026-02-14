@@ -92,6 +92,17 @@ const requiredPaths = [
   'standalone/lib',
 ];
 
+// RTK bundle is optional at runtime (experimental), but warn if absent in package.
+const optionalPaths = [
+  `binaries/rtk/${
+    process.platform === 'darwin'
+      ? (process.arch === 'arm64' ? 'macos-arm64/rtk' : 'macos-x64/rtk')
+      : process.platform === 'win32'
+        ? (process.arch === 'arm64' ? 'windows-arm64/rtk.exe' : 'windows-x64/rtk.exe')
+        : (process.arch === 'arm64' ? 'linux-arm64/rtk' : 'linux-x64/rtk')
+  }`,
+];
+
 for (const required of requiredPaths) {
   const fullPath = path.join(appResourcesPath, required);
   if (!fs.existsSync(fullPath)) {
@@ -104,6 +115,14 @@ if (!hasErrors) {
   console.log('   ✅ PASS: All required runtime files present\n');
 } else {
   console.log('');
+}
+
+for (const optionalPath of optionalPaths) {
+  const fullPath = path.join(appResourcesPath, optionalPath);
+  if (!fs.existsSync(fullPath)) {
+    console.warn(`   ⚠️  WARNING: Optional RTK binary missing: ${optionalPath}`);
+    hasWarnings = true;
+  }
 }
 
 // --- Check 3: Verify standalone/lib doesn't contain dev artifacts ---

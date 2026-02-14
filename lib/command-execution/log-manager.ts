@@ -73,8 +73,20 @@ export function readTerminalLog(logId: string): string | null {
 }
 
 /**
+ * Strip ANSI escape codes from terminal output
+ * Removes color codes, cursor movements, and other terminal control sequences
+ */
+function stripAnsiCodes(text: string): string {
+    // ANSI escape code regex pattern
+    // Matches sequences like \x1b[0m, \x1b[1;31m, etc.
+    // eslint-disable-next-line no-control-regex
+    return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
+/**
  * Smart middle-truncation for terminal output
  * Keeps the head and tail of the output to preserve context and exit status.
+ * Automatically strips ANSI escape codes for clean LLM consumption.
  */
 export function truncateOutput(text: string, maxLines = MAX_CONTEXT_LINES): { 
     content: string; 
@@ -83,11 +95,14 @@ export function truncateOutput(text: string, maxLines = MAX_CONTEXT_LINES): {
 } {
     if (!text) return { content: "", isTruncated: false, originalLineCount: 0 };
     
-    const lines = text.split("\n");
+    // Strip ANSI codes first for clean output
+    const cleanText = stripAnsiCodes(text);
+    
+    const lines = cleanText.split("\n");
     const originalLineCount = lines.length;
     
     if (originalLineCount <= maxLines) {
-        return { content: text, isTruncated: false, originalLineCount };
+        return { content: cleanText, isTruncated: false, originalLineCount };
     }
     
     // Calculate head and tail counts based on maxLines
