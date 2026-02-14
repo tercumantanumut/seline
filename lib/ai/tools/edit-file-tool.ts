@@ -20,6 +20,8 @@ import {
   wasFileReadBefore,
   isFileStale,
   runPostWriteDiagnostics,
+  generateLineNumberDiff,
+  generateContentPreview,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -45,6 +47,7 @@ interface EditFileResult {
   error?: string;
   linesChanged?: number;
   diagnostics?: DiagnosticResult;
+  diff?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +162,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
           recordFileRead(sessionId, validPath); // Mark as read after creation
 
           const lineCount = newString.split("\n").length;
+          const diff = generateContentPreview(validPath, newString);
           const diagnostics = await runPostWriteDiagnostics(
             validPath,
             syncedFolders
@@ -170,6 +174,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
             message: `Created ${basename(validPath)} (${lineCount} lines)`,
             linesChanged: lineCount,
             diagnostics: diagnostics ?? undefined,
+            diff,
           };
         } catch (error) {
           return {
@@ -252,6 +257,9 @@ export function createEditFileTool(options: EditFileToolOptions) {
         const newLines = newString.split("\n").length;
         const linesChanged = Math.max(oldLines, newLines);
 
+        // Generate diff
+        const diff = generateLineNumberDiff(validPath, content, oldString, newString);
+
         // Run diagnostics (non-blocking, 5s timeout)
         const diagnostics = await runPostWriteDiagnostics(
           validPath,
@@ -274,6 +282,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
           message: parts.join(" "),
           linesChanged,
           diagnostics: diagnostics ?? undefined,
+          diff,
         };
       } catch (error) {
         return {
