@@ -149,63 +149,49 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput & { logId?: string }
  * Format command output for AI consumption
  */
 function formatOutput(result: ExecuteCommandToolResult): string {
-    const lines: string[] = [];
+    const output: Record<string, any> = {
+        status: result.status,
+    };
+
+    if (result.processId) output.processId = result.processId;
+    if (result.exitCode !== undefined && result.exitCode !== null) output.exitCode = result.exitCode;
+    if (result.executionTime) output.executionTime = result.executionTime;
+    if (result.logId) output.logId = result.logId;
+    if (result.isTruncated) output.isTruncated = true;
 
     if (result.status === "background_started") {
-        lines.push(`⟳ Background process started: ${result.processId}`);
-        if (result.message) lines.push(`  ${result.message}`);
+        output.message = `Background process started: ${result.processId}`;
+        if (result.message) output.detail = result.message;
     } else if (result.status === "running") {
-        lines.push(`⟳ Process ${result.processId} still running`);
-        if (result.message) lines.push(`  ${result.message}`);
-    } else if (result.status === "success") {
-        lines.push(
-            `✓ Command executed successfully (exit code: ${result.exitCode ?? 0})`
-        );
-        if (result.executionTime) {
-            lines.push(`  Time: ${result.executionTime}ms`);
-        }
+        output.message = `Process ${result.processId} still running`;
+        if (result.message) output.detail = result.message;
     } else if (result.status === "blocked") {
-        lines.push(`✗ Command blocked: ${result.error}`);
+        output.error = result.error;
     } else if (result.status === "no_folders") {
-        lines.push(`✗ No synced folders: ${result.message}`);
-    } else {
-        lines.push(`✗ Command failed: ${result.error || "Unknown error"}`);
-        if (result.exitCode !== null && result.exitCode !== undefined) {
-            lines.push(`  Exit code: ${result.exitCode}`);
-        }
+        output.error = result.message;
+    } else if (result.error) {
+        output.error = result.error;
     }
 
+    if (result.stdout) output.stdout = result.stdout;
+    if (result.stderr) output.stderr = result.stderr;
+
     if (result.isTruncated) {
-        // Use unified truncation marker if the executor already truncated by lines
-        const stdout = result.stdout || "";
-        const stderr = result.stderr || "";
-        const combined = stdout + (stderr ? "\n" + stderr : "");
-        
-        lines.push(generateTruncationMarker({
-            originalLength: (result.stdout?.length || 0) + (result.stderr?.length || 0) + 5000, // Heuristic for "original" since we don't have exact raw size here easily
+         const stdout = result.stdout || "";
+         const stderr = result.stderr || "";
+         const combined = stdout + (stderr ? "\n" + stderr : "");
+         
+         output.truncationWarning = generateTruncationMarker({
+            originalLength: (result.stdout?.length || 0) + (result.stderr?.length || 0) + 5000, 
             truncatedLength: combined.length,
             estimatedTokens: estimateTokens(combined),
             maxTokens: MAX_TOOL_OUTPUT_TOKENS,
             id: result.logId || "unknown",
             idType: "logId"
-        }));
-    } else if (result.logId) {
-        lines.push(`\n[Log ID: ${result.logId}]`);
+        });
     }
 
-    if (result.stdout && result.stdout.trim()) {
-        lines.push("");
-        lines.push("=== OUTPUT ===");
-        lines.push(result.stdout);
-    }
-
-    if (result.stderr && result.stderr.trim()) {
-        lines.push("");
-        lines.push("=== ERRORS ===");
-        lines.push(result.stderr);
-    }
-
-    return lines.join("\n");
+    return JSON.stringify(output, null, 2);
 }
 
 /**

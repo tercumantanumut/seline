@@ -24,3 +24,8 @@ export {
   runPostWriteDiagnostics,
   type DiagnosticResult,
 } from "./diagnostics";
+
+export {
+  generateLineNumberDiff,
+  generateContentPreview,
+} from "./diff-utils";

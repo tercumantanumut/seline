@@ -18,6 +18,8 @@ import {
   wasFileReadBefore,
   isFileStale,
   runPostWriteDiagnostics,
+  generateLineNumberDiff,
+  generateContentPreview,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -46,6 +48,7 @@ interface PatchOperationResult {
   action: string;
   success: boolean;
   error?: string;
+  diff?: string;
 }
 
 interface PatchFileResult {
@@ -290,10 +293,19 @@ export function createPatchFileTool(options: PatchFileToolOptions) {
             recordFileWrite(sessionId, validPath);
             recordFileRead(sessionId, validPath);
             modifiedPaths.push(validPath);
+            
+            const diff = generateLineNumberDiff(
+              validPath,
+              currentContent,
+              op.oldString!,
+              op.newString ?? ""
+            );
+
             results.push({
               filePath: validPath,
               action: "update",
               success: true,
+              diff,
             });
           } else if (op.action === "create") {
             await ensureParentDirectories(validPath);
@@ -301,10 +313,14 @@ export function createPatchFileTool(options: PatchFileToolOptions) {
             recordFileWrite(sessionId, validPath);
             recordFileRead(sessionId, validPath);
             modifiedPaths.push(validPath);
+
+            const diff = generateContentPreview(validPath, op.newString ?? "");
+
             results.push({
               filePath: validPath,
               action: "create",
               success: true,
+              diff,
             });
           } else if (op.action === "delete") {
             await unlink(validPath);

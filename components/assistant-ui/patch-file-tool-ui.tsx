@@ -50,6 +50,7 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
   result,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const [showFullDiagnostics, setShowFullDiagnostics] = useState<{[key: number]: boolean}>({});
   const opCount = args?.operations?.length || result?.operations?.length || 0;
 
   const StatusIcon = !result
@@ -108,19 +109,25 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
             const error = "error" in op ? (op as OperationResult).error : undefined;
 
             return (
-              <div key={i} className="flex items-center gap-2 py-0.5">
-                <Icon className={cn("h-3 w-3 shrink-0", color)} />
-                <span className="truncate text-terminal-dark" title={op.filePath}>
-                  {fileName}
-                </span>
-                <span className={cn("text-[11px] shrink-0", color)}>{action}</span>
-                {success === true && (
-                  <CheckCircleIcon className="h-3 w-3 shrink-0 text-emerald-600 ml-auto" />
-                )}
-                {success === false && (
-                  <span className="text-[11px] text-red-600 ml-auto truncate max-w-[200px]" title={error}>
-                    {error || "failed"}
+              <div key={i} className="py-0.5">
+                <div className="flex items-center gap-2">
+                  <Icon className={cn("h-3 w-3 shrink-0", color)} />
+                  <span className="truncate text-terminal-dark" title={op.filePath}>
+                    {fileName}
                   </span>
+                  <span className={cn("text-[11px] shrink-0", color)}>{action}</span>
+                  {success === true && (
+                    <CheckCircleIcon className="h-3 w-3 shrink-0 text-emerald-600 ml-auto" />
+                  )}
+                  {success === false && (
+                    <XCircleIcon className="h-3 w-3 shrink-0 text-red-600 ml-auto" />
+                  )}
+                </div>
+                {/* Show full error message on separate line */}
+                {success === false && error && (
+                  <div className="text-[11px] text-red-600 mt-0.5 ml-5 whitespace-pre-wrap break-words">
+                    {error}
+                  </div>
                 )}
               </div>
             );
@@ -134,18 +141,82 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
           )}
 
           {/* Diagnostics */}
-          {result?.diagnostics?.map((diag, i) => (
-            diag.output && (
-              <div key={i} className="rounded bg-terminal-dark/5 p-2 mt-1">
-                <div className="text-[11px] text-terminal-muted mb-1">
-                  Diagnostics ({diag.tool})
+          {result?.diagnostics?.map((diag, i) => {
+            if (!diag.output) return null;
+            
+            const { errors, warnings, output, tool } = diag;
+            const totalIssues = errors + warnings;
+            const outputLines = output.split('\n');
+            const hasMultipleIssues = totalIssues > 1;
+            const isExpanded = showFullDiagnostics[i] || false;
+            
+            // Parse output to separate errors and warnings (basic heuristic)
+            const errorLines: string[] = [];
+            const warningLines: string[] = [];
+            const otherLines: string[] = [];
+            
+            outputLines.forEach(line => {
+              if (line.includes('error') || line.includes('✖')) {
+                errorLines.push(line);
+              } else if (line.includes('warning') || line.includes('⚠')) {
+                warningLines.push(line);
+              } else {
+                otherLines.push(line);
+              }
+            });
+            
+            // Reconstruct output with errors first, then warnings
+            const sortedOutput = [
+              ...errorLines,
+              ...warningLines,
+              ...otherLines
+            ].join('\n');
+            
+            return (
+              <div key={i} className="rounded bg-terminal-dark/5 p-2 mt-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-terminal-muted">
+                    Diagnostics ({tool})
+                  </div>
+                  {hasMultipleIssues && (
+                    <div className="text-[11px] flex gap-2">
+                      {errors > 0 && (
+                        <span className="text-red-600 font-medium">
+                          {errors} error{errors !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {warnings > 0 && (
+                        <span className="text-amber-600 font-medium">
+                          {warnings} warning{warnings !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <pre className="text-[11px] text-terminal-dark whitespace-pre-wrap break-all max-h-[80px] overflow-y-auto">
-                  {diag.output}
-                </pre>
+                
+                <div className="relative">
+                  <pre 
+                    className={cn(
+                      "text-[11px] text-terminal-dark whitespace-pre-wrap break-all overflow-y-auto",
+                      isExpanded ? "max-h-none" : "max-h-[300px]"
+                    )}
+                  >
+                    {sortedOutput}
+                  </pre>
+                  
+                  {outputLines.length > 20 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullDiagnostics(prev => ({ ...prev, [i]: !prev[i] }))}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
+                    >
+                      {isExpanded ? '▲ Show less' : `▼ Show all (${outputLines.length} lines)`}
+                    </button>
+                  )}
+                </div>
               </div>
-            )
-          ))}
+            );
+          })}
 
           {/* Loading state */}
           {!result && (

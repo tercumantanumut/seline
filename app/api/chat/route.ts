@@ -570,7 +570,13 @@ async function extractContent(
           } else if (cmdOutput?.logId) {
             contentParts.push({
               type: "text",
-              text: `[Log ID: ${cmdOutput.logId}]${cmdOutput.isTruncated ? " (Output truncated, use readLog with this ID to see full output)" : ""}`,
+              text: JSON.stringify({
+                logId: cmdOutput.logId,
+                status: cmdOutput.isTruncated ? "truncated" : "completed",
+                message: cmdOutput.isTruncated 
+                  ? "Output truncated, use readLog with this ID to see full output"
+                  : "Command execution recorded"
+              }),
             });
           }
         } else {
@@ -694,7 +700,13 @@ async function extractContent(
           } else if (cmdOutput?.logId) {
             contentParts.push({
               type: "text",
-              text: `[Log ID: ${cmdOutput.logId}]${cmdOutput.isTruncated ? " (Output truncated, use readLog with this ID to see full output)" : ""}`,
+              text: JSON.stringify({
+                logId: cmdOutput.logId,
+                status: cmdOutput.isTruncated ? "truncated" : "completed",
+                message: cmdOutput.isTruncated 
+                  ? "Output truncated, use readLog with this ID to see full output"
+                  : "Command execution recorded"
+              }),
             });
           }
         } else {

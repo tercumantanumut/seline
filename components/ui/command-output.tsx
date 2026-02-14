@@ -25,6 +25,10 @@ interface CommandOutputProps {
     success?: boolean;
     /** Error message if execution failed */
     error?: string;
+    /** Log ID for persistent storage */
+    logId?: string;
+    /** Whether the output was truncated in context */
+    isTruncated?: boolean;
     /** Whether the output should start collapsed */
     defaultCollapsed?: boolean;
     /** CSS class for the container */
@@ -81,6 +85,8 @@ export function CommandOutput({
     executionTime,
     success,
     error,
+    logId,
+    isTruncated,
     defaultCollapsed,
     className,
 }: CommandOutputProps) {
@@ -185,6 +191,26 @@ export function CommandOutput({
                             >
                                 {stderr}
                             </TerminalOutput>
+                        </div>
+                    )}
+
+                    {/* Truncation warning banner */}
+                    {isTruncated && logId && (
+                        <div className="mx-6 my-2 p-3 rounded-md bg-terminal-amber/10 border border-terminal-amber/30 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 text-terminal-amber">
+                                <Clock className="h-4 w-4 shrink-0" />
+                                <span className="text-xs font-medium">
+                                    Output truncated. Full log available (ID: {logId})
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`executeCommand({ command: "readLog", logId: "${logId}" })`);
+                                }}
+                                className="text-[10px] uppercase tracking-wider bg-terminal-amber/20 hover:bg-terminal-amber/30 text-terminal-amber px-2 py-1 rounded transition-colors border border-terminal-amber/20 shrink-0"
+                            >
+                                Copy Retrieval Command
+                            </button>
                         </div>
                     )}
                 </motion.div>
