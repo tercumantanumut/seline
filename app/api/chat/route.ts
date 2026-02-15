@@ -407,7 +407,15 @@ async function extractContent(
   convertUserImagesToBase64 = false,
   sessionId?: string,
   toolSummaryMode = false
-): Promise<string | Array<{ type: string; text?: string; image?: string }>> {
+): Promise<string | Array<{
+  type: string;
+  text?: string;
+  image?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+}>> {
   // If content exists and is a string, use it directly (with sanitization)
   if (typeof msg.content === "string" && msg.content) {
     // Strip fake tool call JSON that may have been saved from previous model outputs
@@ -421,7 +429,15 @@ async function extractContent(
 
   // If parts array exists (assistant-ui format), convert it
   if (msg.parts && Array.isArray(msg.parts)) {
-    const contentParts: Array<{ type: string; text?: string; image?: string }> =
+    const contentParts: Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
+      output?: unknown;
+    }> =
       [];
 
     for (const part of msg.parts) {
@@ -493,6 +509,18 @@ async function extractContent(
 
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
+        const toolCallId = part.toolCallId;
+        const normalizedInput = toolCallId
+          ? normalizeToolCallInput(part.input, toolName, toolCallId) ?? {}
+          : null;
+        if (toolCallId && normalizedInput) {
+          contentParts.push({
+            type: "tool-call",
+            toolCallId,
+            toolName,
+            input: normalizedInput,
+          });
+        }
         
         // For image/video generation tools, add a natural language reference so AI can use the URLs
         if (output?.images && output.images.length > 0) {
@@ -588,6 +616,18 @@ async function extractContent(
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] dynamic-tool ${toolName} output preserved as structured data`);
         }
+
+        if (toolCallId && output !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, output)
+            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: normalizedOutput,
+          });
+        }
       } else if (part.type.startsWith("tool-")) {
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
         // CRITICAL: Tool results are kept as structured data in the parts, NOT converted to text
@@ -606,6 +646,18 @@ async function extractContent(
           result?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
         };
         const toolOutput = partWithOutput.output ?? partWithOutput.result;
+        const toolCallId = part.toolCallId;
+        const normalizedInput = toolCallId
+          ? normalizeToolCallInput(partWithOutput.input, toolName, toolCallId) ?? {}
+          : null;
+        if (toolCallId && normalizedInput) {
+          contentParts.push({
+            type: "tool-call",
+            toolCallId,
+            toolName,
+            input: normalizedInput,
+          });
+        }
         console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(toolOutput, null, 2));
 
         // For image/video generation tools, add natural language reference so AI can use the URLs
@@ -701,6 +753,38 @@ async function extractContent(
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] tool-${toolName} output preserved as structured data`);
         }
+
+        if (toolCallId && toolOutput !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, toolOutput)
+            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: normalizedOutput,
+          });
+        }
+      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        contentParts.push({
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          input: normalizedInput,
+        });
+      } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        const rawOutput = part.output ?? part.result;
+        const normalizedOutput = toolSummaryMode
+          ? summarizeToolResult(part.toolName, rawOutput)
+          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+        contentParts.push({
+          type: "tool-result",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          output: normalizedOutput,
+        });
       }
     }
 
@@ -782,7 +866,15 @@ async function extractContent(
 
   // If content is an array, pass it through
   if (Array.isArray(msg.content)) {
-    return msg.content as Array<{ type: string; text?: string; image?: string }>;
+    return msg.content as Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
+      output?: unknown;
+    }>;
   }
 
   // Fallback
@@ -824,6 +916,51 @@ function shouldUseToolSummaries(
 ): boolean {
   const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
+}
+
+function summarizeToolResult(toolName: string, output: unknown): unknown {
+  const normalized = normalizeToolResultOutput(toolName, output, undefined).output as Record<string, unknown> | string | null;
+
+  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
+    return normalized;
+  }
+
+  const summary: Record<string, unknown> = {};
+  const status = normalized.status;
+  if (typeof status === "string") {
+    summary.status = status;
+  }
+
+  if (typeof normalized.message === "string" && normalized.message.trim()) {
+    summary.message = normalized.message;
+  }
+
+  if (typeof normalized.exitCode === "number") {
+    summary.exitCode = normalized.exitCode;
+  }
+
+  if (typeof normalized.executionTime === "number") {
+    summary.executionTime = normalized.executionTime;
+  }
+
+  if (typeof normalized.logId === "string" && normalized.logId) {
+    summary.logId = normalized.logId;
+  }
+
+  if (typeof normalized.stdout === "string" && normalized.stdout) {
+    summary.stdoutPreview = normalized.stdout.slice(0, 300);
+  }
+
+  if (typeof normalized.stderr === "string" && normalized.stderr) {
+    summary.stderrPreview = normalized.stderr.slice(0, 300);
+  }
+
+  if (Object.keys(summary).length === 0) {
+    return { status: "success", summarized: true };
+  }
+
+  summary.summarized = true;
+  return summary;
 }
 
 function normalizeToolCallInput(
