@@ -28,7 +28,7 @@ import {
  * tool results plus text parts.
  */
 const MAX_PROGRESS_CONTENT_TOKENS = 20_000;
-const MAX_PROGRESS_CONTENT_CHARS = MAX_PROGRESS_CONTENT_TOKENS * CHARS_PER_TOKEN; // 80,000
+const DEBUG_PROGRESS_LIMITER = process.env.DEBUG_PROGRESS_LIMITER === "true";
 
 /**
  * Max characters for any single tool-result's `result` field.
@@ -52,6 +52,8 @@ export interface ProgressLimitResult {
   finalTokens: number;
   /** Number of tool-result parts that were truncated */
   truncatedParts: number;
+  /** Whether a final hard-cap summary fallback was required */
+  hardCapped: boolean;
 }
 
 // ============================================================================
@@ -147,10 +149,12 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
       originalTokens: 0,
       finalTokens: 0,
       truncatedParts: 0,
+      hardCapped: false,
     };
   }
 
   const originalTokens = estimateTokens(content);
+  const originalBytes = Buffer.byteLength(JSON.stringify(content), "utf8");
 
   // Fast path: content is within limits
   if (originalTokens <= MAX_PROGRESS_CONTENT_TOKENS) {
@@ -160,6 +164,7 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
       originalTokens,
       finalTokens: originalTokens,
       truncatedParts: 0,
+      hardCapped: false,
     };
   }
 
@@ -184,12 +189,24 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
   const afterPass1Tokens = estimateTokens(limitedContent);
 
   if (afterPass1Tokens <= MAX_PROGRESS_CONTENT_TOKENS) {
+    if (DEBUG_PROGRESS_LIMITER) {
+      const afterPass1Bytes = Buffer.byteLength(JSON.stringify(limitedContent), "utf8");
+      console.log("[ProgressLimiter] pass-1", {
+        originalTokens,
+        originalBytes,
+        afterPass1Tokens,
+        afterPass1Bytes,
+        truncatedParts,
+      });
+    }
+
     return {
       content: limitedContent,
       wasTruncated: true,
       originalTokens,
       finalTokens: afterPass1Tokens,
       truncatedParts,
+      hardCapped: false,
     };
   }
 
@@ -213,39 +230,54 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
   const afterPass2Tokens = estimateTokens(strippedContent);
 
   if (afterPass2Tokens <= MAX_PROGRESS_CONTENT_TOKENS) {
+    if (DEBUG_PROGRESS_LIMITER) {
+      const afterPass2Bytes = Buffer.byteLength(JSON.stringify(strippedContent), "utf8");
+      console.log("[ProgressLimiter] pass-2", {
+        originalTokens,
+        originalBytes,
+        afterPass2Tokens,
+        afterPass2Bytes,
+        truncatedParts,
+      });
+    }
+
     return {
       content: strippedContent,
       wasTruncated: true,
       originalTokens,
       finalTokens: afterPass2Tokens,
       truncatedParts: content.filter(isToolResultPart).length,
+      hardCapped: false,
     };
   }
 
-  // Pass 3: Final fallback — content is still too large (e.g., massive text parts).
-  // Keep only text parts truncated and tool-call/tool-result summaries.
-  const maxTextChars = MAX_PROGRESS_CONTENT_CHARS / 2; // Leave headroom
-  const fallbackContent = strippedContent.map((part) => {
-    if (part && typeof part === "object" && (part as Record<string, unknown>).type === "text") {
-      const textPart = part as { type: "text"; text: string };
-      if (textPart.text.length > maxTextChars) {
-        return {
-          type: "text",
-          text: textPart.text.slice(0, maxTextChars) +
-            "\n\n⚠️ [Text truncated for progress display]",
-        };
-      }
-    }
-    return part;
-  });
+  const summaryText =
+    "Progress update is available, but detailed content was omitted to keep the stream stable.";
+  const hardCappedContent = [
+    {
+      type: "text",
+      text: summaryText,
+    },
+  ];
+  const finalTokens = estimateTokens(hardCappedContent);
 
-  const finalTokens = estimateTokens(fallbackContent);
+  if (DEBUG_PROGRESS_LIMITER) {
+    const hardCappedBytes = Buffer.byteLength(JSON.stringify(hardCappedContent), "utf8");
+    console.warn("[ProgressLimiter] pass-3 hard-cap", {
+      originalTokens,
+      originalBytes,
+      finalTokens,
+      hardCappedBytes,
+      truncatedParts,
+    });
+  }
 
   return {
-    content: fallbackContent,
+    content: hardCappedContent,
     wasTruncated: true,
     originalTokens,
     finalTokens,
     truncatedParts: content.filter(isToolResultPart).length,
+    hardCapped: true,
   };
 }
