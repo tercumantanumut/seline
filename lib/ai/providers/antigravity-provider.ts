@@ -26,7 +26,7 @@ const MODEL_ALIASES: Record<string, string> = {
   "gemini-3-flash": "gemini-3-flash",
   "claude-sonnet-4-5": "claude-sonnet-4-5",
   "claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
-  "claude-opus-4-5-thinking": "claude-opus-4-5-thinking",
+  "claude-opus-4-6-thinking": "claude-opus-4-6-thinking",
   "gpt-oss-120b-medium": "gpt-oss-120b-medium",
 };
 

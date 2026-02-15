@@ -1899,7 +1899,7 @@ function SettingsPanel({
               </select>
             ) : formState.llmProvider === "claudecode" ? (
               <select
-                value={formState.researchModel || "claude-opus-4-6"}
+                value={formState.researchModel || "claude-opus-4-6-thinking"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >

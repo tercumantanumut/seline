@@ -46,7 +46,7 @@ export const MODEL_METADATA: Record<
     tier: "utility",
     capabilities: { vision: true, contextWindow: "200K", speed: "fast" },
   },
-  "claude-opus-4-5-20251001": {
+  "claude-opus-4-6-thinking": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
@@ -98,10 +98,6 @@ export const MODEL_METADATA: Record<
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
-  "claude-opus-4-5-thinking": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
-  },
   "gemini-3-pro-high": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "standard" },
@@ -117,12 +113,6 @@ export const MODEL_METADATA: Record<
   "gpt-oss-120b-medium": {
     tier: "standard",
     capabilities: { vision: false, contextWindow: "128K", speed: "standard" },
-  },
-
-  // Claude Code
-  "claude-opus-4-6": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
 
   // Codex (GPT-5 models — all 400K context)
@@ -216,7 +206,7 @@ export function buildModelCatalog(
     // 4.5 Series
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
-    { id: "claude-opus-4-5-20251001", name: "Claude Opus 4.5" },
+    { id: "claude-opus-4-6-thinking", name: "Claude Opus 4.6 (Thinking)" },
     // 3.5 Series
     { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
     { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
