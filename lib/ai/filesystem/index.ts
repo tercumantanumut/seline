@@ -27,5 +27,6 @@ export {
 
 export {
   generateLineNumberDiff,
+  generateBeforeAfterDiff,
   generateContentPreview,
 } from "./diff-utils";
