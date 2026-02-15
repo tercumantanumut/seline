@@ -8,6 +8,7 @@
 import type { CharacterFull } from "@/lib/db/schema";
 import { getTemporalContextBlock } from "./datetime-context";
 import { formatMemoriesForPrompt } from "@/lib/agent-memory";
+import { formatSkillsForPromptFromSummary } from "@/lib/skills/prompt-injection";
 import {
   MEDIA_DISPLAY_RULES,
   RESPONSE_STYLE,
@@ -41,15 +42,36 @@ export function getCharacterAvatarUrl(character: CharacterFull): string | null {
   return character.images[0]?.url || null;
 }
 
+function getSkillSummariesFromMetadata(metadata: Record<string, any>): Array<{
+  id: string;
+  name: string;
+  description: string;
+}> {
+  const raw = metadata.skills;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((skill): skill is Record<string, unknown> => !!skill && typeof skill === "object")
+    .map((skill) => ({
+      id: String(skill.id || ""),
+      name: String(skill.name || "").trim(),
+      description: String(skill.description || "").trim(),
+    }))
+    .filter((skill) => skill.name.length > 0);
+}
+
 /**
  * Builds a dynamic system prompt from character data
  * Used for user-created agents on Styly Agents
  */
 export function buildCharacterSystemPrompt(
   character: CharacterFull,
-  options: { 
+  options: {
     toolLoadingMode?: "deferred" | "always";
     channelType?: string | null;
+    skillSummaries?: Array<{ id: string; name: string; description: string }>;
   } = {}
 ): string {
   // Check for custom prompt override first
@@ -98,6 +120,17 @@ export function buildCharacterSystemPrompt(
     console.log(`[Character Prompt] Injected ${memoryCount} memories (~${tokenEstimate} tokens) for ${character.name}`);
   }
 
+  const skillSummaries = options.skillSummaries || getSkillSummariesFromMetadata(metadata);
+  if (skillSummaries.length > 0) {
+    const skillBlock = formatSkillsForPromptFromSummary(skillSummaries);
+    if (skillBlock.markdown) {
+      sections.push(skillBlock.markdown);
+      console.log(
+        `[Character Prompt] Injected ${skillBlock.skillCount} skills (~${skillBlock.tokenEstimate} tokens) for ${character.name}`
+      );
+    }
+  }
+
   // Universal guidelines from shared blocks
   sections.push(RESPONSE_STYLE);
   sections.push(LANGUAGE_HANDLING);
@@ -136,6 +169,7 @@ export function buildCacheableCharacterPrompt(
     channelType?: string | null;
     enableCaching?: boolean;
     cacheTtl?: "5m" | "1h";
+    skillSummaries?: Array<{ id: string; name: string; description: string }>;
   } = {}
 ): CacheableSystemBlock[] {
   const {
@@ -230,6 +264,25 @@ export function buildCacheableCharacterPrompt(
     console.log(
       `[Character Prompt] Injected ${memoryCount} memories (~${tokenEstimate} tokens) for ${character.name}`
     );
+  }
+
+  const skillSummaries = options.skillSummaries || getSkillSummariesFromMetadata(metadata);
+  if (skillSummaries.length > 0) {
+    const skillBlock = formatSkillsForPromptFromSummary(skillSummaries);
+    if (skillBlock.markdown) {
+      blocks.push({
+        role: "system",
+        content: skillBlock.markdown,
+        ...(enableCaching && {
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+          },
+        }),
+      });
+      console.log(
+        `[Character Prompt] Injected ${skillBlock.skillCount} skills (~${skillBlock.tokenEstimate} tokens) for ${character.name} (cacheable)`
+      );
+    }
   }
 
   // Block 4: Universal guidelines (static, highly cacheable)

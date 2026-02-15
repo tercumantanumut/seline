@@ -32,7 +32,7 @@ const globalForDb = globalThis as unknown as {
   schemaVersion?: number;
 };
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function createConnection(): { sqlite: Database.Database; db: BetterSQLite3Database<typeof schema> } {
   const dbPath = getDbPath();
@@ -837,6 +837,29 @@ function initializeTables(sqlite: Database.Database): void {
   // Scheduled Tasks Tables
   // =========================================================================
 
+  // Skills table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      icon TEXT,
+      prompt_template TEXT NOT NULL,
+      input_parameters TEXT NOT NULL DEFAULT '[]',
+      tool_hints TEXT NOT NULL DEFAULT '[]',
+      source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
+      source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      run_count INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      last_run_at TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'archived')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Scheduled tasks table - schedule definitions
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -868,7 +891,8 @@ function initializeTables(sqlite: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_run_at TEXT,
-      next_run_at TEXT
+      next_run_at TEXT,
+      skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL
     )
   `);
 
@@ -894,6 +918,16 @@ function initializeTables(sqlite: Database.Database): void {
   `);
 
   // Indexes for scheduled tasks
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skills_user_character
+      ON skills (user_id, character_id, status)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skills_character_name
+      ON skills (character_id, name)
+  `);
+
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_user
       ON scheduled_tasks (user_id, enabled, created_at DESC)
@@ -1010,6 +1044,41 @@ function runDataMigrations(sqlite: Database.Database): void {
     // Don't throw - this is a non-critical migration
   }
 
+  // Migration: Ensure skills table exists for skill-linked prompting and scheduling.
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        icon TEXT,
+        prompt_template TEXT NOT NULL,
+        input_parameters TEXT NOT NULL DEFAULT '[]',
+        tool_hints TEXT NOT NULL DEFAULT '[]',
+        source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
+        source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        run_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        last_run_at TEXT,
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'archived')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_character
+      ON skills (user_id, character_id, status)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_character_name
+      ON skills (character_id, name)
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Skills table migration failed:", error);
+  }
+
   // Migration: Add new columns to scheduled_tasks for pause/resume and delivery
   try {
     // Check if columns exist by trying to query them
@@ -1023,6 +1092,7 @@ function runDataMigrations(sqlite: Database.Database): void {
       { name: "status", sql: "ALTER TABLE scheduled_tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'paused', 'archived'))" },
       { name: "delivery_method", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'session'" },
       { name: "delivery_config", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_config TEXT NOT NULL DEFAULT '{}'" },
+      { name: "skill_id", sql: "ALTER TABLE scheduled_tasks ADD COLUMN skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL" },
     ];
 
     for (const col of columnsToAdd) {
@@ -1030,6 +1100,15 @@ function runDataMigrations(sqlite: Database.Database): void {
         sqlite.exec(col.sql);
         console.log(`[SQLite Migration] Added column ${col.name} to scheduled_tasks`);
       }
+    }
+
+    const updatedTableInfo = sqlite.prepare("PRAGMA table_info(scheduled_tasks)").all() as Array<{ name: string }>;
+    const hasSkillId = updatedTableInfo.some((column) => column.name === "skill_id");
+    if (hasSkillId) {
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_skill_id
+          ON scheduled_tasks (skill_id)
+      `);
     }
   } catch (error) {
     console.warn("[SQLite Migration] Scheduled tasks column migration failed:", error);
@@ -1084,6 +1163,7 @@ function runDataMigrations(sqlite: Database.Database): void {
               delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook', 'channel')),
               delivery_config TEXT NOT NULL DEFAULT '{}',
               result_session_id TEXT REFERENCES sessions(id),
+              skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
               create_new_session_per_run INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL DEFAULT (datetime('now')),
               updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1097,14 +1177,14 @@ function runDataMigrations(sqlite: Database.Database): void {
               interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
               context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
               paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
-              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+              skill_id, create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
             )
             SELECT
               id, user_id, character_id, name, description, schedule_type, cron_expression,
               interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
               context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
               paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
-              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+              NULL as skill_id, create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
             FROM scheduled_tasks_old
           `);
 
@@ -1119,6 +1199,10 @@ function runDataMigrations(sqlite: Database.Database): void {
           sqlite.exec(`
             CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run
               ON scheduled_tasks (enabled, next_run_at)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_skill_id
+              ON scheduled_tasks (skill_id)
           `);
 
           sqlite.exec("DROP TABLE IF EXISTS scheduled_tasks_old");
