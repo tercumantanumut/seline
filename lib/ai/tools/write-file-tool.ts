@@ -18,7 +18,7 @@ import {
   wasFileReadBefore,
   isFileStale,
   runPostWriteDiagnostics,
-  generateContentPreview,
+  generateBeforeAfterDiff,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -184,7 +184,14 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
 
       // Write the file
       try {
-        if (!fileExists) {
+        let previousContent = "";
+        if (fileExists) {
+          try {
+            previousContent = await readFile(validPath, "utf-8");
+          } catch {
+            previousContent = "";
+          }
+        } else {
           await ensureParentDirectories(validPath);
         }
 
@@ -194,7 +201,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
 
         const lineCount = content.split("\n").length;
         const bytesWritten = Buffer.byteLength(content, "utf-8");
-        const diff = generateContentPreview(validPath, content);
+        const diff = generateBeforeAfterDiff(validPath, previousContent, content);
 
         // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(

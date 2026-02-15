@@ -19,7 +19,7 @@ import {
   isFileStale,
   runPostWriteDiagnostics,
   generateLineNumberDiff,
-  generateContentPreview,
+  generateBeforeAfterDiff,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -314,7 +314,7 @@ export function createPatchFileTool(options: PatchFileToolOptions) {
             recordFileRead(sessionId, validPath);
             modifiedPaths.push(validPath);
 
-            const diff = generateContentPreview(validPath, op.newString ?? "");
+            const diff = generateBeforeAfterDiff(validPath, "", op.newString ?? "");
 
             results.push({
               filePath: validPath,

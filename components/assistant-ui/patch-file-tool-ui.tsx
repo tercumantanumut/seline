@@ -16,6 +16,7 @@ interface OperationResult {
   action: "update" | "create" | "delete";
   success: boolean;
   error?: string;
+  diff?: string;
 }
 
 interface PatchFileResult {
@@ -51,6 +52,7 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [showFullDiagnostics, setShowFullDiagnostics] = useState<{[key: number]: boolean}>({});
+  const [showFullDiff, setShowFullDiff] = useState<{[key: number]: boolean}>({});
   const opCount = args?.operations?.length || result?.operations?.length || 0;
 
   const StatusIcon = !result
@@ -107,6 +109,15 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
             const fileName = op.filePath.split("/").pop() || op.filePath;
             const success = "success" in op ? (op as OperationResult).success : undefined;
             const error = "error" in op ? (op as OperationResult).error : undefined;
+            const diff = "diff" in op ? (op as OperationResult).diff : undefined;
+            const diffLines = diff ? diff.split("\n") : [];
+            const maxDiffLines = 120;
+            const isDiffTruncated = diffLines.length > maxDiffLines;
+            const isDiffExpanded = showFullDiff[i] || false;
+            const visibleDiff =
+              isDiffTruncated && !isDiffExpanded
+                ? diffLines.slice(0, maxDiffLines).join("\n")
+                : diff;
 
             return (
               <div key={i} className="py-0.5">
@@ -127,6 +138,26 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
                 {success === false && error && (
                   <div className="text-[11px] text-red-600 mt-0.5 ml-5 whitespace-pre-wrap break-words">
                     {error}
+                  </div>
+                )}
+                {diff && (
+                  <div className="rounded bg-terminal-dark/5 p-2 mt-1 ml-5">
+                    <pre className="text-[11px] text-terminal-dark whitespace-pre-wrap break-all">
+                      {visibleDiff}
+                    </pre>
+                    {isDiffTruncated && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowFullDiff((prev) => ({ ...prev, [i]: !prev[i] }))
+                        }
+                        className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
+                      >
+                        {isDiffExpanded
+                          ? "▲ Show less"
+                          : `▼ Show all (${diffLines.length} lines)`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

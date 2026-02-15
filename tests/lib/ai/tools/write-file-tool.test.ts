@@ -119,6 +119,9 @@ describe("write-file-tool", () => {
       expect(result.status).toBe("success");
       expect(result.created).toBe(true);
       expect(result.lineCount).toBe(3);
+      expect(result.diff).toContain("--- new-file.ts");
+      expect(result.diff).toContain("+++ new-file.ts");
+      expect(result.diff).toContain("+ const x = 1;");
     });
   });
 
@@ -136,6 +139,10 @@ describe("write-file-tool", () => {
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
       expect(result.status).toBe("success");
+      expect(result.diff).toContain("--- new-file.ts");
+      expect(result.diff).toContain("+++ new-file.ts");
+      expect(result.diff).toContain("- old content");
+      expect(result.diff).toContain("+ new content");
     });
 
     it("rejects no-op writes (identical content)", async () => {

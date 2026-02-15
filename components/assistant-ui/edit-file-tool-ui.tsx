@@ -17,6 +17,7 @@ interface EditFileResult {
   message: string;
   linesChanged?: number;
   diagnostics?: DiagnosticResult;
+  diff?: string;
 }
 
 interface WriteFileResult {
@@ -27,6 +28,7 @@ interface WriteFileResult {
   lineCount?: number;
   created?: boolean;
   diagnostics?: DiagnosticResult;
+  diff?: string;
 }
 
 type ToolCallContentPartComponent = FC<{
@@ -72,6 +74,20 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
 
   const actionLabel = getActionLabel();
   const ActionIcon = isCreating ? PlusIcon : PencilIcon;
+
+  const resultDiff = result?.diff;
+  const fallbackDiff =
+    !isWrite && args?.oldString && args?.newString
+      ? `- ${String(args.oldString)}\n+ ${String(args.newString)}`
+      : null;
+  const diffText = resultDiff || fallbackDiff;
+  const diffLines = diffText ? diffText.split("\n") : [];
+  const maxDiffLines = 150;
+  const isDiffTruncated = diffLines.length > maxDiffLines;
+  const visibleDiffLines =
+    !showFullDiff && isDiffTruncated
+      ? diffLines.slice(0, maxDiffLines)
+      : diffLines;
 
   // Status icon
   const StatusIcon = !result
@@ -149,56 +165,26 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
             {filePath}
           </div>
 
-          {/* Show edit diff preview */}
-          {!isWrite && args?.oldString && args?.newString && (() => {
-            const oldStr = String(args.oldString);
-            const newStr = String(args.newString);
-            
-            // Count lines for truncation logic
-            const oldLines = oldStr.split('\n');
-            const newLines = newStr.split('\n');
-            const maxLines = 150;
-            const needsTruncation = oldLines.length > maxLines || newLines.length > maxLines;
-            
-            // Determine what to show
-            const displayOldStr = showFullDiff ? oldStr : oldLines.slice(0, maxLines).join('\n');
-            const displayNewStr = showFullDiff ? newStr : newLines.slice(0, maxLines).join('\n');
-            const truncatedOldLines = oldLines.length - maxLines;
-            const truncatedNewLines = newLines.length - maxLines;
-            
-            return (
-              <div className="space-y-2">
-                <div className="rounded bg-terminal-dark/5 p-2 overflow-x-auto">
-                  <div className="text-red-600/80 whitespace-pre-wrap break-all font-mono text-[11px]">
-                    - {displayOldStr}
-                    {!showFullDiff && truncatedOldLines > 0 && (
-                      <span className="text-red-600/50 italic">
-                        {'\n'}... {truncatedOldLines} more line{truncatedOldLines !== 1 ? 's' : ''} ...
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-emerald-600/80 whitespace-pre-wrap break-all mt-2 font-mono text-[11px]">
-                    + {displayNewStr}
-                    {!showFullDiff && truncatedNewLines > 0 && (
-                      <span className="text-emerald-600/50 italic">
-                        {'\n'}... {truncatedNewLines} more line{truncatedNewLines !== 1 ? 's' : ''} ...
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                {needsTruncation && (
-                  <button
-                    type="button"
-                    onClick={() => setShowFullDiff(!showFullDiff)}
-                    className="text-[11px] text-blue-600 hover:text-blue-700 underline"
-                  >
-                    {showFullDiff ? '▲ Hide full diff' : '▼ Show full diff'}
-                  </button>
-                )}
+          {/* Show backend-provided diff first, fallback to args-derived diff */}
+          {diffText && (
+            <div className="space-y-2">
+              <div className="rounded bg-terminal-dark/5 p-2 overflow-x-auto">
+                <pre className="text-terminal-dark whitespace-pre-wrap break-all font-mono text-[11px]">
+                  {visibleDiffLines.join("\n")}
+                </pre>
               </div>
-            );
-          })()}
+
+              {isDiffTruncated && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullDiff(!showFullDiff)}
+                  className="text-[11px] text-blue-600 hover:text-blue-700 underline"
+                >
+                  {showFullDiff ? "▲ Show less" : `▼ Show all (${diffLines.length} lines)`}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Result message */}
           {result && (

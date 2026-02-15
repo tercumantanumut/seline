@@ -179,6 +179,10 @@ describe("edit-file-tool", () => {
       );
       expect(result.status).toBe("success");
       expect(result.filePath).toBe(FILE);
+      expect(result.diff).toContain("--- index.ts");
+      expect(result.diff).toContain("+++ index.ts");
+      expect(result.diff).toContain("- const x = 1;");
+      expect(result.diff).toContain("+ const x = 42;");
       expect(fsMocks.writeFile).toHaveBeenCalledWith(
         FILE,
         "const x = 42;\nconst y = 2;\n",
@@ -200,6 +204,9 @@ describe("edit-file-tool", () => {
       );
       expect(result.status).toBe("created");
       expect(result.filePath).toBe(FILE);
+      expect(result.diff).toContain("--- index.ts");
+      expect(result.diff).toContain("+++ index.ts");
+      expect(result.diff).toContain("+ // new file content");
     });
 
     it("rejects creation when file already exists", async () => {

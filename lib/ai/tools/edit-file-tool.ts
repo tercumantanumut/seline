@@ -21,7 +21,7 @@ import {
   isFileStale,
   runPostWriteDiagnostics,
   generateLineNumberDiff,
-  generateContentPreview,
+  generateBeforeAfterDiff,
   type DiagnosticResult,
 } from "@/lib/ai/filesystem";
 
@@ -162,7 +162,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
           recordFileRead(sessionId, validPath); // Mark as read after creation
 
           const lineCount = newString.split("\n").length;
-          const diff = generateContentPreview(validPath, newString);
+          const diff = generateBeforeAfterDiff(validPath, "", newString);
           const diagnostics = await runPostWriteDiagnostics(
             validPath,
             syncedFolders
