@@ -40,6 +40,12 @@ import { taskRegistry } from "@/lib/background-tasks/registry";
 import { limitProgressContent } from "@/lib/background-tasks/progress-content-limiter";
 import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { combineAbortSignals } from "@/lib/utils/abort";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+} from "@/lib/ai/retry/stream-recovery";
 import type { ChatTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
 import { deliverChannelReply } from "@/lib/channels/delivery";
@@ -2265,14 +2271,20 @@ export async function POST(req: Request) {
         }
       }
     };
-    const result = await withRunContext(
-      {
-        runId: agentRun.id,
-        sessionId,
-        pipelineName: "chat",
-        characterId: characterId || undefined,
-      },
-      async () => streamText({
+    const runId = agentRun?.id;
+    if (!runId) {
+      throw new Error("Agent run unavailable for chat stream");
+    }
+    const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
+    const createStreamResult = async () =>
+      withRunContext(
+        {
+          runId,
+          sessionId,
+          pipelineName: "chat",
+          characterId: characterId || undefined,
+        },
+        async () => streamText({
         // Use session-level model override if present, otherwise fall back to global
         model: resolveSessionLanguageModel(sessionMetadata),
         // Conditionally include system prompt to reduce token usage
@@ -2285,7 +2297,7 @@ export async function POST(req: Request) {
         // Use activeTools to control which tools are visible to the model
         // Initially: non-deferred tools + previously discovered tools from session metadata
         activeTools: initialActiveToolNames as (keyof typeof allToolsWithMCP)[],
-        abortSignal: combineAbortSignals([req.signal, chatAbortController.signal]),
+        abortSignal: streamAbortSignal,
         stopWhen: stepCountIs(AI_CONFIG.maxSteps),
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
@@ -2859,8 +2871,72 @@ export async function POST(req: Request) {
             console.error("[CHAT API] Failed to record cancellation:", error);
           }
         },
-      })
-    ); // End withRunContext
+        })
+      );
+
+    const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
+    let result: Awaited<ReturnType<typeof createStreamResult>>;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        result = await createStreamResult();
+        if (attempt > 0) {
+          await appendRunEvent({
+            runId,
+            eventType: "llm_request_completed",
+            level: "info",
+            pipelineName: "chat",
+            data: {
+              attempt,
+              reason: "stream_recovered",
+              outcome: "recovered",
+            },
+          });
+        }
+        break;
+      } catch (error) {
+        const classification = classifyRecoverability({
+          provider,
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS,
+          aborted: streamAbortSignal.aborted,
+        });
+
+        if (runId) {
+          const delay = retry ? getBackoffDelayMs(attempt) : 0;
+          await appendRunEvent({
+            runId,
+            eventType: "llm_request_failed",
+            level: retry ? "info" : "warn",
+            pipelineName: "chat",
+            data: {
+              attempt: attempt + 1,
+              reason: classification.reason,
+              recoverable: classification.recoverable,
+              delayMs: delay,
+              outcome: retry ? "retrying" : "exhausted",
+            },
+          });
+        }
+
+        if (!retry) {
+          throw error;
+        }
+
+        const delay = getBackoffDelayMs(attempt);
+        console.log("[CHAT API] Retrying stream creation", {
+          attempt: attempt + 1,
+          reason: classification.reason,
+          delayMs: delay,
+          provider,
+        });
+        await sleepWithAbort(delay, streamAbortSignal);
+      }
+    }
 
     // Return streaming response with session ID header
     // AI SDK v5: use toUIMessageStreamResponse for assistant-ui compatibility

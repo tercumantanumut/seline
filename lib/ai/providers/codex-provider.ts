@@ -9,8 +9,15 @@ import {
 import { getCodexInstructions } from "@/lib/auth/codex-instructions";
 import { transformCodexRequest } from "@/lib/auth/codex-request";
 import { convertSseToJson, ensureContentType } from "@/lib/auth/codex-response";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+} from "@/lib/ai/retry/stream-recovery";
 
 const DUMMY_API_KEY = "chatgpt-oauth";
+const CODEX_MAX_RETRY_ATTEMPTS = 5;
 
 function extractRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
@@ -108,6 +115,14 @@ async function mapUsageLimit404(response: Response): Promise<Response | null> {
   });
 }
 
+async function readErrorPreview(response: Response): Promise<string> {
+  try {
+    return await response.clone().text();
+  } catch {
+    return "";
+  }
+}
+
 function createCodexFetch(): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = extractRequestUrl(input);
@@ -154,23 +169,77 @@ function createCodexFetch(): typeof fetch {
     const headers = createCodexHeaders(updatedInit, accountId, accessToken, { promptCacheKey });
     headers.set("Content-Type", "application/json");
 
-    const response = await fetch(rewriteCodexUrl(url), {
-      ...updatedInit,
-      method: updatedInit?.method || "POST",
-      headers,
-    });
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(rewriteCodexUrl(url), {
+          ...updatedInit,
+          method: updatedInit?.method || "POST",
+          headers,
+        });
+      } catch (error) {
+        const classification = classifyRecoverability({
+          provider: "codex",
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CODEX_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (!retry) {
+          throw error;
+        }
+        const delay = getBackoffDelayMs(attempt);
+        console.log("[Codex] Retrying after transport failure", {
+          attempt: attempt + 1,
+          reason: classification.reason,
+          delayMs: delay,
+          outcome: "scheduled",
+        });
+        await sleepWithAbort(delay, init?.signal ?? undefined);
+        continue;
+      }
 
-    if (!response.ok) {
-      const mapped = await mapUsageLimit404(response);
-      return mapped ?? response;
+      const mapped = response.ok ? null : await mapUsageLimit404(response);
+      const effectiveResponse = mapped ?? response;
+      if (!effectiveResponse.ok) {
+        const errorText = await readErrorPreview(effectiveResponse);
+        const classification = classifyRecoverability({
+          provider: "codex",
+          statusCode: effectiveResponse.status,
+          message: errorText,
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CODEX_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (retry) {
+          const delay = getBackoffDelayMs(attempt);
+          console.log("[Codex] Retrying after recoverable HTTP response", {
+            attempt: attempt + 1,
+            reason: classification.reason,
+            delayMs: delay,
+            statusCode: effectiveResponse.status,
+            outcome: "scheduled",
+          });
+          await sleepWithAbort(delay, init?.signal ?? undefined);
+          continue;
+        }
+        return effectiveResponse;
+      }
+
+      if (!originalStream) {
+        const responseHeaders = ensureContentType(effectiveResponse.headers);
+        return await convertSseToJson(effectiveResponse, responseHeaders);
+      }
+
+      return effectiveResponse;
     }
-
-    if (!originalStream) {
-      const responseHeaders = ensureContentType(response.headers);
-      return await convertSseToJson(response, responseHeaders);
-    }
-
-    return response;
   };
 }
 

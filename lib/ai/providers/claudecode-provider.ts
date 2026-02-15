@@ -5,6 +5,22 @@ import {
   ensureValidClaudeCodeToken,
   getClaudeCodeAccessToken,
 } from "@/lib/auth/claudecode-auth";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+} from "@/lib/ai/retry/stream-recovery";
+
+const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
+
+async function readErrorPreview(response: Response): Promise<string> {
+  try {
+    return await response.clone().text();
+  } catch {
+    return "";
+  }
+}
 
 function createClaudeCodeFetch(): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -58,10 +74,68 @@ function createClaudeCodeFetch(): typeof fetch {
       }
     }
 
-    return fetch(input, {
-      ...updatedInit,
-      headers,
-    });
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(input, {
+          ...updatedInit,
+          headers,
+        });
+      } catch (error) {
+        const classification = classifyRecoverability({
+          provider: "claudecode",
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (!retry) {
+          throw error;
+        }
+        const delay = getBackoffDelayMs(attempt);
+        console.log("[ClaudeCode] Retrying after transport failure", {
+          attempt: attempt + 1,
+          reason: classification.reason,
+          delayMs: delay,
+          outcome: "scheduled",
+        });
+        await sleepWithAbort(delay, init?.signal ?? undefined);
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await readErrorPreview(response);
+        const classification = classifyRecoverability({
+          provider: "claudecode",
+          statusCode: response.status,
+          message: errorText,
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (retry) {
+          const delay = getBackoffDelayMs(attempt);
+          console.log("[ClaudeCode] Retrying after recoverable HTTP response", {
+            attempt: attempt + 1,
+            reason: classification.reason,
+            delayMs: delay,
+            statusCode: response.status,
+            outcome: "scheduled",
+          });
+          await sleepWithAbort(delay, init?.signal ?? undefined);
+          continue;
+        }
+      }
+
+      return response;
+    }
   };
 }
 

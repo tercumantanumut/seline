@@ -29,6 +29,7 @@ import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
 import { VoiceProvider } from "./assistant-ui/voice-context";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { classifyRecoverability } from "@/lib/ai/retry/stream-recovery";
 
 // ============================================================================
 // Error Boundary for Tool Streaming Errors
@@ -45,6 +46,12 @@ interface ErrorBoundaryState {
  */
 function isRecoverableStreamingError(error: Error): boolean {
   const msg = error.message || "";
+  const classification = classifyRecoverability({
+    provider: "client-ui",
+    error,
+    message: msg,
+  });
+  if (classification.recoverable) return true;
   // assistant-ui internal: argsText append ordering error
   if (msg.includes("argsText can only be appended")) return true;
   // JSON parse failures from malformed tool call argsText during streaming
