@@ -154,7 +154,7 @@ export const Shell: FC<ShellProps> = ({
     return (
       <div className="flex h-dvh flex-col overflow-hidden bg-terminal-cream">
         <WindowsTitleBar />
-        <main className="flex-1 overflow-y-auto bg-terminal-cream">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-terminal-cream">
           {children}
         </main>
         <DevLogsViewer />
@@ -472,7 +472,7 @@ export const Shell: FC<ShellProps> = ({
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto bg-terminal-cream">
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-terminal-cream">
             {children}
           </main>
         </div>

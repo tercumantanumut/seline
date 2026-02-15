@@ -137,7 +137,7 @@ export const Thread: FC<ThreadProps> = ({
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(
-            "flex flex-1 flex-col items-center overflow-y-auto px-4 pt-8 [overflow-anchor:auto]",
+            "flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto]",
             !isRunning && "scroll-smooth"
           )}>
             <ThreadWelcome />
@@ -1592,7 +1592,7 @@ const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root
       ref={messageRef}
-      className="relative mb-6 flex w-full max-w-[80rem] flex-col items-end gap-2 pl-8 transform-gpu"
+      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 flex-col items-end gap-2 pl-8 transform-gpu"
       style={{
         opacity: prefersReducedMotion ? 1 : 0,
         contain: 'layout style'
@@ -1600,13 +1600,13 @@ const UserMessage: FC = () => {
     >
       <div className="flex items-start gap-3">
         <UserActionBar />
-        <div className="flex max-w-[80rem] flex-col gap-1">
+        <div className="flex min-w-0 max-w-[80rem] flex-col gap-1">
           <div className="flex flex-wrap gap-2 justify-end empty:hidden">
             <MessagePrimitive.Attachments
               components={{ Attachment: UserAttachment }}
             />
           </div>
-          <div className="rounded-2xl rounded-tr-sm bg-terminal-dark px-4 py-2.5 text-terminal-cream font-mono text-sm">
+          <div className="rounded-2xl rounded-tr-sm bg-terminal-dark px-4 py-2.5 text-terminal-cream font-mono text-sm [overflow-wrap:anywhere]">
             <MessagePrimitive.Content components={{ Text: UserMarkdownText }} />
           </div>
         </div>
@@ -1780,7 +1780,7 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root
       ref={messageRef}
-      className="relative mb-6 flex w-full max-w-[80rem] gap-3 pr-8 transform-gpu"
+      className="relative mb-6 flex w-full max-w-[80rem] min-w-0 gap-3 pr-8 transform-gpu"
       style={{
         opacity: prefersReducedMotion ? 1 : 0,
         contain: 'layout style'
@@ -1798,8 +1798,8 @@ const AssistantMessage: FC = () => {
         </AvatarFallback>
       </Avatar>
 
-      <div className="flex flex-col gap-2 flex-1">
-        <div className="flex flex-col gap-1 font-mono text-sm text-terminal-dark">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-1 font-mono text-sm text-terminal-dark [overflow-wrap:anywhere]">
           <MessagePrimitive.Content
             components={{
               Text: MarkdownText,

@@ -148,6 +148,7 @@ async function main() {
     console.error("Usage: npx tsx scripts/validation/exec-validation.ts <validation-name> [--dry-run]");
     console.error("\nAvailable validations:");
     console.error("  - validate-message-ordering-migration");
+    console.error("  - validate-chat-overflow-guards");
     process.exit(1);
   }
 

@@ -41,7 +41,7 @@ export function TerminalPrompt({
         <span className="text-terminal-amber shrink-0">{prefix}</span>
       )}
       <span className="text-terminal-green shrink-0">{symbol}</span>
-      <span className="text-terminal-text flex-1">{children}</span>
+      <span className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-text">{children}</span>
     </div>
   );
 

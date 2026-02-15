@@ -13,7 +13,7 @@ const {
     executeCommand,
     startBackgroundProcess,
     getBackgroundProcess,
-    killBackgroundzzsProcess,
+    killBackgroundProcess,
     listBackgroundProcesses,
     cleanupBackgroundProcesses,
 } = await import("@/lib/command-execution/executor");
