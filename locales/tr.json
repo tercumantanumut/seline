@@ -1712,6 +1712,23 @@
       }
     }
   },
+  "skills": {
+    "title": "Yetenekler",
+    "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
+    "emptyTitle": "Henuz yetenek yok",
+    "emptyDescription": "Sohbette bir is akisini yetenek olarak kaydedin, sonra burada calistirin veya zamanlayin.",
+    "status": {
+      "draft": "Taslak",
+      "active": "Aktif",
+      "archived": "Arsiv"
+    },
+    "stats": {
+      "runs": "Calistirma",
+      "success": "Basarili",
+      "lastRun": "Son Calistirma",
+      "never": "Hic"
+    }
+  },
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",

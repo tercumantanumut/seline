@@ -1735,6 +1735,23 @@
       }
     }
   },
+  "skills": {
+    "title": "Skills",
+    "pageDescription": "Manage reusable skill recipes for {name}.",
+    "emptyTitle": "No skills yet",
+    "emptyDescription": "Save a workflow as a skill from chat, then run or schedule it here.",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "stats": {
+      "runs": "Runs",
+      "success": "Success",
+      "lastRun": "Last Run",
+      "never": "Never"
+    }
+  },
   "schedules": {
     "title": "Scheduled Tasks",
     "description": "Automate {name} to run tasks on a schedule",

@@ -225,6 +225,9 @@ export * from "./sqlite-observability-schema";
 // Re-export schedule schema (scheduled tasks and runs)
 export * from "./sqlite-schedule-schema";
 
+// Re-export skills schema
+export * from "./sqlite-skills-schema";
+
 // ============================================================================
 // TYPES
 // ============================================================================

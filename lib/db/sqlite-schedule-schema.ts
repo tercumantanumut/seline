@@ -14,6 +14,7 @@ import {
 import { relations, sql } from "drizzle-orm";
 import { users, sessions } from "./sqlite-schema";
 import { characters } from "./sqlite-character-schema";
+import { skills } from "./sqlite-skills-schema";
 
 // ============================================================================
 // SCHEDULED TASKS TABLE
@@ -66,6 +67,7 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
 
   // === Result Handling ===
   resultSessionId: text("result_session_id").references(() => sessions.id),
+  skillId: text("skill_id").references(() => skills.id, { onDelete: "set null" }),
   createNewSessionPerRun: integer("create_new_session_per_run", { mode: "boolean" }).default(true).notNull(),
 
   // === Timestamps ===
@@ -129,6 +131,10 @@ export const scheduledTasksRelations = relations(scheduledTasks, ({ one, many })
   resultSession: one(sessions, {
     fields: [scheduledTasks.resultSessionId],
     references: [sessions.id],
+  }),
+  skill: one(skills, {
+    fields: [scheduledTasks.skillId],
+    references: [skills.id],
   }),
   runs: many(scheduledTaskRuns),
 }));

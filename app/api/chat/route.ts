@@ -12,6 +12,9 @@ import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
+import { createCreateSkillTool } from "@/lib/ai/tools/create-skill-tool";
+import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
+import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -26,6 +29,7 @@ import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
+import { getSkillsSummaryForPrompt } from "@/lib/skills/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -1717,6 +1721,20 @@ export async function POST(req: Request) {
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
       }),
+      createSkill: createCreateSkillTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
+      listSkills: createListSkillsTool({
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
+      runSkill: createRunSkillTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
     };
 
     // Enhance frontend messages with tool results from database
@@ -1809,6 +1827,25 @@ export async function POST(req: Request) {
     if (characterId) {
       const character = await getCharacterFull(characterId);
       if (character && character.userId === dbUser.id) {
+        let hydratedSkillSummaries: Array<{ id: string; name: string; description: string }> = [];
+
+        // Extract enabled tools from character metadata
+        const metadata = character.metadata as { enabledTools?: string[]; skills?: unknown[] } | null;
+        enabledTools = metadata?.enabledTools;
+
+        try {
+          const skillSummaries = await getSkillsSummaryForPrompt(character.id);
+          if (skillSummaries.length > 0) {
+            hydratedSkillSummaries = skillSummaries.map((skill) => ({
+              id: skill.id,
+              name: skill.name,
+              description: skill.description,
+            }));
+          }
+        } catch (skillError) {
+          console.warn("[CHAT API] Failed to hydrate skill summaries for prompt:", skillError);
+        }
+
         // Build character-specific system prompt (includes shared blocks)
         const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
         systemPromptValue = useCaching
@@ -1817,16 +1854,18 @@ export async function POST(req: Request) {
               channelType,
               enableCaching: true,
               cacheTtl: cacheConfig.defaultTtl,
+              skillSummaries: hydratedSkillSummaries,
             })
-          : buildCharacterSystemPrompt(character, { toolLoadingMode, channelType });
+          : buildCharacterSystemPrompt(character, {
+              toolLoadingMode,
+              channelType,
+              skillSummaries: hydratedSkillSummaries,
+            });
 
         // Get character avatar and appearance for tool context
         characterAvatarUrl = getCharacterAvatarUrl(character);
         characterAppearanceDescription = character.tagline || null;
 
-        // Extract enabled tools from character metadata
-        const metadata = character.metadata as { enabledTools?: string[] } | null;
-        enabledTools = metadata?.enabledTools;
 
         console.log(`[CHAT API] Using character: ${character.name} (${characterId}), avatar: ${characterAvatarUrl || "none"}, enabledTools: ${enabledTools?.join(", ") || "all"}`);
       } else {
@@ -2032,6 +2071,26 @@ export async function POST(req: Request) {
       }),
       ...(allTools.updatePlan && {
         updatePlan: createUpdatePlanTool({ sessionId }),
+      }),
+      ...(allTools.createSkill && {
+        createSkill: createCreateSkillTool({
+          sessionId,
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.listSkills && {
+        listSkills: createListSkillsTool({
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.runSkill && {
+        runSkill: createRunSkillTool({
+          sessionId,
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
       }),
     };
 

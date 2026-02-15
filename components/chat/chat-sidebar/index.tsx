@@ -671,6 +671,26 @@ export function CharacterSidebar({
                 asChild
               >
                 <Link
+                  href={`/agents/${character.id}/skills`}
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(
+                        "seline-return-url",
+                        window.location.href,
+                      );
+                    }
+                  }}
+                >
+                  {t("sidebar.skillsShort")}
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[11px] font-mono"
+                asChild
+              >
+                <Link
                   href="/usage"
                   onClick={() => {
                     if (typeof window !== "undefined") {
