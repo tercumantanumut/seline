@@ -190,6 +190,11 @@ export default function ChatInterface({
     const sessionListSignatureRef = useRef<string>(sessions.map(getSessionSignature).join("||"));
     const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
 
+    // Keep refs of filters to prevent loadSessions from changing when filters change
+    // This prevents the filter change useEffect from running unnecessarily
+    const filtersRef = useRef({ searchQuery, channelFilter, dateRange });
+    filtersRef.current = { searchQuery, channelFilter, dateRange };
+
     // Session sync for cross-component synchronization
     const sessionSyncNotifier = useSessionSyncNotifier();
     const setSyncSessions = useSessionSyncStore((state) => state.setSessions);
@@ -253,6 +258,8 @@ export default function ChatInterface({
                 setLoadingSessions(true);
             }
 
+            const { searchQuery, channelFilter, dateRange } = filtersRef.current;
+
             const params = new URLSearchParams({
                 characterId: character.id,
                 limit: "20",
@@ -304,7 +311,7 @@ export default function ChatInterface({
                 setLoadingSessions(false);
             }
         }
-    }, [character.id, searchQuery, channelFilter, dateRange]);
+    }, [character.id]);
 
     const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
         const { data, error } = await resilientFetch<{ messages: DBMessage[] }>(
