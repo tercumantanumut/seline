@@ -8,7 +8,7 @@ import { getMinTokensForModel } from "../config";
 describe("getMinTokensForModel", () => {
   describe("Anthropic models", () => {
     it("should return 4096 for Opus 4.5", () => {
-      expect(getMinTokensForModel("claude-opus-4-5")).toBe(4096);
+      expect(getMinTokensForModel("claude-opus-4-6-thinking")).toBe(4096);
     });
 
     it("should return 4096 for Haiku 4.5", () => {

@@ -110,7 +110,7 @@ async function testAntigravity() {
     "gemini-3-flash",         // Gemini 3 Flash
     "claude-sonnet-4-5",      // Claude Sonnet 4.5
     "claude-sonnet-4-5-thinking", // Claude Sonnet 4.5 (Thinking)
-    "claude-opus-4-5-thinking",   // Claude Opus 4.5 (Thinking)
+    "claude-opus-4-6-thinking",   // Claude Opus 4.6 (Thinking)
     "gpt-oss-120b-medium",    // GPT-OSS 120B (Medium)
   ];
 

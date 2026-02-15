@@ -37,7 +37,11 @@ export const MODEL_METADATA: Record<
   Partial<Pick<ModelItem, "tier"> & { capabilities: Partial<ModelCapabilities> }>
 > = {
   // Anthropic direct
-  // --- 4.5 Series (Future/Beta) ---
+  // --- 4.6 / 4.5 Series ---
+  "claude-opus-4-6": {
+    tier: "flagship",
+    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
+  },
   "claude-sonnet-4-5-20250929": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
@@ -46,48 +50,40 @@ export const MODEL_METADATA: Record<
     tier: "utility",
     capabilities: { vision: true, contextWindow: "200K", speed: "fast" },
   },
-  "claude-opus-4-5-20251001": {
-    tier: "flagship",
+
+  // --- Legacy 4.x Series ---
+  "claude-opus-4-5-20251101": {
+    tier: "legacy",
+    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
+  },
+  "claude-opus-4-1-20250805": {
+    tier: "legacy",
+    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
+  },
+  "claude-sonnet-4-20250514": {
+    tier: "legacy",
+    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
+  },
+  "claude-3-7-sonnet-20250219": {
+    tier: "legacy",
+    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
+  },
+  "claude-opus-4-20250514": {
+    tier: "legacy",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
 
   // --- 3.5 Series ---
   "claude-3-5-sonnet-20241022": {
-    tier: "flagship",
+    tier: "legacy",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
   },
   "claude-3-5-haiku-20241022": {
-    tier: "utility",
+    tier: "legacy",
     capabilities: { vision: false, contextWindow: "200K", speed: "fast" },
   },
 
-  // --- 3.0 Series ---
-  "claude-3-opus-20240229": {
-    tier: "flagship",
-    capabilities: { vision: true, contextWindow: "200K", speed: "slow" },
-  },
-  "claude-3-sonnet-20240229": {
-    tier: "standard",
-    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
-  },
-  "claude-3-haiku-20240307": {
-    tier: "utility",
-    capabilities: { vision: true, contextWindow: "200K", speed: "fast" },
-  },
 
-  // --- Legacy ---
-  "claude-2.1": {
-    tier: "legacy",
-    capabilities: { vision: false, contextWindow: "200K", speed: "slow" },
-  },
-  "claude-2.0": {
-    tier: "legacy",
-    capabilities: { vision: false, contextWindow: "100K", speed: "slow" },
-  },
-  "claude-instant-1.2": {
-    tier: "legacy",
-    capabilities: { vision: false, contextWindow: "100K", speed: "fast" },
-  },
 
   // Antigravity
   "claude-sonnet-4-5": {
@@ -95,10 +91,6 @@ export const MODEL_METADATA: Record<
     capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
   },
   "claude-sonnet-4-5-thinking": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
-  },
-  "claude-opus-4-5-thinking": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
@@ -117,12 +109,6 @@ export const MODEL_METADATA: Record<
   "gpt-oss-120b-medium": {
     tier: "standard",
     capabilities: { vision: false, contextWindow: "128K", speed: "standard" },
-  },
-
-  // Claude Code
-  "claude-opus-4-6": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
   },
 
   // Codex (GPT-5 models — all 400K context)
@@ -213,21 +199,22 @@ export function buildModelCatalog(
 
   // Anthropic (expanded to include full roster)
   const anthropicModels = [
-    // 4.5 Series
+    // 4.6 / 4.5 Series
+    { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
-    { id: "claude-opus-4-5-20251001", name: "Claude Opus 4.5" },
+    
+    // Legacy 4.x Series
+    { id: "claude-opus-4-5-20251101", name: "Claude Opus 4.5" },
+    { id: "claude-opus-4-1-20250805", name: "Claude Opus 4.1" },
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4" },
+    { id: "claude-3-7-sonnet-20250219", name: "Claude Sonnet 3.7" },
+    { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
+
     // 3.5 Series
     { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
     { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
-    // 3.0 Series
-    { id: "claude-3-opus-20240229", name: "Claude 3 Opus" },
-    { id: "claude-3-sonnet-20240229", name: "Claude 3 Sonnet" },
-    { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
-    // Legacy
-    { id: "claude-2.1", name: "Claude 2.1" },
-    { id: "claude-2.0", name: "Claude 2.0" },
-    { id: "claude-instant-1.2", name: "Claude Instant 1.2" },
+
   ];
 
   // OpenRouter models - organized by category

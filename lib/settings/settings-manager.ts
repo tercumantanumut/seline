@@ -307,7 +307,7 @@ const ANTIGRAVITY_EXACT_MODELS = new Set([
   "gemini-3-flash",
   "claude-sonnet-4-5",
   "claude-sonnet-4-5-thinking",
-  "claude-opus-4-5-thinking",
+  "claude-opus-4-6-thinking",
   "gpt-oss-120b-medium",
 ]);
 

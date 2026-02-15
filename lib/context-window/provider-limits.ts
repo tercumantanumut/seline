@@ -120,7 +120,7 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     maxTokens: 200000,
     supportsStreaming: true,
   },
-  "claude-opus-4-5-thinking": {
+  "claude-opus-4-6-thinking": {
     maxTokens: 200000,
     supportsStreaming: true,
   },
@@ -151,12 +151,6 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
   // Antigravity (GPT-based)
   "gpt-oss-120b-medium": {
     maxTokens: 128000,
-    supportsStreaming: true,
-  },
-
-  // Claude Code — Claude Opus 4.6 has 200K standard context window
-  "claude-opus-4-6": {
-    maxTokens: 200000,
     supportsStreaming: true,
   },
 
