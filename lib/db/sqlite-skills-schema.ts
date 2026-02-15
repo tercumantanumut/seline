@@ -56,6 +56,23 @@ export const skillVersions = sqliteTable(
   })
 );
 
+export const skillTelemetryEvents = sqliteTable(
+  "skill_telemetry_events",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    characterId: text("character_id").references(() => characters.id, { onDelete: "set null" }),
+    skillId: text("skill_id").references(() => skills.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    metadata: text("metadata", { mode: "json" }).default("{}").notNull(),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    userEventIdx: index("idx_skill_telemetry_user_event").on(table.userId, table.eventType, table.createdAt),
+    skillEventIdx: index("idx_skill_telemetry_skill_event").on(table.skillId, table.eventType, table.createdAt),
+  })
+);
+
 export const skillsRelations = relations(skills, ({ one, many }) => ({
   user: one(users, {
     fields: [skills.userId],
@@ -92,6 +109,8 @@ export type Skill = typeof skills.$inferSelect;
 export type NewSkill = typeof skills.$inferInsert;
 export type SkillVersion = typeof skillVersions.$inferSelect;
 export type NewSkillVersion = typeof skillVersions.$inferInsert;
+export type SkillTelemetryEvent = typeof skillTelemetryEvents.$inferSelect;
+export type NewSkillTelemetryEvent = typeof skillTelemetryEvents.$inferInsert;
 
 export interface SkillInputParameter {
   name: string;

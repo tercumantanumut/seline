@@ -32,7 +32,11 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
   const lines: string[] = [
     "## Your Skills",
     "",
-    "You have the following skills available. Use the matching skill when the user's request clearly maps to it.",
+    "You have the following skills available.",
+    "Skill-triggering policy:",
+    "- If a user request clearly matches a skill trigger, call `runSkill` for that skill.",
+    "- If multiple skills plausibly match, ask a short clarification before running.",
+    "- If confidence is low, ask for confirmation instead of guessing.",
     "",
   ];
 
@@ -44,7 +48,7 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
     const triggerExamples = Array.isArray(skill.triggerExamples)
       ? skill.triggerExamples.filter((item) => item.trim().length > 0).slice(0, 3)
       : [];
-    const triggerLabel = triggerExamples.length > 0 ? ` Triggers: ${triggerExamples.join(" | ")}` : "";
+    const triggerLabel = triggerExamples.length > 0 ? ` Trigger examples: ${triggerExamples.join(" | ")}` : "";
     const line = `- **${skill.name}**: ${description}${triggerLabel}`;
     const estimated = estimateTokens(line);
 

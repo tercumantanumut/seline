@@ -137,3 +137,16 @@ export interface SkillListPage<TItem> {
   items: TItem[];
   nextCursor: string | null;
 }
+
+export interface SkillRunHistoryItem {
+  runId: string;
+  taskId: string;
+  taskName: string;
+  status: "pending" | "queued" | "running" | "succeeded" | "failed" | "cancelled" | "timeout";
+  scheduledFor: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  error: string | null;
+  createdAt: string;
+}

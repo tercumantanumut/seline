@@ -1,133 +1,133 @@
 {
   "common": {
-    "loading": "Yükleniyor...",
+    "loading": "YÃƒÂ¼kleniyor...",
     "back": "Geri",
-    "goBack": "Önceki sayfaya dön",
-    "cancel": "İptal",
+    "goBack": "Ãƒâ€“nceki sayfaya dÃƒÂ¶n",
+    "cancel": "Ã„Â°ptal",
     "save": "Kaydet",
     "close": "Kapat",
-    "error": "Bir hata oluştu. Lütfen tekrar deneyin.",
+    "error": "Bir hata oluÃ…Å¸tu. LÃƒÂ¼tfen tekrar deneyin.",
     "retry": "Tekrar dene",
     "email": "E-posta",
-    "password": "Şifre",
-    "confirmPassword": "Şifreyi doğrula"
+    "password": "Ã…Å¾ifre",
+    "confirmPassword": "Ã…Å¾ifreyi doÃ„Å¸rula"
   },
   "onboarding": {
     "welcome": {
-      "title": "Seline'e hoş geldiniz",
-      "subtitle": "Yapay zeka destekli yaratıcı yardımcınız. Sizi birkaç adımda kurulumdan geçirelim.",
+      "title": "Seline'e hoÃ…Å¸ geldiniz",
+      "subtitle": "Yapay zeka destekli yaratÃ„Â±cÃ„Â± yardÃ„Â±mcÃ„Â±nÃ„Â±z. Sizi birkaÃƒÂ§ adÃ„Â±mda kurulumdan geÃƒÂ§irelim.",
       "features": {
         "agents": {
-          "title": "Özel AI Ajanları",
-          "desc": "Benzersiz kişilik ve yeteneklere sahip uzman asistanlar oluşturun"
+          "title": "Ãƒâ€“zel AI AjanlarÃ„Â±",
+          "desc": "Benzersiz kiÃ…Å¸ilik ve yeteneklere sahip uzman asistanlar oluÃ…Å¸turun"
         },
         "tools": {
-          "title": "Güçlü Araçlar",
-          "desc": "Görsel üretin, webde arayın, kod analiz edin ve daha fazlasını yapın"
+          "title": "GÃƒÂ¼ÃƒÂ§lÃƒÂ¼ AraÃƒÂ§lar",
+          "desc": "GÃƒÂ¶rsel ÃƒÂ¼retin, webde arayÃ„Â±n, kod analiz edin ve daha fazlasÃ„Â±nÃ„Â± yapÃ„Â±n"
         },
         "memory": {
-          "title": "Kalıcı Hafıza",
-          "desc": "Ajanlarınız tercihleri hatırlar ve iş akışınızı öğrenir"
+          "title": "KalÃ„Â±cÃ„Â± HafÃ„Â±za",
+          "desc": "AjanlarÃ„Â±nÃ„Â±z tercihleri hatÃ„Â±rlar ve iÃ…Å¸ akÃ„Â±Ã…Å¸Ã„Â±nÃ„Â±zÃ„Â± ÃƒÂ¶Ã„Å¸renir"
         }
       },
-      "cta": "Başlayalım"
+      "cta": "BaÃ…Å¸layalÃ„Â±m"
     },
     "provider": {
-      "title": "AI Sağlayıcınızı Seçin",
-      "subtitle": "AI ajanlarınızı nasıl güçlendirmek istediğinizi seçin",
+      "title": "AI SaÃ„Å¸layÃ„Â±cÃ„Â±nÃ„Â±zÃ„Â± SeÃƒÂ§in",
+      "subtitle": "AI ajanlarÃ„Â±nÃ„Â±zÃ„Â± nasÃ„Â±l gÃƒÂ¼ÃƒÂ§lendirmek istediÃ„Å¸inizi seÃƒÂ§in",
       "options": {
         "antigravity": {
-          "title": "Antigravity (Ücretsiz)",
-          "desc": "Ücretsiz erişim için Antigravity hesabınızla giriş yapın",
-          "badge": "Önerilen"
+          "title": "Antigravity (ÃƒÅ“cretsiz)",
+          "desc": "ÃƒÅ“cretsiz eriÃ…Å¸im iÃƒÂ§in Antigravity hesabÃ„Â±nÃ„Â±zla giriÃ…Å¸ yapÃ„Â±n",
+          "badge": "Ãƒâ€“nerilen"
         },
         "anthropic": {
           "title": "Anthropic",
-          "desc": "Claude API anahtarınızı kullanın"
+          "desc": "Claude API anahtarÃ„Â±nÃ„Â±zÃ„Â± kullanÃ„Â±n"
         },
         "openrouter": {
           "title": "OpenRouter",
-          "desc": "OpenRouter üzerinden birden fazla modele erişin"
+          "desc": "OpenRouter ÃƒÂ¼zerinden birden fazla modele eriÃ…Å¸in"
         },
         "codex": {
           "title": "OpenAI Codex (ChatGPT Plus)",
-          "desc": "ChatGPT Plus/Pro aboneliğinizi GPT-4o ve o1 için kullanın"
+          "desc": "ChatGPT Plus/Pro aboneliÃ„Å¸inizi GPT-4o ve o1 iÃƒÂ§in kullanÃ„Â±n"
         },
         "claudecode": {
           "title": "Claude Code (Pro / MAX)",
-          "desc": "Claude Pro veya MAX aboneliğinizi Opus 4.6, Sonnet 4.5 ve Haiku 4.5 için kullanın"
+          "desc": "Claude Pro veya MAX aboneliÃ„Å¸inizi Opus 4.6, Sonnet 4.5 ve Haiku 4.5 iÃƒÂ§in kullanÃ„Â±n"
         },
         "kimi": {
           "title": "Moonshot Kimi",
-          "desc": "256K bağlam ve görüntü desteği ile Kimi K2.5 kullanın"
+          "desc": "256K baÃ„Å¸lam ve gÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼ desteÃ„Å¸i ile Kimi K2.5 kullanÃ„Â±n"
         }
       }
     },
     "embedding": {
-      "title": "Vektör Aramayı Etkinleştir",
-      "subtitle": "Vektör arama, ajanlarınızın belgelerinizde ilgili içeriği bulmasını sağlar",
+      "title": "VektÃƒÂ¶r AramayÃ„Â± EtkinleÃ…Å¸tir",
+      "subtitle": "VektÃƒÂ¶r arama, ajanlarÃ„Â±nÃ„Â±zÃ„Â±n belgelerinizde ilgili iÃƒÂ§eriÃ„Å¸i bulmasÃ„Â±nÃ„Â± saÃ„Å¸lar",
       "providers": {
         "openrouter": {
           "title": "OpenRouter (Bulut)",
-          "desc": "OpenRouter API ile hızlı embeddinglar",
-          "noKey": "OpenRouter API anahtarı gerekli (Ayarlar'dan ekleyin)"
+          "desc": "OpenRouter API ile hÃ„Â±zlÃ„Â± embeddinglar",
+          "noKey": "OpenRouter API anahtarÃ„Â± gerekli (Ayarlar'dan ekleyin)"
         },
         "local": {
           "title": "Yerel (Cihazda)",
-          "desc": "Gizli, çevrimdışı embeddinglar - veri cihazınızdan çıkmaz",
-          "electronOnly": "Sadece masaüstü uygulamada kullanılabilir"
+          "desc": "Gizli, ÃƒÂ§evrimdÃ„Â±Ã…Å¸Ã„Â± embeddinglar - veri cihazÃ„Â±nÃ„Â±zdan ÃƒÂ§Ã„Â±kmaz",
+          "electronOnly": "Sadece masaÃƒÂ¼stÃƒÂ¼ uygulamada kullanÃ„Â±labilir"
         }
       },
-      "selectModel": "İndirilecek embedding modelini seçin:",
-      "recommended": "Önerilen",
-      "download": "İndir",
-      "downloading": "İndiriliyor...",
-      "saved": "Vektör arama etkinleştirildi!",
+      "selectModel": "Ã„Â°ndirilecek embedding modelini seÃƒÂ§in:",
+      "recommended": "Ãƒâ€“nerilen",
+      "download": "Ã„Â°ndir",
+      "downloading": "Ã„Â°ndiriliyor...",
+      "saved": "VektÃƒÂ¶r arama etkinleÃ…Å¸tirildi!",
       "saving": "Kaydediliyor...",
       "continue": "Devam",
       "skip": "Atla",
       "back": "Geri",
-      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapÃ„Â±landÃ„Â±rabilirsiniz"
     },
     "auth": {
-      "title": "Hesabınızı Bağlayın",
+      "title": "HesabÃ„Â±nÃ„Â±zÃ„Â± BaÃ„Å¸layÃ„Â±n",
       "apiKey": {
-        "label": "API Anahtarı",
+        "label": "API AnahtarÃ„Â±",
         "placeholder": "sk-ant-...",
-        "hint": "API anahtarınız yerel olarak saklanır ve sunucularımıza gönderilmez"
+        "hint": "API anahtarÃ„Â±nÃ„Â±z yerel olarak saklanÃ„Â±r ve sunucularÃ„Â±mÃ„Â±za gÃƒÂ¶nderilmez"
       },
       "oauth": {
-        "button": "Google ile giriş yap",
-        "hint": "Kimlik doğrulama için yönlendirileceksiniz"
+        "button": "Google ile giriÃ…Å¸ yap",
+        "hint": "Kimlik doÃ„Å¸rulama iÃƒÂ§in yÃƒÂ¶nlendirileceksiniz"
       },
-      "skip": "Şimdilik geç",
-      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
+      "skip": "Ã…Å¾imdilik geÃƒÂ§",
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapÃ„Â±landÃ„Â±rabilirsiniz"
     },
     "personalization": {
-      "title": "Deneyiminizi Kişiselleştirin",
-      "subtitle": "Ajanların tercihlerinizi anlamasına yardımcı olun (isteğe bağlı)",
+      "title": "Deneyiminizi KiÃ…Å¸iselleÃ…Å¸tirin",
+      "subtitle": "AjanlarÃ„Â±n tercihlerinizi anlamasÃ„Â±na yardÃ„Â±mcÃ„Â± olun (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
       "categories": {
         "visual_preferences": {
-          "title": "Görsel Tercihler"
+          "title": "GÃƒÂ¶rsel Tercihler"
         },
         "communication_style": {
-          "title": "İletişim Tarzı"
+          "title": "Ã„Â°letiÃ…Å¸im TarzÃ„Â±"
         },
         "workflow_patterns": {
-          "title": "İş Akışı Kalıpları"
+          "title": "Ã„Â°Ã…Å¸ AkÃ„Â±Ã…Å¸Ã„Â± KalÃ„Â±plarÃ„Â±"
         }
       },
-      "skip": "Kişiselleştirmeyi geç"
+      "skip": "KiÃ…Å¸iselleÃ…Å¸tirmeyi geÃƒÂ§"
     },
     "complete": {
-      "title": "Her şey hazır!",
-      "subtitle": "Çalışma alanınız hazır. Şimdi şunları yapabilirsiniz:",
+      "title": "Her Ã…Å¸ey hazÃ„Â±r!",
+      "subtitle": "Ãƒâ€¡alÃ„Â±Ã…Å¸ma alanÃ„Â±nÃ„Â±z hazÃ„Â±r. Ã…Å¾imdi Ã…Å¸unlarÃ„Â± yapabilirsiniz:",
       "tips": {
-        "agent": "Özel kişilikli ilk AI ajanınızı oluşturun",
-        "chat": "Sohbete başlayın ve yetenekleri keşfedin",
-        "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
+        "agent": "Ãƒâ€“zel kiÃ…Å¸ilikli ilk AI ajanÃ„Â±nÃ„Â±zÃ„Â± oluÃ…Å¸turun",
+        "chat": "Sohbete baÃ…Å¸layÃ„Â±n ve yetenekleri keÃ…Å¸fedin",
+        "settings": "Ayarlar'da deneyiminizi ince ayarlayÃ„Â±n"
       },
-      "cta": "Seline'i kullanmaya başla"
+      "cta": "Seline'i kullanmaya baÃ…Å¸la"
     }
   },
   "layout": {
@@ -135,12 +135,12 @@
     "brand": "Selin",
     "homeAria": "Selin Ana Sayfa",
     "sidebar": {
-      "usage": "Kullanım ve Analitik",
+      "usage": "KullanÃ„Â±m ve Analitik",
       "settings": "Ayarlar",
-      "about": "Hakkında",
-      "signOut": "Çıkış yap",
-      "expand": "Kenarlığı genişlet",
-      "collapse": "Kenarlığı daralt"
+      "about": "HakkÃ„Â±nda",
+      "signOut": "Ãƒâ€¡Ã„Â±kÃ„Â±Ã…Å¸ yap",
+      "expand": "KenarlÃ„Â±Ã„Å¸Ã„Â± geniÃ…Å¸let",
+      "collapse": "KenarlÃ„Â±Ã„Å¸Ã„Â± daralt"
     }
   },
   "authLayout": {
@@ -148,246 +148,246 @@
     "logo": "Selin"
   },
   "login": {
-    "title": "Tekrar hoş geldiniz",
-    "subtitle": "Hesabınıza giriş yapın",
+    "title": "Tekrar hoÃ…Å¸ geldiniz",
+    "subtitle": "HesabÃ„Â±nÃ„Â±za giriÃ…Å¸ yapÃ„Â±n",
     "email": "E-posta",
-    "password": "Şifre",
+    "password": "Ã…Å¾ifre",
     "placeholderEmail": "sen@example.com",
-    "placeholderPassword": "••••••••",
-    "signingIn": "Giriş yapılıyor...",
-    "signIn": "Giriş yap",
-    "error": "Giriş başarısız",
-    "cta": "Hesabınız yok mu?",
-    "ctaLink": "Oluştur"
+    "placeholderPassword": "Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢",
+    "signingIn": "GiriÃ…Å¸ yapÃ„Â±lÃ„Â±yor...",
+    "signIn": "GiriÃ…Å¸ yap",
+    "error": "GiriÃ…Å¸ baÃ…Å¸arÃ„Â±sÃ„Â±z",
+    "cta": "HesabÃ„Â±nÃ„Â±z yok mu?",
+    "ctaLink": "OluÃ…Å¸tur"
   },
   "signup": {
-    "titleFirst": "Selin'e hoş geldiniz",
-    "title": "Hesap oluştur",
-    "subtitleFirst": "Başlamak için ilk hesabınızı oluşturun",
-    "subtitle": "Oluşturmaya başlamak için kaydolun",
-    "passwordHint": "En az 6 karakter olmalı",
-    "creating": "Hesap oluşturuluyor...",
-    "create": "Hesap oluştur",
-    "errorShort": "Kayıt başarısız",
-    "cta": "Zaten hesabınız var mı?",
-    "ctaLink": "Giriş yap",
-    "firstUser": "İlk kullanıcı sizsiniz! Bu hesap yerel olarak oluşturulacak.",
-    "errorPasswordLength": "Şifre en az 6 karakter olmalı",
-    "errorPasswordMatch": "Şifreler eşleşmiyor",
+    "titleFirst": "Selin'e hoÃ…Å¸ geldiniz",
+    "title": "Hesap oluÃ…Å¸tur",
+    "subtitleFirst": "BaÃ…Å¸lamak iÃƒÂ§in ilk hesabÃ„Â±nÃ„Â±zÃ„Â± oluÃ…Å¸turun",
+    "subtitle": "OluÃ…Å¸turmaya baÃ…Å¸lamak iÃƒÂ§in kaydolun",
+    "passwordHint": "En az 6 karakter olmalÃ„Â±",
+    "creating": "Hesap oluÃ…Å¸turuluyor...",
+    "create": "Hesap oluÃ…Å¸tur",
+    "errorShort": "KayÃ„Â±t baÃ…Å¸arÃ„Â±sÃ„Â±z",
+    "cta": "Zaten hesabÃ„Â±nÃ„Â±z var mÃ„Â±?",
+    "ctaLink": "GiriÃ…Å¸ yap",
+    "firstUser": "Ã„Â°lk kullanÃ„Â±cÃ„Â± sizsiniz! Bu hesap yerel olarak oluÃ…Å¸turulacak.",
+    "errorPasswordLength": "Ã…Å¾ifre en az 6 karakter olmalÃ„Â±",
+    "errorPasswordMatch": "Ã…Å¾ifreler eÃ…Å¸leÃ…Å¸miyor",
     "placeholderEmail": "sen@example.com",
-    "placeholderPassword": "••••••••"
+    "placeholderPassword": "Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
   },
   "picker": {
-    "title": "Bir Ajan Seçin",
-    "subtitle": "Sohbete başlamak için bir ajan seçin ya da yeni bir tane oluşturun",
-    "create": "Yeni Ajan Oluştur",
-    "createDescription": "Kendi AI ajanınızı yapılandırın",
+    "title": "Bir Ajan SeÃƒÂ§in",
+    "subtitle": "Sohbete baÃ…Å¸lamak iÃƒÂ§in bir ajan seÃƒÂ§in ya da yeni bir tane oluÃ…Å¸turun",
+    "create": "Yeni Ajan OluÃ…Å¸tur",
+    "createDescription": "Kendi AI ajanÃ„Â±nÃ„Â±zÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±n",
     "continue": "Devam",
-    "startNew": "Yeni sohbet başlat",
-    "edit": "Düzenle",
+    "startNew": "Yeni sohbet baÃ…Å¸lat",
+    "edit": "DÃƒÂ¼zenle",
     "delete": "Sil",
-    "editIdentity": "Ajan detaylarını düzenle",
-    "deleteAgent": "Ajanı sil",
-    "folders": "Klasörler",
-    "configureTools": "Araçları yapılandır",
-    "mcpTools": "MCP Araçları",
-    "mcpToolsTitle": "MCP Araçlarını Yapılandır",
+    "editIdentity": "Ajan detaylarÃ„Â±nÃ„Â± dÃƒÂ¼zenle",
+    "deleteAgent": "AjanÃ„Â± sil",
+    "folders": "KlasÃƒÂ¶rler",
+    "configureTools": "AraÃƒÂ§larÃ„Â± yapÃ„Â±landÃ„Â±r",
+    "mcpTools": "MCP AraÃƒÂ§larÃ„Â±",
+    "mcpToolsTitle": "MCP AraÃƒÂ§larÃ„Â±nÃ„Â± YapÃ„Â±landÃ„Â±r",
     "mcpRemovalWarning": {
       "title": "Aktif Oturum Tespit Edildi",
-      "description": "Bu ajanın MCP araçlarını kullanıyor olabilecek aktif bir oturumu var. Aktif oturum sırasında araçları kaldırmak çalışan görevlerde hatalara neden olabilir.",
-      "toolsBeingRemoved": "Aşağıdaki MCP araçları kaldırılacak:",
+      "description": "Bu ajanÃ„Â±n MCP araÃƒÂ§larÃ„Â±nÃ„Â± kullanÃ„Â±yor olabilecek aktif bir oturumu var. Aktif oturum sÃ„Â±rasÃ„Â±nda araÃƒÂ§larÃ„Â± kaldÃ„Â±rmak ÃƒÂ§alÃ„Â±Ã…Å¸an gÃƒÂ¶revlerde hatalara neden olabilir.",
+      "toolsBeingRemoved": "AÃ…Å¸aÃ„Å¸Ã„Â±daki MCP araÃƒÂ§larÃ„Â± kaldÃ„Â±rÃ„Â±lacak:",
       "confirm": "Yine de Kaydet"
     },
-    "toolsEnabled": "{count, plural, one {# araç etkin} other {# araç etkin}}",
-    "empty": "Henüz ajan yok. Başlamak için ilk ajanınızı yapılandırın.",
-    "emptyTitle": "İlk Ajanınızı Oluşturun",
-    "emptyDescription": "Ajanlar, belirli görevlere özelleştirilmiş AI asistanlarıdır. Kişiselleştirilmiş yardım almak için bir tane oluşturun.",
-    "searchPlaceholder": "Ajanları ada, amaca veya araçlara göre arayın...",
-    "noResults": "Aramanızla eşleşen ajan bulunamadı",
-    "clearSearch": "Aramayı temizle",
-    "vectorTitle": "Vektör Arama Klasörleri",
+    "toolsEnabled": "{count, plural, one {# araÃƒÂ§ etkin} other {# araÃƒÂ§ etkin}}",
+    "empty": "HenÃƒÂ¼z ajan yok. BaÃ…Å¸lamak iÃƒÂ§in ilk ajanÃ„Â±nÃ„Â±zÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±n.",
+    "emptyTitle": "Ã„Â°lk AjanÃ„Â±nÃ„Â±zÃ„Â± OluÃ…Å¸turun",
+    "emptyDescription": "Ajanlar, belirli gÃƒÂ¶revlere ÃƒÂ¶zelleÃ…Å¸tirilmiÃ…Å¸ AI asistanlarÃ„Â±dÃ„Â±r. KiÃ…Å¸iselleÃ…Å¸tirilmiÃ…Å¸ yardÃ„Â±m almak iÃƒÂ§in bir tane oluÃ…Å¸turun.",
+    "searchPlaceholder": "AjanlarÃ„Â± ada, amaca veya araÃƒÂ§lara gÃƒÂ¶re arayÃ„Â±n...",
+    "noResults": "AramanÃ„Â±zla eÃ…Å¸leÃ…Å¸en ajan bulunamadÃ„Â±",
+    "clearSearch": "AramayÃ„Â± temizle",
+    "vectorTitle": "VektÃƒÂ¶r Arama KlasÃƒÂ¶rleri",
     "activeSession": {
       "label": "Aktif",
-      "tooltip": "Bu ajanda devam eden işlemler var"
+      "tooltip": "Bu ajanda devam eden iÃ…Å¸lemler var"
     },
     "identityEditor": {
-      "title": "Ajanı Düzenle",
-      "subtitle": "Ajan detaylarını ve davranışını güncelle",
+      "title": "AjanÃ„Â± DÃƒÂ¼zenle",
+      "subtitle": "Ajan detaylarÃ„Â±nÃ„Â± ve davranÃ„Â±Ã…Å¸Ã„Â±nÃ„Â± gÃƒÂ¼ncelle",
       "tabs": {
         "basic": "Temel Bilgiler",
-        "advanced": "Özel İstem"
+        "advanced": "Ãƒâ€“zel Ã„Â°stem"
       },
       "fields": {
         "name": {
-          "label": "İsim",
-          "placeholder": "Benim Ajanım",
-          "helper": "Bu ajan için dahili tanımlayıcı"
+          "label": "Ã„Â°sim",
+          "placeholder": "Benim AjanÃ„Â±m",
+          "helper": "Bu ajan iÃƒÂ§in dahili tanÃ„Â±mlayÃ„Â±cÃ„Â±"
         },
         "displayName": {
-          "label": "Görünen Ad",
-          "placeholder": "Yardımcı Asistanım",
-          "helper": "UI'da gösterilen opsiyonel dostane isim"
+          "label": "GÃƒÂ¶rÃƒÂ¼nen Ad",
+          "placeholder": "YardÃ„Â±mcÃ„Â± AsistanÃ„Â±m",
+          "helper": "UI'da gÃƒÂ¶sterilen opsiyonel dostane isim"
         },
         "tagline": {
           "label": "Slogan",
-          "placeholder": "Günlük görevler için yaratıcı asistanınız",
-          "helper": "Ajan kartında gösterilen kısa açıklama"
+          "placeholder": "GÃƒÂ¼nlÃƒÂ¼k gÃƒÂ¶revler iÃƒÂ§in yaratÃ„Â±cÃ„Â± asistanÃ„Â±nÃ„Â±z",
+          "helper": "Ajan kartÃ„Â±nda gÃƒÂ¶sterilen kÃ„Â±sa aÃƒÂ§Ã„Â±klama"
         },
         "purpose": {
-          "label": "Amaç",
-          "placeholder": "Yaratıcı yazarlıkta, beyin fırtınasında ve düşünceleri organize etmede yardımcı olur...",
-          "helper": "Ajanın rolü ve sorumluluklarının detaylı açıklaması"
+          "label": "AmaÃƒÂ§",
+          "placeholder": "YaratÃ„Â±cÃ„Â± yazarlÃ„Â±kta, beyin fÃ„Â±rtÃ„Â±nasÃ„Â±nda ve dÃƒÂ¼Ã…Å¸ÃƒÂ¼nceleri organize etmede yardÃ„Â±mcÃ„Â± olur...",
+          "helper": "AjanÃ„Â±n rolÃƒÂ¼ ve sorumluluklarÃ„Â±nÃ„Â±n detaylÃ„Â± aÃƒÂ§Ã„Â±klamasÃ„Â±"
         },
         "customPrompt": {
-          "toggle": "Gelişmiş: Özel Sistem İstemi",
-          "currentPrompt": "Mevcut Otomatik Oluşturulan İstem",
-          "currentPromptHelper": "Aşağıda özel bir geçersiz kılma sağlarsanız, bu istem değiştirilecektir",
-          "copyToOverride": "Geçersiz Kılmaya Kopyala",
-          "label": "Özel Sistem İstemi Üzerine Yazma",
-          "placeholder": "Uzmanlaşmış bir AI asistanısınız...\n\nYetenekleriniz:\n- ...\n- ...",
-          "helper": "Otomatik oluşturulan sistem istemini kendi isteminizle değiştirin",
-          "warning": "⚠️ Özel istemler tüm otomatik oluşturulan talimatları değiştirir. Bunu yalnızca ajanın davranışı üzerinde tam kontrole ihtiyacınız varsa kullanın.",
-          "clear": "Özel istemi temizle"
+          "toggle": "GeliÃ…Å¸miÃ…Å¸: Ãƒâ€“zel Sistem Ã„Â°stemi",
+          "currentPrompt": "Mevcut Otomatik OluÃ…Å¸turulan Ã„Â°stem",
+          "currentPromptHelper": "AÃ…Å¸aÃ„Å¸Ã„Â±da ÃƒÂ¶zel bir geÃƒÂ§ersiz kÃ„Â±lma saÃ„Å¸larsanÃ„Â±z, bu istem deÃ„Å¸iÃ…Å¸tirilecektir",
+          "copyToOverride": "GeÃƒÂ§ersiz KÃ„Â±lmaya Kopyala",
+          "label": "Ãƒâ€“zel Sistem Ã„Â°stemi ÃƒÅ“zerine Yazma",
+          "placeholder": "UzmanlaÃ…Å¸mÃ„Â±Ã…Å¸ bir AI asistanÃ„Â±sÃ„Â±nÃ„Â±z...\n\nYetenekleriniz:\n- ...\n- ...",
+          "helper": "Otomatik oluÃ…Å¸turulan sistem istemini kendi isteminizle deÃ„Å¸iÃ…Å¸tirin",
+          "warning": "Ã¢Å¡Â Ã¯Â¸Â Ãƒâ€“zel istemler tÃƒÂ¼m otomatik oluÃ…Å¸turulan talimatlarÃ„Â± deÃ„Å¸iÃ…Å¸tirir. Bunu yalnÃ„Â±zca ajanÃ„Â±n davranÃ„Â±Ã…Å¸Ã„Â± ÃƒÂ¼zerinde tam kontrole ihtiyacÃ„Â±nÃ„Â±z varsa kullanÃ„Â±n.",
+          "clear": "Ãƒâ€“zel istemi temizle"
         }
       }
     },
     "deleteDialog": {
-      "title": "Ajanı Sil",
-      "description": "\"{name}\" ajanını silmek istediğinizden emin misiniz?",
-      "warning": "⚠️ Bu işlem geri alınamaz. Bu ajana ait tüm konuşmalar, belgeler ve ayarlar kalıcı olarak silinecektir.",
-      "confirm": "Ajanı Sil",
+      "title": "AjanÃ„Â± Sil",
+      "description": "\"{name}\" ajanÃ„Â±nÃ„Â± silmek istediÃ„Å¸inizden emin misiniz?",
+      "warning": "Ã¢Å¡Â Ã¯Â¸Â Bu iÃ…Å¸lem geri alÃ„Â±namaz. Bu ajana ait tÃƒÂ¼m konuÃ…Å¸malar, belgeler ve ayarlar kalÃ„Â±cÃ„Â± olarak silinecektir.",
+      "confirm": "AjanÃ„Â± Sil",
       "deleting": "Siliniyor..."
     },
     "toolEditor": {
-      "subtitle": "{name} • {count} araç etkin",
-      "searchPlaceholder": "Araç ara...",
-      "selectAll": "Tümünü Seç",
-      "deselectAll": "Seçimi Kaldır",
-      "noResults": "\"{query}\" ile eşleşen araç bulunamadı",
-      "footerCount": "{total} araçtan {selected} tanesi etkin",
+      "subtitle": "{name} Ã¢â‚¬Â¢ {count} araÃƒÂ§ etkin",
+      "searchPlaceholder": "AraÃƒÂ§ ara...",
+      "selectAll": "TÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ SeÃƒÂ§",
+      "deselectAll": "SeÃƒÂ§imi KaldÃ„Â±r",
+      "noResults": "\"{query}\" ile eÃ…Å¸leÃ…Å¸en araÃƒÂ§ bulunamadÃ„Â±",
+      "footerCount": "{total} araÃƒÂ§tan {selected} tanesi etkin",
       "categories": {
         "knowledge": "Bilgi ve Dosyalar",
         "search": "Web ve Arama",
-        "image-generation": "Görsel Oluşturma",
-        "image-editing": "Görsel Düzenleme",
-        "video-generation": "Video Oluşturma",
+        "image-generation": "GÃƒÂ¶rsel OluÃ…Å¸turma",
+        "image-editing": "GÃƒÂ¶rsel DÃƒÂ¼zenleme",
+        "video-generation": "Video OluÃ…Å¸turma",
         "analysis": "Analiz",
-        "utility": "Yardımcı Araçlar"
+        "utility": "YardÃ„Â±mcÃ„Â± AraÃƒÂ§lar"
       },
       "dependencyWarnings": {
-        "syncedFolders": "Senkronize klasörler gerekli",
+        "syncedFolders": "Senkronize klasÃƒÂ¶rler gerekli",
         "embeddings": "Embedding gerekli",
-        "both": "Senkronize klasörler + embedding gerekli",
-        "vectorDbEnabled": "Vektör DB etkin olmalı",
-        "tavilyKey": "Tavily API anahtarı gerekli",
-        "webScraper": "Web tarayıcı kurulumu gerekli",
-        "openrouterKey": "OpenRouter API anahtarı gerekli",
-        "comfyuiEnabled": "ComfyUI etkin olmalı",
-        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
-        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "both": "Senkronize klasÃƒÂ¶rler + embedding gerekli",
+        "vectorDbEnabled": "VektÃƒÂ¶r DB etkin olmalÃ„Â±",
+        "tavilyKey": "Tavily API anahtarÃ„Â± gerekli",
+        "webScraper": "Web tarayÃ„Â±cÃ„Â± kurulumu gerekli",
+        "openrouterKey": "OpenRouter API anahtarÃ„Â± gerekli",
+        "comfyuiEnabled": "ComfyUI etkin olmalÃ„Â±",
+        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalÃ„Â±",
+        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalÃ„Â±",
+        "localGrepEnabled": "Yerel Grep etkin olmalÃ„Â±"
       }
     },
     "tools": {
       "docsSearch": {
-        "name": "Doküman Arama",
-        "description": "Ajanın bilgi tabanında arayın"
+        "name": "DokÃƒÂ¼man Arama",
+        "description": "AjanÃ„Â±n bilgi tabanÃ„Â±nda arayÃ„Â±n"
       },
       "vectorSearch": {
-        "name": "Vektör Arama",
-        "description": "Dizinlenmiş klasörlerde semantik arama yapın"
+        "name": "VektÃƒÂ¶r Arama",
+        "description": "DizinlenmiÃ…Å¸ klasÃƒÂ¶rlerde semantik arama yapÃ„Â±n"
       },
       "readFile": {
         "name": "Dosya Oku",
-        "description": "Senkronize klasörlerdeki dosyaları okuyun"
+        "description": "Senkronize klasÃƒÂ¶rlerdeki dosyalarÃ„Â± okuyun"
       },
       "editFile": {
-        "name": "Dosya Düzenle",
-        "description": "Tam metin eşleştirmesi ile dosyaları düzenleyin"
+        "name": "Dosya DÃƒÂ¼zenle",
+        "description": "Tam metin eÃ…Å¸leÃ…Å¸tirmesi ile dosyalarÃ„Â± dÃƒÂ¼zenleyin"
       },
       "writeFile": {
         "name": "Dosya Yaz",
-        "description": "Senkronize klasörlerde dosya oluşturun veya üzerine yazın"
+        "description": "Senkronize klasÃƒÂ¶rlerde dosya oluÃ…Å¸turun veya ÃƒÂ¼zerine yazÃ„Â±n"
       },
       "patchFile": {
-        "name": "Toplu Düzenleme",
-        "description": "Birden fazla dosyayı toplu olarak oluşturun, güncelleyin veya silin"
+        "name": "Toplu DÃƒÂ¼zenleme",
+        "description": "Birden fazla dosyayÃ„Â± toplu olarak oluÃ…Å¸turun, gÃƒÂ¼ncelleyin veya silin"
       },
       "webSearch": {
         "name": "Web Arama",
-        "description": "URL'ler için webde arama yapın"
+        "description": "URL'ler iÃƒÂ§in webde arama yapÃ„Â±n"
       },
       "webBrowse": {
         "name": "Web Gezinme",
-        "description": "Sayfaları getirip analiz edin"
+        "description": "SayfalarÃ„Â± getirip analiz edin"
       },
       "webQuery": {
         "name": "Web Sorgu",
-        "description": "Önceden getirilen web içeriklerini sorgulayın"
+        "description": "Ãƒâ€“nceden getirilen web iÃƒÂ§eriklerini sorgulayÃ„Â±n"
       },
       "firecrawlCrawl": {
         "name": "Siteyi Tara",
-        "description": "Bir web sitesinden birden fazla sayfayı tarayın"
+        "description": "Bir web sitesinden birden fazla sayfayÃ„Â± tarayÃ„Â±n"
       },
       "generateImageFlux2": {
-        "name": "Görsel Üretimi (Flux2)",
-        "description": "Metinden görsel üretin"
+        "name": "GÃƒÂ¶rsel ÃƒÅ“retimi (Flux2)",
+        "description": "Metinden gÃƒÂ¶rsel ÃƒÂ¼retin"
       },
       "generateImageWan22": {
-        "name": "Görsel Üretimi (WAN)",
-        "description": "Anime tarzı görseller üretin"
+        "name": "GÃƒÂ¶rsel ÃƒÅ“retimi (WAN)",
+        "description": "Anime tarzÃ„Â± gÃƒÂ¶rseller ÃƒÂ¼retin"
       },
       "editImage": {
-        "name": "Görsel Düzenleyici (Gemini)",
-        "description": "Görselleri düzenleyin, varyasyon ve kombinasyon yapın"
+        "name": "GÃƒÂ¶rsel DÃƒÂ¼zenleyici (Gemini)",
+        "description": "GÃƒÂ¶rselleri dÃƒÂ¼zenleyin, varyasyon ve kombinasyon yapÃ„Â±n"
       },
       "generateVideoWan22": {
-        "name": "Video Üretimi",
-        "description": "Görselleri videoya dönüştürün"
+        "name": "Video ÃƒÅ“retimi",
+        "description": "GÃƒÂ¶rselleri videoya dÃƒÂ¶nÃƒÂ¼Ã…Å¸tÃƒÂ¼rÃƒÂ¼n"
       },
       "generatePixelVideoWan22": {
         "name": "Piksel Animasyon (WAN 2.2)",
-        "description": "Piksel art animasyonlar üretin"
+        "description": "Piksel art animasyonlar ÃƒÂ¼retin"
       },
       "assembleVideo": {
-        "name": "Video Montajı",
-        "description": "Görsel ve videoları düzenleyip birleştirin"
+        "name": "Video MontajÃ„Â±",
+        "description": "GÃƒÂ¶rsel ve videolarÃ„Â± dÃƒÂ¼zenleyip birleÃ…Å¸tirin"
       },
       "describeImage": {
-        "name": "Görseli Açıkla",
-        "description": "Görselleri analiz edin ve açıklayın"
+        "name": "GÃƒÂ¶rseli AÃƒÂ§Ã„Â±kla",
+        "description": "GÃƒÂ¶rselleri analiz edin ve aÃƒÂ§Ã„Â±klayÃ„Â±n"
       },
       "showProductImages": {
-        "name": "Ürün Galerisi",
-        "description": "Ürünleri görsellerle ve satın alma bağlantılarıyla gösterin"
+        "name": "ÃƒÅ“rÃƒÂ¼n Galerisi",
+        "description": "ÃƒÅ“rÃƒÂ¼nleri gÃƒÂ¶rsellerle ve satÃ„Â±n alma baÃ„Å¸lantÃ„Â±larÃ„Â±yla gÃƒÂ¶sterin"
       },
       "executeCommand": {
-        "name": "Komut Çalıştır",
-        "description": "Senkronize klasörlerde güvenli kabuk komutları çalıştır"
+        "name": "Komut Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+        "description": "Senkronize klasÃƒÂ¶rlerde gÃƒÂ¼venli kabuk komutlarÃ„Â± ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±r"
       },
       "scheduleTask": {
-        "name": "Görev Zamanla",
-        "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
+        "name": "GÃƒÂ¶rev Zamanla",
+        "description": "Gelecekte ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lacak gÃƒÂ¶revleri zamanla (tek seferlik, tekrarlayan veya aralÃ„Â±klÃ„Â±)"
       },
       "createSkill": {
-        "name": "Yetenek Oluştur",
-        "description": "Mevcut iş akışından tekrar kullanılabilir bir yetenek kaydet"
+        "name": "Yetenek OluÃ…Å¸tur",
+        "description": "Mevcut iÃ…Å¸ akÃ„Â±Ã…Å¸Ã„Â±ndan tekrar kullanÃ„Â±labilir bir yetenek kaydet"
       },
       "listSkills": {
         "name": "Yetenekleri Listele",
-        "description": "Aktif ajan için kaydedilmiş yetenekleri listele"
+        "description": "Aktif ajan iÃƒÂ§in kaydedilmiÃ…Å¸ yetenekleri listele"
       },
       "runSkill": {
-        "name": "Yetenek Çalıştır",
-        "description": "Bir yeteneği kimlik veya tam ad ile çalıştır"
+        "name": "Yetenek Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+        "description": "Bir yeteneÃ„Å¸i kimlik veya tam ad ile ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±r"
       },
       "updateSkill": {
-        "name": "Yetenek Güncelle",
-        "description": "Geri bildirimle yeteneği sürüm çakışması kontrolüyle güncelle"
+        "name": "Yetenek GÃƒÂ¼ncelle",
+        "description": "Geri bildirimle yeteneÃ„Å¸i sÃƒÂ¼rÃƒÂ¼m ÃƒÂ§akÃ„Â±Ã…Å¸masÃ„Â± kontrolÃƒÂ¼yle gÃƒÂ¼ncelle"
       },
       "copySkill": {
         "name": "Yetenek Kopyala",
-        "description": "Bir yeteneği sahip olduğunuz başka bir ajana kopyala"
+        "description": "Bir yeteneÃ„Å¸i sahip olduÃ„Å¸unuz baÃ…Å¸ka bir ajana kopyala"
       },
       "memorize": {
         "name": "Hafiza",
@@ -395,147 +395,147 @@
       },
       "calculator": {
         "name": "Hesap Makinesi",
-        "description": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)"
+        "description": "Matematiksel ifadeleri hassasiyetle deÃ„Å¸erlendir (aritmetik, trigonometri, istatistik, birimler)"
       },
       "updatePlan": {
-        "name": "Plan Güncelle",
-        "description": "Adım durumlarıyla görünür bir görev planı oluştur veya güncelle"
+        "name": "Plan GÃƒÂ¼ncelle",
+        "description": "AdÃ„Â±m durumlarÃ„Â±yla gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼r bir gÃƒÂ¶rev planÃ„Â± oluÃ…Å¸tur veya gÃƒÂ¼ncelle"
       },
       "generateImageFlux2Flex": {
-        "name": "Üret (Flux.2 Flex)",
-        "description": "Flux.2 Flex ile görsel üretin"
+        "name": "ÃƒÅ“ret (Flux.2 Flex)",
+        "description": "Flux.2 Flex ile gÃƒÂ¶rsel ÃƒÂ¼retin"
       },
       "editImageFlux2Flex": {
-        "name": "Düzenle (Flux.2 Flex)",
-        "description": "Flux.2 Flex ile bir veya daha fazla görsel düzenleyin"
+        "name": "DÃƒÂ¼zenle (Flux.2 Flex)",
+        "description": "Flux.2 Flex ile bir veya daha fazla gÃƒÂ¶rsel dÃƒÂ¼zenleyin"
       },
       "referenceImageFlux2Flex": {
         "name": "Referans (Flux.2 Flex)",
-        "description": "Birden fazla referans görsel ile stil rehberli üretim"
+        "description": "Birden fazla referans gÃƒÂ¶rsel ile stil rehberli ÃƒÂ¼retim"
       },
       "generateImageGpt5Mini": {
-        "name": "Üret (GPT-5 Mini)",
-        "description": "GPT-5 Mini ile hızlı görsel üretimi"
+        "name": "ÃƒÅ“ret (GPT-5 Mini)",
+        "description": "GPT-5 Mini ile hÃ„Â±zlÃ„Â± gÃƒÂ¶rsel ÃƒÂ¼retimi"
       },
       "editImageGpt5Mini": {
-        "name": "Düzenle (GPT-5 Mini)",
-        "description": "GPT-5 Mini ile bir veya daha fazla görsel hızlı düzenleme"
+        "name": "DÃƒÂ¼zenle (GPT-5 Mini)",
+        "description": "GPT-5 Mini ile bir veya daha fazla gÃƒÂ¶rsel hÃ„Â±zlÃ„Â± dÃƒÂ¼zenleme"
       },
       "referenceImageGpt5Mini": {
         "name": "Referans (GPT-5 Mini)",
-        "description": "Birden fazla referans görsel ile rehberli üretim"
+        "description": "Birden fazla referans gÃƒÂ¶rsel ile rehberli ÃƒÂ¼retim"
       },
       "generateImageGpt5": {
-        "name": "Üret (GPT-5)",
-        "description": "GPT-5 ile premium görsel üretimi"
+        "name": "ÃƒÅ“ret (GPT-5)",
+        "description": "GPT-5 ile premium gÃƒÂ¶rsel ÃƒÂ¼retimi"
       },
       "editImageGpt5": {
-        "name": "Düzenle (GPT-5)",
-        "description": "GPT-5 ile bir veya daha fazla görsel premium düzenleme"
+        "name": "DÃƒÂ¼zenle (GPT-5)",
+        "description": "GPT-5 ile bir veya daha fazla gÃƒÂ¶rsel premium dÃƒÂ¼zenleme"
       },
       "referenceImageGpt5": {
         "name": "Referans (GPT-5)",
-        "description": "Birden fazla referans görsel ile premium stil aktarımı"
+        "description": "Birden fazla referans gÃƒÂ¶rsel ile premium stil aktarÃ„Â±mÃ„Â±"
       },
       "generateImageGemini25Flash": {
-        "name": "Üret (Gemini 2.5 Flash)",
-        "description": "Gemini 2.5 Flash ile hızlı üretim"
+        "name": "ÃƒÅ“ret (Gemini 2.5 Flash)",
+        "description": "Gemini 2.5 Flash ile hÃ„Â±zlÃ„Â± ÃƒÂ¼retim"
       },
       "editImageGemini25Flash": {
-        "name": "Düzenle (Gemini 2.5 Flash)",
-        "description": "Gemini 2.5 Flash ile bir veya daha fazla görsel hızlı düzenleme"
+        "name": "DÃƒÂ¼zenle (Gemini 2.5 Flash)",
+        "description": "Gemini 2.5 Flash ile bir veya daha fazla gÃƒÂ¶rsel hÃ„Â±zlÃ„Â± dÃƒÂ¼zenleme"
       },
       "referenceImageGemini25Flash": {
         "name": "Referans (Gemini 2.5 Flash)",
-        "description": "Birden fazla referans görsel ile rehberli üretim"
+        "description": "Birden fazla referans gÃƒÂ¶rsel ile rehberli ÃƒÂ¼retim"
       },
       "generateImageGemini3Pro": {
-        "name": "Üret (Gemini 3 Pro)",
-        "description": "Gemini 3 Pro ile gelişmiş üretim"
+        "name": "ÃƒÅ“ret (Gemini 3 Pro)",
+        "description": "Gemini 3 Pro ile geliÃ…Å¸miÃ…Å¸ ÃƒÂ¼retim"
       },
       "editImageGemini3Pro": {
-        "name": "Düzenle (Gemini 3 Pro)",
-        "description": "Gemini 3 Pro ile bir veya daha fazla görsel gelişmiş düzenleme"
+        "name": "DÃƒÂ¼zenle (Gemini 3 Pro)",
+        "description": "Gemini 3 Pro ile bir veya daha fazla gÃƒÂ¶rsel geliÃ…Å¸miÃ…Å¸ dÃƒÂ¼zenleme"
       },
       "referenceImageGemini3Pro": {
         "name": "Referans (Gemini 3 Pro)",
-        "description": "Birden fazla referans görsel ile gelişmiş stil aktarımı"
+        "description": "Birden fazla referans gÃƒÂ¶rsel ile geliÃ…Å¸miÃ…Å¸ stil aktarÃ„Â±mÃ„Â±"
       },
       "generateImageZImage": {
-        "name": "Üret (Z-Image Yerel)",
-        "description": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)"
+        "name": "ÃƒÅ“ret (Z-Image Yerel)",
+        "description": "ComfyUI ile yerel gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)"
       },
       "generateImageFlux2Klein4B": {
-        "name": "Üret (FLUX.2 Klein 4B)",
-        "description": "Hızlı yerel FLUX.2 Klein 4B görsel üretimi (Docker gerektirir)"
+        "name": "ÃƒÅ“ret (FLUX.2 Klein 4B)",
+        "description": "HÃ„Â±zlÃ„Â± yerel FLUX.2 Klein 4B gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)"
       },
       "editImageFlux2Klein4B": {
-        "name": "Düzenle (FLUX.2 Klein 4B)",
-        "description": "FLUX.2 Klein 4B ile yerel görsel düzenleme (Docker gerektirir)"
+        "name": "DÃƒÂ¼zenle (FLUX.2 Klein 4B)",
+        "description": "FLUX.2 Klein 4B ile yerel gÃƒÂ¶rsel dÃƒÂ¼zenleme (Docker gerektirir)"
       },
       "referenceImageFlux2Klein4B": {
         "name": "Referans (FLUX.2 Klein 4B)",
-        "description": "FLUX.2 Klein 4B ile referans rehberli üretim (Docker gerektirir)"
+        "description": "FLUX.2 Klein 4B ile referans rehberli ÃƒÂ¼retim (Docker gerektirir)"
       },
       "generateImageFlux2Klein9B": {
-        "name": "Üret (FLUX.2 Klein 9B)",
-        "description": "Yüksek kaliteli yerel FLUX.2 Klein 9B görsel üretimi (Docker gerektirir)"
+        "name": "ÃƒÅ“ret (FLUX.2 Klein 9B)",
+        "description": "YÃƒÂ¼ksek kaliteli yerel FLUX.2 Klein 9B gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)"
       },
       "editImageFlux2Klein9B": {
-        "name": "Düzenle (FLUX.2 Klein 9B)",
-        "description": "FLUX.2 Klein 9B ile yerel görsel düzenleme (Docker gerektirir)"
+        "name": "DÃƒÂ¼zenle (FLUX.2 Klein 9B)",
+        "description": "FLUX.2 Klein 9B ile yerel gÃƒÂ¶rsel dÃƒÂ¼zenleme (Docker gerektirir)"
       },
       "referenceImageFlux2Klein9B": {
         "name": "Referans (FLUX.2 Klein 9B)",
-        "description": "FLUX.2 Klein 9B ile referans rehberli üretim (Docker gerektirir)"
+        "description": "FLUX.2 Klein 9B ile referans rehberli ÃƒÂ¼retim (Docker gerektirir)"
       },
       "sendMessageToChannel": {
-        "name": "Kanala Mesaj Gönder",
-        "description": "Bağlı harici kanallar aracılığıyla kullanıcıya doğrudan mesaj gönder"
+        "name": "Kanala Mesaj GÃƒÂ¶nder",
+        "description": "BaÃ„Å¸lÃ„Â± harici kanallar aracÃ„Â±lÃ„Â±Ã„Å¸Ã„Â±yla kullanÃ„Â±cÃ„Â±ya doÃ„Å¸rudan mesaj gÃƒÂ¶nder"
       },
       "localGrep": {
         "name": "Yerel Grep",
-        "description": "ripgrep ile hızlı ve regex arama"
+        "description": "ripgrep ile hÃ„Â±zlÃ„Â± ve regex arama"
       }
     }
   },
   "avatar": {
     "dialog": {
-      "title": "{name} için Avatar",
-      "subtitle": "Mevcut bir görsel seçin veya yeni bir avatar yükleyin"
+      "title": "{name} iÃƒÂ§in Avatar",
+      "subtitle": "Mevcut bir gÃƒÂ¶rsel seÃƒÂ§in veya yeni bir avatar yÃƒÂ¼kleyin"
     },
     "error": {
-      "fetch": "Görseller getirilemedi",
-      "load": "Görseller yüklenemedi",
-      "upload": "Yükleme başarısız",
-      "invalidType": "Lütfen PNG, JPEG veya WebP görsel yükleyin",
-      "tooLarge": "Görsel 10MB'den küçük olmalı",
-      "setPrimary": "Öncelikli avatar ayarlanamadı",
-      "delete": "Silme başarısız"
+      "fetch": "GÃƒÂ¶rseller getirilemedi",
+      "load": "GÃƒÂ¶rseller yÃƒÂ¼klenemedi",
+      "upload": "YÃƒÂ¼kleme baÃ…Å¸arÃ„Â±sÃ„Â±z",
+      "invalidType": "LÃƒÂ¼tfen PNG, JPEG veya WebP gÃƒÂ¶rsel yÃƒÂ¼kleyin",
+      "tooLarge": "GÃƒÂ¶rsel 10MB'den kÃƒÂ¼ÃƒÂ§ÃƒÂ¼k olmalÃ„Â±",
+      "setPrimary": "Ãƒâ€“ncelikli avatar ayarlanamadÃ„Â±",
+      "delete": "Silme baÃ…Å¸arÃ„Â±sÃ„Â±z"
     },
-    "empty": "Henüz görsel yok. Aşağıdan yükleyin.",
+    "empty": "HenÃƒÂ¼z gÃƒÂ¶rsel yok. AÃ…Å¸aÃ„Å¸Ã„Â±dan yÃƒÂ¼kleyin.",
     "actions": {
-      "upload": "Yeni Avatar Yükle",
-      "uploading": "Yükleniyor..."
+      "upload": "Yeni Avatar YÃƒÂ¼kle",
+      "uploading": "YÃƒÂ¼kleniyor..."
     },
     "delete": "Sil",
-    "note": "PNG, JPEG veya WebP · En fazla 10MB"
+    "note": "PNG, JPEG veya WebP Ã‚Â· En fazla 10MB"
   },
   "documents": {
-    "title": "Bilgi Tabanı",
-    "add": "Doküman Ekle",
-    "empty": "Henüz doküman yüklenmedi",
+    "title": "Bilgi TabanÃ„Â±",
+    "add": "DokÃƒÂ¼man Ekle",
+    "empty": "HenÃƒÂ¼z dokÃƒÂ¼man yÃƒÂ¼klenmedi",
     "status": {
-      "processing": "İşleniyor...",
-      "failed": "Başarısız"
+      "processing": "Ã„Â°Ã…Å¸leniyor...",
+      "failed": "BaÃ…Å¸arÃ„Â±sÃ„Â±z"
     },
     "error": {
-      "fetch": "Dokümanlar yüklenemedi",
-      "upload": "Yükleme başarısız",
-      "delete": "Silme başarısız",
-      "retry": "Doküman işleme yeniden denemesi başarısız"
+      "fetch": "DokÃƒÂ¼manlar yÃƒÂ¼klenemedi",
+      "upload": "YÃƒÂ¼kleme baÃ…Å¸arÃ„Â±sÃ„Â±z",
+      "delete": "Silme baÃ…Å¸arÃ„Â±sÃ„Â±z",
+      "retry": "DokÃƒÂ¼man iÃ…Å¸leme yeniden denemesi baÃ…Å¸arÃ„Â±sÃ„Â±z"
     },
-    "delete": "Dokümanı kaldır",
+    "delete": "DokÃƒÂ¼manÃ„Â± kaldÃ„Â±r",
     "retry": "Yeniden Dene",
     "type": {
       "pdf": "PDF",
@@ -550,576 +550,582 @@
     }
   },
   "assistant": {
-    "processingTool": "Araç yanıtı işleniyor...",
-    "uploadError": "Dosya yüklenemedi"
+    "processingTool": "AraÃƒÂ§ yanÃ„Â±tÃ„Â± iÃ…Å¸leniyor...",
+    "uploadError": "Dosya yÃƒÂ¼klenemedi"
   },
   "assistantUi": {
     "welcome": {
-      "start": "Bugün size nasıl yardımcı olabilirim?"
+      "start": "BugÃƒÂ¼n size nasÃ„Â±l yardÃ„Â±mcÃ„Â± olabilirim?"
     },
     "composer": {
-      "placeholderDefault": "Aklınızda ne var?",
-      "placeholderQueue": "Sıraya mesaj eklemek için yazın...",
-      "placeholderResearch": "Araştırma sorunuzu girin...",
-      "editPlaceholder": "Mesajınızı düzenleyin...",
-      "cancel": "İptal",
+      "placeholderDefault": "AklÃ„Â±nÃ„Â±zda ne var?",
+      "placeholderQueue": "SÃ„Â±raya mesaj eklemek iÃƒÂ§in yazÃ„Â±n...",
+      "placeholderResearch": "AraÃ…Å¸tÃ„Â±rma sorunuzu girin...",
+      "editPlaceholder": "MesajÃ„Â±nÃ„Â±zÃ„Â± dÃƒÂ¼zenleyin...",
+      "cancel": "Ã„Â°ptal",
       "save": "Kaydet",
       "stop": "Durdur",
-      "imagePasted": "Panodan görsel yapıştırıldı",
-      "pasteError": "Görsel yapıştırılamadı",
-      "filesDropped": "{count, plural, one {# görsel} other {# görsel}} eklendi",
-      "dropError": "Görseller eklenemedi",
-      "dropHint": "Görselleri buraya bırakın",
-      "dropHintSubtext": "Eklemek için bırakın",
-      "onlyImagesSupported": "Yalnızca görsel dosyaları desteklenir",
-      "fileTooLarge": "Dosya çok büyük ({size}MB). Maksimum: {max}MB",
-      "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} çok büyük. Maksimum: {max}MB",
-      "attachmentsDisabledResearch": "Derin Araştırma modunda ekler kullanılamaz"
+      "imagePasted": "Panodan gÃƒÂ¶rsel yapÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±ldÃ„Â±",
+      "pasteError": "GÃƒÂ¶rsel yapÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lamadÃ„Â±",
+      "filesDropped": "{count, plural, one {# gÃƒÂ¶rsel} other {# gÃƒÂ¶rsel}} eklendi",
+      "dropError": "GÃƒÂ¶rseller eklenemedi",
+      "dropHint": "GÃƒÂ¶rselleri buraya bÃ„Â±rakÃ„Â±n",
+      "dropHintSubtext": "Eklemek iÃƒÂ§in bÃ„Â±rakÃ„Â±n",
+      "onlyImagesSupported": "YalnÃ„Â±zca gÃƒÂ¶rsel dosyalarÃ„Â± desteklenir",
+      "fileTooLarge": "Dosya ÃƒÂ§ok bÃƒÂ¼yÃƒÂ¼k ({size}MB). Maksimum: {max}MB",
+      "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} ÃƒÂ§ok bÃƒÂ¼yÃƒÂ¼k. Maksimum: {max}MB",
+      "attachmentsDisabledResearch": "Derin AraÃ…Å¸tÃ„Â±rma modunda ekler kullanÃ„Â±lamaz"
     },
     "queue": {
-      "messagesQueued": "{count} mesaj sırada"
+      "messagesQueued": "{count} mesaj sÃ„Â±rada"
     },
     "enhance": {
-      "minChars": "Geliştirmek için en az 3 karakter girin",
-      "selectAgent": "Geliştirme kullanmak için senkronize klasörleri olan bir ajan seçin",
-      "failed": "Prompt geliştirilemedi",
-      "skipped": "Prompt geliştirilemedi",
-      "success": "{files} dosya ({chunks} parça) ile geliştirildi{llmIndicator}",
-      "tooltipEnhanced": "{files} dosya ile geliştirildi - göndermek için tıklayın",
-      "tooltipDefault": "Senkronize klasörlerden bağlamla geliştir"
+      "minChars": "GeliÃ…Å¸tirmek iÃƒÂ§in en az 3 karakter girin",
+      "selectAgent": "GeliÃ…Å¸tirme kullanmak iÃƒÂ§in senkronize klasÃƒÂ¶rleri olan bir ajan seÃƒÂ§in",
+      "failed": "Prompt geliÃ…Å¸tirilemedi",
+      "skipped": "Prompt geliÃ…Å¸tirilemedi",
+      "success": "{files} dosya ({chunks} parÃƒÂ§a) ile geliÃ…Å¸tirildi{llmIndicator}",
+      "tooltipEnhanced": "{files} dosya ile geliÃ…Å¸tirildi - gÃƒÂ¶ndermek iÃƒÂ§in tÃ„Â±klayÃ„Â±n",
+      "tooltipDefault": "Senkronize klasÃƒÂ¶rlerden baÃ„Å¸lamla geliÃ…Å¸tir"
     },
     "deepResearch": {
-      "modeLabel": "Derin Araştırma Modu",
-      "enable": "Derin Araştırmayı Etkinleştir",
-      "disable": "Derin Araştırmayı Devre Dışı Bırak"
+      "modeLabel": "Derin AraÃ…Å¸tÃ„Â±rma Modu",
+      "enable": "Derin AraÃ…Å¸tÃ„Â±rmayÃ„Â± EtkinleÃ…Å¸tir",
+      "disable": "Derin AraÃ…Å¸tÃ„Â±rmayÃ„Â± Devre DÃ„Â±Ã…Å¸Ã„Â± BÃ„Â±rak"
     },
     "tooltips": {
-      "addImage": "Görsel ekle",
-      "sendMessage": "Mesaj gönder",
-      "queueMessage": "Mesajı sıraya ekle",
+      "addImage": "GÃƒÂ¶rsel ekle",
+      "sendMessage": "Mesaj gÃƒÂ¶nder",
+      "queueMessage": "MesajÃ„Â± sÃ„Â±raya ekle",
       "stopResponse": "Yaniti durdur",
-      "startResearch": "Araştırma Başlat",
-      "edit": "Düzenle",
+      "startResearch": "AraÃ…Å¸tÃ„Â±rma BaÃ…Å¸lat",
+      "edit": "DÃƒÂ¼zenle",
       "copy": "Kopyala",
-      "regenerate": "Yeniden oluştur"
+      "regenerate": "Yeniden oluÃ…Å¸tur"
     },
     "toast": {
-      "copied": "Mesaj panoya kopyalandı"
+      "copied": "Mesaj panoya kopyalandÃ„Â±"
     },
     "deepResearchPanel": {
-      "title": "Derin Araştırma",
-      "cancel": "İptal",
-      "newResearch": "Yeni Araştırma",
-      "searchingPrefix": "Aranıyor:",
+      "title": "Derin AraÃ…Å¸tÃ„Â±rma",
+      "cancel": "Ã„Â°ptal",
+      "newResearch": "Yeni AraÃ…Å¸tÃ„Â±rma",
+      "searchingPrefix": "AranÃ„Â±yor:",
       "sourcesFound": "{count} kaynak bulundu",
-      "citations": "{count} alıntı",
+      "citations": "{count} alÃ„Â±ntÃ„Â±",
       "phases": {
-        "idle": "Hazır",
+        "idle": "HazÃ„Â±r",
         "planning": "Planlama",
         "searching": "Arama",
         "analyzing": "Analiz",
         "drafting": "Taslak",
-        "refining": "İyileştirme",
-        "finalizing": "Sonlandırma",
-        "complete": "Tamamlandı",
+        "refining": "Ã„Â°yileÃ…Å¸tirme",
+        "finalizing": "SonlandÃ„Â±rma",
+        "complete": "TamamlandÃ„Â±",
         "error": "Hata"
       }
     },
     "tools": {
-      "searchTools": "Araç Arama",
-      "listAllTools": "Araçları Listele",
+      "searchTools": "AraÃƒÂ§ Arama",
+      "listAllTools": "AraÃƒÂ§larÃ„Â± Listele",
       "webSearch": "Web Arama",
       "webBrowse": "Web Gezinme",
       "webQuery": "Web Sorgusu",
       "firecrawlCrawl": "Web Sitesini Tara",
-      "vectorSearch": "Vektör Arama",
+      "vectorSearch": "VektÃƒÂ¶r Arama",
       "docsSearch": "Belge Arama",
       "readFile": "Dosya Oku",
-      "editFile": "Dosya Düzenle",
+      "editFile": "Dosya DÃƒÂ¼zenle",
       "writeFile": "Dosya Yaz",
-      "patchFile": "Toplu Düzenleme",
-      "editImage": "Görsel Düzenleyici",
-      "describeImage": "Görsel Analizi",
-      "generateImageFlux2": "Flux2 Görsel Oluşturma",
-      "generateImageWan22": "WAN 2.2 Görsel Oluşturma",
-      "generateVideoWan22": "WAN 2.2 Video Oluşturma",
+      "patchFile": "Toplu DÃƒÂ¼zenleme",
+      "editImage": "GÃƒÂ¶rsel DÃƒÂ¼zenleyici",
+      "describeImage": "GÃƒÂ¶rsel Analizi",
+      "generateImageFlux2": "Flux2 GÃƒÂ¶rsel OluÃ…Å¸turma",
+      "generateImageWan22": "WAN 2.2 GÃƒÂ¶rsel OluÃ…Å¸turma",
+      "generateVideoWan22": "WAN 2.2 Video OluÃ…Å¸turma",
       "generatePixelVideoWan22": "WAN 2.2 Piksel Animasyonu",
-      "assembleVideo": "Video Montajı",
-      "showProductImages": "Ürün Galerisi",
+      "assembleVideo": "Video MontajÃ„Â±",
+      "showProductImages": "ÃƒÅ“rÃƒÂ¼n Galerisi",
       "localGrep": "Yerel Grep",
-      "executeCommand": "Komut Çalıştır",
-      "scheduleTask": "Görev Zamanla",
+      "executeCommand": "Komut Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+      "scheduleTask": "GÃƒÂ¶rev Zamanla",
       "calculator": "Hesap Makinesi",
-      "updatePlan": "Plan Güncelle",
-      "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
-      "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
+      "updatePlan": "Plan GÃƒÂ¼ncelle",
+      "generateImageFlux2Flex": "ÃƒÅ“ret (Flux.2 Flex)",
+      "editImageFlux2Flex": "DÃƒÂ¼zenle (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
-      "generateImageGpt5Mini": "Üret (GPT-5 Mini)",
-      "editImageGpt5Mini": "Düzenle (GPT-5 Mini)",
+      "generateImageGpt5Mini": "ÃƒÅ“ret (GPT-5 Mini)",
+      "editImageGpt5Mini": "DÃƒÂ¼zenle (GPT-5 Mini)",
       "referenceImageGpt5Mini": "Referans (GPT-5 Mini)",
-      "generateImageGpt5": "Üret (GPT-5)",
-      "editImageGpt5": "Düzenle (GPT-5)",
+      "generateImageGpt5": "ÃƒÅ“ret (GPT-5)",
+      "editImageGpt5": "DÃƒÂ¼zenle (GPT-5)",
       "referenceImageGpt5": "Referans (GPT-5)",
-      "generateImageGemini25Flash": "Üret (Gemini 2.5 Flash)",
-      "editImageGemini25Flash": "Düzenle (Gemini 2.5 Flash)",
+      "generateImageGemini25Flash": "ÃƒÅ“ret (Gemini 2.5 Flash)",
+      "editImageGemini25Flash": "DÃƒÂ¼zenle (Gemini 2.5 Flash)",
       "referenceImageGemini25Flash": "Referans (Gemini 2.5 Flash)",
-      "generateImageGemini3Pro": "Üret (Gemini 3 Pro)",
-      "editImageGemini3Pro": "Düzenle (Gemini 3 Pro)",
+      "generateImageGemini3Pro": "ÃƒÅ“ret (Gemini 3 Pro)",
+      "editImageGemini3Pro": "DÃƒÂ¼zenle (Gemini 3 Pro)",
       "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
-      "generateImageZImage": "Üret (Z-Image Yerel)",
-      "generateImageFlux2Klein4B": "Üret (FLUX.2 Klein 4B)",
-      "editImageFlux2Klein4B": "Düzenle (FLUX.2 Klein 4B)",
+      "generateImageZImage": "ÃƒÅ“ret (Z-Image Yerel)",
+      "generateImageFlux2Klein4B": "ÃƒÅ“ret (FLUX.2 Klein 4B)",
+      "editImageFlux2Klein4B": "DÃƒÂ¼zenle (FLUX.2 Klein 4B)",
       "referenceImageFlux2Klein4B": "Referans (FLUX.2 Klein 4B)",
-      "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
-      "editImageFlux2Klein9B": "Düzenle (FLUX.2 Klein 9B)",
+      "generateImageFlux2Klein9B": "ÃƒÅ“ret (FLUX.2 Klein 9B)",
+      "editImageFlux2Klein9B": "DÃƒÂ¼zenle (FLUX.2 Klein 9B)",
       "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)"
     }
   },
   "folderSync": {
-    "loading": "Klasörler yükleniyor...",
+    "loading": "KlasÃƒÂ¶rler yÃƒÂ¼kleniyor...",
     "dismiss": "Kapat",
     "files": "Dosyalar:",
-    "chunks": "Parçalar:",
-    "recursive": "Alt klasörler:",
+    "chunks": "ParÃƒÂ§alar:",
+    "recursive": "Alt klasÃƒÂ¶rler:",
     "yes": "Evet",
-    "no": "Hayır",
+    "no": "HayÃ„Â±r",
     "lastSynced": "Son Senkronizasyon:",
-    "never": "Hiç",
+    "never": "HiÃƒÂ§",
     "error": "Hata:",
-    "noFolders": "Henüz indekslenmiş klasör yok",
-    "noFoldersDescription": "Bu ajan için vektör aramasını etkinleştirmek üzere klasör ekleyin",
-    "folderPath": "Klasör Yolu",
-    "folderPathPlaceholder": "Tam klasör yolunu girin (örn: /Users/you/Documents/project)",
-    "folderPathTip": "İpucu: Klasör yolunu Finder (Cmd+Option+C) veya Terminal'den kopyalayın",
-    "analyzing": "Klasör analiz ediliyor...",
+    "noFolders": "HenÃƒÂ¼z indekslenmiÃ…Å¸ klasÃƒÂ¶r yok",
+    "noFoldersDescription": "Bu ajan iÃƒÂ§in vektÃƒÂ¶r aramasÃ„Â±nÃ„Â± etkinleÃ…Å¸tirmek ÃƒÂ¼zere klasÃƒÂ¶r ekleyin",
+    "folderPath": "KlasÃƒÂ¶r Yolu",
+    "folderPathPlaceholder": "Tam klasÃƒÂ¶r yolunu girin (ÃƒÂ¶rn: /Users/you/Documents/project)",
+    "folderPathTip": "Ã„Â°pucu: KlasÃƒÂ¶r yolunu Finder (Cmd+Option+C) veya Terminal'den kopyalayÃ„Â±n",
+    "analyzing": "KlasÃƒÂ¶r analiz ediliyor...",
     "filesToIndex": "indekslenecek dosya",
-    "ignorePatternsDetected": "yoksayma kalıbı tespit edildi",
-    "largeFilesWillBeSkipped": "büyük dosya ({maxLines}+ satır) atlanacak",
-    "verifyLater": "Bu klasörü yine de ekleyebilirsiniz - senkronizasyon sırasında doğrulanacaktır.",
-    "displayName": "Görünen Ad (isteğe bağlı)",
+    "ignorePatternsDetected": "yoksayma kalÃ„Â±bÃ„Â± tespit edildi",
+    "largeFilesWillBeSkipped": "bÃƒÂ¼yÃƒÂ¼k dosya ({maxLines}+ satÃ„Â±r) atlanacak",
+    "verifyLater": "Bu klasÃƒÂ¶rÃƒÂ¼ yine de ekleyebilirsiniz - senkronizasyon sÃ„Â±rasÃ„Â±nda doÃ„Å¸rulanacaktÃ„Â±r.",
+    "displayName": "GÃƒÂ¶rÃƒÂ¼nen Ad (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
     "displayNamePlaceholder": "Belgelerim",
-    "includeSubfolders": "Alt klasörleri dahil et (özyinelemeli)",
-    "advancedOptions": "Gelişmiş Seçenekler",
-    "recommendedExcludes": "Önerilen hariç tutmalar (derleme artıkları, önbellek, loglar)",
-    "fileExtensions": "Dosya Uzantıları (virgülle ayrılmış)",
-    "excludePatterns": "Hariç Tutulacak Kalıplar (.gitignore'dan otomatik algılandı)",
-    "patternsIncluded": "✓ .gitignore kalıpları dahil edildi",
-    "cancel": "İptal",
-    "addFolder": "Klasör Ekle",
-    "addFolderToIndex": "İndekslemek İçin Klasör Ekle",
-    "formTitle": "Yeni Klasör Ekle",
-    "notYetAdded": "Henüz kaydedilmedi",
+    "includeSubfolders": "Alt klasÃƒÂ¶rleri dahil et (ÃƒÂ¶zyinelemeli)",
+    "advancedOptions": "GeliÃ…Å¸miÃ…Å¸ SeÃƒÂ§enekler",
+    "recommendedExcludes": "Ãƒâ€“nerilen hariÃƒÂ§ tutmalar (derleme artÃ„Â±klarÃ„Â±, ÃƒÂ¶nbellek, loglar)",
+    "fileExtensions": "Dosya UzantÃ„Â±larÃ„Â± (virgÃƒÂ¼lle ayrÃ„Â±lmÃ„Â±Ã…Å¸)",
+    "excludePatterns": "HariÃƒÂ§ Tutulacak KalÃ„Â±plar (.gitignore'dan otomatik algÃ„Â±landÃ„Â±)",
+    "patternsIncluded": "Ã¢Å“â€œ .gitignore kalÃ„Â±plarÃ„Â± dahil edildi",
+    "cancel": "Ã„Â°ptal",
+    "addFolder": "KlasÃƒÂ¶r Ekle",
+    "addFolderToIndex": "Ã„Â°ndekslemek Ã„Â°ÃƒÂ§in KlasÃƒÂ¶r Ekle",
+    "formTitle": "Yeni KlasÃƒÂ¶r Ekle",
+    "notYetAdded": "HenÃƒÂ¼z kaydedilmedi",
     "stepEnterPath": "Yolu girin",
-    "stepClickAdd": "Klasör Ekle'ye tıklayın",
-    "clickAddReminder": "Bu klasörü indekse kaydetmek için \"Klasör Ekle\"ye tıklayın",
+    "stepClickAdd": "KlasÃƒÂ¶r Ekle'ye tÃ„Â±klayÃ„Â±n",
+    "clickAddReminder": "Bu klasÃƒÂ¶rÃƒÂ¼ indekse kaydetmek iÃƒÂ§in \"KlasÃƒÂ¶r Ekle\"ye tÃ„Â±klayÃ„Â±n",
     "reindexAll": "Reindex All",
     "reindexing": "Reindexing...",
     "reindexConfirm": "This will rebuild the index for all folders and may take a while. Continue?",
     "reindexHint": "Use after enabling V2 to rebuild lexical vectors."
   },
   "vectorSearchPhase": {
-    "idle": "Hazır",
+    "idle": "HazÃ„Â±r",
     "analyzing": "Sorgu analiz ediliyor...",
     "analyzingShort": "Analiz",
-    "searching": "Dosyalar aranıyor...",
+    "searching": "Dosyalar aranÃ„Â±yor...",
     "searchingShort": "Arama",
-    "synthesizing": "Sonuçlar sentezleniyor...",
+    "synthesizing": "SonuÃƒÂ§lar sentezleniyor...",
     "synthesizingShort": "Sentez",
-    "complete": "Tamamlandı",
+    "complete": "TamamlandÃ„Â±",
     "error": "Hata"
   },
   "syncIndicator": {
-    "syncing": "Vektör DB Senkronizasyonu",
+    "syncing": "VektÃƒÂ¶r DB Senkronizasyonu",
     "reindexing": "Yeniden indeksleniyor...",
     "filesIndexed": "dosya indekslendi",
-    "chunks": "parça",
+    "chunks": "parÃƒÂ§a",
     "pending": "Bekliyor",
-    "complete": "Senkronizasyon tamamlandı",
-    "error": "Senkronizasyon başarısız",
+    "complete": "Senkronizasyon tamamlandÃ„Â±",
+    "error": "Senkronizasyon baÃ…Å¸arÃ„Â±sÃ„Â±z",
     "recentErrors": "Son hatalar:",
-    "cancel": "İptal",
+    "cancel": "Ã„Â°ptal",
     "dismiss": "Kapat",
-    "expand": "Detayları göster",
-    "collapse": "Detayları gizle",
-    "clearStuck": "Takılı Senkronları Temizle",
+    "expand": "DetaylarÃ„Â± gÃƒÂ¶ster",
+    "collapse": "DetaylarÃ„Â± gizle",
+    "clearStuck": "TakÃ„Â±lÃ„Â± SenkronlarÃ„Â± Temizle",
     "clearing": "Temizleniyor..."
   },
   "characterCreation": {
     "progress": {
-      "intro": "Başla",
+      "intro": "BaÃ…Å¸la",
       "identity": "Kimlik",
       "capabilities": "Yetenekler",
-      "mcpTools": "MCP Araçları",
+      "mcpTools": "MCP AraÃƒÂ§larÃ„Â±",
       "knowledge": "Bilgi",
-      "embeddingSetup": "Gömme Ayarları",
-      "vectorSearch": "Vektör Arama",
-      "preview": "Önizleme"
+      "embeddingSetup": "GÃƒÂ¶mme AyarlarÃ„Â±",
+      "vectorSearch": "VektÃƒÂ¶r Arama",
+      "preview": "Ãƒâ€“nizleme"
     },
     "intro": {
-      "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
-      "guidedCreation": "ADIM ADIM OLUŞTUR",
+      "subtitle": "Ã„Â°Ã…Å¸iniz veya projeleriniz iÃƒÂ§in odaklanmÃ„Â±Ã…Å¸ bir AI ajanÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±n",
+      "guidedCreation": "ADIM ADIM OLUÃ…Å¾TUR",
       "or": "veya",
-      "quickCreate": "HIZLI OLUŞTUR",
-      "quickPrompt": "Ajanınızın rolünü veya amacını tek cümlede açıklayın:",
-      "quickPlaceholder": "SaaS ürünümüz için SSS'leri yanıtlayan ve yanıt taslakları hazırlayan müşteri destek ajanı.",
-      "back": "← Geri",
-      "generate": "OLUŞTUR"
+      "quickCreate": "HIZLI OLUÃ…Å¾TUR",
+      "quickPrompt": "AjanÃ„Â±nÃ„Â±zÃ„Â±n rolÃƒÂ¼nÃƒÂ¼ veya amacÃ„Â±nÃ„Â± tek cÃƒÂ¼mlede aÃƒÂ§Ã„Â±klayÃ„Â±n:",
+      "quickPlaceholder": "SaaS ÃƒÂ¼rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼z iÃƒÂ§in SSS'leri yanÃ„Â±tlayan ve yanÃ„Â±t taslaklarÃ„Â± hazÃ„Â±rlayan mÃƒÂ¼Ã…Å¸teri destek ajanÃ„Â±.",
+      "templateSearch": "Sablon ara",
+      "templateCategory": "Kategori",
+      "templateFilter": "Filtrele",
+      "templateLoading": "Sablonlar yukleniyor...",
+      "templateEmpty": "Sablon bulunamadi.",
+      "templateUse": "Sablonu Kullan",
+      "back": "Ã¢â€ Â Geri",
+      "generate": "OLUÃ…Å¾TUR"
     },
     "name": {
-      "question": "Ajanınıza ne isim verelim?",
-      "label": "Ajan adını girin:",
-      "placeholder": "Bir isim yazın...",
-      "errorMinLength": "İsim en az 2 karakter olmalıdır",
-      "errorMaxLength": "İsim 50 karakterden az olmalıdır",
-      "escToGoBack": "← ESC ile geri dön",
-      "continue": "Devam →"
+      "question": "AjanÃ„Â±nÃ„Â±za ne isim verelim?",
+      "label": "Ajan adÃ„Â±nÃ„Â± girin:",
+      "placeholder": "Bir isim yazÃ„Â±n...",
+      "errorMinLength": "Ã„Â°sim en az 2 karakter olmalÃ„Â±dÃ„Â±r",
+      "errorMaxLength": "Ã„Â°sim 50 karakterden az olmalÃ„Â±dÃ„Â±r",
+      "escToGoBack": "Ã¢â€ Â ESC ile geri dÃƒÂ¶n",
+      "continue": "Devam Ã¢â€ â€™"
     },
     "concept": {
-      "question": "Ajanınızın rolünü, alanını ve kişiliğini tanımlayın...",
-      "label": "Ajan konsepti (rol, alan ve size nasıl yardımcı olacağı):",
-      "placeholder": "örn., Kahramanlara yolculuklarında rehberlik eden bilge bir mentor...",
-      "examplesLabel": "// Örnekler:",
-      "example1": "SSS'leri yanıtlayan ve e-posta yanıtları hazırlayan müşteri destek ajanı",
-      "example2": "Kullanıcı görüşmelerini ve özellik isteklerini özetleyen ürün araştırma asistanı",
-      "example3": "API'leri açık ve basit bir dille açıklayan teknik yazım ajanı",
-      "errorMinLength": "Lütfen ajanınızı en az 10 karakterle tanımlayın",
-      "errorMaxLength": "Konsept 500 karakterden az olmalıdır",
-      "back": "← Geri",
-      "cmdEnter": "⌘+Enter ile gönder",
-      "continue": "Devam →"
+      "question": "AjanÃ„Â±nÃ„Â±zÃ„Â±n rolÃƒÂ¼nÃƒÂ¼, alanÃ„Â±nÃ„Â± ve kiÃ…Å¸iliÃ„Å¸ini tanÃ„Â±mlayÃ„Â±n...",
+      "label": "Ajan konsepti (rol, alan ve size nasÃ„Â±l yardÃ„Â±mcÃ„Â± olacaÃ„Å¸Ã„Â±):",
+      "placeholder": "ÃƒÂ¶rn., Kahramanlara yolculuklarÃ„Â±nda rehberlik eden bilge bir mentor...",
+      "examplesLabel": "// Ãƒâ€“rnekler:",
+      "example1": "SSS'leri yanÃ„Â±tlayan ve e-posta yanÃ„Â±tlarÃ„Â± hazÃ„Â±rlayan mÃƒÂ¼Ã…Å¸teri destek ajanÃ„Â±",
+      "example2": "KullanÃ„Â±cÃ„Â± gÃƒÂ¶rÃƒÂ¼Ã…Å¸melerini ve ÃƒÂ¶zellik isteklerini ÃƒÂ¶zetleyen ÃƒÂ¼rÃƒÂ¼n araÃ…Å¸tÃ„Â±rma asistanÃ„Â±",
+      "example3": "API'leri aÃƒÂ§Ã„Â±k ve basit bir dille aÃƒÂ§Ã„Â±klayan teknik yazÃ„Â±m ajanÃ„Â±",
+      "errorMinLength": "LÃƒÂ¼tfen ajanÃ„Â±nÃ„Â±zÃ„Â± en az 10 karakterle tanÃ„Â±mlayÃ„Â±n",
+      "errorMaxLength": "Konsept 500 karakterden az olmalÃ„Â±dÃ„Â±r",
+      "back": "Ã¢â€ Â Geri",
+      "cmdEnter": "Ã¢Å’Ëœ+Enter ile gÃƒÂ¶nder",
+      "continue": "Devam Ã¢â€ â€™"
     },
     "identity": {
-      "question": "Ajanınızın kimliğini ve amacını tanımlayın...",
-      "nameLabel": "Ajan Adı *",
-      "namePlaceholder": "örn., Destek Asistanı",
-      "taglineLabel": "Slogan (isteğe bağlı)",
-      "taglinePlaceholder": "örn., 7/24 müşteri destek arkadaşınız",
-      "purposeLabel": "Amaç ve Sorumluluklar *",
-      "purposePlaceholder": "Bu ajanın ne yaptığını, uzmanlık alanını ve kullanıcılara nasıl yardımcı olacağını açıklayın...",
-      "errorNameMin": "İsim en az 2 karakter olmalıdır",
-      "errorNameMax": "İsim 50 karakterden az olmalıdır",
-      "errorTaglineMax": "Slogan 100 karakterden az olmalıdır",
-      "errorPurposeMin": "Lütfen ajanın amacını en az 10 karakterle tanımlayın",
-      "errorPurposeMax": "Amaç 1000 karakterden az olmalıdır",
-      "back": "← Geri",
-      "continue": "Devam →"
+      "question": "AjanÃ„Â±nÃ„Â±zÃ„Â±n kimliÃ„Å¸ini ve amacÃ„Â±nÃ„Â± tanÃ„Â±mlayÃ„Â±n...",
+      "nameLabel": "Ajan AdÃ„Â± *",
+      "namePlaceholder": "ÃƒÂ¶rn., Destek AsistanÃ„Â±",
+      "taglineLabel": "Slogan (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
+      "taglinePlaceholder": "ÃƒÂ¶rn., 7/24 mÃƒÂ¼Ã…Å¸teri destek arkadaÃ…Å¸Ã„Â±nÃ„Â±z",
+      "purposeLabel": "AmaÃƒÂ§ ve Sorumluluklar *",
+      "purposePlaceholder": "Bu ajanÃ„Â±n ne yaptÃ„Â±Ã„Å¸Ã„Â±nÃ„Â±, uzmanlÃ„Â±k alanÃ„Â±nÃ„Â± ve kullanÃ„Â±cÃ„Â±lara nasÃ„Â±l yardÃ„Â±mcÃ„Â± olacaÃ„Å¸Ã„Â±nÃ„Â± aÃƒÂ§Ã„Â±klayÃ„Â±n...",
+      "errorNameMin": "Ã„Â°sim en az 2 karakter olmalÃ„Â±dÃ„Â±r",
+      "errorNameMax": "Ã„Â°sim 50 karakterden az olmalÃ„Â±dÃ„Â±r",
+      "errorTaglineMax": "Slogan 100 karakterden az olmalÃ„Â±dÃ„Â±r",
+      "errorPurposeMin": "LÃƒÂ¼tfen ajanÃ„Â±n amacÃ„Â±nÃ„Â± en az 10 karakterle tanÃ„Â±mlayÃ„Â±n",
+      "errorPurposeMax": "AmaÃƒÂ§ 1000 karakterden az olmalÃ„Â±dÃ„Â±r",
+      "back": "Ã¢â€ Â Geri",
+      "continue": "Devam Ã¢â€ â€™"
     },
     "capabilities": {
-      "question": "Bu ajanın kullanabileceği araçları seçin...",
+      "question": "Bu ajanÃ„Â±n kullanabileceÃ„Å¸i araÃƒÂ§larÃ„Â± seÃƒÂ§in...",
       "categories": {
         "knowledge": "Bilgi ve Belgeler",
-        "search": "Web Araması",
-        "imageGeneration": "Görsel Oluşturma",
-        "imageEditing": "Görsel Düzenleme",
-        "videoGeneration": "Video Oluşturma",
-        "analysis": "Görsel Analizi",
-        "utility": "Yardımcı Araçlar ve Görüntüleme"
+        "search": "Web AramasÃ„Â±",
+        "imageGeneration": "GÃƒÂ¶rsel OluÃ…Å¸turma",
+        "imageEditing": "GÃƒÂ¶rsel DÃƒÂ¼zenleme",
+        "videoGeneration": "Video OluÃ…Å¸turma",
+        "analysis": "GÃƒÂ¶rsel Analizi",
+        "utility": "YardÃ„Â±mcÃ„Â± AraÃƒÂ§lar ve GÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼leme"
       },
       "tools": {
-        "docsSearch": "Belge Araması",
-        "docsSearchDesc": "Ajanın bilgi tabanını ve ekli belgeleri ara",
-        "vectorSearch": "Vektör Araması",
-        "vectorSearchDesc": "İndekslenmiş klasörlerde anlamsal arama",
+        "docsSearch": "Belge AramasÃ„Â±",
+        "docsSearchDesc": "AjanÃ„Â±n bilgi tabanÃ„Â±nÃ„Â± ve ekli belgeleri ara",
+        "vectorSearch": "VektÃƒÂ¶r AramasÃ„Â±",
+        "vectorSearchDesc": "Ã„Â°ndekslenmiÃ…Å¸ klasÃƒÂ¶rlerde anlamsal arama",
         "readFile": "Dosya Oku",
-        "readFileDesc": "Senkronize klasörlerden tam dosya içeriğini oku",
-        "editFile": "Dosya Düzenle",
-        "editFileDesc": "Senkronize klasörlerdeki dosyaları tam metin eşleştirmesi ile düzenle",
+        "readFileDesc": "Senkronize klasÃƒÂ¶rlerden tam dosya iÃƒÂ§eriÃ„Å¸ini oku",
+        "editFile": "Dosya DÃƒÂ¼zenle",
+        "editFileDesc": "Senkronize klasÃƒÂ¶rlerdeki dosyalarÃ„Â± tam metin eÃ…Å¸leÃ…Å¸tirmesi ile dÃƒÂ¼zenle",
         "writeFile": "Dosya Yaz",
-        "writeFileDesc": "Senkronize klasörlerde yeni dosya oluştur veya mevcut dosyanın üzerine yaz",
-        "patchFile": "Toplu Düzenleme",
-        "patchFileDesc": "Birden fazla dosyayı atomik olarak toplu oluştur, güncelle veya sil",
-        "webSearch": "Web Araması",
+        "writeFileDesc": "Senkronize klasÃƒÂ¶rlerde yeni dosya oluÃ…Å¸tur veya mevcut dosyanÃ„Â±n ÃƒÂ¼zerine yaz",
+        "patchFile": "Toplu DÃƒÂ¼zenleme",
+        "patchFileDesc": "Birden fazla dosyayÃ„Â± atomik olarak toplu oluÃ…Å¸tur, gÃƒÂ¼ncelle veya sil",
+        "webSearch": "Web AramasÃ„Â±",
         "webSearchDesc": "Web'de URL ve bilgi ara",
         "webBrowse": "Web Gezintisi",
-        "webBrowseDesc": "Web sayfalarını AI sentezi ile getir ve analiz et",
+        "webBrowseDesc": "Web sayfalarÃ„Â±nÃ„Â± AI sentezi ile getir ve analiz et",
         "webQuery": "Web Sorgusu",
-        "webQueryDesc": "Daha önce getirilen web içeriğini sorgula",
+        "webQueryDesc": "Daha ÃƒÂ¶nce getirilen web iÃƒÂ§eriÃ„Å¸ini sorgula",
         "firecrawlCrawl": "Web Sitesi Tarama",
         "firecrawlCrawlDesc": "Bir web sitesinden birden fazla sayfa tara",
-        "generateImageFlux2": "Görsel Oluşturma (Flux2)",
-        "generateImageFlux2Desc": "Metin açıklamalarından görseller oluştur",
-        "generateImageWan22": "Görsel Oluşturma (WAN 2.2)",
-        "generateImageWan22Desc": "Anime tarzı veya sanatsal görseller oluştur",
-        "editRoomImage": "Görsel Düzenleyici (Gemini)",
-        "editRoomImageDesc": "Görselleri düzenle, varyasyonlar oluştur, iki görselden öğeleri birleştir",
-        "generateVideoWan22": "Video Oluşturma",
-        "generateVideoWan22Desc": "Görselleri kısa videolara dönüştür",
+        "generateImageFlux2": "GÃƒÂ¶rsel OluÃ…Å¸turma (Flux2)",
+        "generateImageFlux2Desc": "Metin aÃƒÂ§Ã„Â±klamalarÃ„Â±ndan gÃƒÂ¶rseller oluÃ…Å¸tur",
+        "generateImageWan22": "GÃƒÂ¶rsel OluÃ…Å¸turma (WAN 2.2)",
+        "generateImageWan22Desc": "Anime tarzÃ„Â± veya sanatsal gÃƒÂ¶rseller oluÃ…Å¸tur",
+        "editRoomImage": "GÃƒÂ¶rsel DÃƒÂ¼zenleyici (Gemini)",
+        "editRoomImageDesc": "GÃƒÂ¶rselleri dÃƒÂ¼zenle, varyasyonlar oluÃ…Å¸tur, iki gÃƒÂ¶rselden ÃƒÂ¶Ã„Å¸eleri birleÃ…Å¸tir",
+        "generateVideoWan22": "Video OluÃ…Å¸turma",
+        "generateVideoWan22Desc": "GÃƒÂ¶rselleri kÃ„Â±sa videolara dÃƒÂ¶nÃƒÂ¼Ã…Å¸tÃƒÂ¼r",
         "generatePixelVideoWan22": "Piksel Animasyonu (WAN 2.2)",
-        "generatePixelVideoWan22Desc": "Piksel sanatı karakter sprite animasyonları oluştur",
-        "assembleVideo": "Video Montajı",
-        "assembleVideoDesc": "Oturum görsellerini/videolarını düzenlenmiş videolara birleştir",
-        "describeImage": "Görsel Tanımla",
-        "describeImageDesc": "AI görüşü kullanarak görselleri analiz et ve tanımla",
-        "showProductImages": "Ürün Galerisi",
-        "showProductImagesDesc": "Alışveriş sorguları için görsellerle ve satın alma bağlantılarıyla ürünleri görüntüle",
-        "executeCommand": "Komut Çalıştır",
-        "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
-        "scheduleTask": "Görev Zamanla",
-        "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
+        "generatePixelVideoWan22Desc": "Piksel sanatÃ„Â± karakter sprite animasyonlarÃ„Â± oluÃ…Å¸tur",
+        "assembleVideo": "Video MontajÃ„Â±",
+        "assembleVideoDesc": "Oturum gÃƒÂ¶rsellerini/videolarÃ„Â±nÃ„Â± dÃƒÂ¼zenlenmiÃ…Å¸ videolara birleÃ…Å¸tir",
+        "describeImage": "GÃƒÂ¶rsel TanÃ„Â±mla",
+        "describeImageDesc": "AI gÃƒÂ¶rÃƒÂ¼Ã…Å¸ÃƒÂ¼ kullanarak gÃƒÂ¶rselleri analiz et ve tanÃ„Â±mla",
+        "showProductImages": "ÃƒÅ“rÃƒÂ¼n Galerisi",
+        "showProductImagesDesc": "AlÃ„Â±Ã…Å¸veriÃ…Å¸ sorgularÃ„Â± iÃƒÂ§in gÃƒÂ¶rsellerle ve satÃ„Â±n alma baÃ„Å¸lantÃ„Â±larÃ„Â±yla ÃƒÂ¼rÃƒÂ¼nleri gÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼le",
+        "executeCommand": "Komut Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+        "executeCommandDesc": "Senkronize klasÃƒÂ¶rlerde gÃƒÂ¼venli kabuk komutlarÃ„Â± ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±r",
+        "scheduleTask": "GÃƒÂ¶rev Zamanla",
+        "scheduleTaskDesc": "Gelecekte ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lacak gÃƒÂ¶revleri zamanla (tek seferlik, tekrarlayan veya aralÃ„Â±klÃ„Â±)",
         "calculator": "Hesap Makinesi",
-        "calculatorDesc": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)",
-        "updatePlan": "Plan Güncelle",
-        "updatePlanDesc": "Konuşma boyunca adım durumlarıyla görünür bir görev planı oluştur veya güncelle",
-        "sendMessageToChannel": "Kanala Mesaj Gönder",
-        "sendMessageToChannelDesc": "Bağlı harici kanallar aracılığıyla kullanıcıya doğrudan mesaj gönder",
-        "generateImageFlux2Flex": "Üret (Flux.2 Flex)",
-        "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter üzerinden görsel üret",
-        "editImageFlux2Flex": "Düzenle (Flux.2 Flex)",
-        "editImageFlux2FlexDesc": "Flux.2 Flex ile bir veya daha fazla görsel düzenle",
+        "calculatorDesc": "Matematiksel ifadeleri hassasiyetle deÃ„Å¸erlendir (aritmetik, trigonometri, istatistik, birimler)",
+        "updatePlan": "Plan GÃƒÂ¼ncelle",
+        "updatePlanDesc": "KonuÃ…Å¸ma boyunca adÃ„Â±m durumlarÃ„Â±yla gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼r bir gÃƒÂ¶rev planÃ„Â± oluÃ…Å¸tur veya gÃƒÂ¼ncelle",
+        "sendMessageToChannel": "Kanala Mesaj GÃƒÂ¶nder",
+        "sendMessageToChannelDesc": "BaÃ„Å¸lÃ„Â± harici kanallar aracÃ„Â±lÃ„Â±Ã„Å¸Ã„Â±yla kullanÃ„Â±cÃ„Â±ya doÃ„Å¸rudan mesaj gÃƒÂ¶nder",
+        "generateImageFlux2Flex": "ÃƒÅ“ret (Flux.2 Flex)",
+        "generateImageFlux2FlexDesc": "Flux.2 Flex ile OpenRouter ÃƒÂ¼zerinden gÃƒÂ¶rsel ÃƒÂ¼ret",
+        "editImageFlux2Flex": "DÃƒÂ¼zenle (Flux.2 Flex)",
+        "editImageFlux2FlexDesc": "Flux.2 Flex ile bir veya daha fazla gÃƒÂ¶rsel dÃƒÂ¼zenle",
         "referenceImageFlux2Flex": "Referans (Flux.2 Flex)",
-        "referenceImageFlux2FlexDesc": "Birden fazla referans görsel ile stil rehberli üretim",
-        "generateImageGpt5Mini": "Üret (GPT-5 Mini)",
-        "generateImageGpt5MiniDesc": "GPT-5 Mini ile hızlı görsel üretimi",
-        "editImageGpt5Mini": "Düzenle (GPT-5 Mini)",
-        "editImageGpt5MiniDesc": "GPT-5 Mini ile bir veya daha fazla görsel hızlı düzenleme",
+        "referenceImageFlux2FlexDesc": "Birden fazla referans gÃƒÂ¶rsel ile stil rehberli ÃƒÂ¼retim",
+        "generateImageGpt5Mini": "ÃƒÅ“ret (GPT-5 Mini)",
+        "generateImageGpt5MiniDesc": "GPT-5 Mini ile hÃ„Â±zlÃ„Â± gÃƒÂ¶rsel ÃƒÂ¼retimi",
+        "editImageGpt5Mini": "DÃƒÂ¼zenle (GPT-5 Mini)",
+        "editImageGpt5MiniDesc": "GPT-5 Mini ile bir veya daha fazla gÃƒÂ¶rsel hÃ„Â±zlÃ„Â± dÃƒÂ¼zenleme",
         "referenceImageGpt5Mini": "Referans (GPT-5 Mini)",
-        "referenceImageGpt5MiniDesc": "Birden fazla referans görsel ile rehberli üretim",
-        "generateImageGpt5": "Üret (GPT-5)",
-        "generateImageGpt5Desc": "GPT-5 ile premium kalitede görsel üretimi",
-        "editImageGpt5": "Düzenle (GPT-5)",
-        "editImageGpt5Desc": "GPT-5 ile bir veya daha fazla görsel premium düzenleme",
+        "referenceImageGpt5MiniDesc": "Birden fazla referans gÃƒÂ¶rsel ile rehberli ÃƒÂ¼retim",
+        "generateImageGpt5": "ÃƒÅ“ret (GPT-5)",
+        "generateImageGpt5Desc": "GPT-5 ile premium kalitede gÃƒÂ¶rsel ÃƒÂ¼retimi",
+        "editImageGpt5": "DÃƒÂ¼zenle (GPT-5)",
+        "editImageGpt5Desc": "GPT-5 ile bir veya daha fazla gÃƒÂ¶rsel premium dÃƒÂ¼zenleme",
         "referenceImageGpt5": "Referans (GPT-5)",
-        "referenceImageGpt5Desc": "Birden fazla referans görsel ile premium stil aktarımı",
-        "generateImageGemini25Flash": "Üret (Gemini 2.5 Flash)",
-        "generateImageGemini25FlashDesc": "Gemini 2.5 Flash ile hızlı üretim",
-        "editImageGemini25Flash": "Düzenle (Gemini 2.5 Flash)",
-        "editImageGemini25FlashDesc": "Gemini 2.5 Flash ile bir veya daha fazla görsel hızlı düzenleme",
+        "referenceImageGpt5Desc": "Birden fazla referans gÃƒÂ¶rsel ile premium stil aktarÃ„Â±mÃ„Â±",
+        "generateImageGemini25Flash": "ÃƒÅ“ret (Gemini 2.5 Flash)",
+        "generateImageGemini25FlashDesc": "Gemini 2.5 Flash ile hÃ„Â±zlÃ„Â± ÃƒÂ¼retim",
+        "editImageGemini25Flash": "DÃƒÂ¼zenle (Gemini 2.5 Flash)",
+        "editImageGemini25FlashDesc": "Gemini 2.5 Flash ile bir veya daha fazla gÃƒÂ¶rsel hÃ„Â±zlÃ„Â± dÃƒÂ¼zenleme",
         "referenceImageGemini25Flash": "Referans (Gemini 2.5 Flash)",
-        "referenceImageGemini25FlashDesc": "Birden fazla referans görsel ile rehberli üretim",
-        "generateImageGemini3Pro": "Üret (Gemini 3 Pro)",
-        "generateImageGemini3ProDesc": "Gemini 3 Pro ile gelişmiş üretim",
-        "editImageGemini3Pro": "Düzenle (Gemini 3 Pro)",
-        "editImageGemini3ProDesc": "Gemini 3 Pro ile bir veya daha fazla görsel gelişmiş düzenleme",
+        "referenceImageGemini25FlashDesc": "Birden fazla referans gÃƒÂ¶rsel ile rehberli ÃƒÂ¼retim",
+        "generateImageGemini3Pro": "ÃƒÅ“ret (Gemini 3 Pro)",
+        "generateImageGemini3ProDesc": "Gemini 3 Pro ile geliÃ…Å¸miÃ…Å¸ ÃƒÂ¼retim",
+        "editImageGemini3Pro": "DÃƒÂ¼zenle (Gemini 3 Pro)",
+        "editImageGemini3ProDesc": "Gemini 3 Pro ile bir veya daha fazla gÃƒÂ¶rsel geliÃ…Å¸miÃ…Å¸ dÃƒÂ¼zenleme",
         "referenceImageGemini3Pro": "Referans (Gemini 3 Pro)",
-        "referenceImageGemini3ProDesc": "Birden fazla referans görsel ile gelişmiş stil aktarımı",
-        "generateImageZImage": "Üret (Z-Image Yerel)",
-        "generateImageZImageDesc": "ComfyUI ile yerel görsel üretimi (Docker gerektirir)",
-        "generateImageFlux2Klein4B": "Üret (FLUX.2 Klein 4B)",
-        "generateImageFlux2Klein4BDesc": "Hızlı yerel FLUX.2 Klein 4B görsel üretimi (Docker gerektirir)",
-        "editImageFlux2Klein4B": "Düzenle (FLUX.2 Klein 4B)",
-        "editImageFlux2Klein4BDesc": "FLUX.2 Klein 4B ile yerel görsel düzenleme (Docker gerektirir)",
+        "referenceImageGemini3ProDesc": "Birden fazla referans gÃƒÂ¶rsel ile geliÃ…Å¸miÃ…Å¸ stil aktarÃ„Â±mÃ„Â±",
+        "generateImageZImage": "ÃƒÅ“ret (Z-Image Yerel)",
+        "generateImageZImageDesc": "ComfyUI ile yerel gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)",
+        "generateImageFlux2Klein4B": "ÃƒÅ“ret (FLUX.2 Klein 4B)",
+        "generateImageFlux2Klein4BDesc": "HÃ„Â±zlÃ„Â± yerel FLUX.2 Klein 4B gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)",
+        "editImageFlux2Klein4B": "DÃƒÂ¼zenle (FLUX.2 Klein 4B)",
+        "editImageFlux2Klein4BDesc": "FLUX.2 Klein 4B ile yerel gÃƒÂ¶rsel dÃƒÂ¼zenleme (Docker gerektirir)",
         "referenceImageFlux2Klein4B": "Referans (FLUX.2 Klein 4B)",
-        "referenceImageFlux2Klein4BDesc": "FLUX.2 Klein 4B ile referans rehberli üretim (Docker gerektirir)",
-        "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
-        "generateImageFlux2Klein9BDesc": "Yüksek kaliteli yerel FLUX.2 Klein 9B görsel üretimi (Docker gerektirir)",
-        "editImageFlux2Klein9B": "Düzenle (FLUX.2 Klein 9B)",
-        "editImageFlux2Klein9BDesc": "FLUX.2 Klein 9B ile yerel görsel düzenleme (Docker gerektirir)",
+        "referenceImageFlux2Klein4BDesc": "FLUX.2 Klein 4B ile referans rehberli ÃƒÂ¼retim (Docker gerektirir)",
+        "generateImageFlux2Klein9B": "ÃƒÅ“ret (FLUX.2 Klein 9B)",
+        "generateImageFlux2Klein9BDesc": "YÃƒÂ¼ksek kaliteli yerel FLUX.2 Klein 9B gÃƒÂ¶rsel ÃƒÂ¼retimi (Docker gerektirir)",
+        "editImageFlux2Klein9B": "DÃƒÂ¼zenle (FLUX.2 Klein 9B)",
+        "editImageFlux2Klein9BDesc": "FLUX.2 Klein 9B ile yerel gÃƒÂ¶rsel dÃƒÂ¼zenleme (Docker gerektirir)",
         "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)",
-        "referenceImageFlux2Klein9BDesc": "FLUX.2 Klein 9B ile referans rehberli üretim (Docker gerektirir)",
+        "referenceImageFlux2Klein9BDesc": "FLUX.2 Klein 9B ile referans rehberli ÃƒÂ¼retim (Docker gerektirir)",
         "localGrep": "Yerel Grep",
-        "localGrepDesc": "ripgrep ile hızlı ve regex arama"
+        "localGrepDesc": "ripgrep ile hÃ„Â±zlÃ„Â± ve regex arama"
       },
-      "back": "← Geri",
-      "continue": "Devam →",
+      "back": "Ã¢â€ Â Geri",
+      "continue": "Devam Ã¢â€ â€™",
       "dependencyWarnings": {
-        "syncedFolders": "Senkronize klasörler gerekli",
+        "syncedFolders": "Senkronize klasÃƒÂ¶rler gerekli",
         "embeddings": "Embedding gerekli",
-        "both": "Senkronize klasörler + embedding gerekli",
-        "vectorDbEnabled": "Vektör DB etkin olmalı",
-        "tavilyKey": "Tavily API anahtarı gerekli",
-        "webScraper": "Web tarayıcı kurulumu gerekli",
-        "openrouterKey": "OpenRouter API anahtarı gerekli",
-        "comfyuiEnabled": "ComfyUI etkin olmalı",
-        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
-        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "both": "Senkronize klasÃƒÂ¶rler + embedding gerekli",
+        "vectorDbEnabled": "VektÃƒÂ¶r DB etkin olmalÃ„Â±",
+        "tavilyKey": "Tavily API anahtarÃ„Â± gerekli",
+        "webScraper": "Web tarayÃ„Â±cÃ„Â± kurulumu gerekli",
+        "openrouterKey": "OpenRouter API anahtarÃ„Â± gerekli",
+        "comfyuiEnabled": "ComfyUI etkin olmalÃ„Â±",
+        "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalÃ„Â±",
+        "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalÃ„Â±",
+        "localGrepEnabled": "Yerel Grep etkin olmalÃ„Â±"
       }
     },
     "style": {
-      "question": "Ajanınız için bir görsel stil seçin...",
-      "selectStyle": "Stil seçin (1-{count}):",
+      "question": "AjanÃ„Â±nÃ„Â±z iÃƒÂ§in bir gÃƒÂ¶rsel stil seÃƒÂ§in...",
+      "selectStyle": "Stil seÃƒÂ§in (1-{count}):",
       "styles": {
         "anime": "Anime",
         "animeDesc": "Japon animasyon stili",
-        "realistic": "Gerçekçi",
-        "realisticDesc": "Fotogerçekçi görünüm",
-        "cartoon": "Karikatür",
-        "cartoonDesc": "Batı karikatür stili",
+        "realistic": "GerÃƒÂ§ekÃƒÂ§i",
+        "realisticDesc": "FotogerÃƒÂ§ekÃƒÂ§i gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼m",
+        "cartoon": "KarikatÃƒÂ¼r",
+        "cartoonDesc": "BatÃ„Â± karikatÃƒÂ¼r stili",
         "fantasy": "Fantezi",
-        "fantasyDesc": "Büyülü ve ruhani",
+        "fantasyDesc": "BÃƒÂ¼yÃƒÂ¼lÃƒÂ¼ ve ruhani",
         "scifi": "Bilim Kurgu",
-        "scifiDesc": "Fütüristik ve teknolojik",
-        "pixel": "Piksel Sanatı",
+        "scifiDesc": "FÃƒÂ¼tÃƒÂ¼ristik ve teknolojik",
+        "pixel": "Piksel SanatÃ„Â±",
         "pixelDesc": "Retro piksel stili"
       },
-      "back": "← Geri",
-      "generateCharacter": "Karakter Oluştur →"
+      "back": "Ã¢â€ Â Geri",
+      "generateCharacter": "Karakter OluÃ…Å¸tur Ã¢â€ â€™"
     },
     "knowledgeBase": {
-      "question": "Ajanın bilgi tabanını oluşturmak için belgeler yükleyin...",
-      "uploading": "Yükleniyor...",
-      "clickToUpload": "Yüklemek için tıklayın",
-      "orDragFiles": "veya dosyaları buraya sürükleyin",
+      "question": "AjanÃ„Â±n bilgi tabanÃ„Â±nÃ„Â± oluÃ…Å¸turmak iÃƒÂ§in belgeler yÃƒÂ¼kleyin...",
+      "uploading": "YÃƒÂ¼kleniyor...",
+      "clickToUpload": "YÃƒÂ¼klemek iÃƒÂ§in tÃ„Â±klayÃ„Â±n",
+      "orDragFiles": "veya dosyalarÃ„Â± buraya sÃƒÂ¼rÃƒÂ¼kleyin",
       "supportedFormats": "PDF, TXT, Markdown, HTML desteklenir",
-      "uploadedDocuments": "Yüklenen Belgeler",
-      "skipHint": "Bu adımı atlayabilir ve belgeleri daha sonra ekleyebilirsiniz",
-      "back": "← Geri",
-      "continue": "Devam →",
-      "skip": "Atla →"
+      "uploadedDocuments": "YÃƒÂ¼klenen Belgeler",
+      "skipHint": "Bu adÃ„Â±mÃ„Â± atlayabilir ve belgeleri daha sonra ekleyebilirsiniz",
+      "back": "Ã¢â€ Â Geri",
+      "continue": "Devam Ã¢â€ â€™",
+      "skip": "Atla Ã¢â€ â€™"
     },
     "vectorSearchPage": {
-      "step": "Adım 4",
-      "title": "Vektör Araması",
-      "description": "{agentName} için aranacak klasörler ekleyin",
+      "step": "AdÃ„Â±m 4",
+      "title": "VektÃƒÂ¶r AramasÃ„Â±",
+      "description": "{agentName} iÃƒÂ§in aranacak klasÃƒÂ¶rler ekleyin",
       "back": "Geri",
       "skip": "Atla",
       "continue": "Devam"
     },
     "preview": {
-      "purpose": "Amaç",
+      "purpose": "AmaÃƒÂ§",
       "capabilities": "Yetenekler",
-      "noToolsEnabled": "Etkin araç yok",
-      "knowledgeBase": "Bilgi Tabanı",
+      "noToolsEnabled": "Etkin araÃƒÂ§ yok",
+      "knowledgeBase": "Bilgi TabanÃ„Â±",
       "documentsAttached": "{count} belge eklendi",
       "documentsAttachedPlural": "{count} belge eklendi",
       "moreDocuments": "+{count} daha",
       "noDocuments": "Ekli belge yok",
-      "configSummary": "Yapılandırma Özeti",
-      "toolsEnabled": "Araçlar: {count} etkin",
+      "configSummary": "YapÃ„Â±landÃ„Â±rma Ãƒâ€“zeti",
+      "toolsEnabled": "AraÃƒÂ§lar: {count} etkin",
       "documentsCount": "Belgeler: {count} eklendi",
-      "readyToDeploy": "Dağıtıma hazır",
-      "back": "← Geri",
-      "creating": "Oluşturuluyor...",
-      "createAgent": "Ajan Oluştur ✓"
+      "readyToDeploy": "DaÃ„Å¸Ã„Â±tÃ„Â±ma hazÃ„Â±r",
+      "back": "Ã¢â€ Â Geri",
+      "creating": "OluÃ…Å¸turuluyor...",
+      "createAgent": "Ajan OluÃ…Å¸tur Ã¢Å“â€œ"
     },
     "loading": {
-      "title": "{name} ajanı yapılandırılıyor...",
+      "title": "{name} ajanÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±lÃ„Â±yor...",
       "messages": {
-        "initializingProfile": "Ajan profili başlatılıyor...",
-        "configuringCapabilities": "Yetenekler yapılandırılıyor...",
-        "settingUpKnowledgeBase": "Bilgi tabanı kuruluyor...",
-        "applyingToolPermissions": "Araç izinleri uygulanıyor...",
-        "validatingConfiguration": "Yapılandırma doğrulanıyor...",
-        "finalizingSetup": "Ajan kurulumu tamamlanıyor..."
+        "initializingProfile": "Ajan profili baÃ…Å¸latÃ„Â±lÃ„Â±yor...",
+        "configuringCapabilities": "Yetenekler yapÃ„Â±landÃ„Â±rÃ„Â±lÃ„Â±yor...",
+        "settingUpKnowledgeBase": "Bilgi tabanÃ„Â± kuruluyor...",
+        "applyingToolPermissions": "AraÃƒÂ§ izinleri uygulanÃ„Â±yor...",
+        "validatingConfiguration": "YapÃ„Â±landÃ„Â±rma doÃ„Å¸rulanÃ„Â±yor...",
+        "finalizingSetup": "Ajan kurulumu tamamlanÃ„Â±yor..."
       }
     },
     "success": {
-      "title": "{name} Hazır!",
-      "subtitle": "Ajanınız başarıyla oluşturuldu.",
+      "title": "{name} HazÃ„Â±r!",
+      "subtitle": "AjanÃ„Â±nÃ„Â±z baÃ…Å¸arÃ„Â±yla oluÃ…Å¸turuldu.",
       "complete": "TAMAMLANDI",
-      "startChatting": "Sohbete Başla",
-      "configureAnother": "Başka Bir Ajan Yapılandır",
-      "myAgents": "Ajanlarım",
+      "startChatting": "Sohbete BaÃ…Å¸la",
+      "configureAnother": "BaÃ…Å¸ka Bir Ajan YapÃ„Â±landÃ„Â±r",
+      "myAgents": "AjanlarÃ„Â±m",
       "agentId": "Ajan ID"
     },
     "avatarEdit": {
-      "title": "{name} için Avatar",
-      "subtitle": "Ajanınızın avatarını inceleyin ve özelleştirin",
+      "title": "{name} iÃƒÂ§in Avatar",
+      "subtitle": "AjanÃ„Â±nÃ„Â±zÃ„Â±n avatarÃ„Â±nÃ„Â± inceleyin ve ÃƒÂ¶zelleÃ…Å¸tirin",
       "seed": "Tohum: {seed}",
-      "customUpload": "Özel Yükleme",
-      "imagePrompt": "Görsel Promptu",
-      "promptPlaceholder": "Bu ajanın nasıl görünmesi gerektiğini açıklayın (profesyonel, nötr, eğlenceli, vb.)...",
-      "promptHint": "Avatarı özelleştirmek için promptu düzenleyin ve yeniden oluşturun",
-      "regenerateNewSeed": "Yeniden Oluştur (Yeni Tohum)",
-      "regenerateSameSeed": "Yeniden Oluştur (Aynı Tohum)",
+      "customUpload": "Ãƒâ€“zel YÃƒÂ¼kleme",
+      "imagePrompt": "GÃƒÂ¶rsel Promptu",
+      "promptPlaceholder": "Bu ajanÃ„Â±n nasÃ„Â±l gÃƒÂ¶rÃƒÂ¼nmesi gerektiÃ„Å¸ini aÃƒÂ§Ã„Â±klayÃ„Â±n (profesyonel, nÃƒÂ¶tr, eÃ„Å¸lenceli, vb.)...",
+      "promptHint": "AvatarÃ„Â± ÃƒÂ¶zelleÃ…Å¸tirmek iÃƒÂ§in promptu dÃƒÂ¼zenleyin ve yeniden oluÃ…Å¸turun",
+      "regenerateNewSeed": "Yeniden OluÃ…Å¸tur (Yeni Tohum)",
+      "regenerateSameSeed": "Yeniden OluÃ…Å¸tur (AynÃ„Â± Tohum)",
       "or": "veya",
-      "uploadYourOwn": "Kendi Görselinizi Yükleyin",
-      "uploading": "Yükleniyor...",
-      "supportedFormats": "PNG, JPEG veya WebP • Maks 10MB",
+      "uploadYourOwn": "Kendi GÃƒÂ¶rselinizi YÃƒÂ¼kleyin",
+      "uploading": "YÃƒÂ¼kleniyor...",
+      "supportedFormats": "PNG, JPEG veya WebP Ã¢â‚¬Â¢ Maks 10MB",
       "errors": {
-        "invalidFormat": "Lütfen PNG, JPEG veya WebP görsel yükleyin",
-        "fileTooLarge": "Görsel 10MB'dan küçük olmalıdır"
+        "invalidFormat": "LÃƒÂ¼tfen PNG, JPEG veya WebP gÃƒÂ¶rsel yÃƒÂ¼kleyin",
+        "fileTooLarge": "GÃƒÂ¶rsel 10MB'dan kÃƒÂ¼ÃƒÂ§ÃƒÂ¼k olmalÃ„Â±dÃ„Â±r"
       },
       "back": "Geri",
       "continueWithAvatar": "Bu Avatar ile Devam Et"
     },
     "embeddingSetup": {
-      "question": "Bir embedding sağlayıcısı ve modeli seçin.",
+      "question": "Bir embedding saÃ„Å¸layÃ„Â±cÃ„Â±sÃ„Â± ve modeli seÃƒÂ§in.",
       "providers": {
         "openrouter": {
           "title": "OpenRouter (Bulut)",
-          "description": "API anahtarınızla OpenRouter embeddinglerini kullanın."
+          "description": "API anahtarÃ„Â±nÃ„Â±zla OpenRouter embeddinglerini kullanÃ„Â±n."
         },
         "local": {
           "title": "Yerel (Cihazda)",
-          "description": "Embeddingleri yerel olarak paketlenmiş modellerle çalıştırın."
+          "description": "Embeddingleri yerel olarak paketlenmiÃ…Å¸ modellerle ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±n."
         }
       },
-      "apiKeyLabel": "OpenRouter API Anahtarı",
-      "apiKeyRequired": "OpenRouter için API anahtarı gerekli",
-      "selectModel": "Bir embedding modeli seçin",
+      "apiKeyLabel": "OpenRouter API AnahtarÃ„Â±",
+      "apiKeyRequired": "OpenRouter iÃƒÂ§in API anahtarÃ„Â± gerekli",
+      "selectModel": "Bir embedding modeli seÃƒÂ§in",
       "models": {
-        "recommended": "Önerilen"
+        "recommended": "Ãƒâ€“nerilen"
       },
-      "downloading": "İndiriliyor...",
+      "downloading": "Ã„Â°ndiriliyor...",
       "back": "Geri",
       "skip": "Atla",
       "continue": "Devam"
     },
     "mcpTools": {
-      "loading": "MCP araçları yükleniyor...",
-      "title": "MCP Araçları",
-      "description": "Bu ajan için hangi MCP sunucularını ve araçlarını etkinleştireceğinizi seçin.",
-      "noServersTitle": "MCP Sunucusu Yapılandırılmadı",
-      "noServersDescription": "Harici araçları etkinleştirmek için Ayarlar → MCP Sunucuları'ndan MCP sunucularını yapılandırın.",
-      "configureServers": "MCP Ayarlarını Aç",
-      "skipForNow": "Şimdilik Atla",
-      "serversNotConnected": "MCP sunucuları yapılandırıldı ancak bağlı değil. Mevcut araçları keşfetmek için bağlanın.",
-      "connecting": "Bağlanıyor...",
-      "connectDiscover": "Bağlan ve Araçları Keşfet",
-      "connected": "Bağlı",
-      "toolsCount": "{enabled}/{total} araç",
+      "loading": "MCP araÃƒÂ§larÃ„Â± yÃƒÂ¼kleniyor...",
+      "title": "MCP AraÃƒÂ§larÃ„Â±",
+      "description": "Bu ajan iÃƒÂ§in hangi MCP sunucularÃ„Â±nÃ„Â± ve araÃƒÂ§larÃ„Â±nÃ„Â± etkinleÃ…Å¸tireceÃ„Å¸inizi seÃƒÂ§in.",
+      "noServersTitle": "MCP Sunucusu YapÃ„Â±landÃ„Â±rÃ„Â±lmadÃ„Â±",
+      "noServersDescription": "Harici araÃƒÂ§larÃ„Â± etkinleÃ…Å¸tirmek iÃƒÂ§in Ayarlar Ã¢â€ â€™ MCP SunucularÃ„Â±'ndan MCP sunucularÃ„Â±nÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±n.",
+      "configureServers": "MCP AyarlarÃ„Â±nÃ„Â± AÃƒÂ§",
+      "skipForNow": "Ã…Å¾imdilik Atla",
+      "serversNotConnected": "MCP sunucularÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±ldÃ„Â± ancak baÃ„Å¸lÃ„Â± deÃ„Å¸il. Mevcut araÃƒÂ§larÃ„Â± keÃ…Å¸fetmek iÃƒÂ§in baÃ„Å¸lanÃ„Â±n.",
+      "connecting": "BaÃ„Å¸lanÃ„Â±yor...",
+      "connectDiscover": "BaÃ„Å¸lan ve AraÃƒÂ§larÃ„Â± KeÃ…Å¸fet",
+      "connected": "BaÃ„Å¸lÃ„Â±",
+      "toolsCount": "{enabled}/{total} araÃƒÂ§",
       "continue": "Devam",
       "loadingMode": {
-        "label": "Yükleme Modu",
+        "label": "YÃƒÂ¼kleme Modu",
         "always": "Her Zaman",
-        "deferred": "Gerektiğinde",
-        "alwaysTooltip": "Araç her istekte hemen yüklenir (daha fazla token kullanır)",
-        "deferredTooltip": "Araç gerektiğinde searchTools ile keşfedilir (token tasarrufu)"
+        "deferred": "GerektiÃ„Å¸inde",
+        "alwaysTooltip": "AraÃƒÂ§ her istekte hemen yÃƒÂ¼klenir (daha fazla token kullanÃ„Â±r)",
+        "deferredTooltip": "AraÃƒÂ§ gerektiÃ„Å¸inde searchTools ile keÃ…Å¸fedilir (token tasarrufu)"
       }
     }
   },
   "errors": {
-    "notFound": "Bulunamadı",
-    "forbidden": "Bu kaynağa erişiminiz yok",
-    "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
-    "genericRefresh": "Bir şeyler ters gitti. Lütfen sayfayı yenileyin."
+    "notFound": "BulunamadÃ„Â±",
+    "forbidden": "Bu kaynaÃ„Å¸a eriÃ…Å¸iminiz yok",
+    "generic": "Bir Ã…Å¸eyler ters gitti. LÃƒÂ¼tfen tekrar deneyin.",
+    "genericRefresh": "Bir Ã…Å¸eyler ters gitti. LÃƒÂ¼tfen sayfayÃ„Â± yenileyin."
   },
   "settings": {
     "title": "Ayarlar",
-    "subtitle": "Uygulamanızı yapılandırın",
+    "subtitle": "UygulamanÃ„Â±zÃ„Â± yapÃ„Â±landÃ„Â±rÃ„Â±n",
     "save": {
-      "cta": "Değişiklikleri Kaydet",
+      "cta": "DeÃ„Å¸iÃ…Å¸iklikleri Kaydet",
       "saving": "Kaydediliyor...",
       "saved": "Kaydedildi!"
     },
     "nav": {
-      "apiKeys": "API Anahtarları",
+      "apiKeys": "API AnahtarlarÃ„Â±",
       "models": "Modeller",
-      "vectorSearch": "Vektör Arama",
+      "vectorSearch": "VektÃƒÂ¶r Arama",
       "preferences": "Tercihler",
-      "memory": "Hafıza"
+      "memory": "HafÃ„Â±za"
     },
     "errors": {
-      "load": "Ayarlar yüklenemedi",
+      "load": "Ayarlar yÃƒÂ¼klenemedi",
       "save": "Ayarlar kaydedilemedi"
     },
     "api": {
-      "title": "LLM Sağlayıcısı",
+      "title": "LLM SaÃ„Å¸layÃ„Â±cÃ„Â±sÃ„Â±",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
-      "keysTitle": "API Anahtarları",
+      "keysTitle": "API AnahtarlarÃ„Â±",
       "fields": {
         "anthropic": {
-          "label": "Anthropic API Anahtarı",
+          "label": "Anthropic API AnahtarÃ„Â±",
           "placeholder": "sk-ant-...",
-          "helper": "Claude modelleri için gerekli"
+          "helper": "Claude modelleri iÃƒÂ§in gerekli"
         },
         "openrouter": {
-          "label": "OpenRouter API Anahtarı",
+          "label": "OpenRouter API AnahtarÃ„Â±",
           "placeholder": "sk-or-...",
-          "helper": "Alternatif LLM sağlayıcısı ve embeddingler"
+          "helper": "Alternatif LLM saÃ„Å¸layÃ„Â±cÃ„Â±sÃ„Â± ve embeddingler"
         },
         "kimi": {
-          "label": "Moonshot API Anahtarı",
+          "label": "Moonshot API AnahtarÃ„Â±",
           "placeholder": "sk-...",
-          "helper": "API anahtarınızı platform.moonshot.cn'den alın"
+          "helper": "API anahtarÃ„Â±nÃ„Â±zÃ„Â± platform.moonshot.cn'den alÃ„Â±n"
         },
         "tavily": {
-          "label": "Tavily API Anahtarı",
+          "label": "Tavily API AnahtarÃ„Â±",
           "placeholder": "tvly-...",
-          "helper": "Derin Araştırma web araması için gerekli"
+          "helper": "Derin AraÃ…Å¸tÃ„Â±rma web aramasÃ„Â± iÃƒÂ§in gerekli"
         },
         "webScraperProvider": {
           "label": "Web Tarama Saglayicisi",
@@ -1130,36 +1136,36 @@
           }
         },
         "firecrawl": {
-          "label": "Firecrawl API Anahtarı",
+          "label": "Firecrawl API AnahtarÃ„Â±",
           "placeholder": "fc-...",
-          "helper": "Firecrawl ile web taraması için gerekli"
+          "helper": "Firecrawl ile web taramasÃ„Â± iÃƒÂ§in gerekli"
         },
         "seline": {
-          "label": "Seline AI API Anahtarı",
-          "placeholder": "Seline AI anahtarınızı girin",
-          "helper": "Görsel/video üretimi için gerekli"
+          "label": "Seline AI API AnahtarÃ„Â±",
+          "placeholder": "Seline AI anahtarÃ„Â±nÃ„Â±zÃ„Â± girin",
+          "helper": "GÃƒÂ¶rsel/video ÃƒÂ¼retimi iÃƒÂ§in gerekli"
         }
       }
     },
     "models": {
-      "title": "Model Seçimi",
-      "subtitle": "Farklı görevler için farklı modeller yapılandırın. Boş bırakılırsa varsayılanlar kullanılır.",
+      "title": "Model SeÃƒÂ§imi",
+      "subtitle": "FarklÃ„Â± gÃƒÂ¶revler iÃƒÂ§in farklÃ„Â± modeller yapÃ„Â±landÃ„Â±rÃ„Â±n. BoÃ…Å¸ bÃ„Â±rakÃ„Â±lÃ„Â±rsa varsayÃ„Â±lanlar kullanÃ„Â±lÃ„Â±r.",
       "defaults": {
-        "label": "Varsayılanlar:",
+        "label": "VarsayÃ„Â±lanlar:",
         "value": "Anthropic: claude-sonnet-4-5-20250929 | OpenRouter: x-ai/grok-4.1-fast"
       },
       "fields": {
         "chat": {
           "label": "Sohbet Modeli",
-          "helper": "Sohbetler için ana model. Örnekler: claude-sonnet-4-5-20250929, anthropic/claude-3.5-sonnet, openai/gpt-4o"
+          "helper": "Sohbetler iÃƒÂ§in ana model. Ãƒâ€“rnekler: claude-sonnet-4-5-20250929, anthropic/claude-3.5-sonnet, openai/gpt-4o"
         },
         "research": {
-          "label": "Araştırma Modeli",
-          "helper": "Derin Araştırma modu için model. En iyi sonuçlar için güçlü bir model kullanın."
+          "label": "AraÃ…Å¸tÃ„Â±rma Modeli",
+          "helper": "Derin AraÃ…Å¸tÃ„Â±rma modu iÃƒÂ§in model. En iyi sonuÃƒÂ§lar iÃƒÂ§in gÃƒÂ¼ÃƒÂ§lÃƒÂ¼ bir model kullanÃ„Â±n."
         },
         "vision": {
-          "label": "Görsel Modeli",
-          "helper": "Görsel analizi için (vizyon destekli) model. Örnekler: claude-sonnet-4-5-20250929, google/gemini-2.0-flash-001"
+          "label": "GÃƒÂ¶rsel Modeli",
+          "helper": "GÃƒÂ¶rsel analizi iÃƒÂ§in (vizyon destekli) model. Ãƒâ€“rnekler: claude-sonnet-4-5-20250929, google/gemini-2.0-flash-001"
         },
         "embeddingProvider": {
           "label": "Embedding Saglayicisi",
@@ -1184,30 +1190,30 @@
           "helper": "Model klasorlerini iceren dizin (ornek: C:\\models icinde Xenova/bge-large-en-v1.5). Bos birakirsaniz onbellekten indirilebilir."
         },
         "openrouterArgs": {
-          "label": "OpenRouter Gelişmiş Seçenekler (JSON)",
-          "helper": "Özel OpenRouter sağlayıcı seçenekleri. Yaygın: quant (q4_0, q8_0, auto), thinkingBudget (akıl yürütme modelleri için), includeThoughts (true/false).",
+          "label": "OpenRouter GeliÃ…Å¸miÃ…Å¸ SeÃƒÂ§enekler (JSON)",
+          "helper": "Ãƒâ€“zel OpenRouter saÃ„Å¸layÃ„Â±cÃ„Â± seÃƒÂ§enekleri. YaygÃ„Â±n: quant (q4_0, q8_0, auto), thinkingBudget (akÃ„Â±l yÃƒÂ¼rÃƒÂ¼tme modelleri iÃƒÂ§in), includeThoughts (true/false).",
           "presets": {
             "q4": "4-bit Kuantizasyon",
             "q8": "8-bit Kuantizasyon",
             "auto": "Otomatik Kuantizasyon",
-            "noThinking": "Düşünmeyi Devre Dışı Bırak"
+            "noThinking": "DÃƒÂ¼Ã…Å¸ÃƒÂ¼nmeyi Devre DÃ„Â±Ã…Å¸Ã„Â± BÃ„Â±rak"
           }
         },
         "utility": {
-          "label": "Yardımcı Model",
-          "helper": "Arka plan görevleri (örn. istem zenginleştirme) için hızlı/ucuz model. Örnek: google/gemini-2.0-flash-lite-001"
+          "label": "YardÃ„Â±mcÃ„Â± Model",
+          "helper": "Arka plan gÃƒÂ¶revleri (ÃƒÂ¶rn. istem zenginleÃ…Å¸tirme) iÃƒÂ§in hÃ„Â±zlÃ„Â±/ucuz model. Ãƒâ€“rnek: google/gemini-2.0-flash-lite-001"
         }
       },
       "tip": {
-        "title": "İpucu:",
-        "body": "Embeddingler için daha ucuz/hızlı modelleri, araştırma için daha güçlü modelleri kullanın. OpenRouter model kimlikleri provider/model-name şeklindedir (ör. anthropic/claude-3.5-sonnet)."
+        "title": "Ã„Â°pucu:",
+        "body": "Embeddingler iÃƒÂ§in daha ucuz/hÃ„Â±zlÃ„Â± modelleri, araÃ…Å¸tÃ„Â±rma iÃƒÂ§in daha gÃƒÂ¼ÃƒÂ§lÃƒÂ¼ modelleri kullanÃ„Â±n. OpenRouter model kimlikleri provider/model-name Ã…Å¸eklindedir (ÃƒÂ¶r. anthropic/claude-3.5-sonnet)."
       }
     },
     "vector": {
-      "title": "Vektör Arama (LanceDB)",
-      "subtitle": "Vektör aramayı etkinleştirerek ajanların dizinlenmiş klasörlerde semantik arama yapmasını sağlayın. Bu, yerel olarak çalışan gömülü LanceDB kullanır.",
-      "enable": "Vektör Aramayı Etkinleştir",
-      "enabled": "Vektör araması etkin. Hangi klasörlerin dizinleneceğini ajan ayarlarında veya ajan oluştururken yapılandırabilirsiniz.",
+      "title": "VektÃƒÂ¶r Arama (LanceDB)",
+      "subtitle": "VektÃƒÂ¶r aramayÃ„Â± etkinleÃ…Å¸tirerek ajanlarÃ„Â±n dizinlenmiÃ…Å¸ klasÃƒÂ¶rlerde semantik arama yapmasÃ„Â±nÃ„Â± saÃ„Å¸layÃ„Â±n. Bu, yerel olarak ÃƒÂ§alÃ„Â±Ã…Å¸an gÃƒÂ¶mÃƒÂ¼lÃƒÂ¼ LanceDB kullanÃ„Â±r.",
+      "enable": "VektÃƒÂ¶r AramayÃ„Â± EtkinleÃ…Å¸tir",
+      "enabled": "VektÃƒÂ¶r aramasÃ„Â± etkin. Hangi klasÃƒÂ¶rlerin dizinleneceÃ„Å¸ini ajan ayarlarÃ„Â±nda veya ajan oluÃ…Å¸tururken yapÃ„Â±landÃ„Â±rabilirsiniz.",
       "path": "Veriler yerelde tutulur:",
       "reindexRequired": {
         "title": "Yeniden indeksleme gerekli.",
@@ -1231,50 +1237,50 @@
         "tokenChunkStride": "Token chunk stride",
         "rerankTopK": "Rerank top K",
         "rerankModel": "Rerank model path",
-        "maxFileLines": "Maksimum dosya satırı",
-        "maxFileLinesHelper": "Bu satır sayısını aşan dosyalar indeksleme sırasında atlanacaktır (varsayılan: 3000)",
-        "maxLineLength": "Maksimum satır uzunluğu",
-        "maxLineLengthHelper": "Bu karakter sayısını aşan herhangi bir satır içeren dosyalar atlanacaktır (base64/büyük dizeler kontrolü, varsayılan: 1000)"
+        "maxFileLines": "Maksimum dosya satÃ„Â±rÃ„Â±",
+        "maxFileLinesHelper": "Bu satÃ„Â±r sayÃ„Â±sÃ„Â±nÃ„Â± aÃ…Å¸an dosyalar indeksleme sÃ„Â±rasÃ„Â±nda atlanacaktÃ„Â±r (varsayÃ„Â±lan: 3000)",
+        "maxLineLength": "Maksimum satÃ„Â±r uzunluÃ„Å¸u",
+        "maxLineLengthHelper": "Bu karakter sayÃ„Â±sÃ„Â±nÃ„Â± aÃ…Å¸an herhangi bir satÃ„Â±r iÃƒÂ§eren dosyalar atlanacaktÃ„Â±r (base64/bÃƒÂ¼yÃƒÂ¼k dizeler kontrolÃƒÂ¼, varsayÃ„Â±lan: 1000)"
       },
-      "enableLlmSynthesis": "LLM sentezini etkinleştir",
+      "enableLlmSynthesis": "LLM sentezini etkinleÃ…Å¸tir",
       "advanced": {
-        "title": "Gelişmiş Vektör Ayarları",
-        "description": "Geri getirme, parçalama, yeniden sıralama ve dosya limitlerini ince ayarlayın.",
-        "resetToDefaults": "Varsayılanlara sıfırla",
+        "title": "GeliÃ…Å¸miÃ…Å¸ VektÃƒÂ¶r AyarlarÃ„Â±",
+        "description": "Geri getirme, parÃƒÂ§alama, yeniden sÃ„Â±ralama ve dosya limitlerini ince ayarlayÃ„Â±n.",
+        "resetToDefaults": "VarsayÃ„Â±lanlara sÃ„Â±fÃ„Â±rla",
         "hybridSearch": {
           "title": "Hibrit Arama",
-          "description": "Daha iyi kapsam için yoğun ve sözcüksel aramayı birleştirir.",
-          "enable": "Hibrit aramayı etkinleştir",
-          "denseWeight": "Yoğun ağırlık",
-          "lexicalWeight": "Sözcüksel ağırlık",
-          "rrfK": "RRF k değeri"
+          "description": "Daha iyi kapsam iÃƒÂ§in yoÃ„Å¸un ve sÃƒÂ¶zcÃƒÂ¼ksel aramayÃ„Â± birleÃ…Å¸tirir.",
+          "enable": "Hibrit aramayÃ„Â± etkinleÃ…Å¸tir",
+          "denseWeight": "YoÃ„Å¸un aÃ„Å¸Ã„Â±rlÃ„Â±k",
+          "lexicalWeight": "SÃƒÂ¶zcÃƒÂ¼ksel aÃ„Å¸Ã„Â±rlÃ„Â±k",
+          "rrfK": "RRF k deÃ„Å¸eri"
         },
         "chunking": {
-          "title": "Token Parçalama",
-          "description": "Daha iyi geri getirme için belgeleri token tabanlı parçalara böler.",
-          "enable": "Token parçalamayı etkinleştir",
-          "size": "Parça boyutu",
-          "stride": "Parça kaydırma"
+          "title": "Token ParÃƒÂ§alama",
+          "description": "Daha iyi geri getirme iÃƒÂ§in belgeleri token tabanlÃ„Â± parÃƒÂ§alara bÃƒÂ¶ler.",
+          "enable": "Token parÃƒÂ§alamayÃ„Â± etkinleÃ…Å¸tir",
+          "size": "ParÃƒÂ§a boyutu",
+          "stride": "ParÃƒÂ§a kaydÃ„Â±rma"
         },
         "reranking": {
-          "title": "Yeniden Sıralama",
-          "description": "En üst sonuçları ONNX modeliyle yeniden sıralar.",
-          "enable": "Yeniden sıralamayı etkinleştir",
-          "topK": "Yeniden sıralama üst K",
-          "modelPath": "Yeniden sıralama model yolu"
+          "title": "Yeniden SÃ„Â±ralama",
+          "description": "En ÃƒÂ¼st sonuÃƒÂ§larÃ„Â± ONNX modeliyle yeniden sÃ„Â±ralar.",
+          "enable": "Yeniden sÃ„Â±ralamayÃ„Â± etkinleÃ…Å¸tir",
+          "topK": "Yeniden sÃ„Â±ralama ÃƒÂ¼st K",
+          "modelPath": "Yeniden sÃ„Â±ralama model yolu"
         },
         "queryProcessing": {
-          "title": "Sorgu İşleme",
-          "description": "Geri çağırmayı artırmak için sorguları genişletir.",
-          "enable": "Sorgu genişletmeyi etkinleştir"
+          "title": "Sorgu Ã„Â°Ã…Å¸leme",
+          "description": "Geri ÃƒÂ§aÃ„Å¸Ã„Â±rmayÃ„Â± artÃ„Â±rmak iÃƒÂ§in sorgularÃ„Â± geniÃ…Å¸letir.",
+          "enable": "Sorgu geniÃ…Å¸letmeyi etkinleÃ…Å¸tir"
         },
         "fileLimits": {
           "title": "Dosya Limitleri",
-          "description": "Aşırı büyük dosyaları veya satırları olanları atla.",
-          "maxLines": "Maksimum dosya satırı",
-          "maxLinesHelper": "Bu satır sayısını aşan dosyalar indeksleme sırasında atlanır (varsayılan: 3000)",
-          "maxLineLength": "Maksimum satır uzunluğu",
-          "maxLineLengthHelper": "Herhangi bir satırı bu karakter sayısını aşan dosyalar atlanır (varsayılan: 1000)"
+          "description": "AÃ…Å¸Ã„Â±rÃ„Â± bÃƒÂ¼yÃƒÂ¼k dosyalarÃ„Â± veya satÃ„Â±rlarÃ„Â± olanlarÃ„Â± atla.",
+          "maxLines": "Maksimum dosya satÃ„Â±rÃ„Â±",
+          "maxLinesHelper": "Bu satÃ„Â±r sayÃ„Â±sÃ„Â±nÃ„Â± aÃ…Å¸an dosyalar indeksleme sÃ„Â±rasÃ„Â±nda atlanÃ„Â±r (varsayÃ„Â±lan: 3000)",
+          "maxLineLength": "Maksimum satÃ„Â±r uzunluÃ„Å¸u",
+          "maxLineLengthHelper": "Herhangi bir satÃ„Â±rÃ„Â± bu karakter sayÃ„Â±sÃ„Â±nÃ„Â± aÃ…Å¸an dosyalar atlanÃ„Â±r (varsayÃ„Â±lan: 1000)"
         }
       }
     },
@@ -1282,72 +1288,72 @@
       "title": "Tercihler",
       "theme": {
         "label": "Tema",
-        "dark": "Karanlık",
-        "light": "Aydınlık",
+        "dark": "KaranlÃ„Â±k",
+        "light": "AydÃ„Â±nlÃ„Â±k",
         "system": "Sistem"
       },
       "language": {
         "label": "Dil",
         "en": "English",
-        "tr": "Türkçe"
+        "tr": "TÃƒÂ¼rkÃƒÂ§e"
       },
       "toolLoading": {
-        "label": "Araç Yükleme Modu",
-        "deferred": "Ertelemeli Yükleme (Önerilen)",
-        "deferredHelper": "~2000 token tasarrufu. Araçlar gerektiğinde searchTools ile keşfedilir.",
+        "label": "AraÃƒÂ§ YÃƒÂ¼kleme Modu",
+        "deferred": "Ertelemeli YÃƒÂ¼kleme (Ãƒâ€“nerilen)",
+        "deferredHelper": "~2000 token tasarrufu. AraÃƒÂ§lar gerektiÃ„Å¸inde searchTools ile keÃ…Å¸fedilir.",
         "always": "Her Zaman Dahil Et",
-        "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
+        "alwaysHelper": "TÃƒÂ¼m araÃƒÂ§lar anÃ„Â±nda kullanÃ„Â±labilir. Ã„Â°stek baÃ…Å¸Ã„Â±na daha fazla token kullanÃ„Â±r."
       }
     },
     "onboarding": {
       "title": "Kurulum",
-      "description": "Ayarlarınızı yeniden yapılandırmak için kurulum sihirbazını tekrar çalıştırın",
-      "cta": "Kurulum Sihirbazını Tekrar Çalıştır"
+      "description": "AyarlarÃ„Â±nÃ„Â±zÃ„Â± yeniden yapÃ„Â±landÃ„Â±rmak iÃƒÂ§in kurulum sihirbazÃ„Â±nÃ„Â± tekrar ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±n",
+      "cta": "Kurulum SihirbazÃ„Â±nÃ„Â± Tekrar Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r"
     },
     "memoryDefaults": {
-      "title": "Genel Hafıza Varsayılanları",
-      "description": "Tüm ajanlara uygulanacak varsayılan tercihleri belirleyin. Bu hafızalar ajanların tercihlerinizi anlamasına yardımcı olur.",
+      "title": "Genel HafÃ„Â±za VarsayÃ„Â±lanlarÃ„Â±",
+      "description": "TÃƒÂ¼m ajanlara uygulanacak varsayÃ„Â±lan tercihleri belirleyin. Bu hafÃ„Â±zalar ajanlarÃ„Â±n tercihlerinizi anlamasÃ„Â±na yardÃ„Â±mcÃ„Â± olur.",
       "addNew": "Yeni bir tercih ekle",
-      "placeholder": "ör. \"Kod örneklerinde her zaman TypeScript kullan\"",
+      "placeholder": "ÃƒÂ¶r. \"Kod ÃƒÂ¶rneklerinde her zaman TypeScript kullan\"",
       "add": "Ekle",
-      "empty": "Genel hafıza varsayılanı yok. Ajanlarınızı kişiselleştirmek için tercih ekleyin."
+      "empty": "Genel hafÃ„Â±za varsayÃ„Â±lanÃ„Â± yok. AjanlarÃ„Â±nÃ„Â±zÃ„Â± kiÃ…Å¸iselleÃ…Å¸tirmek iÃƒÂ§in tercih ekleyin."
     }
   },
   "about": {
-    "title": "Hakkında",
-    "subtitle": "Destek, bilgi ve bağlantılar",
-    "releasedBadge": "Yayında",
-    "headline": "Styly.io desteğiyle yayımlandı ve geliştirildi.",
-    "byline": "Umut Tan, MLe tarafından oluşturuldu ve sürdürülüyor.",
+    "title": "HakkÃ„Â±nda",
+    "subtitle": "Destek, bilgi ve baÃ„Å¸lantÃ„Â±lar",
+    "releasedBadge": "YayÃ„Â±nda",
+    "headline": "Styly.io desteÃ„Å¸iyle yayÃ„Â±mlandÃ„Â± ve geliÃ…Å¸tirildi.",
+    "byline": "Umut Tan, MLe tarafÃ„Â±ndan oluÃ…Å¸turuldu ve sÃƒÂ¼rdÃƒÂ¼rÃƒÂ¼lÃƒÂ¼yor.",
     "linkStyly": "Styly.io",
     "linkLinkedIn": "LinkedIn",
     "linkGitHub": "GitHub"
   },
   "chat": {
-    "loading": "Sohbet yükleniyor...",
+    "loading": "Sohbet yÃƒÂ¼kleniyor...",
     "empty": {
-      "description": "Bu ajan sohbeti yüklenemedi. Ajan olmayabilir ya da erişiminiz yok."
+      "description": "Bu ajan sohbeti yÃƒÂ¼klenemedi. Ajan olmayabilir ya da eriÃ…Å¸iminiz yok."
     },
     "actions": {
-      "createAgent": "Ajan Oluştur",
-      "goHome": "Ana sayfaya dön"
+      "createAgent": "Ajan OluÃ…Å¸tur",
+      "goHome": "Ana sayfaya dÃƒÂ¶n"
     },
     "sidebar": {
-      "changeAvatar": "Avatarı değiştirmek için tıklayın",
-      "history": "Sohbet Geçmişi",
-      "agentMemory": "Ajan Hafızası",
-      "schedules": "Zamanlanmış Görevler",
-      "usage": "Kullanım ve Analitik",
+      "changeAvatar": "AvatarÃ„Â± deÃ„Å¸iÃ…Å¸tirmek iÃƒÂ§in tÃ„Â±klayÃ„Â±n",
+      "history": "Sohbet GeÃƒÂ§miÃ…Å¸i",
+      "agentMemory": "Ajan HafÃ„Â±zasÃ„Â±",
+      "schedules": "ZamanlanmÃ„Â±Ã…Å¸ GÃƒÂ¶revler",
+      "usage": "KullanÃ„Â±m ve Analitik",
       "channels": "Kanallar",
-      "startNew": "Yeni sohbet başlat",
+      "startNew": "Yeni sohbet baÃ…Å¸lat",
       "new": "Yeni",
-      "empty": "Henüz sohbet geçmişi yok",
-      "resetChannel": "Kanal oturumunu sıfırla",
+      "empty": "HenÃƒÂ¼z sohbet geÃƒÂ§miÃ…Å¸i yok",
+      "resetChannel": "Kanal oturumunu sÃ„Â±fÃ„Â±rla",
       "delete": "Sohbeti sil",
-      "rename": "Sohbeti yeniden adlandır",
-      "edit": "Başlığı düzenle",
+      "rename": "Sohbeti yeniden adlandÃ„Â±r",
+      "edit": "BaÃ…Å¸lÃ„Â±Ã„Å¸Ã„Â± dÃƒÂ¼zenle",
       "save": "Kaydet",
-      "cancel": "İptal",
+      "cancel": "Ã„Â°ptal",
       "emptyHint": "Sohbetleri g?rmek i?in yeni sohbet ba?lat?n veya filtreleri de?i?tirin.",
       "searchPlaceholder": "Sohbetlerde ara...",
       "channelAll": "T?m kanallar",
@@ -1375,186 +1381,189 @@
       "knowledgeBase": "Bilgi Kutuphanesi",
       "agentMemoryShort": "Hafiza",
       "schedulesShort": "Takvim",
+      "skillsShort": "Yetenekler",
+      "libraryShort": "Kutuphane",
+      "dashboardShort": "Panel",
       "usageShort": "Kullanim"
     },
     "session": {
-      "untitled": "Başlıksız sohbet",
-      "invalid": "Geçersiz tarih",
-      "yesterday": "Dün"
+      "untitled": "BaÃ…Å¸lÃ„Â±ksÃ„Â±z sohbet",
+      "invalid": "GeÃƒÂ§ersiz tarih",
+      "yesterday": "DÃƒÂ¼n"
     },
     "channelSession": {
       "deleteTitle": "Kanal oturumu silinsin mi?",
-      "deleteDescription": "Bu sohbet bir kanala bağlı. Silerseniz gelecekteki mesajlar uygulamada görünmez. Kanala bağlı kalırken yeni bir oturum başlatmak için arşivleyip sıfırlayabilirsiniz.",
-      "archiveReset": "Arşivle ve sıfırla",
+      "deleteDescription": "Bu sohbet bir kanala baÃ„Å¸lÃ„Â±. Silerseniz gelecekteki mesajlar uygulamada gÃƒÂ¶rÃƒÂ¼nmez. Kanala baÃ„Å¸lÃ„Â± kalÃ„Â±rken yeni bir oturum baÃ…Å¸latmak iÃƒÂ§in arÃ…Å¸ivleyip sÃ„Â±fÃ„Â±rlayabilirsiniz.",
+      "archiveReset": "ArÃ…Å¸ivle ve sÃ„Â±fÃ„Â±rla",
       "deleteAnyway": "Yine de sil",
-      "resetError": "Kanal oturumu sıfırlanamadı"
+      "resetError": "Kanal oturumu sÃ„Â±fÃ„Â±rlanamadÃ„Â±"
     },
     "scheduledRun": {
-      "active": "{taskName} adlı zamanlanmış görev çalışıyor",
-      "description": "Çalışmayı canlı takip edebilir veya gerekirse ajanı durdurabilirsiniz.",
-      "stop": "Çalışmayı Durdur",
+      "active": "{taskName} adlÃ„Â± zamanlanmÃ„Â±Ã…Å¸ gÃƒÂ¶rev ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±yor",
+      "description": "Ãƒâ€¡alÃ„Â±Ã…Å¸mayÃ„Â± canlÃ„Â± takip edebilir veya gerekirse ajanÃ„Â± durdurabilirsiniz.",
+      "stop": "Ãƒâ€¡alÃ„Â±Ã…Å¸mayÃ„Â± Durdur",
       "stopping": "Durduruluyor...",
-      "cancelled": "Zamanlanmış görev iptal edildi",
-      "cancelError": "Görev iptal edilemedi",
-      "startedAt": "{time} itibarıyla başladı"
+      "cancelled": "ZamanlanmÃ„Â±Ã…Å¸ gÃƒÂ¶rev iptal edildi",
+      "cancelError": "GÃƒÂ¶rev iptal edilemedi",
+      "startedAt": "{time} itibarÃ„Â±yla baÃ…Å¸ladÃ„Â±"
     },
-    "processingInBackground": "Ajan arka planda işliyor",
-    "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
+    "processingInBackground": "Ajan arka planda iÃ…Å¸liyor",
+    "processingInBackgroundHint": "YanÃ„Â±t hazÃ„Â±r olduÃ„Å¸unda otomatik gÃƒÂ¶rÃƒÂ¼necek",
     "backgroundRun": {
-      "stop": "Çalışmayı Durdur",
+      "stop": "Ãƒâ€¡alÃ„Â±Ã…Å¸mayÃ„Â± Durdur",
       "stopping": "Durduruluyor...",
-      "cancelled": "Arka plan çalışması iptal edildi",
-      "cancelError": "Arka plan çalışması iptal edilemedi",
-      "zombieHint": "Bu çalışma takılmış görünüyor. Zorla durdurabilirsiniz.",
+      "cancelled": "Arka plan ÃƒÂ§alÃ„Â±Ã…Å¸masÃ„Â± iptal edildi",
+      "cancelError": "Arka plan ÃƒÂ§alÃ„Â±Ã…Å¸masÃ„Â± iptal edilemedi",
+      "zombieHint": "Bu ÃƒÂ§alÃ„Â±Ã…Å¸ma takÃ„Â±lmÃ„Â±Ã…Å¸ gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼yor. Zorla durdurabilirsiniz.",
       "forceStop": "Zorla Durdur"
     },
-    "processingComplete": "Yanıt hazır",
+    "processingComplete": "YanÃ„Â±t hazÃ„Â±r",
     "contextWindow": {
       "status": {
-        "safe": "Bağlam kullanımı: {percentage}",
-        "warning": "Bağlam penceresi doluyor: {percentage}",
-        "critical": "Bağlam penceresi sınıra yaklaşıyor: {percentage}",
-        "exceeded": "Bağlam penceresi sınırı aşıldı"
+        "safe": "BaÃ„Å¸lam kullanÃ„Â±mÃ„Â±: {percentage}",
+        "warning": "BaÃ„Å¸lam penceresi doluyor: {percentage}",
+        "critical": "BaÃ„Å¸lam penceresi sÃ„Â±nÃ„Â±ra yaklaÃ…Å¸Ã„Â±yor: {percentage}",
+        "exceeded": "BaÃ„Å¸lam penceresi sÃ„Â±nÃ„Â±rÃ„Â± aÃ…Å¸Ã„Â±ldÃ„Â±"
       },
       "indicator": {
-        "tooltip": "Bağlam: {current}/{max} ({percentage})",
-        "compactNow": "Şimdi sıkıştır",
-        "newSession": "Yeni oturum başlat"
+        "tooltip": "BaÃ„Å¸lam: {current}/{max} ({percentage})",
+        "compactNow": "Ã…Å¾imdi sÃ„Â±kÃ„Â±Ã…Å¸tÃ„Â±r",
+        "newSession": "Yeni oturum baÃ…Å¸lat"
       },
       "blocked": {
-        "title": "Bağlam penceresi sınırı aşıldı",
-        "message": "Konuşma, mevcut modelin bağlam penceresi için çok uzun.",
-        "compacting": "Konuşma geçmişi sıkıştırılmaya çalışılıyor...",
-        "compactSuccess": "{messagesCompacted} mesaj sıkıştırıldı, {tokensFreed} token serbest bırakıldı",
-        "compactFailed": "Otomatik sıkıştırma yeterli alan açamadı.",
+        "title": "BaÃ„Å¸lam penceresi sÃ„Â±nÃ„Â±rÃ„Â± aÃ…Å¸Ã„Â±ldÃ„Â±",
+        "message": "KonuÃ…Å¸ma, mevcut modelin baÃ„Å¸lam penceresi iÃƒÂ§in ÃƒÂ§ok uzun.",
+        "compacting": "KonuÃ…Å¸ma geÃƒÂ§miÃ…Å¸i sÃ„Â±kÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lmaya ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±lÃ„Â±yor...",
+        "compactSuccess": "{messagesCompacted} mesaj sÃ„Â±kÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±ldÃ„Â±, {tokensFreed} token serbest bÃ„Â±rakÃ„Â±ldÃ„Â±",
+        "compactFailed": "Otomatik sÃ„Â±kÃ„Â±Ã…Å¸tÃ„Â±rma yeterli alan aÃƒÂ§amadÃ„Â±.",
         "actions": {
-          "tryCompact": "Sıkıştırmayı dene",
-          "newSession": "Yeni oturum başlat",
-          "switchModel": "Daha büyük modele geç"
+          "tryCompact": "SÃ„Â±kÃ„Â±Ã…Å¸tÃ„Â±rmayÃ„Â± dene",
+          "newSession": "Yeni oturum baÃ…Å¸lat",
+          "switchModel": "Daha bÃƒÂ¼yÃƒÂ¼k modele geÃƒÂ§"
         }
       }
     }
   },
   "channels": {
-    "title": "{name} için kanal gelen kutusu",
-    "description": "Bu ajanı dış mesajlaşma kanallarına bağlayarak tüm gelen kutularınızda yanıt vermesini sağlayın.",
-    "securityNote": "Kimlik bilgileri bu cihazda kalır ve yalnızca kanal bağlantısını doğrulamak için kullanılır.",
-    "confirmDelete": "Bu kanal bağlantısını kaldırılsın mı? Ajan bu kanaldan ayrılır.",
+    "title": "{name} iÃƒÂ§in kanal gelen kutusu",
+    "description": "Bu ajanÃ„Â± dÃ„Â±Ã…Å¸ mesajlaÃ…Å¸ma kanallarÃ„Â±na baÃ„Å¸layarak tÃƒÂ¼m gelen kutularÃ„Â±nÃ„Â±zda yanÃ„Â±t vermesini saÃ„Å¸layÃ„Â±n.",
+    "securityNote": "Kimlik bilgileri bu cihazda kalÃ„Â±r ve yalnÃ„Â±zca kanal baÃ„Å¸lantÃ„Â±sÃ„Â±nÃ„Â± doÃ„Å¸rulamak iÃƒÂ§in kullanÃ„Â±lÃ„Â±r.",
+    "confirmDelete": "Bu kanal baÃ„Å¸lantÃ„Â±sÃ„Â±nÃ„Â± kaldÃ„Â±rÃ„Â±lsÃ„Â±n mÃ„Â±? Ajan bu kanaldan ayrÃ„Â±lÃ„Â±r.",
     "types": {
       "whatsapp": "WhatsApp",
       "telegram": "Telegram",
       "slack": "Slack"
     },
     "status": {
-      "connected": "Bağlı",
-      "connecting": "Bağlanıyor",
-      "disconnected": "Bağlı değil",
+      "connected": "BaÃ„Å¸lÃ„Â±",
+      "connecting": "BaÃ„Å¸lanÃ„Â±yor",
+      "disconnected": "BaÃ„Å¸lÃ„Â± deÃ„Å¸il",
       "error": "Hata"
     },
     "actions": {
-      "edit": "Düzenle",
-      "connect": "Bağlan",
-      "disconnect": "Bağlantıyı Kes"
+      "edit": "DÃƒÂ¼zenle",
+      "connect": "BaÃ„Å¸lan",
+      "disconnect": "BaÃ„Å¸lantÃ„Â±yÃ„Â± Kes"
     },
     "connections": {
-      "title": "Aktif Bağlantılar",
-      "empty": "Henüz kanal bağlanmadı.",
-      "loading": "Kanallar yükleniyor...",
-      "connectedCount": "{count} bağlı"
+      "title": "Aktif BaÃ„Å¸lantÃ„Â±lar",
+      "empty": "HenÃƒÂ¼z kanal baÃ„Å¸lanmadÃ„Â±.",
+      "loading": "Kanallar yÃƒÂ¼kleniyor...",
+      "connectedCount": "{count} baÃ„Å¸lÃ„Â±"
     },
     "form": {
       "createTitle": "Kanal Ekle",
-      "createDescription": "Bir kanal seçin ve gerekli bilgileri girin.",
-      "editTitle": "Bağlantıyı Güncelle",
-      "editDescription": "Bağlantı ayrıntılarını düzenleyin veya kimlik bilgilerini yenileyin.",
-      "channelType": "Kanal türü",
-      "displayName": "Görünen ad",
-      "displayNamePlaceholder": "Bu bağlantı için isteğe bağlı etiket",
-      "telegramToken": "Telegram bot tokenı",
+      "createDescription": "Bir kanal seÃƒÂ§in ve gerekli bilgileri girin.",
+      "editTitle": "BaÃ„Å¸lantÃ„Â±yÃ„Â± GÃƒÂ¼ncelle",
+      "editDescription": "BaÃ„Å¸lantÃ„Â± ayrÃ„Â±ntÃ„Â±larÃ„Â±nÃ„Â± dÃƒÂ¼zenleyin veya kimlik bilgilerini yenileyin.",
+      "channelType": "Kanal tÃƒÂ¼rÃƒÂ¼",
+      "displayName": "GÃƒÂ¶rÃƒÂ¼nen ad",
+      "displayNamePlaceholder": "Bu baÃ„Å¸lantÃ„Â± iÃƒÂ§in isteÃ„Å¸e baÃ„Å¸lÃ„Â± etiket",
+      "telegramToken": "Telegram bot tokenÃ„Â±",
       "telegramTokenPlaceholder": "123456:ABCDEF...",
-      "slackBotToken": "Slack bot tokenı",
+      "slackBotToken": "Slack bot tokenÃ„Â±",
       "slackBotTokenPlaceholder": "xoxb-...",
-      "slackAppToken": "Slack app tokenı",
+      "slackAppToken": "Slack app tokenÃ„Â±",
       "slackAppTokenPlaceholder": "xapp-...",
-      "slackSigningSecret": "Slack imza sırrı",
-      "slackSigningSecretPlaceholder": "İmza sırrınız",
-      "keepExisting": "Boş bırakırsanız mevcut bilgiler korunur.",
-      "create": "Oluştur ve bağlan",
-      "update": "Güncelle"
+      "slackSigningSecret": "Slack imza sÃ„Â±rrÃ„Â±",
+      "slackSigningSecretPlaceholder": "Ã„Â°mza sÃ„Â±rrÃ„Â±nÃ„Â±z",
+      "keepExisting": "BoÃ…Å¸ bÃ„Â±rakÃ„Â±rsanÃ„Â±z mevcut bilgiler korunur.",
+      "create": "OluÃ…Å¸tur ve baÃ„Å¸lan",
+      "update": "GÃƒÂ¼ncelle"
     },
     "whatsapp": {
-      "connectHint": "WhatsApp QR ile giriş yapar. Bağlanın ve QR kodunu WhatsApp mobil uygulamasıyla tarayın.",
-      "selfChat": "Kendi hesabınla sohbeti aç (Bağlı telefondan kendine mesaj).",
+      "connectHint": "WhatsApp QR ile giriÃ…Å¸ yapar. BaÃ„Å¸lanÃ„Â±n ve QR kodunu WhatsApp mobil uygulamasÃ„Â±yla tarayÃ„Â±n.",
+      "selfChat": "Kendi hesabÃ„Â±nla sohbeti aÃƒÂ§ (BaÃ„Å¸lÃ„Â± telefondan kendine mesaj).",
       "qrAlt": "WhatsApp QR kodu",
-      "qrHelp": "Telefonunuzdan WhatsApp'ta Bağlı Cihazlar bölümüne gidip bu kodu tarayın."
+      "qrHelp": "Telefonunuzdan WhatsApp'ta BaÃ„Å¸lÃ„Â± Cihazlar bÃƒÂ¶lÃƒÂ¼mÃƒÂ¼ne gidip bu kodu tarayÃ„Â±n."
     },
     "errors": {
-      "load": "Kanal bağlantıları yüklenemedi.",
-      "create": "Bağlantı oluşturulamadı.",
-      "update": "Bağlantı güncellenemedi.",
-      "delete": "Bağlantı silinemedi.",
-      "save": "Bağlantı kaydedilemedi."
+      "load": "Kanal baÃ„Å¸lantÃ„Â±larÃ„Â± yÃƒÂ¼klenemedi.",
+      "create": "BaÃ„Å¸lantÃ„Â± oluÃ…Å¸turulamadÃ„Â±.",
+      "update": "BaÃ„Å¸lantÃ„Â± gÃƒÂ¼ncellenemedi.",
+      "delete": "BaÃ„Å¸lantÃ„Â± silinemedi.",
+      "save": "BaÃ„Å¸lantÃ„Â± kaydedilemedi."
     },
     "notices": {
-      "created": "Kanal bağlandı.",
-      "updated": "Bağlantı güncellendi.",
-      "deleted": "Bağlantı kaldırıldı.",
-      "slackScopesHint": "Slack uygulamanız tam işlevsellik için şu bot kapsamlarına ihtiyaç duyar: messages:read, messages:write, channels:read, files:read. Resimler gelmediyse api.slack.com'daki uygulamanızı kontrol edin."
+      "created": "Kanal baÃ„Å¸landÃ„Â±.",
+      "updated": "BaÃ„Å¸lantÃ„Â± gÃƒÂ¼ncellendi.",
+      "deleted": "BaÃ„Å¸lantÃ„Â± kaldÃ„Â±rÃ„Â±ldÃ„Â±.",
+      "slackScopesHint": "Slack uygulamanÃ„Â±z tam iÃ…Å¸levsellik iÃƒÂ§in Ã…Å¸u bot kapsamlarÃ„Â±na ihtiyaÃƒÂ§ duyar: messages:read, messages:write, channels:read, files:read. Resimler gelmediyse api.slack.com'daki uygulamanÃ„Â±zÃ„Â± kontrol edin."
     }
   },
   "usage": {
-    "title": "Kullanım ve Analitik",
-    "subtitle": "Sohbet oturumlarınız için token kullanımı, araç çağrıları ve medya üretimini takip edin.",
-    "loading": "Kullanım yükleniyor...",
+    "title": "KullanÃ„Â±m ve Analitik",
+    "subtitle": "Sohbet oturumlarÃ„Â±nÃ„Â±z iÃƒÂ§in token kullanÃ„Â±mÃ„Â±, araÃƒÂ§ ÃƒÂ§aÃ„Å¸rÃ„Â±larÃ„Â± ve medya ÃƒÂ¼retimini takip edin.",
+    "loading": "KullanÃ„Â±m yÃƒÂ¼kleniyor...",
     "cta": {
-      "observability": "Gözlemlenebilirlik Paneli"
+      "observability": "GÃƒÂ¶zlemlenebilirlik Paneli"
     },
     "errors": {
-      "loadSessions": "Oturumlar yüklenemedi"
+      "loadSessions": "Oturumlar yÃƒÂ¼klenemedi"
     },
     "sessions": {
       "title": "Oturumlar",
-      "empty": "Henüz oturum yok. Kullanım analizini görmek için bir sohbet başlatın.",
-      "untitled": "Başlıksız oturum",
-      "invalidDate": "Geçersiz tarih",
-      "select": "Detaylı kullanım ve analitik için soldan bir oturum seçin.",
-      "started": "Başlangıç {date}"
+      "empty": "HenÃƒÂ¼z oturum yok. KullanÃ„Â±m analizini gÃƒÂ¶rmek iÃƒÂ§in bir sohbet baÃ…Å¸latÃ„Â±n.",
+      "untitled": "BaÃ…Å¸lÃ„Â±ksÃ„Â±z oturum",
+      "invalidDate": "GeÃƒÂ§ersiz tarih",
+      "select": "DetaylÃ„Â± kullanÃ„Â±m ve analitik iÃƒÂ§in soldan bir oturum seÃƒÂ§in.",
+      "started": "BaÃ…Å¸langÃ„Â±ÃƒÂ§ {date}"
     },
     "analytics": {
-      "loading": "Oturum analizi hesaplanıyor...",
+      "loading": "Oturum analizi hesaplanÃ„Â±yor...",
       "cards": {
         "tokens": {
-          "title": "Token kullanımı",
+          "title": "Token kullanÃ„Â±mÃ„Â±",
           "unit": "token",
-          "detail": "{input} giriş • {output} çıkış"
+          "detail": "{input} giriÃ…Å¸ Ã¢â‚¬Â¢ {output} ÃƒÂ§Ã„Â±kÃ„Â±Ã…Å¸"
         },
         "cost": {
           "title": "Tahmini maliyet (Claude Sonnet 4.5)",
-          "detail": "{input} giriş • {output} çıkış"
+          "detail": "{input} giriÃ…Å¸ Ã¢â‚¬Â¢ {output} ÃƒÂ§Ã„Â±kÃ„Â±Ã…Å¸"
         },
         "stats": {
           "title": "Oturum istatistikleri",
           "messages": "{count} mesaj",
-          "breakdown": "{assistant} asistan • {user} kullanıcı",
-          "duration": "Süre ~{seconds}sn"
+          "breakdown": "{assistant} asistan Ã¢â‚¬Â¢ {user} kullanÃ„Â±cÃ„Â±",
+          "duration": "SÃƒÂ¼re ~{seconds}sn"
         },
         "cache": {
-          "title": "Önbellek tasarrufu",
-          "detail": "{read} okunan • {write} yazılan"
+          "title": "Ãƒâ€“nbellek tasarrufu",
+          "detail": "{read} okunan Ã¢â‚¬Â¢ {write} yazÃ„Â±lan"
         }
       },
       "tools": {
-        "title": "Araçlar",
-        "total": "{count} çağrı",
-        "empty": "Bu oturumda araç kullanılmadı.",
-        "calls": "{count} çağrı",
+        "title": "AraÃƒÂ§lar",
+        "total": "{count} ÃƒÂ§aÃ„Å¸rÃ„Â±",
+        "empty": "Bu oturumda araÃƒÂ§ kullanÃ„Â±lmadÃ„Â±.",
+        "calls": "{count} ÃƒÂ§aÃ„Å¸rÃ„Â±",
         "avg": "ort {ms} ms"
       },
       "media": {
-        "title": "Medya üretimi",
-        "total": "{images} görsel • {videos} video",
-        "empty": "Bu oturumda görsel veya video üretilmedi.",
-        "service": "{images} görsel • {videos} video"
+        "title": "Medya ÃƒÂ¼retimi",
+        "total": "{images} gÃƒÂ¶rsel Ã¢â‚¬Â¢ {videos} video",
+        "empty": "Bu oturumda gÃƒÂ¶rsel veya video ÃƒÂ¼retilmedi.",
+        "service": "{images} gÃƒÂ¶rsel Ã¢â‚¬Â¢ {videos} video"
       }
     }
   },
@@ -1562,173 +1571,173 @@
     "pending": "Beklemede",
     "auto": "Otomatik",
     "manual": "Manuel",
-    "importance": "Önem: %{percent}",
-    "showDetails": "Detayları göster",
-    "hideDetails": "Detayları gizle",
-    "reasoning": "Gerekçe:",
+    "importance": "Ãƒâ€“nem: %{percent}",
+    "showDetails": "DetaylarÃ„Â± gÃƒÂ¶ster",
+    "hideDetails": "DetaylarÃ„Â± gizle",
+    "reasoning": "GerekÃƒÂ§e:",
     "approve": "Onayla",
     "saveAndApprove": "Kaydet ve Onayla",
     "reject": "Reddet",
     "delete": "Sil",
-    "edit": "Düzenle",
-    "cancel": "İptal",
+    "edit": "DÃƒÂ¼zenle",
+    "cancel": "Ã„Â°ptal",
     "form": {
-      "title": "Hafıza Ekle",
+      "title": "HafÃ„Â±za Ekle",
       "category": "Kategori",
-      "content": "Hafıza İçeriği",
-      "placeholder": "örn., Kullanıcı tüm video içerikleri için 16:9 en-boy oranını tercih ediyor",
-      "hint": "Spesifik ve uygulanabilir olun. Bu, ajanın sistem promptuna enjekte edilecektir.",
+      "content": "HafÃ„Â±za Ã„Â°ÃƒÂ§eriÃ„Å¸i",
+      "placeholder": "ÃƒÂ¶rn., KullanÃ„Â±cÃ„Â± tÃƒÂ¼m video iÃƒÂ§erikleri iÃƒÂ§in 16:9 en-boy oranÃ„Â±nÃ„Â± tercih ediyor",
+      "hint": "Spesifik ve uygulanabilir olun. Bu, ajanÃ„Â±n sistem promptuna enjekte edilecektir.",
       "adding": "Ekleniyor...",
-      "add": "Hafıza Ekle"
+      "add": "HafÃ„Â±za Ekle"
     },
     "page": {
-      "title": "Ajan Hafızası",
-      "addButton": "Hafıza Ekle",
-      "approved": "onaylandı",
+      "title": "Ajan HafÃ„Â±zasÃ„Â±",
+      "addButton": "HafÃ„Â±za Ekle",
+      "approved": "onaylandÃ„Â±",
       "pending": "beklemede",
       "rejected": "reddedildi",
       "filters": {
-        "all": "Tümü",
+        "all": "TÃƒÂ¼mÃƒÂ¼",
         "pending": "Beklemede",
-        "approved": "Onaylı"
+        "approved": "OnaylÃ„Â±"
       },
       "empty": {
-        "title": "Henüz hafıza yok",
-        "pending": "İncelenecek bekleyen hafıza yok. Hafızalar konuşmalardan otomatik olarak çıkarılır.",
-        "approved": "Onaylanmış hafıza yok. Bekleyen hafızaları onaylayın veya manuel olarak ekleyin.",
-        "all": "Hafızalar konuşmalardan otomatik olarak çıkarılır. Manuel olarak da ekleyebilirsiniz."
+        "title": "HenÃƒÂ¼z hafÃ„Â±za yok",
+        "pending": "Ã„Â°ncelenecek bekleyen hafÃ„Â±za yok. HafÃ„Â±zalar konuÃ…Å¸malardan otomatik olarak ÃƒÂ§Ã„Â±karÃ„Â±lÃ„Â±r.",
+        "approved": "OnaylanmÃ„Â±Ã…Å¸ hafÃ„Â±za yok. Bekleyen hafÃ„Â±zalarÃ„Â± onaylayÃ„Â±n veya manuel olarak ekleyin.",
+        "all": "HafÃ„Â±zalar konuÃ…Å¸malardan otomatik olarak ÃƒÂ§Ã„Â±karÃ„Â±lÃ„Â±r. Manuel olarak da ekleyebilirsiniz."
       },
-      "viewAll": "Tüm hafızaları görüntüle",
+      "viewAll": "TÃƒÂ¼m hafÃ„Â±zalarÃ„Â± gÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼le",
       "errors": {
-        "notFound": "Ajan bulunamadı",
-        "forbidden": "Bu ajana erişiminiz yok",
-        "loadFailed": "Ajan yüklenemedi"
+        "notFound": "Ajan bulunamadÃ„Â±",
+        "forbidden": "Bu ajana eriÃ…Å¸iminiz yok",
+        "loadFailed": "Ajan yÃƒÂ¼klenemedi"
       },
-      "goHome": "Ana Sayfaya Dön"
+      "goHome": "Ana Sayfaya DÃƒÂ¶n"
     },
     "categories": {
       "visual_preferences": {
-        "label": "Görsel Tercihler",
-        "description": "Renkler, stiller, estetik, en-boy oranları, tasarım tercihleri"
+        "label": "GÃƒÂ¶rsel Tercihler",
+        "description": "Renkler, stiller, estetik, en-boy oranlarÃ„Â±, tasarÃ„Â±m tercihleri"
       },
       "communication_style": {
-        "label": "İletişim Tarzı",
-        "description": "Ton, resmiyet, dil tercihleri, yanıt formatı"
+        "label": "Ã„Â°letiÃ…Å¸im TarzÃ„Â±",
+        "description": "Ton, resmiyet, dil tercihleri, yanÃ„Â±t formatÃ„Â±"
       },
       "workflow_patterns": {
-        "label": "İş Akışı Kalıpları",
-        "description": "Kullanıcı alışkanlıkları, yineleme kalıpları, araç dizileri"
+        "label": "Ã„Â°Ã…Å¸ AkÃ„Â±Ã…Å¸Ã„Â± KalÃ„Â±plarÃ„Â±",
+        "description": "KullanÃ„Â±cÃ„Â± alÃ„Â±Ã…Å¸kanlÃ„Â±klarÃ„Â±, yineleme kalÃ„Â±plarÃ„Â±, araÃƒÂ§ dizileri"
       },
       "domain_knowledge": {
         "label": "Alan Bilgisi",
-        "description": "İş gerçekleri, terminoloji, sektör bağlamı"
+        "description": "Ã„Â°Ã…Å¸ gerÃƒÂ§ekleri, terminoloji, sektÃƒÂ¶r baÃ„Å¸lamÃ„Â±"
       },
       "business_rules": {
-        "label": "İş Kuralları",
-        "description": "Gereksinimler, kısıtlamalar, marka kuralları, politikalar"
+        "label": "Ã„Â°Ã…Å¸ KurallarÃ„Â±",
+        "description": "Gereksinimler, kÃ„Â±sÃ„Â±tlamalar, marka kurallarÃ„Â±, politikalar"
       }
     }
   },
   "admin": {
     "observability": {
-      "title": "Gözlemlenebilirlik Paneli",
-      "subtitle": "Ajan çalıştırmalarını, araç yürütmelerini ve performans metriklerini izleyin",
+      "title": "GÃƒÂ¶zlemlenebilirlik Paneli",
+      "subtitle": "Ajan ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rmalarÃ„Â±nÃ„Â±, araÃƒÂ§ yÃƒÂ¼rÃƒÂ¼tmelerini ve performans metriklerini izleyin",
       "tabs": {
-        "runs": "Çalıştırmalar",
+        "runs": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rmalar",
         "analytics": "Analizler"
       },
       "status": {
-        "running": "Çalışıyor",
-        "succeeded": "Başarılı",
-        "failed": "Başarısız",
-        "cancelled": "İptal Edildi"
+        "running": "Ãƒâ€¡alÃ„Â±Ã…Å¸Ã„Â±yor",
+        "succeeded": "BaÃ…Å¸arÃ„Â±lÃ„Â±",
+        "failed": "BaÃ…Å¸arÃ„Â±sÃ„Â±z",
+        "cancelled": "Ã„Â°ptal Edildi"
       },
       "runs": {
         "filters": "Filtreler",
         "refresh": "Yenile",
-        "searchPlaceholder": "Oturum veya kullanıcı ID'si ara...",
+        "searchPlaceholder": "Oturum veya kullanÃ„Â±cÃ„Â± ID'si ara...",
         "pipeline": "Pipeline",
         "status": "Durum",
-        "from": "Başlangıç",
-        "to": "Bitiş",
-        "all": "Tümü",
+        "from": "BaÃ…Å¸langÃ„Â±ÃƒÂ§",
+        "to": "BitiÃ…Å¸",
+        "all": "TÃƒÂ¼mÃƒÂ¼",
         "clear": "Temizle",
-        "noRunsFound": "Çalıştırma bulunamadı",
+        "noRunsFound": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma bulunamadÃ„Â±",
         "table": {
           "status": "Durum",
           "pipeline": "Pipeline",
-          "started": "Başlangıç",
-          "duration": "Süre",
-          "tools": "Araçlar",
+          "started": "BaÃ…Å¸langÃ„Â±ÃƒÂ§",
+          "duration": "SÃƒÂ¼re",
+          "tools": "AraÃƒÂ§lar",
           "tokens": "Tokenlar",
-          "cache": "Önbellek",
+          "cache": "Ãƒâ€“nbellek",
           "session": "Oturum",
-          "actions": "İşlemler"
+          "actions": "Ã„Â°Ã…Å¸lemler"
         },
-        "viewDetails": "Detayları Gör",
-        "showing": "{total} çalıştırmadan {count} tanesi gösteriliyor",
+        "viewDetails": "DetaylarÃ„Â± GÃƒÂ¶r",
+        "showing": "{total} ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rmadan {count} tanesi gÃƒÂ¶steriliyor",
         "page": "Sayfa {current} / {total}"
       },
       "analytics": {
-        "period": "Dönem",
+        "period": "DÃƒÂ¶nem",
         "last24Hours": "Son 24 saat",
-        "last7Days": "Son 7 gün",
-        "last30Days": "Son 30 gün",
-        "last90Days": "Son 90 gün",
+        "last7Days": "Son 7 gÃƒÂ¼n",
+        "last30Days": "Son 30 gÃƒÂ¼n",
+        "last90Days": "Son 90 gÃƒÂ¼n",
         "refresh": "Yenile",
-        "totalRuns": "Toplam Çalıştırma",
-        "lastNDays": "Son {days} gün",
-        "successRate": "Başarı Oranı",
-        "succeeded": "{count} başarılı",
-        "failedRuns": "Başarısız Çalıştırmalar",
-        "totalFailures": "Toplam başarısızlık",
-        "avgDuration": "Ort. Süre",
-        "perSuccessfulRun": "Başarılı çalıştırma başına",
-        "cacheSavings": "Önbellek tasarrufu",
+        "totalRuns": "Toplam Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma",
+        "lastNDays": "Son {days} gÃƒÂ¼n",
+        "successRate": "BaÃ…Å¸arÃ„Â± OranÃ„Â±",
+        "succeeded": "{count} baÃ…Å¸arÃ„Â±lÃ„Â±",
+        "failedRuns": "BaÃ…Å¸arÃ„Â±sÃ„Â±z Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rmalar",
+        "totalFailures": "Toplam baÃ…Å¸arÃ„Â±sÃ„Â±zlÃ„Â±k",
+        "avgDuration": "Ort. SÃƒÂ¼re",
+        "perSuccessfulRun": "BaÃ…Å¸arÃ„Â±lÃ„Â± ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rma baÃ…Å¸Ã„Â±na",
+        "cacheSavings": "Ãƒâ€“nbellek tasarrufu",
         "cacheReadTokens": "{count} okunan token",
-        "cacheWrites": "Önbellek yazımı",
+        "cacheWrites": "Ãƒâ€“nbellek yazÃ„Â±mÃ„Â±",
         "tokens": "token",
-        "runsByPipeline": "Pipeline'a Göre Çalıştırmalar",
+        "runsByPipeline": "Pipeline'a GÃƒÂ¶re Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rmalar",
         "noData": "Veri yok",
-        "toolUsage": "Araç Kullanımı",
-        "noToolCalls": "Araç çağrısı kaydedilmedi",
-        "calls": "{count} çağrı",
+        "toolUsage": "AraÃƒÂ§ KullanÃ„Â±mÃ„Â±",
+        "noToolCalls": "AraÃƒÂ§ ÃƒÂ§aÃ„Å¸rÃ„Â±sÃ„Â± kaydedilmedi",
+        "calls": "{count} ÃƒÂ§aÃ„Å¸rÃ„Â±",
         "avg": "ort {duration}",
-        "toolErrors": "Araç Hataları",
-        "noErrors": "Araç hatası yok 🎉",
+        "toolErrors": "AraÃƒÂ§ HatalarÃ„Â±",
+        "noErrors": "AraÃƒÂ§ hatasÃ„Â± yok Ã°Å¸Å½â€°",
         "errors": "{count} hata",
-        "dailyTrends": "Günlük Trendler",
-        "failedToLoad": "Analizler yüklenemedi"
+        "dailyTrends": "GÃƒÂ¼nlÃƒÂ¼k Trendler",
+        "failedToLoad": "Analizler yÃƒÂ¼klenemedi"
       },
       "details": {
-        "backToDashboard": "Panele Dön",
-        "runId": "Çalıştırma ID",
-        "exportJson": "JSON Dışa Aktar",
-        "runDetails": "Çalıştırma Detayları",
-        "started": "Başlangıç",
+        "backToDashboard": "Panele DÃƒÂ¶n",
+        "runId": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma ID",
+        "exportJson": "JSON DÃ„Â±Ã…Å¸a Aktar",
+        "runDetails": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma DetaylarÃ„Â±",
+        "started": "BaÃ…Å¸langÃ„Â±ÃƒÂ§",
         "completed": "Tamamlanma",
-        "duration": "Süre",
+        "duration": "SÃƒÂ¼re",
         "trigger": "Tetikleyici",
         "session": "Oturum",
         "character": "Karakter",
-        "tokenUsage": "Token Kullanımı",
-        "inputTokens": "Giriş Tokenları",
-        "outputTokens": "Çıkış Tokenları",
+        "tokenUsage": "Token KullanÃ„Â±mÃ„Â±",
+        "inputTokens": "GiriÃ…Å¸ TokenlarÃ„Â±",
+        "outputTokens": "Ãƒâ€¡Ã„Â±kÃ„Â±Ã…Å¸ TokenlarÃ„Â±",
         "total": "Toplam",
-        "cacheUsage": "Önbellek Kullanımı",
+        "cacheUsage": "Ãƒâ€“nbellek KullanÃ„Â±mÃ„Â±",
         "cacheReadTokens": "Okunan Tokenlar",
-        "cacheWriteTokens": "Yazılan Tokenlar",
-        "cacheSavings": "Önbellek Tasarrufu",
-        "executionStats": "Yürütme İstatistikleri",
+        "cacheWriteTokens": "YazÃ„Â±lan Tokenlar",
+        "cacheSavings": "Ãƒâ€“nbellek Tasarrufu",
+        "executionStats": "YÃƒÂ¼rÃƒÂ¼tme Ã„Â°statistikleri",
         "messages": "Mesajlar",
-        "steps": "Adımlar",
-        "toolCalls": "Araç Çağrıları",
-        "toolEventsTimeline": "Araç Olayları Zaman Çizelgesi ({count} olay)",
-        "noToolEvents": "Araç olayı kaydedilmedi",
-        "toolEventsWillAppear": "Araç yürütmeleri burada görünecek",
-        "viewData": "Verileri gör ({count} alan)",
-        "runNotFound": "Çalıştırma bulunamadı",
-        "failedToLoad": "Çalıştırma yüklenemedi"
+        "steps": "AdÃ„Â±mlar",
+        "toolCalls": "AraÃƒÂ§ Ãƒâ€¡aÃ„Å¸rÃ„Â±larÃ„Â±",
+        "toolEventsTimeline": "AraÃƒÂ§ OlaylarÃ„Â± Zaman Ãƒâ€¡izelgesi ({count} olay)",
+        "noToolEvents": "AraÃƒÂ§ olayÃ„Â± kaydedilmedi",
+        "toolEventsWillAppear": "AraÃƒÂ§ yÃƒÂ¼rÃƒÂ¼tmeleri burada gÃƒÂ¶rÃƒÂ¼necek",
+        "viewData": "Verileri gÃƒÂ¶r ({count} alan)",
+        "runNotFound": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma bulunamadÃ„Â±",
+        "failedToLoad": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma yÃƒÂ¼klenemedi"
       }
     }
   },
@@ -1750,96 +1759,96 @@
     }
   },
   "schedules": {
-    "title": "Zamanlanmış Görevler",
-    "description": "{name} için otomatik görevler oluşturun",
-    "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
+    "title": "ZamanlanmÃ„Â±Ã…Å¸ GÃƒÂ¶revler",
+    "description": "{name} iÃƒÂ§in otomatik gÃƒÂ¶revler oluÃ…Å¸turun",
+    "pageDescription": "{name} iÃƒÂ§in tanÃ„Â±mlÃ„Â± bir programa gÃƒÂ¶re gÃƒÂ¶revler ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±n. Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma geÃƒÂ§miÃ…Å¸ini izleyin ve aktif iÃ…Å¸ akÃ„Â±Ã…Å¸larÃ„Â±nÃ„Â± yÃƒÂ¶netin.",
     "create": "Yeni Zamanlama",
     "newForm": {
       "delivery": {
         "label": "Teslimat",
-        "session": "Uygulama içi oturum",
-        "channel": "Slack veya Telegram kanalı",
-        "hint": "Sonuçları bağlı bir kanala gönderin veya uygulamada tutun.",
+        "session": "Uygulama iÃƒÂ§i oturum",
+        "channel": "Slack veya Telegram kanalÃ„Â±",
+        "hint": "SonuÃƒÂ§larÃ„Â± baÃ„Å¸lÃ„Â± bir kanala gÃƒÂ¶nderin veya uygulamada tutun.",
         "target": "Kanal Hedefi",
-        "targetPlaceholder": "Bir kanal konuşması seçin",
-        "empty": "Henüz Slack/Telegram konuşması yok",
-        "loadError": "Kanal hedefleri yüklenemedi",
+        "targetPlaceholder": "Bir kanal konuÃ…Å¸masÃ„Â± seÃƒÂ§in",
+        "empty": "HenÃƒÂ¼z Slack/Telegram konuÃ…Å¸masÃ„Â± yok",
+        "loadError": "Kanal hedefleri yÃƒÂ¼klenemedi",
         "thread": "Konu"
       },
       "validation": {
-        "deliveryTargetRequired": "Teslimat için bir kanal hedefi seçin"
+        "deliveryTargetRequired": "Teslimat iÃƒÂ§in bir kanal hedefi seÃƒÂ§in"
       }
     },
     "retry": "Tekrar Dene",
     "filters": {
       "search": "Zamanlamalarda ara...",
-      "allStatuses": "Tüm Durumlar",
+      "allStatuses": "TÃƒÂ¼m Durumlar",
       "active": "Aktif",
       "inactive": "Pasif",
-      "allPriorities": "Tüm Öncelikler",
-      "high": "Yüksek",
+      "allPriorities": "TÃƒÂ¼m Ãƒâ€“ncelikler",
+      "high": "YÃƒÂ¼ksek",
       "normal": "Normal",
-      "low": "Düşük"
+      "low": "DÃƒÂ¼Ã…Å¸ÃƒÂ¼k"
     },
     "empty": {
-      "title": "Henüz zamanlanmış görev yok",
-      "description": "Ajanınızı otomatikleştirmek için bir zamanlama oluşturun",
-      "action": "Zamanlama Oluştur"
+      "title": "HenÃƒÂ¼z zamanlanmÃ„Â±Ã…Å¸ gÃƒÂ¶rev yok",
+      "description": "AjanÃ„Â±nÃ„Â±zÃ„Â± otomatikleÃ…Å¸tirmek iÃƒÂ§in bir zamanlama oluÃ…Å¸turun",
+      "action": "Zamanlama OluÃ…Å¸tur"
     },
     "card": {
       "enabled": "Aktif",
-      "disabled": "Duraklatıldı",
+      "disabled": "DuraklatÃ„Â±ldÃ„Â±",
       "priority": {
-        "high": "Yüksek",
+        "high": "YÃƒÂ¼ksek",
         "normal": "Normal",
-        "low": "Düşük"
+        "low": "DÃƒÂ¼Ã…Å¸ÃƒÂ¼k"
       },
-      "cronDefault": "Özel zamanlama",
+      "cronDefault": "Ãƒâ€“zel zamanlama",
       "intervalMinutes": "Her {minutes} dakikada",
       "onceDefault": "Tek seferlik",
-      "lastRun": "Son çalışma",
-      "runNow": "Şimdi Çalıştır",
-      "history": "Geçmiş",
-      "recentRuns": "Son Çalışmalar",
-      "viewChat": "Sohbeti Görüntüle",
+      "lastRun": "Son ÃƒÂ§alÃ„Â±Ã…Å¸ma",
+      "runNow": "Ã…Å¾imdi Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+      "history": "GeÃƒÂ§miÃ…Å¸",
+      "recentRuns": "Son Ãƒâ€¡alÃ„Â±Ã…Å¸malar",
+      "viewChat": "Sohbeti GÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼le",
       "continueChat": "Devam Et",
-      "noSession": "Oturum oluşturulmadı",
-      "neverRun": "Hiç çalıştırılmadı"
+      "noSession": "Oturum oluÃ…Å¸turulmadÃ„Â±",
+      "neverRun": "HiÃƒÂ§ ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lmadÃ„Â±"
     },
     "form": {
-      "createTitle": "Zamanlama Oluştur",
-      "editTitle": "Zamanlamayı Düzenle",
+      "createTitle": "Zamanlama OluÃ…Å¸tur",
+      "editTitle": "ZamanlamayÃ„Â± DÃƒÂ¼zenle",
       "name": "Ad",
-      "namePlaceholder": "örn., Günlük Rapor",
-      "description": "Açıklama",
-      "descriptionPlaceholder": "Bu zamanlama ne yapıyor?",
-      "scheduleType": "Zamanlama Türü",
+      "namePlaceholder": "ÃƒÂ¶rn., GÃƒÂ¼nlÃƒÂ¼k Rapor",
+      "description": "AÃƒÂ§Ã„Â±klama",
+      "descriptionPlaceholder": "Bu zamanlama ne yapÃ„Â±yor?",
+      "scheduleType": "Zamanlama TÃƒÂ¼rÃƒÂ¼",
       "types": {
-        "cron": "Cron İfadesi",
-        "interval": "Sabit Aralık",
+        "cron": "Cron Ã„Â°fadesi",
+        "interval": "Sabit AralÃ„Â±k",
         "once": "Tek Seferlik"
       },
-      "intervalMinutes": "Aralık (dakika)",
-      "scheduledAt": "Çalışma Zamanı",
+      "intervalMinutes": "AralÃ„Â±k (dakika)",
+      "scheduledAt": "Ãƒâ€¡alÃ„Â±Ã…Å¸ma ZamanÃ„Â±",
       "timezone": "Saat Dilimi",
       "timezoneLocal": "Yerel Saat ({timezone})",
-      "timezoneDetected": "Cihazınızdan algılandı",
-      "timezoneLocalNote": "Görev mevcut saat diliminizde bu saatte çalışacak",
-      "timezoneExplicitNote": "Görev konumunuzdan bağımsız olarak her zaman {timezone} saatinde çalışacak",
-      "timezoneChanged": "Saat diliminiz {oldTimezone}'den {newTimezone}'e değişti. Bu zamanlamayı güncellemek ister misiniz?",
+      "timezoneDetected": "CihazÃ„Â±nÃ„Â±zdan algÃ„Â±landÃ„Â±",
+      "timezoneLocalNote": "GÃƒÂ¶rev mevcut saat diliminizde bu saatte ÃƒÂ§alÃ„Â±Ã…Å¸acak",
+      "timezoneExplicitNote": "GÃƒÂ¶rev konumunuzdan baÃ„Å¸Ã„Â±msÃ„Â±z olarak her zaman {timezone} saatinde ÃƒÂ§alÃ„Â±Ã…Å¸acak",
+      "timezoneChanged": "Saat diliminiz {oldTimezone}'den {newTimezone}'e deÃ„Å¸iÃ…Å¸ti. Bu zamanlamayÃ„Â± gÃƒÂ¼ncellemek ister misiniz?",
       "prompt": "Komut",
-      "promptPlaceholder": "Zamanlama tetiklendiğinde ajan ne yapmalı?",
-      "promptHint": "Bu komut zamanlama tetiklendiğinde ajana gönderilecek",
-      "priority": "Öncelik",
+      "promptPlaceholder": "Zamanlama tetiklendiÃ„Å¸inde ajan ne yapmalÃ„Â±?",
+      "promptHint": "Bu komut zamanlama tetiklendiÃ„Å¸inde ajana gÃƒÂ¶nderilecek",
+      "priority": "Ãƒâ€“ncelik",
       "priorities": {
-        "high": "Yüksek",
+        "high": "YÃƒÂ¼ksek",
         "normal": "Normal",
-        "low": "Düşük"
+        "low": "DÃƒÂ¼Ã…Å¸ÃƒÂ¼k"
       },
       "maxRetries": "Maks Deneme",
-      "create": "Zamanlama Oluştur",
-      "save": "Değişiklikleri Kaydet",
-      "cancel": "İptal",
+      "create": "Zamanlama OluÃ…Å¸tur",
+      "save": "DeÃ„Å¸iÃ…Å¸iklikleri Kaydet",
+      "cancel": "Ã„Â°ptal",
       "validation": {
         "required": "Ad ve komut gereklidir",
         "failed": "Zamanlama kaydedilemedi"
@@ -1847,139 +1856,139 @@
     },
     "cron": {
       "label": "Zamanlama",
-      "expression": "İfade",
+      "expression": "Ã„Â°fade",
       "presets": {
         "everyMinute": "Her dakika",
         "everyHour": "Her saat",
-        "daily": "Her gün saat 9'da",
+        "daily": "Her gÃƒÂ¼n saat 9'da",
         "weekly": "Her Pazartesi",
-        "monthly": "Her ayın 1'inde",
-        "custom": "Özel"
+        "monthly": "Her ayÃ„Â±n 1'inde",
+        "custom": "Ãƒâ€“zel"
       },
       "parts": {
         "minute": "Dk",
         "hour": "Saat",
-        "dayOfMonth": "Gün",
+        "dayOfMonth": "GÃƒÂ¼n",
         "month": "Ay",
         "dayOfWeek": "Hafta"
       },
       "readable": {
-        "everyMinute": "Her dakika çalışır",
-        "everyHour": "Her saat başı çalışır",
-        "dailyAt": "Her gün saat {hour}:00'da çalışır",
-        "weeklyAt": "Her {day} saat {hour}:00'da çalışır",
-        "monthlyAt": "Her ayın {day}. günü saat {hour}:00'da çalışır",
-        "custom": "Özel zamanlama"
+        "everyMinute": "Her dakika ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r",
+        "everyHour": "Her saat baÃ…Å¸Ã„Â± ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r",
+        "dailyAt": "Her gÃƒÂ¼n saat {hour}:00'da ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r",
+        "weeklyAt": "Her {day} saat {hour}:00'da ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r",
+        "monthlyAt": "Her ayÃ„Â±n {day}. gÃƒÂ¼nÃƒÂ¼ saat {hour}:00'da ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r",
+        "custom": "Ãƒâ€“zel zamanlama"
       }
     },
     "presets": {
-      "title": "Hızlı Başlangıç Şablonları",
-      "subtitle": "Hızlıca başlamak için bir şablon seçin",
-      "useTemplate": "Şablonu Kullan",
-      "createFromScratch": "Veya sıfırdan oluşturun →",
+      "title": "HÃ„Â±zlÃ„Â± BaÃ…Å¸langÃ„Â±ÃƒÂ§ Ã…Å¾ablonlarÃ„Â±",
+      "subtitle": "HÃ„Â±zlÃ„Â±ca baÃ…Å¸lamak iÃƒÂ§in bir Ã…Å¸ablon seÃƒÂ§in",
+      "useTemplate": "Ã…Å¾ablonu Kullan",
+      "createFromScratch": "Veya sÃ„Â±fÃ„Â±rdan oluÃ…Å¸turun Ã¢â€ â€™",
       "requiresIntegration": "{integration} entegrasyonu gerektirir",
-      "alternativeAvailable": "Bunun yerine {method} kullanılacak",
+      "alternativeAvailable": "Bunun yerine {method} kullanÃ„Â±lacak",
       "estimatedTime": "~{duration}",
       "help": {
-        "whatArePresets": "Zamanlama şablonları nedir?",
-        "explanation": "Şablonlar, yaygın iş akışları için tasarlanmış önceden yapılandırılmış zamanlamalardır. Optimize edilmiş zamanlama, komutlar ve ayarlar içerirler.",
-        "benefit1": "En iyi sonuçlar için önceden yapılandırılmış zamanlama",
-        "benefit2": "Uzmanlarca hazırlanmış yapay zeka komutları",
-        "benefit3": "Seçimden sonra tamamen özelleştirilebilir"
+        "whatArePresets": "Zamanlama Ã…Å¸ablonlarÃ„Â± nedir?",
+        "explanation": "Ã…Å¾ablonlar, yaygÃ„Â±n iÃ…Å¸ akÃ„Â±Ã…Å¸larÃ„Â± iÃƒÂ§in tasarlanmÃ„Â±Ã…Å¸ ÃƒÂ¶nceden yapÃ„Â±landÃ„Â±rÃ„Â±lmÃ„Â±Ã…Å¸ zamanlamalardÃ„Â±r. Optimize edilmiÃ…Å¸ zamanlama, komutlar ve ayarlar iÃƒÂ§erirler.",
+        "benefit1": "En iyi sonuÃƒÂ§lar iÃƒÂ§in ÃƒÂ¶nceden yapÃ„Â±landÃ„Â±rÃ„Â±lmÃ„Â±Ã…Å¸ zamanlama",
+        "benefit2": "Uzmanlarca hazÃ„Â±rlanmÃ„Â±Ã…Å¸ yapay zeka komutlarÃ„Â±",
+        "benefit3": "SeÃƒÂ§imden sonra tamamen ÃƒÂ¶zelleÃ…Å¸tirilebilir"
       },
       "categories": {
-        "all": "Tüm Şablonlar",
+        "all": "TÃƒÂ¼m Ã…Å¾ablonlar",
         "productivity": "Verimlilik",
-        "development": "Geliştirme",
-        "communication": "İletişim",
+        "development": "GeliÃ…Å¸tirme",
+        "communication": "Ã„Â°letiÃ…Å¸im",
         "analytics": "Analitik"
       }
     },
     "pause": {
-      "title": "Zamanlamayı Duraklat",
+      "title": "ZamanlamayÃ„Â± Duraklat",
       "resumeAt": "Otomatik devam etme tarihi",
-      "indefinite": "Süresiz duraklatmak için boş bırakın",
-      "reason": "Sebep (isteğe bağlı)",
-      "reasonPlaceholder": "örn., Tatildeyim",
-      "button": "Zamanlamayı Duraklat",
-      "success": "Zamanlama duraklatıldı",
+      "indefinite": "SÃƒÂ¼resiz duraklatmak iÃƒÂ§in boÃ…Å¸ bÃ„Â±rakÃ„Â±n",
+      "reason": "Sebep (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
+      "reasonPlaceholder": "ÃƒÂ¶rn., Tatildeyim",
+      "button": "ZamanlamayÃ„Â± Duraklat",
+      "success": "Zamanlama duraklatÃ„Â±ldÃ„Â±",
       "resumeSuccess": "Zamanlama devam ettirildi"
     },
     "bulk": {
-      "selected": "{count} seçildi",
-      "enableAll": "Tümünü Etkinleştir",
-      "disableAll": "Tümünü Devre Dışı Bırak",
-      "runAll": "Tümünü Şimdi Çalıştır",
-      "deleteAll": "Tümünü Sil",
-      "confirmDelete": "{count} zamanlamayı silmek istediğinizden emin misiniz?"
+      "selected": "{count} seÃƒÂ§ildi",
+      "enableAll": "TÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ EtkinleÃ…Å¸tir",
+      "disableAll": "TÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ Devre DÃ„Â±Ã…Å¸Ã„Â± BÃ„Â±rak",
+      "runAll": "TÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ Ã…Å¾imdi Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±r",
+      "deleteAll": "TÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ Sil",
+      "confirmDelete": "{count} zamanlamayÃ„Â± silmek istediÃ„Å¸inizden emin misiniz?"
     },
     "cancel": {
-      "button": "İptal",
-      "confirm": "Bu çalıştırmayı iptal et?",
-      "success": "Çalıştırma iptal edildi"
+      "button": "Ã„Â°ptal",
+      "confirm": "Bu ÃƒÂ§alÃ„Â±Ã…Å¸tÃ„Â±rmayÃ„Â± iptal et?",
+      "success": "Ãƒâ€¡alÃ„Â±Ã…Å¸tÃ„Â±rma iptal edildi"
     },
     "delivery": {
-      "title": "Sonuçları Gönder",
+      "title": "SonuÃƒÂ§larÃ„Â± GÃƒÂ¶nder",
       "methods": {
-        "session": "Yalnızca Sohbet Oturumu",
+        "session": "YalnÃ„Â±zca Sohbet Oturumu",
         "email": "E-posta",
         "slack": "Slack",
         "webhook": "Webhook"
       },
       "email": {
-        "recipients": "Alıcılar",
+        "recipients": "AlÃ„Â±cÃ„Â±lar",
         "recipientsPlaceholder": "eposta@ornek.com",
-        "subject": "Konu (isteğe bağlı)",
-        "includeTranscript": "Tam konuşmayı dahil et"
+        "subject": "Konu (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
+        "includeTranscript": "Tam konuÃ…Å¸mayÃ„Â± dahil et"
       },
       "slack": {
         "webhookUrl": "Webhook URL",
         "webhookPlaceholder": "https://hooks.slack.com/...",
-        "mentionUsers": "Kullanıcıları etiketle (isteğe bağlı)",
+        "mentionUsers": "KullanÃ„Â±cÃ„Â±larÃ„Â± etiketle (isteÃ„Å¸e baÃ„Å¸lÃ„Â±)",
         "mentionPlaceholder": "U123ABC"
       },
       "webhook": {
         "url": "Webhook URL",
         "urlPlaceholder": "https://api.ornek.com/webhook",
         "method": "HTTP Metodu",
-        "headers": "Özel Başlıklar (JSON)",
+        "headers": "Ãƒâ€“zel BaÃ…Å¸lÃ„Â±klar (JSON)",
         "includeMetadata": "Metadata dahil et"
       }
     },
     "contextSources": {
-      "title": "Bağlam Kaynakları",
+      "title": "BaÃ„Å¸lam KaynaklarÃ„Â±",
       "addSource": "Kaynak Ekle",
       "types": {
         "linear": "Linear Biletleri",
         "github": "GitHub Sorunlar/PR",
-        "api": "Özel API"
+        "api": "Ãƒâ€“zel API"
       },
       "injectAs": {
-        "label": "Ekle şeklinde",
-        "prepend": "Komutun başına ekle",
+        "label": "Ekle Ã…Å¸eklinde",
+        "prepend": "Komutun baÃ…Å¸Ã„Â±na ekle",
         "append": "Komutun sonuna ekle",
-        "variable": "Şablon değişkeni"
+        "variable": "Ã…Å¾ablon deÃ„Å¸iÃ…Å¸keni"
       },
-      "variableName": "Değişken adı"
+      "variableName": "DeÃ„Å¸iÃ…Å¸ken adÃ„Â±"
     },
     "notifications": {
-      "taskRunning": "Zamanlanmış görev {taskName} çalışıyor",
-      "taskRunningGeneric": "Görev {taskName} çalışıyor",
-      "chatRunning": "Sohbet oturumu çalışıyor",
-      "taskStartedAt": "{time} başladı",
-      "taskCompleted": "{taskName} görevi tamamlandı",
-      "chatCompleted": "Sohbet oturumu tamamlandı",
-      "taskFailed": "{taskName} görevi başarısız oldu",
-      "taskStale": "Görev zaman aşımına uğradı",
-      "taskStaleDescription": "{taskName}, {duration} hareketsizlik sonrası otomatik olarak durduruldu",
-      "taskCreditExhausted": "Görev durduruldu - yetersiz kredi",
-      "taskCreditExhaustedDescription": "AI özelliklerini kullanmaya devam etmek için kredi ekleyin",
-      "taskReconnected": "Bağlantı yeniden kuruldu",
-      "taskReconnectedDescription": "{count} aktif görev senkronize edildi",
-      "viewTask": "Görevi Görüntüle",
-      "viewDetails": "Detayları Görüntüle",
-      "activeTasks": "{count} aktif görev",
-      "startedAgo": "{time} önce başladı"
+      "taskRunning": "ZamanlanmÃ„Â±Ã…Å¸ gÃƒÂ¶rev {taskName} ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±yor",
+      "taskRunningGeneric": "GÃƒÂ¶rev {taskName} ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±yor",
+      "chatRunning": "Sohbet oturumu ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±yor",
+      "taskStartedAt": "{time} baÃ…Å¸ladÃ„Â±",
+      "taskCompleted": "{taskName} gÃƒÂ¶revi tamamlandÃ„Â±",
+      "chatCompleted": "Sohbet oturumu tamamlandÃ„Â±",
+      "taskFailed": "{taskName} gÃƒÂ¶revi baÃ…Å¸arÃ„Â±sÃ„Â±z oldu",
+      "taskStale": "GÃƒÂ¶rev zaman aÃ…Å¸Ã„Â±mÃ„Â±na uÃ„Å¸radÃ„Â±",
+      "taskStaleDescription": "{taskName}, {duration} hareketsizlik sonrasÃ„Â± otomatik olarak durduruldu",
+      "taskCreditExhausted": "GÃƒÂ¶rev durduruldu - yetersiz kredi",
+      "taskCreditExhaustedDescription": "AI ÃƒÂ¶zelliklerini kullanmaya devam etmek iÃƒÂ§in kredi ekleyin",
+      "taskReconnected": "BaÃ„Å¸lantÃ„Â± yeniden kuruldu",
+      "taskReconnectedDescription": "{count} aktif gÃƒÂ¶rev senkronize edildi",
+      "viewTask": "GÃƒÂ¶revi GÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼le",
+      "viewDetails": "DetaylarÃ„Â± GÃƒÂ¶rÃƒÂ¼ntÃƒÂ¼le",
+      "activeTasks": "{count} aktif gÃƒÂ¶rev",
+      "startedAgo": "{time} ÃƒÂ¶nce baÃ…Å¸ladÃ„Â±"
     }
   }
 }

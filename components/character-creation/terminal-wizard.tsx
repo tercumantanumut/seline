@@ -260,6 +260,31 @@ export function TerminalWizard() {
     }
   };
 
+  const handleCreateFromTemplate = async (templateId: string, templateName: string) => {
+    setError(null);
+    navigateTo("loading");
+    try {
+      const response = await resilientPost<{ success?: boolean; characterId?: string; error?: string }>(
+        `/api/characters/templates/${templateId}/create`,
+        {}
+      );
+      if (response.error || !response.data || !response.data.characterId) {
+        throw new Error((response.data && response.data.error) || response.error || "Failed to create from template");
+      }
+      const createdId = response.data.characterId;
+
+      setState((prev) => ({
+        ...prev,
+        identity: { ...prev.identity, name: templateName || prev.identity.name },
+        createdCharacterId: createdId,
+      }));
+      navigateTo("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create from template");
+      navigateTo("intro", -1);
+    }
+  };
+
   // Finalize agent creation
   const handleFinalizeAgent = async () => {
     if (!draftAgentId) return;
@@ -347,6 +372,7 @@ export function TerminalWizard() {
               <IntroPage
                 onContinue={() => navigateTo("identity")}
                 onQuickCreate={handleQuickCreate}
+                onCreateFromTemplate={handleCreateFromTemplate}
                 onBack={() => router.push("/")}
               />
             )}

@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db/sqlite-client";
 import { characters } from "@/lib/db/sqlite-character-schema";
+import { scheduledTaskRuns, scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { skillVersions, skills } from "@/lib/db/sqlite-skills-schema";
 import type {
   CreateSkillInput,
@@ -10,6 +11,7 @@ import type {
   SkillListFilters,
   SkillListPage,
   SkillRecord,
+  SkillRunHistoryItem,
   SkillStatus,
   SkillUpdateField,
   SkillUpdateResult,
@@ -478,6 +480,48 @@ export async function listSkillVersions(skillId: string, userId: string): Promis
   });
 
   return rows.map(mapSkillVersionRecord);
+}
+
+export async function listSkillRunHistory(skillId: string, userId: string, limit = 20): Promise<SkillRunHistoryItem[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+  const skill = await db.query.skills.findFirst({
+    where: and(eq(skills.id, skillId), eq(skills.userId, userId)),
+    columns: { id: true },
+  });
+  if (!skill) return [];
+
+  const rows = await db
+    .select({
+      runId: scheduledTaskRuns.id,
+      taskId: scheduledTasks.id,
+      taskName: scheduledTasks.name,
+      status: scheduledTaskRuns.status,
+      scheduledFor: scheduledTaskRuns.scheduledFor,
+      startedAt: scheduledTaskRuns.startedAt,
+      completedAt: scheduledTaskRuns.completedAt,
+      durationMs: scheduledTaskRuns.durationMs,
+      error: scheduledTaskRuns.error,
+      createdAt: scheduledTaskRuns.createdAt,
+    })
+    .from(scheduledTaskRuns)
+    .innerJoin(scheduledTasks, eq(scheduledTasks.id, scheduledTaskRuns.taskId))
+    .where(and(eq(scheduledTasks.userId, userId), eq(scheduledTasks.skillId, skillId)))
+    .orderBy(desc(scheduledTaskRuns.createdAt))
+    .limit(safeLimit);
+
+  return rows.map((row) => ({
+    runId: row.runId,
+    taskId: row.taskId,
+    taskName: row.taskName,
+    status: row.status,
+    scheduledFor: row.scheduledFor,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    durationMs: row.durationMs,
+    error: row.error,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function getSkillsSummaryForPrompt(characterId: string): Promise<Array<{

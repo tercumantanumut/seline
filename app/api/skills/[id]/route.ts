@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { deleteSkill, getSkillById, listSkillVersions, updateSkill } from "@/lib/skills/queries";
+import { deleteSkill, getSkillById, listSkillRunHistory, listSkillVersions, updateSkill } from "@/lib/skills/queries";
 import { updateSkillSchema } from "@/lib/skills/validation";
+import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -20,12 +21,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const includeHistory = req.nextUrl.searchParams.get("includeHistory") === "true";
-    if (!includeHistory) {
+    const includeRuns = req.nextUrl.searchParams.get("includeRuns") === "true";
+
+    if (!includeHistory && !includeRuns) {
       return NextResponse.json({ skill });
     }
 
-    const versions = await listSkillVersions(id, dbUser.id);
-    return NextResponse.json({ skill, versions });
+    const [versions, runs] = await Promise.all([
+      includeHistory ? listSkillVersions(id, dbUser.id) : Promise.resolve([]),
+      includeRuns ? listSkillRunHistory(id, dbUser.id) : Promise.resolve([]),
+    ]);
+
+    return NextResponse.json({ skill, versions, runs });
   } catch (error) {
     console.error("[Skills API] GET [id] error:", error);
     return NextResponse.json(
@@ -54,6 +61,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     if (updated.stale) {
+      await trackSkillTelemetryEvent({
+        userId: dbUser.id,
+        eventType: "skill_update_stale",
+        skillId: id,
+      });
       return NextResponse.json(
         {
           error: "Skill version conflict",
@@ -65,6 +77,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { status: 409 }
       );
     }
+
+    await trackSkillTelemetryEvent({
+      userId: dbUser.id,
+      eventType: "skill_update_succeeded",
+      skillId: id,
+      characterId: updated.skill.characterId,
+      metadata: { changedFields: updated.changedFields, noChanges: updated.noChanges },
+    });
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import type { SessionChannelType, SessionInfo } from "./types";
+import { ENABLE_PUBLIC_LIBRARY, SKILLS_V2_TRACK_B, SKILLS_V2_TRACK_C } from "@/lib/flags";
 
 interface CharacterFullData {
   id: string;
@@ -684,6 +685,50 @@ export function CharacterSidebar({
                   {t("sidebar.skillsShort")}
                 </Link>
               </Button>
+              {SKILLS_V2_TRACK_B && ENABLE_PUBLIC_LIBRARY ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] font-mono"
+                  asChild
+                >
+                  <Link
+                    href="/skills/library"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "seline-return-url",
+                          window.location.href,
+                        );
+                      }
+                    }}
+                  >
+                    {t("sidebar.libraryShort")}
+                  </Link>
+                </Button>
+              ) : null}
+              {SKILLS_V2_TRACK_C ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] font-mono"
+                  asChild
+                >
+                  <Link
+                    href="/dashboard"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "seline-return-url",
+                          window.location.href,
+                        );
+                      }
+                    }}
+                  >
+                    {t("sidebar.dashboardShort")}
+                  </Link>
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"

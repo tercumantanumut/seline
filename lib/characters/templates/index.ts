@@ -1,18 +1,33 @@
 import { resolve } from "path";
 import type { AgentTemplate } from "./types";
 import { SELINE_DEFAULT_TEMPLATE } from "./seline-default";
+import { SOCIAL_MEDIA_MANAGER_TEMPLATE } from "./social-media-manager";
+import { MEETING_NOTES_ASSISTANT_TEMPLATE } from "./meeting-notes-assistant";
+import { DATA_ANALYST_TEMPLATE } from "./data-analyst";
+import { CUSTOMER_SUPPORT_AGENT_TEMPLATE } from "./customer-support-agent";
+import { PERSONAL_FINANCE_TRACKER_TEMPLATE } from "./personal-finance-tracker";
+import { LEARNING_COACH_TEMPLATE } from "./learning-coach";
+import { PROJECT_MANAGER_TEMPLATE } from "./project-manager";
 import {
   createCharacter,
   getUserCharacters,
   getUserDefaultCharacter,
   setDefaultCharacter,
 } from "../queries";
+import { createSkill } from "@/lib/skills/queries";
 import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
 import { getUserWorkspacePath } from "@/lib/workspace/setup";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
+  [SOCIAL_MEDIA_MANAGER_TEMPLATE.id, SOCIAL_MEDIA_MANAGER_TEMPLATE],
+  [MEETING_NOTES_ASSISTANT_TEMPLATE.id, MEETING_NOTES_ASSISTANT_TEMPLATE],
+  [DATA_ANALYST_TEMPLATE.id, DATA_ANALYST_TEMPLATE],
+  [CUSTOMER_SUPPORT_AGENT_TEMPLATE.id, CUSTOMER_SUPPORT_AGENT_TEMPLATE],
+  [PERSONAL_FINANCE_TRACKER_TEMPLATE.id, PERSONAL_FINANCE_TRACKER_TEMPLATE],
+  [LEARNING_COACH_TEMPLATE.id, LEARNING_COACH_TEMPLATE],
+  [PROJECT_MANAGER_TEMPLATE.id, PROJECT_MANAGER_TEMPLATE],
 ]);
 
 export function getAllTemplates(): AgentTemplate[] {
@@ -21,6 +36,17 @@ export function getAllTemplates(): AgentTemplate[] {
 
 export function getTemplate(id: string): AgentTemplate | undefined {
   return TEMPLATES.get(id);
+}
+
+export function searchTemplates(options: { category?: string; query?: string }): AgentTemplate[] {
+  const category = options.category?.trim().toLowerCase();
+  const query = options.query?.trim().toLowerCase();
+  return getAllTemplates().filter((template) => {
+    if (category && (template.category || "").toLowerCase() !== category) return false;
+    if (!query) return true;
+    const haystack = `${template.name} ${template.tagline} ${template.purpose} ${template.category || ""}`.toLowerCase();
+    return haystack.includes(query);
+  });
 }
 
 export function getDefaultTemplate(): AgentTemplate | undefined {
@@ -125,6 +151,7 @@ export async function createAgentFromTemplate(
     const characterId = character.id;
 
     await seedTemplateMemories(characterId, template.memories);
+    await seedTemplateSkills(userId, characterId, template);
 
     if (template.syncFolders && template.syncFolders.length > 0) {
       await configureSyncFolders(userId, characterId, template.syncFolders);
@@ -134,6 +161,34 @@ export async function createAgentFromTemplate(
   } catch (error) {
     console.error("[Templates] Error creating agent from template:", error);
     return null;
+  }
+}
+
+async function seedTemplateSkills(userId: string, characterId: string, template: AgentTemplate): Promise<void> {
+  if (!template.exampleSkills || template.exampleSkills.length === 0) return;
+
+  for (const skill of template.exampleSkills) {
+    try {
+      await createSkill({
+        userId,
+        characterId,
+        name: skill.name,
+        description: skill.description,
+        promptTemplate: skill.promptTemplate,
+        inputParameters: (skill.inputParameters || []).map((item) => ({
+          name: item.name,
+          type: item.type,
+          defaultValue: item.default ?? null,
+        })),
+        toolHints: skill.toolHints || [],
+        triggerExamples: skill.triggerExamples || [],
+        category: skill.category || template.category || "general",
+        sourceType: "template",
+        status: "active",
+      });
+    } catch (error) {
+      console.warn(`[Templates] Failed to seed skill ${skill.name} for ${template.id}:`, error);
+    }
   }
 }
 

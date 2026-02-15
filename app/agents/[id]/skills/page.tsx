@@ -6,8 +6,9 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, Plus } from "lucide-react";
+import { Loader2, AlertCircle, Plus, Library, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ENABLE_PUBLIC_LIBRARY, SKILLS_V2_TRACK_B } from "@/lib/flags";
 
 type SkillItem = {
   id: string;
@@ -17,6 +18,8 @@ type SkillItem = {
   runCount: number;
   successCount: number;
   lastRunAt: string | null;
+  category: string;
+  version: number;
 };
 
 type CharacterBasic = {
@@ -43,7 +46,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
         setIsLoading(true);
         const [characterRes, skillsRes] = await Promise.all([
           fetch(`/api/characters/${characterId}`),
-          fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}&status=active`),
+          fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}`),
         ]);
 
         if (!characterRes.ok) {
@@ -100,9 +103,16 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
               <h1 className="text-2xl font-mono font-bold text-terminal-dark">{t("title")}</h1>
               <p className="mt-1 text-sm text-terminal-muted">{t("pageDescription", { name: agentName })}</p>
             </div>
-            <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
-              <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {SKILLS_V2_TRACK_B && ENABLE_PUBLIC_LIBRARY ? (
+                <Button asChild variant="outline" className="gap-2 font-mono">
+                  <Link href="/skills/library"><Library className="h-4 w-4" />Library</Link>
+                </Button>
+              ) : null}
+              <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
+                <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
+              </Button>
+            </div>
           </header>
 
           {skills.length === 0 ? (
@@ -123,6 +133,15 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                     <span>{t("stats.runs")}: {skill.runCount}</span>
                     <span>{t("stats.success")}: {skill.successCount}</span>
                     <span>{t("stats.lastRun")}: {skill.lastRunAt ? new Date(skill.lastRunAt).toLocaleString() : t("stats.never")}</span>
+                    <span>Category: {skill.category || "general"}</span>
+                    <span>Version: {skill.version}</span>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button asChild variant="outline" size="sm" className="font-mono">
+                      <Link href={`/agents/${characterId}/skills/${skill.id}`}>
+                        Open <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
                   </div>
                 </article>
               ))}

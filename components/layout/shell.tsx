@@ -35,6 +35,7 @@ import { useTranslations } from "next-intl";
 import { DevLogsViewer } from "@/components/dev/dev-logs-viewer";
 import { ActiveTasksIndicator } from "@/components/schedules/active-tasks-indicator";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
+import { SKILLS_V2_TRACK_C } from "@/lib/flags";
 
 // Context to share sidebar collapsed state with children
 interface SidebarContextValue {
@@ -284,6 +285,14 @@ export const Shell: FC<ShellProps> = ({
                         {t("sidebar.usage")}
                       </Link>
                     </DropdownMenuItem>
+                    {SKILLS_V2_TRACK_C ? (
+                      <DropdownMenuItem asChild className="font-mono">
+                        <Link href="/dashboard">
+                          <BarChart2Icon className="mr-2 size-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       asChild
                       className="font-mono text-terminal-dark hover:bg-terminal-dark/5"
@@ -427,6 +436,14 @@ export const Shell: FC<ShellProps> = ({
                           {t("sidebar.usage")}
                         </Link>
                       </DropdownMenuItem>
+                      {SKILLS_V2_TRACK_C ? (
+                        <DropdownMenuItem asChild className="font-mono">
+                          <Link href="/dashboard">
+                            <BarChart2Icon className="mr-2 size-4" />
+                            Dashboard
+                          </Link>
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem
                         asChild
                         className="font-mono text-terminal-dark hover:bg-terminal-dark/5"

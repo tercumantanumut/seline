@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { createSkill, listSkillLibrary, listSkillsForUser, assertCharacterOwnership } from "@/lib/skills/queries";
+import { getSkillsRolloutState } from "@/lib/skills/rollout";
+import { ENABLE_PUBLIC_LIBRARY } from "@/lib/flags";
 import { createSkillSchema, listSkillsQuerySchema } from "@/lib/skills/validation";
 
 export async function GET(req: NextRequest) {
@@ -31,6 +33,8 @@ export async function GET(req: NextRequest) {
     }
 
     const filters = parsedQuery.data;
+    const trackB = getSkillsRolloutState("B", dbUser.id);
+
     if (filters.characterId && !filters.all) {
       const ownsCharacter = await assertCharacterOwnership(filters.characterId, dbUser.id);
       if (!ownsCharacter) {
@@ -39,8 +43,18 @@ export async function GET(req: NextRequest) {
     }
 
     if (filters.all) {
+      if (!ENABLE_PUBLIC_LIBRARY || !trackB.enabled || !trackB.inCohort) {
+        return NextResponse.json(
+          {
+            error: "Cross-agent skill library is not available for this rollout cohort.",
+            feature: trackB,
+          },
+          { status: 403 }
+        );
+      }
+
       const library = await listSkillLibrary(dbUser.id, filters);
-      return NextResponse.json({ items: library.items, nextCursor: library.nextCursor });
+      return NextResponse.json({ items: library.items, nextCursor: library.nextCursor, feature: trackB });
     }
 
     const skills = await listSkillsForUser(dbUser.id, filters);

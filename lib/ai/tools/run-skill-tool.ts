@@ -4,10 +4,12 @@ import { scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
 import { findSkillByNameLike, getSkillById, getSkillByName, updateSkillRunStats } from "@/lib/skills/queries";
 import { renderSkillPrompt } from "@/lib/skills/runtime";
+import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 
 interface RunSkillInput {
   skillId?: string;
   skillName?: string;
+  triggerSource?: "manual" | "auto";
   parameters?: Record<string, string | number | boolean | null>;
   schedule?: {
     name: string;
@@ -34,6 +36,7 @@ const schema = jsonSchema<RunSkillInput>({
     skillId: { type: "string" },
     skillName: { type: "string" },
     parameters: { type: "object", additionalProperties: true },
+    triggerSource: { type: "string", enum: ["manual", "auto"] },
     schedule: { type: "object", additionalProperties: true },
   },
   additionalProperties: false,
@@ -87,6 +90,13 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
       });
 
       await updateSkillRunStats(skill.id, options.userId, chatRes.ok);
+      await trackSkillTelemetryEvent({
+        userId: options.userId,
+        eventType: input.triggerSource === "auto" ? "skill_auto_triggered" : "skill_manual_run",
+        skillId: skill.id,
+        characterId: options.characterId,
+        metadata: { succeeded: chatRes.ok, via: "runSkillTool" },
+      });
 
       let schedule = null;
       if (input.schedule) {

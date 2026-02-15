@@ -5,6 +5,7 @@ import { loadSettings } from "@/lib/settings/settings-manager";
 import { getSkillById, updateSkillRunStats } from "@/lib/skills/queries";
 import { runSkillSchema } from "@/lib/skills/validation";
 import { renderSkillPrompt } from "@/lib/skills/runtime";
+import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -53,6 +54,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const succeeded = chatResponse.ok;
     await updateSkillRunStats(skill.id, dbUser.id, succeeded);
+    await trackSkillTelemetryEvent({
+      userId: dbUser.id,
+      eventType: "skill_manual_run",
+      skillId: skill.id,
+      characterId: skill.characterId,
+      metadata: { succeeded },
+    });
 
     if (!chatResponse.ok) {
       const errorText = await chatResponse.text();

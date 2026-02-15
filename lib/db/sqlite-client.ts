@@ -865,6 +865,18 @@ function initializeTables(sqlite: Database.Database): void {
     )
   `);
 
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS skill_telemetry_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+      skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+      event_type TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Scheduled tasks table - schedule definitions
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -931,6 +943,14 @@ function initializeTables(sqlite: Database.Database): void {
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_skills_character_name
       ON skills (character_id, name)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skill_telemetry_user_event
+      ON skill_telemetry_events (user_id, event_type, created_at DESC)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skill_telemetry_skill_event
+      ON skill_telemetry_events (skill_id, event_type, created_at DESC)
   `);
 
   sqlite.exec(`
@@ -1132,6 +1152,26 @@ function runDataMigrations(sqlite: Database.Database): void {
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_skill_versions_skill_created
       ON skill_versions (skill_id, created_at)
+    `);
+
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skill_telemetry_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+        skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_telemetry_user_event
+      ON skill_telemetry_events (user_id, event_type, created_at DESC)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_telemetry_skill_event
+      ON skill_telemetry_events (skill_id, event_type, created_at DESC)
     `);
   } catch (error) {
     console.warn("[SQLite Migration] Skills table migration failed:", error);

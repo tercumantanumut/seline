@@ -128,6 +128,14 @@ export function buildCharacterSystemPrompt(
     const skillBlock = formatSkillsForPromptFromSummary(skillSummaries);
     if (skillBlock.markdown) {
       sections.push(skillBlock.markdown);
+      sections.push(
+        [
+          "## Skill Matching Guidance",
+          "- Use `runSkill` when a user request clearly matches a skill trigger example.",
+          "- If multiple skills match, ask a brief clarification before running any skill.",
+          "- If confidence is low, ask for confirmation instead of auto-running.",
+        ].join("\n")
+      );
       console.log(
         `[Character Prompt] Injected ${skillBlock.skillCount} skills (~${skillBlock.tokenEstimate} tokens) for ${character.name}`
       );
@@ -281,6 +289,15 @@ export function buildCacheableCharacterPrompt(
             anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
           },
         }),
+      });
+      blocks.push({
+        role: "system",
+        content: [
+          "## Skill Matching Guidance",
+          "- Use `runSkill` when a user request clearly matches a skill trigger example.",
+          "- If multiple skills match, ask a brief clarification before running any skill.",
+          "- If confidence is low, ask for confirmation instead of auto-running.",
+        ].join("\n"),
       });
       console.log(
         `[Character Prompt] Injected ${skillBlock.skillCount} skills (~${skillBlock.tokenEstimate} tokens) for ${character.name} (cacheable)`
