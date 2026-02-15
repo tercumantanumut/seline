@@ -849,6 +849,11 @@ function initializeTables(sqlite: Database.Database): void {
       prompt_template TEXT NOT NULL,
       input_parameters TEXT NOT NULL DEFAULT '[]',
       tool_hints TEXT NOT NULL DEFAULT '[]',
+      trigger_examples TEXT NOT NULL DEFAULT '[]',
+      category TEXT NOT NULL DEFAULT 'general',
+      version INTEGER NOT NULL DEFAULT 1,
+      copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+      copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
       source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
       source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
       run_count INTEGER NOT NULL DEFAULT 0,
@@ -1057,6 +1062,11 @@ function runDataMigrations(sqlite: Database.Database): void {
         prompt_template TEXT NOT NULL,
         input_parameters TEXT NOT NULL DEFAULT '[]',
         tool_hints TEXT NOT NULL DEFAULT '[]',
+        trigger_examples TEXT NOT NULL DEFAULT '[]',
+        category TEXT NOT NULL DEFAULT 'general',
+        version INTEGER NOT NULL DEFAULT 1,
+        copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+        copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
         source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
         source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
         run_count INTEGER NOT NULL DEFAULT 0,
@@ -1074,6 +1084,54 @@ function runDataMigrations(sqlite: Database.Database): void {
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_skills_character_name
       ON skills (character_id, name)
+    `);
+
+    const skillColumns = sqlite.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
+    const skillColumnNames = new Set(skillColumns.map((column) => column.name));
+    const skillColumnsToAdd = [
+      { name: "trigger_examples", sql: "ALTER TABLE skills ADD COLUMN trigger_examples TEXT NOT NULL DEFAULT '[]'" },
+      { name: "category", sql: "ALTER TABLE skills ADD COLUMN category TEXT NOT NULL DEFAULT 'general'" },
+      { name: "version", sql: "ALTER TABLE skills ADD COLUMN version INTEGER NOT NULL DEFAULT 1" },
+      { name: "copied_from_skill_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL" },
+      { name: "copied_from_character_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL" },
+    ];
+
+    for (const column of skillColumnsToAdd) {
+      if (!skillColumnNames.has(column.name)) {
+        sqlite.exec(column.sql);
+        console.log(`[SQLite Migration] Added column ${column.name} to skills`);
+      }
+    }
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_updated
+      ON skills (user_id, updated_at)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_category
+      ON skills (user_id, category)
+    `);
+
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skill_versions (
+        id TEXT PRIMARY KEY,
+        skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        prompt_template TEXT NOT NULL,
+        input_parameters TEXT NOT NULL DEFAULT '[]',
+        tool_hints TEXT NOT NULL DEFAULT '[]',
+        description TEXT,
+        change_reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_versions_skill_version
+      ON skill_versions (skill_id, version)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_versions_skill_created
+      ON skill_versions (skill_id, created_at)
     `);
   } catch (error) {
     console.warn("[SQLite Migration] Skills table migration failed:", error);

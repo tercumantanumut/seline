@@ -58,6 +58,9 @@ function getSkillSummariesFromMetadata(metadata: Record<string, any>): Array<{
       id: String(skill.id || ""),
       name: String(skill.name || "").trim(),
       description: String(skill.description || "").trim(),
+      triggerExamples: Array.isArray(skill.triggerExamples)
+        ? skill.triggerExamples.map((value) => String(value || "").trim()).filter((value) => value.length > 0).slice(0, 3)
+        : [],
     }))
     .filter((skill) => skill.name.length > 0);
 }
@@ -71,7 +74,7 @@ export function buildCharacterSystemPrompt(
   options: {
     toolLoadingMode?: "deferred" | "always";
     channelType?: string | null;
-    skillSummaries?: Array<{ id: string; name: string; description: string }>;
+    skillSummaries?: Array<{ id: string; name: string; description: string; triggerExamples?: string[] }>;
   } = {}
 ): string {
   // Check for custom prompt override first
@@ -169,7 +172,7 @@ export function buildCacheableCharacterPrompt(
     channelType?: string | null;
     enableCaching?: boolean;
     cacheTtl?: "5m" | "1h";
-    skillSummaries?: Array<{ id: string; name: string; description: string }>;
+    skillSummaries?: Array<{ id: string; name: string; description: string; triggerExamples?: string[] }>;
   } = {}
 ): CacheableSystemBlock[] {
   const {

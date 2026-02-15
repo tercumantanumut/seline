@@ -19,9 +19,14 @@ export const createSkillSchema = z.object({
   promptTemplate: z.string().min(1).max(8000),
   inputParameters: z.array(skillInputParameterSchema).optional().default([]),
   toolHints: z.array(z.string().min(1).max(60)).optional().default([]),
+  triggerExamples: z.array(z.string().min(1).max(240)).optional().default([]),
+  category: z.string().min(1).max(80).optional().default("general"),
+  copiedFromSkillId: z.string().uuid().nullable().optional(),
+  copiedFromCharacterId: z.string().uuid().nullable().optional(),
   sourceType: skillSourceTypeSchema.optional().default("manual"),
   sourceSessionId: z.string().optional(),
   status: skillStatusSchema.optional().default("active"),
+  inferFromSession: z.boolean().optional().default(false),
 });
 
 export const updateSkillSchema = z.object({
@@ -31,12 +36,28 @@ export const updateSkillSchema = z.object({
   promptTemplate: z.string().min(1).max(8000).optional(),
   inputParameters: z.array(skillInputParameterSchema).optional(),
   toolHints: z.array(z.string().min(1).max(60)).optional(),
+  triggerExamples: z.array(z.string().min(1).max(240)).optional(),
+  category: z.string().min(1).max(80).optional(),
   status: skillStatusSchema.optional(),
+  expectedVersion: z.number().int().positive().optional(),
+  changeReason: z.string().max(300).optional(),
+  skipVersionBump: z.boolean().optional(),
 });
 
 export const listSkillsQuerySchema = z.object({
   characterId: z.string().optional(),
   status: skillStatusSchema.optional(),
+  all: z.coerce.boolean().optional(),
+  category: z.string().min(1).max(80).optional(),
+  query: z.string().min(1).max(120).optional(),
+  q: z.string().min(1).max(120).optional(),
+  usageBucket: z.enum(["unused", "low", "medium", "high"]).optional(),
+  successBucket: z.enum(["poor", "fair", "good", "great"]).optional(),
+  updatedFrom: z.string().datetime().optional(),
+  updatedTo: z.string().datetime().optional(),
+  sort: z.enum(["updated_desc", "updated_asc", "relevance", "success_desc", "runs_desc"]).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 export const runSkillSchema = z.object({

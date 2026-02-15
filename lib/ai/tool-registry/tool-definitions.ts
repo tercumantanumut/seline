@@ -73,6 +73,8 @@ import { createScheduleTaskTool } from "../tools/schedule-task-tool";
 import { createCreateSkillTool } from "../tools/create-skill-tool";
 import { createListSkillsTool } from "../tools/list-skills-tool";
 import { createRunSkillTool } from "../tools/run-skill-tool";
+import { createUpdateSkillTool } from "../tools/update-skill-tool";
+import { createCopySkillTool } from "../tools/copy-skill-tool";
 import { createMemorizeTool } from "../tools/memorize-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
@@ -619,6 +621,40 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
         sessionId: sessionId || "UNSCOPED",
         userId: userId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",
+      })
+  );
+
+  // Skills: update existing skill with feedback and version checks
+  registry.register(
+    "updateSkill",
+    {
+      displayName: "Update Skill",
+      category: "utility",
+      keywords: ["update skill", "improve skill", "revise skill", "version", "skill feedback"],
+      shortDescription: "Update an existing skill with optional version conflict checks and change reason",
+      loading: { deferLoading: true },
+      requiresSession: false,
+    } satisfies ToolMetadata,
+    ({ userId }) =>
+      createUpdateSkillTool({
+        userId: userId || "UNSCOPED",
+      })
+  );
+
+  // Skills: copy skill to another owned agent as an independent clone
+  registry.register(
+    "copySkill",
+    {
+      displayName: "Copy Skill",
+      category: "utility",
+      keywords: ["copy skill", "clone skill", "share skill", "transfer skill", "provenance"],
+      shortDescription: "Copy a skill to another owned agent with provenance metadata",
+      loading: { deferLoading: true },
+      requiresSession: false,
+    } satisfies ToolMetadata,
+    ({ userId }) =>
+      createCopySkillTool({
+        userId: userId || "UNSCOPED",
       })
   );
 

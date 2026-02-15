@@ -68,6 +68,8 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "createSkill", nameKey: "createSkill", descKey: "createSkillDesc", category: "utility" },
   { id: "listSkills", nameKey: "listSkills", descKey: "listSkillsDesc", category: "utility" },
   { id: "runSkill", nameKey: "runSkill", descKey: "runSkillDesc", category: "utility" },
+  { id: "updateSkill", nameKey: "updateSkill", descKey: "updateSkillDesc", category: "utility" },
+  { id: "copySkill", nameKey: "copySkill", descKey: "copySkillDesc", category: "utility" },
   { id: "memorize", nameKey: "memorize", descKey: "memorizeDesc", category: "utility" },
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },

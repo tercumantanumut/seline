@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import {
   getCharacter,
   getCharacterFull,
+  getCharacterStats,
   updateCharacter,
   deleteCharacter,
 } from "@/lib/characters/queries";
@@ -17,7 +18,7 @@ import { z } from "zod";
 type RouteParams = { params: Promise<{ id: string }> };
 
 // GET - Get a single character with all related data
-export async function GET(req: Request, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const userId = await requireAuth(req);
     const settings = loadSettings();
@@ -32,6 +33,11 @@ export async function GET(req: Request, { params }: RouteParams) {
     // Check ownership
     if (character.userId !== dbUser.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (req.nextUrl.searchParams.get("stats") === "true") {
+      const stats = await getCharacterStats(dbUser.id, id);
+      return NextResponse.json({ stats });
     }
 
     // Get full character with all related data
