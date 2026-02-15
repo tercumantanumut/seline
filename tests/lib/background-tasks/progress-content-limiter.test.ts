@@ -149,6 +149,30 @@ describe("limitProgressContent", () => {
     }
   });
 
+  it("hard-caps to a summary when non-tool text keeps payload over budget", () => {
+    const content = [
+      { type: "text", text: "x".repeat(400_000) },
+      {
+        type: "tool-result",
+        toolCallId: "tc-1",
+        toolName: "localGrep",
+        result: "y".repeat(200_000),
+      },
+    ];
+
+    const result = limitProgressContent(content);
+
+    expect(result.wasTruncated).toBe(true);
+    expect(result.hardCapped).toBe(true);
+    expect(result.finalTokens).toBeLessThanOrEqual(20_000);
+
+    expect(result.content).toHaveLength(1);
+    const summaryPart = result.content[0] as Record<string, unknown>;
+    expect(summaryPart.type).toBe("text");
+    expect(typeof summaryPart.text).toBe("string");
+    expect((summaryPart.text as string).toLowerCase()).toContain("omitted");
+  });
+
   it("preserves non-tool-result parts", () => {
     const content = [
       { type: "text", text: "Hello" },

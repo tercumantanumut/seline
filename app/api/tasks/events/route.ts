@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DEBUG_SSE_EVENTS = process.env.DEBUG_SSE_EVENTS === "true";
+const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_SSE_MESSAGE_BYTES = 1_000_000; // 1MB
 
 const redact = (value?: string) => {
@@ -36,16 +37,45 @@ export async function GET(request: NextRequest) {
   let cleanup: (() => void) | null = null;
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   let onAbort: (() => void) | null = null;
+  let lastSuccessfulSendAt = Date.now();
+  let lastHeartbeatScheduledAt = Date.now();
 
   const stream = new ReadableStream({
     start(controller) {
       console.log(`[SSE] Starting unified task stream for user: ${userId}`);
 
-      const connectMessage = JSON.stringify({
+      const sendDataMessage = (payload: unknown) => {
+        const serializeStartedAt = Date.now();
+        const message = JSON.stringify(payload);
+        const serializeDurationMs = Date.now() - serializeStartedAt;
+        const byteLength = Buffer.byteLength(message, "utf8");
+
+        if (byteLength > MAX_SSE_MESSAGE_BYTES) {
+          return { skipped: true, message, serializeDurationMs, byteLength, enqueueDurationMs: 0 };
+        }
+
+        const msSinceLastSuccessfulSend = Date.now() - lastSuccessfulSendAt;
+        const enqueueStartedAt = Date.now();
+        controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+        const enqueueDurationMs = Date.now() - enqueueStartedAt;
+        lastSuccessfulSendAt = Date.now();
+
+        if (DEBUG_SSE_EVENTS) {
+          console.log("[SSE] Event sent", {
+            byteLength,
+            serializeDurationMs,
+            enqueueDurationMs,
+            msSinceLastSuccessfulSend,
+          });
+        }
+
+        return { skipped: false, message, serializeDurationMs, byteLength, enqueueDurationMs };
+      };
+
+      sendDataMessage({
         type: "connected",
         timestamp: nowISO(),
       });
-      controller.enqueue(encoder.encode(`data: ${connectMessage}\n\n`));
 
       const handleEvent = (event: TaskEvent) => {
         try {
@@ -63,23 +93,24 @@ export async function GET(request: NextRequest) {
             });
           }
 
-          const message = JSON.stringify({
+          const payload = {
             type: event.eventType,
             data: event,
-          });
+          };
+          const sendResult = sendDataMessage(payload);
 
           // Safety guard: drop excessively large SSE messages (> 1MB)
           // This prevents memory spikes from serialized oversized progressContent
           // that somehow bypassed upstream truncation guards.
-          if (message.length > MAX_SSE_MESSAGE_BYTES) {
+          if (sendResult.skipped) {
             const runId = "task" in event ? event.task.runId : ("runId" in event ? event.runId : "?");
             console.error(
-              `[SSE] Dropping oversized event (${(message.length / 1024).toFixed(0)}KB): ` +
+              `[SSE] Dropping oversized event (${(sendResult.byteLength / 1024).toFixed(0)}KB): ` +
               `type=${event.eventType}, runId=${runId}. ` +
               `This indicates a missing upstream truncation guard.`
             );
-            // Send a lightweight fallback event so the client knows something happened
-            const fallback = JSON.stringify({
+
+            sendDataMessage({
               type: event.eventType,
               data: {
                 ...("runId" in event ? { runId: event.runId, type: event.type, userId: event.userId } : {}),
@@ -90,11 +121,18 @@ export async function GET(request: NextRequest) {
                 _oversizedDropped: true,
               },
             });
-            controller.enqueue(encoder.encode(`data: ${fallback}\n\n`));
             return;
           }
 
-          controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+          if (DEBUG_SSE_EVENTS) {
+            console.log("[SSE] Event telemetry", {
+              eventType: event.eventType,
+              byteLength: sendResult.byteLength,
+              serializeDurationMs: sendResult.serializeDurationMs,
+              enqueueDurationMs: sendResult.enqueueDurationMs,
+              msSinceLastSuccessfulSend: Date.now() - lastSuccessfulSendAt,
+            });
+          }
         } catch (err) {
           console.error("[SSE] Failed to send task event:", err);
         }
@@ -108,18 +146,29 @@ export async function GET(request: NextRequest) {
 
       heartbeatInterval = setInterval(() => {
         try {
-          const heartbeat = JSON.stringify({
+          const now = Date.now();
+          const expectedAt = lastHeartbeatScheduledAt + HEARTBEAT_INTERVAL_MS;
+          const heartbeatSkewMs = now - expectedAt;
+          lastHeartbeatScheduledAt = now;
+
+          sendDataMessage({
             type: "heartbeat",
             timestamp: nowISO(),
           });
-          controller.enqueue(encoder.encode(`data: ${heartbeat}\n\n`));
+
+          if (DEBUG_SSE_EVENTS) {
+            console.log("[SSE] Heartbeat telemetry", {
+              heartbeatSkewMs,
+              msSinceLastSuccessfulSend: Date.now() - lastSuccessfulSendAt,
+            });
+          }
         } catch {
           if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
           }
         }
-      }, 30000);
+      }, HEARTBEAT_INTERVAL_MS);
 
       onAbort = () => {
         if (heartbeatInterval) {

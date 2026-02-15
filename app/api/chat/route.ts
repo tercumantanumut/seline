@@ -944,6 +944,41 @@ function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
   return JSON.parse(JSON.stringify(parts));
 }
 
+function buildProgressSignature(parts: DBContentPart[]): string {
+  return parts.map((part) => {
+    if (part.type === "text") {
+      return `t:${part.text.length}:${part.text.slice(0, 100)}`;
+    }
+
+    if (part.type === "tool-call") {
+      return `tc:${part.toolCallId}:${part.state ?? ""}`;
+    }
+
+    if (part.type === "tool-result") {
+      const preview =
+        typeof part.result === "string"
+          ? `s:${part.result.length}:${part.result.slice(0, 120)}`
+          : part.result && typeof part.result === "object"
+            ? (() => {
+                const entries = Object.entries(part.result as Record<string, unknown>)
+                  .slice(0, 5)
+                  .map(([key, value]) => {
+                    if (typeof value === "string") return `${key}:${value.length}:${value.slice(0, 60)}`;
+                    if (typeof value === "number" || typeof value === "boolean") return `${key}:${value}`;
+                    if (Array.isArray(value)) return `${key}:arr${value.length}`;
+                    return `${key}:${typeof value}`;
+                  })
+                  .join(",");
+                return `o:${Object.keys(part.result as Record<string, unknown>).length}:${entries}`;
+              })()
+            : `p:${typeof part.result}`;
+      return `tr:${part.toolCallId}:${part.state ?? ""}:${preview}`;
+    }
+
+    return `o:${part.type}`;
+  }).join("|");
+}
+
 function extractTextFromParts(parts: DBContentPart[]): string {
   return parts
     .filter((part): part is Extract<DBContentPart, { type: "text" }> => part.type === "text")
@@ -1339,38 +1374,8 @@ export async function POST(req: Request) {
           filteredParts = [{ type: "text", text: "Working..." }];
         }
 
-        const partsSnapshot = cloneContentParts(filteredParts);
         const now = Date.now();
-
-        // Build a lightweight signature for change detection.
-        // Avoid JSON.stringify on the full partsSnapshot which can be 400K+ chars
-        // when tool results are large (e.g., localGrep with many matches).
-        // Instead, use a structural fingerprint: part types, IDs, states, and text previews.
-        const signature = partsSnapshot.map((p) => {
-          if (p.type === "text") return `t:${p.text.length}:${p.text.slice(0, 100)}`;
-          if (p.type === "tool-call") return `tc:${(p as DBToolCallPart).toolCallId}:${(p as DBToolCallPart).state ?? ""}`;
-          if (p.type === "tool-result") {
-            const tr = p as DBToolResultPart;
-            // Add a shallow value preview to catch value-only changes.
-            let resultFingerprint = "null";
-            if (typeof tr.result === "string") {
-              resultFingerprint = `s${tr.result.length}:${tr.result.slice(0, 120)}`;
-            } else if (tr.result && typeof tr.result === "object") {
-              const entries = Object.entries(tr.result as Record<string, unknown>)
-                .slice(0, 5)
-                .map(([key, value]) => {
-                  if (typeof value === "string") return `${key}:${value.slice(0, 60)}`;
-                  if (typeof value === "number" || typeof value === "boolean") return `${key}:${value}`;
-                  if (Array.isArray(value)) return `${key}:arr${value.length}`;
-                  return `${key}:${typeof value}`;
-                })
-                .join(",");
-              resultFingerprint = `o${Object.keys(tr.result as Record<string, unknown>).length}:${entries}`;
-            }
-            return `tr:${tr.toolCallId}:${tr.state ?? ""}:${resultFingerprint}`;
-          }
-          return `o:${p.type}`;
-        }).join("|");
+        const signature = buildProgressSignature(filteredParts);
 
         // Skip if content hasn't changed
         if (signature === streamingState.lastBroadcastSignature) {
@@ -1383,8 +1388,8 @@ export async function POST(req: Request) {
 
           // Use shorter interval (200ms) for text-only updates
           // Use longer interval (400ms) for tool state changes
-          const hasToolChanges = partsSnapshot.some(
-            (p) => p.type === "tool-call" || p.type === "tool-result"
+          const hasToolChanges = filteredParts.some(
+            (part) => part.type === "tool-call" || part.type === "tool-result"
           );
           const throttleInterval = hasToolChanges ? 400 : 200;
 
@@ -1405,6 +1410,8 @@ export async function POST(req: Request) {
         }
 
         streamingState.pendingBroadcast = false;
+
+        const partsSnapshot = cloneContentParts(filteredParts);
 
         if (!streamingState.messageId) {
           // Allocate ordering index for streaming assistant message
@@ -1465,7 +1472,8 @@ export async function POST(req: Request) {
             if (progressLimit.wasTruncated) {
               console.log(
                 `[CHAT API] Progress content truncated: ` +
-                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens`
+                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens` +
+                (progressLimit.hardCapped ? " (hard cap summary applied)" : "")
               );
             }
 
@@ -1482,6 +1490,10 @@ export async function POST(req: Request) {
                 sessionId,
                 assistantMessageId: streamingState.messageId,
                 progressContent: progressLimit.content as DBContentPart[],
+                progressContentLimited: progressLimit.wasTruncated,
+                progressContentOriginalTokens: progressLimit.originalTokens,
+                progressContentFinalTokens: progressLimit.finalTokens,
+                progressContentTruncatedParts: progressLimit.truncatedParts,
                 startedAt: nowISO(),
               }
             );
