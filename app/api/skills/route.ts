@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { createSkill, listSkillsForUser, assertCharacterOwnership } from "@/lib/skills/queries";
+import { createSkill, listSkillLibrary, listSkillsForUser, assertCharacterOwnership } from "@/lib/skills/queries";
 import { createSkillSchema, listSkillsQuerySchema } from "@/lib/skills/validation";
 
 export async function GET(req: NextRequest) {
@@ -14,21 +14,36 @@ export async function GET(req: NextRequest) {
     const parsedQuery = listSkillsQuerySchema.safeParse({
       characterId: req.nextUrl.searchParams.get("characterId") || undefined,
       status: req.nextUrl.searchParams.get("status") || undefined,
+      all: req.nextUrl.searchParams.get("all") || undefined,
+      category: req.nextUrl.searchParams.get("category") || undefined,
+      query: req.nextUrl.searchParams.get("query") || undefined,
+      usageBucket: req.nextUrl.searchParams.get("usageBucket") || undefined,
+      successBucket: req.nextUrl.searchParams.get("successBucket") || undefined,
+      updatedFrom: req.nextUrl.searchParams.get("updatedFrom") || undefined,
+      updatedTo: req.nextUrl.searchParams.get("updatedTo") || undefined,
+      sort: req.nextUrl.searchParams.get("sort") || undefined,
+      cursor: req.nextUrl.searchParams.get("cursor") || undefined,
+      limit: req.nextUrl.searchParams.get("limit") || undefined,
     });
 
     if (!parsedQuery.success) {
       return NextResponse.json({ error: "Invalid query", details: parsedQuery.error.flatten() }, { status: 400 });
     }
 
-    const { characterId, status } = parsedQuery.data;
-    if (characterId) {
-      const ownsCharacter = await assertCharacterOwnership(characterId, dbUser.id);
+    const filters = parsedQuery.data;
+    if (filters.characterId && !filters.all) {
+      const ownsCharacter = await assertCharacterOwnership(filters.characterId, dbUser.id);
       if (!ownsCharacter) {
         return NextResponse.json({ error: "Character not found" }, { status: 404 });
       }
     }
 
-    const skills = await listSkillsForUser(dbUser.id, { characterId, status });
+    if (filters.all) {
+      const library = await listSkillLibrary(dbUser.id, filters);
+      return NextResponse.json({ items: library.items, nextCursor: library.nextCursor });
+    }
+
+    const skills = await listSkillsForUser(dbUser.id, filters);
     return NextResponse.json({ skills });
   } catch (error) {
     console.error("[Skills API] GET error:", error);
@@ -66,6 +81,10 @@ export async function POST(req: NextRequest) {
       promptTemplate: parsedBody.data.promptTemplate,
       inputParameters: parsedBody.data.inputParameters,
       toolHints: parsedBody.data.toolHints,
+      triggerExamples: parsedBody.data.triggerExamples,
+      category: parsedBody.data.category,
+      copiedFromSkillId: parsedBody.data.copiedFromSkillId,
+      copiedFromCharacterId: parsedBody.data.copiedFromCharacterId,
       sourceType: parsedBody.data.sourceType,
       sourceSessionId: parsedBody.data.sourceSessionId,
       status: parsedBody.data.status,

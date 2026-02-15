@@ -369,6 +369,26 @@
         "name": "Görev Zamanla",
         "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
       },
+      "createSkill": {
+        "name": "Yetenek Oluştur",
+        "description": "Mevcut iş akışından tekrar kullanılabilir bir yetenek kaydet"
+      },
+      "listSkills": {
+        "name": "Yetenekleri Listele",
+        "description": "Aktif ajan için kaydedilmiş yetenekleri listele"
+      },
+      "runSkill": {
+        "name": "Yetenek Çalıştır",
+        "description": "Bir yeteneği kimlik veya tam ad ile çalıştır"
+      },
+      "updateSkill": {
+        "name": "Yetenek Güncelle",
+        "description": "Geri bildirimle yeteneği sürüm çakışması kontrolüyle güncelle"
+      },
+      "copySkill": {
+        "name": "Yetenek Kopyala",
+        "description": "Bir yeteneği sahip olduğunuz başka bir ajana kopyala"
+      },
       "memorize": {
         "name": "Hafiza",
         "description": "Gelecekteki konusmalarda hatirlamak icin bilgi veya tercihleri kaydet"

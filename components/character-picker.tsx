@@ -96,6 +96,8 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "createSkill", category: "utility" },
   { id: "listSkills", category: "utility" },
   { id: "runSkill", category: "utility" },
+  { id: "updateSkill", category: "utility" },
+  { id: "copySkill", category: "utility" },
   { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },
   { id: "updatePlan", category: "utility" },

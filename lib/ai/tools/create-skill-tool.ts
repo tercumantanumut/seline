@@ -1,5 +1,6 @@
 import { tool, jsonSchema } from "ai";
 import { createSkill, assertCharacterOwnership } from "@/lib/skills/queries";
+import { inferSkillToolHintsFromSession } from "@/lib/skills/extraction";
 import type { SkillInputParameter } from "@/lib/skills/types";
 
 interface CreateSkillInput {
@@ -8,7 +9,10 @@ interface CreateSkillInput {
   promptTemplate: string;
   inputParameters?: SkillInputParameter[];
   toolHints?: string[];
+  triggerExamples?: string[];
+  category?: string;
   icon?: string;
+  inferFromSession?: boolean;
 }
 
 export interface CreateSkillToolOptions {
@@ -38,7 +42,13 @@ const schema = jsonSchema<CreateSkillInput>({
       },
     },
     toolHints: { type: "array", items: { type: "string" } },
+    triggerExamples: { type: "array", items: { type: "string", maxLength: 240 } },
+    category: { type: "string", minLength: 1, maxLength: 80 },
     icon: { type: "string", maxLength: 20 },
+    inferFromSession: {
+      type: "boolean",
+      description: "Infer ordered tool hints from recent tool calls in this session.",
+    },
   },
   required: ["name", "promptTemplate"],
   additionalProperties: false,
@@ -55,6 +65,20 @@ export function createCreateSkillTool(options: CreateSkillToolOptions) {
         return { success: false, error: "Character not found or not owned by user." };
       }
 
+      const extractionWarnings: string[] = [];
+      let extractedToolHints: string[] = [];
+
+      if (input.inferFromSession && options.sessionId !== "UNSCOPED") {
+        const inferred = await inferSkillToolHintsFromSession(options.sessionId);
+        extractedToolHints = inferred.toolHints;
+        extractionWarnings.push(...inferred.warnings);
+      }
+
+      const finalToolHints =
+        input.toolHints && input.toolHints.length > 0
+          ? input.toolHints
+          : extractedToolHints;
+
       const skill = await createSkill({
         userId: options.userId,
         characterId: options.characterId,
@@ -63,7 +87,9 @@ export function createCreateSkillTool(options: CreateSkillToolOptions) {
         icon: input.icon,
         promptTemplate: input.promptTemplate,
         inputParameters: input.inputParameters || [],
-        toolHints: input.toolHints || [],
+        toolHints: finalToolHints,
+        triggerExamples: input.triggerExamples || [],
+        category: input.category || "general",
         sourceType: "conversation",
         sourceSessionId: options.sessionId,
         status: "active",
@@ -72,6 +98,7 @@ export function createCreateSkillTool(options: CreateSkillToolOptions) {
       return {
         success: true,
         skill,
+        warnings: extractionWarnings,
         message: `Saved skill \"${skill.name}\".`,
         nextActions: ["Run this skill", "Schedule this skill", "Edit parameters"],
       };

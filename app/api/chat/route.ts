@@ -15,6 +15,8 @@ import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
 import { createCreateSkillTool } from "@/lib/ai/tools/create-skill-tool";
 import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
+import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
+import { createCopySkillTool } from "@/lib/ai/tools/copy-skill-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -1747,6 +1749,12 @@ export async function POST(req: Request) {
         userId: dbUser.id,
         characterId: characterId || "",
       }),
+      updateSkill: createUpdateSkillTool({
+        userId: dbUser.id,
+      }),
+      copySkill: createCopySkillTool({
+        userId: dbUser.id,
+      }),
     };
 
     // Enhance frontend messages with tool results from database
@@ -2102,6 +2110,16 @@ export async function POST(req: Request) {
           sessionId,
           userId: dbUser.id,
           characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.updateSkill && {
+        updateSkill: createUpdateSkillTool({
+          userId: dbUser.id,
+        }),
+      }),
+      ...(allTools.copySkill && {
+        copySkill: createCopySkillTool({
+          userId: dbUser.id,
         }),
       }),
     };

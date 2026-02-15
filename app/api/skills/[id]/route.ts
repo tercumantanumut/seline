@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { deleteSkill, getSkillById, updateSkill } from "@/lib/skills/queries";
+import { deleteSkill, getSkillById, listSkillVersions, updateSkill } from "@/lib/skills/queries";
 import { updateSkillSchema } from "@/lib/skills/validation";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -19,7 +19,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Skill not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ skill });
+    const includeHistory = req.nextUrl.searchParams.get("includeHistory") === "true";
+    if (!includeHistory) {
+      return NextResponse.json({ skill });
+    }
+
+    const versions = await listSkillVersions(id, dbUser.id);
+    return NextResponse.json({ skill, versions });
   } catch (error) {
     console.error("[Skills API] GET [id] error:", error);
     return NextResponse.json(
@@ -43,11 +49,24 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const updated = await updateSkill(id, dbUser.id, parsed.data);
-    if (!updated) {
+    if (!updated.skill) {
       return NextResponse.json({ error: "Skill not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ skill: updated });
+    if (updated.stale) {
+      return NextResponse.json(
+        {
+          error: "Skill version conflict",
+          stale: true,
+          staleVersion: updated.staleVersion,
+          warnings: updated.warnings,
+          skill: updated.skill,
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(updated);
   } catch (error) {
     console.error("[Skills API] PATCH [id] error:", error);
     return NextResponse.json(

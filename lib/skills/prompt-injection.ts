@@ -4,6 +4,7 @@ type SkillSummary = {
   id: string;
   name: string;
   description: string;
+  triggerExamples?: string[];
 };
 
 const HARD_MAX_SKILLS = 20;
@@ -40,7 +41,11 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
 
   for (const skill of skills.slice(0, HARD_MAX_SKILLS)) {
     const description = skill.description.trim() || "No description provided.";
-    const line = `- **${skill.name}**: ${description}`;
+    const triggerExamples = Array.isArray(skill.triggerExamples)
+      ? skill.triggerExamples.filter((item) => item.trim().length > 0).slice(0, 3)
+      : [];
+    const triggerLabel = triggerExamples.length > 0 ? ` Triggers: ${triggerExamples.join(" | ")}` : "";
+    const line = `- **${skill.name}**: ${description}${triggerLabel}`;
     const estimated = estimateTokens(line);
 
     if (included > 0 && consumedTokens + estimated > SOFT_TOKEN_BUDGET) {

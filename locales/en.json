@@ -377,6 +377,26 @@
         "name": "Schedule Task",
         "description": "Schedule tasks for future execution (one-time, recurring, or interval)"
       },
+      "createSkill": {
+        "name": "Create Skill",
+        "description": "Save a reusable skill from the current workflow"
+      },
+      "listSkills": {
+        "name": "List Skills",
+        "description": "List saved skills for the active agent"
+      },
+      "runSkill": {
+        "name": "Run Skill",
+        "description": "Run a saved skill by ID or exact name"
+      },
+      "updateSkill": {
+        "name": "Update Skill",
+        "description": "Update a skill using feedback with version conflict checks"
+      },
+      "copySkill": {
+        "name": "Copy Skill",
+        "description": "Copy a skill to another owned agent"
+      },
       "calculator": {
         "name": "Calculator",
         "description": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)"
