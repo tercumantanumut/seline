@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,7 @@ function splitLines(value: string): string[] {
 
 export default function SkillDetailPage({ params }: { params: Promise<{ id: string; skillId: string }> }) {
   const { id: characterId, skillId } = use(params);
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -172,6 +174,13 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       if (!response.ok) {
         throw new Error(payload?.error || "Failed to run skill");
       }
+
+      // Redirect to the session where the skill is running
+      if (payload.sessionId && payload.characterId) {
+        router.push(`/chat/${payload.characterId}?sessionId=${payload.sessionId}`);
+        return;
+      }
+
       setMessage("Skill run triggered.");
       await loadSkill();
     } catch (err) {

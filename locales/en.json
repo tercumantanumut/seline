@@ -1779,6 +1779,15 @@
       "success": "Success",
       "lastRun": "Last Run",
       "never": "Never"
+    },
+    "delete": {
+      "action": "Delete Permanently",
+      "title": "Are you sure?",
+      "description": "This will permanently delete this skill. This action cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel",
+      "success": "Skill deleted permanently",
+      "error": "Failed to delete skill"
     }
   },
   "schedules": {

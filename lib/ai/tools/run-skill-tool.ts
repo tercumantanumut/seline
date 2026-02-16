@@ -76,46 +76,20 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
         return { success: false, error: "Missing required parameters", missingParameters: rendered.missingParameters };
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+      // Track skill run stats and telemetry
+      await updateSkillRunStats(skill.id, options.userId, true);
+      await trackSkillTelemetryEvent({
+        userId: options.userId,
+        eventType: input.triggerSource === "auto" ? "skill_auto_triggered" : "skill_manual_run",
+        skillId: skill.id,
+        characterId: options.characterId,
+        metadata: { via: "runSkillTool" },
+      });
 
-      try {
-        const chatRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/chat`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            cookie: `zlutty-session=${options.userId}`,
-          },
-          body: JSON.stringify({
-            sessionId: options.sessionId,
-            characterId: options.characterId,
-            messages: [{ role: "user", content: rendered.prompt }],
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!chatRes.ok) {
-          const errorText = await chatRes.text();
-          console.error(`[RunSkill] Chat API failed: ${chatRes.status} ${chatRes.statusText} - ${errorText.slice(0, 500)}`);
-          return { 
-            success: false, 
-            error: `Failed to run skill: API returned ${chatRes.status}. ${errorText.slice(0, 200)}` 
-          };
-        }
-
-        await updateSkillRunStats(skill.id, options.userId, chatRes.ok);
-        await trackSkillTelemetryEvent({
-          userId: options.userId,
-          eventType: input.triggerSource === "auto" ? "skill_auto_triggered" : "skill_manual_run",
-          skillId: skill.id,
-          characterId: options.characterId,
-          metadata: { succeeded: chatRes.ok, via: "runSkillTool" },
-        });
-
-        let schedule = null;
-        if (input.schedule) {
+      // Optionally create a linked schedule
+      let schedule = null;
+      if (input.schedule) {
+        try {
           const [created] = await db.insert(scheduledTasks).values({
             userId: options.userId,
             characterId: options.characterId,
@@ -137,24 +111,29 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
           }).returning();
           await getScheduler().reloadSchedule(created.id);
           schedule = created;
+        } catch (error) {
+          console.error("[RunSkill] Schedule creation error:", error);
+          return {
+            success: true,
+            skillId: skill.id,
+            skillName: skill.name,
+            renderedPrompt: rendered.prompt,
+            resolvedParameters: rendered.resolvedParameters,
+            toolHints: skill.toolHints,
+            scheduleError: `Failed to create schedule: ${error instanceof Error ? error.message : String(error)}`,
+          };
         }
-
-        return {
-          success: chatRes.ok,
-          skillId: skill.id,
-          skillName: skill.name,
-          renderedPrompt: rendered.prompt,
-          resolvedParameters: rendered.resolvedParameters,
-          schedule,
-        };
-      } catch (error) {
-        clearTimeout(timeoutId);
-        console.error("[RunSkill] Execution error:", error);
-        return { 
-          success: false, 
-          error: `Failed to execute skill: ${error instanceof Error ? error.message : String(error)}` 
-        };
       }
+
+      return {
+        success: true,
+        skillId: skill.id,
+        skillName: skill.name,
+        renderedPrompt: rendered.prompt,
+        resolvedParameters: rendered.resolvedParameters,
+        toolHints: skill.toolHints,
+        schedule,
+      };
     },
   });
 }

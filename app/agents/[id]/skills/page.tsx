@@ -6,10 +6,26 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, Plus, Library, ExternalLink, Upload } from "lucide-react";
+import { Loader2, AlertCircle, Plus, Library, ExternalLink, Upload, Trash2, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SkillImportDropzone } from "@/components/skills/skill-import-dropzone";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type SkillItem = {
   id: string;
@@ -39,6 +55,8 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [skillToDelete, setSkillToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -75,6 +93,26 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
       mounted = false;
     };
   }, [characterId, tc]);
+
+  const handleDeleteSkill = async () => {
+    if (!skillToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/skills/${skillToDelete}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete skill");
+      
+      setSkills((prev) => prev.filter((s) => s.id !== skillToDelete));
+      toast.success(t("delete.success"));
+    } catch (err) {
+      toast.error(t("delete.error"));
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+      setSkillToDelete(null);
+    }
+  };
 
   if (isLoading) {
     return <Shell><div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-terminal-green" /></div></Shell>;
@@ -173,7 +211,23 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                     <span>Category: {skill.category || "general"}</span>
                     <span>Version: {skill.version}</span>
                   </div>
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex justify-end gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setSkillToDelete(skill.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {t("delete.action")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button asChild variant="outline" size="sm" className="font-mono">
                       <Link href={`/agents/${characterId}/skills/${skill.id}`}>
                         Open <ExternalLink className="ml-1 h-3.5 w-3.5" />
@@ -186,6 +240,31 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
       </ScrollArea>
+
+      <AlertDialog open={!!skillToDelete} onOpenChange={(open) => !open && setSkillToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("delete.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("delete.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>{tc("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteSkill();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {t("delete.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Shell>
   );
 }

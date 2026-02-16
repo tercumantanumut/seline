@@ -23,6 +23,8 @@ import {
   PaperclipIcon,
   CopyIcon,
   CheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
   RefreshCwIcon,
   PencilIcon,
   User,
@@ -39,6 +41,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
@@ -114,6 +117,10 @@ export const Thread: FC<ThreadProps> = ({
   // Drag and drop state for full-page drop zone
   const [isDragging, setIsDragging] = useState(false);
   const [isImportingSkill, setIsImportingSkill] = useState(false);
+  const [skillImportPhase, setSkillImportPhase] = useState<"idle" | "uploading" | "parsing" | "importing" | "success" | "error">("idle");
+  const [skillImportProgress, setSkillImportProgress] = useState(0);
+  const [skillImportName, setSkillImportName] = useState<string | null>(null);
+  const [skillImportError, setSkillImportError] = useState<string | null>(null);
   const dragCounter = useRef(0);
 
   // Deep research mode (for drag-drop gating)
@@ -123,10 +130,13 @@ export const Thread: FC<ThreadProps> = ({
   // ── Drag-and-drop handlers (full-page drop zone) ──────────────────────
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
   }, []);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    // Only count enters from outside the component tree — ignore
+    // bubbled events from child elements (especially the overlay itself)
     if (e.dataTransfer.types.includes("Files")) {
       dragCounter.current += 1;
       if (dragCounter.current === 1) {
@@ -137,7 +147,7 @@ export const Thread: FC<ThreadProps> = ({
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    dragCounter.current -= 1;
+    dragCounter.current = Math.max(0, dragCounter.current - 1);
     if (dragCounter.current === 0) {
       setIsDragging(false);
     }
@@ -146,6 +156,8 @@ export const Thread: FC<ThreadProps> = ({
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
+      // Force-reset drag state to prevent stuck overlay
       dragCounter.current = 0;
       setIsDragging(false);
 
@@ -178,16 +190,35 @@ export const Thread: FC<ThreadProps> = ({
           return;
         }
 
+        // Set initial state — React 18 batches these, but the first
+        // await below forces a render so the overlay appears immediately.
         setIsImportingSkill(true);
+        setSkillImportPhase("uploading");
+        setSkillImportProgress(10);
+        setSkillImportName(skillFile.name);
+        setSkillImportError(null);
+
+        // Yield to the event loop so React flushes the "uploading" overlay
+        // before we start the network request. Without this, React batches
+        // all setState calls up to the first `await fetch(...)` and the
+        // user sees nothing for ~1s.
+        await new Promise((r) => setTimeout(r, 0));
+
         try {
           const formData = new FormData();
           formData.append("file", skillFile);
           formData.append("characterId", character.id);
 
+          setSkillImportPhase("parsing");
+          setSkillImportProgress(30);
+
           const response = await fetch("/api/skills/import", {
             method: "POST",
             body: formData,
           });
+
+          setSkillImportPhase("importing");
+          setSkillImportProgress(70);
 
           if (!response.ok) {
             const error = await response.json();
@@ -196,6 +227,10 @@ export const Thread: FC<ThreadProps> = ({
 
           const result = await response.json();
 
+          setSkillImportPhase("success");
+          setSkillImportProgress(100);
+          setSkillImportName(result.skillName || skillFile.name);
+
           toast.success("Skill imported successfully", {
             description: `${result.skillName} is ready to use`,
             action: {
@@ -203,13 +238,31 @@ export const Thread: FC<ThreadProps> = ({
               onClick: () => router.push(`/agents/${character.id}/skills`),
             },
           });
+
+          // Auto-dismiss after 2.5 seconds
+          setTimeout(() => {
+            setIsImportingSkill(false);
+            setSkillImportPhase("idle");
+            setSkillImportProgress(0);
+            setSkillImportName(null);
+          }, 2500);
         } catch (error) {
           console.error("[Thread] Skill import failed:", error);
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          setSkillImportPhase("error");
+          setSkillImportError(errorMsg);
           toast.error("Skill import failed", {
-            description: error instanceof Error ? error.message : "Unknown error",
+            description: errorMsg,
           });
-        } finally {
-          setIsImportingSkill(false);
+
+          // Auto-dismiss error after 4 seconds
+          setTimeout(() => {
+            setIsImportingSkill(false);
+            setSkillImportPhase("idle");
+            setSkillImportProgress(0);
+            setSkillImportName(null);
+            setSkillImportError(null);
+          }, 4000);
         }
         return;
       }
@@ -288,9 +341,13 @@ export const Thread: FC<ThreadProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Full-page drop zone overlay */}
-        {isDragging && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-dark/40 backdrop-blur-sm pointer-events-none">
+        {/* Full-page drag overlay — hidden once import starts so the progress banner is visible */}
+        {isDragging && !isImportingSkill && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-dark/40 backdrop-blur-sm pointer-events-none"
+            onDragEnter={(e) => e.stopPropagation()}
+            onDragLeave={(e) => e.stopPropagation()}
+          >
             <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-terminal-green bg-terminal-cream/95 px-12 py-10 shadow-2xl">
               <PaperclipIcon className="size-10 text-terminal-green animate-bounce" />
               <span className="text-lg font-semibold font-mono text-terminal-dark">
@@ -299,11 +356,65 @@ export const Thread: FC<ThreadProps> = ({
               <span className="text-sm font-mono text-terminal-muted">
                 {t("composer.dropHintSubtext")}
               </span>
-              {isImportingSkill && (
-                <div className="flex items-center gap-2 mt-2">
-                  <Loader2Icon className="size-4 animate-spin text-terminal-green" />
-                  <span className="text-xs font-mono text-terminal-muted">Importing skill…</span>
+            </div>
+          </div>
+        )}
+
+        {/* Skill import progress overlay — full-page like the drag overlay so the
+            user sees it immediately in the center of the screen where they dropped */}
+        {isImportingSkill && skillImportPhase !== "idle" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-dark/40 backdrop-blur-sm pointer-events-none">
+            <div className={cn(
+              "flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-12 py-10 shadow-2xl min-w-[320px] bg-terminal-cream/95",
+              skillImportPhase === "success"
+                ? "border-terminal-green"
+                : skillImportPhase === "error"
+                  ? "border-red-400"
+                  : "border-terminal-green"
+            )}>
+              {/* Phase icon */}
+              {(skillImportPhase === "uploading" || skillImportPhase === "parsing" || skillImportPhase === "importing") && (
+                <Loader2Icon className="size-10 text-terminal-green animate-spin" />
+              )}
+              {skillImportPhase === "success" && (
+                <CheckCircleIcon className="size-10 text-terminal-green" />
+              )}
+              {skillImportPhase === "error" && (
+                <XCircleIcon className="size-10 text-red-500" />
+              )}
+
+              {/* Phase label */}
+              <span className="text-lg font-semibold font-mono text-terminal-dark">
+                {skillImportPhase === "uploading" && "Uploading…"}
+                {skillImportPhase === "parsing" && "Parsing package…"}
+                {skillImportPhase === "importing" && "Importing skill…"}
+                {skillImportPhase === "success" && "Import complete!"}
+                {skillImportPhase === "error" && "Import failed"}
+              </span>
+
+              {/* File name */}
+              {skillImportName && (
+                <span className="text-sm font-mono text-terminal-muted truncate max-w-[280px]">
+                  {skillImportName}
+                </span>
+              )}
+
+              {/* Progress bar */}
+              {(skillImportPhase === "uploading" || skillImportPhase === "parsing" || skillImportPhase === "importing") && (
+                <div className="w-full max-w-xs space-y-1.5">
+                  <Progress value={skillImportProgress} className="h-2" />
+                  <p className="text-xs text-terminal-muted font-mono text-center">{skillImportProgress}%</p>
                 </div>
+              )}
+
+              {/* Error detail */}
+              {skillImportPhase === "error" && skillImportError && (
+                <p className="text-sm text-red-500 font-mono max-w-md text-center">{skillImportError}</p>
+              )}
+
+              {/* Success subtitle */}
+              {skillImportPhase === "success" && skillImportName && (
+                <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
               )}
             </div>
           </div>
