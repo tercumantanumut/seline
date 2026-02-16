@@ -12,6 +12,8 @@ const fsMocks = vi.hoisted(() => ({
   unlink: vi.fn(),
   stat: vi.fn(),
   mkdir: vi.fn(),
+  realpath: vi.fn(),
+  rename: vi.fn(),
 }));
 
 const diagnosticsMocks = vi.hoisted(() => ({
@@ -51,6 +53,8 @@ vi.mock("fs/promises", () => ({
   unlink: fsMocks.unlink,
   stat: fsMocks.stat,
   mkdir: fsMocks.mkdir,
+  realpath: fsMocks.realpath,
+  rename: fsMocks.rename,
 }));
 
 vi.mock("@/lib/ai/filesystem/diagnostics", () => ({
@@ -73,6 +77,7 @@ describe("patch-file-tool", () => {
 
     syncServiceMocks.getSyncFolders.mockResolvedValue([{ folderPath: FOLDER }]);
     fsMocks.stat.mockResolvedValue({ mtimeMs: 0 });
+    fsMocks.realpath.mockImplementation((path: string) => Promise.resolve(path)); // Mock realpath to return the path as-is
     diagnosticsMocks.runPostWriteDiagnostics.mockResolvedValue(null);
   });
 

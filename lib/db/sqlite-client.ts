@@ -982,7 +982,85 @@ function initializeTables(sqlite: Database.Database): void {
 
   // Run data migrations
   runDataMigrations(sqlite);
+  runSkillsMigrations(sqlite);
   runSessionMaintenance(sqlite);
+}
+
+/**
+ * Run skills-related schema migrations.
+ * These migrations add support for scripted skills (Agent Skills packages).
+ */
+function runSkillsMigrations(sqlite: Database.Database): void {
+  try {
+    // Check if skill_files table exists
+    const tableExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='skill_files'
+    `).get();
+
+    if (!tableExists) {
+      console.log("[SQLite Migration] Creating skill_files table...");
+      
+      // Create skill_files table
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS skill_files (
+          id TEXT PRIMARY KEY,
+          skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+          relative_path TEXT NOT NULL,
+          content BLOB NOT NULL,
+          mime_type TEXT,
+          size INTEGER NOT NULL,
+          is_executable INTEGER DEFAULT 0 NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')) NOT NULL
+        )
+      `);
+
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_skill_files_skill_path 
+        ON skill_files(skill_id, relative_path)
+      `);
+
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_skill_files_skill_created 
+        ON skill_files(skill_id, created_at)
+      `);
+
+      console.log("[SQLite Migration] skill_files table created");
+    }
+
+    // Add new columns to skills table if they don't exist
+    const columnsToAdd = [
+      { name: "source_format", sql: "ALTER TABLE skills ADD COLUMN source_format TEXT DEFAULT 'prompt-only' NOT NULL" },
+      { name: "has_scripts", sql: "ALTER TABLE skills ADD COLUMN has_scripts INTEGER DEFAULT 0 NOT NULL" },
+      { name: "has_references", sql: "ALTER TABLE skills ADD COLUMN has_references INTEGER DEFAULT 0 NOT NULL" },
+      { name: "has_assets", sql: "ALTER TABLE skills ADD COLUMN has_assets INTEGER DEFAULT 0 NOT NULL" },
+      { name: "script_languages", sql: "ALTER TABLE skills ADD COLUMN script_languages TEXT DEFAULT '[]' NOT NULL" },
+      { name: "package_version", sql: "ALTER TABLE skills ADD COLUMN package_version TEXT" },
+      { name: "license", sql: "ALTER TABLE skills ADD COLUMN license TEXT" },
+      { name: "compatibility", sql: "ALTER TABLE skills ADD COLUMN compatibility TEXT" },
+    ];
+
+    for (const column of columnsToAdd) {
+      try {
+        // Check if column exists
+        const columnExists = sqlite.prepare(`
+          SELECT COUNT(*) as count FROM pragma_table_info('skills') 
+          WHERE name = ?
+        `).get(column.name) as { count: number };
+
+        if (columnExists.count === 0) {
+          console.log(`[SQLite Migration] Adding column ${column.name} to skills table...`);
+          sqlite.exec(column.sql);
+        }
+      } catch (error) {
+        console.warn(`[SQLite Migration] Failed to add column ${column.name}:`, error);
+      }
+    }
+
+    console.log("[SQLite Migration] Skills schema migrations complete");
+  } catch (error) {
+    console.error("[SQLite Migration] Skills migrations failed:", error);
+  }
 }
 
 /**

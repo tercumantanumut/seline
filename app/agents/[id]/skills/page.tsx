@@ -6,8 +6,10 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, Plus, Library, ExternalLink } from "lucide-react";
+import { Loader2, AlertCircle, Plus, Library, ExternalLink, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { SkillImportDropzone } from "@/components/skills/skill-import-dropzone";
+import { toast } from "sonner";
 
 type SkillItem = {
   id: string;
@@ -36,6 +38,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -106,11 +109,48 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
               <Button asChild variant="outline" className="gap-2 font-mono">
                 <Link href="/skills/library"><Library className="h-4 w-4" />Library</Link>
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowImport(!showImport)}
+                className="gap-2 font-mono"
+              >
+                <Upload className="h-4 w-4" />
+                {showImport ? "Hide Import" : "Import Package"}
+              </Button>
               <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
                 <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
               </Button>
             </div>
           </header>
+
+          {/* Import Section */}
+          {showImport && character && (
+            <div className="mb-6">
+              <SkillImportDropzone
+                characterId={character.id}
+                onImportSuccess={(skillId) => {
+                  toast.success("Skill imported successfully", {
+                    description: `Skill ID: ${skillId}`,
+                  });
+                  setShowImport(false);
+                  // Reload skills
+                  const loadSkills = async () => {
+                    const res = await fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setSkills(Array.isArray(data.skills) ? data.skills : []);
+                    }
+                  };
+                  loadSkills();
+                }}
+                onImportError={(error) => {
+                  toast.error("Import failed", {
+                    description: error,
+                  });
+                }}
+              />
+            </div>
+          )}
 
           {skills.length === 0 ? (
             <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/50 p-8 text-center">

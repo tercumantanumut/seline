@@ -275,13 +275,16 @@ export function createEditFileTool(options: EditFileToolOptions) {
         };
       }
 
+      // Generate line-numbered diff with @@ hunks (before → after)
+      const diff = generateBeforeAfterDiff(validPath, content, result.newContent);
+
       if (dryRun) {
         return {
           status: "success",
           filePath: validPath,
           message: `[Dry Run] Would apply ${fileEdits.length} edit(s) to ${basename(validPath)}`,
           linesChanged: result.linesChanged,
-          diff: result.diff,
+          diff,
           dryRun: true,
         };
       }
@@ -312,7 +315,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
           message: parts.join(" "),
           linesChanged: result.linesChanged,
           diagnostics: diagnostics ?? undefined,
-          diff: result.diff,
+          diff,
         };
       } catch (error) {
         return {

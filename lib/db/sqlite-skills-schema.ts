@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, blob, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { relations, sql } from "drizzle-orm";
 import { users, sessions } from "./sqlite-schema";
 import { characters } from "./sqlite-character-schema";
@@ -22,6 +22,14 @@ export const skills = sqliteTable(
     copiedFromCharacterId: text("copied_from_character_id").references(() => characters.id, { onDelete: "set null" }),
     sourceType: text("source_type", { enum: ["conversation", "manual", "template"] }).default("conversation").notNull(),
     sourceSessionId: text("source_session_id").references(() => sessions.id, { onDelete: "set null" }),
+    sourceFormat: text("source_format", { enum: ["prompt-only", "agentskills-package"] }).default("prompt-only").notNull(),
+    hasScripts: integer("has_scripts", { mode: "boolean" }).default(false).notNull(),
+    hasReferences: integer("has_references", { mode: "boolean" }).default(false).notNull(),
+    hasAssets: integer("has_assets", { mode: "boolean" }).default(false).notNull(),
+    scriptLanguages: text("script_languages", { mode: "json" }).default("[]").notNull(),
+    packageVersion: text("package_version"),
+    license: text("license"),
+    compatibility: text("compatibility"),
     runCount: integer("run_count").default(0).notNull(),
     successCount: integer("success_count").default(0).notNull(),
     lastRunAt: text("last_run_at"),
@@ -96,11 +104,37 @@ export const skillsRelations = relations(skills, ({ one, many }) => ({
     references: [characters.id],
   }),
   versions: many(skillVersions),
+  files: many(skillFiles),
 }));
 
 export const skillVersionsRelations = relations(skillVersions, ({ one }) => ({
   skill: one(skills, {
     fields: [skillVersions.skillId],
+    references: [skills.id],
+  }),
+}));
+
+export const skillFiles = sqliteTable(
+  "skill_files",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    skillId: text("skill_id").references(() => skills.id, { onDelete: "cascade" }).notNull(),
+    relativePath: text("relative_path").notNull(),
+    content: blob("content").notNull(),
+    mimeType: text("mime_type"),
+    size: integer("size").notNull(),
+    isExecutable: integer("is_executable", { mode: "boolean" }).default(false).notNull(),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    skillPathIdx: index("idx_skill_files_skill_path").on(table.skillId, table.relativePath),
+    skillCreatedIdx: index("idx_skill_files_skill_created").on(table.skillId, table.createdAt),
+  })
+);
+
+export const skillFilesRelations = relations(skillFiles, ({ one }) => ({
+  skill: one(skills, {
+    fields: [skillFiles.skillId],
     references: [skills.id],
   }),
 }));
@@ -111,6 +145,8 @@ export type SkillVersion = typeof skillVersions.$inferSelect;
 export type NewSkillVersion = typeof skillVersions.$inferInsert;
 export type SkillTelemetryEvent = typeof skillTelemetryEvents.$inferSelect;
 export type NewSkillTelemetryEvent = typeof skillTelemetryEvents.$inferInsert;
+export type SkillFile = typeof skillFiles.$inferSelect;
+export type NewSkillFile = typeof skillFiles.$inferInsert;
 
 export interface SkillInputParameter {
   name: string;
