@@ -12,6 +12,8 @@ const fsMocks = vi.hoisted(() => ({
   access: vi.fn(),
   stat: vi.fn(),
   mkdir: vi.fn(),
+  realpath: vi.fn(),
+  rename: vi.fn(),
 }));
 
 const diagnosticsMocks = vi.hoisted(() => ({
@@ -50,6 +52,8 @@ vi.mock("fs/promises", () => ({
   access: fsMocks.access,
   stat: fsMocks.stat,
   mkdir: fsMocks.mkdir,
+  realpath: fsMocks.realpath,
+  rename: fsMocks.rename,
 }));
 
 vi.mock("@/lib/ai/filesystem/diagnostics", () => ({
@@ -75,6 +79,7 @@ describe("write-file-tool", () => {
     ]);
 
     fsMocks.stat.mockResolvedValue({ mtimeMs: 0 }); // Not stale
+    fsMocks.realpath.mockImplementation((path: string) => Promise.resolve(path)); // Mock realpath to return the path as-is
     diagnosticsMocks.runPostWriteDiagnostics.mockResolvedValue(null);
   });
 

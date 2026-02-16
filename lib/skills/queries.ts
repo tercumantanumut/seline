@@ -1,8 +1,11 @@
-import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db/sqlite-client";
 import { characters } from "@/lib/db/sqlite-character-schema";
 import { scheduledTaskRuns, scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
-import { skillVersions, skills } from "@/lib/db/sqlite-skills-schema";
+import { skillFiles, skillVersions, skills } from "@/lib/db/sqlite-skills-schema";
+import type { SkillFile } from "@/lib/db/sqlite-skills-schema";
+import type { ParsedSkillPackage } from "./import-parser";
+import path from "path";
 import type {
   CreateSkillInput,
   SkillCopyInput,
@@ -530,6 +533,8 @@ export async function getSkillsSummaryForPrompt(characterId: string): Promise<Ar
   description: string;
   triggerExamples: string[];
   status: SkillStatus;
+  hasScripts: boolean;
+  scriptLanguages: string[];
 }>> {
   const rows = await db.query.skills.findMany({
     where: and(eq(skills.characterId, characterId), eq(skills.status, "active")),
@@ -543,5 +548,129 @@ export async function getSkillsSummaryForPrompt(characterId: string): Promise<Ar
     description: row.description || "",
     triggerExamples: normalizeStringArray(row.triggerExamples),
     status: row.status,
+    hasScripts: Boolean(row.hasScripts),
+    scriptLanguages: normalizeStringArray(row.scriptLanguages),
   }));
+}
+
+/**
+ * Import a parsed skill package into the database.
+ */
+export async function importSkillPackage(input: {
+  userId: string;
+  characterId: string;
+  parsedSkill: ParsedSkillPackage;
+}): Promise<SkillRecord> {
+  const { userId, characterId, parsedSkill } = input;
+
+  // Detect script languages
+  const scriptLanguages = Array.from(
+    new Set(
+      parsedSkill.scripts
+        .map((file) => {
+          const ext = path.extname(file.relativePath).toLowerCase();
+          if (ext === ".py") return "python" as const;
+          if (ext === ".js" || ext === ".ts") return "javascript" as const;
+          if (ext === ".sh" || ext === ".bash") return "bash" as const;
+          return null;
+        })
+        .filter((lang): lang is "python" | "javascript" | "bash" => lang !== null)
+    )
+  );
+
+  // Create skill record
+  const [skill] = await db
+    .insert(skills)
+    .values({
+      userId,
+      characterId,
+      name: parsedSkill.name,
+      description: parsedSkill.description,
+      promptTemplate: parsedSkill.promptTemplate,
+      sourceFormat: "agentskills-package",
+      sourceType: "manual",
+      hasScripts: parsedSkill.scripts.length > 0,
+      hasReferences: parsedSkill.references.length > 0,
+      hasAssets: parsedSkill.assets.length > 0,
+      scriptLanguages: scriptLanguages,
+      license: parsedSkill.license || null,
+      compatibility: parsedSkill.compatibility || null,
+      toolHints: parsedSkill.allowedTools || [],
+      status: "active",
+    })
+    .returning();
+
+  // Insert all files
+  if (parsedSkill.files.length > 0) {
+    await db.insert(skillFiles).values(
+      parsedSkill.files.map((file) => ({
+        skillId: skill.id,
+        relativePath: file.relativePath,
+        content: file.content,
+        mimeType: file.mimeType,
+        size: file.size,
+        isExecutable: file.isExecutable,
+      }))
+    );
+  }
+
+  return mapSkillRecord(skill);
+}
+
+/**
+ * Get all files for a skill.
+ */
+export async function getSkillFiles(
+  skillId: string,
+  userId: string
+): Promise<SkillFile[]> {
+  const skill = await db.query.skills.findFirst({
+    where: and(eq(skills.id, skillId), eq(skills.userId, userId)),
+    columns: { id: true },
+  });
+
+  if (!skill) return [];
+
+  return db.query.skillFiles.findMany({
+    where: eq(skillFiles.skillId, skillId),
+    orderBy: [asc(skillFiles.relativePath)],
+  });
+}
+
+/**
+ * Get a single file by path.
+ */
+export async function getSkillFile(
+  skillId: string,
+  relativePath: string,
+  userId: string
+): Promise<SkillFile | null> {
+  const skill = await db.query.skills.findFirst({
+    where: and(eq(skills.id, skillId), eq(skills.userId, userId)),
+    columns: { id: true },
+  });
+
+  if (!skill) return null;
+
+  const file = await db.query.skillFiles.findFirst({
+    where: and(
+      eq(skillFiles.skillId, skillId),
+      eq(skillFiles.relativePath, relativePath)
+    ),
+  });
+
+  return file || null;
+}
+
+/**
+ * Get all executable scripts for a skill.
+ */
+export async function getSkillScripts(
+  skillId: string,
+  userId: string
+): Promise<SkillFile[]> {
+  const allFiles = await getSkillFiles(skillId, userId);
+  return allFiles.filter((file) => 
+    file.relativePath.startsWith("scripts/") && file.isExecutable
+  );
 }

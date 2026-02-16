@@ -571,9 +571,9 @@
       "pasteError": "Failed to paste image",
       "filesDropped": "{count, plural, one {# image} other {# images}} attached",
       "dropError": "Failed to attach images",
-      "dropHint": "Drop images here",
-      "dropHintSubtext": "Release to attach",
-      "onlyImagesSupported": "Only image files are supported",
+      "dropHint": "Drop images or skill files here",
+      "dropHintSubtext": "Supports .jpg, .png, .md, .zip",
+      "onlyImagesSupported": "Only image files or skill packages (.md, .zip) are supported",
       "fileTooLarge": "File is too large ({size}MB). Maximum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# file is} other {# files are}} too large. Maximum: {max}MB",
       "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode"

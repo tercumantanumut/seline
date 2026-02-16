@@ -569,9 +569,9 @@
       "pasteError": "GÃƒÂ¶rsel yapÃ„Â±Ã…Å¸tÃ„Â±rÃ„Â±lamadÃ„Â±",
       "filesDropped": "{count, plural, one {# gÃƒÂ¶rsel} other {# gÃƒÂ¶rsel}} eklendi",
       "dropError": "GÃƒÂ¶rseller eklenemedi",
-      "dropHint": "GÃƒÂ¶rselleri buraya bÃ„Â±rakÃ„Â±n",
-      "dropHintSubtext": "Eklemek iÃƒÂ§in bÃ„Â±rakÃ„Â±n",
-      "onlyImagesSupported": "YalnÃ„Â±zca gÃƒÂ¶rsel dosyalarÃ„Â± desteklenir",
+      "dropHint": "GÃƒÂ¶rselleri veya yetenek dosyalarÃ„Â±nÃ„Â± buraya bÃ„Â±rakÃ„Â±n",
+      "dropHintSubtext": ".jpg, .png, .md, .zip desteklenir",
+      "onlyImagesSupported": "YalnÃ„Â±zca gÃƒÂ¶rsel dosyalarÃ„Â± veya yetenek paketleri (.md, .zip) desteklenir",
       "fileTooLarge": "Dosya ÃƒÂ§ok bÃƒÂ¼yÃƒÂ¼k ({size}MB). Maksimum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} ÃƒÂ§ok bÃƒÂ¼yÃƒÂ¼k. Maksimum: {max}MB",
       "attachmentsDisabledResearch": "Derin AraÃ…Å¸tÃ„Â±rma modunda ekler kullanÃ„Â±lamaz"
