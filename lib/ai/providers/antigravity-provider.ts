@@ -728,6 +728,87 @@ async function readRequestBody(body: BodyInit): Promise<string> {
   throw new Error("Unsupported request body type for Antigravity request");
 }
 
+function generateClaudeToolCallId(): string {
+  return `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+function getNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Ensure Claude functionCall/functionResponse parts share stable matching IDs.
+ *
+ * The Antigravity Claude gateway expects strict call/result pairing by ID.
+ * We only fill in missing IDs and preserve any IDs already provided by the SDK.
+ */
+function ensureClaudeFunctionPartIds(contents: unknown): void {
+  if (!Array.isArray(contents)) return;
+
+  const pendingIdsByName = new Map<string, string[]>();
+
+  for (const content of contents) {
+    if (!content || typeof content !== "object") continue;
+    const parts = (content as { parts?: unknown }).parts;
+    if (!Array.isArray(parts)) continue;
+
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue;
+      const partRecord = part as Record<string, unknown>;
+
+      const functionCall = partRecord.functionCall;
+      if (functionCall && typeof functionCall === "object") {
+        const callRecord = functionCall as Record<string, unknown>;
+        const functionName = getNonEmptyString(callRecord.name) ?? "__unknown_tool__";
+        const callId = getNonEmptyString(callRecord.id) ?? generateClaudeToolCallId();
+        callRecord.id = callId;
+
+        const queue = pendingIdsByName.get(functionName) ?? [];
+        queue.push(callId);
+        pendingIdsByName.set(functionName, queue);
+        continue;
+      }
+
+      const functionResponse = partRecord.functionResponse;
+      if (!functionResponse || typeof functionResponse !== "object") {
+        continue;
+      }
+
+      const responseRecord = functionResponse as Record<string, unknown>;
+      const functionName = getNonEmptyString(responseRecord.name) ?? "__unknown_tool__";
+      const existingId = getNonEmptyString(responseRecord.id);
+      const queue = pendingIdsByName.get(functionName);
+
+      if (existingId) {
+        if (queue && queue.length > 0) {
+          const matchIndex = queue.indexOf(existingId);
+          if (matchIndex !== -1) {
+            queue.splice(matchIndex, 1);
+          }
+          if (queue.length === 0) {
+            pendingIdsByName.delete(functionName);
+          }
+        }
+        continue;
+      }
+
+      if (!queue || queue.length === 0) {
+        continue;
+      }
+
+      const matchedId = queue.shift();
+      if (queue.length === 0) {
+        pendingIdsByName.delete(functionName);
+      }
+      if (matchedId) {
+        responseRecord.id = matchedId;
+      }
+    }
+  }
+}
+
 /**
  * Check if this is a Google Generative Language API request that should be intercepted
  */
@@ -808,50 +889,11 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
           normalizeAntigravityToolSchemas(parsedBody.tools);
         }
 
-        // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
+        // For Claude models via Antigravity, ensure functionCall/functionResponse
+        // parts use stable shared IDs for strict call/result validation.
         const isClaudeModel = effectiveModel.includes("claude");
-        if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
-          // Track functionCall IDs by name+index for matching with functionResponse
-          const functionCallIds = new Map<string, string[]>();
-          const functionResponseIndex = new Map<string, number>();
-
-          // First pass: inject IDs into all functionCall parts
-          for (const content of parsedBody.contents) {
-            if (content.parts && Array.isArray(content.parts)) {
-              for (const part of content.parts) {
-                if (part.functionCall && typeof part.functionCall === "object") {
-                  const funcName = (part.functionCall as Record<string, unknown>).name as string;
-                  const callId = `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
-
-                  if (!functionCallIds.has(funcName)) {
-                    functionCallIds.set(funcName, []);
-                  }
-                  functionCallIds.get(funcName)!.push(callId);
-                  (part.functionCall as Record<string, unknown>).id = callId;
-                }
-              }
-            }
-          }
-
-          // Second pass: inject matching IDs into functionResponse parts
-          for (const content of parsedBody.contents) {
-            if (content.parts && Array.isArray(content.parts)) {
-              for (const part of content.parts) {
-                if (part.functionResponse && typeof part.functionResponse === "object") {
-                  const funcName = (part.functionResponse as Record<string, unknown>).name as string;
-                  const ids = functionCallIds.get(funcName);
-
-                  if (ids && ids.length > 0) {
-                    const idx = functionResponseIndex.get(funcName) || 0;
-                    if (idx < ids.length) {
-                      (part.functionResponse as Record<string, unknown>).id = ids[idx];
-                      functionResponseIndex.set(funcName, idx + 1);
-                    }
-                  }
-                }
-              }
-            }
-          }
+        if (isClaudeModel) {
+          ensureClaudeFunctionPartIds(parsedBody.contents);
         }
 
         // Wrap the request in Antigravity's expected format

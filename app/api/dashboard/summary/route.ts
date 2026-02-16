@@ -4,9 +4,8 @@ import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { db } from "@/lib/db/sqlite-client";
 import { scheduledTaskRuns, scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
-import { skills } from "@/lib/db/sqlite-skills-schema";
+import { skillTelemetryEvents, skills } from "@/lib/db/sqlite-skills-schema";
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
-import { SKILLS_V2_TRACK_C } from "@/lib/flags";
 import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 
 type WindowPreset = "24h" | "7d" | "30d";
@@ -21,12 +20,10 @@ function getWindowStart(window: WindowPreset): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const startedAt = Date.now();
     const userId = await requireAuth(req);
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
-    if (!SKILLS_V2_TRACK_C) {
-      return NextResponse.json({ error: "Dashboard is disabled for this rollout." }, { status: 404 });
-    }
     const windowParam = req.nextUrl.searchParams.get("window");
     const window: WindowPreset = windowParam === "24h" || windowParam === "7d" || windowParam === "30d" ? windowParam : "7d";
     const sinceIso = getWindowStart(window);
@@ -101,10 +98,54 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const telemetryRows = await db
+      .select({
+        eventType: skillTelemetryEvents.eventType,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(skillTelemetryEvents)
+      .where(
+        and(
+          eq(skillTelemetryEvents.userId, dbUser.id),
+          gte(skillTelemetryEvents.createdAt, sinceIso)
+        )
+      )
+      .groupBy(skillTelemetryEvents.eventType);
+
+    const eventCounts: Record<string, number> = {};
+    for (const row of telemetryRows) {
+      eventCounts[row.eventType] = Number(row.count || 0);
+    }
+
+    const autoTriggered = eventCounts.skill_auto_triggered || 0;
+    const manualRuns = eventCounts.skill_manual_run || 0;
+    const triggerTotal = autoTriggered + manualRuns;
+    const copySuccess = eventCounts.skill_copy_succeeded || 0;
+    const copyFailed = eventCounts.skill_copy_failed || 0;
+    const copyTotal = copySuccess + copyFailed;
+    const updateSuccess = eventCounts.skill_update_succeeded || 0;
+    const updateStale = eventCounts.skill_update_stale || 0;
+    const updateTotal = updateSuccess + updateStale;
+
+    const telemetrySummary = {
+      autoTriggerRate: triggerTotal > 0 ? Number((autoTriggered / triggerTotal).toFixed(4)) : null,
+      manualRunCount: manualRuns,
+      autoTriggeredCount: autoTriggered,
+      copySuccessRate: copyTotal > 0 ? Number((copySuccess / copyTotal).toFixed(4)) : null,
+      copyFailureRate: copyTotal > 0 ? Number((copyFailed / copyTotal).toFixed(4)) : null,
+      copySuccessCount: copySuccess,
+      copyFailureCount: copyFailed,
+      staleUpdateRate: updateTotal > 0 ? Number((updateStale / updateTotal).toFixed(4)) : null,
+      updateSuccessCount: updateSuccess,
+      updateStaleCount: updateStale,
+    };
+
+    const queryLatencyMs = Date.now() - startedAt;
+
     await trackSkillTelemetryEvent({
       userId: dbUser.id,
       eventType: "skill_dashboard_loaded",
-      metadata: { window, totalRuns },
+      metadata: { window, totalRuns, queryLatencyMs },
     });
 
     return NextResponse.json({
@@ -119,6 +160,8 @@ export async function GET(req: NextRequest) {
         taskName: run.taskName,
         nextRunAt: run.nextRunAt,
       })),
+      telemetrySummary,
+      queryLatencyMs,
     });
   } catch (error) {
     console.error("[Dashboard API] GET summary error:", error);

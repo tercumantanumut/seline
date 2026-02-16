@@ -429,6 +429,18 @@ async function extractContent(
 
   // If parts array exists (assistant-ui format), convert it
   if (msg.parts && Array.isArray(msg.parts)) {
+    const explicitToolResultIds = new Set(
+      msg.parts
+        .filter(
+          (
+            part
+          ): part is {
+            type: "tool-result";
+            toolCallId: string;
+          } => part.type === "tool-result" && typeof part.toolCallId === "string"
+        )
+        .map((part) => part.toolCallId)
+    );
     const contentParts: Array<{
       type: string;
       text?: string;
@@ -519,6 +531,18 @@ async function extractContent(
             toolCallId,
             toolName,
             input: normalizedInput,
+          });
+        }
+
+        if (toolCallId && output !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, output)
+            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: toModelToolResultOutput(normalizedOutput),
           });
         }
         
@@ -616,19 +640,42 @@ async function extractContent(
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] dynamic-tool ${toolName} output preserved as structured data`);
         }
+      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        contentParts.push({
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          input: normalizedInput,
+        });
 
-        if (toolCallId && output !== undefined) {
+        // Some historical messages store tool output inline on the tool-call part.
+        // Preserve that as a structured tool-result to keep call/result pairs valid.
+        const rawOutput = part.output ?? part.result;
+        if (rawOutput !== undefined && !explicitToolResultIds.has(part.toolCallId)) {
           const normalizedOutput = toolSummaryMode
-            ? summarizeToolResult(toolName, output)
-            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+            ? summarizeToolResult(part.toolName, rawOutput)
+            : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
           contentParts.push({
             type: "tool-result",
-            toolCallId,
-            toolName,
-            output: normalizedOutput,
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            output: toModelToolResultOutput(normalizedOutput),
           });
         }
-      } else if (part.type.startsWith("tool-")) {
+      } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        const rawOutput = part.output ?? part.result;
+        const normalizedOutput = toolSummaryMode
+          ? summarizeToolResult(part.toolName, rawOutput)
+          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+        contentParts.push({
+          type: "tool-result",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          output: toModelToolResultOutput(normalizedOutput),
+        });
+      } else if (part.type.startsWith("tool-") && part.type !== "tool-call" && part.type !== "tool-result") {
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
         // CRITICAL: Tool results are kept as structured data in the parts, NOT converted to text
         // The AI SDK handles tool-result parts natively - no need for [SYSTEM: ...] markers
@@ -656,6 +703,17 @@ async function extractContent(
             toolCallId,
             toolName,
             input: normalizedInput,
+          });
+        }
+        if (toolCallId && toolOutput !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, toolOutput)
+            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: toModelToolResultOutput(normalizedOutput),
           });
         }
         console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(toolOutput, null, 2));
@@ -753,38 +811,6 @@ async function extractContent(
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] tool-${toolName} output preserved as structured data`);
         }
-
-        if (toolCallId && toolOutput !== undefined) {
-          const normalizedOutput = toolSummaryMode
-            ? summarizeToolResult(toolName, toolOutput)
-            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
-          contentParts.push({
-            type: "tool-result",
-            toolCallId,
-            toolName,
-            output: normalizedOutput,
-          });
-        }
-      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
-        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
-        contentParts.push({
-          type: "tool-call",
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          input: normalizedInput,
-        });
-      } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
-        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
-        const rawOutput = part.output ?? part.result;
-        const normalizedOutput = toolSummaryMode
-          ? summarizeToolResult(part.toolName, rawOutput)
-          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
-        contentParts.push({
-          type: "tool-result",
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          output: normalizedOutput,
-        });
       }
     }
 
@@ -813,17 +839,19 @@ async function extractContent(
       }
     }
 
+    const normalizedParts = filterOrphanToolCalls(contentParts);
+
     // If no content parts, return non-empty fallback string for AI providers
-    if (contentParts.length === 0) {
+    if (normalizedParts.length === 0) {
       return "[Message content not available]";
     }
 
     // If only one text part, return as string for simplicity
-    if (contentParts.length === 1 && contentParts[0].type === "text") {
-      return contentParts[0].text || "";
+    if (normalizedParts.length === 1 && normalizedParts[0].type === "text") {
+      return normalizedParts[0].text || "";
     }
 
-    return contentParts;
+    return normalizedParts;
   }
 
   // Also check for experimental_attachments even without parts array
@@ -916,6 +944,219 @@ function shouldUseToolSummaries(
 ): boolean {
   const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
+}
+
+const TOOL_HISTORY_SUMMARY_MAX_CHARS = 320;
+
+function summarizeHistoricalToolOutput(output: unknown): string {
+  if (typeof output === "string") {
+    return output.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+  }
+
+  if (output && typeof output === "object") {
+    const maybeTyped = output as { type?: unknown; value?: unknown };
+    if (maybeTyped.type === "text" && typeof maybeTyped.value === "string") {
+      return maybeTyped.value.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+    }
+    if (maybeTyped.type === "json") {
+      try {
+        const jsonText = JSON.stringify(maybeTyped.value);
+        return jsonText.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+      } catch {
+        return "[unserializable json output]";
+      }
+    }
+    try {
+      return JSON.stringify(output).slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+    } catch {
+      return "[unserializable output]";
+    }
+  }
+
+  return String(output ?? "").slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+}
+
+function sanitizeToolHistoryForAntigravityClaude(messages: ModelMessage[]): ModelMessage[] {
+  let removedCalls = 0;
+  let removedResults = 0;
+
+  const sanitized: ModelMessage[] = messages.map((message): ModelMessage => {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      return message;
+    }
+
+    const keptParts: Array<Record<string, unknown>> = [];
+    const summaryLines: string[] = [];
+
+    for (const rawPart of message.content as Array<Record<string, unknown>>) {
+      const partType = rawPart?.type;
+      if (partType === "tool-call") {
+        removedCalls += 1;
+        continue;
+      }
+      if (partType === "tool-result") {
+        removedResults += 1;
+        const toolName = typeof rawPart.toolName === "string" ? rawPart.toolName : "tool";
+        const summary = summarizeHistoricalToolOutput(rawPart.output);
+        summaryLines.push(`[Previous ${toolName} result] ${summary}`);
+        continue;
+      }
+      keptParts.push(rawPart);
+    }
+
+    if (summaryLines.length > 0) {
+      keptParts.push({
+        type: "text",
+        text: summaryLines.join("\n"),
+      });
+    }
+
+    if (keptParts.length === 0) {
+      return {
+        ...message,
+        content: "[Previous tool activity omitted for Claude compatibility.]",
+      } as ModelMessage;
+    }
+
+    if (
+      keptParts.length === 1 &&
+      keptParts[0].type === "text" &&
+      typeof keptParts[0].text === "string"
+    ) {
+      return {
+        ...message,
+        content: keptParts[0].text,
+      } as ModelMessage;
+    }
+
+    return {
+      ...message,
+      content: keptParts as ModelMessage["content"],
+    } as ModelMessage;
+  });
+
+  if (removedCalls > 0 || removedResults > 0) {
+    console.log(
+      `[CHAT API] Antigravity Claude history sanitization: removed ${removedCalls} tool-call and ${removedResults} tool-result parts`
+    );
+  }
+
+  return sanitized;
+}
+
+function filterOrphanToolCalls(
+  parts: Array<{
+    type: string;
+    text?: string;
+    image?: string;
+    toolCallId?: string;
+    toolName?: string;
+    input?: unknown;
+    output?: unknown;
+  }>
+): Array<{
+  type: string;
+  text?: string;
+  image?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+}> {
+  const toolCallIds = new Set(
+    parts
+      .filter(
+        (part): part is { type: "tool-call"; toolCallId: string } =>
+          part.type === "tool-call" && typeof part.toolCallId === "string"
+      )
+      .map((part) => part.toolCallId)
+  );
+  const toolResultIds = new Set(
+    parts
+      .filter(
+        (part): part is { type: "tool-result"; toolCallId: string } =>
+          part.type === "tool-result" && typeof part.toolCallId === "string"
+      )
+      .map((part) => part.toolCallId)
+  );
+
+  let removedOrphanCalls = 0;
+  let removedOrphanResults = 0;
+  let removedDuplicateCalls = 0;
+  let removedDuplicateResults = 0;
+  const seenToolCalls = new Set<string>();
+  const seenToolResults = new Set<string>();
+
+  const filtered = parts.filter((part) => {
+    if (part.type === "tool-call") {
+      if (typeof part.toolCallId !== "string") {
+        removedOrphanCalls += 1;
+        return false;
+      }
+      if (!toolResultIds.has(part.toolCallId)) {
+        removedOrphanCalls += 1;
+        return false;
+      }
+      if (seenToolCalls.has(part.toolCallId)) {
+        removedDuplicateCalls += 1;
+        return false;
+      }
+      seenToolCalls.add(part.toolCallId);
+      return true;
+    }
+
+    if (part.type === "tool-result") {
+      if (typeof part.toolCallId !== "string") {
+        removedOrphanResults += 1;
+        return false;
+      }
+      if (!toolCallIds.has(part.toolCallId)) {
+        removedOrphanResults += 1;
+        return false;
+      }
+      if (seenToolResults.has(part.toolCallId)) {
+        removedDuplicateResults += 1;
+        return false;
+      }
+      seenToolResults.add(part.toolCallId);
+      return true;
+    }
+
+    return true;
+  });
+
+  if (
+    removedOrphanCalls > 0 ||
+    removedOrphanResults > 0 ||
+    removedDuplicateCalls > 0 ||
+    removedDuplicateResults > 0
+  ) {
+    console.warn(
+      `[CHAT API] Filtered tool parts before model send: ` +
+      `orphan calls=${removedOrphanCalls}, orphan results=${removedOrphanResults}, ` +
+      `duplicate calls=${removedDuplicateCalls}, duplicate results=${removedDuplicateResults}`
+    );
+  }
+
+  return filtered;
+}
+
+function toModelToolResultOutput(
+  output: unknown
+): { type: "text"; value: string } | { type: "json"; value: unknown } {
+  if (typeof output === "string") {
+    return { type: "text", value: output };
+  }
+
+  // Ensure payload stays JSON-serializable for ModelMessage validation.
+  try {
+    return { type: "json", value: JSON.parse(JSON.stringify(output ?? null)) };
+  } catch {
+    return {
+      type: "json",
+      value: { status: "error", error: "Tool result was not JSON-serializable." },
+    };
+  }
 }
 
 function summarizeToolResult(toolName: string, output: unknown): unknown {
@@ -1923,7 +2164,7 @@ export async function POST(req: Request) {
     // convertUserImagesToBase64=true - Send base64 images so Claude can actually SEE user uploads
     // (Without this, Claude hallucinates URLs when asked about images from channels like Telegram)
     // sessionId enables smart truncation - long content is truncated but full version is retrievable
-    const coreMessages: ModelMessage[] = await Promise.all(
+    let coreMessages: ModelMessage[] = await Promise.all(
       enhancedMessages.map(async (msg, idx) => {
         const content = await extractContent(
           msg as Parameters<typeof extractContent>[0],
@@ -1946,6 +2187,15 @@ export async function POST(req: Request) {
         } as ModelMessage;
       })
     );
+
+    const isAntigravityClaudeModel =
+      currentProvider === "antigravity" &&
+      typeof currentModelId === "string" &&
+      currentModelId.toLowerCase().includes("claude");
+
+    if (isAntigravityClaudeModel) {
+      coreMessages = sanitizeToolHistoryForAntigravityClaude(coreMessages);
+    }
 
     // Validate tool call inputs before sending to AI SDK
     // This helps detect if any invalid tool calls made it through the converter

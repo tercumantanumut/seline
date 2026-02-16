@@ -5,7 +5,6 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, RefreshCw } from "lucide-react";
-import { SKILLS_V2_TRACK_C } from "@/lib/flags";
 
 type WindowPreset = "24h" | "7d" | "30d";
 
@@ -17,19 +16,22 @@ type DashboardSummary = {
   topSkills: Array<{ skillId: string; name: string; runs: number; successRate: number | null }>;
   trend: Array<{ day: string; runs: number; failures: number }>;
   upcomingRuns: Array<{ taskId: string; taskName: string; nextRunAt: string | null }>;
+  telemetrySummary: {
+    autoTriggerRate: number | null;
+    manualRunCount: number;
+    autoTriggeredCount: number;
+    copySuccessRate: number | null;
+    copyFailureRate: number | null;
+    copySuccessCount: number;
+    copyFailureCount: number;
+    staleUpdateRate: number | null;
+    updateSuccessCount: number;
+    updateStaleCount: number;
+  };
+  queryLatencyMs: number;
 };
 
 export default function DashboardPage() {
-  if (!SKILLS_V2_TRACK_C) {
-    return (
-      <Shell>
-        <div className="mx-auto w-full max-w-4xl px-6 py-10 font-mono text-terminal-muted">
-          Dashboard is disabled for this rollout cohort.
-        </div>
-      </Shell>
-    );
-  }
-
   const [windowPreset, setWindowPreset] = useState<WindowPreset>("7d");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +45,6 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load dashboard");
       setSummary(data);
-      await fetch("/api/skills/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventType: "skill_dashboard_loaded", metadata: { window: windowArg } }),
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -88,7 +85,13 @@ export default function DashboardPage() {
               <Card><CardHeader><CardTitle>Total Runs</CardTitle></CardHeader><CardContent>{summary.totalRuns}</CardContent></Card>
               <Card><CardHeader><CardTitle>Success Rate</CardTitle></CardHeader><CardContent>{summary.successRate ?? "N/A"}%</CardContent></Card>
               <Card><CardHeader><CardTitle>Failures</CardTitle></CardHeader><CardContent>{failureCount}</CardContent></Card>
-              <Card><CardHeader><CardTitle>As Of</CardTitle></CardHeader><CardContent>{new Date(summary.asOf).toLocaleString()}</CardContent></Card>
+              <Card><CardHeader><CardTitle>Query Latency</CardTitle></CardHeader><CardContent>{summary.queryLatencyMs} ms</CardContent></Card>
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <Card><CardHeader><CardTitle>Auto-Trigger Rate</CardTitle></CardHeader><CardContent>{summary.telemetrySummary.autoTriggerRate == null ? "N/A" : `${(summary.telemetrySummary.autoTriggerRate * 100).toFixed(1)}%`}</CardContent></Card>
+              <Card><CardHeader><CardTitle>Copy Success Rate</CardTitle></CardHeader><CardContent>{summary.telemetrySummary.copySuccessRate == null ? "N/A" : `${(summary.telemetrySummary.copySuccessRate * 100).toFixed(1)}%`}</CardContent></Card>
+              <Card><CardHeader><CardTitle>Copy Failure Rate</CardTitle></CardHeader><CardContent>{summary.telemetrySummary.copyFailureRate == null ? "N/A" : `${(summary.telemetrySummary.copyFailureRate * 100).toFixed(1)}%`}</CardContent></Card>
+              <Card><CardHeader><CardTitle>Stale Update Rate</CardTitle></CardHeader><CardContent>{summary.telemetrySummary.staleUpdateRate == null ? "N/A" : `${(summary.telemetrySummary.staleUpdateRate * 100).toFixed(1)}%`}</CardContent></Card>
             </div>
             <Card>
               <CardHeader><CardTitle>Top Skills</CardTitle></CardHeader>
@@ -112,6 +115,16 @@ export default function DashboardPage() {
                     <span className="font-mono text-terminal-muted">{run.nextRunAt ? new Date(run.nextRunAt).toLocaleString() : "N/A"}</span>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Skill Telemetry</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm font-mono text-terminal-muted">
+                <p>Auto-triggered: {summary.telemetrySummary.autoTriggeredCount}</p>
+                <p>Manual runs: {summary.telemetrySummary.manualRunCount}</p>
+                <p>Copy success/failure: {summary.telemetrySummary.copySuccessCount}/{summary.telemetrySummary.copyFailureCount}</p>
+                <p>Skill updates success/stale: {summary.telemetrySummary.updateSuccessCount}/{summary.telemetrySummary.updateStaleCount}</p>
+                <p>As of: {new Date(summary.asOf).toLocaleString()}</p>
               </CardContent>
             </Card>
           </>

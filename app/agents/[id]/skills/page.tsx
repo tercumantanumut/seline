@@ -8,7 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, Plus, Library, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ENABLE_PUBLIC_LIBRARY, SKILLS_V2_TRACK_B } from "@/lib/flags";
 
 type SkillItem = {
   id: string;
@@ -104,11 +103,9 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
               <p className="mt-1 text-sm text-terminal-muted">{t("pageDescription", { name: agentName })}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {SKILLS_V2_TRACK_B && ENABLE_PUBLIC_LIBRARY ? (
-                <Button asChild variant="outline" className="gap-2 font-mono">
-                  <Link href="/skills/library"><Library className="h-4 w-4" />Library</Link>
-                </Button>
-              ) : null}
+              <Button asChild variant="outline" className="gap-2 font-mono">
+                <Link href="/skills/library"><Library className="h-4 w-4" />Library</Link>
+              </Button>
               <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
                 <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
               </Button>

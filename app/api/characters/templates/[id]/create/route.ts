@@ -3,16 +3,11 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { createAgentFromTemplate, getTemplate } from "@/lib/characters/templates";
-import { SKILLS_V2_TRACK_D } from "@/lib/flags";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    if (!SKILLS_V2_TRACK_D) {
-      return NextResponse.json({ error: "Template creation is disabled." }, { status: 404 });
-    }
-
     const userId = await requireAuth(req);
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);

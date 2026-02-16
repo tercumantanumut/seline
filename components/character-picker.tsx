@@ -14,7 +14,6 @@ import { animate, stagger } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
-import { SKILLS_V2_TRACK_C } from "@/lib/flags";
 import {
   Dialog,
   DialogContent,
@@ -511,27 +510,23 @@ export function CharacterPicker() {
           }))
           : activeChars;
 
-        if (SKILLS_V2_TRACK_C) {
-          const statsEntries = await Promise.all(
-            enrichedWithStatus.map(async (char) => {
-              try {
-                const { data } = await resilientFetch<{ stats?: { skillCount: number; runCount: number; successRate: number | null; lastActive: string | null } }>(`/api/characters/${char.id}/stats`);
-                return [char.id, data?.stats || null] as const;
-              } catch {
-                return [char.id, null] as const;
-              }
-            })
-          );
-          const statsById = new Map(statsEntries);
-          setCharacters(
-            enrichedWithStatus.map((char) => ({
-              ...char,
-              stats: statsById.get(char.id) || undefined,
-            }))
-          );
-        } else {
-          setCharacters(enrichedWithStatus);
-        }
+        const statsEntries = await Promise.all(
+          enrichedWithStatus.map(async (char) => {
+            try {
+              const { data } = await resilientFetch<{ stats?: { skillCount: number; runCount: number; successRate: number | null; lastActive: string | null } }>(`/api/characters/${char.id}/stats`);
+              return [char.id, data?.stats || null] as const;
+            } catch {
+              return [char.id, null] as const;
+            }
+          })
+        );
+        const statsById = new Map(statsEntries);
+        setCharacters(
+          enrichedWithStatus.map((char) => ({
+            ...char,
+            stats: statsById.get(char.id) || undefined,
+          }))
+        );
       } else {
         setCharacters(activeChars);
       }
@@ -891,7 +886,7 @@ export function CharacterPicker() {
                   </div>
                 )}
 
-                {SKILLS_V2_TRACK_C && stats ? (
+                {stats ? (
                   <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-mono text-terminal-muted">
                     <span>{stats.skillCount} skills</span>
                     <span>{stats.runCount} runs</span>
@@ -938,16 +933,14 @@ export function CharacterPicker() {
                   <Plug className="w-3 h-3" />
                   <span>{t("mcpTools")}</span>
                 </button>
-                {SKILLS_V2_TRACK_C ? (
-                  <button
-                    onClick={() => router.push("/dashboard")}
-                    className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                    title="Dashboard"
-                  >
-                    <BarChart2 className="w-3 h-3" />
-                    <span>Dashboard</span>
-                  </button>
-                ) : null}
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title="Dashboard"
+                >
+                  <BarChart2 className="w-3 h-3" />
+                  <span>Dashboard</span>
+                </button>
                 <button
                   onClick={() => openDeleteDialog(character)}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"

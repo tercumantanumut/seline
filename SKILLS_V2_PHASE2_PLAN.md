@@ -561,23 +561,28 @@ These rules are mandatory in V2 when skills use plan updates.
 
 ### 12.1 Observability
 
-Track at minimum:
-- Skill auto-trigger rate
-- Wrong-skill correction rate (user overrides)
-- Skill copy success/failure rate
-- Stats/dashboard query latency
+Track at minimum and expose to users wherever possible using existing surfaces (`/admin/observability`, run history, skill cards):
+- Skill auto-trigger rate (global + per-skill)
+- Wrong-skill correction rate (user overrides, accepted corrections)
+- Skill copy success/failure rate (with top failure reasons)
+- Stats/dashboard query latency (p50/p95 on dashboard)
 - Plan warning/error/stale rates for skill-driven updates
+
+User-facing path (no new schema required):
+- Show per-skill reliability summary on skill detail/cards (triggered, corrected, copy success)
+- Show recent plan health summary in run/session views (warnings, stale retries, errors)
+- Keep full diagnostics in admin observability for deep debugging
 
 ### 12.2 Rollout Strategy
 
-- Feature flags by track (A/B/C/D/E independently)
-- Cohort rollout: internal -> 5% -> 25% -> 100%
-- Hold points between cohorts with QA sign-off
+- Enable skills fully by default across tracks A/B/C/D/E
+- Keep only operational kill switches (global auto-trigger off, per-feature UI hide) for incident response
+- Do one internal validation pass, then ship to all users; no staged cohort rollout by default
 
 ### 12.3 Fallback
 
-- Disable per-track flags without schema rollback
-- Revert to manual run-only behavior if auto-trigger quality drops
+- Disable auto-trigger globally (manual run-only mode) without schema rollback
+- Disable skill copy entry points if copy failures spike; keep existing skills runnable
 - Hide optional E2 visualization without affecting E1 editor
 
 ### 12.4 Rollback Triggers
@@ -585,6 +590,7 @@ Track at minimum:
 - P0 data corruption in skills or session plan state
 - >2x baseline API/tool failure for 30 minutes
 - >5% user task completion drop attributable to skill matching/copy/update regressions
+- Sustained wrong-skill correction rate above agreed threshold after full enablement
 
 ---
 

@@ -3,8 +3,6 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { copySkill } from "@/lib/skills/queries";
-import { getSkillsRolloutState } from "@/lib/skills/rollout";
-import { ENABLE_CROSS_AGENT_COPY } from "@/lib/flags";
 import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 import { z } from "zod";
 
@@ -20,16 +18,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const userId = await requireAuth(req);
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
-    const trackB = getSkillsRolloutState("B", dbUser.id);
-    if (!ENABLE_CROSS_AGENT_COPY || !trackB.enabled || !trackB.inCohort) {
-      return NextResponse.json(
-        {
-          error: "Skill copy is not available for this rollout cohort.",
-          feature: trackB,
-        },
-        { status: 403 }
-      );
-    }
 
     const { id } = await params;
     const body = await req.json();

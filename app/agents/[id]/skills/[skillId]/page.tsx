@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Play } from "lucide-react";
-import { ENABLE_CROSS_AGENT_COPY, SKILLS_V2_TRACK_B } from "@/lib/flags";
 
 type SkillStatus = "draft" | "active" | "archived";
 
@@ -291,23 +290,21 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
             </Card>
 
             <div className="space-y-4">
-              {SKILLS_V2_TRACK_B && ENABLE_CROSS_AGENT_COPY ? (
-                <Card className="border-terminal-border">
-                  <CardHeader><CardTitle className="font-mono text-base">Copy Skill</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
-                    <select value={copyTargetCharacterId} onChange={(e) => setCopyTargetCharacterId(e.target.value)} className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm">
-                      <option value="">Select target agent</option>
-                      {characters.map((character) => (
-                        <option key={character.id} value={character.id}>{character.displayName || character.name}</option>
-                      ))}
-                    </select>
-                    <Button onClick={onCopySkill} disabled={!copyTargetCharacterId || copying} className="w-full font-mono" variant="outline">
-                      {copying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Copy to Agent
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : null}
+              <Card className="border-terminal-border">
+                <CardHeader><CardTitle className="font-mono text-base">Copy Skill</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <select value={copyTargetCharacterId} onChange={(e) => setCopyTargetCharacterId(e.target.value)} className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm">
+                    <option value="">Select target agent</option>
+                    {characters.map((character) => (
+                      <option key={character.id} value={character.id}>{character.displayName || character.name}</option>
+                    ))}
+                  </select>
+                  <Button onClick={onCopySkill} disabled={!copyTargetCharacterId || copying} className="w-full font-mono" variant="outline">
+                    {copying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Copy to Agent
+                  </Button>
+                </CardContent>
+              </Card>
 
               <Card className="border-terminal-border">
                 <CardHeader><CardTitle className="font-mono text-base">Run History</CardTitle></CardHeader>
