@@ -120,6 +120,10 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     maxTokens: 200000,
     supportsStreaming: true,
   },
+  "claude-opus-4-6": {
+    maxTokens: 200000,
+    supportsStreaming: true,
+  },
   "claude-opus-4-6-thinking": {
     maxTokens: 200000,
     supportsStreaming: true,

@@ -1156,9 +1156,18 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
       continue;
     }
 
+    // Reorder beforeAndIncluding: text parts must come before all tool-call parts.
+    // When tool-result parts are extracted, text blocks that were between tool-call/result
+    // pairs end up between tool-call blocks. The Anthropic API treats text between tool_use
+    // blocks as a boundary, expecting tool_results for the preceding group immediately.
+    // Moving text before tool-calls avoids this: [text, tool_use, tool_use] is valid.
+    const textParts = beforeAndIncluding.filter(p => p.type !== "tool-call");
+    const toolCallParts = beforeAndIncluding.filter(p => p.type === "tool-call");
+    const reorderedParts = [...textParts, ...toolCallParts];
+
     // Emit assistant message with parts up to and including tool-calls (step 1)
-    if (beforeAndIncluding.length > 0) {
-      result.push({ ...message, content: beforeAndIncluding as ModelMessage["content"] } as ModelMessage);
+    if (reorderedParts.length > 0) {
+      result.push({ ...message, content: reorderedParts as ModelMessage["content"] } as ModelMessage);
     } else {
       result.push({ ...message, content: "[Calling tools...]" } as ModelMessage);
     }
