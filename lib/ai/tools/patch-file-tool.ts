@@ -180,7 +180,7 @@ export function createPatchFileTool(options: PatchFileToolOptions) {
         const label = `Operation ${i + 1} (${op.action} ${basename(op.filePath)})`;
 
         // Validate path
-        const validPath = isPathAllowed(op.filePath, syncedFolders);
+        const validPath = await isPathAllowed(op.filePath, syncedFolders);
         if (!validPath) {
           validationErrors.push(
             `${label}: path not within synced folders`

@@ -3,12 +3,13 @@
  *
  * AI tool for writing full file content within synced folders.
  * Creates new files or overwrites existing ones.
- * Includes stale detection and post-write diagnostics.
+ * Includes stale detection, atomic writes, and post-write diagnostics.
  */
 
 import { tool, jsonSchema } from "ai";
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, writeFile, access, rename, stat, chmod } from "fs/promises";
 import { basename } from "path";
+import { randomUUID } from "crypto";
 import {
   isPathAllowed,
   resolveSyncedFolderPaths,
@@ -97,6 +98,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
 - Paths restricted to synced folders
 - Max file size: 1MB
 - No-op detection: rejects writes of identical content
+- **Atomic Writes**: Uses temp file + rename to prevent corruption
 
 **After writing:** Diagnostics are run automatically (tsc, eslint) and errors are reported.`,
 
@@ -140,7 +142,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
       }
 
       // Validate path
-      const validPath = isPathAllowed(filePath, syncedFolders);
+      const validPath = await isPathAllowed(filePath, syncedFolders);
       if (!validPath) {
         return {
           status: "error",
@@ -182,7 +184,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
         }
       }
 
-      // Write the file
+      // Write the file (Atomic)
       try {
         let previousContent = "";
         if (fileExists) {
@@ -195,7 +197,25 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
           await ensureParentDirectories(validPath);
         }
 
-        await writeFile(validPath, content, "utf-8");
+        // Atomic Write Strategy
+        const tempPath = `${validPath}.tmp.${randomUUID()}`;
+        
+        // 1. Write to temp file
+        await writeFile(tempPath, content, "utf-8");
+        
+        // 2. Preserve mode if exists
+        if (fileExists) {
+          try {
+             const stats = await stat(validPath);
+             await chmod(tempPath, stats.mode);
+          } catch {
+            // Ignore
+          }
+        }
+
+        // 3. Rename temp to target (Atomic on POSIX)
+        await rename(tempPath, validPath);
+
         recordFileWrite(sessionId, validPath);
         recordFileRead(sessionId, validPath); // Mark as read after our own write
 

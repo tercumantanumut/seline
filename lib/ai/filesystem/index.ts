@@ -9,6 +9,8 @@ export {
   resolveSyncedFolderPaths,
   ensureParentDirectories,
   findSimilarFiles,
+  validatePath,
+  normalizePath,
 } from "./path-utils";
 
 export {
@@ -30,3 +32,9 @@ export {
   generateBeforeAfterDiff,
   generateContentPreview,
 } from "./diff-utils";
+
+export {
+  applyFileEdits,
+  type FileEdit,
+  type ApplyEditsResult,
+} from "./edit-logic";
