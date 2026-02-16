@@ -6,7 +6,7 @@ export const skillSourceTypeSchema = z.enum(["conversation", "manual", "template
 export const skillInputParameterSchema = z.object({
   name: z.string().min(1).max(80),
   type: z.enum(["string", "number", "boolean"]).optional().default("string"),
-  description: z.string().max(400).optional(),
+  description: z.string().max(1000).optional(),
   required: z.boolean().optional().default(false),
   defaultValue: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
 });
@@ -14,12 +14,12 @@ export const skillInputParameterSchema = z.object({
 export const createSkillSchema = z.object({
   characterId: z.string().min(1),
   name: z.string().min(1).max(120),
-  description: z.string().max(1000).optional(),
+  description: z.string().max(10000).optional(),
   icon: z.string().max(20).optional(),
-  promptTemplate: z.string().min(1).max(8000),
+  promptTemplate: z.string().min(1).max(400000),
   inputParameters: z.array(skillInputParameterSchema).optional().default([]),
-  toolHints: z.array(z.string().min(1).max(60)).optional().default([]),
-  triggerExamples: z.array(z.string().min(1).max(240)).optional().default([]),
+  toolHints: z.array(z.string().min(1).max(200)).optional().default([]),
+  triggerExamples: z.array(z.string().min(1).max(1000)).optional().default([]),
   category: z.string().min(1).max(80).optional().default("general"),
   copiedFromSkillId: z.string().uuid().nullable().optional(),
   copiedFromCharacterId: z.string().uuid().nullable().optional(),
@@ -31,12 +31,12 @@ export const createSkillSchema = z.object({
 
 export const updateSkillSchema = z.object({
   name: z.string().min(1).max(120).optional(),
-  description: z.string().max(1000).nullable().optional(),
+  description: z.string().max(10000).nullable().optional(),
   icon: z.string().max(20).nullable().optional(),
-  promptTemplate: z.string().min(1).max(8000).optional(),
+  promptTemplate: z.string().min(1).max(400000).optional(),
   inputParameters: z.array(skillInputParameterSchema).optional(),
-  toolHints: z.array(z.string().min(1).max(60)).optional(),
-  triggerExamples: z.array(z.string().min(1).max(240)).optional(),
+  toolHints: z.array(z.string().min(1).max(200)).optional(),
+  triggerExamples: z.array(z.string().min(1).max(1000)).optional(),
   category: z.string().min(1).max(80).optional(),
   status: skillStatusSchema.optional(),
   expectedVersion: z.number().int().positive().optional(),

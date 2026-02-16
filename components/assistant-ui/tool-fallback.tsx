@@ -1,11 +1,11 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState, type FC } from "react";
-import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
+import { CircleNotch, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
-
+import { getToolIcon } from "@/components/ui/tool-icon-map";
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -87,35 +87,30 @@ const TOOL_RESULT_TEXT_CLASS = "text-sm text-terminal-muted font-mono transition
 const TOOL_RESULT_PRE_CLASS = "overflow-x-auto rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark";
 const TOOL_RESULT_ERROR_PRE_CLASS = "overflow-x-auto rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-red-600";
 
-// Memoized Icon Component
+// Memoized Icon Component with Phosphor Icons
 const ToolIcon: FC<{
   toolName: string;
   isRunning: boolean;
   result?: ToolResult;
 }> = memo(({ toolName, isRunning, result }) => {
-  const iconClass = "size-4 transition-all duration-150";
-
+  const iconClass = "size-4 transition-all duration-200";
+  
+  // Status-based icons (highest priority)
   if (isRunning) {
-    return <Loader2Icon className={`${iconClass} animate-spin text-terminal-green`} />;
+    return <CircleNotch className={`${iconClass} animate-spin text-terminal-green`} weight="bold" />;
   }
 
   if (result?.status === "error") {
-    return <XCircleIcon className={`${iconClass} text-red-600`} />;
+    return <XCircle className={`${iconClass} text-red-600`} weight="fill" />;
   }
 
-  if (toolName === "searchTools" || toolName === "listAllTools" || toolName === "webSearch") {
-    return <SearchIcon className={`${iconClass} text-terminal-green`} />;
-  }
+  // Tool-specific icons from the icon map
+  const iconConfig = getToolIcon(toolName);
+  const Icon = iconConfig.icon;
+  // Weight is already handled by the icon config
+  const weight = iconConfig.weight;
 
-  if (toolName.includes("Video") || toolName.includes("video")) {
-    return <VideoIcon className={`${iconClass} text-terminal-green`} />;
-  }
-
-  if (toolName.includes("Image") || toolName.includes("image")) {
-    return <ImageIcon className={`${iconClass} text-terminal-green`} />;
-  }
-
-  return <CheckCircleIcon className={`${iconClass} text-terminal-green`} />;
+  return <Icon className={`${iconClass} text-terminal-green`} weight={weight} />;
 });
 ToolIcon.displayName = "ToolIcon";
 

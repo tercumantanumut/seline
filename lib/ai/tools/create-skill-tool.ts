@@ -26,7 +26,7 @@ const schema = jsonSchema<CreateSkillInput>({
   properties: {
     name: { type: "string", minLength: 1, maxLength: 120 },
     description: { type: "string", maxLength: 1000 },
-    promptTemplate: { type: "string", minLength: 1, maxLength: 8000 },
+    promptTemplate: { type: "string", minLength: 1, maxLength: 400000 },
     inputParameters: {
       type: "array",
       items: {

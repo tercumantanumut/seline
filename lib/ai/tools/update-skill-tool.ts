@@ -29,7 +29,7 @@ const schema = jsonSchema<UpdateSkillInput>({
     name: { type: "string", minLength: 1, maxLength: 120 },
     description: { type: ["string", "null"], maxLength: 1000 },
     icon: { type: ["string", "null"], maxLength: 20 },
-    promptTemplate: { type: "string", minLength: 1, maxLength: 8000 },
+    promptTemplate: { type: "string", minLength: 1, maxLength: 400000 },
     inputParameters: { type: "array", items: { type: "object", additionalProperties: true } },
     toolHints: { type: "array", items: { type: "string" } },
     triggerExamples: { type: "array", items: { type: "string" } },

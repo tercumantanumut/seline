@@ -11,7 +11,7 @@
  */
 
 import { tool, jsonSchema } from "ai";
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import {
   isPathAllowed,
@@ -27,6 +27,7 @@ import {
   type DiagnosticResult,
   applyFileEdits,
   type FileEdit,
+  atomicWriteFile,
 } from "@/lib/ai/filesystem";
 
 // ---------------------------------------------------------------------------
@@ -208,7 +209,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
 
         try {
           await ensureParentDirectories(validPath);
-          await writeFile(validPath, newString, "utf-8");
+          await atomicWriteFile(validPath, newString);
           recordFileWrite(sessionId, validPath);
           recordFileRead(sessionId, validPath); // Mark as read after creation
 
@@ -287,7 +288,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
 
       // Write changes
       try {
-        await writeFile(validPath, result.newContent, "utf-8");
+        await atomicWriteFile(validPath, result.newContent);
         recordFileWrite(sessionId, validPath);
         recordFileRead(sessionId, validPath); // Update read time
 

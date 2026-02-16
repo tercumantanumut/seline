@@ -7,9 +7,8 @@
  */
 
 import { tool, jsonSchema } from "ai";
-import { readFile, writeFile, access, rename, stat, chmod } from "fs/promises";
+import { readFile, access } from "fs/promises";
 import { basename } from "path";
-import { randomUUID } from "crypto";
 import {
   isPathAllowed,
   resolveSyncedFolderPaths,
@@ -21,6 +20,7 @@ import {
   runPostWriteDiagnostics,
   generateBeforeAfterDiff,
   type DiagnosticResult,
+  atomicWriteFile,
 } from "@/lib/ai/filesystem";
 
 // ---------------------------------------------------------------------------
@@ -198,23 +198,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
         }
 
         // Atomic Write Strategy
-        const tempPath = `${validPath}.tmp.${randomUUID()}`;
-        
-        // 1. Write to temp file
-        await writeFile(tempPath, content, "utf-8");
-        
-        // 2. Preserve mode if exists
-        if (fileExists) {
-          try {
-             const stats = await stat(validPath);
-             await chmod(tempPath, stats.mode);
-          } catch {
-            // Ignore
-          }
-        }
-
-        // 3. Rename temp to target (Atomic on POSIX)
-        await rename(tempPath, validPath);
+        await atomicWriteFile(validPath, content);
 
         recordFileWrite(sessionId, validPath);
         recordFileRead(sessionId, validPath); // Mark as read after our own write

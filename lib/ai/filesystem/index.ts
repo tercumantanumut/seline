@@ -38,3 +38,7 @@ export {
   type FileEdit,
   type ApplyEditsResult,
 } from "./edit-logic";
+
+export {
+  atomicWriteFile,
+} from "./write-utils";

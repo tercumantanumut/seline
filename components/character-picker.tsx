@@ -3,7 +3,26 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight, Plug, Edit3, Trash2, BarChart2 } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
+import { 
+  Wrench,
+  Database,
+  MagnifyingGlass,
+  Pencil,
+  Trash,
+  ChartBar,
+  Sparkle,
+  Plug as PhosphorPlug
+} from "@phosphor-icons/react";
+import { getCategoryIcon } from "@/components/ui/tool-icon-map";
+
+// Aliases for consistency
+const Search = LucideSearch;
+const DatabaseIcon = Database;
+const Plug = PhosphorPlug;
+const BarChart2 = ChartBar;
+const Trash2 = Trash;
+const Sparkles = LucideSparkles;
 import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AnimatedCard } from "@/components/ui/animated-card";

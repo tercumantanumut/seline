@@ -76,61 +76,85 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
         return { success: false, error: "Missing required parameters", missingParameters: rendered.missingParameters };
       }
 
-      const chatRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          cookie: `zlutty-session=${options.userId}`,
-        },
-        body: JSON.stringify({
-          sessionId: options.sessionId,
-          characterId: options.characterId,
-          messages: [{ role: "user", content: rendered.prompt }],
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-      await updateSkillRunStats(skill.id, options.userId, chatRes.ok);
-      await trackSkillTelemetryEvent({
-        userId: options.userId,
-        eventType: input.triggerSource === "auto" ? "skill_auto_triggered" : "skill_manual_run",
-        skillId: skill.id,
-        characterId: options.characterId,
-        metadata: { succeeded: chatRes.ok, via: "runSkillTool" },
-      });
+      try {
+        const chatRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            cookie: `zlutty-session=${options.userId}`,
+          },
+          body: JSON.stringify({
+            sessionId: options.sessionId,
+            characterId: options.characterId,
+            messages: [{ role: "user", content: rendered.prompt }],
+          }),
+          signal: controller.signal,
+        });
 
-      let schedule = null;
-      if (input.schedule) {
-        const [created] = await db.insert(scheduledTasks).values({
+        clearTimeout(timeoutId);
+
+        if (!chatRes.ok) {
+          const errorText = await chatRes.text();
+          console.error(`[RunSkill] Chat API failed: ${chatRes.status} ${chatRes.statusText} - ${errorText.slice(0, 500)}`);
+          return { 
+            success: false, 
+            error: `Failed to run skill: API returned ${chatRes.status}. ${errorText.slice(0, 200)}` 
+          };
+        }
+
+        await updateSkillRunStats(skill.id, options.userId, chatRes.ok);
+        await trackSkillTelemetryEvent({
           userId: options.userId,
-          characterId: options.characterId,
+          eventType: input.triggerSource === "auto" ? "skill_auto_triggered" : "skill_manual_run",
           skillId: skill.id,
-          name: input.schedule.name,
-          scheduleType: input.schedule.scheduleType,
-          cronExpression: input.schedule.cronExpression || null,
-          intervalMinutes: input.schedule.intervalMinutes || null,
-          scheduledAt: input.schedule.scheduledAt || null,
-          timezone: input.schedule.timezone || "UTC",
-          initialPrompt: rendered.prompt,
-          promptVariables: rendered.resolvedParameters,
-          enabled: true,
-          status: "active",
-          resultSessionId: options.sessionId,
-          deliveryMethod: input.schedule.deliveryMethod || "session",
-          deliveryConfig: input.schedule.deliveryConfig || {},
-          createNewSessionPerRun: input.schedule.createNewSessionPerRun ?? false,
-        }).returning();
-        await getScheduler().reloadSchedule(created.id);
-        schedule = created;
-      }
+          characterId: options.characterId,
+          metadata: { succeeded: chatRes.ok, via: "runSkillTool" },
+        });
 
-      return {
-        success: chatRes.ok,
-        skillId: skill.id,
-        skillName: skill.name,
-        renderedPrompt: rendered.prompt,
-        resolvedParameters: rendered.resolvedParameters,
-        schedule,
-      };
+        let schedule = null;
+        if (input.schedule) {
+          const [created] = await db.insert(scheduledTasks).values({
+            userId: options.userId,
+            characterId: options.characterId,
+            skillId: skill.id,
+            name: input.schedule.name,
+            scheduleType: input.schedule.scheduleType,
+            cronExpression: input.schedule.cronExpression || null,
+            intervalMinutes: input.schedule.intervalMinutes || null,
+            scheduledAt: input.schedule.scheduledAt || null,
+            timezone: input.schedule.timezone || "UTC",
+            initialPrompt: rendered.prompt,
+            promptVariables: rendered.resolvedParameters,
+            enabled: true,
+            status: "active",
+            resultSessionId: options.sessionId,
+            deliveryMethod: input.schedule.deliveryMethod || "session",
+            deliveryConfig: input.schedule.deliveryConfig || {},
+            createNewSessionPerRun: input.schedule.createNewSessionPerRun ?? false,
+          }).returning();
+          await getScheduler().reloadSchedule(created.id);
+          schedule = created;
+        }
+
+        return {
+          success: chatRes.ok,
+          skillId: skill.id,
+          skillName: skill.name,
+          renderedPrompt: rendered.prompt,
+          resolvedParameters: rendered.resolvedParameters,
+          schedule,
+        };
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error("[RunSkill] Execution error:", error);
+        return { 
+          success: false, 
+          error: `Failed to execute skill: ${error instanceof Error ? error.message : String(error)}` 
+        };
+      }
     },
   });
 }

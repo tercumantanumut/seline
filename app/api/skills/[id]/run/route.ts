@@ -39,47 +39,58 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const baseUrl = req.nextUrl.origin;
-    const chatResponse = await fetch(`${baseUrl}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        cookie: req.headers.get("cookie") || "",
-      },
-      body: JSON.stringify({
-        sessionId: req.headers.get("X-Session-Id") || undefined,
-        characterId: skill.characterId,
-        messages: [{ role: "user", content: rendered.prompt }],
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
 
-    const succeeded = chatResponse.ok;
-    await updateSkillRunStats(skill.id, dbUser.id, succeeded);
-    await trackSkillTelemetryEvent({
-      userId: dbUser.id,
-      eventType: "skill_manual_run",
-      skillId: skill.id,
-      characterId: skill.characterId,
-      metadata: { succeeded },
-    });
-
-    if (!chatResponse.ok) {
-      const errorText = await chatResponse.text();
-      return NextResponse.json(
-        {
-          error: "Failed to execute skill",
-          details: errorText,
+    try {
+      const chatResponse = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          cookie: req.headers.get("cookie") || "",
         },
-        { status: chatResponse.status }
-      );
-    }
+        body: JSON.stringify({
+          sessionId: req.headers.get("X-Session-Id") || undefined,
+          characterId: skill.characterId,
+          messages: [{ role: "user", content: rendered.prompt }],
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-    return NextResponse.json({
-      success: true,
-      skillId: skill.id,
-      renderedPrompt: rendered.prompt,
-      resolvedParameters: rendered.resolvedParameters,
-      runTriggered: true,
-    });
+      const succeeded = chatResponse.ok;
+      await updateSkillRunStats(skill.id, dbUser.id, succeeded);
+      await trackSkillTelemetryEvent({
+        userId: dbUser.id,
+        eventType: "skill_manual_run",
+        skillId: skill.id,
+        characterId: skill.characterId,
+        metadata: { succeeded },
+      });
+
+      if (!chatResponse.ok) {
+        const errorText = await chatResponse.text();
+        console.error(`[Skills API] Chat API failed: ${chatResponse.status} - ${errorText.slice(0, 500)}`);
+        return NextResponse.json(
+          {
+            error: "Failed to execute skill",
+            details: errorText,
+          },
+          { status: chatResponse.status }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        skillId: skill.id,
+        renderedPrompt: rendered.prompt,
+        resolvedParameters: rendered.resolvedParameters,
+        runTriggered: true,
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   } catch (error) {
     console.error("[Skills API] POST [id]/run error:", error);
     return NextResponse.json(

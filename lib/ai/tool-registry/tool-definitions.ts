@@ -50,7 +50,8 @@ import {
   createOpenRouterGemini3ProImageReference,
 } from "../tools";
 import { createWebSearchTool } from "../web-search";
-import { createVectorSearchToolV2, createReadFileTool } from "../vector-search";
+import { createVectorSearchToolV2 } from "../vector-search";
+import { createReadFileTool } from "../tools/read-file-tool";
 import { createFirecrawlCrawlTool } from "../firecrawl";
 import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
