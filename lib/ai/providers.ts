@@ -14,6 +14,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { EmbeddingModel, LanguageModel } from "ai";
 import { existsSync } from "fs";
 import { createLocalEmbeddingModel, DEFAULT_LOCAL_EMBEDDING_MODEL } from "@/lib/ai/local-embeddings";
+import { loadSettings, invalidateSettingsCache } from "@/lib/settings/settings-manager";
 import {
   isAntigravityAuthenticated,
   needsTokenRefresh,
@@ -21,6 +22,7 @@ import {
   getAntigravityToken,
   ANTIGRAVITY_CONFIG,
   fetchAntigravityProjectId,
+  invalidateAntigravityAuthCache,
 } from "@/lib/auth/antigravity-auth";
 import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
@@ -30,6 +32,7 @@ import {
   needsClaudeCodeTokenRefresh,
   refreshClaudeCodeToken,
   getClaudeCodeToken,
+  invalidateClaudeCodeAuthCache,
 } from "@/lib/auth/claudecode-auth";
 import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
@@ -150,8 +153,6 @@ let _localEmbeddingModelDir: string | undefined = undefined;
 
 function getOpenRouterClient() {
   const apiKey = getOpenRouterApiKey();
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
 
   // Recreate client if API key changed (e.g., settings were updated)
@@ -248,8 +249,6 @@ function getKimiClient() {
 }
 
 function getOllamaBaseUrl(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   return (
     settings.ollamaBaseUrl ||
@@ -290,10 +289,6 @@ function getOllamaClient() {
 export async function ensureAntigravityTokenValid(): Promise<boolean> {
   // CRITICAL: Invalidate caches first to ensure we read fresh token state from disk
   // This prevents issues where cached stale token data causes auth failures
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { invalidateSettingsCache } = require("@/lib/settings/settings-manager");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { invalidateAntigravityAuthCache } = require("@/lib/auth/antigravity-auth");
   invalidateSettingsCache();
   invalidateAntigravityAuthCache();
 
@@ -374,10 +369,6 @@ function getAntigravityProvider(): ((modelId: string) => LanguageModel) {
  * This should be called before making API requests with Claude Code.
  */
 export async function ensureClaudeCodeTokenValid(): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { invalidateSettingsCache } = require("@/lib/settings/settings-manager");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { invalidateClaudeCodeAuthCache } = require("@/lib/auth/claudecode-auth");
   invalidateSettingsCache();
   invalidateClaudeCodeAuthCache();
 
@@ -507,10 +498,6 @@ export function invalidateProviderCache(): void {
  * Defaults to OpenRouter unless local embeddings are configured.
  */
 export function getEmbeddingModelId(): string {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const resolved = resolveEmbeddingModelConfig(settings);
   return resolved.storageId;
@@ -521,10 +508,6 @@ export function getEmbeddingModelId(): string {
  * Reads directly from settings file to ensure latest configuration is used.
  */
 export function getConfiguredProvider(): LLMProvider {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = settings.llmProvider || process.env.LLM_PROVIDER?.toLowerCase();
 
@@ -583,10 +566,6 @@ export function getConfiguredProvider(): LLMProvider {
  * Reads directly from settings file to ensure latest configuration is used.
  */
 export function getConfiguredModel(): string {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
   const envModel = settings.chatModel || process.env.LLM_MODEL;
@@ -764,10 +743,6 @@ export function getModelByName(modelId: string): LanguageModel {
  * the saved model is compatible with that provider. If not, falls back to provider default.
  */
 export function getChatModel(): LanguageModel {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
   const chatModel = validateModelForProvider(
@@ -794,10 +769,6 @@ export function getChatModel(): LanguageModel {
  * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getResearchModel(): LanguageModel {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
   const researchModel = validateModelForProvider(
@@ -825,10 +796,6 @@ export function getResearchModel(): LanguageModel {
  * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getVisionModel(): LanguageModel {
-  // Import settings dynamically to avoid circular dependencies
-  // and ensure we always get the latest settings from disk
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
   const visionModel = validateModelForProvider(
@@ -858,8 +825,6 @@ export function getVisionModel(): LanguageModel {
  * IMPORTANT: Validates that any override model is compatible with the configured provider.
  */
 export function getUtilityModel(): LanguageModel {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const provider = getConfiguredProvider();
   const overrideModel = validateModelForProvider(
@@ -935,8 +900,6 @@ export function getUtilityModel(): LanguageModel {
  * depending on settings and environment availability.
  */
 export function getEmbeddingModel(modelOverride?: string): EmbeddingModel {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadSettings } = require("@/lib/settings/settings-manager");
   const settings = loadSettings();
   const resolved = resolveEmbeddingModelConfig(settings, modelOverride);
 
