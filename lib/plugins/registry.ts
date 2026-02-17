@@ -35,7 +35,6 @@ import type {
 import {
   registerPluginHooks,
   unregisterPluginHooks,
-  clearAllHooks,
 } from "./hooks-engine";
 import { seedPluginSkillRevisions } from "./skill-revision-queries";
 
@@ -270,6 +269,20 @@ export async function getPluginById(pluginId: string): Promise<InstalledPlugin |
 }
 
 /**
+ * Get a single installed plugin by ID scoped to a specific user.
+ */
+export async function getPluginByIdForUser(
+  pluginId: string,
+  userId: string
+): Promise<InstalledPlugin | null> {
+  const [row] = await db
+    .select()
+    .from(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+  return row ? mapInstalledPlugin(row) : null;
+}
+
+/**
  * Get a plugin by name and marketplace for a user.
  */
 export async function getPluginByName(
@@ -321,6 +334,37 @@ export async function updatePluginStatus(
 }
 
 /**
+ * Update a plugin's status, scoped to a specific user.
+ * Returns false when the plugin does not exist for that user.
+ */
+export async function updatePluginStatusForUser(
+  pluginId: string,
+  userId: string,
+  status: PluginStatus,
+  lastError?: string
+): Promise<boolean> {
+  const updatedRows = await db
+    .update(plugins)
+    .set({
+      status,
+      lastError: lastError || null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)))
+    .returning({ id: plugins.id, name: plugins.name });
+
+  if (updatedRows.length === 0) {
+    return false;
+  }
+
+  if (status === "disabled" || status === "error") {
+    unregisterPluginHooks(updatedRows[0].name);
+  }
+
+  return true;
+}
+
+/**
  * Uninstall a plugin — removes DB records and unregisters hooks.
  * CASCADE handles hook/mcp/lsp/file deletion.
  */
@@ -331,6 +375,31 @@ export async function uninstallPlugin(pluginId: string): Promise<void> {
   }
 
   await db.delete(plugins).where(eq(plugins.id, pluginId));
+}
+
+/**
+ * Uninstall a plugin scoped to a specific user.
+ * Returns the uninstalled plugin name, or null if not found for that user.
+ */
+export async function uninstallPluginForUser(
+  pluginId: string,
+  userId: string
+): Promise<string | null> {
+  const [plugin] = await db
+    .select({ name: plugins.name })
+    .from(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+
+  if (!plugin) {
+    return null;
+  }
+
+  unregisterPluginHooks(plugin.name);
+  await db
+    .delete(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+
+  return plugin.name;
 }
 
 // =============================================================================
@@ -367,8 +436,23 @@ export async function getMarketplaces(userId: string): Promise<RegisteredMarketp
   return rows.map(mapMarketplace);
 }
 
-export async function removeMarketplace(marketplaceId: string): Promise<void> {
-  await db.delete(marketplaces).where(eq(marketplaces.id, marketplaceId));
+export async function removeMarketplace(
+  marketplaceId: string,
+  userId: string
+): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: marketplaces.id })
+    .from(marketplaces)
+    .where(and(eq(marketplaces.id, marketplaceId), eq(marketplaces.userId, userId)));
+
+  if (!existing) {
+    return false;
+  }
+
+  await db
+    .delete(marketplaces)
+    .where(and(eq(marketplaces.id, marketplaceId), eq(marketplaces.userId, userId)));
+  return true;
 }
 
 export async function updateMarketplaceCatalog(
@@ -535,14 +619,17 @@ export async function setPluginEnabledForAgent(
 
 /**
  * Load and register hooks for a specific plugin list.
- * Clears the in-memory hook registry first so agent-specific sets do not leak.
+ * This function is additive/replace-per-plugin and avoids global clears so
+ * concurrent requests do not wipe each other's hook registrations.
  */
 export function loadPluginHooks(pluginsToLoad: InstalledPlugin[]): number {
-  clearAllHooks();
-
   let hookCount = 0;
   for (const plugin of pluginsToLoad) {
-    if (!plugin.components.hooks) continue;
+    if (!plugin.components.hooks) {
+      // Ensure stale hook registrations for this plugin are removed.
+      unregisterPluginHooks(plugin.name);
+      continue;
+    }
     registerPluginHooks(plugin.name, plugin.components.hooks);
     hookCount++;
   }

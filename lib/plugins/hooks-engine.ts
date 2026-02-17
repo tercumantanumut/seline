@@ -42,12 +42,20 @@ export function registerPluginHooks(
   config: PluginHooksConfig
 ): void {
   for (const [eventType, entries] of Object.entries(config.hooks)) {
-    if (!entries || entries.length === 0) continue;
-
     const event = eventType as HookEventType;
     const existing = hookRegistry.get(event) || [];
-    existing.push({ pluginName, entries });
-    hookRegistry.set(event, existing);
+    const withoutPlugin = existing.filter((source) => source.pluginName !== pluginName);
+
+    if (!entries || entries.length === 0) {
+      if (withoutPlugin.length === 0) {
+        hookRegistry.delete(event);
+      } else {
+        hookRegistry.set(event, withoutPlugin);
+      }
+      continue;
+    }
+
+    hookRegistry.set(event, [...withoutPlugin, { pluginName, entries }]);
   }
 }
 

@@ -3,9 +3,9 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import {
-  getPluginById,
-  updatePluginStatus,
-  uninstallPlugin,
+  getPluginByIdForUser,
+  updatePluginStatusForUser,
+  uninstallPluginForUser,
 } from "@/lib/plugins/registry";
 import type { PluginStatus } from "@/lib/plugins/types";
 
@@ -16,10 +16,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth(request);
+    const authUserId = await requireAuth(request);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
     const { id } = await params;
 
-    const plugin = await getPluginById(id);
+    const plugin = await getPluginByIdForUser(id, dbUser.id);
     if (!plugin) {
       return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
     }
@@ -44,11 +46,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth(request);
+    const authUserId = await requireAuth(request);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
     const { id } = await params;
     const body = await request.json();
 
-    const plugin = await getPluginById(id);
+    const plugin = await getPluginByIdForUser(id, dbUser.id);
     if (!plugin) {
       return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
     }
@@ -58,10 +62,13 @@ export async function PATCH(
       if (!validStatuses.includes(body.status)) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
       }
-      await updatePluginStatus(id, body.status, body.lastError);
+      const updated = await updatePluginStatusForUser(id, dbUser.id, body.status, body.lastError);
+      if (!updated) {
+        return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
+      }
     }
 
-    const updated = await getPluginById(id);
+    const updated = await getPluginByIdForUser(id, dbUser.id);
     return NextResponse.json({ plugin: updated });
   } catch (error) {
     if (
@@ -82,17 +89,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth(request);
+    const authUserId = await requireAuth(request);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
     const { id } = await params;
 
-    const plugin = await getPluginById(id);
+    const plugin = await getPluginByIdForUser(id, dbUser.id);
     if (!plugin) {
       return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
     }
 
-    await uninstallPlugin(id);
+    const removedName = await uninstallPluginForUser(id, dbUser.id);
+    if (!removedName) {
+      return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, uninstalledPlugin: plugin.name });
+    return NextResponse.json({ success: true, uninstalledPlugin: removedName });
   } catch (error) {
     if (
       error instanceof Error &&
