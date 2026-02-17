@@ -44,6 +44,7 @@ describe("Context Window Fix Validation", () => {
       "claude-haiku-4-5-20251001",
       "claude-sonnet-4-5",
       "claude-sonnet-4-5-thinking",
+      "claude-opus-4-6",
       "claude-opus-4-6-thinking",
     ];
 
@@ -157,6 +158,7 @@ describe("Context Window Fix Validation", () => {
         "claude-haiku-4-5-20251001",
         "claude-sonnet-4-5",
         "claude-sonnet-4-5-thinking",
+        "claude-opus-4-6",
         "claude-opus-4-6-thinking",
       ];
 

@@ -65,6 +65,11 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "showProductImages", nameKey: "showProductImages", descKey: "showProductImagesDesc", category: "utility" },
   { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", nameKey: "scheduleTask", descKey: "scheduleTaskDesc", category: "utility" },
+  { id: "createSkill", nameKey: "createSkill", descKey: "createSkillDesc", category: "utility" },
+  { id: "listSkills", nameKey: "listSkills", descKey: "listSkillsDesc", category: "utility" },
+  { id: "runSkill", nameKey: "runSkill", descKey: "runSkillDesc", category: "utility" },
+  { id: "updateSkill", nameKey: "updateSkill", descKey: "updateSkillDesc", category: "utility" },
+  { id: "copySkill", nameKey: "copySkill", descKey: "copySkillDesc", category: "utility" },
   { id: "memorize", nameKey: "memorize", descKey: "memorizeDesc", category: "utility" },
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
@@ -250,9 +255,19 @@ const CATEGORY_KEYS: Record<string, string> = {
   utility: "utility",
 };
 
+/** Warning from the settings-aware tool resolver */
+interface ToolResolutionWarning {
+  toolId: string;
+  toolName: string;
+  reason: string;
+  settingsKeys: string[];
+  action: string;
+}
+
 interface CapabilitiesPageProps {
   agentName: string;
   agentId?: string | null;
+  templateId?: string;
   initialEnabledTools?: string[];
   onSubmit: (enabledTools: string[]) => void;
   onBack: () => void;
@@ -261,6 +276,7 @@ interface CapabilitiesPageProps {
 export function CapabilitiesPage({
   agentName,
   agentId,
+  templateId,
   initialEnabledTools = ["docsSearch"],
   onSubmit,
   onBack,
@@ -269,6 +285,7 @@ export function CapabilitiesPage({
   const tDeps = useTranslations("characterCreation.capabilities.dependencyWarnings");
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(initialEnabledTools));
   const [availableTools, setAvailableTools] = useState<ToolCapability[]>(BASE_TOOLS);
+  const [resolutionWarnings, setResolutionWarnings] = useState<ToolResolutionWarning[]>([]);
   const [showForm, setShowForm] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
@@ -428,6 +445,26 @@ export function CapabilitiesPage({
     checkDependencies();
   }, [agentId]);
 
+  // Fetch tool resolution warnings for Seline template
+  useEffect(() => {
+    if (templateId !== "seline-default") return;
+
+    const fetchResolution = async () => {
+      try {
+        const { data, error } = await resilientFetch<{
+          warnings?: ToolResolutionWarning[];
+        }>("/api/tools/resolve?templateId=seline-default");
+        if (!error && data?.warnings && data.warnings.length > 0) {
+          setResolutionWarnings(data.warnings);
+        }
+      } catch {
+        // Non-critical — warnings are informational only
+      }
+    };
+
+    fetchResolution();
+  }, [templateId]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onBack();
@@ -512,6 +549,45 @@ export function CapabilitiesPage({
             </div>
           </div>
         </div>
+
+        {/* Onboarding: Tool resolution warnings for Seline template */}
+        {showForm && resolutionWarnings.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+            className="rounded-lg border border-terminal-amber/30 bg-terminal-amber/5 p-4"
+          >
+            <div className="flex items-start gap-2 mb-2">
+              <AlertTriangleIcon className="w-4 h-4 text-terminal-amber mt-0.5 flex-shrink-0" />
+              <p className="font-mono text-sm text-terminal-dark">
+                {resolutionWarnings.length === 1
+                  ? "1 tool is disabled due to missing configuration:"
+                  : `${resolutionWarnings.length} tools are disabled due to missing configuration:`}
+              </p>
+            </div>
+            <div className="ml-6 space-y-1.5">
+              {resolutionWarnings.map((warning) => (
+                <div key={warning.toolId} className="font-mono text-xs text-terminal-muted">
+                  <span className="text-terminal-dark font-semibold">{warning.toolName}</span>
+                  {" — "}
+                  <span>{warning.action}</span>
+                  {" "}
+                  <a
+                    href="/settings"
+                    className="text-terminal-green hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open("/settings", "_blank");
+                    }}
+                  >
+                    Configure Now →
+                  </a>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Tool Selection */}
         {showForm && (

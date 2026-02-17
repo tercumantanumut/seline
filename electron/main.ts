@@ -146,6 +146,7 @@ fixMacOSPath();
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 let nextServer: Electron.UtilityProcess | null = null;
+const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|too many open files|System limit for number of file watchers reached)/i;
 let isAppQuitting = false;
 let serverRestartCount = 0;
 let serverRestartResetTimer: NodeJS.Timeout | null = null;
@@ -745,6 +746,22 @@ async function startNextServer(): Promise<void> {
   verifyStandalonePaths();
 
   return new Promise((resolve, reject) => {
+    let isSettled = false;
+    const settleResolve = () => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      resolve();
+    };
+    const settleReject = (error: unknown) => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      reject(error);
+    };
+
     // In production, the standalone server is in extraResources/standalone/server.js
     // process.resourcesPath points to the Resources folder in the app bundle
     const resourcesPath = process.resourcesPath;
@@ -759,7 +776,7 @@ async function startNextServer(): Promise<void> {
 
     if (!fs.existsSync(standaloneServer)) {
       debugError("[Next.js] Standalone server not found at:", standaloneServer);
-      reject(new Error(`Standalone server not found: ${standaloneServer}`));
+      settleReject(new Error(`Standalone server not found: ${standaloneServer}`));
       return;
     }
 
@@ -800,7 +817,7 @@ async function startNextServer(): Promise<void> {
       });
     } catch (error) {
       debugError("[Next.js] Failed to fork utility process:", error);
-      reject(error);
+      settleReject(error);
       return;
     }
 
@@ -811,12 +828,17 @@ async function startNextServer(): Promise<void> {
       debugLog("[Next.js stdout]", output);
       if (output.includes("Ready") || output.includes("started server") || output.includes("Listening")) {
         debugLog("[Next.js] Server ready signal detected!");
-        resolve();
+        settleResolve();
       }
     });
 
     nextServer.stderr?.on("data", (data) => {
-      debugError("[Next.js stderr]", data.toString());
+      const output = data.toString();
+      debugError("[Next.js stderr]", output);
+
+      if (WATCHER_RESOURCE_ERROR_REGEX.test(output)) {
+        debugError("[Next.js] Watcher resource exhaustion detected in embedded server process. Consider increasing ulimit (e.g. ulimit -n 65536) or excluding large directories from watch scope.");
+      }
     });
 
     nextServer.on("exit", (code) => {
@@ -859,10 +881,10 @@ async function startNextServer(): Promise<void> {
       }, 2000);
     });
 
-    // Timeout fallback - assume server started after 5 seconds
+    // Timeout fallback - proceed in degraded mode to avoid blocking app startup
     setTimeout(() => {
-      debugLog("[Next.js] Timeout reached (5s), proceeding anyway");
-      resolve();
+      debugError("[Next.js] Timeout reached (5s), continuing in degraded startup mode while server may still be initializing");
+      settleResolve();
     }, 5000);
   });
 }

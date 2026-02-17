@@ -18,6 +18,7 @@
     "node_modules",
     "tests/**/*",
     "electron/**/*",
+    "lib/**/*.unused.ts",
     "dist-electron/**/*",
     "tmp-clawdbot/**/*"
   ]

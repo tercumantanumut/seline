@@ -55,7 +55,12 @@ interface IndexChunk {
   tokenOffset?: number;
 }
 
-function getChunksForIndexing(text: string): IndexChunk[] {
+interface ChunkingOverrideOptions {
+  maxCharacters?: number;
+  overlapCharacters?: number;
+}
+
+function getChunksForIndexing(text: string, overrides?: ChunkingOverrideOptions): IndexChunk[] {
   const config = getVectorSearchConfig();
 
   if (config.enableTokenChunking || config.chunkingStrategy === "token") {
@@ -74,7 +79,11 @@ function getChunksForIndexing(text: string): IndexChunk[] {
 
   const maxChunks = config.maxChunksPerFile > 0 ? config.maxChunksPerFile : undefined;
 
-  return chunkText(text, { maxChunks }).map((chunk) => ({
+  return chunkText(text, {
+    maxChunks,
+    maxCharacters: overrides?.maxCharacters,
+    overlapCharacters: overrides?.overlapCharacters,
+  }).map((chunk) => ({
     index: chunk.index,
     text: chunk.text,
     tokenCount: chunk.tokenCount,
@@ -143,8 +152,9 @@ export async function indexFileToVectorDB(params: {
   filePath: string;
   relativePath: string;
   signal?: AbortSignal;
+  chunkingOverrides?: ChunkingOverrideOptions;
 }): Promise<IndexFileResult> {
-  const { characterId, folderId, filePath, relativePath, signal } = params;
+  const { characterId, folderId, filePath, relativePath, signal, chunkingOverrides } = params;
 
   const db = await getLanceDB();
   if (!db) {
@@ -161,7 +171,7 @@ export async function indexFileToVectorDB(params: {
     const parsed = await extractTextFromDocument(buffer, contentType, filePath);
 
     // Chunk the text
-    const chunks = getChunksForIndexing(parsed.text);
+    const chunks = getChunksForIndexing(parsed.text, chunkingOverrides);
 
     if (chunks.length === 0) {
       return { filePath, chunkCount: 0, pointIds: [] };

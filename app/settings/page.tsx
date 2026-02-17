@@ -120,7 +120,7 @@ export default function SettingsPage() {
     utilityModel: "",
     openrouterArgs: "{}",
     theme: "dark" as "dark" | "light" | "system",
-    toolLoadingMode: "deferred" as "deferred" | "always",
+    toolLoadingMode: "always" as "deferred" | "always",
     promptCachingEnabled: true,
     promptCachingTtl: "5m" as "5m" | "1h",
     rtkEnabled: false,
@@ -231,7 +231,7 @@ export default function SettingsPage() {
         utilityModel: data.utilityModel || "",
         openrouterArgs: data.openrouterArgs || "{}",
         theme: data.theme || "dark",
-        toolLoadingMode: data.toolLoadingMode || "deferred",
+        toolLoadingMode: data.toolLoadingMode || "always",
         promptCachingEnabled: data.promptCachingEnabled ?? true,
         promptCachingTtl: data.promptCachingTtl ?? "5m",
         rtkEnabled: data.rtkEnabled ?? false,
@@ -1899,7 +1899,7 @@ function SettingsPanel({
               </select>
             ) : formState.llmProvider === "claudecode" ? (
               <select
-                value={formState.researchModel || "claude-opus-4-6-thinking"}
+                value={formState.researchModel || "claude-opus-4-6"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
                 className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
@@ -2722,7 +2722,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               type="radio"
               name="toolLoadingMode"
               value="deferred"
-              checked={formState.toolLoadingMode === "deferred" || !formState.toolLoadingMode}
+              checked={formState.toolLoadingMode === "deferred"}
               onChange={() => updateField("toolLoadingMode", "deferred")}
               className="mt-1 size-4 accent-terminal-green"
             />
@@ -2736,7 +2736,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               type="radio"
               name="toolLoadingMode"
               value="always"
-              checked={formState.toolLoadingMode === "always"}
+              checked={formState.toolLoadingMode === "always" || !formState.toolLoadingMode}
               onChange={() => updateField("toolLoadingMode", "always")}
               className="mt-1 size-4 accent-terminal-green"
             />

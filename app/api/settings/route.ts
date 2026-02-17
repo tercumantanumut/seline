@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadSettings, saveSettings, type AppSettings } from "@/lib/settings/settings-manager";
+import { loadSettings, saveSettings, validateSettingsModels, type AppSettings } from "@/lib/settings/settings-manager";
 import { invalidateProviderCache } from "@/lib/ai/providers";
 import { validateModelConfiguration } from "@/lib/config/embedding-models";
 
@@ -184,6 +184,19 @@ export async function PUT(request: NextRequest) {
           warnings: validation.warnings,
         },
         { status: 400 }
+      );
+    }
+
+    // Validate model-provider compatibility before saving
+    // This replaces the old normalizeModelsForProvider() on-read clearing
+    const modelValidation = validateSettingsModels(updatedSettings);
+    if (!modelValidation.valid) {
+      return NextResponse.json(
+        {
+          error: "Incompatible model configuration",
+          details: modelValidation.errors,
+        },
+        { status: 400 },
       );
     }
 

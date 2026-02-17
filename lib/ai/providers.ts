@@ -35,6 +35,9 @@ import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
 import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
 import { createClaudeCodeProvider } from "@/lib/ai/providers/claudecode-provider";
+import {
+  isModelCompatibleWithProvider as isModelCompatible,
+} from "@/lib/ai/model-validation";
 
 // Provider types
 export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
@@ -669,34 +672,21 @@ function isClaudeModel(modelId: string): boolean {
 
 /**
  * Check if a model is compatible with the given provider.
- * Returns true if the model belongs to (or is valid for) that provider.
+ * Delegates to the shared model-validation utility for a single source of truth.
  */
-  function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
-    switch (provider) {
-      case "antigravity": return isAntigravityModel(model);
-      case "codex": return isCodexModel(model);
-      case "claudecode": return isClaudeCodeOAuthModel(model) || isClaudeModel(model);
-      case "kimi": return isKimiModel(model);
-      case "ollama": return true;
-      case "anthropic": return isClaudeModel(model);
-      case "openrouter": {
-        const trimmed = model.trim();
-        if (trimmed.startsWith(OPENROUTER_MODEL_PREFIX) || trimmed.includes("/")) {
-          return true;
-        }
-        // Avoid routing bare provider-specific IDs through OpenRouter.
-        if (isAntigravityModel(trimmed) || isCodexModel(trimmed) || isClaudeCodeOAuthModel(trimmed) || isKimiModel(trimmed) || isClaudeModel(trimmed)) {
-          return false;
-        }
-        return true;
-      }
-    }
-  }
+function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
+  return isModelCompatible(model, provider);
+}
 
 /**
  * Validate that a model is compatible with the current provider.
  * If incompatible, logs a single warning and returns the fallback.
  * If the model is empty/null, returns null (caller decides the fallback behavior).
+ *
+ * NOTE: This is a runtime guard for the model resolution path.
+ * The primary validation should happen at the API boundary (settings PUT,
+ * session model-config PUT) via model-validation.ts.
+ * This guard exists as a safety net to prevent runtime crashes.
  */
 function validateModelForProvider(
   model: string | null | undefined,

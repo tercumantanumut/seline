@@ -9,6 +9,7 @@
 import { db } from "@/lib/db/sqlite-client";
 import { scheduledTaskRuns, scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { messages } from "@/lib/db/sqlite-schema";
+import { skills } from "@/lib/db/sqlite-skills-schema";
 import { and, eq, sql } from "drizzle-orm";
 import type { ContextSource, DeliveryMethod, DeliveryConfig } from "@/lib/db/sqlite-schedule-schema";
 import { getContextSourceManager } from "./context-sources";
@@ -303,6 +304,9 @@ export class TaskQueue {
         durationMs,
       });
 
+      // Update linked skill stats for successful scheduler runs.
+      await this.updateLinkedSkillStats(task.taskId, task.userId, true);
+
     } catch (error) {
       if ((error as Error).name === "AbortError" || controller.signal.aborted) {
         console.log(`[TaskQueue] Task ${task.runId} was cancelled`);
@@ -402,6 +406,8 @@ export class TaskQueue {
         error: errorMessage,
         durationMs,
       });
+
+      await this.updateLinkedSkillStats(task.taskId, task.userId, false);
     }
   }
 
@@ -615,6 +621,26 @@ export class TaskQueue {
       summary,
       fullText,
     };
+  }
+
+  private async updateLinkedSkillStats(taskId: string, userId: string, succeeded: boolean): Promise<void> {
+    const task = await db.query.scheduledTasks.findFirst({
+      where: eq(scheduledTasks.id, taskId),
+    });
+
+    if (!task?.skillId) {
+      return;
+    }
+
+    await db
+      .update(skills)
+      .set({
+        runCount: sql`${skills.runCount} + 1`,
+        successCount: succeeded ? sql`${skills.successCount} + 1` : sql`${skills.successCount}`,
+        lastRunAt: nowISO(),
+        updatedAt: nowISO(),
+      })
+      .where(and(eq(skills.id, task.skillId), eq(skills.userId, userId)));
   }
 
   private async updateRunStatus(

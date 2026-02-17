@@ -4,7 +4,8 @@ import { resolveSessionLanguageModel } from "@/lib/ai/session-model-resolver";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
-import { createVectorSearchToolV2, createReadFileTool } from "@/lib/ai/vector-search";
+import { createVectorSearchToolV2 } from "@/lib/ai/vector-search";
+import { createReadFileTool } from "@/lib/ai/tools/read-file-tool";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
 import { createExecuteCommandTool } from "@/lib/ai/tools/execute-command-tool";
 import { createEditFileTool } from "@/lib/ai/tools/edit-file-tool";
@@ -12,6 +13,11 @@ import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
+import { createCreateSkillTool } from "@/lib/ai/tools/create-skill-tool";
+import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
+import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
+import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
+import { createCopySkillTool } from "@/lib/ai/tools/copy-skill-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -26,6 +32,7 @@ import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
 import { getCharacterFull } from "@/lib/characters/queries";
+import { getSkillsSummaryForPrompt } from "@/lib/skills/queries";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -34,6 +41,12 @@ import { taskRegistry } from "@/lib/background-tasks/registry";
 import { limitProgressContent } from "@/lib/background-tasks/progress-content-limiter";
 import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { combineAbortSignals } from "@/lib/utils/abort";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+} from "@/lib/ai/retry/stream-recovery";
 import type { ChatTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
 import { deliverChannelReply } from "@/lib/channels/delivery";
@@ -395,7 +408,15 @@ async function extractContent(
   convertUserImagesToBase64 = false,
   sessionId?: string,
   toolSummaryMode = false
-): Promise<string | Array<{ type: string; text?: string; image?: string }>> {
+): Promise<string | Array<{
+  type: string;
+  text?: string;
+  image?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+}>> {
   // If content exists and is a string, use it directly (with sanitization)
   if (typeof msg.content === "string" && msg.content) {
     // Strip fake tool call JSON that may have been saved from previous model outputs
@@ -409,7 +430,27 @@ async function extractContent(
 
   // If parts array exists (assistant-ui format), convert it
   if (msg.parts && Array.isArray(msg.parts)) {
-    const contentParts: Array<{ type: string; text?: string; image?: string }> =
+    const explicitToolResultIds = new Set(
+      msg.parts
+        .filter(
+          (
+            part
+          ): part is {
+            type: "tool-result";
+            toolCallId: string;
+          } => part.type === "tool-result" && typeof part.toolCallId === "string"
+        )
+        .map((part) => part.toolCallId)
+    );
+    const contentParts: Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
+      output?: unknown;
+    }> =
       [];
 
     for (const part of msg.parts) {
@@ -481,6 +522,30 @@ async function extractContent(
 
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
+        const toolCallId = part.toolCallId;
+        const normalizedInput = toolCallId
+          ? normalizeToolCallInput(part.input, toolName, toolCallId) ?? {}
+          : null;
+        if (toolCallId && normalizedInput) {
+          contentParts.push({
+            type: "tool-call",
+            toolCallId,
+            toolName,
+            input: normalizedInput,
+          });
+        }
+
+        if (toolCallId && output !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, output)
+            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: toModelToolResultOutput(normalizedOutput),
+          });
+        }
         
         // For image/video generation tools, add a natural language reference so AI can use the URLs
         if (output?.images && output.images.length > 0) {
@@ -576,7 +641,42 @@ async function extractContent(
           // The structured tool-result part is already preserved in the message
           console.log(`[EXTRACT] dynamic-tool ${toolName} output preserved as structured data`);
         }
-      } else if (part.type.startsWith("tool-")) {
+      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        contentParts.push({
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          input: normalizedInput,
+        });
+
+        // Some historical messages store tool output inline on the tool-call part.
+        // Preserve that as a structured tool-result to keep call/result pairs valid.
+        const rawOutput = part.output ?? part.result;
+        if (rawOutput !== undefined && !explicitToolResultIds.has(part.toolCallId)) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(part.toolName, rawOutput)
+            : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            output: toModelToolResultOutput(normalizedOutput),
+          });
+        }
+      } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
+        const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
+        const rawOutput = part.output ?? part.result;
+        const normalizedOutput = toolSummaryMode
+          ? summarizeToolResult(part.toolName, rawOutput)
+          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+        contentParts.push({
+          type: "tool-result",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          output: toModelToolResultOutput(normalizedOutput),
+        });
+      } else if (part.type.startsWith("tool-") && part.type !== "tool-call" && part.type !== "tool-result") {
         // Handle streaming tool calls from assistant-ui (format: "tool-{toolName}")
         // CRITICAL: Tool results are kept as structured data in the parts, NOT converted to text
         // The AI SDK handles tool-result parts natively - no need for [SYSTEM: ...] markers
@@ -594,6 +694,29 @@ async function extractContent(
           result?: { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string };
         };
         const toolOutput = partWithOutput.output ?? partWithOutput.result;
+        const toolCallId = part.toolCallId;
+        const normalizedInput = toolCallId
+          ? normalizeToolCallInput(partWithOutput.input, toolName, toolCallId) ?? {}
+          : null;
+        if (toolCallId && normalizedInput) {
+          contentParts.push({
+            type: "tool-call",
+            toolCallId,
+            toolName,
+            input: normalizedInput,
+          });
+        }
+        if (toolCallId && toolOutput !== undefined) {
+          const normalizedOutput = toolSummaryMode
+            ? summarizeToolResult(toolName, toolOutput)
+            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
+          contentParts.push({
+            type: "tool-result",
+            toolCallId,
+            toolName,
+            output: toModelToolResultOutput(normalizedOutput),
+          });
+        }
         console.log(`[EXTRACT] Found tool-${toolName}, result:`, JSON.stringify(toolOutput, null, 2));
 
         // For image/video generation tools, add natural language reference so AI can use the URLs
@@ -717,17 +840,19 @@ async function extractContent(
       }
     }
 
+    const normalizedParts = filterOrphanToolCalls(contentParts);
+
     // If no content parts, return non-empty fallback string for AI providers
-    if (contentParts.length === 0) {
+    if (normalizedParts.length === 0) {
       return "[Message content not available]";
     }
 
     // If only one text part, return as string for simplicity
-    if (contentParts.length === 1 && contentParts[0].type === "text") {
-      return contentParts[0].text || "";
+    if (normalizedParts.length === 1 && normalizedParts[0].type === "text") {
+      return normalizedParts[0].text || "";
     }
 
-    return contentParts;
+    return normalizedParts;
   }
 
   // Also check for experimental_attachments even without parts array
@@ -770,7 +895,15 @@ async function extractContent(
 
   // If content is an array, pass it through
   if (Array.isArray(msg.content)) {
-    return msg.content as Array<{ type: string; text?: string; image?: string }>;
+    return msg.content as Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
+      output?: unknown;
+    }>;
   }
 
   // Fallback
@@ -812,6 +945,420 @@ function shouldUseToolSummaries(
 ): boolean {
   const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
+}
+
+const TOOL_HISTORY_SUMMARY_MAX_CHARS = 320;
+
+function summarizeHistoricalToolOutput(output: unknown): string {
+  if (typeof output === "string") {
+    return output.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+  }
+
+  if (output && typeof output === "object") {
+    const maybeTyped = output as { type?: unknown; value?: unknown };
+    if (maybeTyped.type === "text" && typeof maybeTyped.value === "string") {
+      return maybeTyped.value.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+    }
+    if (maybeTyped.type === "json") {
+      try {
+        const jsonText = JSON.stringify(maybeTyped.value);
+        return jsonText.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+      } catch {
+        return "[unserializable json output]";
+      }
+    }
+    try {
+      return JSON.stringify(output).slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+    } catch {
+      return "[unserializable output]";
+    }
+  }
+
+  return String(output ?? "").slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
+}
+
+function sanitizeToolHistoryForAntigravityClaude(messages: ModelMessage[]): ModelMessage[] {
+  let removedCalls = 0;
+  let removedResults = 0;
+
+  const sanitized: ModelMessage[] = messages.map((message): ModelMessage => {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      return message;
+    }
+
+    const keptParts: Array<Record<string, unknown>> = [];
+    const summaryLines: string[] = [];
+
+    for (const rawPart of message.content as Array<Record<string, unknown>>) {
+      const partType = rawPart?.type;
+      if (partType === "tool-call") {
+        removedCalls += 1;
+        continue;
+      }
+      if (partType === "tool-result") {
+        removedResults += 1;
+        const toolName = typeof rawPart.toolName === "string" ? rawPart.toolName : "tool";
+        const summary = summarizeHistoricalToolOutput(rawPart.output);
+        summaryLines.push(`[Previous ${toolName} result] ${summary}`);
+        continue;
+      }
+      keptParts.push(rawPart);
+    }
+
+    if (summaryLines.length > 0) {
+      keptParts.push({
+        type: "text",
+        text: summaryLines.join("\n"),
+      });
+    }
+
+    if (keptParts.length === 0) {
+      return {
+        ...message,
+        content: "[Previous tool activity omitted for Claude compatibility.]",
+      } as ModelMessage;
+    }
+
+    if (
+      keptParts.length === 1 &&
+      keptParts[0].type === "text" &&
+      typeof keptParts[0].text === "string"
+    ) {
+      return {
+        ...message,
+        content: keptParts[0].text,
+      } as ModelMessage;
+    }
+
+    return {
+      ...message,
+      content: keptParts as ModelMessage["content"],
+    } as ModelMessage;
+  });
+
+  if (removedCalls > 0 || removedResults > 0) {
+    console.log(
+      `[CHAT API] Antigravity Claude history sanitization: removed ${removedCalls} tool-call and ${removedResults} tool-result parts`
+    );
+  }
+
+  return sanitized;
+}
+
+/**
+ * Split tool-result parts out of assistant messages into separate role:"tool" messages.
+ *
+ * The AI SDK's Anthropic converter only handles tool-result in assistant messages for
+ * provider-executed tools (MCP, web_search, code_execution). Regular tool results
+ * (executeCommand, vectorSearch, etc.) are silently dropped, leaving orphan tool_use
+ * blocks that cause: "tool_use ids were found without tool_result blocks immediately after".
+ *
+ * This function moves tool-result parts from assistant messages into role:"tool" messages
+ * placed immediately after, which the AI SDK correctly converts to Anthropic tool_result blocks.
+ *
+ * Also removes orphan tool-call parts (those without matching tool-result anywhere)
+ * to prevent the same error when tool execution was interrupted.
+ */
+function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelMessage[] {
+  // First pass: collect all tool-call and tool-result IDs across all messages
+  const allToolCallIds = new Set<string>();
+  const allToolResultIds = new Set<string>();
+
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content as Array<Record<string, unknown>>) {
+      if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+        allToolCallIds.add(part.toolCallId);
+      }
+      if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+        allToolResultIds.add(part.toolCallId);
+      }
+    }
+  }
+
+  const result: ModelMessage[] = [];
+  let splitCount = 0;
+  let removedOrphanCalls = 0;
+
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      result.push(message);
+      continue;
+    }
+
+    // Separate parts into: before-tool-call, tool-call, tool-result, after-tool-call
+    // The Anthropic API requires:
+    //   assistant: [text, tool_use]        ← parts up to and including last tool_use
+    //   user:      [tool_result]           ← tool results
+    //   assistant: [text]                  ← any content generated AFTER tool results
+    // Content after the last tool_use was generated in a new step after tool execution,
+    // so it must go in a separate assistant message AFTER the tool result message.
+
+    const parts = message.content as Array<Record<string, unknown>>;
+
+    // Find the index of the last tool-call part
+    let lastToolCallIdx = -1;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i].type === "tool-call") {
+        lastToolCallIdx = i;
+        break;
+      }
+    }
+
+    // No tool-calls in this message — check for orphan tool-results
+    if (lastToolCallIdx === -1) {
+      const hasToolResults = parts.some(p => p.type === "tool-result");
+      if (hasToolResults) {
+        // Orphan tool-results without tool-calls — convert to text
+        const filtered = parts.filter(p => p.type !== "tool-result");
+        if (filtered.length > 0) {
+          result.push({ ...message, content: filtered as ModelMessage["content"] } as ModelMessage);
+        } else {
+          result.push({ ...message, content: "[Previous tool activity omitted.]" } as ModelMessage);
+        }
+      } else {
+        result.push(message);
+      }
+      continue;
+    }
+
+    // Split the parts at the last tool-call boundary
+    // beforeAndIncluding: text + tool-call parts (the "step 1" assistant content)
+    // toolResults: tool-result parts
+    // afterToolCalls: text parts after the last tool-call (the "step 2" content)
+    const beforeAndIncluding: Array<Record<string, unknown>> = [];
+    const toolResultParts: Array<Record<string, unknown>> = [];
+    const afterToolCalls: Array<Record<string, unknown>> = [];
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+
+      if (part.type === "tool-result") {
+        toolResultParts.push(part);
+        continue;
+      }
+
+      if (part.type === "tool-call" && typeof part.toolCallId === "string" && !allToolResultIds.has(part.toolCallId)) {
+        // Orphan tool-call without matching result — remove
+        removedOrphanCalls++;
+        continue;
+      }
+
+      if (i <= lastToolCallIdx) {
+        beforeAndIncluding.push(part);
+      } else {
+        afterToolCalls.push(part);
+      }
+    }
+
+    // No tool-results found and no orphans — keep as-is
+    if (toolResultParts.length === 0 && removedOrphanCalls === 0 && afterToolCalls.length === 0) {
+      result.push(message);
+      continue;
+    }
+
+    // Reorder beforeAndIncluding: text parts must come before all tool-call parts.
+    // When tool-result parts are extracted, text blocks that were between tool-call/result
+    // pairs end up between tool-call blocks. The Anthropic API treats text between tool_use
+    // blocks as a boundary, expecting tool_results for the preceding group immediately.
+    // Moving text before tool-calls avoids this: [text, tool_use, tool_use] is valid.
+    const textParts = beforeAndIncluding.filter(p => p.type !== "tool-call");
+    const toolCallParts = beforeAndIncluding.filter(p => p.type === "tool-call");
+    const reorderedParts = [...textParts, ...toolCallParts];
+
+    // Emit assistant message with parts up to and including tool-calls (step 1)
+    if (reorderedParts.length > 0) {
+      result.push({ ...message, content: reorderedParts as ModelMessage["content"] } as ModelMessage);
+    } else {
+      result.push({ ...message, content: "[Calling tools...]" } as ModelMessage);
+    }
+
+    // Emit tool message with tool-results
+    if (toolResultParts.length > 0) {
+      splitCount += toolResultParts.length;
+      result.push({
+        role: "tool",
+        content: toolResultParts,
+      } as ModelMessage);
+    }
+
+    // Emit second assistant message with content after tool-calls (step 2)
+    if (afterToolCalls.length > 0) {
+      const afterContent = afterToolCalls.length === 1 &&
+        afterToolCalls[0].type === "text" && typeof afterToolCalls[0].text === "string"
+        ? afterToolCalls[0].text as string
+        : afterToolCalls as ModelMessage["content"];
+      result.push({ role: "assistant", content: afterContent } as ModelMessage);
+    }
+  }
+
+  if (splitCount > 0 || removedOrphanCalls > 0) {
+    console.log(
+      `[CHAT API] Claude message splitting: moved ${splitCount} tool-result parts to role:tool messages, removed ${removedOrphanCalls} orphan tool-calls`
+    );
+  }
+
+  return result;
+}
+
+function filterOrphanToolCalls(
+  parts: Array<{
+    type: string;
+    text?: string;
+    image?: string;
+    toolCallId?: string;
+    toolName?: string;
+    input?: unknown;
+    output?: unknown;
+  }>
+): Array<{
+  type: string;
+  text?: string;
+  image?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+}> {
+  const toolCallIds = new Set(
+    parts
+      .filter(
+        (part): part is { type: "tool-call"; toolCallId: string } =>
+          part.type === "tool-call" && typeof part.toolCallId === "string"
+      )
+      .map((part) => part.toolCallId)
+  );
+  const toolResultIds = new Set(
+    parts
+      .filter(
+        (part): part is { type: "tool-result"; toolCallId: string } =>
+          part.type === "tool-result" && typeof part.toolCallId === "string"
+      )
+      .map((part) => part.toolCallId)
+  );
+
+  let removedOrphanCalls = 0;
+  let removedOrphanResults = 0;
+  let removedDuplicateCalls = 0;
+  let removedDuplicateResults = 0;
+  const seenToolCalls = new Set<string>();
+  const seenToolResults = new Set<string>();
+
+  const filtered = parts.filter((part) => {
+    if (part.type === "tool-call") {
+      if (typeof part.toolCallId !== "string") {
+        removedOrphanCalls += 1;
+        return false;
+      }
+      if (!toolResultIds.has(part.toolCallId)) {
+        removedOrphanCalls += 1;
+        return false;
+      }
+      if (seenToolCalls.has(part.toolCallId)) {
+        removedDuplicateCalls += 1;
+        return false;
+      }
+      seenToolCalls.add(part.toolCallId);
+      return true;
+    }
+
+    if (part.type === "tool-result") {
+      if (typeof part.toolCallId !== "string") {
+        removedOrphanResults += 1;
+        return false;
+      }
+      if (!toolCallIds.has(part.toolCallId)) {
+        removedOrphanResults += 1;
+        return false;
+      }
+      if (seenToolResults.has(part.toolCallId)) {
+        removedDuplicateResults += 1;
+        return false;
+      }
+      seenToolResults.add(part.toolCallId);
+      return true;
+    }
+
+    return true;
+  });
+
+  if (
+    removedOrphanCalls > 0 ||
+    removedOrphanResults > 0 ||
+    removedDuplicateCalls > 0 ||
+    removedDuplicateResults > 0
+  ) {
+    console.warn(
+      `[CHAT API] Filtered tool parts before model send: ` +
+      `orphan calls=${removedOrphanCalls}, orphan results=${removedOrphanResults}, ` +
+      `duplicate calls=${removedDuplicateCalls}, duplicate results=${removedDuplicateResults}`
+    );
+  }
+
+  return filtered;
+}
+
+function toModelToolResultOutput(
+  output: unknown
+): { type: "text"; value: string } | { type: "json"; value: unknown } {
+  if (typeof output === "string") {
+    return { type: "text", value: output };
+  }
+
+  // Ensure payload stays JSON-serializable for ModelMessage validation.
+  try {
+    return { type: "json", value: JSON.parse(JSON.stringify(output ?? null)) };
+  } catch {
+    return {
+      type: "json",
+      value: { status: "error", error: "Tool result was not JSON-serializable." },
+    };
+  }
+}
+
+function summarizeToolResult(toolName: string, output: unknown): unknown {
+  const normalized = normalizeToolResultOutput(toolName, output, undefined).output as Record<string, unknown> | string | null;
+
+  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
+    return normalized;
+  }
+
+  const summary: Record<string, unknown> = {};
+  const status = normalized.status;
+  if (typeof status === "string") {
+    summary.status = status;
+  }
+
+  if (typeof normalized.message === "string" && normalized.message.trim()) {
+    summary.message = normalized.message;
+  }
+
+  if (typeof normalized.exitCode === "number") {
+    summary.exitCode = normalized.exitCode;
+  }
+
+  if (typeof normalized.executionTime === "number") {
+    summary.executionTime = normalized.executionTime;
+  }
+
+  if (typeof normalized.logId === "string" && normalized.logId) {
+    summary.logId = normalized.logId;
+  }
+
+  if (typeof normalized.stdout === "string" && normalized.stdout) {
+    summary.stdoutPreview = normalized.stdout.slice(0, 300);
+  }
+
+  if (typeof normalized.stderr === "string" && normalized.stderr) {
+    summary.stderrPreview = normalized.stderr.slice(0, 300);
+  }
+
+  if (Object.keys(summary).length === 0) {
+    return { status: "success", summarized: true };
+  }
+
+  summary.summarized = true;
+  return summary;
 }
 
 function normalizeToolCallInput(
@@ -938,6 +1485,41 @@ function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
     return structuredClone(parts);
   }
   return JSON.parse(JSON.stringify(parts));
+}
+
+function buildProgressSignature(parts: DBContentPart[]): string {
+  return parts.map((part) => {
+    if (part.type === "text") {
+      return `t:${part.text.length}:${part.text.slice(0, 100)}`;
+    }
+
+    if (part.type === "tool-call") {
+      return `tc:${part.toolCallId}:${part.state ?? ""}`;
+    }
+
+    if (part.type === "tool-result") {
+      const preview =
+        typeof part.result === "string"
+          ? `s:${part.result.length}:${part.result.slice(0, 120)}`
+          : part.result && typeof part.result === "object"
+            ? (() => {
+                const entries = Object.entries(part.result as Record<string, unknown>)
+                  .slice(0, 5)
+                  .map(([key, value]) => {
+                    if (typeof value === "string") return `${key}:${value.length}:${value.slice(0, 60)}`;
+                    if (typeof value === "number" || typeof value === "boolean") return `${key}:${value}`;
+                    if (Array.isArray(value)) return `${key}:arr${value.length}`;
+                    return `${key}:${typeof value}`;
+                  })
+                  .join(",");
+                return `o:${Object.keys(part.result as Record<string, unknown>).length}:${entries}`;
+              })()
+            : `p:${typeof part.result}`;
+      return `tr:${part.toolCallId}:${part.state ?? ""}:${preview}`;
+    }
+
+    return `o:${part.type}`;
+  }).join("|");
 }
 
 function extractTextFromParts(parts: DBContentPart[]): string {
@@ -1335,38 +1917,8 @@ export async function POST(req: Request) {
           filteredParts = [{ type: "text", text: "Working..." }];
         }
 
-        const partsSnapshot = cloneContentParts(filteredParts);
         const now = Date.now();
-
-        // Build a lightweight signature for change detection.
-        // Avoid JSON.stringify on the full partsSnapshot which can be 400K+ chars
-        // when tool results are large (e.g., localGrep with many matches).
-        // Instead, use a structural fingerprint: part types, IDs, states, and text previews.
-        const signature = partsSnapshot.map((p) => {
-          if (p.type === "text") return `t:${p.text.length}:${p.text.slice(0, 100)}`;
-          if (p.type === "tool-call") return `tc:${(p as DBToolCallPart).toolCallId}:${(p as DBToolCallPart).state ?? ""}`;
-          if (p.type === "tool-result") {
-            const tr = p as DBToolResultPart;
-            // Add a shallow value preview to catch value-only changes.
-            let resultFingerprint = "null";
-            if (typeof tr.result === "string") {
-              resultFingerprint = `s${tr.result.length}:${tr.result.slice(0, 120)}`;
-            } else if (tr.result && typeof tr.result === "object") {
-              const entries = Object.entries(tr.result as Record<string, unknown>)
-                .slice(0, 5)
-                .map(([key, value]) => {
-                  if (typeof value === "string") return `${key}:${value.slice(0, 60)}`;
-                  if (typeof value === "number" || typeof value === "boolean") return `${key}:${value}`;
-                  if (Array.isArray(value)) return `${key}:arr${value.length}`;
-                  return `${key}:${typeof value}`;
-                })
-                .join(",");
-              resultFingerprint = `o${Object.keys(tr.result as Record<string, unknown>).length}:${entries}`;
-            }
-            return `tr:${tr.toolCallId}:${tr.state ?? ""}:${resultFingerprint}`;
-          }
-          return `o:${p.type}`;
-        }).join("|");
+        const signature = buildProgressSignature(filteredParts);
 
         // Skip if content hasn't changed
         if (signature === streamingState.lastBroadcastSignature) {
@@ -1379,8 +1931,8 @@ export async function POST(req: Request) {
 
           // Use shorter interval (200ms) for text-only updates
           // Use longer interval (400ms) for tool state changes
-          const hasToolChanges = partsSnapshot.some(
-            (p) => p.type === "tool-call" || p.type === "tool-result"
+          const hasToolChanges = filteredParts.some(
+            (part) => part.type === "tool-call" || part.type === "tool-result"
           );
           const throttleInterval = hasToolChanges ? 400 : 200;
 
@@ -1401,6 +1953,8 @@ export async function POST(req: Request) {
         }
 
         streamingState.pendingBroadcast = false;
+
+        const partsSnapshot = cloneContentParts(filteredParts);
 
         if (!streamingState.messageId) {
           // Allocate ordering index for streaming assistant message
@@ -1461,7 +2015,8 @@ export async function POST(req: Request) {
             if (progressLimit.wasTruncated) {
               console.log(
                 `[CHAT API] Progress content truncated: ` +
-                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens`
+                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens` +
+                (progressLimit.hardCapped ? " (hard cap summary applied)" : "")
               );
             }
 
@@ -1478,6 +2033,10 @@ export async function POST(req: Request) {
                 sessionId,
                 assistantMessageId: streamingState.messageId,
                 progressContent: progressLimit.content as DBContentPart[],
+                progressContentLimited: progressLimit.wasTruncated,
+                progressContentOriginalTokens: progressLimit.originalTokens,
+                progressContentFinalTokens: progressLimit.finalTokens,
+                progressContentTruncatedParts: progressLimit.truncatedParts,
                 startedAt: nowISO(),
               }
             );
@@ -1717,6 +2276,26 @@ export async function POST(req: Request) {
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
       }),
+      createSkill: createCreateSkillTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
+      listSkills: createListSkillsTool({
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
+      runSkill: createRunSkillTool({
+        sessionId,
+        userId: dbUser.id,
+        characterId: characterId || "",
+      }),
+      updateSkill: createUpdateSkillTool({
+        userId: dbUser.id,
+      }),
+      copySkill: createCopySkillTool({
+        userId: dbUser.id,
+      }),
     };
 
     // Enhance frontend messages with tool results from database
@@ -1742,7 +2321,7 @@ export async function POST(req: Request) {
     // convertUserImagesToBase64=true - Send base64 images so Claude can actually SEE user uploads
     // (Without this, Claude hallucinates URLs when asked about images from channels like Telegram)
     // sessionId enables smart truncation - long content is truncated but full version is retrievable
-    const coreMessages: ModelMessage[] = await Promise.all(
+    let coreMessages: ModelMessage[] = await Promise.all(
       enhancedMessages.map(async (msg, idx) => {
         const content = await extractContent(
           msg as Parameters<typeof extractContent>[0],
@@ -1765,6 +2344,42 @@ export async function POST(req: Request) {
         } as ModelMessage;
       })
     );
+
+    const isAntigravityClaudeModel =
+      currentProvider === "antigravity" &&
+      typeof currentModelId === "string" &&
+      currentModelId.toLowerCase().includes("claude");
+
+    if (isAntigravityClaudeModel) {
+      coreMessages = sanitizeToolHistoryForAntigravityClaude(coreMessages);
+    }
+
+    // Split tool-result parts from assistant messages into role:"tool" messages
+    // for native Claude/Anthropic providers. The AI SDK's Anthropic converter silently
+    // drops regular tool-result parts from assistant messages, causing orphan tool_use errors.
+    const isNativeClaudeProvider =
+      !isAntigravityClaudeModel && (
+        currentProvider === "claudecode" ||
+        currentProvider === "anthropic" ||
+        (typeof currentModelId === "string" && currentModelId.toLowerCase().includes("claude"))
+      );
+
+    if (isNativeClaudeProvider) {
+      coreMessages = splitToolResultsFromAssistantMessages(coreMessages);
+    }
+
+    // Log coreMessages structure after all sanitization for debugging tool_use/tool_result pairing
+    console.log(`[CHAT API] Final coreMessages (${coreMessages.length} messages) before streamText:`);
+    coreMessages.forEach((msg, idx) => {
+      if (typeof msg.content === 'string') {
+        console.log(`  [${idx}] role=${msg.role}, content=string(${msg.content.length})`);
+      } else if (Array.isArray(msg.content)) {
+        const types = (msg.content as Array<{ type: string; toolCallId?: string }>).map(
+          p => p.type + (p.toolCallId ? `:${p.toolCallId}` : '')
+        );
+        console.log(`  [${idx}] role=${msg.role}, parts=[${types.join(', ')}]`);
+      }
+    });
 
     // Validate tool call inputs before sending to AI SDK
     // This helps detect if any invalid tool calls made it through the converter
@@ -1809,6 +2424,25 @@ export async function POST(req: Request) {
     if (characterId) {
       const character = await getCharacterFull(characterId);
       if (character && character.userId === dbUser.id) {
+        let hydratedSkillSummaries: Array<{ id: string; name: string; description: string }> = [];
+
+        // Extract enabled tools from character metadata
+        const metadata = character.metadata as { enabledTools?: string[]; skills?: unknown[] } | null;
+        enabledTools = metadata?.enabledTools;
+
+        try {
+          const skillSummaries = await getSkillsSummaryForPrompt(character.id);
+          if (skillSummaries.length > 0) {
+            hydratedSkillSummaries = skillSummaries.map((skill) => ({
+              id: skill.id,
+              name: skill.name,
+              description: skill.description,
+            }));
+          }
+        } catch (skillError) {
+          console.warn("[CHAT API] Failed to hydrate skill summaries for prompt:", skillError);
+        }
+
         // Build character-specific system prompt (includes shared blocks)
         const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
         systemPromptValue = useCaching
@@ -1817,16 +2451,18 @@ export async function POST(req: Request) {
               channelType,
               enableCaching: true,
               cacheTtl: cacheConfig.defaultTtl,
+              skillSummaries: hydratedSkillSummaries,
             })
-          : buildCharacterSystemPrompt(character, { toolLoadingMode, channelType });
+          : buildCharacterSystemPrompt(character, {
+              toolLoadingMode,
+              channelType,
+              skillSummaries: hydratedSkillSummaries,
+            });
 
         // Get character avatar and appearance for tool context
         characterAvatarUrl = getCharacterAvatarUrl(character);
         characterAppearanceDescription = character.tagline || null;
 
-        // Extract enabled tools from character metadata
-        const metadata = character.metadata as { enabledTools?: string[] } | null;
-        enabledTools = metadata?.enabledTools;
 
         console.log(`[CHAT API] Using character: ${character.name} (${characterId}), avatar: ${characterAvatarUrl || "none"}, enabledTools: ${enabledTools?.join(", ") || "all"}`);
       } else {
@@ -2033,6 +2669,36 @@ export async function POST(req: Request) {
       ...(allTools.updatePlan && {
         updatePlan: createUpdatePlanTool({ sessionId }),
       }),
+      ...(allTools.createSkill && {
+        createSkill: createCreateSkillTool({
+          sessionId,
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.listSkills && {
+        listSkills: createListSkillsTool({
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.runSkill && {
+        runSkill: createRunSkillTool({
+          sessionId,
+          userId: dbUser.id,
+          characterId: characterId || "",
+        }),
+      }),
+      ...(allTools.updateSkill && {
+        updateSkill: createUpdateSkillTool({
+          userId: dbUser.id,
+        }),
+      }),
+      ...(allTools.copySkill && {
+        copySkill: createCopySkillTool({
+          userId: dbUser.id,
+        }),
+      }),
     };
 
     // Load MCP tools for this character (if configured)
@@ -2176,14 +2842,20 @@ export async function POST(req: Request) {
         }
       }
     };
-    const result = await withRunContext(
-      {
-        runId: agentRun.id,
-        sessionId,
-        pipelineName: "chat",
-        characterId: characterId || undefined,
-      },
-      async () => streamText({
+    const runId = agentRun?.id;
+    if (!runId) {
+      throw new Error("Agent run unavailable for chat stream");
+    }
+    const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
+    const createStreamResult = async () =>
+      withRunContext(
+        {
+          runId,
+          sessionId,
+          pipelineName: "chat",
+          characterId: characterId || undefined,
+        },
+        async () => streamText({
         // Use session-level model override if present, otherwise fall back to global
         model: resolveSessionLanguageModel(sessionMetadata),
         // Conditionally include system prompt to reduce token usage
@@ -2196,7 +2868,7 @@ export async function POST(req: Request) {
         // Use activeTools to control which tools are visible to the model
         // Initially: non-deferred tools + previously discovered tools from session metadata
         activeTools: initialActiveToolNames as (keyof typeof allToolsWithMCP)[],
-        abortSignal: combineAbortSignals([req.signal, chatAbortController.signal]),
+        abortSignal: streamAbortSignal,
         stopWhen: stepCountIs(AI_CONFIG.maxSteps),
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
@@ -2770,8 +3442,72 @@ export async function POST(req: Request) {
             console.error("[CHAT API] Failed to record cancellation:", error);
           }
         },
-      })
-    ); // End withRunContext
+        })
+      );
+
+    const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
+    let result: Awaited<ReturnType<typeof createStreamResult>>;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        result = await createStreamResult();
+        if (attempt > 0) {
+          await appendRunEvent({
+            runId,
+            eventType: "llm_request_completed",
+            level: "info",
+            pipelineName: "chat",
+            data: {
+              attempt,
+              reason: "stream_recovered",
+              outcome: "recovered",
+            },
+          });
+        }
+        break;
+      } catch (error) {
+        const classification = classifyRecoverability({
+          provider,
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS,
+          aborted: streamAbortSignal.aborted,
+        });
+
+        if (runId) {
+          const delay = retry ? getBackoffDelayMs(attempt) : 0;
+          await appendRunEvent({
+            runId,
+            eventType: "llm_request_failed",
+            level: retry ? "info" : "warn",
+            pipelineName: "chat",
+            data: {
+              attempt: attempt + 1,
+              reason: classification.reason,
+              recoverable: classification.recoverable,
+              delayMs: delay,
+              outcome: retry ? "retrying" : "exhausted",
+            },
+          });
+        }
+
+        if (!retry) {
+          throw error;
+        }
+
+        const delay = getBackoffDelayMs(attempt);
+        console.log("[CHAT API] Retrying stream creation", {
+          attempt: attempt + 1,
+          reason: classification.reason,
+          delayMs: delay,
+          provider,
+        });
+        await sleepWithAbort(delay, streamAbortSignal);
+      }
+    }
 
     // Return streaming response with session ID header
     // AI SDK v5: use toUIMessageStreamResponse for assistant-ui compatibility

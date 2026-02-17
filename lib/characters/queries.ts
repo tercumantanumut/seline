@@ -6,7 +6,8 @@ import {
   type NewCharacterImage,
   type CharacterFull,
 } from "@/lib/db/sqlite-character-schema";
-import { eq, desc, and } from "drizzle-orm";
+import { skills } from "@/lib/db/sqlite-skills-schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 // Helper to get current timestamp as ISO string for SQLite
 const now = () => new Date().toISOString();
@@ -52,6 +53,54 @@ export async function getUserCharacters(userId: string) {
       images: true,
     },
   });
+}
+
+export interface CharacterStatsRecord {
+  characterId: string;
+  skillCount: number;
+  runCount: number;
+  successRate: number | null;
+  activeSince: string | null;
+  lastActive: string | null;
+  statsWarning?: string;
+}
+
+export async function getCharacterStats(userId: string, characterId: string): Promise<CharacterStatsRecord | null> {
+  const character = await db.query.characters.findFirst({
+    where: and(eq(characters.id, characterId), eq(characters.userId, userId)),
+    columns: { id: true, createdAt: true },
+  });
+  if (!character) return null;
+
+  const [skillAgg] = await db
+    .select({
+      skillCount: sql<number>`COALESCE(COUNT(*), 0)`,
+      runCount: sql<number>`COALESCE(SUM(${skills.runCount}), 0)`,
+      successCount: sql<number>`COALESCE(SUM(${skills.successCount}), 0)`,
+      lastRunAt: sql<string | null>`MAX(${skills.lastRunAt})`,
+    })
+    .from(skills)
+    .where(
+      and(
+        eq(skills.userId, userId),
+        eq(skills.characterId, characterId),
+        eq(skills.status, "active")
+      )
+    );
+
+  const runCount = Number(skillAgg?.runCount || 0);
+  const successCount = Number(skillAgg?.successCount || 0);
+  const successRate = runCount > 0 ? Number(((successCount / runCount) * 100).toFixed(2)) : null;
+
+  return {
+    characterId,
+    skillCount: Number(skillAgg?.skillCount || 0),
+    runCount,
+    successRate,
+    activeSince: character.createdAt || null,
+    lastActive: skillAgg?.lastRunAt || null,
+    statsWarning: runCount === 0 ? "No runs recorded yet." : undefined,
+  };
 }
 
 export async function getUserActiveCharacters(userId: string) {

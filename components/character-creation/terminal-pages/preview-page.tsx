@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ComputerGraphic } from "../computer-graphic";
 import { TerminalPrompt, TerminalBlock } from "@/components/ui/terminal-prompt";
 import { useReducedMotion } from "../hooks/use-reduced-motion";
-import { ToolBadge, TOOL_ICONS } from "@/components/ui/tool-badge";
+import { ToolBadge } from "@/components/ui/tool-badge";
 import { Wrench, FileText, Sparkles, CheckCircle2 } from "lucide-react";
 import type { AgentIdentity } from "./identity-page";
 import type { UploadedDocument } from "./knowledge-base-page";

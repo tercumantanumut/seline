@@ -9,6 +9,8 @@ export {
   resolveSyncedFolderPaths,
   ensureParentDirectories,
   findSimilarFiles,
+  validatePath,
+  normalizePath,
 } from "./path-utils";
 
 export {
@@ -27,5 +29,16 @@ export {
 
 export {
   generateLineNumberDiff,
+  generateBeforeAfterDiff,
   generateContentPreview,
 } from "./diff-utils";
+
+export {
+  applyFileEdits,
+  type FileEdit,
+  type ApplyEditsResult,
+} from "./edit-logic";
+
+export {
+  atomicWriteFile,
+} from "./write-utils";

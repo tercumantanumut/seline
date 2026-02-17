@@ -3,11 +3,11 @@
  *
  * AI tool for writing full file content within synced folders.
  * Creates new files or overwrites existing ones.
- * Includes stale detection and post-write diagnostics.
+ * Includes stale detection, atomic writes, and post-write diagnostics.
  */
 
 import { tool, jsonSchema } from "ai";
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import {
   isPathAllowed,
@@ -18,8 +18,9 @@ import {
   wasFileReadBefore,
   isFileStale,
   runPostWriteDiagnostics,
-  generateContentPreview,
+  generateBeforeAfterDiff,
   type DiagnosticResult,
+  atomicWriteFile,
 } from "@/lib/ai/filesystem";
 
 // ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
 - Paths restricted to synced folders
 - Max file size: 1MB
 - No-op detection: rejects writes of identical content
+- **Atomic Writes**: Uses temp file + rename to prevent corruption
 
 **After writing:** Diagnostics are run automatically (tsc, eslint) and errors are reported.`,
 
@@ -140,7 +142,7 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
       }
 
       // Validate path
-      const validPath = isPathAllowed(filePath, syncedFolders);
+      const validPath = await isPathAllowed(filePath, syncedFolders);
       if (!validPath) {
         return {
           status: "error",
@@ -182,19 +184,28 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
         }
       }
 
-      // Write the file
+      // Write the file (Atomic)
       try {
-        if (!fileExists) {
+        let previousContent = "";
+        if (fileExists) {
+          try {
+            previousContent = await readFile(validPath, "utf-8");
+          } catch {
+            previousContent = "";
+          }
+        } else {
           await ensureParentDirectories(validPath);
         }
 
-        await writeFile(validPath, content, "utf-8");
+        // Atomic Write Strategy
+        await atomicWriteFile(validPath, content);
+
         recordFileWrite(sessionId, validPath);
         recordFileRead(sessionId, validPath); // Mark as read after our own write
 
         const lineCount = content.split("\n").length;
         const bytesWritten = Buffer.byteLength(content, "utf-8");
-        const diff = generateContentPreview(validPath, content);
+        const diff = generateBeforeAfterDiff(validPath, previousContent, content);
 
         // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(

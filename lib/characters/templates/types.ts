@@ -14,14 +14,27 @@ export interface AgentTemplateSyncFolder {
   isPrimary: boolean;
 }
 
+export interface AgentTemplateSkill {
+  name: string;
+  description: string;
+  promptTemplate: string;
+  inputParameters?: Array<{ name: string; type: "string" | "number" | "boolean"; default?: string }>;
+  toolHints?: string[];
+  triggerExamples?: string[];
+  category?: string;
+}
+
 export interface AgentTemplate {
   id: string;
   name: string;
   tagline: string;
   purpose: string;
+  category?: string;
+  version?: string;
   isDefault?: boolean;
   isDeletable?: boolean;
   enabledTools: string[];
   syncFolders?: AgentTemplateSyncFolder[];
   memories: AgentTemplateMemory[];
+  exampleSkills?: AgentTemplateSkill[];
 }

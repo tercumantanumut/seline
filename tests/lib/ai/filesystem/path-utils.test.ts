@@ -40,79 +40,79 @@ describe("isPathAllowed", () => {
   const allowedFolders = [workspaceRoot, tmpProject];
 
   describe("absolute paths", () => {
-    it("allows paths within a synced folder", () => {
+    it("allows paths within a synced folder", async () => {
       const filePath = path.join(workspaceRoot, "src", "index.ts");
-      expect(isPathAllowed(filePath, allowedFolders)).toBe(filePath);
+      expect(await isPathAllowed(filePath, allowedFolders)).toBe(filePath);
     });
 
-    it("allows the folder root itself", () => {
-      expect(isPathAllowed(workspaceRoot, allowedFolders)).toBe(workspaceRoot);
+    it("allows the folder root itself", async () => {
+      expect(await isPathAllowed(workspaceRoot, allowedFolders)).toBe(workspaceRoot);
     });
 
-    it("allows paths in any synced folder", () => {
+    it("allows paths in any synced folder", async () => {
       const filePath = path.join(tmpProject, "readme.md");
-      expect(isPathAllowed(filePath, allowedFolders)).toBe(filePath);
+      expect(await isPathAllowed(filePath, allowedFolders)).toBe(filePath);
     });
 
-    it("rejects paths outside all synced folders", () => {
+    it("rejects paths outside all synced folders", async () => {
       const outsidePath = path.resolve(process.cwd(), "outside", "file.txt");
-      expect(isPathAllowed(outsidePath, allowedFolders)).toBeNull();
+      expect(await isPathAllowed(outsidePath, allowedFolders)).toBeNull();
     });
 
-    it("rejects paths that share a prefix but aren't inside the folder", () => {
+    it("rejects paths that share a prefix but aren't inside the folder", async () => {
       // e.g. /workspace-other vs /workspace
       const similarPrefix = workspaceRoot + "-other";
       const filePath = path.join(similarPrefix, "file.txt");
-      expect(isPathAllowed(filePath, allowedFolders)).toBeNull();
+      expect(await isPathAllowed(filePath, allowedFolders)).toBeNull();
     });
 
-    it("rejects path traversal attacks in absolute paths", () => {
+    it("rejects path traversal attacks in absolute paths", async () => {
       // Construct a path that looks absolute but tries to traverse out
       // On Windows, resolve(workspaceRoot, "..", "outside") -> parent of workspaceRoot + \outside
       const traversalPath = path.resolve(workspaceRoot, "..", "outside.txt");
-      expect(isPathAllowed(traversalPath, allowedFolders)).toBeNull();
+      expect(await isPathAllowed(traversalPath, allowedFolders)).toBeNull();
     });
   });
 
   describe("relative paths", () => {
-    it("resolves relative paths against synced folders", () => {
+    it("resolves relative paths against synced folders", async () => {
       const relPath = path.join("src", "index.ts");
       const expected = path.join(workspaceRoot, "src", "index.ts");
-      expect(isPathAllowed(relPath, allowedFolders)).toBe(expected);
+      expect(await isPathAllowed(relPath, allowedFolders)).toBe(expected);
     });
 
-    it("resolves simple file names", () => {
+    it("resolves simple file names", async () => {
       const relPath = "readme.md";
       const expected = path.join(workspaceRoot, "readme.md");
-      expect(isPathAllowed(relPath, allowedFolders)).toBe(expected);
+      expect(await isPathAllowed(relPath, allowedFolders)).toBe(expected);
     });
 
-    it("blocks path traversal via relative paths", () => {
+    it("blocks path traversal via relative paths", async () => {
       // "../../outside.txt"
       const relPath = path.join("..", "..", "outside.txt");
-      expect(isPathAllowed(relPath, allowedFolders)).toBeNull();
+      expect(await isPathAllowed(relPath, allowedFolders)).toBeNull();
     });
 
-    it("blocks path traversal with nested traversal", () => {
+    it("blocks path traversal with nested traversal", async () => {
       // "src/../../../outside.txt"
       const relPath = path.join("src", "..", "..", "..", "outside.txt");
-      expect(isPathAllowed(relPath, allowedFolders)).toBeNull();
+      expect(await isPathAllowed(relPath, allowedFolders)).toBeNull();
     });
   });
 
   describe("edge cases", () => {
-    it("returns null for empty allowed folders", () => {
-      expect(isPathAllowed(path.join(workspaceRoot, "file.txt"), [])).toBeNull();
+    it("returns null for empty allowed folders", async () => {
+      expect(await isPathAllowed(path.join(workspaceRoot, "file.txt"), [])).toBeNull();
     });
 
-    it("handles paths with double slashes", () => {
+    it("handles paths with double slashes", async () => {
       // path.join/resolve handles double slashes, but we can manually construct one
       // to ensure isPathAllowed normalizes it.
       // We use path.sep to make it platform valid
       const messyPath = workspaceRoot + path.sep + path.sep + "src" + path.sep + "file.ts";
       const expected = path.join(workspaceRoot, "src", "file.ts");
       
-      const result = isPathAllowed(messyPath, allowedFolders);
+      const result = await isPathAllowed(messyPath, allowedFolders);
       expect(result).toBe(expected);
     });
   });

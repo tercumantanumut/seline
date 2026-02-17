@@ -1,11 +1,11 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState, type FC } from "react";
-import { Loader2Icon, CheckCircleIcon, XCircleIcon, ImageIcon, VideoIcon, SearchIcon } from "lucide-react";
+import { CircleNotch, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
-
+import { getToolIcon } from "@/components/ui/tool-icon-map";
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -87,35 +87,30 @@ const TOOL_RESULT_TEXT_CLASS = "text-sm text-terminal-muted font-mono transition
 const TOOL_RESULT_PRE_CLASS = "overflow-x-auto rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark";
 const TOOL_RESULT_ERROR_PRE_CLASS = "overflow-x-auto rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-red-600";
 
-// Memoized Icon Component
+// Memoized Icon Component with Phosphor Icons
 const ToolIcon: FC<{
   toolName: string;
   isRunning: boolean;
   result?: ToolResult;
 }> = memo(({ toolName, isRunning, result }) => {
-  const iconClass = "size-4 transition-all duration-150";
-
+  const iconClass = "size-4 transition-all duration-200";
+  
+  // Status-based icons (highest priority)
   if (isRunning) {
-    return <Loader2Icon className={`${iconClass} animate-spin text-terminal-green`} />;
+    return <CircleNotch className={`${iconClass} animate-spin text-terminal-green`} weight="bold" />;
   }
 
   if (result?.status === "error") {
-    return <XCircleIcon className={`${iconClass} text-red-600`} />;
+    return <XCircle className={`${iconClass} text-red-600`} weight="fill" />;
   }
 
-  if (toolName === "searchTools" || toolName === "listAllTools" || toolName === "webSearch") {
-    return <SearchIcon className={`${iconClass} text-terminal-green`} />;
-  }
+  // Tool-specific icons from the icon map
+  const iconConfig = getToolIcon(toolName);
+  const Icon = iconConfig.icon;
+  // Weight is already handled by the icon config
+  const weight = iconConfig.weight;
 
-  if (toolName.includes("Video") || toolName.includes("video")) {
-    return <VideoIcon className={`${iconClass} text-terminal-green`} />;
-  }
-
-  if (toolName.includes("Image") || toolName.includes("image")) {
-    return <ImageIcon className={`${iconClass} text-terminal-green`} />;
-  }
-
-  return <CheckCircleIcon className={`${iconClass} text-terminal-green`} />;
+  return <Icon className={`${iconClass} text-terminal-green`} weight={weight} />;
 });
 ToolIcon.displayName = "ToolIcon";
 
@@ -273,6 +268,73 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // Handle readFile results
+  if (toolName === "readFile") {
+    const readResult = result as ToolResult & {
+      filePath?: string;
+      language?: string;
+      lineRange?: string;
+      totalLines?: number;
+      content?: string;
+      truncated?: boolean;
+      source?: string;
+      documentTitle?: string;
+    };
+
+    // Handle error status
+    if (readResult.status === "error") {
+      return (
+        <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
+          {readResult.error || "Failed to read file"}
+        </div>
+      );
+    }
+
+    const fileName = readResult.filePath
+      ? readResult.filePath.split("/").pop() || readResult.filePath
+      : "file";
+    const sourceLabel = readResult.source === "knowledge_base"
+      ? ` (Knowledge Base${readResult.documentTitle ? `: ${readResult.documentTitle}` : ""})`
+      : "";
+    const lineInfo = readResult.lineRange
+      ? `Lines ${readResult.lineRange}${readResult.totalLines ? ` of ${readResult.totalLines}` : ""}`
+      : readResult.totalLines
+        ? `${readResult.totalLines} lines`
+        : "";
+    const truncatedLabel = readResult.truncated ? " (truncated)" : "";
+
+    // For readFile, allow a much larger display limit since users explicitly requested this content
+    const content = readResult.content || "";
+    const READ_FILE_DISPLAY_LIMIT = 20_000;
+    const displayContent = content.length > READ_FILE_DISPLAY_LIMIT
+      ? content.substring(0, READ_FILE_DISPLAY_LIMIT) + `\n\n... [${(content.length - READ_FILE_DISPLAY_LIMIT).toLocaleString()} more characters — full content available to AI]`
+      : content;
+
+    return (
+      <div className={cn("font-mono", TOOL_RESULT_TEXT_CLASS)}>
+        <div className="flex items-center gap-2 mb-2 text-terminal-dark">
+          <span className="font-medium">{fileName}</span>
+          {readResult.language && (
+            <span className="text-xs text-terminal-muted">({readResult.language})</span>
+          )}
+          {sourceLabel && (
+            <span className="text-xs text-terminal-muted">{sourceLabel}</span>
+          )}
+        </div>
+        {lineInfo && (
+          <p className="text-xs text-terminal-muted mb-2">
+            {lineInfo}{truncatedLabel}
+          </p>
+        )}
+        {displayContent && (
+          <pre className={cn("mt-1 max-h-96 overflow-y-auto", TOOL_RESULT_PRE_CLASS)}>
+            {displayContent}
+          </pre>
+        )}
       </div>
     );
   }

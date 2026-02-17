@@ -34,6 +34,7 @@ export function useTaskNotifications() {
   const connectedUserIdRef = useRef<string | null>(null);
   const hasConnectedOnceRef = useRef(false);
   const wasDisconnectedRef = useRef(false);
+  const lastEventReceivedAtRef = useRef<number | null>(null);
   const addTask = useUnifiedTasksStore((state) => state.addTask);
   const updateTask = useUnifiedTasksStore((state) => state.updateTask);
   const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -319,6 +320,7 @@ export function useTaskNotifications() {
 
       eventSource.onopen = () => {
         reconnectAttemptsRef.current = 0;
+        lastEventReceivedAtRef.current = Date.now();
         console.log("[TaskNotifications] SSE connection opened");
         const showToast = hasConnectedOnceRef.current && wasDisconnectedRef.current;
         hasConnectedOnceRef.current = true;
@@ -328,6 +330,7 @@ export function useTaskNotifications() {
 
       eventSource.onmessage = (event) => {
         try {
+          lastEventReceivedAtRef.current = Date.now();
           const message: SSEMessage = JSON.parse(event.data);
           console.log("[TaskNotifications] Received message:", message.type);
 
@@ -363,7 +366,17 @@ export function useTaskNotifications() {
       };
 
       eventSource.onerror = (error) => {
-        console.warn("[TaskNotifications] Connection error:", error);
+        const msSinceLastMessage =
+          lastEventReceivedAtRef.current === null
+            ? null
+            : Date.now() - lastEventReceivedAtRef.current;
+        console.warn("[TaskNotifications] Connection error:", {
+          error,
+          readyState: eventSource.readyState,
+          msSinceLastMessage,
+          reconnectAttempts: reconnectAttemptsRef.current,
+        });
+
         eventSource.close();
         wasDisconnectedRef.current = true;
 

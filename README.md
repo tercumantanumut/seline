@@ -259,3 +259,6 @@ docker-compose restart comfyui workflow-api
 - `docs/AI_PIPELINES.md` - LLM, embeddings, and tool pipelines
 - `docs/DEVELOPMENT.md` - dev setup, scripts, tests, and build process
 - `docs/API.md` - internal modules and API endpoints
+
+## Thanks
+Seline is built using amazing open-source libraries. See [THANKS.md](./THANKS.md) for the full list of credits and acknowledgments.

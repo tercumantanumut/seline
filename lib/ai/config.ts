@@ -69,7 +69,7 @@ export const AI_CONFIG = {
   // Set to 100 to allow extensive multi-step operations
   // Previously: 10 (very limiting for complex tasks)
   // Note: AI SDK requires a finite number for stopWhen: stepCountIs()
-  maxSteps: 100,
+  maxSteps: 10000,
   // Temperature settings
   // Default temperature for creative responses
   temperature: 0.85,

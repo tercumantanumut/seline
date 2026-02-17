@@ -1,50 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  Book,
-  Search,
-  Globe,
-  Image,
-  Paintbrush,
-  Video,
-  Eye,
-  Package,
-  Database,
-  FileText,
-  Flame,
-  Terminal,
-  Calculator,
-  type LucideIcon,
-} from "lucide-react";
-
-/** Tool ID to Lucide icon mapping */
-export const TOOL_ICONS: Record<string, LucideIcon> = {
-  docsSearch: Book,
-  vectorSearch: Database,
-  readFile: FileText,
-  webSearch: Search,
-  webBrowse: Globe,
-  webQuery: Globe,
-  firecrawlCrawl: Flame,
-  generateImageFlux2: Image,
-  generateImageWan22: Image,
-  generateImageFlux2Klein4B: Image,
-  editImageFlux2Klein4B: Paintbrush,
-  referenceImageFlux2Klein4B: Image,
-  generateImageFlux2Klein9B: Image,
-  editImageFlux2Klein9B: Paintbrush,
-  referenceImageFlux2Klein9B: Image,
-  editRoomImage: Paintbrush,
-  editImage: Paintbrush,
-  generateVideoWan22: Video,
-  generatePixelVideoWan22: Video,
-  assembleVideo: Video,
-  describeImage: Eye,
-  showProductImages: Package,
-  executeCommand: Terminal,
-  calculator: Calculator,
-};
+import { getToolIcon, type ToolIconConfig } from "./tool-icon-map";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
 /** Tool ID to category color mapping */
 const TOOL_COLORS: Record<string, string> = {
@@ -103,6 +61,7 @@ interface ToolBadgeProps {
 /**
  * ToolBadge - Displays a tool icon with optional label
  * Color-coded by tool category
+ * Now using Phosphor Icons with weight-based visual hierarchy
  */
 export function ToolBadge({
   toolId,
@@ -111,7 +70,8 @@ export function ToolBadge({
   label,
   className,
 }: ToolBadgeProps) {
-  const Icon = TOOL_ICONS[toolId] || Package;
+  const iconConfig = getToolIcon(toolId);
+  const Icon = iconConfig.icon;
   const category = resolveToolCategory(toolId);
   const colorClass = TOOL_COLORS[category];
 
@@ -131,12 +91,12 @@ export function ToolBadge({
     return (
       <div
         className={cn(
-          "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-mono",
+          "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-mono transition-all duration-200",
           colorClass,
           className
         )}
       >
-        <Icon className={iconSizes[size]} />
+        <Icon className={iconSizes[size]} weight={iconConfig.weight} />
         <span>{label || toolId}</span>
       </div>
     );
@@ -145,21 +105,21 @@ export function ToolBadge({
   return (
     <div
       className={cn(
-        "inline-flex items-center justify-center rounded-full border",
+        "inline-flex items-center justify-center rounded-full border transition-all duration-200",
         sizeClasses[size],
         colorClass,
         className
       )}
       title={label || toolId}
     >
-      <Icon className={iconSizes[size]} />
+      <Icon className={iconSizes[size]} weight={iconConfig.weight} />
     </div>
   );
 }
 
-/** Get icon component for a tool ID */
-export function getToolIcon(toolId: string): LucideIcon {
-  return TOOL_ICONS[toolId] || Package;
+/** Get icon configuration for a tool ID */
+export function getToolIconConfig(toolId: string): ToolIconConfig {
+  return getToolIcon(toolId);
 }
 
 /** Get top N tools from a list, prioritizing variety */

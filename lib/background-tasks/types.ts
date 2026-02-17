@@ -76,6 +76,10 @@ export interface TaskProgressEvent {
   progressText?: string;
   progressPercent?: number;
   progressContent?: unknown[];
+  progressContentLimited?: boolean;
+  progressContentOriginalTokens?: number;
+  progressContentFinalTokens?: number;
+  progressContentTruncatedParts?: number;
   startedAt?: string;
   timestamp: string;
 }
