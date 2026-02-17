@@ -7,11 +7,106 @@ import {
   parsePluginFromMarkdown,
   parsePluginPackage,
 } from "@/lib/plugins/import-parser";
-import { installPlugin } from "@/lib/plugins/registry";
-import type { PluginParseResult, PluginScope } from "@/lib/plugins/types";
+import { createCharacter, getUserCharacters } from "@/lib/characters/queries";
+import { enablePluginForAgent, installPlugin } from "@/lib/plugins/registry";
+import type { PluginAgentEntry, PluginParseResult, PluginScope } from "@/lib/plugins/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const MAX_AUTO_AGENT_COUNT = 25;
+const MAX_AUTO_AGENT_NAME_LENGTH = 100;
+const MAX_AUTO_AGENT_TAGLINE_LENGTH = 200;
+
+function normalizeAgentName(input: string): string {
+  const collapsed = input.trim().replace(/\s+/g, " ");
+  if (!collapsed) return "Plugin Agent";
+  return collapsed.length > MAX_AUTO_AGENT_NAME_LENGTH
+    ? collapsed.slice(0, MAX_AUTO_AGENT_NAME_LENGTH)
+    : collapsed;
+}
+
+function normalizeTagline(input: string): string | undefined {
+  const collapsed = input.trim().replace(/\s+/g, " ");
+  if (!collapsed) return undefined;
+  return collapsed.length > MAX_AUTO_AGENT_TAGLINE_LENGTH
+    ? collapsed.slice(0, MAX_AUTO_AGENT_TAGLINE_LENGTH)
+    : collapsed;
+}
+
+function ensureUniqueAgentName(base: string, usedNames: Set<string>): string {
+  const normalizedBase = normalizeAgentName(base);
+  if (!usedNames.has(normalizedBase.toLowerCase())) {
+    usedNames.add(normalizedBase.toLowerCase());
+    return normalizedBase;
+  }
+
+  for (let index = 2; index <= 9999; index += 1) {
+    const suffix = ` ${index}`;
+    const maxBaseLength = MAX_AUTO_AGENT_NAME_LENGTH - suffix.length;
+    const candidateBase = normalizedBase.slice(0, Math.max(1, maxBaseLength));
+    const candidate = `${candidateBase}${suffix}`;
+    if (!usedNames.has(candidate.toLowerCase())) {
+      usedNames.add(candidate.toLowerCase());
+      return candidate;
+    }
+  }
+
+  const fallback = `${normalizedBase.slice(0, MAX_AUTO_AGENT_NAME_LENGTH - 5)} 9999`;
+  usedNames.add(fallback.toLowerCase());
+  return fallback;
+}
+
+async function createAgentsFromPlugin(input: {
+  userId: string;
+  pluginId: string;
+  pluginName: string;
+  pluginAgents: PluginAgentEntry[];
+  warnings: string[];
+}): Promise<Array<{ id: string; name: string; sourcePath: string }>> {
+  const { userId, pluginId, pluginName, pluginAgents, warnings } = input;
+
+  const existingCharacters = await getUserCharacters(userId);
+  const usedNames = new Set<string>(
+    existingCharacters.map((character: { name: string }) => character.name.toLowerCase())
+  );
+
+  const created: Array<{ id: string; name: string; sourcePath: string }> = [];
+  const maxCount = Math.min(pluginAgents.length, MAX_AUTO_AGENT_COUNT);
+
+  if (pluginAgents.length > MAX_AUTO_AGENT_COUNT) {
+    warnings.push(
+      `Plugin defines ${pluginAgents.length} agents; auto-created first ${MAX_AUTO_AGENT_COUNT} to avoid accidental mass provisioning.`
+    );
+  }
+
+  for (const agent of pluginAgents.slice(0, maxCount)) {
+    const resolvedName = ensureUniqueAgentName(agent.name || `${pluginName} agent`, usedNames);
+    const resolvedTagline = normalizeTagline(agent.description || "");
+
+    const character = await createCharacter({
+      userId,
+      name: resolvedName,
+      displayName: resolvedName,
+      tagline: resolvedTagline,
+      status: "active",
+      metadata: {
+        purpose: `Imported from plugin ${pluginName}`,
+        enabledPlugins: [pluginId],
+      },
+    });
+
+    await enablePluginForAgent(character.id, pluginId);
+
+    created.push({
+      id: character.id,
+      name: resolvedName,
+      sourcePath: agent.relativePath,
+    });
+  }
+
+  return created;
+}
 
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).slice(2, 8);
@@ -96,6 +191,17 @@ export async function POST(request: NextRequest) {
       marketplaceName: marketplaceName || undefined,
     });
 
+    const createdAgents =
+      !characterId && parsed.components.agents.length > 0
+        ? await createAgentsFromPlugin({
+            userId: dbUser.id,
+            pluginId: plugin.id,
+            pluginName: parsed.manifest.name,
+            pluginAgents: parsed.components.agents,
+            warnings: parsed.warnings,
+          })
+        : [];
+
     return NextResponse.json({
       success: true,
       plugin: {
@@ -123,6 +229,7 @@ export async function POST(request: NextRequest) {
           ? Object.keys(parsed.components.lspServers)
           : [],
       },
+      createdAgents,
       isLegacySkillFormat: parsed.isLegacySkillFormat,
       warnings: parsed.warnings,
     });
