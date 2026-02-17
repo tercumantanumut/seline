@@ -56,6 +56,8 @@ export const characterImageSchema = z.object({
 export const agentMetadataSchema = z.object({
   /** List of enabled tool names for this agent */
   enabledTools: z.array(z.string()).optional(),
+  /** Optional cache/fallback list of enabled plugin IDs for this agent */
+  enabledPlugins: z.array(z.string()).optional(),
   /** Agent's purpose/responsibilities description */
   purpose: z.string().max(2000).optional(),
   /** Custom system prompt override (replaces auto-generated prompt if provided) */

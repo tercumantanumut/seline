@@ -5,7 +5,7 @@
  * with proper DB persistence and hook/MCP lifecycle management.
  */
 
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, or, isNull } from "drizzle-orm";
 import { db } from "@/lib/db/sqlite-client";
 import {
   plugins,
@@ -14,6 +14,7 @@ import {
   pluginLspServers,
   pluginFiles,
   marketplaces,
+  agentPlugins,
 } from "@/lib/db/sqlite-plugins-schema";
 import type { Plugin, NewPlugin, Marketplace, NewMarketplace } from "@/lib/db/sqlite-plugins-schema";
 import type {
@@ -32,6 +33,7 @@ import type {
 import {
   registerPluginHooks,
   unregisterPluginHooks,
+  clearAllHooks,
 } from "./hooks-engine";
 
 // =============================================================================
@@ -320,25 +322,174 @@ export async function updateMarketplaceCatalog(
 }
 
 // =============================================================================
-// Load All Active Plugin Hooks (for startup)
+// Per-Agent Plugin Assignment
+// =============================================================================
+
+export interface AgentPluginAssignment {
+  plugin: InstalledPlugin;
+  enabledForAgent: boolean;
+}
+
+/**
+ * Get all available plugins for assignment to an agent.
+ * Includes global plugins and character-scoped plugins for this character.
+ */
+export async function getAvailablePluginsForAgent(
+  userId: string,
+  agentId: string,
+  characterId?: string
+): Promise<AgentPluginAssignment[]> {
+  const rows = await db
+    .select({
+      id: plugins.id,
+      name: plugins.name,
+      description: plugins.description,
+      version: plugins.version,
+      scope: plugins.scope,
+      status: plugins.status,
+      marketplaceName: plugins.marketplaceName,
+      manifest: plugins.manifest,
+      components: plugins.components,
+      installedAt: plugins.installedAt,
+      updatedAt: plugins.updatedAt,
+      lastError: plugins.lastError,
+      characterId: plugins.characterId,
+      assignmentEnabled: agentPlugins.enabled,
+    })
+    .from(plugins)
+    .leftJoin(
+      agentPlugins,
+      and(eq(agentPlugins.pluginId, plugins.id), eq(agentPlugins.agentId, agentId))
+    )
+    .where(
+      and(
+        eq(plugins.userId, userId),
+        eq(plugins.status, "active"),
+        characterId
+          ? or(isNull(plugins.characterId), eq(plugins.characterId, characterId))
+          : isNull(plugins.characterId)
+      )
+    )
+    .orderBy(desc(plugins.installedAt));
+
+  return rows.map((row) => ({
+    plugin: mapInstalledPlugin({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      version: row.version,
+      scope: row.scope,
+      status: row.status,
+      marketplaceName: row.marketplaceName,
+      manifest: row.manifest,
+      components: row.components,
+      userId,
+      characterId: row.characterId,
+      cachePath: null,
+      lastError: row.lastError,
+      installedAt: row.installedAt,
+      updatedAt: row.updatedAt,
+    }),
+    enabledForAgent: row.assignmentEnabled ?? true,
+  }));
+}
+
+/**
+ * Get plugins that are effectively enabled for a specific agent.
+ */
+export async function getEnabledPluginsForAgent(
+  userId: string,
+  agentId: string,
+  characterId?: string
+): Promise<InstalledPlugin[]> {
+  const available = await getAvailablePluginsForAgent(userId, agentId, characterId);
+  return available
+    .filter((entry) => entry.enabledForAgent)
+    .map((entry) => entry.plugin);
+}
+
+/**
+ * Enable a plugin for an agent (upsert).
+ */
+export async function enablePluginForAgent(agentId: string, pluginId: string): Promise<void> {
+  const existing = await db
+    .select({ id: agentPlugins.id })
+    .from(agentPlugins)
+    .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+
+  if (existing.length > 0) {
+    await db
+      .update(agentPlugins)
+      .set({ enabled: true })
+      .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+    return;
+  }
+
+  await db.insert(agentPlugins).values({ agentId, pluginId, enabled: true });
+}
+
+/**
+ * Disable a plugin for an agent (upsert).
+ */
+export async function disablePluginForAgent(agentId: string, pluginId: string): Promise<void> {
+  const existing = await db
+    .select({ id: agentPlugins.id })
+    .from(agentPlugins)
+    .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+
+  if (existing.length > 0) {
+    await db
+      .update(agentPlugins)
+      .set({ enabled: false })
+      .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+    return;
+  }
+
+  await db.insert(agentPlugins).values({ agentId, pluginId, enabled: false });
+}
+
+/**
+ * Toggle a plugin assignment for an agent.
+ */
+export async function setPluginEnabledForAgent(
+  agentId: string,
+  pluginId: string,
+  enabled: boolean
+): Promise<void> {
+  if (enabled) {
+    await enablePluginForAgent(agentId, pluginId);
+    return;
+  }
+  await disablePluginForAgent(agentId, pluginId);
+}
+
+// =============================================================================
+// Load Active Plugin Hooks
 // =============================================================================
 
 /**
- * Load and register hooks from all active plugins.
- * Call this on app startup to populate the in-memory hook registry.
+ * Load and register hooks for a specific plugin list.
+ * Clears the in-memory hook registry first so agent-specific sets do not leak.
  */
-export async function loadActivePluginHooks(userId: string): Promise<number> {
-  const activePlugins = await getInstalledPlugins(userId, { status: "active" });
-  let hookCount = 0;
+export function loadPluginHooks(pluginsToLoad: InstalledPlugin[]): number {
+  clearAllHooks();
 
-  for (const plugin of activePlugins) {
-    if (plugin.components.hooks) {
-      registerPluginHooks(plugin.name, plugin.components.hooks);
-      hookCount++;
-    }
+  let hookCount = 0;
+  for (const plugin of pluginsToLoad) {
+    if (!plugin.components.hooks) continue;
+    registerPluginHooks(plugin.name, plugin.components.hooks);
+    hookCount++;
   }
 
   return hookCount;
+}
+
+/**
+ * Load and register hooks from all active plugins for a user.
+ */
+export async function loadActivePluginHooks(userId: string): Promise<number> {
+  const activePlugins = await getInstalledPlugins(userId, { status: "active" });
+  return loadPluginHooks(activePlugins);
 }
 
 // =============================================================================

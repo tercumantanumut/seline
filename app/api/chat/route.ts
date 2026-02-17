@@ -68,7 +68,11 @@ import { nextOrderingIndex, allocateOrderingIndices } from "@/lib/session/messag
 import fs from "fs/promises";
 import path from "path";
 import { runPreToolUseHooks, runPostToolUseHooks, runPostToolUseFailureHooks } from "@/lib/plugins/hook-integration";
-import { loadActivePluginHooks } from "@/lib/plugins/registry";
+import {
+  getEnabledPluginsForAgent,
+  getInstalledPlugins,
+  loadActivePluginHooks,
+} from "@/lib/plugins/registry";
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
 import { getPluginSkillsForPrompt } from "@/lib/plugins/skill-loader";
 
@@ -1002,8 +1006,15 @@ function sanitizeToolHistoryForAntigravityClaude(messages: ModelMessage[]): Mode
       if (partType === "tool-result") {
         removedResults += 1;
         const toolName = typeof rawPart.toolName === "string" ? rawPart.toolName : "tool";
-        const summary = summarizeHistoricalToolOutput(rawPart.output);
-        summaryLines.push(`[Previous ${toolName} result] ${summary}`);
+        const status = typeof rawPart.status === "string" ? rawPart.status.toLowerCase() : "";
+        const hasError = status === "error" || status === "failed" || rawPart.error !== undefined;
+        const outputCandidate = rawPart.output !== undefined ? rawPart.output : rawPart.result;
+        const summary = summarizeHistoricalToolOutput(outputCandidate);
+        summaryLines.push(
+          hasError
+            ? `[Previous ${toolName} error] ${summary}`
+            : `[Previous ${toolName} result] ${summary}`
+        );
         continue;
       }
       keptParts.push(rawPart);
@@ -1740,7 +1751,7 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    // Load plugin hooks into in-memory registry (idempotent — deduplicates internally)
+    // Load plugin hooks into in-memory registry (idempotent at runtime)
     try {
       const hookCount = await loadActivePluginHooks(dbUser.id);
       if (hookCount > 0) {
@@ -2434,6 +2445,7 @@ export async function POST(req: Request) {
     let characterAvatarUrl: string | null = null;
     let characterAppearanceDescription: string | null = null;
     let enabledTools: string[] | undefined;
+    let pluginContext: { agentId?: string; characterId?: string } | undefined;
 
     if (characterId) {
       const character = await getCharacterFull(characterId);
@@ -2456,6 +2468,8 @@ export async function POST(req: Request) {
         } catch (skillError) {
           console.warn("[CHAT API] Failed to hydrate skill summaries for prompt:", skillError);
         }
+
+        pluginContext = { agentId: characterId, characterId };
 
         // Build character-specific system prompt (includes shared blocks)
         const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
@@ -2509,17 +2523,27 @@ export async function POST(req: Request) {
           });
     }
 
-    // Append plugin skills summary to system prompt (if any active plugins have skills)
+    // Load and scope plugins for this chat context (agent-specific when character is selected).
+    let scopedPlugins = await getInstalledPlugins(dbUser.id, { status: "active" });
+    if (pluginContext?.agentId) {
+      scopedPlugins = await getEnabledPluginsForAgent(
+        dbUser.id,
+        pluginContext.agentId,
+        pluginContext.characterId
+      );
+    }
+
+    // Append plugin skills summary to system prompt (if scoped plugins have skills)
     try {
-      const pluginSkillsSummary = await getPluginSkillsForPrompt(dbUser.id);
+      const pluginSkillsSummary = await getPluginSkillsForPrompt(dbUser.id, pluginContext);
       if (pluginSkillsSummary) {
         if (typeof systemPromptValue === "string") {
           systemPromptValue += pluginSkillsSummary;
         } else if (Array.isArray(systemPromptValue)) {
-          // For cacheable blocks, append as a new uncached text block
+          // For cacheable blocks, append as a new uncached system block
           systemPromptValue.push({
-            type: "text" as const,
-            text: pluginSkillsSummary,
+            role: "system" as const,
+            content: pluginSkillsSummary,
           });
         }
         console.log(`[CHAT API] Appended plugin skills summary to system prompt`);
@@ -2763,10 +2787,25 @@ export async function POST(req: Request) {
       console.error("[CHAT API] Failed to load MCP tools:", error);
     }
 
-    // Load MCP servers from active plugins (namespaced as plugin:name:server)
+    // Load MCP servers from scoped plugins (namespaced as plugin:name:server)
     try {
-      const { loadAllPluginMCPServers } = await import("@/lib/plugins/mcp-integration");
-      const pluginMcpResult = await loadAllPluginMCPServers(dbUser.id, characterId || undefined);
+      const { connectPluginMCPServers } = await import("@/lib/plugins/mcp-integration");
+      let totalConnected = 0;
+      let totalFailed = 0;
+
+      for (const plugin of scopedPlugins) {
+        if (!plugin.components.mcpServers) continue;
+
+        const result = await connectPluginMCPServers(
+          plugin.name,
+          plugin.components.mcpServers,
+          characterId || undefined
+        );
+        totalConnected += result.connected.length;
+        totalFailed += result.failed.length;
+      }
+
+      const pluginMcpResult = { totalConnected, totalFailed };
       if (pluginMcpResult.totalConnected > 0) {
         console.log(`[CHAT API] Connected ${pluginMcpResult.totalConnected} plugin MCP server(s)`);
       }
@@ -2813,6 +2852,7 @@ export async function POST(req: Request) {
     const hasFailureHooks = getRegisteredHooks("PostToolUseFailure").length > 0;
 
     if (hasPreHooks || hasPostHooks || hasFailureHooks) {
+      const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
       const wrappedTools: Record<string, Tool> = {};
       for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
         if (!originalTool.execute) {
@@ -2828,7 +2868,8 @@ export async function POST(req: Request) {
               const hookResult = await runPreToolUseHooks(
                 toolId,
                 (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                sessionId
+                sessionId,
+                allowedPluginNames
               );
               if (hookResult.blocked) {
                 console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
@@ -2845,7 +2886,8 @@ export async function POST(req: Request) {
                   toolId,
                   (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
                   result,
-                  sessionId
+                  sessionId,
+                  allowedPluginNames
                 );
               }
 
@@ -2857,7 +2899,8 @@ export async function POST(req: Request) {
                   toolId,
                   (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
                   error instanceof Error ? error.message : String(error),
-                  sessionId
+                  sessionId,
+                  allowedPluginNames
                 );
               }
               throw error;

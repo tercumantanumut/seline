@@ -1238,6 +1238,32 @@ function initializeTables(sqlite: Database.Database): void {
       ON marketplaces (user_id)
   `);
 
+  // Agent Plugins junction table — per-agent plugin assignments
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_plugins (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_plugins_agent_plugin
+      ON agent_plugins (agent_id, plugin_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_agent
+      ON agent_plugins (agent_id, enabled)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_plugin
+      ON agent_plugins (plugin_id)
+  `);
+
   console.log("[SQLite] All tables initialized (including plugin system)");
 
   // Run data migrations

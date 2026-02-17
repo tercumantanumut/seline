@@ -27,7 +27,8 @@ import type {
 export async function runPreToolUseHooks(
   toolName: string,
   toolInput: Record<string, unknown>,
-  sessionId?: string
+  sessionId?: string,
+  allowedPluginNames?: Set<string>
 ): Promise<{ blocked: boolean; blockReason?: string; durationMs: number }> {
   const sources = getRegisteredHooks("PreToolUse");
   if (sources.length === 0) {
@@ -42,7 +43,10 @@ export async function runPreToolUseHooks(
   };
 
   try {
-    const result = await dispatchHook("PreToolUse", input, { toolName });
+    const result = await dispatchHook("PreToolUse", input, {
+      toolName,
+      allowedPluginNames,
+    });
     return {
       blocked: result.blocked,
       blockReason: result.blockReason,
@@ -63,7 +67,8 @@ export function runPostToolUseHooks(
   toolName: string,
   toolInput: Record<string, unknown>,
   toolOutput: unknown,
-  sessionId?: string
+  sessionId?: string,
+  allowedPluginNames?: Set<string>
 ): void {
   const sources = getRegisteredHooks("PostToolUse");
   if (sources.length === 0) return;
@@ -77,7 +82,7 @@ export function runPostToolUseHooks(
   };
 
   // Fire-and-forget
-  dispatchHook("PostToolUse", input, { toolName }).catch((error) => {
+  dispatchHook("PostToolUse", input, { toolName, allowedPluginNames }).catch((error) => {
     console.error("[Hooks] PostToolUse dispatch error:", error);
   });
 }
@@ -90,7 +95,8 @@ export function runPostToolUseFailureHooks(
   toolName: string,
   toolInput: Record<string, unknown>,
   error: string,
-  sessionId?: string
+  sessionId?: string,
+  allowedPluginNames?: Set<string>
 ): void {
   const sources = getRegisteredHooks("PostToolUseFailure");
   if (sources.length === 0) return;
@@ -104,7 +110,10 @@ export function runPostToolUseFailureHooks(
   };
 
   // Fire-and-forget
-  dispatchHook("PostToolUseFailure", input, { toolName }).catch((err) => {
+  dispatchHook("PostToolUseFailure", input, {
+    toolName,
+    allowedPluginNames,
+  }).catch((err) => {
     console.error("[Hooks] PostToolUseFailure dispatch error:", err);
   });
 }

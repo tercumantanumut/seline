@@ -47,6 +47,25 @@ interface LocalGrepResult {
     error?: string;
 }
 
+function buildRegexErrorHint(pattern: string, errorMessage: string): string {
+    const normalizedError = errorMessage.toLowerCase();
+    const isRegexParseError =
+        normalizedError.includes("regex parse") ||
+        normalizedError.includes("error parsing regex") ||
+        normalizedError.includes("unclosed group") ||
+        normalizedError.includes("unclosed character class") ||
+        normalizedError.includes("unmatched") ||
+        normalizedError.includes("repetition");
+
+    if (!isRegexParseError) {
+        return errorMessage;
+    }
+
+    return `${errorMessage}\nHint: Your pattern was interpreted as regex and could not be parsed. ` +
+        `If you intended a literal search, set regex: false. ` +
+        `If you need regex mode, escape metacharacters (e.g., \"${pattern}\" -> \"${pattern.replace(/([()\[\]{}\\])/g, "\\$1")}\").`;
+}
+
 /**
  * Format ripgrep matches for AI consumption
  */
@@ -245,15 +264,9 @@ Respects .gitignore and skips binary files by default.`,
                 };
             }
 
-            // Auto-detect regex if not explicitly set
-            // Check for common regex characters if regex is undefined or false
-            let isRegex = regex;
-            if (!isRegex) {
-                const regexChars = /[.*+?^${}()|[\]\\]/;
-                if (regexChars.test(pattern)) {
-                    isRegex = true;
-                }
-            }
+            // Honor explicit/implicit literal default contract:
+            // regex=true -> regex mode, otherwise literal mode.
+            const isRegex = regex === true;
 
             // Check if ripgrep is available
             if (!isRipgrepAvailable()) {
@@ -333,9 +346,10 @@ Respects .gitignore and skips binary files by default.`,
                     })),
                 };
             } catch (error) {
+                const rawError = error instanceof Error ? error.message : "Search failed";
                 return {
                     status: "error",
-                    error: error instanceof Error ? error.message : "Search failed",
+                    error: isRegex ? buildRegexErrorHint(pattern, rawError) : rawError,
                 };
             }
         },

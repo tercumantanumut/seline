@@ -115,6 +115,8 @@ export async function dispatchHook(
     toolName?: string;
     /** Plugin root path for ${CLAUDE_PLUGIN_ROOT} substitution. */
     pluginRoots?: Map<string, string>;
+    /** Optional allow-list for plugin names (agent-scoped execution). */
+    allowedPluginNames?: Set<string>;
   } = {}
 ): Promise<HookDispatchResult> {
   const startTime = Date.now();
@@ -124,6 +126,9 @@ export async function dispatchHook(
   let blockReason: string | undefined;
 
   for (const source of sources) {
+    if (options.allowedPluginNames && !options.allowedPluginNames.has(source.pluginName)) {
+      continue;
+    }
     for (const entry of source.entries) {
       // Check matcher (regex against tool name)
       if (entry.matcher && options.toolName) {
