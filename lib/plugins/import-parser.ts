@@ -761,3 +761,37 @@ function resolveComponentPaths(
   if (typeof manifestValue === "string") return [manifestValue];
   return manifestValue;
 }
+
+// =============================================================================
+// Agent Metadata Seed Hydration
+// =============================================================================
+
+const MAX_PROMPT_SEED_LENGTH = 8000;
+const MAX_PURPOSE_LENGTH = 400;
+
+export interface AgentMetadataSeed {
+  sourcePath: string;
+  description?: string;
+  purpose?: string;
+  systemPromptSeed?: string;
+  tags?: string[];
+}
+
+/**
+ * Extracts structured metadata seed from a plugin agent entry for workflow hydration.
+ * The seed is stored on the workflow member and used to enrich agent metadata at creation.
+ */
+export function buildAgentMetadataSeed(agent: PluginAgentEntry): AgentMetadataSeed {
+  const promptSeed = agent.content.trim().slice(0, MAX_PROMPT_SEED_LENGTH) || undefined;
+  const purpose =
+    agent.description ||
+    agent.content.split("\n\n")[0]?.replace(/^#+\s*/, "").trim().slice(0, MAX_PURPOSE_LENGTH) ||
+    undefined;
+
+  return {
+    sourcePath: agent.relativePath,
+    description: agent.description || undefined,
+    purpose,
+    systemPromptSeed: promptSeed,
+  };
+}

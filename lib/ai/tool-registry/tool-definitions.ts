@@ -82,6 +82,7 @@ import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
 import { createTranscribeTool } from "../tools/transcribe-tool";
 import { createSendMessageToChannelTool } from "../tools/channel-tools";
+import { createDelegateToSubagentTool } from "../tools/delegate-to-subagent-tool";
 
 /**
  * Register all tools with the registry
@@ -845,6 +846,38 @@ Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are
         sessionId: sessionId || "UNSCOPED",
         userId: userId || "UNSCOPED",
         sessionMetadata: {},
+      })
+  );
+
+  // Delegate to Sub-Agent Tool (workflow inter-agent communication)
+  registry.register(
+    "delegateToSubagent",
+    {
+      displayName: "Delegate to Sub-Agent",
+      category: "utility",
+      keywords: [
+        "delegate", "subagent", "sub-agent", "workflow", "agent", "team",
+        "assign", "task", "collaborate", "orchestrate",
+      ],
+      shortDescription: "Delegate a task to a workflow sub-agent and receive their response",
+      fullInstructions: `## Delegate to Sub-Agent
+
+Send a task to a sub-agent in your workflow team. The sub-agent will process the task
+using their specialized knowledge and tools, then return a response.
+
+Only available when you are an initiator agent in an active workflow.
+Use the agent's ID to target a specific sub-agent.
+
+If you don't know the available sub-agents, try delegating with an invalid ID — the error
+will include a list of available agents with their purposes.`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId, characterId }) =>
+      createDelegateToSubagentTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
       })
   );
 

@@ -7,8 +7,13 @@ import {
   parsePluginFromMarkdown,
   parsePluginPackage,
 } from "@/lib/plugins/import-parser";
-import { createCharacter, getUserCharacters } from "@/lib/characters/queries";
+import { createCharacter, getCharacter, getUserCharacters } from "@/lib/characters/queries";
 import { enablePluginForAgent, installPlugin } from "@/lib/plugins/registry";
+import { buildAgentMetadataSeed } from "@/lib/plugins/import-parser";
+import {
+  createWorkflowFromPluginImport,
+  syncSharedFoldersToSubAgents,
+} from "@/lib/agents/workflows";
 import type { PluginAgentEntry, PluginParseResult, PluginScope } from "@/lib/plugins/types";
 
 export const runtime = "nodejs";
@@ -63,8 +68,9 @@ async function createAgentsFromPlugin(input: {
   pluginName: string;
   pluginAgents: PluginAgentEntry[];
   warnings: string[];
+  initiatorEnabledTools?: string[];
 }): Promise<Array<{ id: string; name: string; sourcePath: string }>> {
-  const { userId, pluginId, pluginName, pluginAgents, warnings } = input;
+  const { userId, pluginId, pluginName, pluginAgents, warnings, initiatorEnabledTools } = input;
 
   const existingCharacters = await getUserCharacters(userId);
   const usedNames = new Set<string>(
@@ -81,6 +87,7 @@ async function createAgentsFromPlugin(input: {
   }
 
   for (const agent of pluginAgents.slice(0, maxCount)) {
+    const seed = buildAgentMetadataSeed(agent);
     const resolvedName = ensureUniqueAgentName(agent.name || `${pluginName} agent`, usedNames);
     const resolvedTagline = normalizeTagline(agent.description || "");
 
@@ -91,8 +98,15 @@ async function createAgentsFromPlugin(input: {
       tagline: resolvedTagline,
       status: "active",
       metadata: {
-        purpose: `Imported from plugin ${pluginName}`,
+        purpose: seed.purpose || `Imported from plugin ${pluginName}`,
         enabledPlugins: [pluginId],
+        ...(initiatorEnabledTools ? { enabledTools: initiatorEnabledTools } : {}),
+        pluginAgentSeed: {
+          sourcePath: seed.sourcePath,
+          description: seed.description,
+          purpose: seed.purpose,
+          systemPromptSeed: seed.systemPromptSeed,
+        },
       },
     });
 
@@ -191,16 +205,110 @@ export async function POST(request: NextRequest) {
       marketplaceName: marketplaceName || undefined,
     });
 
+    // Read initiator's enabledTools when importing via chat (characterId present)
+    let initiatorEnabledTools: string[] | undefined;
+    if (characterId) {
+      try {
+        const initiator = await getCharacter(characterId);
+        const meta = initiator?.metadata as { enabledTools?: string[] } | null;
+        initiatorEnabledTools = meta?.enabledTools;
+      } catch {
+        // Non-fatal — sub-agents will just have no tool filter
+      }
+    }
+
     const createdAgents =
-      !characterId && parsed.components.agents.length > 0
+      parsed.components.agents.length > 0
         ? await createAgentsFromPlugin({
             userId: dbUser.id,
             pluginId: plugin.id,
             pluginName: parsed.manifest.name,
             pluginAgents: parsed.components.agents,
             warnings: parsed.warnings,
+            initiatorEnabledTools,
           })
         : [];
+
+    // Create workflow when we have created agents (with or without characterId)
+    let workflow: { id: string; initiatorId: string; subAgentIds: string[] } | null = null;
+
+    if (createdAgents.length > 0) {
+      try {
+        // Determine initiator and sub-agents
+        const initiatorId = characterId || createdAgents[0].id;
+        const subAgentIds = characterId
+          ? createdAgents.map((a) => a.id)
+          : createdAgents.slice(1).map((a) => a.id);
+
+        const memberSeeds = parsed.components.agents.slice(0, createdAgents.length).map((agent, idx) => {
+          const seed = buildAgentMetadataSeed(agent);
+          return {
+            agentId: createdAgents[idx].id,
+            sourcePath: seed.sourcePath,
+            metadataSeed: {
+              description: seed.description,
+              purpose: seed.purpose,
+              systemPromptSeed: seed.systemPromptSeed,
+            },
+          };
+        });
+
+        const wf = await createWorkflowFromPluginImport({
+          userId: dbUser.id,
+          initiatorId,
+          subAgentIds,
+          pluginId: plugin.id,
+          pluginName: parsed.manifest.name,
+          pluginVersion: parsed.manifest.version,
+          idempotencyKey: requestId,
+          memberSeeds,
+        });
+
+        // Sync shared folders from initiator to sub-agents (only when characterId provides an existing agent with folders)
+        if (characterId && subAgentIds.length > 0) {
+          await syncSharedFoldersToSubAgents({
+            userId: dbUser.id,
+            initiatorId,
+            subAgentIds,
+            workflowId: wf.id,
+          });
+        }
+
+        // Auto-enable delegateToSubagent on the initiator if it has enabledTools configured
+        if (subAgentIds.length > 0) {
+          try {
+            const initiatorChar = characterId
+              ? await getCharacter(characterId)
+              : await getCharacter(createdAgents[0].id);
+            const meta = initiatorChar?.metadata as Record<string, unknown> | null;
+            const existingTools = Array.isArray(meta?.enabledTools) ? (meta.enabledTools as string[]) : [];
+            if (existingTools.length > 0 && !existingTools.includes("delegateToSubagent")) {
+              const { db } = await import("@/lib/db/sqlite-client");
+              const { characters } = await import("@/lib/db/sqlite-character-schema");
+              const { eq } = await import("drizzle-orm");
+              await db.update(characters).set({
+                metadata: { ...meta, enabledTools: [...existingTools, "delegateToSubagent"] },
+              }).where(eq(characters.id, initiatorChar!.id));
+            }
+          } catch {
+            // Non-fatal — user can manually enable the tool
+          }
+        }
+
+        workflow = {
+          id: wf.id,
+          initiatorId,
+          subAgentIds,
+        };
+
+        console.log(
+          `[PluginImport:${requestId}] Created workflow ${wf.id} with initiator ${initiatorId} and ${subAgentIds.length} sub-agents`
+        );
+      } catch (workflowError) {
+        console.warn(`[PluginImport:${requestId}] Workflow creation failed (non-fatal):`, workflowError);
+        parsed.warnings.push("Workflow creation failed; agents were created without workflow linkage.");
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -230,6 +338,7 @@ export async function POST(request: NextRequest) {
           : [],
       },
       createdAgents,
+      workflow,
       isLegacySkillFormat: parsed.isLegacySkillFormat,
       warnings: parsed.warnings,
     });

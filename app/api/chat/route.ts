@@ -75,6 +75,7 @@ import {
 } from "@/lib/plugins/registry";
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
 import { getPluginSkillsForPrompt } from "@/lib/plugins/skill-loader";
+import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
 
 // ============================================================================
 // System Prompt Injection
@@ -1757,15 +1758,17 @@ export async function POST(req: Request) {
     const scheduledTaskId = isScheduledRun ? req.headers.get("X-Scheduled-Task-Id") : null;
     const scheduledTaskName = isScheduledRun ? req.headers.get("X-Scheduled-Task-Name") : null;
 
-    if (isScheduledRun && internalAuth === expectedSecret) {
-      // Scheduled task execution - use provided session's user
+    const isInternalAuth = internalAuth === expectedSecret;
+
+    if (isInternalAuth) {
+      // Internal auth bypass (scheduled tasks, delegation sub-agents, etc.)
       // The user ID will be extracted from the session
       const headerSessionId = req.headers.get("X-Session-Id");
       if (headerSessionId) {
         const session = await getSession(headerSessionId);
         if (session?.userId) {
           userId = session.userId;
-          console.log(`[CHAT API] Scheduled task execution for user ${userId}`);
+          console.log(`[CHAT API] Internal auth bypass for user ${userId}`);
         } else {
           return new Response(
             JSON.stringify({ error: "Invalid session for scheduled task" }),
@@ -1798,26 +1801,32 @@ export async function POST(req: Request) {
 
     const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
 
-    // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
-    // This prevents authentication failures when token expires during normal usage
-    if (selectedProvider === "antigravity") {
-      const tokenValid = await ensureAntigravityTokenValid();
-      if (!tokenValid) {
-        return new Response(
-          JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
+    // Skip LLM provider token pre-checks for internal auth requests (scheduled tasks,
+    // delegation sub-agents). The pre-check is a UI convenience; the actual streamText
+    // call handles auth. Internal requests hitting a fresh module instance (hot reload)
+    // may not have cached tokens, causing spurious 401s.
+    if (!isInternalAuth) {
+      // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
+      // This prevents authentication failures when token expires during normal usage
+      if (selectedProvider === "antigravity") {
+        const tokenValid = await ensureAntigravityTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
       }
-    }
 
-    // CRITICAL: If Claude Code is selected, ensure token is valid/refreshed BEFORE making API calls
-    if (selectedProvider === "claudecode") {
-      const tokenValid = await ensureClaudeCodeTokenValid();
-      if (!tokenValid) {
-        return new Response(
-          JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
+      // CRITICAL: If Claude Code is selected, ensure token is valid/refreshed BEFORE making API calls
+      if (selectedProvider === "claudecode") {
+        const tokenValid = await ensureClaudeCodeTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
@@ -2187,6 +2196,8 @@ export async function POST(req: Request) {
     const chatAbortController = new AbortController();
     registerChatAbortController(agentRun.id, chatAbortController);
 
+    const isDelegation = sessionMetadata?.isDelegation === true;
+
     const chatTask: ChatTask = {
       type: "chat",
       runId: agentRun.id,
@@ -2196,10 +2207,10 @@ export async function POST(req: Request) {
       status: "running",
       startedAt: nowISO(),
       pipelineName: "chat",
-      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : "chat",
+      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : isDelegation ? "delegation" : "chat",
       messageCount: messages.length,
       metadata:
-        isScheduledRun || isChannelSource
+        isScheduledRun || isChannelSource || isDelegation
           ? {
               ...(isScheduledRun
                 ? {
@@ -2211,6 +2222,13 @@ export async function POST(req: Request) {
                 ? {
                     suppressFromUI: true,
                     taskSource: "channel",
+                  }
+                : {}),
+              ...(isDelegation
+                ? {
+                    isDelegation: true,
+                    parentAgentId: sessionMetadata.parentAgentId,
+                    workflowId: sessionMetadata.workflowId,
                   }
                 : {}),
             }
@@ -2566,6 +2584,46 @@ export async function POST(req: Request) {
         pluginContext.agentId,
         pluginContext.characterId
       );
+    }
+
+    // Resolve workflow membership and merge shared resources into chat context
+    if (characterId) {
+      try {
+        const workflowCtx = await getWorkflowByAgentId(characterId);
+        if (workflowCtx) {
+          const resources = await getWorkflowResources(workflowCtx.workflow.id, characterId);
+          if (resources) {
+            // Merge inherited plugin IDs into scoped plugins (if not already present)
+            if (resources.sharedResources.pluginIds.length > 0) {
+              const existingIds = new Set(scopedPlugins.map((p) => p.id));
+              const allPlugins = await getInstalledPlugins(dbUser.id, { status: "active" });
+              for (const plugin of allPlugins) {
+                if (resources.sharedResources.pluginIds.includes(plugin.id) && !existingIds.has(plugin.id)) {
+                  scopedPlugins.push(plugin);
+                  existingIds.add(plugin.id);
+                }
+              }
+            }
+
+            // Append workflow role context to system prompt
+            const workflowBlock = `\n\n[Workflow Context]\n${resources.promptContext}`;
+            if (typeof systemPromptValue === "string") {
+              systemPromptValue += workflowBlock;
+            } else if (Array.isArray(systemPromptValue)) {
+              systemPromptValue.push({
+                role: "system" as const,
+                content: workflowBlock,
+              });
+            }
+
+            console.log(
+              `[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`
+            );
+          }
+        }
+      } catch (workflowError) {
+        console.warn("[CHAT API] Failed to resolve workflow context (non-fatal):", workflowError);
+      }
     }
 
     // Append plugin skills summary to system prompt (if scoped plugins have skills)

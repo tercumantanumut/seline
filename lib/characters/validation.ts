@@ -53,6 +53,29 @@ export const characterImageSchema = z.object({
  * Agent metadata for B2B agent configuration.
  * Stored in characters.metadata JSON column.
  */
+const workflowRoleSchema = z.enum(["initiator", "subagent"]);
+
+export const workflowSandboxPolicySchema = z.object({
+  allowSharedFolders: z.boolean().default(true),
+  allowSharedMcp: z.boolean().default(true),
+  allowSharedHooks: z.boolean().default(true),
+});
+
+export const inheritedResourcesSchema = z.object({
+  syncFolderIds: z.array(z.string()).default([]),
+  pluginIds: z.array(z.string()).default([]),
+  mcpServerNames: z.array(z.string()).default([]),
+  hookEvents: z.array(z.string()).default([]),
+});
+
+export const pluginAgentSeedSchema = z.object({
+  sourcePath: z.string().max(500).optional(),
+  description: z.string().max(2000).optional(),
+  purpose: z.string().max(2000).optional(),
+  systemPromptSeed: z.string().max(8000).optional(),
+  tags: z.array(z.string().max(120)).optional(),
+});
+
 export const agentMetadataSchema = z.object({
   /** List of enabled tool names for this agent */
   enabledTools: z.array(z.string()).optional(),
@@ -105,6 +128,13 @@ export const agentMetadataSchema = z.object({
       loadingMode: z.enum(["always", "deferred"]).default("deferred"),
     })
   ).optional(),
+
+  /** Workflow linkage for plugin-created sub-agents */
+  workflowId: z.string().optional(),
+  workflowRole: workflowRoleSchema.optional(),
+  workflowSandboxPolicy: workflowSandboxPolicySchema.optional(),
+  inheritedResources: inheritedResourcesSchema.optional(),
+  pluginAgentSeed: pluginAgentSeedSchema.optional(),
 
   /**
    * Whether task scheduling is enabled for this agent

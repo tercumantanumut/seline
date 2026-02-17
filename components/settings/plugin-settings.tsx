@@ -157,9 +157,15 @@ export function PluginSettings() {
       if (createdAgents > 0) {
         descriptionParts.push(`${createdAgents} agent records created`);
       }
+      if (data.workflow) {
+        descriptionParts.push(`workflow created with ${(data.workflow.subAgentIds?.length || 0) + 1} agents`);
+      }
 
       toast.success(`Plugin "${data.plugin?.name}" installed`, {
         description: descriptionParts.join(", "),
+        ...(data.workflow
+          ? { action: { label: "View Agents", onClick: () => window.location.assign("/") } }
+          : {}),
       });
 
       loadPlugins();

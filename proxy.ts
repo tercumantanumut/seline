@@ -57,10 +57,9 @@ export async function proxy(request: NextRequest) {
   const schedulerSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
   const internalAuthHeader = request.headers.get("x-internal-auth");
   const isScheduledRunHeader = request.headers.get("x-scheduled-run") === "true";
-  const isInternalSchedulerRequest =
+  const isInternalAuthRequest =
     pathname.startsWith("/api/") &&
-    internalAuthHeader === schedulerSecret &&
-    isScheduledRunHeader;
+    internalAuthHeader === schedulerSecret;
   const internalMediaToken = request.nextUrl.searchParams.get("internal_auth");
   const isInternalMediaRequest =
     pathname.startsWith("/api/media") && internalMediaToken === schedulerSecret;
@@ -72,7 +71,7 @@ export async function proxy(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 
   // If no session and trying to access protected route
-  if (!sessionId && !isPublicRoute && !isInternalSchedulerRequest && !isInternalMediaRequest) {
+  if (!sessionId && !isPublicRoute && !isInternalAuthRequest && !isInternalMediaRequest) {
     // For API routes, return 401
     if (pathname.startsWith("/api/")) {
       const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 });

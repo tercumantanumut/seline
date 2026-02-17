@@ -1238,16 +1238,77 @@ function initializeTables(sqlite: Database.Database): void {
       ON marketplaces (user_id)
   `);
 
+  // Agent workflows table — links an initiator agent with workflow metadata
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_workflows (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      initiator_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused', 'archived')),
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflows_user_status
+      ON agent_workflows (user_id, status)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflows_initiator
+      ON agent_workflows (initiator_id)
+  `);
+
+  // Agent workflow members table — maps agents into workflow membership and role
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_workflow_members (
+      id TEXT PRIMARY KEY,
+      workflow_id TEXT NOT NULL REFERENCES agent_workflows(id) ON DELETE CASCADE,
+      agent_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('initiator', 'subagent')),
+      source_path TEXT,
+      metadata_seed TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_workflow_members_workflow_agent
+      ON agent_workflow_members (workflow_id, agent_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflow_members_agent
+      ON agent_workflow_members (agent_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflow_members_workflow_role
+      ON agent_workflow_members (workflow_id, role)
+  `);
+
   // Agent Plugins junction table — per-agent plugin assignments
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS agent_plugins (
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      workflow_id TEXT REFERENCES agent_workflows(id) ON DELETE SET NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  try {
+    sqlite.exec(`ALTER TABLE agent_plugins ADD COLUMN workflow_id TEXT REFERENCES agent_workflows(id) ON DELETE SET NULL`);
+    console.log("[SQLite Migration] Added workflow_id column to agent_plugins");
+  } catch {
+    // Column already exists
+  }
 
   sqlite.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_plugins_agent_plugin
@@ -1264,7 +1325,12 @@ function initializeTables(sqlite: Database.Database): void {
       ON agent_plugins (plugin_id)
   `);
 
-  console.log("[SQLite] All tables initialized (including plugin system)");
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_workflow
+      ON agent_plugins (workflow_id)
+  `);
+
+  console.log("[SQLite] All tables initialized (including plugin and workflow systems)");
 
   // Run data migrations
   runDataMigrations(sqlite);

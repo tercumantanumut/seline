@@ -51,7 +51,7 @@ export interface ChannelTask extends BaseTask {
 export interface ChatTask extends BaseTask {
   type: "chat";
   pipelineName: string;
-  triggerType: "chat" | "api" | "job" | "cron" | "webhook" | "tool";
+  triggerType: "chat" | "api" | "job" | "cron" | "webhook" | "tool" | "delegation";
   messageCount?: number;
 }
 

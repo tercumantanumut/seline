@@ -213,6 +213,25 @@
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Vector Search Folders",
+    "workflows": {
+      "sectionTitle": "Workflows",
+      "agentCount": "{count, plural, one {# agent} other {# agents}}",
+      "expand": "Show agents",
+      "collapse": "Hide agents",
+      "run": "Run",
+      "stop": "Stop",
+      "shareFolder": "Share Folder",
+      "settings": "Settings",
+      "initiator": "Initiator",
+      "subagent": "Sub-agent",
+      "inherited": "Inherited",
+      "statusActive": "Active",
+      "statusPaused": "Paused",
+      "statusArchived": "Archived",
+      "sharedFolders": "{count, plural, one {# shared folder} other {# shared folders}}",
+      "sharedPlugins": "{count, plural, one {# shared plugin} other {# shared plugins}}",
+      "noSubagents": "No sub-agents in this workflow"
+    },
     "activeSession": {
       "label": "Active",
       "tooltip": "This agent has an active session with ongoing operations"
@@ -499,6 +518,10 @@
       "sendMessageToChannel": {
         "name": "Send Message to Channel",
         "description": "Send a direct message to the user via connected external channels"
+      },
+      "delegateToSubagent": {
+        "name": "Delegate to Sub-Agent",
+        "description": "Send tasks to workflow sub-agents and receive their responses"
       },
       "referenceImageFlux2Klein9B": {
         "name": "Reference (FLUX.2 Klein 9B)",
@@ -928,6 +951,8 @@
         "updatePlanDesc": "Create or update a visible task plan with step statuses across the conversation",
         "sendMessageToChannel": "Send Message to Channel",
         "sendMessageToChannelDesc": "Send a direct message to the user via connected external channels",
+        "delegateToSubagent": "Delegate to Sub-Agent",
+        "delegateToSubagentDesc": "Send tasks to workflow sub-agents and receive their responses",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",

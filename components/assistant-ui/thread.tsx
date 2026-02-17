@@ -347,6 +347,11 @@ export const Thread: FC<ThreadProps> = ({
               `${pluginResult.createdAgents.length} agent profile${pluginResult.createdAgents.length > 1 ? "s" : ""} created`
             );
           }
+          if (pluginResult.workflow) {
+            parts.push(
+              `workflow created with ${(pluginResult.workflow.subAgentIds?.length || 0) + 1} agents`
+            );
+          }
 
           setSkillImportPhase("success");
           setSkillImportProgress(100);
@@ -363,10 +368,15 @@ export const Thread: FC<ThreadProps> = ({
                   label: "View Skills",
                   onClick: () => router.push(`/agents/${character.id}/skills`),
                 }
-              : {
-                  label: "View Plugins",
-                  onClick: () => router.push("/settings?section=plugins"),
-                },
+              : pluginResult.workflow
+                ? {
+                    label: "View Workflow",
+                    onClick: () => router.push("/"),
+                  }
+                : {
+                    label: "View Plugins",
+                    onClick: () => router.push("/settings?section=plugins"),
+                  },
           });
 
           if (pluginResult.warnings?.length > 0) {

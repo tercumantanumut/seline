@@ -2,6 +2,7 @@ import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqli
 import { relations, sql } from "drizzle-orm";
 import { users } from "./sqlite-schema";
 import { characters } from "./sqlite-character-schema";
+import { agentWorkflows } from "./sqlite-workflows-schema";
 
 // =============================================================================
 // Plugins Table — Installed plugin records
@@ -145,6 +146,8 @@ export const agentPlugins = sqliteTable(
     agentId: text("agent_id").references(() => characters.id, { onDelete: "cascade" }).notNull(),
     /** The plugin being assigned. */
     pluginId: text("plugin_id").references(() => plugins.id, { onDelete: "cascade" }).notNull(),
+    /** Optional workflow provenance for inherited plugin assignments. */
+    workflowId: text("workflow_id").references(() => agentWorkflows.id, { onDelete: "set null" }),
     /** Whether this plugin is enabled for this agent. */
     enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
@@ -153,6 +156,7 @@ export const agentPlugins = sqliteTable(
     agentPluginUnique: uniqueIndex("idx_agent_plugins_agent_plugin").on(table.agentId, table.pluginId),
     agentIdx: index("idx_agent_plugins_agent").on(table.agentId, table.enabled),
     pluginIdx: index("idx_agent_plugins_plugin").on(table.pluginId),
+    workflowIdx: index("idx_agent_plugins_workflow").on(table.workflowId),
   })
 );
 
@@ -214,6 +218,10 @@ export const agentPluginsRelations = relations(agentPlugins, ({ one }) => ({
   plugin: one(plugins, {
     fields: [agentPlugins.pluginId],
     references: [plugins.id],
+  }),
+  workflow: one(agentWorkflows, {
+    fields: [agentPlugins.workflowId],
+    references: [agentWorkflows.id],
   }),
 }));
 
