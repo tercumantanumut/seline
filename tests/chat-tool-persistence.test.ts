@@ -101,6 +101,35 @@ describe("enhanceFrontendMessagesWithToolResults", () => {
       })
     );
   });
+
+  it("does not synthesize fallback tool-result messages when output is missing", async () => {
+    mocks.getToolResultsForSession.mockResolvedValue(new Map());
+
+    const messages = [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-call",
+            toolCallId: "call-3",
+            toolName: "updatePlan",
+            input: { plan: [] },
+            state: "input-available",
+          },
+        ],
+      },
+    ];
+
+    const enhanced = await enhanceFrontendMessagesWithToolResults(
+      messages,
+      "session-3"
+    );
+
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+    const part = enhanced[0].parts?.[0] as any;
+    expect(part.output).toBeUndefined();
+    expect(part.result).toBeUndefined();
+  });
 });
 
 describe("safeParseToolArgs", () => {
