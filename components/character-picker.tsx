@@ -717,7 +717,14 @@ export function CharacterPicker() {
       }>(`/api/characters/${character.id}/plugins`);
 
       if (error || !data) throw new Error(error || "Failed to load plugins");
-      setAgentPlugins(data.plugins || []);
+      setAgentPlugins(
+        (data.plugins || []).sort((a, b) => {
+          const aEnabled = a.enabledForAgent ? 1 : 0;
+          const bEnabled = b.enabledForAgent ? 1 : 0;
+          if (aEnabled !== bEnabled) return bEnabled - aEnabled;
+          return a.name.localeCompare(b.name);
+        })
+      );
     } catch (error) {
       console.error("Failed to load agent plugins:", error);
       setAgentPlugins([]);

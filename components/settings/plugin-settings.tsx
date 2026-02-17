@@ -149,8 +149,17 @@ export function PluginSettings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
 
+      const createdAgents = Array.isArray(data.createdAgents) ? data.createdAgents.length : 0;
+      const descriptionParts = [
+        `${data.components?.skills?.length || 0} skills`,
+        `${data.components?.agents?.length || 0} agents`,
+      ];
+      if (createdAgents > 0) {
+        descriptionParts.push(`${createdAgents} agent records created`);
+      }
+
       toast.success(`Plugin "${data.plugin?.name}" installed`, {
-        description: `${data.components?.skills?.length || 0} skills, ${data.components?.agents?.length || 0} agents`,
+        description: descriptionParts.join(", "),
       });
 
       loadPlugins();

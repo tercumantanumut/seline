@@ -342,6 +342,11 @@ export const Thread: FC<ThreadProps> = ({
           if (pluginResult.components?.mcpServers?.length > 0) {
             parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
           }
+          if (Array.isArray(pluginResult.createdAgents) && pluginResult.createdAgents.length > 0) {
+            parts.push(
+              `${pluginResult.createdAgents.length} agent profile${pluginResult.createdAgents.length > 1 ? "s" : ""} created`
+            );
+          }
 
           setSkillImportPhase("success");
           setSkillImportProgress(100);
