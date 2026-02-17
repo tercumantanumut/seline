@@ -10,12 +10,16 @@ import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 
 type WindowPreset = "24h" | "7d" | "30d";
 
+function toSqliteDateTime(date: Date): string {
+  return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+}
+
 function getWindowStart(window: WindowPreset): string {
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
-  if (window === "24h") return new Date(now - day).toISOString();
-  if (window === "7d") return new Date(now - 7 * day).toISOString();
-  return new Date(now - 30 * day).toISOString();
+  if (window === "24h") return toSqliteDateTime(new Date(now - day));
+  if (window === "7d") return toSqliteDateTime(new Date(now - 7 * day));
+  return toSqliteDateTime(new Date(now - 30 * day));
 }
 
 export async function GET(req: NextRequest) {

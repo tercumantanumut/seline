@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
+import { getOrCreateLocalUser } from "@/lib/db/queries";
+import { loadSettings } from "@/lib/settings/settings-manager";
 import { parseSkillPackage, parseSingleSkillMd } from "@/lib/skills/import-parser";
 import { importSkillPackage } from "@/lib/skills/queries";
 
@@ -12,8 +14,10 @@ export async function POST(request: NextRequest) {
   
   try {
     console.log(`[SkillImport:${requestId}] 🔐 Checking auth...`);
-    const userId = await requireAuth(request);
-    console.log(`[SkillImport:${requestId}] ✅ Auth successful - userId: ${userId}`);
+    const authUserId = await requireAuth(request);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
+    console.log(`[SkillImport:${requestId}] ✅ Auth successful - userId: ${dbUser.id}`);
 
     console.log(`[SkillImport:${requestId}] 📦 Parsing form data...`);
     const formData = await request.formData();
@@ -63,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Import into database
     console.log(`[SkillImport:${requestId}] 💾 Importing to database...`);
     const skill = await importSkillPackage({
-      userId,
+      userId: dbUser.id,
       characterId,
       parsedSkill,
     });

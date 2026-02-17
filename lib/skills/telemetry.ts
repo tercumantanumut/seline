@@ -35,11 +35,15 @@ export async function trackSkillTelemetryEvent(input: {
   }
 }
 
+function toSqliteDateTime(date: Date): string {
+  return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+}
+
 export async function getSkillTelemetryCounters(userId: string, hours = 24): Promise<{
   windowHours: number;
   events: Record<string, number>;
 }> {
-  const since = new Date(Date.now() - Math.max(hours, 1) * 60 * 60 * 1000).toISOString();
+  const since = toSqliteDateTime(new Date(Date.now() - Math.max(hours, 1) * 60 * 60 * 1000));
   const rows = await db
     .select({
       eventType: skillTelemetryEvents.eventType,

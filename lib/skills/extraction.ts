@@ -10,7 +10,8 @@ interface ParsedToolCall {
   toolName: string;
 }
 
-function safeParseContent(raw: string): unknown {
+function normalizeContent(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
   try {
     return JSON.parse(raw);
   } catch {
@@ -18,8 +19,8 @@ function safeParseContent(raw: string): unknown {
   }
 }
 
-function extractToolCallsFromMessageContent(content: string): ParsedToolCall[] {
-  const parsed = safeParseContent(content);
+function extractToolCallsFromMessageContent(content: unknown): ParsedToolCall[] {
+  const parsed = normalizeContent(content);
   if (!Array.isArray(parsed)) return [];
 
   const calls: ParsedToolCall[] = [];
@@ -69,7 +70,7 @@ export async function inferSkillToolHintsFromSession(
   const hints: string[] = [];
 
   for (const msg of recent) {
-    if (!msg || typeof msg.content !== "string") continue;
+    if (!msg || msg.content == null) continue;
     const calls = extractToolCallsFromMessageContent(msg.content);
     for (const call of calls) {
       hints.push(call.toolName);
