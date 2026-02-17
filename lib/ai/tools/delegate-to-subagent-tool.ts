@@ -11,7 +11,7 @@
  *   observe  – query DB for real message count, tool calls, last response content
  *   continue – send a follow-up message to an existing delegation session
  *   stop     – abort the running delegation
- *   list     – list all active delegations for the calling agent
+ *   list     – list active delegations + available sub-agents for the calling agent
  */
 
 import { tool, jsonSchema } from "ai";
@@ -19,6 +19,7 @@ import { getCharacterFull } from "@/lib/characters/queries";
 import {
   getWorkflowByAgentId,
   getWorkflowMembers,
+  type AgentWorkflowMember,
 } from "@/lib/agents/workflows";
 import {
   createSession,
@@ -40,16 +41,25 @@ type DelegateAction = "start" | "observe" | "continue" | "stop" | "list";
 interface DelegateToSubagentInput {
   action: DelegateAction;
   agentId?: string;
+  agentName?: string;
   task?: string;
   context?: string;
   delegationId?: string;
   followUpMessage?: string;
+  waitSeconds?: number;
+}
+
+interface AvailableSubagent {
+  agentId: string;
+  agentName: string;
+  role: string;
+  purpose: string;
 }
 
 interface DelegateResult {
   success: boolean;
   error?: string;
-  availableAgents?: Array<{ agentId: string; role: string; purpose: string }>;
+  availableAgents?: AvailableSubagent[];
   delegationId?: string;
   sessionId?: string;
   delegateAgent?: string;
@@ -61,9 +71,12 @@ interface DelegateResult {
   lastResponse?: string;
   allResponses?: string[];
   elapsed?: number;
+  waitedMs?: number;
+  waitTimedOut?: boolean;
   delegations?: Array<{
     delegationId: string;
     sessionId: string;
+    delegateAgentId: string;
     delegateAgent: string;
     task: string;
     running: boolean;
@@ -96,6 +109,7 @@ const activeDelegations: Map<string, ActiveDelegation> =
   ((globalThis as Record<string, unknown>).__activeDelegations = new Map<string, ActiveDelegation>());
 
 let delegationCounter = 0;
+const MAX_OBSERVE_WAIT_SECONDS = 10 * 60;
 
 function nextDelegationId(): string {
   delegationCounter += 1;
@@ -198,6 +212,159 @@ function extractTextFromContent(content: unknown): string | undefined {
   return undefined;
 }
 
+function normalizeLookup(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function validateObserveWaitSeconds(waitSeconds?: number): { waitMs: number; error?: string } {
+  if (waitSeconds === undefined) {
+    return { waitMs: 0 };
+  }
+
+  if (!Number.isFinite(waitSeconds) || waitSeconds < 0) {
+    return {
+      waitMs: 0,
+      error: "'waitSeconds' must be a non-negative number.",
+    };
+  }
+
+  if (waitSeconds > MAX_OBSERVE_WAIT_SECONDS) {
+    return {
+      waitMs: 0,
+      error: `'waitSeconds' cannot exceed ${MAX_OBSERVE_WAIT_SECONDS} (10 minutes).`,
+    };
+  }
+
+  return { waitMs: waitSeconds * 1000 };
+}
+
+type SubagentCandidate = {
+  member: AgentWorkflowMember;
+  agentId: string;
+  agentName: string;
+  purpose: string;
+};
+
+async function buildSubagentCandidates(
+  members: AgentWorkflowMember[],
+  currentAgentId: string,
+): Promise<SubagentCandidate[]> {
+  const subagentMembers = members.filter(
+    (member) => member.role === "subagent" && member.agentId !== currentAgentId,
+  );
+
+  const candidates = await Promise.all(
+    subagentMembers.map(async (member): Promise<SubagentCandidate> => {
+      const character = await getCharacterFull(member.agentId);
+      const charRecord = character as
+        | {
+            name?: string;
+            displayName?: string;
+            tagline?: string;
+            description?: string;
+          }
+        | null;
+
+      const agentName =
+        (typeof charRecord?.displayName === "string" && charRecord.displayName.trim()) ||
+        (typeof charRecord?.name === "string" && charRecord.name.trim()) ||
+        member.agentId;
+
+      const purpose =
+        member.metadataSeed?.purpose ||
+        (typeof charRecord?.tagline === "string" && charRecord.tagline.trim()) ||
+        (typeof charRecord?.description === "string" && charRecord.description.trim()) ||
+        "No purpose set";
+
+      return {
+        member,
+        agentId: member.agentId,
+        agentName,
+        purpose,
+      };
+    }),
+  );
+
+  return candidates.sort((a, b) => a.agentName.localeCompare(b.agentName));
+}
+
+function toAvailableAgents(candidates: SubagentCandidate[]): AvailableSubagent[] {
+  return candidates.map((candidate) => ({
+    agentId: candidate.agentId,
+    agentName: candidate.agentName,
+    role: candidate.member.role,
+    purpose: candidate.purpose,
+  }));
+}
+
+function resolveSubagentCandidate(
+  candidates: SubagentCandidate[],
+  selection: { agentId?: string; agentName?: string },
+): { candidate?: SubagentCandidate; error?: string } {
+  const { agentId, agentName } = selection;
+
+  if (agentId) {
+    const byId = candidates.find((candidate) => candidate.agentId === agentId);
+    if (!byId) {
+      return { error: `No workflow sub-agent found with id "${agentId}".` };
+    }
+
+    if (agentName) {
+      const normalizedRequested = normalizeLookup(agentName);
+      const normalizedActual = normalizeLookup(byId.agentName);
+      if (normalizedRequested !== normalizedActual) {
+        return {
+          error:
+            `agentId "${agentId}" resolved to "${byId.agentName}", but agentName "${agentName}" does not match. ` +
+            "Use either agentId alone or provide a matching agentName.",
+        };
+      }
+    }
+
+    return { candidate: byId };
+  }
+
+  if (!agentName) {
+    return { error: "Provide either agentId or agentName for action=start." };
+  }
+
+  const normalizedName = normalizeLookup(agentName);
+  const exactMatches = candidates.filter(
+    (candidate) => normalizeLookup(candidate.agentName) === normalizedName,
+  );
+
+  if (exactMatches.length === 1) {
+    return { candidate: exactMatches[0] };
+  }
+  if (exactMatches.length > 1) {
+    return {
+      error:
+        `agentName "${agentName}" is ambiguous (${exactMatches.length} exact matches). ` +
+        "Use agentId to target a specific sub-agent.",
+    };
+  }
+
+  const partialMatches = candidates.filter((candidate) =>
+    normalizeLookup(candidate.agentName).includes(normalizedName),
+  );
+  if (partialMatches.length === 1) {
+    return { candidate: partialMatches[0] };
+  }
+  if (partialMatches.length > 1) {
+    return {
+      error:
+        `agentName "${agentName}" matches multiple sub-agents (${partialMatches.length} partial matches). ` +
+        "Use agentId to disambiguate.",
+    };
+  }
+
+  return { error: `No workflow sub-agent found with name "${agentName}".` };
+}
+
 // ---------------------------------------------------------------------------
 // Schema
 // ---------------------------------------------------------------------------
@@ -206,18 +373,23 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   type: "object",
   title: "DelegateToSubagentInput",
   description:
-    "Delegate a task to a workflow sub-agent asynchronously. Use 'start' to begin, 'observe' to check progress and read the full response, 'continue' to send follow-up messages, 'stop' to cancel, 'list' to see all active delegations.",
+    "Delegate a task to a workflow sub-agent asynchronously. Use 'list' if needed to refresh available sub-agents (names + IDs), 'start' to begin, 'observe' to check progress and read the full response (optionally with waitSeconds), 'continue' to send follow-up messages, 'stop' to cancel.",
   properties: {
     action: {
       type: "string",
       enum: ["start", "observe", "continue", "stop", "list"],
       description:
-        "Action to perform: 'start' a new delegation, 'observe' progress and read the sub-agent's full response, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' all active delegations.",
+        "Action to perform: 'start' a new delegation, 'observe' progress and read the sub-agent's full response (supports waitSeconds), 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
     },
     agentId: {
       type: "string",
       description:
-        "The ID of the sub-agent to delegate the task to. Required for 'start'.",
+        "The ID of the sub-agent to delegate the task to. Optional for 'start' if agentName is provided.",
+    },
+    agentName: {
+      type: "string",
+      description:
+        "The display name of the sub-agent to delegate the task to. Optional for 'start' if agentId is provided.",
     },
     task: {
       type: "string",
@@ -239,6 +411,13 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
       description:
         "A follow-up message to send to the sub-agent in an existing delegation session. Required for 'continue'.",
     },
+    waitSeconds: {
+      type: "number",
+      minimum: 0,
+      maximum: MAX_OBSERVE_WAIT_SECONDS,
+      description:
+        "Optional for 'observe'. Wait this many seconds before returning (or until delegation completes), to avoid rapid polling loops. Example: 30, 60, 600.",
+    },
   },
   required: ["action"],
   additionalProperties: false,
@@ -257,8 +436,9 @@ export function createDelegateToSubagentTool(
     description:
       "Delegate a task to a sub-agent in your workflow team asynchronously. " +
       "The sub-agent gets its own chat session (visible in the UI with active indicator). " +
-      "Use 'start' to begin, 'observe' to check progress and read the sub-agent's full response, " +
-      "'continue' to send follow-up messages, 'stop' to cancel, 'list' to see all active delegations.",
+      "Use 'list' if needed to discover or refresh available sub-agents (names + IDs). " +
+      "Then use 'start' with either agentId or agentName, 'observe' to check progress and read the sub-agent's full response (optionally with waitSeconds), " +
+      "'continue' to send follow-up messages, or 'stop' to cancel.",
     inputSchema: delegateSchema,
     execute: async (input: DelegateToSubagentInput): Promise<DelegateResult> => {
       switch (input.action) {
@@ -323,20 +503,12 @@ async function handleStart(
   userId: string,
   characterId: string,
 ): Promise<DelegateResult> {
-  const { agentId, task, context: extraContext } = input;
+  const { agentId, agentName, task, context: extraContext } = input;
 
-  if (!agentId || !task) {
+  if (!task) {
     return {
       success: false,
-      error: "'agentId' and 'task' are required for the 'start' action.",
-    };
-  }
-
-  // 0. Prevent self-delegation
-  if (agentId === characterId) {
-    return {
-      success: false,
-      error: "Cannot delegate to yourself. Choose a different sub-agent from the workflow.",
+      error: "'task' is required for the 'start' action.",
     };
   }
 
@@ -356,31 +528,48 @@ async function handleStart(
     };
   }
 
-  // 2. Verify target agent is in the same workflow
+  // 2. Resolve sub-agent selection by ID or Name
   const members = await getWorkflowMembers(membership.workflow.id);
-  const targetMember = members.find((m) => m.agentId === agentId);
-  if (!targetMember) {
-    const availableAgents = members
-      .filter((m) => m.agentId !== characterId)
-      .map((m) => ({
-        agentId: m.agentId,
-        role: m.role,
-        purpose: m.metadataSeed?.purpose || "unknown",
-      }));
+  const candidates = await buildSubagentCandidates(members, characterId);
+  const availableAgents = toAvailableAgents(candidates);
+
+  if (candidates.length === 0) {
     return {
       success: false,
-      error: `Agent ${agentId} is not a member of this workflow.`,
+      error: "No sub-agents are available in this workflow.",
       availableAgents,
     };
   }
 
-  // 3. Load the sub-agent character
-  const subAgent = await getCharacterFull(agentId);
-  if (!subAgent) {
-    return { success: false, error: `Sub-agent ${agentId} not found.` };
+  const resolution = resolveSubagentCandidate(candidates, { agentId, agentName });
+  if (!resolution.candidate) {
+    return {
+      success: false,
+      error: resolution.error,
+      availableAgents,
+    };
   }
 
-  // 4. Create a real session for the sub-agent
+  // 3. Prevent self-delegation (defensive)
+  if (resolution.candidate.agentId === characterId) {
+    return {
+      success: false,
+      error: "Cannot delegate to yourself. Choose a different sub-agent from the workflow.",
+      availableAgents,
+    };
+  }
+
+  // 4. Load the sub-agent character
+  const subAgent = await getCharacterFull(resolution.candidate.agentId);
+  if (!subAgent) {
+    return {
+      success: false,
+      error: `Sub-agent ${resolution.candidate.agentId} not found.`,
+      availableAgents,
+    };
+  }
+
+  // 5. Create a real session for the sub-agent
   // NOTE: characterId MUST be in metadata — createSession's extractSessionMetadataColumns
   // promotes metadata.characterId to the DB column. Passing it only as a top-level field
   // gets overridden to null by the metadata extraction spread.
@@ -391,17 +580,17 @@ async function handleStart(
       isDelegation: true,
       parentAgentId: characterId,
       workflowId: membership.workflow.id,
-      characterId: agentId,
-      characterName: subAgent.displayName || subAgent.name,
+      characterId: resolution.candidate.agentId,
+      characterName: resolution.candidate.agentName,
     },
   });
 
-  // 5. Build the user message
+  // 6. Build the user message
   const userMessage = extraContext
     ? `${task}\n\nAdditional context:\n${extraContext}`
     : task;
 
-  // 6. Fire-and-forget: call internal chat API
+  // 7. Fire-and-forget: call internal chat API
   // The chat API handles user message persistence, agent run creation,
   // task registry, SSE events, and green dot indicators automatically.
   const delegationId = nextDelegationId();
@@ -409,8 +598,8 @@ async function handleStart(
   const delegation: ActiveDelegation = {
     id: delegationId,
     sessionId: session.id,
-    delegateId: agentId,
-    delegateName: subAgent.displayName || subAgent.name,
+    delegateId: resolution.candidate.agentId,
+    delegateName: resolution.candidate.agentName,
     delegatorId: characterId,
     workflowId: membership.workflow.id,
     task,
@@ -430,19 +619,29 @@ async function handleStart(
     delegateAgent: delegation.delegateName,
     message:
       "Delegation started. A real chat session has been created for the sub-agent. " +
-      "Use 'observe' with the delegationId to check progress and read the full response, " +
+      "Use 'observe' with the delegationId to check progress and read the full response. " +
+      "Set observe.waitSeconds (for example 30, 60, or 600) to wait intentionally instead of re-checking too frequently. " +
       "'continue' to send follow-up messages, or navigate to the sub-agent's chat to see it live.",
+    availableAgents,
   };
 }
 
 async function handleObserve(
   input: DelegateToSubagentInput,
 ): Promise<DelegateResult> {
-  const { delegationId } = input;
+  const { delegationId, waitSeconds } = input;
   if (!delegationId) {
     return {
       success: false,
       error: "'delegationId' is required for the 'observe' action.",
+    };
+  }
+
+  const waitValidation = validateObserveWaitSeconds(waitSeconds);
+  if (waitValidation.error) {
+    return {
+      success: false,
+      error: waitValidation.error,
     };
   }
 
@@ -454,8 +653,18 @@ async function handleObserve(
     };
   }
 
+  const observeStart = Date.now();
+
+  if (!delegation.settled && waitValidation.waitMs > 0) {
+    await Promise.race([
+      delegation.streamPromise,
+      sleep(waitValidation.waitMs),
+    ]);
+  }
+
   // If delegation failed, return the error immediately
   if (delegation.error) {
+    const waitedMs = Date.now() - observeStart;
     return {
       success: false,
       delegationId,
@@ -465,6 +674,8 @@ async function handleObserve(
       running: false,
       completed: true,
       elapsed: Date.now() - delegation.startedAt,
+      waitedMs,
+      waitTimedOut: waitValidation.waitMs > 0 && !delegation.settled,
     };
   }
 
@@ -481,6 +692,7 @@ async function handleObserve(
   const lastResponse = allResponses[allResponses.length - 1];
 
   const isRunning = !delegation.settled;
+  const waitedMs = Date.now() - observeStart;
 
   // Auto-cleanup finished delegations older than 10 minutes
   if (delegation.settled && Date.now() - delegation.startedAt > 10 * 60 * 1000) {
@@ -495,6 +707,8 @@ async function handleObserve(
     running: isRunning,
     completed: delegation.settled,
     elapsed: Date.now() - delegation.startedAt,
+    waitedMs,
+    waitTimedOut: waitValidation.waitMs > 0 && isRunning,
     messageCount: messages.length,
     toolCallCount: toolMessages.length,
     lastResponse: lastResponse
@@ -550,7 +764,7 @@ async function handleContinue(
     delegateAgent: delegation.delegateName,
     message:
       "Follow-up message sent. The sub-agent is processing your message. " +
-      "Use 'observe' to check the response.",
+      "Use 'observe' to check the response, and set observe.waitSeconds to avoid tight polling loops.",
   };
 }
 
@@ -587,6 +801,30 @@ async function handleStop(
 async function handleList(
   characterId: string,
 ): Promise<DelegateResult> {
+  const membership = await getWorkflowByAgentId(characterId);
+  if (!membership) {
+    return {
+      success: false,
+      error:
+        "You are not part of a workflow. Delegation requires an active workflow with sub-agents.",
+      availableAgents: [],
+      delegations: [],
+    };
+  }
+
+  if (membership.member.role !== "initiator") {
+    return {
+      success: false,
+      error: "Only the workflow initiator can delegate tasks to sub-agents.",
+      availableAgents: [],
+      delegations: [],
+    };
+  }
+
+  const members = await getWorkflowMembers(membership.workflow.id);
+  const candidates = await buildSubagentCandidates(members, characterId);
+  const availableAgents = toAvailableAgents(candidates);
+
   const results: DelegateResult["delegations"] = [];
 
   // Clean up stale entries and collect results
@@ -604,6 +842,7 @@ async function handleList(
     results.push({
       delegationId: id,
       sessionId: del.sessionId,
+      delegateAgentId: del.delegateId,
       delegateAgent: del.delegateName,
       task: del.task.length > 100 ? del.task.slice(0, 100) + "..." : del.task,
       running: !del.settled,
@@ -617,10 +856,11 @@ async function handleList(
 
   return {
     success: true,
+    availableAgents,
     delegations: results,
     message:
       results.length === 0
-        ? "No active delegations."
-        : `${results.length} delegation(s) found.`,
+        ? `No active delegations. ${availableAgents.length} available sub-agent(s) listed.`
+        : `${results.length} active delegation(s) found. ${availableAgents.length} available sub-agent(s) listed.`,
   };
 }

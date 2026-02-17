@@ -24,8 +24,8 @@ import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./typ
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
 // Note: This byte limit prevents memory/performance issues during execution.
-// Token-based limiting (25K tokens) happens in normalizeToolResultOutput()
-// to ensure consistent behavior across all tools (bash, MCP, custom).
+// Projection/token limiting happens later in model/transport shaping paths.
+// Canonical history persistence remains lossless where possible.
 
 /**
  * Get the bundled Node.js binaries directory

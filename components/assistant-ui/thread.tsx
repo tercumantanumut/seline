@@ -1531,8 +1531,8 @@ const Composer: FC<{
         </div>
       </ComposerPrimitive.Root>
 
-      {/* Context window indicator — shown below composer when status is not safe */}
-      {contextStatus && contextStatus.status !== "safe" && (
+      {/* Context window indicator — always visible once status is available */}
+      {(contextStatus || contextLoading) && (
         <div className="mt-1.5 w-full px-1">
           <ContextWindowIndicator
             status={contextStatus}

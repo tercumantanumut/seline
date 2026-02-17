@@ -770,7 +770,7 @@ export async function getWorkflowResources(
   workflowId: string,
   agentId: string
 ): Promise<WorkflowResourceContext | null> {
-  const [workflowRow, memberRow, agentRow] = await Promise.all([
+  const [workflowRow, memberRow, agentRow, workflowMemberRows] = await Promise.all([
     db
       .select()
       .from(agentWorkflows)
@@ -791,6 +791,10 @@ export async function getWorkflowResources(
       .from(characters)
       .where(eq(characters.id, agentId))
       .limit(1),
+    db
+      .select()
+      .from(agentWorkflowMembers)
+      .where(eq(agentWorkflowMembers.workflowId, workflowId)),
   ]);
 
   if (!workflowRow.length || !memberRow.length) return null;
@@ -819,12 +823,56 @@ export async function getWorkflowResources(
       : [],
   };
 
-  const promptContext = [
+  const workflowMembers = workflowMemberRows.map(mapWorkflowMemberRow);
+  const memberIds = workflowMembers.map((workflowMember) => workflowMember.agentId);
+
+  const memberCharacterRows = memberIds.length
+    ? await db
+        .select({
+          id: characters.id,
+          name: characters.name,
+          displayName: characters.displayName,
+          tagline: characters.tagline,
+        })
+        .from(characters)
+        .where(inArray(characters.id, memberIds))
+    : [];
+
+  const memberCharacterMap = new Map(
+    memberCharacterRows.map((row) => [row.id, row]),
+  );
+
+  const subagentDirectory = workflowMembers
+    .filter((workflowMember) => workflowMember.role === "subagent")
+    .map((workflowMember) => {
+      const charRow = memberCharacterMap.get(workflowMember.agentId);
+      const agentName =
+        charRow?.displayName ||
+        charRow?.name ||
+        workflowMember.agentId;
+      const purpose =
+        workflowMember.metadataSeed?.purpose ||
+        charRow?.tagline ||
+        "No purpose set";
+      return `- ${agentName} (id: ${workflowMember.agentId}): ${purpose}`;
+    });
+
+  const promptContextLines = [
     `Workflow: ${workflow.name}`,
     `Role: ${member.role}`,
     `Shared plugins: ${sharedResources.pluginIds.length}`,
     `Shared folders: ${sharedResources.syncFolderIds.length}`,
-  ].join(" | ");
+    "Sub-agents:",
+    ...(subagentDirectory.length > 0 ? subagentDirectory : ["- none"]),
+  ];
+
+  if (member.role === "initiator" && subagentDirectory.length > 0) {
+    promptContextLines.push(
+      "Delegation tip: use delegateToSubagent action=\"list\" if needed to refresh sub-agents, then start by agentName or agentId. When checking progress, prefer action=\"observe\" with waitSeconds (for example 30, 60, or 600) instead of tight re-check loops.",
+    );
+  }
+
+  const promptContext = promptContextLines.join("\n");
 
   return {
     workflowId,

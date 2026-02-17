@@ -198,7 +198,9 @@ export async function enhanceFrontendMessagesWithToolResults(
 
       if (!isMissingToolResult(partOutput)) {
         if (isMissingToolResult(existing)) {
-          const normalized = normalizeToolResultOutput(toolName, partOutput, args);
+          const normalized = normalizeToolResultOutput(toolName, partOutput, args, {
+            mode: "canonical",
+          });
           resolvedToolResults.set(part.toolCallId, normalized.output);
           if (!persistedToolResults.has(part.toolCallId)) {
             await persistToolResultMessage({
@@ -238,7 +240,8 @@ export async function enhanceFrontendMessagesWithToolResults(
       const fallback = normalizeToolResultOutput(
         normalizedToolName,
         { status: "error", error: "Refetch skipped due to per-request limit." },
-        args
+        args,
+        { mode: "canonical" }
       );
       resolvedToolResults.set(toolCallId, fallback.output);
       await persistToolResultMessage({
@@ -255,7 +258,8 @@ export async function enhanceFrontendMessagesWithToolResults(
       const fallback = normalizeToolResultOutput(
         normalizedToolName,
         { status: "error", error: "Tool result missing and refetch is disabled for this tool." },
-        args
+        args,
+        { mode: "canonical" }
       );
       resolvedToolResults.set(toolCallId, fallback.output);
       await persistToolResultMessage({
@@ -273,7 +277,8 @@ export async function enhanceFrontendMessagesWithToolResults(
       const fallback = normalizeToolResultOutput(
         normalizedToolName,
         { status: "error", error: "Tool not available for refetch." },
-        args
+        args,
+        { mode: "canonical" }
       );
       resolvedToolResults.set(toolCallId, fallback.output);
       await persistToolResultMessage({
@@ -290,7 +295,8 @@ export async function enhanceFrontendMessagesWithToolResults(
       const fallback = normalizeToolResultOutput(
         normalizedToolName,
         { status: "error", error: "Missing tool input; unable to refetch." },
-        args
+        args,
+        { mode: "canonical" }
       );
       resolvedToolResults.set(toolCallId, fallback.output);
       await persistToolResultMessage({
@@ -306,7 +312,9 @@ export async function enhanceFrontendMessagesWithToolResults(
     refetchCount += 1;
     try {
       const refetchOutput = await tool.execute(args);
-      const normalized = normalizeToolResultOutput(normalizedToolName, refetchOutput, args);
+      const normalized = normalizeToolResultOutput(normalizedToolName, refetchOutput, args, {
+        mode: "canonical",
+      });
       resolvedToolResults.set(toolCallId, normalized.output);
       await persistToolResultMessage({
         sessionId,
@@ -321,7 +329,8 @@ export async function enhanceFrontendMessagesWithToolResults(
       const fallback = normalizeToolResultOutput(
         normalizedToolName,
         { status: "error", error: `Refetch failed: ${message}` },
-        args
+        args,
+        { mode: "canonical" }
       );
       resolvedToolResults.set(toolCallId, fallback.output);
       await persistToolResultMessage({

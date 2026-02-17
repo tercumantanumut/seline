@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 
 // Mock the run context
-vi.mock("@/lib/ai/run-context", () => ({
+vi.mock("@/lib/observability/run-context", () => ({
   getRunContext: vi.fn(() => ({ sessionId: "test-session-id" })),
 }));
 
@@ -48,7 +48,9 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       language: "typescript",
     };
 
-    const result = normalizeToolResultOutput("readFile", output);
+    const result = normalizeToolResultOutput("readFile", output, undefined, {
+      mode: "projection",
+    });
 
     // Should NOT be truncated
     expect(result.output).toBeDefined();
@@ -69,7 +71,9 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       source: "synced_folder",
     };
 
-    const result = normalizeToolResultOutput("readFile", output);
+    const result = normalizeToolResultOutput("readFile", output, undefined, {
+      mode: "projection",
+    });
 
     // Should preserve all fields exactly
     expect(result.output).toEqual({
@@ -99,7 +103,9 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       exitCode: 0,
     };
 
-    const result = normalizeToolResultOutput("executeCommand", output);
+    const result = normalizeToolResultOutput("executeCommand", output, undefined, {
+      mode: "projection",
+    });
 
     // Should be truncated - limitToolOutput must be called for executeCommand
     expect(limitToolOutput).toHaveBeenCalled();
@@ -127,7 +133,9 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       matchCount: 10000,
     };
 
-    const result = normalizeToolResultOutput("localGrep", output);
+    const result = normalizeToolResultOutput("localGrep", output, undefined, {
+      mode: "projection",
+    });
 
     // Should be truncated - limitToolOutput must be called for localGrep
     expect(limitToolOutput).toHaveBeenCalled();
@@ -145,7 +153,9 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       documentTitle: "My Document",
     };
 
-    const result = normalizeToolResultOutput("readFile", output);
+    const result = normalizeToolResultOutput("readFile", output, undefined, {
+      mode: "projection",
+    });
 
     // Should not be truncated
     const resultOutput = result.output as Record<string, unknown>;
@@ -160,9 +170,47 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       allowedFolders: ["/path/to/folder"],
     };
 
-    const result = normalizeToolResultOutput("readFile", output);
+    const result = normalizeToolResultOutput("readFile", output, undefined, {
+      mode: "projection",
+    });
 
     expect(result.status).toBe("error");
     expect(result.error).toBe("File not found: test.ts");
+  });
+
+  it("does not apply projection limiter in canonical mode", async () => {
+    const { limitToolOutput } = await import("@/lib/ai/output-limiter");
+    vi.mocked(limitToolOutput).mockClear();
+
+    const output = {
+      status: "success",
+      content: "x".repeat(50000),
+    };
+
+    const result = normalizeToolResultOutput("webBrowse", output, undefined, {
+      mode: "canonical",
+    });
+
+    expect(limitToolOutput).not.toHaveBeenCalled();
+    expect((result.output as Record<string, unknown>).content).toBe(output.content);
+  });
+
+  it("keeps executeCommand payload lossless in canonical mode", () => {
+    const output = {
+      status: "success",
+      stdout: "x".repeat(5000),
+      stderr: "",
+      logId: "log_123",
+      exitCode: 0,
+    };
+
+    const result = normalizeToolResultOutput("executeCommand", output, undefined, {
+      mode: "canonical",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    expect(normalized.stdout).toBe(output.stdout);
+    expect(normalized.logId).toBe("log_123");
+    expect(normalized.truncatedContentId).toBeUndefined();
   });
 });

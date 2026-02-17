@@ -80,6 +80,8 @@ export interface TaskProgressEvent {
   progressContentOriginalTokens?: number;
   progressContentFinalTokens?: number;
   progressContentTruncatedParts?: number;
+  /** Indicates progressContent is a transport-safe projection, not canonical chat history. */
+  progressContentProjectionOnly?: boolean;
   startedAt?: string;
   timestamp: string;
 }

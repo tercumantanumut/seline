@@ -7,6 +7,7 @@
  * LOADING STRATEGY (optimized for token efficiency):
  * - alwaysLoad: true  → Core tools that must always be available:
  *   - searchTools, listAllTools: Required for discovering other tools
+ *   - compactSession: Explicit agent-controlled context compaction
  *   - describeImage: Essential for virtual try-on workflows
  * - deferLoading: true → All other tools (discovered on-demand via searchTools)
  *
@@ -83,6 +84,7 @@ import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
 import { createTranscribeTool } from "../tools/transcribe-tool";
 import { createSendMessageToChannelTool } from "../tools/channel-tools";
 import { createDelegateToSubagentTool } from "../tools/delegate-to-subagent-tool";
+import { createCompactSessionTool } from "../tools/compact-session-tool";
 
 /**
  * Register all tools with the registry
@@ -157,6 +159,32 @@ export function registerAllTools(): void {
     () =>
       createRetrieveFullContentTool({
         sessionId: "UNSCOPED",
+      })
+  );
+
+  // Compact Session - explicit, agent-controlled context compaction
+  registry.register(
+    "compactSession",
+    {
+      displayName: "Compact Session",
+      category: "utility",
+      keywords: [
+        "compact",
+        "compaction",
+        "context",
+        "context window",
+        "token budget",
+        "summarize history",
+        "free tokens",
+      ],
+      shortDescription:
+        "Run explicit session compaction to free context tokens before long workflows",
+      loading: { alwaysLoad: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createCompactSessionTool({
+        sessionId: sessionId || "UNSCOPED",
       })
   );
 
@@ -866,10 +894,16 @@ Send a task to a sub-agent in your workflow team. The sub-agent will process the
 using their specialized knowledge and tools, then return a response.
 
 Only available when you are an initiator agent in an active workflow.
-Use the agent's ID to target a specific sub-agent.
 
-If you don't know the available sub-agents, try delegating with an invalid ID — the error
-will include a list of available agents with their purposes.`,
+Recommended flow:
+1) If necessary, call \`delegateToSubagent({ action: "list" })\` to refresh available sub-agents.
+2) Choose a target from \`availableAgents\` (includes \`agentName\` and \`agentId\`), or use the workflow prompt-injected directory.
+3) Start delegation with either \`agentId\` or \`agentName\`.
+4) Observe intentionally with wait time to avoid tight polling loops: \`{ action: "observe", delegationId, waitSeconds: 30 }\` (or 60/600 as needed).
+
+Examples:
+- \`{ action: "start", agentName: "Research Analyst", task: "Summarize the API docs changes" }\`
+- \`{ action: "start", agentId: "a1b2c3", task: "Run a code quality review on auth modules" }\``,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,

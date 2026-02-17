@@ -18,6 +18,7 @@ import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
 import { createCopySkillTool } from "@/lib/ai/tools/copy-skill-tool";
+import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -26,7 +27,7 @@ import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
-import { ContextWindowManager } from "@/lib/context-window";
+import { ContextWindowManager, type ContextWindowStatus as ManagedContextWindowStatus } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
@@ -547,7 +548,7 @@ async function extractContent(
         if (toolCallId && output !== undefined) {
           const normalizedOutput = toolSummaryMode
             ? summarizeToolResult(toolName, output)
-            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+            : normalizeToolResultOutput(toolName, output, normalizedInput, { mode: "projection" }).output;
           contentParts.push({
             type: "tool-result",
             toolCallId,
@@ -665,7 +666,7 @@ async function extractContent(
         if (rawOutput !== undefined && !explicitToolResultIds.has(part.toolCallId)) {
           const normalizedOutput = toolSummaryMode
             ? summarizeToolResult(part.toolName, rawOutput)
-            : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+            : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput, { mode: "projection" }).output;
           contentParts.push({
             type: "tool-result",
             toolCallId: part.toolCallId,
@@ -678,7 +679,7 @@ async function extractContent(
         const rawOutput = part.output ?? part.result;
         const normalizedOutput = toolSummaryMode
           ? summarizeToolResult(part.toolName, rawOutput)
-          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput, { mode: "projection" }).output;
         contentParts.push({
           type: "tool-result",
           toolCallId: part.toolCallId,
@@ -718,7 +719,7 @@ async function extractContent(
         if (toolCallId && toolOutput !== undefined) {
           const normalizedOutput = toolSummaryMode
             ? summarizeToolResult(toolName, toolOutput)
-            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
+            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput, { mode: "projection" }).output;
           contentParts.push({
             type: "tool-result",
             toolCallId,
@@ -954,6 +955,20 @@ function shouldUseToolSummaries(
 ): boolean {
   const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
   return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
+}
+
+function buildContextWindowPromptBlock(status: ManagedContextWindowStatus): string {
+  const warningPct = Math.round((status.thresholds.warning / status.maxTokens) * 100);
+  const criticalPct = Math.round((status.thresholds.critical / status.maxTokens) * 100);
+  const hardPct = Math.round((status.thresholds.hardLimit / status.maxTokens) * 100);
+
+  return `\n\n[Context Window Status]
+Current: ${status.formatted.current}/${status.formatted.max} (${status.formatted.percentage})
+Thresholds: warning=${warningPct}%, critical=${criticalPct}%, hard=${hardPct}%
+
+You have access to the compactSession tool.
+Use compactSession when you judge that upcoming work will likely exhaust context (for example long multi-step operations or large tool outputs).
+Avoid repeated compaction unless additional headroom is needed.`;
 }
 
 const TOOL_HISTORY_SUMMARY_MAX_CHARS = 320;
@@ -1333,7 +1348,12 @@ function toModelToolResultOutput(
 }
 
 function summarizeToolResult(toolName: string, output: unknown): unknown {
-  const normalized = normalizeToolResultOutput(toolName, output, undefined).output as Record<string, unknown> | string | null;
+  const normalized = normalizeToolResultOutput(
+    toolName,
+    output,
+    undefined,
+    { mode: "projection" }
+  ).output as Record<string, unknown> | string | null;
 
   if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
     return normalized;
@@ -1676,7 +1696,12 @@ function recordToolResultChunk(
   }
   const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
   const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
-  const normalized = normalizeToolResultOutput(normalizedName, output, callPart.args);
+  const normalized = normalizeToolResultOutput(
+    normalizedName,
+    output,
+    callPart.args,
+    { mode: "canonical" }
+  );
   const status = normalized.status.toLowerCase();
   const isErrorStatus = status === "error" || status === "failed";
   callPart.state = isErrorStatus ? "output-error" : "output-available";
@@ -2106,6 +2131,7 @@ export async function POST(req: Request) {
                 progressContentOriginalTokens: progressLimit.originalTokens,
                 progressContentFinalTokens: progressLimit.finalTokens,
                 progressContentTruncatedParts: progressLimit.truncatedParts,
+                progressContentProjectionOnly: true,
                 startedAt: nowISO(),
               }
             );
@@ -2571,9 +2597,21 @@ export async function POST(req: Request) {
             cacheTtl: cacheConfig.defaultTtl,
           })
         : getSystemPrompt({
-            stylyApiEnabled: hasStylyApiKey(),
-            toolLoadingMode,
-          });
+          stylyApiEnabled: hasStylyApiKey(),
+          toolLoadingMode,
+        });
+    }
+
+    // Always provide live context-window thresholds/status so the model can
+    // make an explicit decision about calling compactSession.
+    const contextWindowBlock = buildContextWindowPromptBlock(contextCheck.status);
+    if (typeof systemPromptValue === "string") {
+      systemPromptValue += contextWindowBlock;
+    } else if (Array.isArray(systemPromptValue)) {
+      systemPromptValue.push({
+        role: "system" as const,
+        content: contextWindowBlock,
+      });
     }
 
     // Load and scope plugins for this chat context (agent-specific when character is selected).
@@ -2686,7 +2724,7 @@ export async function POST(req: Request) {
     const useDeferredLoading = appSettings.toolLoadingMode !== "always";
 
     // Load tools needed for this request:
-    // - Non-deferred (alwaysLoad) tools: searchTools, listAllTools, retrieveFullContent, describeImage
+    // - Non-deferred (alwaysLoad) tools: searchTools, compactSession, plus other always-load registry tools
     // - Previously discovered tools (from session metadata)
     // - If toolLoadingMode="always": all agent-enabled tools load upfront
     // - If toolLoadingMode="deferred": agent-enabled tools require discovery via searchTools
@@ -2847,6 +2885,11 @@ export async function POST(req: Request) {
       ...(allTools.copySkill && {
         copySkill: createCopySkillTool({
           userId: dbUser.id,
+        }),
+      }),
+      ...(allTools.compactSession && {
+        compactSession: createCompactSessionTool({
+          sessionId,
         }),
       }),
     };
@@ -3293,7 +3336,12 @@ export async function POST(req: Request) {
                 for (const res of step.toolResults) {
                   const meta = toolCallMetadata.get(res.toolCallId);
                   const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
-                  const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
+                  const normalized = normalizeToolResultOutput(
+                    toolName,
+                    res.output,
+                    meta?.input,
+                    { mode: "canonical" }
+                  );
                   const status = normalized.status.toLowerCase();
                   const state =
                     status === "error" || status === "failed"
@@ -3617,7 +3665,12 @@ export async function POST(req: Request) {
                     seenPartialToolResults.add(res.toolCallId);
                     const meta = toolCallMetadata.get(res.toolCallId);
                     const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
-                    const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
+                    const normalized = normalizeToolResultOutput(
+                      toolName,
+                      res.output,
+                      meta?.input,
+                      { mode: "canonical" }
+                    );
                     const status = normalized.status.toLowerCase();
                     const state =
                       status === "error" || status === "failed"

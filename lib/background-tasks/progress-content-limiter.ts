@@ -170,7 +170,8 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
 
   console.warn(
     `[ProgressLimiter] Content exceeds limit: ~${originalTokens.toLocaleString()} tokens ` +
-    `(limit: ${MAX_PROGRESS_CONTENT_TOKENS.toLocaleString()}). Truncating tool-result parts.`
+    `(limit: ${MAX_PROGRESS_CONTENT_TOKENS.toLocaleString()}). ` +
+    `Truncating tool-result parts for progress projection only (canonical history is unchanged).`
   );
 
   // Pass 1: Truncate individual oversized tool-result parts
