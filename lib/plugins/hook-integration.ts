@@ -12,12 +12,12 @@
 import {
   dispatchHook,
   getRegisteredHooks,
-  type HookDispatchResult,
 } from "./hooks-engine";
 import type {
   PreToolUseHookInput,
   PostToolUseHookInput,
   PostToolUseFailureHookInput,
+  StopHookInput,
 } from "./types";
 
 /**
@@ -28,7 +28,8 @@ export async function runPreToolUseHooks(
   toolName: string,
   toolInput: Record<string, unknown>,
   sessionId?: string,
-  allowedPluginNames?: Set<string>
+  allowedPluginNames?: Set<string>,
+  pluginRoots?: Map<string, string>
 ): Promise<{ blocked: boolean; blockReason?: string; durationMs: number }> {
   const sources = getRegisteredHooks("PreToolUse");
   if (sources.length === 0) {
@@ -46,6 +47,7 @@ export async function runPreToolUseHooks(
     const result = await dispatchHook("PreToolUse", input, {
       toolName,
       allowedPluginNames,
+      pluginRoots,
     });
     return {
       blocked: result.blocked,
@@ -68,7 +70,8 @@ export function runPostToolUseHooks(
   toolInput: Record<string, unknown>,
   toolOutput: unknown,
   sessionId?: string,
-  allowedPluginNames?: Set<string>
+  allowedPluginNames?: Set<string>,
+  pluginRoots?: Map<string, string>
 ): void {
   const sources = getRegisteredHooks("PostToolUse");
   if (sources.length === 0) return;
@@ -82,7 +85,7 @@ export function runPostToolUseHooks(
   };
 
   // Fire-and-forget
-  dispatchHook("PostToolUse", input, { toolName, allowedPluginNames }).catch((error) => {
+  dispatchHook("PostToolUse", input, { toolName, allowedPluginNames, pluginRoots }).catch((error) => {
     console.error("[Hooks] PostToolUse dispatch error:", error);
   });
 }
@@ -96,7 +99,8 @@ export function runPostToolUseFailureHooks(
   toolInput: Record<string, unknown>,
   error: string,
   sessionId?: string,
-  allowedPluginNames?: Set<string>
+  allowedPluginNames?: Set<string>,
+  pluginRoots?: Map<string, string>
 ): void {
   const sources = getRegisteredHooks("PostToolUseFailure");
   if (sources.length === 0) return;
@@ -113,7 +117,32 @@ export function runPostToolUseFailureHooks(
   dispatchHook("PostToolUseFailure", input, {
     toolName,
     allowedPluginNames,
+    pluginRoots,
   }).catch((err) => {
     console.error("[Hooks] PostToolUseFailure dispatch error:", err);
+  });
+}
+
+/**
+ * Run Stop hooks when the model finishes/aborts/fails a response.
+ * Fire-and-forget — does not block the response pipeline.
+ */
+export function runStopHooks(
+  sessionId?: string,
+  stopReason?: string,
+  allowedPluginNames?: Set<string>,
+  pluginRoots?: Map<string, string>
+): void {
+  const sources = getRegisteredHooks("Stop");
+  if (sources.length === 0) return;
+
+  const input: StopHookInput = {
+    hook_type: "Stop",
+    session_id: sessionId,
+    stop_reason: stopReason,
+  };
+
+  dispatchHook("Stop", input, { allowedPluginNames, pluginRoots }).catch((error) => {
+    console.error("[Hooks] Stop dispatch error:", error);
   });
 }

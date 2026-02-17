@@ -1,4 +1,5 @@
 import { tool, jsonSchema } from "ai";
+import path from "path";
 import { db } from "@/lib/db/sqlite-client";
 import { scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
@@ -96,6 +97,15 @@ function renderPluginSkillTemplate(
     missingParameters: Array.from(missing),
     resolvedParameters,
   };
+}
+
+function injectPluginRoot(
+  renderedPrompt: string,
+  pluginCachePath?: string
+): string {
+  if (!pluginCachePath) return renderedPrompt;
+  const pluginRoot = path.resolve(pluginCachePath);
+  return renderedPrompt.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot);
 }
 
 function normalizeAction(input: RunSkillInput): RunSkillAction {
@@ -232,7 +242,16 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
                 resolvedParameters: dbRender.resolvedParameters,
               };
             })()
-          : renderPluginSkillTemplate(runtimeSkill.content, parameters);
+          : (() => {
+              const pluginRender = renderPluginSkillTemplate(runtimeSkill.content, parameters);
+              return {
+                ...pluginRender,
+                renderedPrompt: injectPluginRoot(
+                  pluginRender.renderedPrompt,
+                  runtimeSkill.pluginCachePath
+                ),
+              };
+            })();
 
       if (renderResult.missingParameters.length > 0) {
         return {

@@ -6,6 +6,8 @@
  */
 
 import { and, eq, desc, or, isNull } from "drizzle-orm";
+import { mkdir, writeFile, chmod } from "fs/promises";
+import path from "path";
 import { db } from "@/lib/db/sqlite-client";
 import {
   plugins,
@@ -50,6 +52,43 @@ export interface InstallPluginInput {
   cachePath?: string;
 }
 
+function getPluginCacheBaseDir(): string {
+  if (process.env.LOCAL_DATA_PATH) {
+    return path.join(process.env.LOCAL_DATA_PATH, "plugins");
+  }
+  return path.join(process.cwd(), ".local-data", "plugins");
+}
+
+async function persistPluginFilesToCache(
+  pluginId: string,
+  files: PluginParseResult["files"],
+  requestedCachePath?: string
+): Promise<string> {
+  const cacheRoot = requestedCachePath || path.join(getPluginCacheBaseDir(), pluginId);
+  const normalizedRoot = path.resolve(cacheRoot);
+  await mkdir(normalizedRoot, { recursive: true });
+
+  for (const file of files) {
+    const targetPath = path.resolve(normalizedRoot, file.relativePath);
+    if (targetPath !== normalizedRoot && !targetPath.startsWith(`${normalizedRoot}${path.sep}`)) {
+      throw new Error(`Refusing to write plugin file outside cache root: ${file.relativePath}`);
+    }
+
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, file.content);
+
+    if (file.isExecutable) {
+      try {
+        await chmod(targetPath, 0o755);
+      } catch {
+        // Non-fatal on platforms/filesystems that don't support chmod.
+      }
+    }
+  }
+
+  return normalizedRoot;
+}
+
 /**
  * Install a plugin from a parsed plugin package.
  * Inserts the plugin record, hooks, MCP servers, LSP servers, and files.
@@ -82,9 +121,26 @@ export async function installPlugin(input: InstallPluginInput): Promise<Installe
       components: components as unknown as Record<string, unknown>,
       userId,
       characterId: characterId || null,
-      cachePath: cachePath || null,
+      cachePath: null,
     })
     .returning();
+
+  let resolvedCachePath: string | null = null;
+  if (parsed.files.length > 0) {
+    try {
+      resolvedCachePath = await persistPluginFilesToCache(pluginRow.id, parsed.files, cachePath);
+      await db
+        .update(plugins)
+        .set({ cachePath: resolvedCachePath })
+        .where(eq(plugins.id, pluginRow.id));
+    } catch (error) {
+      console.warn(
+        `[Plugin Registry] Failed to persist plugin files for ${manifest.name}:`,
+        error
+      );
+      resolvedCachePath = null;
+    }
+  }
 
   // Insert hooks into DB
   if (components.hooks?.hooks) {
@@ -167,7 +223,10 @@ export async function installPlugin(input: InstallPluginInput): Promise<Installe
     await seedPluginSkillRevisions(pluginRow.id, components.skills);
   }
 
-  return mapInstalledPlugin(pluginRow);
+  return mapInstalledPlugin({
+    ...pluginRow,
+    cachePath: resolvedCachePath,
+  });
 }
 
 // =============================================================================
@@ -360,6 +419,7 @@ export async function getAvailablePluginsForAgent(
       updatedAt: plugins.updatedAt,
       lastError: plugins.lastError,
       characterId: plugins.characterId,
+      cachePath: plugins.cachePath,
       assignmentEnabled: agentPlugins.enabled,
     })
     .from(plugins)
@@ -391,7 +451,7 @@ export async function getAvailablePluginsForAgent(
       components: row.components,
       userId,
       characterId: row.characterId,
-      cachePath: null,
+      cachePath: row.cachePath,
       lastError: row.lastError,
       installedAt: row.installedAt,
       updatedAt: row.updatedAt,
@@ -516,6 +576,7 @@ function mapInstalledPlugin(row: Plugin): InstalledPlugin {
     installedAt: row.installedAt,
     updatedAt: row.updatedAt,
     lastError: row.lastError || undefined,
+    cachePath: row.cachePath || undefined,
   };
 }
 

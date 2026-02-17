@@ -283,6 +283,9 @@ export interface InstalledPlugin {
 
   /** Last error message (if status is "error"). */
   lastError?: string;
+
+  /** Optional plugin cache path on disk (if persisted). */
+  cachePath?: string;
 }
 
 /** Components discovered from a plugin directory/zip. */

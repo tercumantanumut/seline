@@ -124,5 +124,25 @@ describe("execute-command-tool normalization", () => {
     const call = commandExecutionMocks.executeCommandWithValidation.mock.calls[0]?.[0];
     expect(call.args[1]).toContain("from math import sin;print(sin(0))");
   });
-});
 
+  it("resolves ${CLAUDE_PLUGIN_ROOT} command placeholders from local plugin folders", async () => {
+    const tool = createExecuteCommandTool({
+      sessionId: "sess-1",
+      characterId: "char-1",
+    });
+
+    await tool.execute(
+      {
+        command: "${CLAUDE_PLUGIN_ROOT}/scripts/setup-ralph-loop.sh",
+      },
+      createToolContext()
+    );
+
+    expect(commandExecutionMocks.executeCommandWithValidation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: expect.stringContaining("test_plugins/ralph-loop/scripts/setup-ralph-loop.sh"),
+      }),
+      ["C:\\workspace"]
+    );
+  });
+});

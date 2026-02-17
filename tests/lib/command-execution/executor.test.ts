@@ -301,18 +301,18 @@ describe("Background process management", () => {
 
 describe("Command validation in executor", () => {
     it("should block dangerous commands", async () => {
-        const result = await executeCommand({
-            command: "rm",
-            args: ["-rf", "/"],
-            cwd: process.cwd(),
-            characterId: "test",
-        });
+      const result = await executeCommand({
+        command: "rm",
+        args: ["-rf", "/"],
+        cwd: process.cwd(),
+        characterId: "test",
+      });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toContain("blocked");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("requires explicit confirmation");
     });
 
-    it("should block commands with shell injection characters", async () => {
+    it("should not fail validation just because command contains shell characters", async () => {
         const result = await executeCommand({
             command: "echo; rm -rf /",
             args: [],
@@ -321,7 +321,7 @@ describe("Command validation in executor", () => {
         });
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain("dangerous");
+        expect(result.error).not.toContain("potentially dangerous characters");
     });
 
     it("should allow safe commands", async () => {

@@ -65,11 +65,11 @@ import {
 import { nextOrderingIndex, allocateOrderingIndices } from "@/lib/session/message-ordering";
 import fs from "fs/promises";
 import path from "path";
-import { runPreToolUseHooks, runPostToolUseHooks, runPostToolUseFailureHooks } from "@/lib/plugins/hook-integration";
+import { runPreToolUseHooks, runPostToolUseHooks, runPostToolUseFailureHooks, runStopHooks } from "@/lib/plugins/hook-integration";
 import {
   getEnabledPluginsForAgent,
   getInstalledPlugins,
-  loadActivePluginHooks,
+  loadPluginHooks,
 } from "@/lib/plugins/registry";
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
 import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
@@ -185,6 +185,31 @@ function getDiscoveredToolsFromMetadata(
   if (!discovered?.toolNames) return new Set();
 
   return new Set(discovered.toolNames);
+}
+
+async function resolvePluginRootMap(
+  plugins: Array<{ name: string; cachePath?: string }>
+): Promise<Map<string, string>> {
+  const roots = new Map<string, string>();
+
+  for (const plugin of plugins) {
+    const candidates = [
+      plugin.cachePath,
+      path.join(process.cwd(), "test_plugins", plugin.name),
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        roots.set(plugin.name, candidate);
+        break;
+      } catch {
+        // Try next candidate.
+      }
+    }
+  }
+
+  return roots;
 }
 
 // Initialize tool event handler for observability (once per runtime)
@@ -1810,16 +1835,6 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
-    // Load plugin hooks into in-memory registry (idempotent at runtime)
-    try {
-      const hookCount = await loadActivePluginHooks(dbUser.id);
-      if (hookCount > 0) {
-        console.log(`[CHAT API] Loaded hooks from ${hookCount} active plugin(s)`);
-      }
-    } catch (pluginHookError) {
-      console.warn("[CHAT API] Failed to load plugin hooks (non-fatal):", pluginHookError);
-    }
-
     const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
 
     // Skip LLM provider token pre-checks for internal auth requests (scheduled tasks,
@@ -2649,6 +2664,20 @@ export async function POST(req: Request) {
       }
     }
 
+    // Load hooks for the currently scoped plugins only.
+    // This prevents cross-agent leakage from unrelated active plugins.
+    try {
+      const hookCount = loadPluginHooks(scopedPlugins);
+      if (hookCount > 0) {
+        console.log(`[CHAT API] Loaded hooks from ${hookCount} scoped plugin(s)`);
+      }
+    } catch (pluginHookError) {
+      console.warn("[CHAT API] Failed to load scoped plugin hooks (non-fatal):", pluginHookError);
+    }
+
+    // Resolve plugin roots for ${CLAUDE_PLUGIN_ROOT} substitution in hook commands.
+    const pluginRoots = await resolvePluginRootMap(scopedPlugins);
+
     // Keep skills guidance minimal to avoid prompt bloat.
     // Runtime discovery and execution happen through runSkill/updateSkill actions.
     const runtimeSkillsHint =
@@ -2951,9 +2980,10 @@ export async function POST(req: Request) {
     const hasPreHooks = getRegisteredHooks("PreToolUse").length > 0;
     const hasPostHooks = getRegisteredHooks("PostToolUse").length > 0;
     const hasFailureHooks = getRegisteredHooks("PostToolUseFailure").length > 0;
+    const hasStopHooks = getRegisteredHooks("Stop").length > 0;
+    const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
 
     if (hasPreHooks || hasPostHooks || hasFailureHooks) {
-      const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
       const wrappedTools: Record<string, Tool> = {};
       for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
         if (!originalTool.execute) {
@@ -2970,7 +3000,8 @@ export async function POST(req: Request) {
                 toolId,
                 (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
                 sessionId,
-                allowedPluginNames
+                allowedPluginNames,
+                pluginRoots
               );
               if (hookResult.blocked) {
                 console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
@@ -2988,7 +3019,8 @@ export async function POST(req: Request) {
                   (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
                   result,
                   sessionId,
-                  allowedPluginNames
+                  allowedPluginNames,
+                  pluginRoots
                 );
               }
 
@@ -3001,7 +3033,8 @@ export async function POST(req: Request) {
                   (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
                   error instanceof Error ? error.message : String(error),
                   sessionId,
-                  allowedPluginNames
+                  allowedPluginNames,
+                  pluginRoots
                 );
               }
               throw error;
@@ -3115,6 +3148,14 @@ export async function POST(req: Request) {
         } catch (failureError) {
           console.error("[CHAT API] Failed to finalize agent run after stream error:", failureError);
         }
+      }
+      if (hasStopHooks) {
+        runStopHooks(
+          sessionId,
+          options?.streamAborted ? "aborted" : "error",
+          allowedPluginNames,
+          pluginRoots
+        );
       }
     };
     const runId = agentRun?.id;
@@ -3245,6 +3286,9 @@ export async function POST(req: Request) {
         onFinish: async ({ text, steps, usage, providerMetadata }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (hasStopHooks) {
+            runStopHooks(sessionId, "completed", allowedPluginNames, pluginRoots);
+          }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
           }
@@ -3581,6 +3625,9 @@ export async function POST(req: Request) {
         onAbort: async ({ steps }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (hasStopHooks) {
+            runStopHooks(sessionId, "aborted", allowedPluginNames, pluginRoots);
+          }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
           }

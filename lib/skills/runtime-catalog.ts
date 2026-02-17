@@ -30,6 +30,7 @@ export interface RuntimePluginSkill extends RuntimeSkillBase {
   pluginId: string;
   pluginName: string;
   pluginVersion: string;
+  pluginCachePath?: string;
   namespacedName: string;
   pluginSkill: PluginSkillEntry;
   content: string;
@@ -149,6 +150,7 @@ function mapPluginSkill(input: {
     pluginId: plugin.id,
     pluginName: plugin.name,
     pluginVersion: plugin.version,
+    pluginCachePath: plugin.cachePath,
     namespacedName: skill.namespacedName,
     pluginSkill: skill,
     content,

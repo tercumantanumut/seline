@@ -201,12 +201,12 @@ export async function startBackgroundProcess(
     processId: string;
     error?: string;
 }> {
-    const { command, args, cwd, characterId } = options;
+    const { command, args, cwd, characterId, confirmRemoval } = options;
     const timeout = options.timeout ?? BACKGROUND_TIMEOUT;
     const maxOutputSize = options.maxOutputSize ?? MAX_BACKGROUND_OUTPUT;
 
     // Validate command
-    const cmdValidation = validateCommand(command, args);
+    const cmdValidation = validateCommand(command, args, { confirmRemoval });
     if (!cmdValidation.valid) {
         return { processId: "", error: cmdValidation.error };
     }
@@ -387,6 +387,7 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         args,
         cwd,
         characterId,
+        confirmRemoval,
         maxOutputSize = DEFAULT_MAX_OUTPUT_SIZE,
     } = options;
 
@@ -398,7 +399,7 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
     commandLogger.logExecutionStart(command, args, cwd, context);
 
     // Validate command
-    const cmdValidation = validateCommand(command, args);
+    const cmdValidation = validateCommand(command, args, { confirmRemoval });
     commandLogger.logValidation(cmdValidation.valid, command, cmdValidation.error, { characterId, cwd });
 
     if (!cmdValidation.valid) {

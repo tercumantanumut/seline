@@ -57,6 +57,7 @@ export {
   runPreToolUseHooks,
   runPostToolUseHooks,
   runPostToolUseFailureHooks,
+  runStopHooks,
 } from "./hook-integration";
 
 // MCP integration
