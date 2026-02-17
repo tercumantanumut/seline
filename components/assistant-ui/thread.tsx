@@ -98,6 +98,104 @@ interface ThreadProps {
   isZombieBackgroundRun?: boolean;
 }
 
+interface DroppedImportFile {
+  file: File;
+  relativePath: string;
+}
+
+type WebkitDataTransferItem = DataTransferItem & {
+  webkitGetAsEntry?: () => FileSystemEntry | null;
+};
+
+function readEntryFile(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readDirectoryBatch(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    reader.readEntries(resolve, reject);
+  });
+}
+
+async function collectDroppedImportFiles(event: React.DragEvent): Promise<DroppedImportFile[]> {
+  const dataTransferItems = Array.from(event.dataTransfer.items || []) as WebkitDataTransferItem[];
+  const entries = dataTransferItems
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter((entry): entry is FileSystemEntry => entry !== null);
+
+  if (entries.length === 0) {
+    return Array.from(event.dataTransfer.files).map((file) => ({
+      file,
+      relativePath: file.name,
+    }));
+  }
+
+  const droppedFiles: DroppedImportFile[] = [];
+
+  const walkEntry = async (entry: FileSystemEntry, prefix = ""): Promise<void> => {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await readEntryFile(fileEntry);
+      droppedFiles.push({
+        file,
+        relativePath: `${prefix}${entry.name}`,
+      });
+      return;
+    }
+
+    const directoryEntry = entry as FileSystemDirectoryEntry;
+    const reader = directoryEntry.createReader();
+
+    while (true) {
+      const batch = await readDirectoryBatch(reader);
+      if (batch.length === 0) break;
+      for (const child of batch) {
+        await walkEntry(child, `${prefix}${entry.name}/`);
+      }
+    }
+  };
+
+  for (const entry of entries) {
+    await walkEntry(entry);
+  }
+
+  if (droppedFiles.length > 0) {
+    return droppedFiles;
+  }
+
+  return Array.from(event.dataTransfer.files).map((file) => ({
+    file,
+    relativePath: file.name,
+  }));
+}
+
+function isDirectPluginFile(relativePath: string): boolean {
+  const lower = relativePath.toLowerCase();
+  return lower.endsWith(".zip") || lower.endsWith(".md") || lower.endsWith(".mds");
+}
+
+function isPluginStructureFile(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized.includes("/.claude-plugin/plugin.json") ||
+    normalized.endsWith(".claude-plugin/plugin.json") ||
+    normalized.includes("/commands/") ||
+    normalized.startsWith("commands/") ||
+    normalized.includes("/skills/") ||
+    normalized.startsWith("skills/") ||
+    normalized.includes("/agents/") ||
+    normalized.startsWith("agents/") ||
+    normalized.includes("/hooks/") ||
+    normalized.startsWith("hooks/") ||
+    normalized.endsWith("/.mcp.json") ||
+    normalized.endsWith(".mcp.json") ||
+    normalized.endsWith("/.lsp.json") ||
+    normalized.endsWith(".lsp.json")
+  );
+}
+
 export const Thread: FC<ThreadProps> = ({
   onSessionActivity,
   footer,
@@ -169,136 +267,54 @@ export const Thread: FC<ThreadProps> = ({
         return;
       }
 
-      const files = Array.from(e.dataTransfer.files);
+      const droppedItems = await collectDroppedImportFiles(e);
 
-      // ── Skill files (.zip / .md) ──────────────────────────────────
-      const skillFiles = files.filter(
-        (f) => f.name.endsWith(".zip") || f.name.endsWith(".md")
+      // ── Skill/plugin files (.zip / .md / .mds / folder structures) ───────
+      const pluginItems = droppedItems.filter(
+        ({ relativePath }) => isDirectPluginFile(relativePath) || isPluginStructureFile(relativePath)
       );
 
-      if (skillFiles.length > 0) {
-        const skillFile = skillFiles[0];
-
+      if (pluginItems.length > 0) {
         if (!character?.id || character.id === "default") {
           toast.error("Please select an agent before importing skills");
           return;
         }
 
         const MAX_SKILL_SIZE = 50 * 1024 * 1024;
-        if (skillFile.size > MAX_SKILL_SIZE) {
+        const oversized = pluginItems.find(({ file }) => file.size > MAX_SKILL_SIZE);
+        if (oversized) {
           toast.error("Skill file exceeds 50MB limit", {
-            description: `File size: ${Math.round(skillFile.size / 1024 / 1024)}MB`,
+            description: `File size: ${Math.round(oversized.file.size / 1024 / 1024)}MB (${oversized.relativePath})`,
           });
           return;
         }
 
-        // Set initial state — React 18 batches these, but the first
-        // await below forces a render so the overlay appears immediately.
         setIsImportingSkill(true);
         setSkillImportPhase("uploading");
         setSkillImportProgress(10);
-        setSkillImportName(skillFile.name);
+        setSkillImportName(pluginItems[0].relativePath);
         setSkillImportError(null);
         setImportResultDetail(null);
 
-        // Yield to the event loop so React flushes the "uploading" overlay
-        // before we start the network request.
         await new Promise((r) => setTimeout(r, 0));
 
-        // Detect if this is a plugin zip (try plugin import first for .zip files)
-        const isZip = skillFile.name.endsWith(".zip");
-
         try {
-          if (isZip) {
-            // Try plugin import first
-            const formData = new FormData();
-            formData.append("file", skillFile);
-            formData.append("characterId", character.id);
-
-            setSkillImportPhase("parsing");
-            setSkillImportProgress(30);
-
-            const pluginResponse = await fetch("/api/plugins/import", {
-              method: "POST",
-              body: formData,
-            });
-
-            setSkillImportPhase("importing");
-            setSkillImportProgress(70);
-
-            if (pluginResponse.ok) {
-              const pluginResult = await pluginResponse.json();
-
-              // Build detail string for the overlay
-              const parts: string[] = [];
-              if (pluginResult.components?.skills?.length > 0) {
-                parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
-              }
-              if (pluginResult.components?.agents?.length > 0) {
-                parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
-              }
-              if (pluginResult.components?.hasHooks) {
-                parts.push("hooks enabled");
-              }
-              if (pluginResult.components?.mcpServers?.length > 0) {
-                parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
-              }
-
-              setSkillImportPhase("success");
-              setSkillImportProgress(100);
-              setSkillImportName(pluginResult.plugin?.name || skillFile.name);
-              setImportResultDetail(parts.length > 0 ? parts.join(", ") : null);
-
-              const isLegacy = pluginResult.isLegacySkillFormat;
-              toast.success(
-                isLegacy ? "Skill imported successfully" : "Plugin installed",
-                {
-                  description: isLegacy
-                    ? `${pluginResult.plugin?.name} is ready to use`
-                    : `${pluginResult.plugin?.name} (${parts.join(", ")})`,
-                  action: isLegacy
-                    ? {
-                        label: "View Skills",
-                        onClick: () => router.push(`/agents/${character.id}/skills`),
-                      }
-                    : {
-                        label: "View Plugins",
-                        onClick: () => router.push("/settings?section=plugins"),
-                      },
-                }
-              );
-
-              // Show warnings if any
-              if (pluginResult.warnings?.length > 0) {
-                for (const warning of pluginResult.warnings.slice(0, 3)) {
-                  toast.warning(warning);
-                }
-              }
-
-              // Auto-dismiss after 3 seconds
-              setTimeout(() => {
-                setIsImportingSkill(false);
-                setSkillImportPhase("idle");
-                setSkillImportProgress(0);
-                setSkillImportName(null);
-                setImportResultDetail(null);
-              }, 3000);
-              return;
-            }
-
-            // Plugin import failed — fall back to legacy skill import
-            console.log("[Thread] Plugin import failed, falling back to skill import");
-          }
-
-          // Legacy skill import path (.md files or .zip that failed plugin parse)
           const formData = new FormData();
-          formData.append("file", skillFile);
           formData.append("characterId", character.id);
+
+          if (pluginItems.length === 1 && isDirectPluginFile(pluginItems[0].relativePath)) {
+            const single = pluginItems[0];
+            formData.append("file", single.file, single.relativePath);
+          } else {
+            for (const item of pluginItems) {
+              formData.append("files", item.file, item.relativePath);
+            }
+          }
 
           setSkillImportPhase("parsing");
           setSkillImportProgress(30);
 
-          const response = await fetch("/api/skills/import", {
+          const pluginResponse = await fetch("/api/plugins/import", {
             method: "POST",
             body: formData,
           });
@@ -306,32 +322,61 @@ export const Thread: FC<ThreadProps> = ({
           setSkillImportPhase("importing");
           setSkillImportProgress(70);
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Import failed");
+          if (!pluginResponse.ok) {
+            const pluginError = await pluginResponse.json().catch(() => null);
+            throw new Error(pluginError?.error || "Import failed");
           }
 
-          const result = await response.json();
+          const pluginResult = await pluginResponse.json();
+
+          const parts: string[] = [];
+          if (pluginResult.components?.skills?.length > 0) {
+            parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
+          }
+          if (pluginResult.components?.agents?.length > 0) {
+            parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
+          }
+          if (pluginResult.components?.hasHooks) {
+            parts.push("hooks enabled");
+          }
+          if (pluginResult.components?.mcpServers?.length > 0) {
+            parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
+          }
 
           setSkillImportPhase("success");
           setSkillImportProgress(100);
-          setSkillImportName(result.skillName || skillFile.name);
+          setSkillImportName(pluginResult.plugin?.name || pluginItems[0].relativePath);
+          setImportResultDetail(parts.length > 0 ? parts.join(", ") : null);
 
-          toast.success("Skill imported successfully", {
-            description: `${result.skillName} is ready to use`,
-            action: {
-              label: "View Skills",
-              onClick: () => router.push(`/agents/${character.id}/skills`),
-            },
+          const isLegacy = pluginResult.isLegacySkillFormat;
+          toast.success(isLegacy ? "Skill imported successfully" : "Plugin installed", {
+            description: isLegacy
+              ? `${pluginResult.plugin?.name} is ready to use`
+              : `${pluginResult.plugin?.name} (${parts.join(", ")})`,
+            action: isLegacy
+              ? {
+                  label: "View Skills",
+                  onClick: () => router.push(`/agents/${character.id}/skills`),
+                }
+              : {
+                  label: "View Plugins",
+                  onClick: () => router.push("/settings?section=plugins"),
+                },
           });
 
-          // Auto-dismiss after 2.5 seconds
+          if (pluginResult.warnings?.length > 0) {
+            for (const warning of pluginResult.warnings.slice(0, 3)) {
+              toast.warning(warning);
+            }
+          }
+
           setTimeout(() => {
             setIsImportingSkill(false);
             setSkillImportPhase("idle");
             setSkillImportProgress(0);
             setSkillImportName(null);
-          }, 2500);
+            setImportResultDetail(null);
+          }, 3000);
         } catch (error) {
           console.error("[Thread] Skill/plugin import failed:", error);
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -341,7 +386,6 @@ export const Thread: FC<ThreadProps> = ({
             description: errorMsg,
           });
 
-          // Auto-dismiss error after 4 seconds
           setTimeout(() => {
             setIsImportingSkill(false);
             setSkillImportPhase("idle");
@@ -353,6 +397,8 @@ export const Thread: FC<ThreadProps> = ({
         }
         return;
       }
+
+      const files = droppedItems.map(({ file }) => file);
 
       // ── Image attachments ─────────────────────────────────────────
       const imageFiles = files.filter((f) => f.type.startsWith("image/"));

@@ -41,6 +41,267 @@ const EXECUTABLE_EXTENSIONS = [".py", ".js", ".sh", ".bash", ".zsh", ".ts"];
 const BLOCKED_EXTENSIONS = [".exe", ".dll", ".so", ".dylib", ".app", ".bat", ".cmd"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
 
+export interface ParsePluginPackageOptions {
+  /**
+   * When true (default), fills missing required manifest fields with safe defaults
+   * and emits warnings instead of hard-failing imports.
+   */
+  normalizeManifest?: boolean;
+  /** Optional source label for diagnostics and fallback name generation. */
+  sourceLabel?: string;
+}
+
+export interface UploadedPluginFile {
+  relativePath: string;
+  content: Buffer;
+}
+
+const DEFAULT_PARSE_OPTIONS: Required<ParsePluginPackageOptions> = {
+  normalizeManifest: true,
+  sourceLabel: "uploaded-plugin",
+};
+
+function sanitizePluginName(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "imported-plugin";
+}
+
+function normalizeRelativePath(inputPath: string): string {
+  return inputPath
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "/")
+    .replace(/^\.\//, "");
+}
+
+function isPathSafe(relativePath: string): boolean {
+  return !relativePath.includes("../") && !relativePath.startsWith("/");
+}
+
+function createSyntheticManifest(nameHint: string, descriptionHint?: string): PluginManifest {
+  const safeName = sanitizePluginName(nameHint);
+  return {
+    name: safeName,
+    description: descriptionHint || `${safeName} plugin package`,
+    version: "1.0.0",
+  };
+}
+
+function pickFirstZipEntry(zip: JSZip, predicate: (name: string) => boolean): JSZip.JSZipObject | undefined {
+  const candidates = (Object.values(zip.files) as JSZip.JSZipObject[])
+    .filter((f) => !f.dir && predicate(f.name))
+    .sort((a, b) => a.name.split("/").length - b.name.split("/").length);
+  return candidates[0];
+}
+
+function normalizeManifest(
+  manifestJson: unknown,
+  warnings: string[],
+  options: Required<ParsePluginPackageOptions>
+): unknown {
+  if (!options.normalizeManifest || typeof manifestJson !== "object" || manifestJson === null) {
+    return manifestJson;
+  }
+
+  const manifest = { ...(manifestJson as Record<string, unknown>) };
+
+  const currentName = typeof manifest.name === "string" ? manifest.name : undefined;
+  if (!currentName || !currentName.trim()) {
+    manifest.name = sanitizePluginName(options.sourceLabel);
+    warnings.push("Manifest missing 'name'; defaulted from package source.");
+  } else {
+    const safeName = sanitizePluginName(currentName);
+    if (safeName !== currentName) {
+      manifest.name = safeName;
+      warnings.push(`Manifest name normalized to kebab-case: ${safeName}`);
+    }
+  }
+
+  if (typeof manifest.description !== "string" || !manifest.description.trim()) {
+    manifest.description = `${String(manifest.name)} plugin package`;
+    warnings.push("Manifest missing 'description'; generated a default description.");
+  }
+
+  if (typeof manifest.version !== "string" || !manifest.version.trim()) {
+    manifest.version = "1.0.0";
+    warnings.push("Manifest missing 'version'; defaulted to 1.0.0.");
+  }
+
+  return manifest;
+}
+
+async function buildZipFromUploadedFiles(files: UploadedPluginFile[]): Promise<Buffer> {
+  const zip = new JSZip();
+  for (const file of files) {
+    const normalized = normalizeRelativePath(file.relativePath);
+    if (!normalized || !isPathSafe(normalized)) {
+      continue;
+    }
+    zip.file(normalized, file.content);
+  }
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
+export async function parsePluginFromFiles(
+  files: UploadedPluginFile[],
+  options: ParsePluginPackageOptions = {}
+): Promise<PluginParseResult> {
+  if (files.length === 0) {
+    throw new Error("No files provided for plugin import");
+  }
+
+  const zipBuffer = await buildZipFromUploadedFiles(files);
+  return parsePluginPackage(zipBuffer, options);
+}
+
+export async function parsePluginFromMarkdown(
+  markdownBuffer: Buffer,
+  filename: string,
+  options: ParsePluginPackageOptions = {}
+): Promise<PluginParseResult> {
+  const zip = new JSZip();
+  zip.file("SKILL.md", markdownBuffer);
+  const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+  return parsePluginPackage(zipBuffer, {
+    ...options,
+    sourceLabel: filename.replace(/\.(md|mds)$/i, ""),
+  });
+}
+
+function inferManifestlessRootPrefix(files: PluginFileEntry[]): string {
+  const candidates = new Map<string, number>();
+
+  for (const file of files) {
+    const normalized = file.relativePath.replace(/\\/g, "/");
+    const lower = normalized.toLowerCase();
+
+    const componentMatch = lower.match(/^(.*?)(commands|skills|agents|hooks)\//);
+    if (componentMatch) {
+      const prefix = normalized.slice(0, componentMatch[1].length);
+      candidates.set(prefix, (candidates.get(prefix) || 0) + 1);
+    }
+
+    const rootConfigMatch = lower.match(/^(.*?)(\.mcp\.json|\.lsp\.json)$/);
+    if (rootConfigMatch) {
+      const prefix = normalized.slice(0, rootConfigMatch[1].length);
+      candidates.set(prefix, (candidates.get(prefix) || 0) + 1);
+    }
+  }
+
+  if (candidates.size === 0) {
+    return "";
+  }
+
+  const sorted = Array.from(candidates.entries()).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].length - b[0].length;
+  });
+
+  return sorted[0][0];
+}
+
+function maybeParseManifestlessPlugin(
+  files: PluginFileEntry[],
+  sourceLabel: string,
+  warnings: string[]
+): PluginParseResult | null {
+  const inferredRootPrefix = inferManifestlessRootPrefix(files);
+  const normalizedFiles = files.map((file) => {
+    if (!inferredRootPrefix || !file.relativePath.startsWith(inferredRootPrefix)) {
+      return file;
+    }
+
+    return {
+      ...file,
+      relativePath: file.relativePath.slice(inferredRootPrefix.length),
+    };
+  });
+
+  const hasPluginLikeContent = normalizedFiles.some((file) => {
+    const lower = file.relativePath.toLowerCase();
+
+    if (lower === ".mcp.json" || lower === ".lsp.json" || lower === "hooks/hooks.json") {
+      return true;
+    }
+
+    if (!lower.endsWith(".md") && !lower.endsWith(".mds")) return false;
+    return lower.startsWith("commands/") || lower.startsWith("skills/") || lower.startsWith("agents/");
+  });
+
+  if (!hasPluginLikeContent) {
+    return null;
+  }
+
+  const manifest = createSyntheticManifest(sourceLabel);
+  const components = {
+    skills: discoverSkills(normalizedFiles, manifest),
+    agents: discoverAgents(normalizedFiles, manifest),
+    hooks: discoverHooks(normalizedFiles, manifest, warnings),
+    mcpServers: discoverMCPServers(normalizedFiles, manifest, warnings),
+    lspServers: discoverLSPServers(normalizedFiles, manifest, warnings),
+  };
+
+  if (inferredRootPrefix) {
+    warnings.push(`Detected nested plugin root prefix: ${inferredRootPrefix.replace(/\/$/, "")}`);
+  }
+  warnings.push("No manifest found; created a synthetic manifest for compatibility.");
+
+  return {
+    manifest,
+    components,
+    files: normalizedFiles,
+    warnings,
+    isLegacySkillFormat: false,
+  };
+}
+
+async function extractAllFiles(
+  zip: JSZip,
+  rootPrefix: string,
+  skipPath?: string,
+  warnings?: string[]
+): Promise<PluginFileEntry[]> {
+  const files: PluginFileEntry[] = [];
+  for (const [filePath, entry] of Object.entries(zip.files) as Array<[string, JSZip.JSZipObject]>) {
+    if (entry.dir) continue;
+    if (skipPath && filePath === skipPath) continue;
+    if (rootPrefix && !filePath.startsWith(rootPrefix)) continue;
+
+    const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
+    if (!relativePath || !isPathSafe(relativePath)) continue;
+
+    const ext = path.extname(relativePath).toLowerCase();
+    if (BLOCKED_EXTENSIONS.includes(ext)) {
+      warnings?.push(`Skipped blocked file type: ${relativePath}`);
+      continue;
+    }
+
+    const content = await entry.async("nodebuffer");
+    if (content.length > MAX_FILE_SIZE) {
+      warnings?.push(`Skipped oversized file: ${relativePath} (${(content.length / 1024 / 1024).toFixed(1)}MB)`);
+      continue;
+    }
+
+    files.push({
+      relativePath,
+      content,
+      mimeType: mime.lookup(relativePath) || "application/octet-stream",
+      size: content.length,
+      isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
+    });
+  }
+
+  return files;
+}
+
+function isLikelyValidationError(message: string): boolean {
+  return message.startsWith("Invalid plugin") || message.includes("SKILL.md");
+}
+
 /**
  * Safe frontmatter parser. Real-world Claude Code plugins often have
  * unquoted YAML values containing colons, angle brackets, and literal `\n`
@@ -95,29 +356,36 @@ function safeMatter(content: string): { data: Record<string, unknown>; content: 
  * 1. Look for .claude-plugin/plugin.json → full plugin format
  * 2. Fall back to SKILL.md → legacy skill-only format (wrapped as plugin)
  */
-export async function parsePluginPackage(zipBuffer: Buffer): Promise<PluginParseResult> {
+export async function parsePluginPackage(
+  zipBuffer: Buffer,
+  options: ParsePluginPackageOptions = {}
+): Promise<PluginParseResult> {
+  const resolvedOptions = { ...DEFAULT_PARSE_OPTIONS, ...options };
   const zip = await JSZip.loadAsync(zipBuffer);
   const warnings: string[] = [];
 
-  // Find the plugin root (handle nested directories)
-  const pluginJsonEntry = Object.values(zip.files).find(
-    (f) =>
-      !f.dir &&
-      (f.name === ".claude-plugin/plugin.json" ||
-        f.name.endsWith("/.claude-plugin/plugin.json"))
+  const pluginJsonEntry = pickFirstZipEntry(
+    zip,
+    (name) => name === ".claude-plugin/plugin.json" || name.endsWith("/.claude-plugin/plugin.json")
   );
 
   if (pluginJsonEntry) {
-    return parseFullPlugin(zip, pluginJsonEntry, warnings);
+    return parseFullPlugin(zip, pluginJsonEntry, warnings, resolvedOptions);
   }
 
-  // Fall back to legacy SKILL.md format
-  const skillMdEntry = Object.values(zip.files).find(
-    (f) => !f.dir && (f.name === "SKILL.md" || f.name.endsWith("/SKILL.md"))
-  );
+  // Legacy format is only the root-level SKILL.md package.
+  // Nested skills/*/SKILL.md should be treated as full plugin-like content.
+  const skillMdEntry = pickFirstZipEntry(zip, (name) => name === "SKILL.md");
 
   if (skillMdEntry) {
     return parseLegacySkillPlugin(zip, skillMdEntry, warnings);
+  }
+
+  const files = await extractAllFiles(zip, "", undefined, warnings);
+  const inferred = maybeParseManifestlessPlugin(files, resolvedOptions.sourceLabel, warnings);
+  if (inferred) {
+    warnings.push("Imported package without .claude-plugin/plugin.json by inferring plugin structure.");
+    return inferred;
   }
 
   throw new Error(
@@ -133,7 +401,8 @@ export async function parsePluginPackage(zipBuffer: Buffer): Promise<PluginParse
 async function parseFullPlugin(
   zip: JSZip,
   pluginJsonEntry: JSZip.JSZipObject,
-  warnings: string[]
+  warnings: string[],
+  options: Required<ParsePluginPackageOptions>
 ): Promise<PluginParseResult> {
   // Determine plugin root directory
   const pluginJsonPath = pluginJsonEntry.name;
@@ -153,7 +422,8 @@ async function parseFullPlugin(
     throw new Error("Invalid JSON in .claude-plugin/plugin.json");
   }
 
-  const manifestResult = pluginManifestSchema.safeParse(manifestJson);
+  const normalizedManifest = normalizeManifest(manifestJson, warnings, options);
+  const manifestResult = pluginManifestSchema.safeParse(normalizedManifest);
   if (!manifestResult.success) {
     const issues = manifestResult.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
@@ -163,37 +433,9 @@ async function parseFullPlugin(
   const manifest = manifestResult.data as PluginManifest;
 
   // Extract all files
-  const files: PluginFileEntry[] = [];
-  for (const [filePath, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue;
-    if (filePath === pluginJsonPath) continue;
-    if (rootPrefix && !filePath.startsWith(rootPrefix)) continue;
-
-    const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
-
-    // Skip .claude-plugin directory contents (already parsed)
-    if (relativePath.startsWith(".claude-plugin/")) continue;
-
-    const ext = path.extname(relativePath).toLowerCase();
-    if (BLOCKED_EXTENSIONS.includes(ext)) {
-      warnings.push(`Skipped blocked file type: ${relativePath}`);
-      continue;
-    }
-
-    const content = await entry.async("nodebuffer");
-    if (content.length > MAX_FILE_SIZE) {
-      warnings.push(`Skipped oversized file: ${relativePath} (${(content.length / 1024 / 1024).toFixed(1)}MB)`);
-      continue;
-    }
-
-    files.push({
-      relativePath,
-      content,
-      mimeType: mime.lookup(relativePath) || "application/octet-stream",
-      size: content.length,
-      isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
-    });
-  }
+  const files = (await extractAllFiles(zip, rootPrefix, pluginJsonPath, warnings)).filter(
+    (file) => !file.relativePath.startsWith(".claude-plugin/")
+  );
 
   // Discover components
   const components = await discoverComponents(files, manifest, warnings);
@@ -238,27 +480,7 @@ async function parseLegacySkillPlugin(
   };
 
   // Extract all files
-  const files: PluginFileEntry[] = [];
-  for (const [filePath, entry] of Object.entries(zip.files)) {
-    if (entry.dir || filePath === skillMdEntry.name) continue;
-    if (rootPrefix && !filePath.startsWith(rootPrefix)) continue;
-
-    const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
-    const ext = path.extname(relativePath).toLowerCase();
-
-    if (BLOCKED_EXTENSIONS.includes(ext)) continue;
-
-    const content = await entry.async("nodebuffer");
-    if (content.length > MAX_FILE_SIZE) continue;
-
-    files.push({
-      relativePath,
-      content,
-      mimeType: mime.lookup(relativePath) || "application/octet-stream",
-      size: content.length,
-      isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
-    });
-  }
+  const files = await extractAllFiles(zip, rootPrefix, skillMdEntry.name);
 
   // Build skill entry from SKILL.md
   const skillEntry: PluginSkillEntry = {
@@ -389,25 +611,50 @@ function discoverAgents(files: PluginFileEntry[], manifest: PluginManifest): Plu
     .map((p) => p.replace(/^\.\//, ""));
 
   for (const file of files) {
-    // Match both directory prefixes (e.g., "agents/") and exact file paths (e.g., "agents/architect.md")
+    // Match both directory prefixes (e.g., "agents/") and exact file paths.
     const matchesAgent = agentPaths.some(
       (p) => file.relativePath.startsWith(p) || file.relativePath === p
     );
-    if (matchesAgent && file.relativePath.endsWith(".md")) {
-      const content = file.content.toString("utf-8");
-      const { data: fm, content: body } = safeMatter(content);
-      const name = path.basename(file.relativePath, ".md");
+    if (!matchesAgent || !isAgentMarkdown(file.relativePath)) continue;
 
-      agents.push({
-        name,
-        description: (fm.description as string) || "",
-        content: body.trim(),
-        relativePath: file.relativePath,
-      });
-    }
+    const content = file.content.toString("utf-8");
+    const { data: fm, content: body } = safeMatter(content);
+    const name = inferAgentName(file.relativePath);
+
+    agents.push({
+      name,
+      description: (fm.description as string) || "",
+      content: body.trim(),
+      relativePath: file.relativePath,
+    });
   }
 
   return agents;
+}
+
+function isAgentMarkdown(relativePath: string): boolean {
+  const lower = relativePath.toLowerCase();
+  return lower.endsWith(".md") || lower.endsWith(".mds");
+}
+
+/**
+ * Supports both flat files (agents/reviewer.md) and folder-style layouts
+ * (agents/reviewer/AGENT.md, agents/reviewer/Agent.mds).
+ */
+function inferAgentName(relativePath: string): string {
+  const base = path.basename(relativePath);
+  const lowerBase = base.toLowerCase();
+
+  if (lowerBase === "agent.md" || lowerBase === "agent.mds") {
+    const parts = relativePath.split("/").filter(Boolean);
+    return parts.length >= 2 ? parts[parts.length - 2] : "agent";
+  }
+
+  if (lowerBase.endsWith(".mds")) {
+    return base.slice(0, -4);
+  }
+
+  return path.basename(relativePath, ".md");
 }
 
 function discoverHooks(

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { parsePluginPackage } from "@/lib/plugins/import-parser";
+import {
+  parsePluginFromFiles,
+  parsePluginFromMarkdown,
+  parsePluginPackage,
+} from "@/lib/plugins/import-parser";
 import { installPlugin } from "@/lib/plugins/registry";
-import type { PluginScope } from "@/lib/plugins/types";
+import type { PluginParseResult, PluginScope } from "@/lib/plugins/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,32 +22,65 @@ export async function POST(request: NextRequest) {
     const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
 
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const singleFile = formData.get("file") as File | null;
+    const multipleFiles = formData.getAll("files").filter((f): f is File => f instanceof File);
     const characterId = formData.get("characterId") as string | null;
     const scope = (formData.get("scope") as PluginScope | null) || "user";
     const marketplaceName = formData.get("marketplaceName") as string | null;
 
-    if (!file) {
+    const uploadFiles = multipleFiles.length > 0 ? multipleFiles : singleFile ? [singleFile] : [];
+
+    if (uploadFiles.length === 0) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!file.name.endsWith(".zip")) {
+    const maxSizePerFile = 50 * 1024 * 1024;
+    const totalSize = uploadFiles.reduce((sum, file) => sum + file.size, 0);
+    if (uploadFiles.some((file) => file.size > maxSizePerFile)) {
       return NextResponse.json(
-        { error: "Only .zip plugin packages are supported" },
+        { error: "One or more files exceed the 50MB per-file limit" },
+        { status: 400 }
+      );
+    }
+    if (totalSize > 150 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Total upload size exceeds 150MB limit" },
         { status: 400 }
       );
     }
 
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: "File size exceeds 50MB limit" },
-        { status: 400 }
-      );
-    }
+    let parsed: PluginParseResult;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const parsed = await parsePluginPackage(buffer);
+    if (uploadFiles.length === 1) {
+      const file = uploadFiles[0];
+      const lowerName = file.name.toLowerCase();
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      if (lowerName.endsWith(".zip")) {
+        parsed = await parsePluginPackage(buffer, { sourceLabel: file.name.replace(/\.zip$/i, "") });
+      } else if (lowerName.endsWith(".md") || lowerName.endsWith(".mds")) {
+        parsed = await parsePluginFromMarkdown(buffer, file.name);
+      } else {
+        return NextResponse.json(
+          { error: "Single-file imports must be .zip or .md. For folder imports, upload multiple files." },
+          { status: 400 }
+        );
+      }
+    } else {
+      const uploaded = await Promise.all(
+        uploadFiles.map(async (file) => ({
+          relativePath: file.name,
+          content: Buffer.from(await file.arrayBuffer()),
+        }))
+      );
+
+      const topLevel = uploaded
+        .map((f) => f.relativePath.split("/")[0])
+        .filter(Boolean);
+      const sourceLabel = topLevel.length > 0 ? topLevel[0] : "folder-import";
+
+      parsed = await parsePluginFromFiles(uploaded, { sourceLabel });
+    }
 
     console.log(
       `[PluginImport:${requestId}] Parsed plugin: ${parsed.manifest.name} v${parsed.manifest.version} ` +

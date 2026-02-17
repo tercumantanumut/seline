@@ -1707,9 +1707,44 @@ function recordToolResultChunk(
   return true;
 }
 
+function isAbortLikeTerminationError(errorMessage: string): boolean {
+  const lower = errorMessage.toLowerCase();
+  return (
+    lower.includes("abort") ||
+    lower.includes("terminated") ||
+    lower.includes("interrupted") ||
+    lower.includes("controller was closed") ||
+    lower.includes("connection reset") ||
+    lower.includes("socket hang up")
+  );
+}
+
+function shouldTreatStreamErrorAsCancellation(args: {
+  errorMessage: string;
+  isCreditError: boolean;
+  streamAborted: boolean;
+  classificationRecoverable: boolean;
+  classificationReason?: string;
+}): boolean {
+  const {
+    errorMessage,
+    isCreditError,
+    streamAborted,
+    classificationRecoverable,
+    classificationReason,
+  } = args;
+
+  if (isCreditError) return false;
+  if (streamAborted) return true;
+  if (classificationReason === "user_abort") return true;
+
+  return classificationRecoverable && isAbortLikeTerminationError(errorMessage);
+}
+
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
+  let configuredProvider: string | undefined;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -2962,6 +2997,7 @@ export async function POST(req: Request) {
     // NOTE: Tools MUST always be passed - unlike system prompt, tools are function definitions
     // that must be present for the AI to actually invoke them. Without tools, AI just outputs fake tool calls.
     const provider = getConfiguredProvider();
+    configuredProvider = provider;
     const cachingStatus = useCaching
       ? `enabled (${cacheConfig.defaultTtl} TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
       : "disabled";
@@ -2972,25 +3008,46 @@ export async function POST(req: Request) {
       `caching: ${cachingStatus}`
     );
     let runFinalized = false;
-    const finalizeFailedRun = async (errorMessage: string, isCreditError: boolean) => {
+    const finalizeFailedRun = async (
+      errorMessage: string,
+      isCreditError: boolean,
+      options?: { sourceError?: unknown; streamAborted?: boolean }
+    ) => {
       if (runFinalized) return;
       runFinalized = true;
       if (chatTaskRegistered && agentRun?.id) {
         try {
-          removeChatAbortController(agentRun.id);
-          await completeAgentRun(agentRun.id, "failed", {
-            error: isCreditError ? "Insufficient credits" : errorMessage,
+          const classification = classifyRecoverability({
+            provider,
+            error: options?.sourceError,
+            message: errorMessage,
           });
+          const shouldCancel = shouldTreatStreamErrorAsCancellation({
+            errorMessage,
+            isCreditError,
+            streamAborted: options?.streamAborted ?? streamAbortSignal.aborted,
+            classificationRecoverable: classification.recoverable,
+            classificationReason: classification.reason,
+          });
+
+          const runStatus = shouldCancel ? "cancelled" : "failed";
+          removeChatAbortController(agentRun.id);
+          await completeAgentRun(agentRun.id, runStatus, shouldCancel
+            ? { reason: "stream_interrupted" }
+            : { error: isCreditError ? "Insufficient credits" : errorMessage });
+
           const registryTask = taskRegistry.get(agentRun.id);
           const registryDurationMs = registryTask
             ? Date.now() - new Date(registryTask.startedAt).getTime()
             : undefined;
-          taskRegistry.updateStatus(agentRun.id, "failed", {
-            durationMs: registryDurationMs,
-            error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
-          });
+          taskRegistry.updateStatus(agentRun.id, runStatus, shouldCancel
+            ? { durationMs: registryDurationMs }
+            : {
+                durationMs: registryDurationMs,
+                error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
+              });
         } catch (failureError) {
-          console.error("[CHAT API] Failed to mark agent run as failed:", failureError);
+          console.error("[CHAT API] Failed to finalize agent run after stream error:", failureError);
         }
       }
     };
@@ -3089,7 +3146,10 @@ export async function POST(req: Request) {
             errorMessageLower.includes("quota") ||
             errorMessageLower.includes("credit") ||
             errorMessageLower.includes("429");
-          await finalizeFailedRun(errorMessage, isCreditError);
+          await finalizeFailedRun(errorMessage, isCreditError, {
+            sourceError: error,
+            streamAborted: streamAbortSignal.aborted,
+          });
         },
         onChunk: shouldEmitProgress
           ? async ({ chunk }) => {
@@ -3676,7 +3736,10 @@ export async function POST(req: Request) {
               errorMessageLower.includes("quota") ||
               errorMessageLower.includes("credit") ||
               errorMessageLower.includes("429");
-            void finalizeFailedRun(errorMessage, isCreditError);
+            void finalizeFailedRun(errorMessage, isCreditError, {
+              sourceError: error,
+              streamAborted: streamAbortSignal.aborted,
+            });
           },
         }),
       onError: (error) => {
@@ -3687,7 +3750,10 @@ export async function POST(req: Request) {
           errorMessageLower.includes("quota") ||
           errorMessageLower.includes("credit") ||
           errorMessageLower.includes("429");
-        void finalizeFailedRun(errorMessage, isCreditError);
+        void finalizeFailedRun(errorMessage, isCreditError, {
+          sourceError: error,
+          streamAborted: streamAbortSignal.aborted,
+        });
         return "Streaming interrupted. The run was marked accordingly.";
       },
       messageMetadata: ({ part }) => {
@@ -3735,23 +3801,40 @@ export async function POST(req: Request) {
       errorMessageLower.includes("credit") ||
       errorMessageLower.includes("429");
 
-    // Mark the agent run as failed so the background processing banner clears
+    // Finalize run status so the background processing indicator clears reliably.
     if (chatTaskRegistered && agentRun?.id) {
       try {
-        removeChatAbortController(agentRun.id);
-        await completeAgentRun(agentRun.id, "failed", {
-          error: isCreditError ? "Insufficient credits" : errorMessage,
+        const classification = classifyRecoverability({
+          provider: configuredProvider,
+          error,
+          message: errorMessage,
         });
+        const shouldCancel = shouldTreatStreamErrorAsCancellation({
+          errorMessage,
+          isCreditError,
+          streamAborted: req.signal.aborted,
+          classificationRecoverable: classification.recoverable,
+          classificationReason: classification.reason,
+        });
+
+        const runStatus = shouldCancel ? "cancelled" : "failed";
+        removeChatAbortController(agentRun.id);
+        await completeAgentRun(agentRun.id, runStatus, shouldCancel
+          ? { reason: "stream_interrupted" }
+          : { error: isCreditError ? "Insufficient credits" : errorMessage });
+
         const registryTask = taskRegistry.get(agentRun.id);
         const registryDurationMs = registryTask
           ? Date.now() - new Date(registryTask.startedAt).getTime()
           : undefined;
-        taskRegistry.updateStatus(agentRun.id, "failed", {
-          durationMs: registryDurationMs,
-          error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
-        });
+        taskRegistry.updateStatus(agentRun.id, runStatus, shouldCancel
+          ? { durationMs: registryDurationMs }
+          : {
+              durationMs: registryDurationMs,
+              error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
+            });
       } catch (e) {
-        console.error("[CHAT API] Failed to mark agent run as failed:", e);
+        console.error("[CHAT API] Failed to finalize run status in chat error handler:", e);
       }
     }
 
