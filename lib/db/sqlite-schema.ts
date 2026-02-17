@@ -228,6 +228,9 @@ export * from "./sqlite-schedule-schema";
 // Re-export skills schema
 export * from "./sqlite-skills-schema";
 
+// Re-export plugins schema
+export * from "./sqlite-plugins-schema";
+
 // ============================================================================
 // TYPES
 // ============================================================================

@@ -35,6 +35,7 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
     "You have the following skills available.",
     "Skill-triggering policy:",
     "- If a user request clearly matches a skill trigger, call `runSkill` for that skill.",
+    "- runSkill gives you the information to execute the skill, it doesn't execute it itself. You must take the information provided by the skill and use it to complete the user's request.",
     "- If multiple skills plausibly match, ask a short clarification before running.",
     "- If confidence is low, ask for confirmation instead of guessing.",
     "",

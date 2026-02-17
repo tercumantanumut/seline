@@ -1107,7 +1107,138 @@ function initializeTables(sqlite: Database.Database): void {
       ON scheduled_task_runs (status, scheduled_for)
   `);
 
-  console.log("[SQLite] All tables initialized");
+  // ==========================================================================
+  // Plugin System Tables
+  // ==========================================================================
+
+  // Plugins table — installed plugin records
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugins (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      version TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'user' CHECK(scope IN ('user', 'project', 'local', 'managed')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled', 'error')),
+      marketplace_name TEXT,
+      manifest TEXT NOT NULL DEFAULT '{}',
+      components TEXT NOT NULL DEFAULT '{}',
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
+      cache_path TEXT,
+      last_error TEXT,
+      installed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugins_user_scope
+      ON plugins (user_id, scope, status)
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugins_name_marketplace_user
+      ON plugins (name, marketplace_name, user_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugins_character
+      ON plugins (character_id)
+  `);
+
+  // Plugin hooks table — hook registrations from plugins
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_hooks (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      event TEXT NOT NULL,
+      matcher TEXT,
+      handler_type TEXT NOT NULL CHECK(handler_type IN ('command', 'prompt', 'agent')),
+      command TEXT,
+      timeout INTEGER DEFAULT 600,
+      status_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_hooks_plugin_event
+      ON plugin_hooks (plugin_id, event)
+  `);
+
+  // Plugin MCP servers table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_mcp_servers (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      server_name TEXT NOT NULL,
+      config TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_mcp_servers_plugin_server
+      ON plugin_mcp_servers (plugin_id, server_name)
+  `);
+
+  // Plugin LSP servers table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_lsp_servers (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      server_name TEXT NOT NULL,
+      config TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_lsp_servers_plugin_server
+      ON plugin_lsp_servers (plugin_id, server_name)
+  `);
+
+  // Plugin files table — raw file metadata from imported plugins
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_files (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      relative_path TEXT NOT NULL,
+      mime_type TEXT,
+      size INTEGER NOT NULL,
+      is_executable INTEGER DEFAULT 0 NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_files_plugin_path
+      ON plugin_files (plugin_id, relative_path)
+  `);
+
+  // Marketplaces table — registered marketplace catalogs
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS marketplaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL,
+      catalog TEXT,
+      auto_update INTEGER NOT NULL DEFAULT 1,
+      last_fetched_at TEXT,
+      last_error TEXT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_marketplaces_user
+      ON marketplaces (user_id)
+  `);
+
+  console.log("[SQLite] All tables initialized (including plugin system)");
 
   // Run data migrations
   runDataMigrations(sqlite);

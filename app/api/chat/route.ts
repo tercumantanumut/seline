@@ -67,6 +67,10 @@ import {
 import { nextOrderingIndex, allocateOrderingIndices } from "@/lib/session/message-ordering";
 import fs from "fs/promises";
 import path from "path";
+import { runPreToolUseHooks, runPostToolUseHooks, runPostToolUseFailureHooks } from "@/lib/plugins/hook-integration";
+import { loadActivePluginHooks } from "@/lib/plugins/registry";
+import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
+import { getPluginSkillsForPrompt } from "@/lib/plugins/skill-loader";
 
 // ============================================================================
 // System Prompt Injection
@@ -1736,6 +1740,16 @@ export async function POST(req: Request) {
     const settings = loadSettings();
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
 
+    // Load plugin hooks into in-memory registry (idempotent — deduplicates internally)
+    try {
+      const hookCount = await loadActivePluginHooks(dbUser.id);
+      if (hookCount > 0) {
+        console.log(`[CHAT API] Loaded hooks from ${hookCount} active plugin(s)`);
+      }
+    } catch (pluginHookError) {
+      console.warn("[CHAT API] Failed to load plugin hooks (non-fatal):", pluginHookError);
+    }
+
     const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
 
     // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
@@ -2495,6 +2509,25 @@ export async function POST(req: Request) {
           });
     }
 
+    // Append plugin skills summary to system prompt (if any active plugins have skills)
+    try {
+      const pluginSkillsSummary = await getPluginSkillsForPrompt(dbUser.id);
+      if (pluginSkillsSummary) {
+        if (typeof systemPromptValue === "string") {
+          systemPromptValue += pluginSkillsSummary;
+        } else if (Array.isArray(systemPromptValue)) {
+          // For cacheable blocks, append as a new uncached text block
+          systemPromptValue.push({
+            type: "text" as const,
+            text: pluginSkillsSummary,
+          });
+        }
+        console.log(`[CHAT API] Appended plugin skills summary to system prompt`);
+      }
+    } catch (pluginSkillError) {
+      console.warn("[CHAT API] Failed to load plugin skills (non-fatal):", pluginSkillError);
+    }
+
     // Create tools via the centralized Tool Registry
     // We load ALL tools (including deferred ones) but use activeTools to control visibility
     const registry = ToolRegistry.getInstance();
@@ -2730,6 +2763,20 @@ export async function POST(req: Request) {
       console.error("[CHAT API] Failed to load MCP tools:", error);
     }
 
+    // Load MCP servers from active plugins (namespaced as plugin:name:server)
+    try {
+      const { loadAllPluginMCPServers } = await import("@/lib/plugins/mcp-integration");
+      const pluginMcpResult = await loadAllPluginMCPServers(dbUser.id, characterId || undefined);
+      if (pluginMcpResult.totalConnected > 0) {
+        console.log(`[CHAT API] Connected ${pluginMcpResult.totalConnected} plugin MCP server(s)`);
+      }
+      if (pluginMcpResult.totalFailed > 0) {
+        console.warn(`[CHAT API] Failed to connect ${pluginMcpResult.totalFailed} plugin MCP server(s)`);
+      }
+    } catch (pluginMcpError) {
+      console.warn("[CHAT API] Failed to load plugin MCP servers (non-fatal):", pluginMcpError);
+    }
+
     let customComfyUIToolResult: { allTools: Record<string, Tool>; alwaysLoadToolIds: string[]; deferredToolIds: string[] } = {
       allTools: {},
       alwaysLoadToolIds: [],
@@ -2753,12 +2800,74 @@ export async function POST(req: Request) {
     }
 
     // Merge MCP + Custom ComfyUI tools with regular tools
-    const allToolsWithMCP = {
+    let allToolsWithMCP: Record<string, Tool> = {
       ...tools,
       ...mcpToolResult.allTools,
       ...customComfyUIToolResult.allTools,
     };
 
+    // Wrap tools with plugin hooks (PreToolUse / PostToolUse / PostToolUseFailure)
+    // Only wrap if there are registered hooks to avoid unnecessary overhead
+    const hasPreHooks = getRegisteredHooks("PreToolUse").length > 0;
+    const hasPostHooks = getRegisteredHooks("PostToolUse").length > 0;
+    const hasFailureHooks = getRegisteredHooks("PostToolUseFailure").length > 0;
+
+    if (hasPreHooks || hasPostHooks || hasFailureHooks) {
+      const wrappedTools: Record<string, Tool> = {};
+      for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
+        if (!originalTool.execute) {
+          wrappedTools[toolId] = originalTool;
+          continue;
+        }
+        const origExecute = originalTool.execute;
+        wrappedTools[toolId] = {
+          ...originalTool,
+          execute: async (args: unknown, options: unknown) => {
+            // PreToolUse: can block tool execution
+            if (hasPreHooks) {
+              const hookResult = await runPreToolUseHooks(
+                toolId,
+                (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                sessionId
+              );
+              if (hookResult.blocked) {
+                console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
+                return `Tool blocked by plugin hook: ${hookResult.blockReason}`;
+              }
+            }
+
+            try {
+              const result = await origExecute(args, options as any);
+
+              // PostToolUse: fire-and-forget
+              if (hasPostHooks) {
+                runPostToolUseHooks(
+                  toolId,
+                  (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                  result,
+                  sessionId
+                );
+              }
+
+              return result;
+            } catch (error) {
+              // PostToolUseFailure: fire-and-forget
+              if (hasFailureHooks) {
+                runPostToolUseFailureHooks(
+                  toolId,
+                  (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                  error instanceof Error ? error.message : String(error),
+                  sessionId
+                );
+              }
+              throw error;
+            }
+          },
+        };
+      }
+      allToolsWithMCP = wrappedTools;
+      console.log(`[CHAT API] Wrapped ${Object.keys(wrappedTools).length} tools with plugin hooks (pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`);
+    }
 
     // Build the initial activeTools array (tool names that are active from the start)
     // When toolLoadingMode="always", ALL tools are active from step 0 (no discovery needed)
