@@ -344,7 +344,7 @@ export function createPatchFileTool(options: PatchFileToolOptions) {
       const diagnosticResults: DiagnosticResult[] = [];
       for (const modPath of modifiedPaths) {
         try {
-          const diag = await runPostWriteDiagnostics(modPath, syncedFolders);
+          const diag = await runPostWriteDiagnostics(modPath, syncedFolders, 5000, "patch_file");
           if (diag) diagnosticResults.push(diag);
         } catch {
           // Diagnostics are optional

@@ -75,6 +75,10 @@ export function PluginSettings() {
   const [uploading, setUploading] = useState(false);
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const [showMarketplace, setShowMarketplace] = useState(false);
+  const directoryPickerProps = {
+    webkitdirectory: "true",
+    directory: "true",
+  } as unknown as Record<string, string>;
 
   const loadPlugins = useCallback(async () => {
     try {
@@ -123,18 +127,19 @@ export function PluginSettings() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.endsWith(".zip")) {
-      toast.error("Only .zip plugin packages are supported");
-      return;
-    }
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
 
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      if (files.length === 1) {
+        formData.append("file", files[0]);
+      } else {
+        for (const file of files) {
+          formData.append("files", file, file.webkitRelativePath || file.name);
+        }
+      }
 
       const res = await fetch("/api/plugins/import", {
         method: "POST",
@@ -235,7 +240,10 @@ export function PluginSettings() {
             {uploading ? "Installing..." : "Install Plugin"}
             <input
               type="file"
-              accept=".zip"
+              accept=".zip,.md,.mds"
+              multiple
+              // Enables folder-drop style imports while preserving subpaths in file names.
+              {...directoryPickerProps}
               className="hidden"
               onChange={handleFileUpload}
               disabled={uploading}

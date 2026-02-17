@@ -10,7 +10,11 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import JSZip from "jszip";
-import { parsePluginPackage } from "@/lib/plugins/import-parser";
+import {
+  parsePluginFromFiles,
+  parsePluginFromMarkdown,
+  parsePluginPackage,
+} from "@/lib/plugins/import-parser";
 import {
   pluginManifestSchema,
   pluginHooksConfigSchema,
@@ -131,10 +135,11 @@ async function buildPluginZip(options: {
     }
   }
 
-  // agents/*.md
+  // agents/*.md or agents/*.mds
   if (options.agents) {
     for (const [name, content] of Object.entries(options.agents)) {
-      zip.file(`agents/${name}.md`, content);
+      const agentFileName = /\.mds?$/i.test(name) ? name : `${name}.md`;
+      zip.file(`agents/${agentFileName}`, content);
     }
   }
 
@@ -498,6 +503,20 @@ describe("Plugin Import Parser — Full Plugin", () => {
     expect(result.components.agents[0].name).toBe("security-reviewer");
     expect(result.components.agents[0].description).toBe("Security-focused code reviewer");
 
+    // MDS extension and folder-style AGENT.* naming should also work.
+    const mdsZip = await buildPluginZip({
+      manifest: CODE_REVIEW_MANIFEST,
+      agents: {
+        "platform-architect.mds": "---\ndescription: Platform architecture specialist\n---\n\nDesign systems.",
+        "security/Agent.mds": "---\ndescription: Security specialist\n---\n\nReview security.",
+      },
+    });
+    const mdsResult = await parsePluginPackage(mdsZip);
+    expect(mdsResult.components.agents).toHaveLength(2);
+    expect(mdsResult.components.agents.map((a) => a.name)).toEqual(
+      expect.arrayContaining(["platform-architect", "security"])
+    );
+
     // LSP
     expect(result.components.lspServers).not.toBeNull();
     expect(result.components.lspServers!["typescript"]).toBeDefined();
@@ -550,6 +569,39 @@ describe("Plugin Import Parser — Full Plugin", () => {
     await expect(parsePluginPackage(buf)).rejects.toThrow(
       "Invalid plugin package"
     );
+  });
+
+  it("should normalize missing manifest version instead of failing import", async () => {
+    const zipBuf = await buildPluginZip({
+      manifest: {
+        name: "versionless-plugin",
+        description: "Plugin without explicit version",
+        // Intentionally omitted to simulate marketplace packages that are slightly malformed.
+        version: "",
+      },
+      commands: {
+        run: "---\ndescription: Run\n---\n\nRun task.",
+      },
+    });
+
+    const result = await parsePluginPackage(zipBuf);
+    expect(result.manifest.version).toBe("1.0.0");
+    expect(result.warnings.some((w) => w.includes("missing 'version'"))).toBe(true);
+  });
+
+  it("should parse nested SKILL.md packages from folder-like uploads", async () => {
+    const zip = new JSZip();
+    zip.file("skills/research/SKILL.md", "---\nname: research\ndescription: Research helper\n---\n\nResearch deeply.");
+    zip.file("agents/security/Agent.mds", "---\ndescription: Security specialist\n---\n\nReview security.");
+    const buf = await zip.generateAsync({ type: "nodebuffer" });
+
+    const result = await parsePluginPackage(buf, { sourceLabel: "folder-drop" });
+    expect(result.manifest.name).toBe("folder-drop");
+    expect(result.components.skills).toHaveLength(1);
+    expect(result.components.agents).toHaveLength(1);
+    expect(result.components.agents[0].name).toBe("security");
+    expect(result.isLegacySkillFormat).toBe(false);
+    expect(result.warnings.some((w) => w.includes("synthetic manifest"))).toBe(true);
   });
 });
 
@@ -981,6 +1033,16 @@ describe("Integration — End-to-End Plugin Flow", () => {
     expect(parsed.components.skills).toHaveLength(1);
     expect(parsed.components.skills[0].disableModelInvocation).toBe(true);
     expect(parsed.components.agents).toHaveLength(1);
+    // Accept both .md and .mds agent files in folder-style layout.
+    const mdsPathZip = await buildPluginZip({
+      manifest: CODE_REVIEW_MANIFEST,
+      agents: {
+        "ops/AGENT.md": "---\ndescription: Ops specialist\n---\n\nOperate systems.",
+      },
+    });
+    const mdsPathParsed = await parsePluginPackage(mdsPathZip);
+    expect(mdsPathParsed.components.agents).toHaveLength(1);
+    expect(mdsPathParsed.components.agents[0].name).toBe("ops");
     expect(parsed.components.lspServers).not.toBeNull();
     expect(parsed.components.lspServers!["python"].command).toBe("pyright-langserver");
 
@@ -1012,5 +1074,104 @@ describe("Integration — End-to-End Plugin Flow", () => {
     expect(full.isLegacySkillFormat).toBe(false);
     expect(full.manifest.version).toBe("2.0.0");
     expect(full.components.skills[0].namespacedName).toBe("old-skill:old-skill");
+  });
+
+  it("should parse a single markdown upload into a legacy plugin shape", async () => {
+    const parsed = await parsePluginFromMarkdown(
+      Buffer.from("---\nname: md-skill\ndescription: Imported from markdown\n---\n\nDo md things."),
+      "md-skill.md"
+    );
+
+    expect(parsed.isLegacySkillFormat).toBe(true);
+    expect(parsed.manifest.name).toBe("md-skill");
+    expect(parsed.components.skills).toHaveLength(1);
+  });
+
+  it("should parse folder-uploaded files using relative paths", async () => {
+    const parsed = await parsePluginFromFiles([
+      {
+        relativePath: ".claude-plugin/plugin.json",
+        content: Buffer.from(
+          JSON.stringify(
+            {
+              name: "folder-plugin",
+              description: "Imported from folder",
+              version: "1.2.3",
+            },
+            null,
+            2
+          )
+        ),
+      },
+      {
+        relativePath: "skills/folder-skill/SKILL.md",
+        content: Buffer.from("---\nname: folder-skill\ndescription: Folder skill\n---\n\nFrom folder upload."),
+      },
+    ]);
+
+    expect(parsed.isLegacySkillFormat).toBe(false);
+    expect(parsed.manifest.name).toBe("folder-plugin");
+    expect(parsed.components.skills.map((s) => s.name)).toContain("folder-skill");
+  });
+
+  it("should infer nested manifestless plugin roots from folder drops", async () => {
+    const parsed = await parsePluginFromFiles([
+      {
+        relativePath: "plugin-dev/skills/plugin-structure/SKILL.md",
+        content: Buffer.from("---\nname: plugin-structure\ndescription: Structure patterns\n---\n\nBuild plugins."),
+      },
+      {
+        relativePath: "plugin-dev/agents/plugin-validator.mds",
+        content: Buffer.from("---\ndescription: Validates plugin packages\n---\n\nValidate plugin folders."),
+      },
+      {
+        relativePath: "plugin-dev/hooks/hooks.json",
+        content: Buffer.from(
+          JSON.stringify(
+            {
+              hooks: {
+                SessionStart: [
+                  {
+                    hooks: [
+                      {
+                        type: "command",
+                        command: "echo plugin-dev",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+            null,
+            2
+          )
+        ),
+      },
+      {
+        relativePath: "plugin-dev/.mcp.json",
+        content: Buffer.from(
+          JSON.stringify(
+            {
+              local: {
+                command: "node",
+                args: ["server.js"],
+                type: "stdio",
+              },
+            },
+            null,
+            2
+          )
+        ),
+      },
+    ]);
+
+    expect(parsed.isLegacySkillFormat).toBe(false);
+    expect(parsed.manifest.name).toBe("uploaded-plugin");
+    expect(parsed.components.skills.map((s) => s.name)).toContain("plugin-structure");
+    expect(parsed.components.agents.map((a) => a.name)).toContain("plugin-validator");
+    expect(parsed.components.hooks).not.toBeNull();
+    expect(parsed.components.mcpServers).not.toBeNull();
+    expect(parsed.warnings.some((w) => w.includes("nested plugin root prefix"))).toBe(true);
+    expect(parsed.files.some((f) => f.relativePath.startsWith("plugin-dev/"))).toBe(false);
   });
 });

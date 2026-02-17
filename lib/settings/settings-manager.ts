@@ -8,6 +8,8 @@ import {
   type BatchValidationResult,
 } from "@/lib/ai/model-validation";
 
+export type PostEditHooksPreset = "off" | "fast" | "strict";
+
 export interface AppSettings {
     // AI Provider settings
     llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
@@ -168,6 +170,12 @@ export interface AppSettings {
     // App preferences
     theme: "dark" | "light" | "system";
     toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
+    postEditHooksPreset?: PostEditHooksPreset;   // Quick mode for post-edit checks: off, fast, strict
+    postEditHooksEnabled?: boolean;              // Master toggle for all post-edit checks
+    postEditTypecheckEnabled?: boolean;          // Run TypeScript typecheck after edits
+    postEditLintEnabled?: boolean;               // Run ESLint after edits
+    postEditTypecheckScope?: "auto" | "app" | "lib" | "electron" | "tooling" | "all";
+    postEditRunInPatchTool?: boolean;            // Also run post-edit checks for patch-file operations
     dataPath?: string;
 
     // Prompt Caching (Anthropic only)
@@ -223,6 +231,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
     toolLoadingMode: "always",  // Default to always-load for better onboarding UX
+    postEditHooksPreset: "off",
+    postEditHooksEnabled: false,
+    postEditTypecheckEnabled: false,
+    postEditLintEnabled: false,
+    postEditTypecheckScope: "auto",
+    postEditRunInPatchTool: false,
     webScraperProvider: "firecrawl",
     embeddingProvider: "openrouter",
     vectorDBEnabled: false,
