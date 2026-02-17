@@ -192,6 +192,13 @@
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
     "mcpToolsTitle": "Configure MCP Tools",
+    "plugins": {
+      "title": "Agent Plugins",
+      "subtitle": "Enable or disable plugins for {name}",
+      "configure": "Configure plugins",
+      "enabledCount": "{count, plural, one {# plugin enabled} other {# plugins enabled}}",
+      "empty": "No assignable plugins found"
+    },
     "mcpRemovalWarning": {
       "title": "Active Session Detected",
       "description": "This agent has an active session that may be using MCP tools. Removing tools during an active session could cause errors in running tasks.",

@@ -192,6 +192,13 @@
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
+    "plugins": {
+      "title": "Ajan Eklentileri",
+      "subtitle": "{name} için eklentileri etkinleştirin veya devre dışı bırakın",
+      "configure": "Eklentileri yapılandır",
+      "enabledCount": "{count, plural, one {# eklenti etkin} other {# eklenti etkin}}",
+      "empty": "Atanabilir eklenti bulunamadı"
+    },
     "mcpRemovalWarning": {
       "title": "Aktif Oturum Tespit Edildi",
       "description": "Bu ajanın MCP araçlarını kullanıyor olabilecek aktif bir oturumu var. Aktif oturum sırasında araçları kaldırmak çalışan görevlerde hatalara neden olabilir.",

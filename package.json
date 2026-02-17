@@ -31,6 +31,8 @@
     "test:validate:migration:dry": "tsx scripts/validation/exec-validation.ts validate-message-ordering-migration --dry-run",
     "test:validate:chat-overflow": "tsx scripts/validation/exec-validation.ts validate-chat-overflow-guards",
     "test:validate:chat-overflow:dry": "tsx scripts/validation/exec-validation.ts validate-chat-overflow-guards --dry-run",
+    "test:validate:tool-errors": "tsx scripts/validation/exec-validation.ts validate-tool-error-auditability",
+    "test:validate:tool-errors:dry": "tsx scripts/validation/exec-validation.ts validate-tool-error-auditability --dry-run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

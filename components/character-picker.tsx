@@ -54,13 +54,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { useShallow } from "zustand/react/shallow";
-import { resilientFetch, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
+import {
+  resilientFetch,
+  resilientPatch,
+  resilientDelete,
+  resilientPost,
+} from "@/lib/utils/resilient-fetch";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -156,6 +162,7 @@ interface CharacterSummary {
   isDefault?: boolean;
   metadata?: {
     enabledTools?: string[];
+    enabledPlugins?: string[];
     purpose?: string;
   };
   images?: Array<{
@@ -410,6 +417,18 @@ export function CharacterPicker() {
   const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>>({});
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpTools, setMcpTools] = useState<string[]>([]);
+
+  // Plugin assignment editor state
+  const [pluginEditorOpen, setPluginEditorOpen] = useState(false);
+  const [agentPlugins, setAgentPlugins] = useState<Array<{
+    id: string;
+    name: string;
+    description: string;
+    version: string;
+    enabledForAgent: boolean;
+  }>>([]);
+  const [loadingAgentPlugins, setLoadingAgentPlugins] = useState(false);
+  const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
 
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -679,6 +698,65 @@ export function CharacterPicker() {
     setMcpTools(metadata?.enabledMcpTools || []);
     setMcpToolPreferences(metadata?.mcpToolPreferences || {});
     setMcpToolEditorOpen(true);
+  };
+
+  const openPluginEditor = async (character: CharacterSummary) => {
+    setEditingCharacter(character);
+    setPluginEditorOpen(true);
+    setLoadingAgentPlugins(true);
+
+    try {
+      const { data, error } = await resilientFetch<{
+        plugins?: Array<{
+          id: string;
+          name: string;
+          description: string;
+          version: string;
+          enabledForAgent: boolean;
+        }>;
+      }>(`/api/characters/${character.id}/plugins`);
+
+      if (error || !data) throw new Error(error || "Failed to load plugins");
+      setAgentPlugins(data.plugins || []);
+    } catch (error) {
+      console.error("Failed to load agent plugins:", error);
+      setAgentPlugins([]);
+    } finally {
+      setLoadingAgentPlugins(false);
+    }
+  };
+
+  const toggleAgentPlugin = async (pluginId: string, enabled: boolean) => {
+    if (!editingCharacter) return;
+
+    setSavingPluginId(pluginId);
+    try {
+      const { error } = await resilientPost(`/api/characters/${editingCharacter.id}/plugins`, {
+        pluginId,
+        enabled,
+      });
+      if (error) throw new Error(error);
+
+      let nextPlugins = agentPlugins;
+      setAgentPlugins((prev) => {
+        nextPlugins = prev.map((plugin) =>
+          plugin.id === pluginId ? { ...plugin, enabledForAgent: enabled } : plugin
+        );
+        return nextPlugins;
+      });
+
+      const enabledPlugins = nextPlugins
+        .filter((plugin) => plugin.enabledForAgent)
+        .map((plugin) => plugin.id);
+
+      await resilientPatch(`/api/characters/${editingCharacter.id}`, {
+        metadata: { enabledPlugins },
+      });
+    } catch (error) {
+      console.error("Failed to update agent plugin:", error);
+    } finally {
+      setSavingPluginId(null);
+    }
   };
 
   // Determine which MCP tools are being removed compared to the saved state
@@ -953,6 +1031,18 @@ export function CharacterPicker() {
                   <span>{t("mcpTools")}</span>
                 </button>
                 <button
+                  onClick={() => openPluginEditor(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title={t("plugins.title")}
+                >
+                  <Plug className="w-3 h-3" />
+                  <span>
+                    {character.metadata?.enabledPlugins?.length
+                      ? t("plugins.enabledCount", { count: character.metadata.enabledPlugins.length })
+                      : t("plugins.configure")}
+                  </span>
+                </button>
+                <button
                   onClick={() => router.push("/dashboard")}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
                   title="Dashboard"
@@ -1197,6 +1287,71 @@ export function CharacterPicker() {
                 {tc("save")}
               </AnimatedButton>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Agent Plugin Assignment Dialog */}
+      <Dialog open={pluginEditorOpen} onOpenChange={setPluginEditorOpen}>
+        <DialogContent className="sm:max-w-2xl bg-terminal-cream max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <Plug className="w-5 h-5 text-terminal-green" />
+              {t("plugins.title")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("plugins.subtitle", {
+                name: editingCharacter?.displayName || editingCharacter?.name || "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+            {loadingAgentPlugins ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-terminal-green" />
+              </div>
+            ) : agentPlugins.length === 0 ? (
+              <div className="rounded border border-dashed border-terminal-border/60 p-4 text-center font-mono text-sm text-terminal-muted">
+                {t("plugins.empty")}
+              </div>
+            ) : (
+              agentPlugins.map((plugin) => (
+                <div
+                  key={plugin.id}
+                  className="rounded border border-terminal-border/50 bg-terminal-bg/10 p-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-sm text-terminal-dark truncate">
+                        {plugin.name}
+                      </p>
+                      <p className="font-mono text-xs text-terminal-muted mt-0.5">
+                        v{plugin.version}
+                      </p>
+                      <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-2">
+                        {plugin.description}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={plugin.enabledForAgent}
+                      onCheckedChange={(checked) => toggleAgentPlugin(plugin.id, checked)}
+                      disabled={savingPluginId === plugin.id}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-terminal-border/50">
+            <AnimatedButton
+              variant="outline"
+              onClick={() => setPluginEditorOpen(false)}
+              className="font-mono"
+            >
+              {tc("close")}
+            </AnimatedButton>
           </div>
         </DialogContent>
       </Dialog>

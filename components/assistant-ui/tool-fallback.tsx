@@ -349,6 +349,17 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       searchedPaths?: string[];
     };
 
+    if (grepResult.status === "error") {
+      return (
+        <div className={cn("font-mono", TOOL_RESULT_TEXT_CLASS)}>
+          <p className="mb-2 text-red-600">Search failed</p>
+          <pre className={TOOL_RESULT_ERROR_PRE_CLASS}>
+            {grepResult.error || "Unknown localGrep error"}
+          </pre>
+        </div>
+      );
+    }
+
     // Handle no_paths or disabled status
     if (grepResult.status === "no_paths" || grepResult.status === "disabled") {
       return (

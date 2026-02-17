@@ -278,63 +278,12 @@ async function purgeOldErrors(
   messages: Message[],
   maxAge: number = 4
 ): Promise<{ tokensFreed: number; prunedCount: number }> {
-  const messagesToPrune: { id: string; tokens: number }[] = [];
-  
-  // Count user messages to determine "turns"
-  const turnIndices: number[] = [];
-  
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") {
-      turnIndices.push(i);
-    }
-  }
-
-  // Find error tool results older than maxAge turns
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (msg.role !== "tool" || msg.isCompacted) continue;
-
-    // Check if this is an error result
-    let isError = false;
-    if (Array.isArray(msg.content)) {
-      const resultPart = (msg.content as Array<{ type?: string; status?: string; error?: string }>).find(
-        (p) => p.type === "tool-result"
-      );
-      if (resultPart?.status === "error" || resultPart?.error) {
-        isError = true;
-      }
-    }
-
-    if (!isError) continue;
-
-    // Calculate age in turns
-    const turnIndex = turnIndices.findIndex((ti) => ti > i);
-    const age = turnIndex >= 0 ? turnIndices.length - turnIndex : turnIndices.length;
-
-    if (age > maxAge) {
-      const tokens = msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
-      messagesToPrune.push({ id: msg.id, tokens });
-    }
-  }
-
-  // Actually mark the old error messages as compacted
-  let tokensFreed = 0;
-  let prunedCount = 0;
-
-  if (messagesToPrune.length > 0) {
-    const ids = messagesToPrune.map((m) => m.id);
-    const compactedCount = await markMessagesAsCompactedByIds(sessionId, ids);
-    if (compactedCount > 0) {
-      tokensFreed = messagesToPrune.reduce((sum, m) => sum + m.tokens, 0);
-      prunedCount = compactedCount;
-      console.log(
-        `[CompactionService] Purge old errors: ${prunedCount} old error results pruned, ` +
-        `${formatTokenCount(tokensFreed)} tokens freed`
-      );
-    }
-  }
-
-  return { tokensFreed, prunedCount };
+  // Keep failed tool results visible for forensic/audit history.
+  // We no longer compact them away because replay/reload flows rely on error breadcrumbs.
+  void sessionId;
+  void messages;
+  void maxAge;
+  return { tokensFreed: 0, prunedCount: 0 };
 }
 
 // ---------------------------------------------------------------------------

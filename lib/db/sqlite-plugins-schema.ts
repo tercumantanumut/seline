@@ -134,6 +134,29 @@ export const pluginFiles = sqliteTable(
 );
 
 // =============================================================================
+// Agent Plugins Junction Table — Per-agent plugin assignments
+// =============================================================================
+
+export const agentPlugins = sqliteTable(
+  "agent_plugins",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    /** The agent (character) this assignment belongs to. */
+    agentId: text("agent_id").references(() => characters.id, { onDelete: "cascade" }).notNull(),
+    /** The plugin being assigned. */
+    pluginId: text("plugin_id").references(() => plugins.id, { onDelete: "cascade" }).notNull(),
+    /** Whether this plugin is enabled for this agent. */
+    enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    agentPluginUnique: uniqueIndex("idx_agent_plugins_agent_plugin").on(table.agentId, table.pluginId),
+    agentIdx: index("idx_agent_plugins_agent").on(table.agentId, table.enabled),
+    pluginIdx: index("idx_agent_plugins_plugin").on(table.pluginId),
+  })
+);
+
+// =============================================================================
 // Marketplaces Table — Registered marketplace catalogs
 // =============================================================================
 
@@ -180,6 +203,18 @@ export const pluginsRelations = relations(plugins, ({ one, many }) => ({
   mcpServers: many(pluginMcpServers),
   lspServers: many(pluginLspServers),
   files: many(pluginFiles),
+  agentAssignments: many(agentPlugins),
+}));
+
+export const agentPluginsRelations = relations(agentPlugins, ({ one }) => ({
+  agent: one(characters, {
+    fields: [agentPlugins.agentId],
+    references: [characters.id],
+  }),
+  plugin: one(plugins, {
+    fields: [agentPlugins.pluginId],
+    references: [plugins.id],
+  }),
 }));
 
 export const pluginHooksRelations = relations(pluginHooks, ({ one }) => ({
@@ -233,3 +268,5 @@ export type PluginFile = typeof pluginFiles.$inferSelect;
 export type NewPluginFile = typeof pluginFiles.$inferInsert;
 export type Marketplace = typeof marketplaces.$inferSelect;
 export type NewMarketplace = typeof marketplaces.$inferInsert;
+export type AgentPlugin = typeof agentPlugins.$inferSelect;
+export type NewAgentPlugin = typeof agentPlugins.$inferInsert;

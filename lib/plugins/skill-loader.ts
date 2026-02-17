@@ -6,15 +6,20 @@
  * with user-created skills.
  */
 
-import { getInstalledPlugins } from "./registry";
+import { getEnabledPluginsForAgent, getInstalledPlugins } from "./registry";
 import type { PluginSkillEntry } from "./types";
 
 /**
  * Build a summary of available plugin skills for the system prompt.
  * Returns an empty string if no active plugins have skills.
  */
-export async function getPluginSkillsForPrompt(userId: string): Promise<string> {
-  const plugins = await getInstalledPlugins(userId, { status: "active" });
+export async function getPluginSkillsForPrompt(
+  userId: string,
+  options?: { agentId?: string; characterId?: string }
+): Promise<string> {
+  const plugins = options?.agentId
+    ? await getEnabledPluginsForAgent(userId, options.agentId, options.characterId)
+    : await getInstalledPlugins(userId, { status: "active" });
   const skills: PluginSkillEntry[] = [];
 
   for (const plugin of plugins) {
@@ -38,9 +43,12 @@ export async function getPluginSkillsForPrompt(userId: string): Promise<string> 
  */
 export async function getPluginSkillContent(
   userId: string,
-  namespacedName: string
+  namespacedName: string,
+  options?: { agentId?: string; characterId?: string }
 ): Promise<string | null> {
-  const plugins = await getInstalledPlugins(userId, { status: "active" });
+  const plugins = options?.agentId
+    ? await getEnabledPluginsForAgent(userId, options.agentId, options.characterId)
+    : await getInstalledPlugins(userId, { status: "active" });
 
   for (const plugin of plugins) {
     const skill = plugin.components.skills?.find(
@@ -57,9 +65,12 @@ export async function getPluginSkillContent(
  * Useful for building skill summaries with full metadata.
  */
 export async function getActivePluginSkills(
-  userId: string
+  userId: string,
+  options?: { agentId?: string; characterId?: string }
 ): Promise<PluginSkillEntry[]> {
-  const plugins = await getInstalledPlugins(userId, { status: "active" });
+  const plugins = options?.agentId
+    ? await getEnabledPluginsForAgent(userId, options.agentId, options.characterId)
+    : await getInstalledPlugins(userId, { status: "active" });
   const skills: PluginSkillEntry[] = [];
 
   for (const plugin of plugins) {
