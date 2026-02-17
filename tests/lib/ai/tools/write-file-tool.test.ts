@@ -12,6 +12,8 @@ const fsMocks = vi.hoisted(() => ({
   access: vi.fn(),
   stat: vi.fn(),
   mkdir: vi.fn(),
+  realpath: vi.fn(),
+  rename: vi.fn(),
 }));
 
 const diagnosticsMocks = vi.hoisted(() => ({
@@ -50,6 +52,8 @@ vi.mock("fs/promises", () => ({
   access: fsMocks.access,
   stat: fsMocks.stat,
   mkdir: fsMocks.mkdir,
+  realpath: fsMocks.realpath,
+  rename: fsMocks.rename,
 }));
 
 vi.mock("@/lib/ai/filesystem/diagnostics", () => ({
@@ -75,6 +79,7 @@ describe("write-file-tool", () => {
     ]);
 
     fsMocks.stat.mockResolvedValue({ mtimeMs: 0 }); // Not stale
+    fsMocks.realpath.mockImplementation((path: string) => Promise.resolve(path)); // Mock realpath to return the path as-is
     diagnosticsMocks.runPostWriteDiagnostics.mockResolvedValue(null);
   });
 
@@ -119,6 +124,9 @@ describe("write-file-tool", () => {
       expect(result.status).toBe("success");
       expect(result.created).toBe(true);
       expect(result.lineCount).toBe(3);
+      expect(result.diff).toContain("--- new-file.ts");
+      expect(result.diff).toContain("+++ new-file.ts");
+      expect(result.diff).toContain("+ const x = 1;");
     });
   });
 
@@ -136,6 +144,10 @@ describe("write-file-tool", () => {
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
       expect(result.status).toBe("success");
+      expect(result.diff).toContain("--- new-file.ts");
+      expect(result.diff).toContain("+++ new-file.ts");
+      expect(result.diff).toContain("- old content");
+      expect(result.diff).toContain("+ new content");
     });
 
     it("rejects no-op writes (identical content)", async () => {

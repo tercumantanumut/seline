@@ -1,17 +1,10 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-import * as schema from "./schema";
+/**
+ * Database Client
+ * 
+ * This project uses better-sqlite3 for local database storage.
+ * All database operations use the SQLite client.
+ * 
+ * For the actual implementation, see: lib/db/sqlite-client.ts
+ */
 
-const globalForDb = globalThis as unknown as {
-  pool: Pool | undefined;
-};
-
-const pool = globalForDb.pool ?? new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pool = pool;
-}
-
-export const db = drizzle(pool, { schema });
+export { db } from "./sqlite-client";

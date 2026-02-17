@@ -10,9 +10,36 @@ import {
   forceCleanupStuckFolders,
   setPrimaryFolder,
   cancelSyncById,
+  updateSyncFolderSettings,
 } from "@/lib/vectordb/sync-service";
 import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
 import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
+
+const VALID_SYNC_MODES = ["auto", "manual", "scheduled", "triggered"] as const;
+const VALID_INDEXING_MODES = ["auto", "full", "files-only"] as const;
+const VALID_CHUNK_PRESETS = ["balanced", "small", "large", "custom"] as const;
+const VALID_REINDEX_POLICIES = ["smart", "always", "never"] as const;
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function normalizeOptionalStringArray(value: unknown): string[] | undefined {
+  if (value == null) return undefined;
+  if (!isStringArray(value)) return undefined;
+  return value.map((item) => item.trim()).filter(Boolean);
+}
+
+function isValidEnum<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
+  return typeof value === "string" && allowed.includes(value);
+}
+
+function normalizePositiveInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const normalized = Math.floor(value);
+  if (normalized <= 0) return undefined;
+  return normalized;
+}
 
 /**
  * GET /api/vector-sync?characterId=xxx
@@ -53,13 +80,96 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     if (action === "add") {
-      const { characterId, folderPath, displayName, recursive, includeExtensions, excludePatterns, indexingMode, autoSync } = body;
+      const {
+        characterId,
+        folderPath,
+        displayName,
+        recursive,
+        includeExtensions,
+        excludePatterns,
+        indexingMode,
+        autoSync,
+        syncMode,
+        syncCadenceMinutes,
+        fileTypeFilters,
+        maxFileSizeBytes,
+        chunkPreset,
+        chunkSizeOverride,
+        chunkOverlapOverride,
+        reindexPolicy,
+        dryRun,
+      } = body;
 
       if (!characterId || !folderPath) {
         return NextResponse.json(
           { error: "characterId and folderPath are required" },
           { status: 400 }
         );
+      }
+
+      if (indexingMode !== undefined && !isValidEnum(indexingMode, VALID_INDEXING_MODES)) {
+        return NextResponse.json({ error: "Invalid indexingMode" }, { status: 400 });
+      }
+      if (syncMode !== undefined && !isValidEnum(syncMode, VALID_SYNC_MODES)) {
+        return NextResponse.json({ error: "Invalid syncMode" }, { status: 400 });
+      }
+      if (chunkPreset !== undefined && !isValidEnum(chunkPreset, VALID_CHUNK_PRESETS)) {
+        return NextResponse.json({ error: "Invalid chunkPreset" }, { status: 400 });
+      }
+      if (reindexPolicy !== undefined && !isValidEnum(reindexPolicy, VALID_REINDEX_POLICIES)) {
+        return NextResponse.json({ error: "Invalid reindexPolicy" }, { status: 400 });
+      }
+
+      const normalizedCadence = normalizePositiveInt(syncCadenceMinutes);
+      if (syncCadenceMinutes !== undefined && normalizedCadence === undefined) {
+        return NextResponse.json({ error: "syncCadenceMinutes must be a positive number" }, { status: 400 });
+      }
+      const normalizedMaxFileSize = normalizePositiveInt(maxFileSizeBytes);
+      if (maxFileSizeBytes !== undefined && normalizedMaxFileSize === undefined) {
+        return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
+      }
+      const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
+      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+        return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
+      }
+      const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
+      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+        return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
+      }
+      if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {
+        return NextResponse.json({ error: "custom chunkPreset requires chunkSizeOverride and chunkOverlapOverride" }, { status: 400 });
+      }
+
+      const normalizedIncludeExtensions = normalizeOptionalStringArray(includeExtensions);
+      if (includeExtensions !== undefined && !normalizedIncludeExtensions) {
+        return NextResponse.json({ error: "includeExtensions must be an array of strings" }, { status: 400 });
+      }
+      const normalizedExcludePatterns = normalizeOptionalStringArray(excludePatterns);
+      if (excludePatterns !== undefined && !normalizedExcludePatterns) {
+        return NextResponse.json({ error: "excludePatterns must be an array of strings" }, { status: 400 });
+      }
+      const normalizedFileTypeFilters = normalizeOptionalStringArray(fileTypeFilters);
+      if (fileTypeFilters !== undefined && !normalizedFileTypeFilters) {
+        return NextResponse.json({ error: "fileTypeFilters must be an array of strings" }, { status: 400 });
+      }
+
+      const effectiveSyncMode = syncMode ?? "auto";
+
+      if (dryRun === true) {
+        return NextResponse.json({
+          success: true,
+          dryRun: true,
+          validated: {
+            characterId,
+            folderPath,
+            indexingMode: indexingMode ?? "auto",
+            syncMode: effectiveSyncMode,
+            syncCadenceMinutes: normalizedCadence ?? 60,
+            maxFileSizeBytes: normalizedMaxFileSize ?? 10 * 1024 * 1024,
+            chunkPreset: chunkPreset ?? "balanced",
+            reindexPolicy: reindexPolicy ?? "smart",
+          },
+        });
       }
 
       const userId = getSetting("localUserId");
@@ -69,32 +179,40 @@ export async function POST(request: NextRequest) {
         folderPath,
         displayName,
         recursive: recursive ?? true,
-        includeExtensions: includeExtensions ?? [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"],
-        excludePatterns: excludePatterns ?? DEFAULT_IGNORE_PATTERNS,
+        includeExtensions: normalizedIncludeExtensions ?? [".txt", ".md", ".json", ".ts", ".tsx", ".js", ".jsx", ".py", ".html", ".css"],
+        excludePatterns: normalizedExcludePatterns ?? DEFAULT_IGNORE_PATTERNS,
         indexingMode: indexingMode ?? "auto",
+        syncMode: effectiveSyncMode,
+        syncCadenceMinutes: normalizedCadence ?? 60,
+        fileTypeFilters: normalizedFileTypeFilters ?? [],
+        maxFileSizeBytes: normalizedMaxFileSize ?? 10 * 1024 * 1024,
+        chunkPreset: chunkPreset ?? "balanced",
+        chunkSizeOverride: normalizedChunkSize,
+        chunkOverlapOverride: normalizedChunkOverlap,
+        reindexPolicy: reindexPolicy ?? "smart",
       });
 
-      // Auto-trigger sync in the background unless explicitly disabled
-      // This runs async without blocking the response
-      if (autoSync !== false) {
-        syncFolder(folderId).catch(err => {
+      // Auto-trigger sync only for auto mode unless explicitly disabled.
+      const shouldStartAutoSync = autoSync !== false && effectiveSyncMode === "auto";
+      if (shouldStartAutoSync) {
+        syncFolder(folderId, {}, false, "auto").catch(err => {
           console.error(`[VectorSync] Background sync failed for folder ${folderId}:`, err);
         });
       }
 
-      return NextResponse.json({ folderId, success: true, syncStarted: autoSync !== false });
+      return NextResponse.json({ folderId, success: true, syncStarted: shouldStartAutoSync });
     }
 
     if (action === "sync") {
       const { folderId, characterId } = body;
 
       if (folderId) {
-        const result = await syncFolder(folderId);
+        const result = await syncFolder(folderId, {}, false, "manual");
         return NextResponse.json({ result, success: true });
       }
 
       if (characterId) {
-        const results = await syncAllFolders(characterId);
+        const results = await syncAllFolders(characterId, {}, false, "manual");
         return NextResponse.json({ results, success: true });
       }
 
@@ -113,7 +231,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (folderId) {
-        const result = await syncFolder(folderId, {}, true);
+        const result = await syncFolder(folderId, {}, true, "manual");
         return NextResponse.json({ result, success: true });
       }
 
@@ -163,6 +281,99 @@ export async function POST(request: NextRequest) {
       }
 
       await setPrimaryFolder(folderId, characterId);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "update") {
+      const {
+        folderId,
+        displayName,
+        recursive,
+        includeExtensions,
+        excludePatterns,
+        indexingMode,
+        syncMode,
+        syncCadenceMinutes,
+        fileTypeFilters,
+        maxFileSizeBytes,
+        chunkPreset,
+        chunkSizeOverride,
+        chunkOverlapOverride,
+        reindexPolicy,
+        dryRun,
+      } = body;
+
+      if (!folderId) {
+        return NextResponse.json({ error: "folderId is required" }, { status: 400 });
+      }
+
+      if (indexingMode !== undefined && !isValidEnum(indexingMode, VALID_INDEXING_MODES)) {
+        return NextResponse.json({ error: "Invalid indexingMode" }, { status: 400 });
+      }
+      if (syncMode !== undefined && !isValidEnum(syncMode, VALID_SYNC_MODES)) {
+        return NextResponse.json({ error: "Invalid syncMode" }, { status: 400 });
+      }
+      if (chunkPreset !== undefined && !isValidEnum(chunkPreset, VALID_CHUNK_PRESETS)) {
+        return NextResponse.json({ error: "Invalid chunkPreset" }, { status: 400 });
+      }
+      if (reindexPolicy !== undefined && !isValidEnum(reindexPolicy, VALID_REINDEX_POLICIES)) {
+        return NextResponse.json({ error: "Invalid reindexPolicy" }, { status: 400 });
+      }
+
+      const normalizedIncludeExtensions = normalizeOptionalStringArray(includeExtensions);
+      if (includeExtensions !== undefined && !normalizedIncludeExtensions) {
+        return NextResponse.json({ error: "includeExtensions must be an array of strings" }, { status: 400 });
+      }
+      const normalizedExcludePatterns = normalizeOptionalStringArray(excludePatterns);
+      if (excludePatterns !== undefined && !normalizedExcludePatterns) {
+        return NextResponse.json({ error: "excludePatterns must be an array of strings" }, { status: 400 });
+      }
+      const normalizedFileTypeFilters = normalizeOptionalStringArray(fileTypeFilters);
+      if (fileTypeFilters !== undefined && !normalizedFileTypeFilters) {
+        return NextResponse.json({ error: "fileTypeFilters must be an array of strings" }, { status: 400 });
+      }
+
+      const normalizedCadence = normalizePositiveInt(syncCadenceMinutes);
+      if (syncCadenceMinutes !== undefined && normalizedCadence === undefined) {
+        return NextResponse.json({ error: "syncCadenceMinutes must be a positive number" }, { status: 400 });
+      }
+      const normalizedMaxFileSize = normalizePositiveInt(maxFileSizeBytes);
+      if (maxFileSizeBytes !== undefined && normalizedMaxFileSize === undefined) {
+        return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
+      }
+      const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
+      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+        return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
+      }
+      const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
+      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+        return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
+      }
+      if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {
+        return NextResponse.json({ error: "custom chunkPreset requires chunkSizeOverride and chunkOverlapOverride" }, { status: 400 });
+      }
+
+      if (dryRun === true) {
+        return NextResponse.json({ success: true, dryRun: true });
+      }
+
+      await updateSyncFolderSettings({
+        folderId,
+        displayName,
+        recursive,
+        includeExtensions: normalizedIncludeExtensions,
+        excludePatterns: normalizedExcludePatterns,
+        indexingMode,
+        syncMode,
+        syncCadenceMinutes: normalizedCadence,
+        fileTypeFilters: normalizedFileTypeFilters,
+        maxFileSizeBytes: normalizedMaxFileSize,
+        chunkPreset,
+        chunkSizeOverride: chunkSizeOverride === null ? null : normalizedChunkSize,
+        chunkOverlapOverride: chunkOverlapOverride === null ? null : normalizedChunkOverlap,
+        reindexPolicy,
+      });
+
       return NextResponse.json({ success: true });
     }
 

@@ -29,7 +29,8 @@ export async function GET(
       with: { task: true },
     });
 
-    if (!run || run.task.userId !== dbUser.id) {
+    const task = Array.isArray(run?.task) ? run.task[0] : run?.task;
+    if (!run || !task || task.userId !== dbUser.id) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 

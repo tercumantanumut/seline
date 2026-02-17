@@ -32,7 +32,7 @@ const globalForDb = globalThis as unknown as {
   schemaVersion?: number;
 };
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function createConnection(): { sqlite: Database.Database; db: BetterSQLite3Database<typeof schema> } {
   const dbPath = getDbPath();
@@ -486,6 +486,20 @@ function initializeTables(sqlite: Database.Database): void {
       last_error TEXT,
       file_count INTEGER DEFAULT 0,
       chunk_count INTEGER DEFAULT 0,
+      embedding_model TEXT,
+      indexing_mode TEXT NOT NULL DEFAULT 'auto' CHECK(indexing_mode IN ('files-only', 'full', 'auto')),
+      sync_mode TEXT NOT NULL DEFAULT 'auto' CHECK(sync_mode IN ('auto', 'manual', 'scheduled', 'triggered')),
+      sync_cadence_minutes INTEGER NOT NULL DEFAULT 60,
+      file_type_filters TEXT NOT NULL DEFAULT '[]',
+      max_file_size_bytes INTEGER NOT NULL DEFAULT 10485760,
+      chunk_preset TEXT NOT NULL DEFAULT 'balanced' CHECK(chunk_preset IN ('balanced', 'small', 'large', 'custom')),
+      chunk_size_override INTEGER,
+      chunk_overlap_override INTEGER,
+      reindex_policy TEXT NOT NULL DEFAULT 'smart' CHECK(reindex_policy IN ('smart', 'always', 'never')),
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      skip_reasons TEXT NOT NULL DEFAULT '{}',
+      last_run_metadata TEXT NOT NULL DEFAULT '{}',
+      last_run_trigger TEXT CHECK(last_run_trigger IN ('manual', 'scheduled', 'triggered', 'auto')),
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -691,6 +705,121 @@ function initializeTables(sqlite: Database.Database): void {
     // Column already exists, ignore error
   }
 
+  // Migration: Add sync_mode column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN sync_mode TEXT NOT NULL DEFAULT 'auto'`);
+    console.log("[SQLite Migration] Added sync_mode column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add sync_cadence_minutes column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN sync_cadence_minutes INTEGER NOT NULL DEFAULT 60`);
+    console.log("[SQLite Migration] Added sync_cadence_minutes column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add file_type_filters column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN file_type_filters TEXT NOT NULL DEFAULT '[]'`);
+    console.log("[SQLite Migration] Added file_type_filters column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add max_file_size_bytes column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN max_file_size_bytes INTEGER NOT NULL DEFAULT 10485760`);
+    console.log("[SQLite Migration] Added max_file_size_bytes column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_preset column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_preset TEXT NOT NULL DEFAULT 'balanced'`);
+    console.log("[SQLite Migration] Added chunk_preset column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_size_override column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_size_override INTEGER`);
+    console.log("[SQLite Migration] Added chunk_size_override column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_overlap_override column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_overlap_override INTEGER`);
+    console.log("[SQLite Migration] Added chunk_overlap_override column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add reindex_policy column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN reindex_policy TEXT NOT NULL DEFAULT 'smart'`);
+    console.log("[SQLite Migration] Added reindex_policy column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add skipped_count column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN skipped_count INTEGER NOT NULL DEFAULT 0`);
+    console.log("[SQLite Migration] Added skipped_count column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add skip_reasons column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN skip_reasons TEXT NOT NULL DEFAULT '{}'`);
+    console.log("[SQLite Migration] Added skip_reasons column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add last_run_metadata column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN last_run_metadata TEXT NOT NULL DEFAULT '{}'`);
+    console.log("[SQLite Migration] Added last_run_metadata column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add last_run_trigger column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN last_run_trigger TEXT`);
+    console.log("[SQLite Migration] Added last_run_trigger column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Ensure legacy rows have safe defaults for the new columns.
+  try {
+    sqlite.exec(`
+      UPDATE agent_sync_folders
+      SET
+        sync_mode = COALESCE(sync_mode, 'auto'),
+        sync_cadence_minutes = COALESCE(sync_cadence_minutes, 60),
+        file_type_filters = COALESCE(file_type_filters, '[]'),
+        max_file_size_bytes = COALESCE(max_file_size_bytes, 10485760),
+        chunk_preset = COALESCE(chunk_preset, 'balanced'),
+        reindex_policy = COALESCE(reindex_policy, 'smart'),
+        skipped_count = COALESCE(skipped_count, 0),
+        skip_reasons = COALESCE(skip_reasons, '{}'),
+        last_run_metadata = COALESCE(last_run_metadata, '{}')
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to backfill vector sync defaults:", error);
+  }
+
   // =========================================================================
   // Observability Tables (Agent Runs, Events, Prompt Versioning)
   // =========================================================================
@@ -837,6 +966,46 @@ function initializeTables(sqlite: Database.Database): void {
   // Scheduled Tasks Tables
   // =========================================================================
 
+  // Skills table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      icon TEXT,
+      prompt_template TEXT NOT NULL,
+      input_parameters TEXT NOT NULL DEFAULT '[]',
+      tool_hints TEXT NOT NULL DEFAULT '[]',
+      trigger_examples TEXT NOT NULL DEFAULT '[]',
+      category TEXT NOT NULL DEFAULT 'general',
+      version INTEGER NOT NULL DEFAULT 1,
+      copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+      copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+      source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
+      source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      run_count INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      last_run_at TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'archived')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS skill_telemetry_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+      skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+      event_type TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Scheduled tasks table - schedule definitions
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -868,7 +1037,8 @@ function initializeTables(sqlite: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_run_at TEXT,
-      next_run_at TEXT
+      next_run_at TEXT,
+      skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL
     )
   `);
 
@@ -894,6 +1064,24 @@ function initializeTables(sqlite: Database.Database): void {
   `);
 
   // Indexes for scheduled tasks
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skills_user_character
+      ON skills (user_id, character_id, status)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skills_character_name
+      ON skills (character_id, name)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skill_telemetry_user_event
+      ON skill_telemetry_events (user_id, event_type, created_at DESC)
+  `);
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_skill_telemetry_skill_event
+      ON skill_telemetry_events (skill_id, event_type, created_at DESC)
+  `);
+
   sqlite.exec(`
     CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_user
       ON scheduled_tasks (user_id, enabled, created_at DESC)
@@ -923,7 +1111,85 @@ function initializeTables(sqlite: Database.Database): void {
 
   // Run data migrations
   runDataMigrations(sqlite);
+  runSkillsMigrations(sqlite);
   runSessionMaintenance(sqlite);
+}
+
+/**
+ * Run skills-related schema migrations.
+ * These migrations add support for scripted skills (Agent Skills packages).
+ */
+function runSkillsMigrations(sqlite: Database.Database): void {
+  try {
+    // Check if skill_files table exists
+    const tableExists = sqlite.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='skill_files'
+    `).get();
+
+    if (!tableExists) {
+      console.log("[SQLite Migration] Creating skill_files table...");
+      
+      // Create skill_files table
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS skill_files (
+          id TEXT PRIMARY KEY,
+          skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+          relative_path TEXT NOT NULL,
+          content BLOB NOT NULL,
+          mime_type TEXT,
+          size INTEGER NOT NULL,
+          is_executable INTEGER DEFAULT 0 NOT NULL,
+          created_at TEXT DEFAULT (datetime('now')) NOT NULL
+        )
+      `);
+
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_skill_files_skill_path 
+        ON skill_files(skill_id, relative_path)
+      `);
+
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_skill_files_skill_created 
+        ON skill_files(skill_id, created_at)
+      `);
+
+      console.log("[SQLite Migration] skill_files table created");
+    }
+
+    // Add new columns to skills table if they don't exist
+    const columnsToAdd = [
+      { name: "source_format", sql: "ALTER TABLE skills ADD COLUMN source_format TEXT DEFAULT 'prompt-only' NOT NULL" },
+      { name: "has_scripts", sql: "ALTER TABLE skills ADD COLUMN has_scripts INTEGER DEFAULT 0 NOT NULL" },
+      { name: "has_references", sql: "ALTER TABLE skills ADD COLUMN has_references INTEGER DEFAULT 0 NOT NULL" },
+      { name: "has_assets", sql: "ALTER TABLE skills ADD COLUMN has_assets INTEGER DEFAULT 0 NOT NULL" },
+      { name: "script_languages", sql: "ALTER TABLE skills ADD COLUMN script_languages TEXT DEFAULT '[]' NOT NULL" },
+      { name: "package_version", sql: "ALTER TABLE skills ADD COLUMN package_version TEXT" },
+      { name: "license", sql: "ALTER TABLE skills ADD COLUMN license TEXT" },
+      { name: "compatibility", sql: "ALTER TABLE skills ADD COLUMN compatibility TEXT" },
+    ];
+
+    for (const column of columnsToAdd) {
+      try {
+        // Check if column exists
+        const columnExists = sqlite.prepare(`
+          SELECT COUNT(*) as count FROM pragma_table_info('skills') 
+          WHERE name = ?
+        `).get(column.name) as { count: number };
+
+        if (columnExists.count === 0) {
+          console.log(`[SQLite Migration] Adding column ${column.name} to skills table...`);
+          sqlite.exec(column.sql);
+        }
+      } catch (error) {
+        console.warn(`[SQLite Migration] Failed to add column ${column.name}:`, error);
+      }
+    }
+
+    console.log("[SQLite Migration] Skills schema migrations complete");
+  } catch (error) {
+    console.error("[SQLite Migration] Skills migrations failed:", error);
+  }
 }
 
 /**
@@ -1010,6 +1276,114 @@ function runDataMigrations(sqlite: Database.Database): void {
     // Don't throw - this is a non-critical migration
   }
 
+  // Migration: Ensure skills table exists for skill-linked prompting and scheduling.
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        icon TEXT,
+        prompt_template TEXT NOT NULL,
+        input_parameters TEXT NOT NULL DEFAULT '[]',
+        tool_hints TEXT NOT NULL DEFAULT '[]',
+        trigger_examples TEXT NOT NULL DEFAULT '[]',
+        category TEXT NOT NULL DEFAULT 'general',
+        version INTEGER NOT NULL DEFAULT 1,
+        copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+        copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+        source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
+        source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        run_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        last_run_at TEXT,
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'archived')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_character
+      ON skills (user_id, character_id, status)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_character_name
+      ON skills (character_id, name)
+    `);
+
+    const skillColumns = sqlite.prepare("PRAGMA table_info(skills)").all() as Array<{ name: string }>;
+    const skillColumnNames = new Set(skillColumns.map((column) => column.name));
+    const skillColumnsToAdd = [
+      { name: "trigger_examples", sql: "ALTER TABLE skills ADD COLUMN trigger_examples TEXT NOT NULL DEFAULT '[]'" },
+      { name: "category", sql: "ALTER TABLE skills ADD COLUMN category TEXT NOT NULL DEFAULT 'general'" },
+      { name: "version", sql: "ALTER TABLE skills ADD COLUMN version INTEGER NOT NULL DEFAULT 1" },
+      { name: "copied_from_skill_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL" },
+      { name: "copied_from_character_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL" },
+    ];
+
+    for (const column of skillColumnsToAdd) {
+      if (!skillColumnNames.has(column.name)) {
+        sqlite.exec(column.sql);
+        console.log(`[SQLite Migration] Added column ${column.name} to skills`);
+      }
+    }
+
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_updated
+      ON skills (user_id, updated_at)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_user_category
+      ON skills (user_id, category)
+    `);
+
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skill_versions (
+        id TEXT PRIMARY KEY,
+        skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        prompt_template TEXT NOT NULL,
+        input_parameters TEXT NOT NULL DEFAULT '[]',
+        tool_hints TEXT NOT NULL DEFAULT '[]',
+        description TEXT,
+        change_reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_versions_skill_version
+      ON skill_versions (skill_id, version)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_versions_skill_created
+      ON skill_versions (skill_id, created_at)
+    `);
+
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS skill_telemetry_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
+        skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_telemetry_user_event
+      ON skill_telemetry_events (user_id, event_type, created_at DESC)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skill_telemetry_skill_event
+      ON skill_telemetry_events (skill_id, event_type, created_at DESC)
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Skills table migration failed:", error);
+  }
+
   // Migration: Add new columns to scheduled_tasks for pause/resume and delivery
   try {
     // Check if columns exist by trying to query them
@@ -1023,6 +1397,7 @@ function runDataMigrations(sqlite: Database.Database): void {
       { name: "status", sql: "ALTER TABLE scheduled_tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('draft', 'active', 'paused', 'archived'))" },
       { name: "delivery_method", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_method TEXT NOT NULL DEFAULT 'session'" },
       { name: "delivery_config", sql: "ALTER TABLE scheduled_tasks ADD COLUMN delivery_config TEXT NOT NULL DEFAULT '{}'" },
+      { name: "skill_id", sql: "ALTER TABLE scheduled_tasks ADD COLUMN skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL" },
     ];
 
     for (const col of columnsToAdd) {
@@ -1030,6 +1405,15 @@ function runDataMigrations(sqlite: Database.Database): void {
         sqlite.exec(col.sql);
         console.log(`[SQLite Migration] Added column ${col.name} to scheduled_tasks`);
       }
+    }
+
+    const updatedTableInfo = sqlite.prepare("PRAGMA table_info(scheduled_tasks)").all() as Array<{ name: string }>;
+    const hasSkillId = updatedTableInfo.some((column) => column.name === "skill_id");
+    if (hasSkillId) {
+      sqlite.exec(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_skill_id
+          ON scheduled_tasks (skill_id)
+      `);
     }
   } catch (error) {
     console.warn("[SQLite Migration] Scheduled tasks column migration failed:", error);
@@ -1084,6 +1468,7 @@ function runDataMigrations(sqlite: Database.Database): void {
               delivery_method TEXT NOT NULL DEFAULT 'session' CHECK(delivery_method IN ('session', 'email', 'slack', 'webhook', 'channel')),
               delivery_config TEXT NOT NULL DEFAULT '{}',
               result_session_id TEXT REFERENCES sessions(id),
+              skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
               create_new_session_per_run INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL DEFAULT (datetime('now')),
               updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1097,14 +1482,14 @@ function runDataMigrations(sqlite: Database.Database): void {
               interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
               context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
               paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
-              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+              skill_id, create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
             )
             SELECT
               id, user_id, character_id, name, description, schedule_type, cron_expression,
               interval_minutes, scheduled_at, timezone, initial_prompt, prompt_variables,
               context_sources, enabled, max_retries, timeout_ms, priority, status, paused_at,
               paused_until, pause_reason, delivery_method, delivery_config, result_session_id,
-              create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
+              NULL as skill_id, create_new_session_per_run, created_at, updated_at, last_run_at, next_run_at
             FROM scheduled_tasks_old
           `);
 
@@ -1119,6 +1504,10 @@ function runDataMigrations(sqlite: Database.Database): void {
           sqlite.exec(`
             CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run
               ON scheduled_tasks (enabled, next_run_at)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_skill_id
+              ON scheduled_tasks (skill_id)
           `);
 
           sqlite.exec("DROP TABLE IF EXISTS scheduled_tasks_old");

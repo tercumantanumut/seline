@@ -23,6 +23,8 @@ import {
   PaperclipIcon,
   CopyIcon,
   CheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
   RefreshCwIcon,
   PencilIcon,
   User,
@@ -36,8 +38,10 @@ import {
   SearchIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
@@ -105,6 +109,203 @@ export const Thread: FC<ThreadProps> = ({
   isZombieBackgroundRun = false,
 }) => {
   const isRunning = useThread((t) => t.isRunning);
+  const router = useRouter();
+  const { character } = useCharacter();
+  const threadRuntime = useThreadRuntime();
+  const t = useTranslations("assistantUi");
+  
+  // Drag and drop state for full-page drop zone
+  const [isDragging, setIsDragging] = useState(false);
+  const [isImportingSkill, setIsImportingSkill] = useState(false);
+  const [skillImportPhase, setSkillImportPhase] = useState<"idle" | "uploading" | "parsing" | "importing" | "success" | "error">("idle");
+  const [skillImportProgress, setSkillImportProgress] = useState(0);
+  const [skillImportName, setSkillImportName] = useState<string | null>(null);
+  const [skillImportError, setSkillImportError] = useState<string | null>(null);
+  const dragCounter = useRef(0);
+
+  // Deep research mode (for drag-drop gating)
+  const deepResearch = useOptionalDeepResearch();
+  const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
+
+  // ── Drag-and-drop handlers (full-page drop zone) ──────────────────────
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    // Only count enters from outside the component tree — ignore
+    // bubbled events from child elements (especially the overlay itself)
+    if (e.dataTransfer.types.includes("Files")) {
+      dragCounter.current += 1;
+      if (dragCounter.current === 1) {
+        setIsDragging(true);
+      }
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = Math.max(0, dragCounter.current - 1);
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Force-reset drag state to prevent stuck overlay
+      dragCounter.current = 0;
+      setIsDragging(false);
+
+      // Block drops in deep research mode
+      if (isDeepResearchMode) {
+        toast.error(t("composer.attachmentsDisabledResearch"));
+        return;
+      }
+
+      const files = Array.from(e.dataTransfer.files);
+
+      // ── Skill files (.zip / .md) ──────────────────────────────────
+      const skillFiles = files.filter(
+        (f) => f.name.endsWith(".zip") || f.name.endsWith(".md")
+      );
+
+      if (skillFiles.length > 0) {
+        const skillFile = skillFiles[0];
+
+        if (!character?.id || character.id === "default") {
+          toast.error("Please select an agent before importing skills");
+          return;
+        }
+
+        const MAX_SKILL_SIZE = 50 * 1024 * 1024;
+        if (skillFile.size > MAX_SKILL_SIZE) {
+          toast.error("Skill file exceeds 50MB limit", {
+            description: `File size: ${Math.round(skillFile.size / 1024 / 1024)}MB`,
+          });
+          return;
+        }
+
+        // Set initial state — React 18 batches these, but the first
+        // await below forces a render so the overlay appears immediately.
+        setIsImportingSkill(true);
+        setSkillImportPhase("uploading");
+        setSkillImportProgress(10);
+        setSkillImportName(skillFile.name);
+        setSkillImportError(null);
+
+        // Yield to the event loop so React flushes the "uploading" overlay
+        // before we start the network request. Without this, React batches
+        // all setState calls up to the first `await fetch(...)` and the
+        // user sees nothing for ~1s.
+        await new Promise((r) => setTimeout(r, 0));
+
+        try {
+          const formData = new FormData();
+          formData.append("file", skillFile);
+          formData.append("characterId", character.id);
+
+          setSkillImportPhase("parsing");
+          setSkillImportProgress(30);
+
+          const response = await fetch("/api/skills/import", {
+            method: "POST",
+            body: formData,
+          });
+
+          setSkillImportPhase("importing");
+          setSkillImportProgress(70);
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Import failed");
+          }
+
+          const result = await response.json();
+
+          setSkillImportPhase("success");
+          setSkillImportProgress(100);
+          setSkillImportName(result.skillName || skillFile.name);
+
+          toast.success("Skill imported successfully", {
+            description: `${result.skillName} is ready to use`,
+            action: {
+              label: "View Skills",
+              onClick: () => router.push(`/agents/${character.id}/skills`),
+            },
+          });
+
+          // Auto-dismiss after 2.5 seconds
+          setTimeout(() => {
+            setIsImportingSkill(false);
+            setSkillImportPhase("idle");
+            setSkillImportProgress(0);
+            setSkillImportName(null);
+          }, 2500);
+        } catch (error) {
+          console.error("[Thread] Skill import failed:", error);
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          setSkillImportPhase("error");
+          setSkillImportError(errorMsg);
+          toast.error("Skill import failed", {
+            description: errorMsg,
+          });
+
+          // Auto-dismiss error after 4 seconds
+          setTimeout(() => {
+            setIsImportingSkill(false);
+            setSkillImportPhase("idle");
+            setSkillImportProgress(0);
+            setSkillImportName(null);
+            setSkillImportError(null);
+          }, 4000);
+        }
+        return;
+      }
+
+      // ── Image attachments ─────────────────────────────────────────
+      const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+
+      if (imageFiles.length === 0) {
+        toast.error(t("composer.onlyImagesSupported"));
+        return;
+      }
+
+      const MAX_SIZE = 10 * 1024 * 1024;
+      const oversizedFiles = imageFiles.filter((f) => f.size > MAX_SIZE);
+
+      if (oversizedFiles.length > 0) {
+        toast.error(
+          t("composer.someFilesTooLarge", {
+            count: oversizedFiles.length,
+            max: 10,
+          })
+        );
+        return;
+      }
+
+      let successCount = 0;
+      for (const file of imageFiles) {
+        try {
+          await threadRuntime.composer.addAttachment(file);
+          successCount++;
+        } catch (error) {
+          console.error("[Thread] Failed to attach dropped file:", file.name, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(t("composer.filesDropped", { count: successCount }));
+      } else {
+        toast.error(t("composer.dropError"));
+      }
+    },
+    [threadRuntime, t, isDeepResearchMode, character, router]
+  );
 
   // Context window status tracking
   const {
@@ -133,7 +334,91 @@ export const Thread: FC<ThreadProps> = ({
 
   return (
     <TooltipProvider>
-      <ThreadPrimitive.Root className="flex h-full flex-col bg-terminal-cream">
+      <ThreadPrimitive.Root
+        className="flex h-full flex-col bg-terminal-cream"
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Full-page drag overlay — hidden once import starts so the progress banner is visible */}
+        {isDragging && !isImportingSkill && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-dark/40 backdrop-blur-sm pointer-events-none"
+            onDragEnter={(e) => e.stopPropagation()}
+            onDragLeave={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-terminal-green bg-terminal-cream/95 px-12 py-10 shadow-2xl">
+              <PaperclipIcon className="size-10 text-terminal-green animate-bounce" />
+              <span className="text-lg font-semibold font-mono text-terminal-dark">
+                {t("composer.dropHint")}
+              </span>
+              <span className="text-sm font-mono text-terminal-muted">
+                {t("composer.dropHintSubtext")}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Skill import progress overlay — full-page like the drag overlay so the
+            user sees it immediately in the center of the screen where they dropped */}
+        {isImportingSkill && skillImportPhase !== "idle" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-terminal-dark/40 backdrop-blur-sm pointer-events-none">
+            <div className={cn(
+              "flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-12 py-10 shadow-2xl min-w-[320px] bg-terminal-cream/95",
+              skillImportPhase === "success"
+                ? "border-terminal-green"
+                : skillImportPhase === "error"
+                  ? "border-red-400"
+                  : "border-terminal-green"
+            )}>
+              {/* Phase icon */}
+              {(skillImportPhase === "uploading" || skillImportPhase === "parsing" || skillImportPhase === "importing") && (
+                <Loader2Icon className="size-10 text-terminal-green animate-spin" />
+              )}
+              {skillImportPhase === "success" && (
+                <CheckCircleIcon className="size-10 text-terminal-green" />
+              )}
+              {skillImportPhase === "error" && (
+                <XCircleIcon className="size-10 text-red-500" />
+              )}
+
+              {/* Phase label */}
+              <span className="text-lg font-semibold font-mono text-terminal-dark">
+                {skillImportPhase === "uploading" && "Uploading…"}
+                {skillImportPhase === "parsing" && "Parsing package…"}
+                {skillImportPhase === "importing" && "Importing skill…"}
+                {skillImportPhase === "success" && "Import complete!"}
+                {skillImportPhase === "error" && "Import failed"}
+              </span>
+
+              {/* File name */}
+              {skillImportName && (
+                <span className="text-sm font-mono text-terminal-muted truncate max-w-[280px]">
+                  {skillImportName}
+                </span>
+              )}
+
+              {/* Progress bar */}
+              {(skillImportPhase === "uploading" || skillImportPhase === "parsing" || skillImportPhase === "importing") && (
+                <div className="w-full max-w-xs space-y-1.5">
+                  <Progress value={skillImportProgress} className="h-2" />
+                  <p className="text-xs text-terminal-muted font-mono text-center">{skillImportProgress}%</p>
+                </div>
+              )}
+
+              {/* Error detail */}
+              {skillImportPhase === "error" && skillImportError && (
+                <p className="text-sm text-red-500 font-mono max-w-md text-center">{skillImportError}</p>
+              )}
+
+              {/* Success subtitle */}
+              {skillImportPhase === "success" && skillImportName && (
+                <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
+              )}
+            </div>
+          </div>
+        )}
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(
@@ -423,9 +708,6 @@ const Composer: FC<{
   const [cursorPosition, setCursorPosition] = useState(0);
   const mentionRef = useRef<HTMLDivElement>(null);
 
-  // Drag and drop state
-  const [isDragging, setIsDragging] = useState(false);
-
   // Prompt enhancement state
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementInfo, setEnhancementInfo] = useState<{
@@ -609,81 +891,6 @@ const Composer: FC<{
       // Let text paste through normally (no preventDefault)
     },
     [threadRuntime, t]
-  );
-
-  // Handle drag over
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Only show drag state if files are being dragged
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragging(true);
-    }
-  }, []);
-
-  // Handle drag leave
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Only clear if leaving the composer root (not child elements)
-    if (e.currentTarget === e.target) {
-      setIsDragging(false);
-    }
-  }, []);
-
-  // Handle file drop
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-
-      // Check if in deep research mode
-      if (isDeepResearchMode) {
-        toast.error(t("composer.attachmentsDisabledResearch"));
-        return;
-      }
-
-      const files = Array.from(e.dataTransfer.files);
-      const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-
-      if (imageFiles.length === 0) {
-        toast.error(t("composer.onlyImagesSupported"));
-        return;
-      }
-
-      // Validate file sizes
-      const MAX_SIZE = 10 * 1024 * 1024;
-      const oversizedFiles = imageFiles.filter((f) => f.size > MAX_SIZE);
-      
-      if (oversizedFiles.length > 0) {
-        toast.error(t("composer.someFilesTooLarge", { 
-          count: oversizedFiles.length,
-          max: 10 
-        }));
-        return;
-      }
-
-      // Add all valid images
-      let successCount = 0;
-      for (const file of imageFiles) {
-        try {
-          await threadRuntime.composer.addAttachment(file);
-          successCount++;
-        } catch (error) {
-          console.error("[Composer] Failed to attach dropped file:", file.name, error);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(t("composer.filesDropped", { count: successCount }));
-      } else {
-        toast.error(t("composer.dropError"));
-      }
-    },
-    [threadRuntime, t, isDeepResearchMode]
   );
 
   // Remove a message from the queue
@@ -957,29 +1164,10 @@ const Composer: FC<{
           "relative flex w-full flex-col rounded-lg shadow-md transition-shadow focus-within:shadow-lg transform-gpu",
           isDeepResearchMode
             ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200"
-            : "bg-terminal-cream/80 focus-within:bg-terminal-cream",
-          isDragging && "ring-2 ring-terminal-green ring-offset-2 bg-terminal-green/5"
+            : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
         )}
         onFocus={handleFocus}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
       >
-        {/* Drop Zone Indicator - shows when dragging files */}
-        {isDragging && (
-          <div className="absolute inset-0 flex items-center justify-center bg-terminal-green/10 rounded-lg border-2 border-dashed border-terminal-green z-10 pointer-events-none backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-2 text-terminal-green font-mono">
-              <PaperclipIcon className="size-8 animate-bounce" />
-              <span className="text-sm font-medium">
-                {t("composer.dropHint")}
-              </span>
-              <span className="text-xs text-terminal-green/80">
-                {t("composer.dropHintSubtext")}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Status indicator above composer */}
         {statusMessage && (
           <div className="flex items-center gap-2 px-4 py-2 text-xs font-mono text-terminal-muted border-b border-terminal-dark/10">

@@ -377,6 +377,26 @@
         "name": "Schedule Task",
         "description": "Schedule tasks for future execution (one-time, recurring, or interval)"
       },
+      "createSkill": {
+        "name": "Create Skill",
+        "description": "Save a reusable skill from the current workflow"
+      },
+      "listSkills": {
+        "name": "List Skills",
+        "description": "List saved skills for the active agent"
+      },
+      "runSkill": {
+        "name": "Run Skill",
+        "description": "Run a saved skill by ID or exact name"
+      },
+      "updateSkill": {
+        "name": "Update Skill",
+        "description": "Update a skill using feedback with version conflict checks"
+      },
+      "copySkill": {
+        "name": "Copy Skill",
+        "description": "Copy a skill to another owned agent"
+      },
       "calculator": {
         "name": "Calculator",
         "description": "Evaluate mathematical expressions with precision (arithmetic, trigonometry, statistics, units)"
@@ -699,7 +719,42 @@
     "reindexAll": "Reindex All",
     "reindexing": "Reindexing...",
     "reindexConfirm": "This will rebuild the index for all folders and may take a while. Continue?",
-    "reindexHint": "Use after enabling V2 to rebuild lexical vectors."
+    "reindexHint": "Use after enabling V2 to rebuild lexical vectors.",
+    "advancedMode": "Advanced mode",
+    "advancedModeHint": "Fine-tune sync trigger, cadence, filters, chunking, and reindex policy.",
+    "cadenceValidation": "Sync cadence must be at least 5 minutes.",
+    "chunkBalanced": "Balanced",
+    "chunkCustom": "Custom",
+    "chunkLarge": "Large chunks",
+    "chunkOverlapOverride": "Chunk overlap override",
+    "chunkOverlapValidation": "Chunk overlap must be >= 0 and smaller than chunk size.",
+    "chunkPreset": "Chunk preset",
+    "chunkSizeOverride": "Chunk size override",
+    "chunkSizeValidation": "Chunk size must be at least 100 characters.",
+    "chunkSmall": "Small chunks",
+    "fileTypeFilters": "File type filters",
+    "indexingControls": "Indexing controls",
+    "indexingMode": "Indexing mode",
+    "lastRunMetadata": "Last run metadata",
+    "lastRunTrigger": "Last run trigger",
+    "maxFileSizeMb": "Max file size (MB)",
+    "maxFileSizeValidation": "Max file size must be between 1 MB and 512 MB.",
+    "modeAuto": "Auto",
+    "modeFilesOnly": "Files only",
+    "modeFull": "Full",
+    "modeManual": "Manual",
+    "modeScheduled": "Scheduled",
+    "modeTriggered": "Triggered",
+    "reindexAlways": "Always",
+    "reindexNever": "Never",
+    "reindexPolicy": "Reindex policy",
+    "reindexSmart": "Smart (scheduled only)",
+    "simpleMode": "Simple mode",
+    "simpleModeHint": "Recommended defaults: auto sync, balanced chunking, smart reindex.",
+    "skipReasons": "Skip reasons",
+    "skipped": "Skipped",
+    "syncCadenceMinutes": "Sync cadence (minutes)",
+    "syncMode": "Sync mode"
   },
   "vectorSearchPhase": {
     "idle": "Ready",
@@ -747,7 +802,13 @@
       "quickPrompt": "Describe your agent's role or purpose in one sentence:",
       "quickPlaceholder": "Customer support agent for our SaaS product that answers FAQs and drafts replies.",
       "back": "← Back",
-      "generate": "GENERATE"
+      "generate": "GENERATE",
+      "templateCategory": "Category",
+      "templateEmpty": "No templates found.",
+      "templateFilter": "Filter",
+      "templateLoading": "Loading templates...",
+      "templateSearch": "Search templates",
+      "templateUse": "Use Template"
     },
     "name": {
       "question": "What shall we call your agent?",
@@ -842,6 +903,16 @@
         "executeCommandDesc": "Run shell commands safely within synced directories",
         "scheduleTask": "Schedule Task",
         "scheduleTaskDesc": "Schedule tasks for future execution (one-time, recurring, or interval)",
+        "createSkill": "Create Skill",
+        "createSkillDesc": "Save a reusable skill from the current workflow",
+        "listSkills": "List Skills",
+        "listSkillsDesc": "List saved skills for the active agent",
+        "runSkill": "Run Skill",
+        "runSkillDesc": "Run a saved skill by ID or exact name",
+        "updateSkill": "Update Skill",
+        "updateSkillDesc": "Update a skill using feedback with version conflict checks",
+        "copySkill": "Copy Skill",
+        "copySkillDesc": "Copy a skill to another owned agent",
         "memorize": "Memory",
         "memorizeDesc": "Save facts or preferences to remember across future conversations",
         "calculator": "Calculator",
@@ -1378,7 +1449,10 @@
       "exportError": "Failed to export chat",
       "edit": "Edit title",
       "save": "Save",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "dashboardShort": "Dashboard",
+      "libraryShort": "Library",
+      "skillsShort": "Skills"
     },
     "session": {
       "untitled": "Untitled chat",
@@ -1733,6 +1807,32 @@
         "runNotFound": "Run not found",
         "failedToLoad": "Failed to load run"
       }
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "pageDescription": "Manage reusable skill recipes for {name}.",
+    "emptyTitle": "No skills yet",
+    "emptyDescription": "Save a workflow as a skill from chat, then run or schedule it here.",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "stats": {
+      "runs": "Runs",
+      "success": "Success",
+      "lastRun": "Last Run",
+      "never": "Never"
+    },
+    "delete": {
+      "action": "Delete Permanently",
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "description": "This will permanently delete this skill. This action cannot be undone.",
+      "error": "Failed to delete skill",
+      "success": "Skill deleted permanently",
+      "title": "Are you sure?"
     }
   },
   "schedules": {

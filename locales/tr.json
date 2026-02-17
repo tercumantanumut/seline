@@ -369,6 +369,26 @@
         "name": "Görev Zamanla",
         "description": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)"
       },
+      "createSkill": {
+        "name": "Yetenek Oluştur",
+        "description": "Mevcut iş akışından tekrar kullanılabilir bir yetenek kaydet"
+      },
+      "listSkills": {
+        "name": "Yetenekleri Listele",
+        "description": "Aktif ajan için kaydedilmiş yetenekleri listele"
+      },
+      "runSkill": {
+        "name": "Yetenek Çalıştır",
+        "description": "Bir yeteneği kimlik veya tam ad ile çalıştır"
+      },
+      "updateSkill": {
+        "name": "Yetenek Güncelle",
+        "description": "Geri bildirimle yeteneği sürüm çakışması kontrolüyle güncelle"
+      },
+      "copySkill": {
+        "name": "Yetenek Kopyala",
+        "description": "Bir yeteneği sahip olduğunuz başka bir ajana kopyala"
+      },
       "memorize": {
         "name": "Hafiza",
         "description": "Gelecekteki konusmalarda hatirlamak icin bilgi veya tercihleri kaydet"
@@ -554,10 +574,13 @@
       "onlyImagesSupported": "Yalnızca görsel dosyaları desteklenir",
       "fileTooLarge": "Dosya çok büyük ({size}MB). Maksimum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} çok büyük. Maksimum: {max}MB",
-      "attachmentsDisabledResearch": "Derin Araştırma modunda ekler kullanılamaz"
+      "attachmentsDisabledResearch": "Derin Araştırma modunda ekler kullanılamaz",
+      "initializing": "Başlatılıyor...",
+      "placeholderInitializing": "Araçlar başlatılıyor..."
     },
     "queue": {
-      "messagesQueued": "{count} mesaj sırada"
+      "messagesQueued": "{count} mesaj sırada",
+      "backgroundHint": "Arka plan görevi tamamlanana kadar sıraya alındı"
     },
     "enhance": {
       "minChars": "Geliştirmek için en az 3 karakter girin",
@@ -581,7 +604,8 @@
       "startResearch": "Araştırma Başlat",
       "edit": "Düzenle",
       "copy": "Kopyala",
-      "regenerate": "Yeniden oluştur"
+      "regenerate": "Yeniden oluştur",
+      "toolsInitializing": "Araçlar başlatılıyor. Lütfen bekleyin..."
     },
     "toast": {
       "copied": "Mesaj panoya kopyalandı"
@@ -695,7 +719,42 @@
     "reindexAll": "Reindex All",
     "reindexing": "Reindexing...",
     "reindexConfirm": "This will rebuild the index for all folders and may take a while. Continue?",
-    "reindexHint": "Use after enabling V2 to rebuild lexical vectors."
+    "reindexHint": "Use after enabling V2 to rebuild lexical vectors.",
+    "advancedMode": "Gelişmiş mod",
+    "advancedModeHint": "Senkronizasyon tetikleyicisi, kadans, filtreler, parçalama ve yeniden indeksleme politikasını ince ayarlayın.",
+    "cadenceValidation": "Senkronizasyon kadansı en az 5 dakika olmalıdır.",
+    "chunkBalanced": "Dengeli",
+    "chunkCustom": "Özel",
+    "chunkLarge": "Büyük parçalar",
+    "chunkOverlapOverride": "Parça örtüşme geçersiz kılma",
+    "chunkOverlapValidation": "Parça örtüşmesi >= 0 ve parça boyutundan küçük olmalıdır.",
+    "chunkPreset": "Parça ön ayarı",
+    "chunkSizeOverride": "Parça boyutu geçersiz kılma",
+    "chunkSizeValidation": "Parça boyutu en az 100 karakter olmalıdır.",
+    "chunkSmall": "Küçük parçalar",
+    "fileTypeFilters": "Dosya türü filtreleri",
+    "indexingControls": "İndeksleme kontrolleri",
+    "indexingMode": "İndeksleme modu",
+    "lastRunMetadata": "Son çalışma meta verileri",
+    "lastRunTrigger": "Son çalışma tetikleyicisi",
+    "maxFileSizeMb": "Maks dosya boyutu (MB)",
+    "maxFileSizeValidation": "Maks dosya boyutu 1 MB ile 512 MB arasında olmalıdır.",
+    "modeAuto": "Otomatik",
+    "modeFilesOnly": "Yalnızca dosyalar",
+    "modeFull": "Tam",
+    "modeManual": "Manuel",
+    "modeScheduled": "Zamanlanmış",
+    "modeTriggered": "Tetiklenmiş",
+    "reindexAlways": "Her zaman",
+    "reindexNever": "Asla",
+    "reindexPolicy": "Yeniden indeksleme politikası",
+    "reindexSmart": "Akıllı (yalnızca zamanlanmış)",
+    "simpleMode": "Basit mod",
+    "simpleModeHint": "Önerilen varsayılanlar: otomatik senkronizasyon, dengeli parçalama, akıllı yeniden indeksleme.",
+    "skipReasons": "Atlama nedenleri",
+    "skipped": "Atlandı",
+    "syncCadenceMinutes": "Senkronizasyon kadansı (dakika)",
+    "syncMode": "Senkronizasyon modu"
   },
   "vectorSearchPhase": {
     "idle": "Hazır",
@@ -743,7 +802,13 @@
       "quickPrompt": "Ajanınızın rolünü veya amacını tek cümlede açıklayın:",
       "quickPlaceholder": "SaaS ürünümüz için SSS'leri yanıtlayan ve yanıt taslakları hazırlayan müşteri destek ajanı.",
       "back": "← Geri",
-      "generate": "OLUŞTUR"
+      "generate": "OLUŞTUR",
+      "templateCategory": "Kategori",
+      "templateEmpty": "Şablon bulunamadı.",
+      "templateFilter": "Filtrele",
+      "templateLoading": "Şablonlar yükleniyor...",
+      "templateSearch": "Şablonlarda ara",
+      "templateUse": "Şablonu Kullan"
     },
     "name": {
       "question": "Ajanınıza ne isim verelim?",
@@ -836,6 +901,16 @@
         "executeCommandDesc": "Senkronize klasörlerde güvenli kabuk komutları çalıştır",
         "scheduleTask": "Görev Zamanla",
         "scheduleTaskDesc": "Gelecekte çalıştırılacak görevleri zamanla (tek seferlik, tekrarlayan veya aralıklı)",
+        "createSkill": "Yetenek Oluştur",
+        "createSkillDesc": "Mevcut iş akışından tekrar kullanılabilir bir yetenek kaydet",
+        "listSkills": "Yetenekleri Listele",
+        "listSkillsDesc": "Aktif ajan için kaydedilmiş yetenekleri listele",
+        "runSkill": "Yetenek Çalıştır",
+        "runSkillDesc": "Bir yeteneği kimlik veya tam ad ile çalıştır",
+        "updateSkill": "Yetenek Güncelle",
+        "updateSkillDesc": "Geri bildirimle yeteneği sürüm çakışması kontrolüyle güncelle",
+        "copySkill": "Yetenek Kopyala",
+        "copySkillDesc": "Bir yeteneği sahip olduğunuz başka bir ajana kopyala",
         "calculator": "Hesap Makinesi",
         "calculatorDesc": "Matematiksel ifadeleri hassasiyetle değerlendir (aritmetik, trigonometri, istatistik, birimler)",
         "updatePlan": "Plan Güncelle",
@@ -887,7 +962,9 @@
         "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)",
         "referenceImageFlux2Klein9BDesc": "FLUX.2 Klein 9B ile referans rehberli üretim (Docker gerektirir)",
         "localGrep": "Yerel Grep",
-        "localGrepDesc": "ripgrep ile hızlı ve regex arama"
+        "localGrepDesc": "ripgrep ile hızlı ve regex arama",
+        "memorize": "Hafıza",
+        "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin"
       },
       "back": "← Geri",
       "continue": "Devam →",
@@ -1291,6 +1368,23 @@
       "placeholder": "ör. \"Kod örneklerinde her zaman TypeScript kullan\"",
       "add": "Ekle",
       "empty": "Genel hafıza varsayılanı yok. Ajanlarınızı kişiselleştirmek için tercih ekleyin."
+    },
+    "mcp": {
+      "configWarning": "Yapılandırma Uyarısı",
+      "disableServer": "Sunucuyu devre dışı bırak",
+      "disabledBadge": "Devre Dışı",
+      "disabledTooltip": "Bu sunucu devre dışı ve bağlanmayacak. Etkinleştirmek için değiştirin.",
+      "enableServer": "Sunucuyu etkinleştir",
+      "filesystemRequiresSyncedFolder": "Dosya sistemi MCP sunucusu en az bir senkronize klasör gerektirir. Lütfen Ayarlar → Vektör Arama'dan bir klasör ekleyin.",
+      "insertVariable": "Değişken Ekle",
+      "noFoldersSynced": "Henüz senkronize klasör yok",
+      "resolvedCommand": "Çözümlenen komut:",
+      "serverDisabled": "Sunucu devre dışı bırakıldı",
+      "serverEnabled": "Sunucu etkinleştirildi",
+      "syncedFolderVariable": "Birincil senkronize klasör",
+      "syncedFoldersArrayVariable": "Tüm senkronize klasörler (ayrı argümanlar)",
+      "variableHelp": "Tek klasör erişimi için \\${SYNCED_FOLDER} veya çoklu klasör erişimi için \\${SYNCED_FOLDERS_ARRAY} kullanın",
+      "variablePreview": "Önizleme"
     }
   },
   "about": {
@@ -1355,7 +1449,10 @@
       "knowledgeBase": "Bilgi Kutuphanesi",
       "agentMemoryShort": "Hafiza",
       "schedulesShort": "Takvim",
-      "usageShort": "Kullanim"
+      "usageShort": "Kullanim",
+      "dashboardShort": "Panel",
+      "libraryShort": "Kütüphane",
+      "skillsShort": "Beceriler"
     },
     "session": {
       "untitled": "Başlıksız sohbet",
@@ -1712,6 +1809,32 @@
       }
     }
   },
+  "skills": {
+    "title": "Yetenekler",
+    "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
+    "emptyTitle": "Henuz yetenek yok",
+    "emptyDescription": "Sohbette bir is akisini yetenek olarak kaydedin, sonra burada calistirin veya zamanlayin.",
+    "status": {
+      "draft": "Taslak",
+      "active": "Aktif",
+      "archived": "Arsiv"
+    },
+    "stats": {
+      "runs": "Calistirma",
+      "success": "Basarili",
+      "lastRun": "Son Calistirma",
+      "never": "Hic"
+    },
+    "delete": {
+      "action": "Kalıcı Olarak Sil",
+      "cancel": "İptal",
+      "confirm": "Sil",
+      "description": "Bu beceri kalıcı olarak silinecektir. Bu işlem geri alınamaz.",
+      "error": "Beceri silinemedi",
+      "success": "Beceri kalıcı olarak silindi",
+      "title": "Emin misiniz?"
+    }
+  },
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",
@@ -1730,7 +1853,77 @@
         "thread": "Konu"
       },
       "validation": {
-        "deliveryTargetRequired": "Teslimat için bir kanal hedefi seçin"
+        "deliveryTargetRequired": "Teslimat için bir kanal hedefi seçin",
+        "failed": "Zamanlama kaydedilemedi",
+        "required": "Ad ve komut gereklidir"
+      },
+      "createSchedule": "Zamanlama Oluştur",
+      "createTitle": "Yeni Zamanlama Oluştur",
+      "days": {
+        "fri": "C",
+        "mon": "P",
+        "repeatsOn": "Tekrar Günleri",
+        "sat": "C",
+        "sun": "P",
+        "thu": "P",
+        "tue": "S",
+        "wed": "Ç"
+      },
+      "draftSaved": "Taslak başarıyla kaydedildi",
+      "editTitle": "Zamanlamayı Düzenle",
+      "editor": {
+        "copy": "Kopyala",
+        "lines": "satır",
+        "prompt": "Komut",
+        "validSyntax": "Geçerli"
+      },
+      "fields": {
+        "atTime": "Saat",
+        "description": "Açıklama",
+        "maxRetries": "Maks Deneme",
+        "name": "Zamanlama Adı",
+        "priority": "Öncelik",
+        "timezone": "Saat Dilimi"
+      },
+      "frequency": {
+        "advanced": "Gelişmiş",
+        "everyDay": "Her Gün",
+        "repeatsOn": "Tekrar Günleri",
+        "specificDays": "Belirli Günler"
+      },
+      "placeholders": {
+        "description": "Bu görevin amacını kısaca açıklayın...",
+        "name": "Günlük İçerik Özeti",
+        "prompt": "# Haftalık İlerleme Özeti\n'{'LAST_7_DAYS'}' dönemini kapsayan bir özet oluşturun.\n\n## Gerekli Bölümler:\n1. Önemli Başarılar\n   - Tamamlanan görevleri listeleyin\n   - Yüksek öncelikli öğeleri vurgulayın\n2. Metrik Analizi\n   - Önceki haftayla karşılaştırın\n   - Engelleri belirleyin\n3. Sonraki Adımlar\n   - Pazartesi için 3 eylem maddesi oluşturun"
+      },
+      "priority": {
+        "high": "Yüksek",
+        "low": "Düşük",
+        "normal": "Normal"
+      },
+      "saveDraft": "Taslak Kaydet",
+      "sections": {
+        "basicInfo": "Temel Bilgiler",
+        "frequency": "Sıklık ve Zamanlama",
+        "instructions": "Ajan Talimatları"
+      },
+      "subtitle": "Otomasyon tetikleyicilerini ve AI talimatlarını yapılandırın.",
+      "summary": {
+        "customSchedule": "Özel zamanlama",
+        "nextRun": "Sonraki çalışma: {date}",
+        "runsEvery": "{days} günleri saat {time}'de çalışır"
+      },
+      "systemActive": "SİSTEM AKTİF",
+      "untitledDraft": "Başlıksız Taslak",
+      "updateSchedule": "Zamanlamayı Güncelle",
+      "variables": {
+        "categories": {
+          "context": "Bağlam Değişkenleri",
+          "time": "Zaman Değişkenleri"
+        },
+        "helpDescription": "Değişkenler, zamanlamanız çalıştığında gerçek değerlerle değiştirilir.",
+        "helpTitle": "Değişkenler nasıl kullanılır",
+        "label": "Değişkenler"
       }
     },
     "retry": "Tekrar Dene",
@@ -1742,7 +1935,8 @@
       "allPriorities": "Tüm Öncelikler",
       "high": "Yüksek",
       "normal": "Normal",
-      "low": "Düşük"
+      "low": "Düşük",
+      "draft": "Taslak"
     },
     "empty": {
       "title": "Henüz zamanlanmış görev yok",
@@ -1767,7 +1961,8 @@
       "viewChat": "Sohbeti Görüntüle",
       "continueChat": "Devam Et",
       "noSession": "Oturum oluşturulmadı",
-      "neverRun": "Hiç çalıştırılmadı"
+      "neverRun": "Hiç çalıştırılmadı",
+      "draft": "Taslak"
     },
     "form": {
       "createTitle": "Zamanlama Oluştur",

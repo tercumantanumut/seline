@@ -218,9 +218,16 @@ export function normalizeToolResultOutput(
   // Get session ID from run context for content storage
   const sessionId = getRunContext()?.sessionId;
 
-  // Apply token limit (universal safety net)
+  // Exempt readFile from universal output limiting
+  // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
+  // and users explicitly request specific line ranges — truncating defeats the purpose
+  const EXEMPT_TOOLS = new Set(["readFile"]);
+
+  // Apply token limit (universal safety net) — UNLESS tool is exempt
   // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.
-  const limitResult = limitToolOutput(normalizedOutput, toolName, sessionId);
+  const limitResult = !EXEMPT_TOOLS.has(toolName)
+    ? limitToolOutput(normalizedOutput, toolName, sessionId)
+    : { limited: false, output: "", originalLength: 0, truncatedLength: 0, estimatedTokens: 0 };
 
   // If limited, update output with truncated version
   if (limitResult.limited) {

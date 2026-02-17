@@ -5,6 +5,22 @@ import {
   ensureValidClaudeCodeToken,
   getClaudeCodeAccessToken,
 } from "@/lib/auth/claudecode-auth";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+} from "@/lib/ai/retry/stream-recovery";
+
+const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
+
+async function readErrorPreview(response: Response): Promise<string> {
+  try {
+    return await response.clone().text();
+  } catch {
+    return "";
+  }
+}
 
 function createClaudeCodeFetch(): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -52,16 +68,93 @@ function createClaudeCodeFetch(): typeof fetch {
           body.system = CLAUDECODE_CONFIG.REQUIRED_SYSTEM_PREFIX;
         }
 
+        // Log the actual messages being sent to Anthropic API for debugging tool_use/tool_result issues
+        const apiMessages = body.messages as Array<{ role: string; content: unknown }>;
+        if (Array.isArray(apiMessages)) {
+          console.log(`[ClaudeCode] Sending ${apiMessages.length} messages to Anthropic API:`);
+          for (let i = 0; i < apiMessages.length; i++) {
+            const msg = apiMessages[i];
+            const content = msg.content;
+            if (typeof content === 'string') {
+              console.log(`  [${i}] role=${msg.role}, content=string(${content.length})`);
+            } else if (Array.isArray(content)) {
+              const types = (content as Array<{ type: string; id?: string; tool_use_id?: string }>).map(
+                p => p.type + (p.id ? `:${p.id}` : '') + (p.tool_use_id ? `:${p.tool_use_id}` : '')
+              );
+              console.log(`  [${i}] role=${msg.role}, parts=[${types.join(', ')}]`);
+            }
+          }
+        }
+
         updatedInit = { ...init, body: JSON.stringify(body) };
       } catch {
         // Not JSON, pass through unchanged
       }
     }
 
-    return fetch(input, {
-      ...updatedInit,
-      headers,
-    });
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(input, {
+          ...updatedInit,
+          headers,
+        });
+      } catch (error) {
+        const classification = classifyRecoverability({
+          provider: "claudecode",
+          error,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (!retry) {
+          throw error;
+        }
+        const delay = getBackoffDelayMs(attempt);
+        console.log("[ClaudeCode] Retrying after transport failure", {
+          attempt: attempt + 1,
+          reason: classification.reason,
+          delayMs: delay,
+          outcome: "scheduled",
+        });
+        await sleepWithAbort(delay, init?.signal ?? undefined);
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await readErrorPreview(response);
+        console.error(`[ClaudeCode] API error ${response.status}:`, errorText.substring(0, 500));
+        const classification = classifyRecoverability({
+          provider: "claudecode",
+          statusCode: response.status,
+          message: errorText,
+        });
+        const retry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+          aborted: init?.signal?.aborted ?? false,
+        });
+        if (retry) {
+          const delay = getBackoffDelayMs(attempt);
+          console.log("[ClaudeCode] Retrying after recoverable HTTP response", {
+            attempt: attempt + 1,
+            reason: classification.reason,
+            delayMs: delay,
+            statusCode: response.status,
+            outcome: "scheduled",
+          });
+          await sleepWithAbort(delay, init?.signal ?? undefined);
+          continue;
+        }
+      }
+
+      return response;
+    }
   };
 }
 

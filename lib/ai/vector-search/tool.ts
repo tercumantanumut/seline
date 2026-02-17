@@ -745,7 +745,7 @@ async function executeReadFile(
   }
 
   // Security: Check if path is allowed
-  const validPath = isPathAllowed(filePath, allowedFolderPaths);
+  const validPath = await isPathAllowed(filePath, allowedFolderPaths);
   if (!validPath) {
     // Try to suggest similar files
     const suggestions = await findSimilarFiles(characterId, filePath);

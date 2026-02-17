@@ -3,7 +3,26 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Wrench, Check, DatabaseIcon, Search, X, Sparkles, ChevronDown, ChevronRight, Plug, Edit3, Trash2 } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
+import { 
+  Wrench,
+  Database,
+  MagnifyingGlass,
+  Pencil,
+  Trash,
+  ChartBar,
+  Sparkle,
+  Plug as PhosphorPlug
+} from "@phosphor-icons/react";
+import { getCategoryIcon } from "@/components/ui/tool-icon-map";
+
+// Aliases for consistency
+const Search = LucideSearch;
+const DatabaseIcon = Database;
+const Plug = PhosphorPlug;
+const BarChart2 = ChartBar;
+const Trash2 = Trash;
+const Sparkles = LucideSparkles;
 import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AnimatedCard } from "@/components/ui/animated-card";
@@ -93,6 +112,11 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "showProductImages", category: "utility" },
   { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", category: "utility" },
+  { id: "createSkill", category: "utility" },
+  { id: "listSkills", category: "utility" },
+  { id: "runSkill", category: "utility" },
+  { id: "updateSkill", category: "utility" },
+  { id: "copySkill", category: "utility" },
   { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },
   { id: "updatePlan", category: "utility" },
@@ -142,6 +166,12 @@ interface CharacterSummary {
   // Active session tracking
   hasActiveSession?: boolean;
   activeSessionId?: string | null;
+  stats?: {
+    skillCount: number;
+    runCount: number;
+    successRate: number | null;
+    lastActive: string | null;
+  };
 }
 
 export function CharacterPicker() {
@@ -491,16 +521,31 @@ export function CharacterPicker() {
           statuses: Record<string, { hasActiveSession: boolean; activeSessionId: string | null }>;
         }>(`/api/characters/active-status?ids=${ids}`);
 
-        if (statusData?.statuses) {
-          const enriched = activeChars.map((char: CharacterSummary) => ({
+        const enrichedWithStatus = statusData?.statuses
+          ? activeChars.map((char: CharacterSummary) => ({
             ...char,
             hasActiveSession: statusData.statuses[char.id]?.hasActiveSession ?? false,
             activeSessionId: statusData.statuses[char.id]?.activeSessionId ?? null,
-          }));
-          setCharacters(enriched);
-        } else {
-          setCharacters(activeChars);
-        }
+          }))
+          : activeChars;
+
+        const statsEntries = await Promise.all(
+          enrichedWithStatus.map(async (char) => {
+            try {
+              const { data } = await resilientFetch<{ stats?: { skillCount: number; runCount: number; successRate: number | null; lastActive: string | null } }>(`/api/characters/${char.id}/stats`);
+              return [char.id, data?.stats || null] as const;
+            } catch {
+              return [char.id, null] as const;
+            }
+          })
+        );
+        const statsById = new Map(statsEntries);
+        setCharacters(
+          enrichedWithStatus.map((char) => ({
+            ...char,
+            stats: statsById.get(char.id) || undefined,
+          }))
+        );
       } else {
         setCharacters(activeChars);
       }
@@ -792,6 +837,7 @@ export function CharacterPicker() {
           const enabledTools = character.metadata?.enabledTools || [];
           const topTools = getTopTools(enabledTools, 3);
           const purpose = character.metadata?.purpose;
+          const stats = character.stats;
 
           return (
             <AnimatedCard
@@ -858,6 +904,15 @@ export function CharacterPicker() {
                     )}
                   </div>
                 )}
+
+                {stats ? (
+                  <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-mono text-terminal-muted">
+                    <span>{stats.skillCount} skills</span>
+                    <span>{stats.runCount} runs</span>
+                    <span>{stats.successRate == null ? "N/A" : `${stats.successRate}%`} success</span>
+                    <span>{stats.lastActive ? new Date(stats.lastActive).toLocaleDateString() : "No activity"}</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Enabled Tools Indicator - Clickable to edit */}
@@ -896,6 +951,14 @@ export function CharacterPicker() {
                 >
                   <Plug className="w-3 h-3" />
                   <span>{t("mcpTools")}</span>
+                </button>
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title="Dashboard"
+                >
+                  <BarChart2 className="w-3 h-3" />
+                  <span>Dashboard</span>
                 </button>
                 <button
                   onClick={() => openDeleteDialog(character)}

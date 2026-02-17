@@ -42,6 +42,7 @@
     "tests/**/*",
     "tmp-clawdbot/**/*",
     "electron/**/*",
-    "dist-electron/**/*"
+    "dist-electron/**/*",
+    "**/*.unused.ts"
   ]
 }

@@ -284,6 +284,12 @@ export const Shell: FC<ShellProps> = ({
                         {t("sidebar.usage")}
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="font-mono">
+                      <Link href="/dashboard">
+                        <BarChart2Icon className="mr-2 size-4" />
+                        Dashboard
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       asChild
                       className="font-mono text-terminal-dark hover:bg-terminal-dark/5"
@@ -425,6 +431,12 @@ export const Shell: FC<ShellProps> = ({
                         >
                           <BarChart2Icon className="mr-2 size-4" />
                           {t("sidebar.usage")}
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild className="font-mono">
+                        <Link href="/dashboard">
+                          <BarChart2Icon className="mr-2 size-4" />
+                          Dashboard
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem

@@ -7,8 +7,8 @@
 
 import { getSetting } from "@/lib/settings/settings-manager";
 import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders, getAllSyncFolders, cleanupOrphanedVectorTables } from "./sync-service";
-import { isVectorDBEnabled } from "./client";
 import { isDangerousPath } from "./dangerous-paths";
+import { resolveFolderSyncBehavior, shouldRunForTrigger } from "./sync-mode-resolver";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders } from "@/lib/db/sqlite-character-schema";
 import { eq } from "drizzle-orm";
@@ -50,7 +50,13 @@ function getSyncIntervalMs(): number {
 function isAutoSyncEnabled(): boolean {
   try {
     const enabled = getSetting("vectorAutoSyncEnabled");
-    return enabled !== false; // Default to true if not set
+    if (enabled === false) {
+      return false;
+    }
+
+    // If global auto-sync is enabled but there are no auto/scheduled folders,
+    // skip periodic runs to avoid unnecessary scheduler churn.
+    return true;
   } catch {
     return true; // Default to enabled
   }
@@ -68,13 +74,28 @@ async function runBackgroundSync(): Promise<void> {
     return;
   }
 
+  const folders = await getAllSyncFolders();
+  const runnableFolders = folders.filter((folder) => {
+    const behavior = resolveFolderSyncBehavior({
+      indexingMode: folder.indexingMode,
+      syncMode: folder.syncMode,
+      syncCadenceMinutes: folder.syncCadenceMinutes,
+    });
+    return shouldRunForTrigger(behavior, "scheduled");
+  });
+
+  if (runnableFolders.length === 0) {
+    console.log("[BackgroundSync] No folders configured for scheduled/auto sync");
+    return;
+  }
+
   console.log("[BackgroundSync] Starting periodic background sync...");
-  
+
   try {
     const results = await syncStaleFolders();
     const totalIndexed = results.reduce((sum, r) => sum + r.filesIndexed, 0);
     const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
-    
+
     if (results.length > 0) {
       console.log(`[BackgroundSync] Synced ${results.length} folders, indexed ${totalIndexed} files, ${totalErrors} errors`);
     } else {

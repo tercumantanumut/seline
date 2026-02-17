@@ -17,13 +17,23 @@ import { eq, and, sql, lt, or } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
 import { deleteAgentTable, listAgentTables } from "./collections";
-import { isVectorDBEnabled } from "./client";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";
 import { getVectorSearchConfig } from "@/lib/config/vector-search";
 import { getEmbeddingModelId } from "@/lib/ai/providers";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
 import { normalizeFolderPath, validateSyncFolderPath } from "./path-validation";
+import {
+  type ChunkPreset,
+  type ReindexPolicy,
+  type SyncExecutionTrigger,
+  type SyncMode,
+  normalizeChunkPreset,
+  normalizeReindexPolicy,
+  resolveChunkingOverrides,
+  resolveFolderSyncBehavior,
+  shouldRunForTrigger,
+} from "./sync-mode-resolver";
 import { onFolderChange, notifyFolderChange, type FolderChangeEvent } from "./folder-events";
 export { onFolderChange, notifyFolderChange };
 export type { FolderChangeEvent };
@@ -191,6 +201,31 @@ export interface SyncFolderConfig {
   includeExtensions?: string[];
   excludePatterns?: string[];
   indexingMode?: "files-only" | "full" | "auto";
+  syncMode?: SyncMode;
+  syncCadenceMinutes?: number;
+  fileTypeFilters?: string[];
+  maxFileSizeBytes?: number;
+  chunkPreset?: ChunkPreset;
+  chunkSizeOverride?: number;
+  chunkOverlapOverride?: number;
+  reindexPolicy?: ReindexPolicy;
+}
+
+export interface SyncFolderUpdateConfig {
+  folderId: string;
+  displayName?: string;
+  recursive?: boolean;
+  includeExtensions?: string[];
+  excludePatterns?: string[];
+  indexingMode?: "files-only" | "full" | "auto";
+  syncMode?: SyncMode;
+  syncCadenceMinutes?: number;
+  fileTypeFilters?: string[];
+  maxFileSizeBytes?: number;
+  chunkPreset?: ChunkPreset;
+  chunkSizeOverride?: number | null;
+  chunkOverlapOverride?: number | null;
+  reindexPolicy?: ReindexPolicy;
 }
 
 export interface SyncResult {
@@ -199,6 +234,7 @@ export interface SyncResult {
   filesIndexed: number;
   filesSkipped: number;
   filesRemoved: number;
+  skippedReasons?: Record<string, number>;
   errors: string[];
 }
 
@@ -312,6 +348,13 @@ function parseJsonArray(value: unknown): string[] {
   return [];
 }
 
+function incrementSkipReason(
+  reasons: Record<string, number>,
+  key: string
+): void {
+  reasons[key] = (reasons[key] ?? 0) + 1;
+}
+
 /**
  * Add a folder to sync for an agent
  */
@@ -325,6 +368,14 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
     includeExtensions = ["md", "txt", "pdf", "html"],
     excludePatterns = ["node_modules", ".*", ".git", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "*.lock"],
     indexingMode = "auto",
+    syncMode = "auto",
+    syncCadenceMinutes = 60,
+    fileTypeFilters = [],
+    maxFileSizeBytes = 10 * 1024 * 1024,
+    chunkPreset = "balanced",
+    chunkSizeOverride,
+    chunkOverlapOverride,
+    reindexPolicy = "smart",
   } = config;
 
   const { normalizedPath, error } = await validateSyncFolderPath(folderPath);
@@ -340,6 +391,7 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
 
   // Normalize extensions to ensure consistent format (without dots)
   const normalizedExtensions = normalizeExtensions(includeExtensions);
+  const normalizedFileTypeFilters = normalizeExtensions(fileTypeFilters);
 
   // Check if this is the first folder for this character
   const isPrimary = existingFolders.length === 0;
@@ -358,6 +410,16 @@ export async function addSyncFolder(config: SyncFolderConfig): Promise<string> {
       includeExtensions: normalizedExtensions,
       excludePatterns,
       indexingMode,
+      syncMode,
+      syncCadenceMinutes: Math.max(5, Math.floor(syncCadenceMinutes)),
+      fileTypeFilters: normalizedFileTypeFilters,
+      maxFileSizeBytes: Math.max(1024, Math.floor(maxFileSizeBytes)),
+      chunkPreset: normalizeChunkPreset(chunkPreset),
+      chunkSizeOverride: typeof chunkSizeOverride === "number" ? Math.max(100, Math.floor(chunkSizeOverride)) : null,
+      chunkOverlapOverride: typeof chunkOverlapOverride === "number" ? Math.max(0, Math.floor(chunkOverlapOverride)) : null,
+      reindexPolicy: normalizeReindexPolicy(reindexPolicy),
+      skipReasons: {},
+      lastRunMetadata: {},
       status: "pending",
     })
     .returning();
@@ -526,7 +588,8 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
 export async function syncFolder(
   folderId: string,
   parallelConfig: Partial<ParallelConfig> = {},
-  forceReindex: boolean = false
+  forceReindex: boolean = false,
+  trigger: SyncExecutionTrigger = "manual"
 ): Promise<SyncResult> {
   const config = resolveParallelConfig(parallelConfig);
 
@@ -536,6 +599,7 @@ export async function syncFolder(
     filesIndexed: 0,
     filesSkipped: 0,
     filesRemoved: 0,
+    skippedReasons: {},
     errors: [],
   };
 
@@ -577,13 +641,30 @@ export async function syncFolder(
       .where(eq(agentSyncFolders.id, folderId));
   }
 
-  // Determine if we should create embeddings based on indexing mode
-  const shouldCreateEmbeddings =
-    folder.indexingMode === "full" ||
-    (folder.indexingMode === "auto" && isVectorDBEnabled());
+  const behavior = resolveFolderSyncBehavior({
+    indexingMode: folder.indexingMode,
+    syncMode: folder.syncMode,
+    syncCadenceMinutes: folder.syncCadenceMinutes,
+    maxFileSizeBytes: folder.maxFileSizeBytes,
+    chunkPreset: folder.chunkPreset,
+    chunkSizeOverride: folder.chunkSizeOverride,
+    chunkOverlapOverride: folder.chunkOverlapOverride,
+    reindexPolicy: folder.reindexPolicy,
+  });
+
+  if (!shouldRunForTrigger(behavior, trigger)) {
+    result.errors.push(`Sync mode ${behavior.syncMode} blocks ${trigger} runs`);
+    return result;
+  }
+
+  const shouldCreateEmbeddings = behavior.shouldCreateEmbeddings;
+  const shouldForceReindex =
+    forceReindex ||
+    behavior.reindexPolicy === "always" ||
+    (behavior.reindexPolicy === "smart" && trigger === "scheduled");
 
   console.log(
-    `[SyncService] Syncing folder ${folder.displayName || folderPath} with mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+    `[SyncService] Syncing folder ${folder.displayName || folderPath} with indexing=${folder.indexingMode}, sync=${behavior.syncMode}, trigger=${trigger} (embeddings: ${shouldCreateEmbeddings})`
   );
 
   // Check if already syncing (in memory) by folder ID
@@ -630,17 +711,21 @@ export async function syncFolder(
   try {
     // Use module-level parseJsonArray helper for parsing JSON arrays from database
     const includeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
+    const fileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+    const allowedExtensions = fileTypeFilters.length > 0 ? fileTypeFilters : includeExtensions;
     const excludePatterns = parseJsonArray(folder.excludePatterns);
     const mergedExcludePatterns = Array.from(
       new Set([...DEFAULT_IGNORE_PATTERNS, ...excludePatterns])
     );
     const shouldIgnore = createIgnoreMatcher(mergedExcludePatterns, folderPath);
+    const chunkingOverrides = resolveChunkingOverrides(behavior);
+    const skipReasons: Record<string, number> = {};
 
     console.log(`[SyncService] Discovering files in ${folderPath}`);
     console.log(`[SyncService] Include extensions: ${JSON.stringify(includeExtensions)}`);
     console.log(`[SyncService] Exclude patterns: ${JSON.stringify(mergedExcludePatterns)}`);
     console.log(`[SyncService] Parallel config: concurrency=${config.concurrency}, staggerDelayMs=${config.staggerDelayMs}`);
-    if (forceReindex) {
+    if (shouldForceReindex) {
       console.log(`[SyncService] Force reindex enabled for folder ${folderPath}`);
     }
 
@@ -649,7 +734,7 @@ export async function syncFolder(
       folderPath,
       folderPath,
       folder.recursive,
-      includeExtensions,
+      allowedExtensions,
       shouldIgnore
     );
     warnIfLargeLocalEmbeddingSync(folderPath, discoveredFiles.length);
@@ -721,6 +806,7 @@ export async function syncFolder(
     }> => {
       // Check if sync was cancelled before starting
       if (syncAbortController.signal.aborted) {
+        incrementSkipReason(skipReasons, "cancelled");
         return { indexed: false, skipped: true, error: "Sync cancelled" };
       }
 
@@ -735,13 +821,27 @@ export async function syncFolder(
 
       try {
         const fileStat = await stat(file.filePath);
-        const fileHash = await getFileHash(file.filePath);
         const existing = existingFileMap.get(file.filePath);
 
-        // Skip if unchanged
-        if (!forceReindex && existing && existing.contentHash === fileHash) {
+        if (fileStat.size > behavior.maxFileSizeBytes) {
           clearTimeout(timeoutId);
           processedCount++;
+          incrementSkipReason(skipReasons, "max_file_size");
+          logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
+          return {
+            indexed: false,
+            skipped: true,
+            error: `${file.relativePath}: File exceeds max size (${fileStat.size} bytes, max ${behavior.maxFileSizeBytes})`,
+          };
+        }
+
+        const fileHash = await getFileHash(file.filePath);
+
+        // Skip if unchanged
+        if (!shouldForceReindex && existing && existing.contentHash === fileHash) {
+          clearTimeout(timeoutId);
+          processedCount++;
+          incrementSkipReason(skipReasons, "unchanged");
           logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
           return { indexed: false, skipped: true };
         }
@@ -757,6 +857,7 @@ export async function syncFolder(
             if (scanResult.lineCount > maxFileLines) {
               clearTimeout(timeoutId);
               processedCount++;
+              incrementSkipReason(skipReasons, "max_file_lines");
               console.warn(`[SyncService] Skipping large file (${scanResult.lineCount} lines, max ${maxFileLines}): ${file.relativePath}`);
               logProgress(processedCount, totalFiles, file.relativePath, "skipped", startTime);
               return {
@@ -769,6 +870,7 @@ export async function syncFolder(
             if (typeof scanResult.tooLongLineLength === "number") {
               clearTimeout(timeoutId);
               processedCount++;
+              incrementSkipReason(skipReasons, "max_line_length");
               console.warn(
                 `[SyncService] Skipping file with long line (${scanResult.tooLongLineLength} chars, max ${maxLineLength}): ${file.relativePath}`
               );
@@ -812,6 +914,12 @@ export async function syncFolder(
             filePath: file.filePath,
             relativePath: file.relativePath,
             signal: controller.signal,
+            chunkingOverrides: chunkingOverrides.useOverrides
+              ? {
+                  maxCharacters: chunkingOverrides.chunkSize,
+                  overlapCharacters: chunkingOverrides.chunkOverlap,
+                }
+              : undefined,
           });
 
           clearTimeout(timeoutId);
@@ -945,6 +1053,8 @@ export async function syncFolder(
     // Get the embedding model used for this sync (only if embeddings were created)
     const embeddingModelId = shouldCreateEmbeddings ? getEmbeddingModelId() : null;
 
+    result.skippedReasons = skipReasons;
+
     await db
       .update(agentSyncFolders)
       .set({
@@ -953,13 +1063,32 @@ export async function syncFolder(
         lastError: errorSummary,
         fileCount: allFolderFiles.length,
         chunkCount: totalChunkCount,
+        skippedCount: result.filesSkipped,
+        skipReasons,
+        lastRunTrigger: trigger,
+        lastRunMetadata: {
+          trigger,
+          syncMode: behavior.syncMode,
+          reindexPolicy: behavior.reindexPolicy,
+          forceReindex: shouldForceReindex,
+          filesProcessed: result.filesProcessed,
+          filesIndexed: result.filesIndexed,
+          filesSkipped: result.filesSkipped,
+          filesRemoved: result.filesRemoved,
+          skippedReasons: skipReasons,
+          completedAt: new Date().toISOString(),
+        },
         embeddingModel: embeddingModelId, // Track which embedding model was used (null for files-only mode)
         updatedAt: new Date().toISOString(),
       })
       .where(eq(agentSyncFolders.id, folderId));
 
-    // Start file watcher if sync was successful
-    if (syncStatus === "synced" && !isWatching(folderId)) {
+    if (!behavior.allowsWatcherEvents && isWatching(folderId)) {
+      await stopWatching(folderId);
+    }
+
+    // Start file watcher if sync was successful and mode allows event-driven updates
+    if (syncStatus === "synced" && behavior.allowsWatcherEvents && !isWatching(folderId)) {
       // Force polling for large folders (500+ files) to prevent EMFILE from
       // native FSEvents trying to watch thousands of file descriptors.
       // Exception: macOS uses FSEvents which doesn't suffer from this, so we keep native watching.
@@ -970,7 +1099,7 @@ export async function syncFolder(
         characterId: folder.characterId,
         folderPath,
         recursive: folder.recursive,
-        includeExtensions,
+        includeExtensions: allowedExtensions,
         excludePatterns,
         forcePolling,
       };
@@ -1047,16 +1176,79 @@ function logProgress(
 /**
  * Sync all folders for an agent
  */
+export async function updateSyncFolderSettings(config: SyncFolderUpdateConfig): Promise<void> {
+  const {
+    folderId,
+    displayName,
+    recursive,
+    includeExtensions,
+    excludePatterns,
+    indexingMode,
+    syncMode,
+    syncCadenceMinutes,
+    fileTypeFilters,
+    maxFileSizeBytes,
+    chunkPreset,
+    chunkSizeOverride,
+    chunkOverlapOverride,
+    reindexPolicy,
+  } = config;
+
+  const updates: Record<string, unknown> = {
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (displayName !== undefined) updates.displayName = displayName;
+  if (recursive !== undefined) updates.recursive = recursive;
+  if (includeExtensions !== undefined) updates.includeExtensions = normalizeExtensions(includeExtensions);
+  if (excludePatterns !== undefined) updates.excludePatterns = excludePatterns;
+  if (indexingMode !== undefined) updates.indexingMode = indexingMode;
+  if (syncMode !== undefined) updates.syncMode = syncMode;
+  if (syncCadenceMinutes !== undefined) updates.syncCadenceMinutes = Math.max(5, Math.floor(syncCadenceMinutes));
+  if (fileTypeFilters !== undefined) updates.fileTypeFilters = normalizeExtensions(fileTypeFilters);
+  if (maxFileSizeBytes !== undefined) updates.maxFileSizeBytes = Math.max(1024, Math.floor(maxFileSizeBytes));
+  if (chunkPreset !== undefined) updates.chunkPreset = normalizeChunkPreset(chunkPreset);
+  if (chunkSizeOverride !== undefined) {
+    updates.chunkSizeOverride = typeof chunkSizeOverride === "number"
+      ? Math.max(100, Math.floor(chunkSizeOverride))
+      : null;
+  }
+  if (chunkOverlapOverride !== undefined) {
+    updates.chunkOverlapOverride = typeof chunkOverlapOverride === "number"
+      ? Math.max(0, Math.floor(chunkOverlapOverride))
+      : null;
+  }
+  if (reindexPolicy !== undefined) updates.reindexPolicy = normalizeReindexPolicy(reindexPolicy);
+
+  await db
+    .update(agentSyncFolders)
+    .set(updates)
+    .where(eq(agentSyncFolders.id, folderId));
+
+  const [folder] = await db
+    .select({ characterId: agentSyncFolders.characterId })
+    .from(agentSyncFolders)
+    .where(eq(agentSyncFolders.id, folderId));
+
+  if (folder) {
+    notifyFolderChange(folder.characterId, {
+      type: "updated",
+      folderId,
+    });
+  }
+}
+
 export async function syncAllFolders(
   characterId: string,
   parallelConfig: Partial<ParallelConfig> = {},
-  forceReindex: boolean = false
+  forceReindex: boolean = false,
+  trigger: SyncExecutionTrigger = "manual"
 ): Promise<SyncResult[]> {
   const folders = await getSyncFolders(characterId);
   const results: SyncResult[] = [];
 
   for (const folder of folders) {
-    const result = await syncFolder(folder.id, parallelConfig, forceReindex);
+    const result = await syncFolder(folder.id, parallelConfig, forceReindex, trigger);
     results.push(result);
   }
 
@@ -1073,7 +1265,7 @@ export async function reindexAllFolders(
 ): Promise<SyncResult[]> {
   console.log(`[SyncService] Reindexing all folders for agent ${characterId}`);
   await deleteAgentTable(characterId);
-  return syncAllFolders(characterId, parallelConfig, true);
+  return syncAllFolders(characterId, parallelConfig, true, "manual");
 }
 
 /**
@@ -1331,6 +1523,7 @@ export async function getSyncedFoldersNeedingWatch(): Promise<Array<{
   recursive: boolean;
   includeExtensions: string[];
   excludePatterns: string[];
+  syncMode: SyncMode;
 }>> {
   const folders = await db
     .select()
@@ -1344,6 +1537,7 @@ export async function getSyncedFoldersNeedingWatch(): Promise<Array<{
     recursive: boolean;
     includeExtensions: string[];
     excludePatterns: string[];
+    syncMode: SyncMode;
   }> = [];
 
   for (const folder of folders) {
@@ -1370,13 +1564,26 @@ export async function getSyncedFoldersNeedingWatch(): Promise<Array<{
         .where(eq(agentSyncFolders.id, folder.id));
     }
 
+    const behavior = resolveFolderSyncBehavior({
+      indexingMode: folder.indexingMode,
+      syncMode: folder.syncMode,
+    });
+
+    if (!behavior.allowsWatcherEvents) {
+      continue;
+    }
+
+    const includeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
+    const fileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+
     results.push({
       folderId: folder.id,
       characterId: folder.characterId,
       folderPath: normalizedPath,
       recursive: folder.recursive,
-      includeExtensions: parseJsonArray(folder.includeExtensions),
+      includeExtensions: fileTypeFilters.length > 0 ? fileTypeFilters : includeExtensions,
       excludePatterns: parseJsonArray(folder.excludePatterns),
+      syncMode: behavior.syncMode,
     });
   }
 
@@ -1456,7 +1663,7 @@ export async function syncPendingFolders(): Promise<SyncResult[]> {
   const results: SyncResult[] = [];
   for (const folder of pendingFolders) {
     if (!isSyncing(folder.id)) {
-      const result = await syncFolder(folder.id);
+      const result = await syncFolder(folder.id, {}, false, "auto");
       results.push(result);
     }
   }
@@ -1479,8 +1686,6 @@ export async function syncStaleFolders(maxAgeMs: number = 60 * 60 * 1000): Promi
   console.log("[SyncService] Checking for stale folders to sync...");
 
   try {
-    const cutoffTime = new Date(Date.now() - maxAgeMs).toISOString();
-
     // Get folders that are synced, errored, OR pending (never synced)
     const folders = await db
       .select()
@@ -1493,13 +1698,23 @@ export async function syncStaleFolders(maxAgeMs: number = 60 * 60 * 1000): Promi
         )
       );
 
-    // Filter to only stale folders or pending folders
-    const staleFolders = folders.filter(f => {
-      // Pending folders should always be synced
+    // Filter to only stale folders or pending folders allowed by mode and cadence
+    const staleFolders = folders.filter((f) => {
+      const behavior = resolveFolderSyncBehavior({
+        indexingMode: f.indexingMode,
+        syncMode: f.syncMode,
+        syncCadenceMinutes: f.syncCadenceMinutes,
+      });
+
+      if (!shouldRunForTrigger(behavior, "scheduled")) {
+        return false;
+      }
+
       if (f.status === "pending") return true;
-      // Never synced folders should be synced
       if (!f.lastSyncedAt) return true;
-      // Stale folders (synced/error) that haven't been synced recently
+
+      const cadenceMs = Math.max(behavior.syncCadenceMinutes * 60 * 1000, maxAgeMs);
+      const cutoffTime = new Date(Date.now() - cadenceMs).toISOString();
       return f.lastSyncedAt < cutoffTime;
     });
 
@@ -1508,7 +1723,7 @@ export async function syncStaleFolders(maxAgeMs: number = 60 * 60 * 1000): Promi
     const results: SyncResult[] = [];
     for (const folder of staleFolders) {
       if (!isSyncing(folder.id)) {
-        const result = await syncFolder(folder.id);
+        const result = await syncFolder(folder.id, {}, false, "scheduled");
         results.push(result);
       }
     }

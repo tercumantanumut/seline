@@ -13,10 +13,18 @@ import { cn } from "@/lib/utils";
 interface IntroPageProps {
   onContinue: () => void;
   onQuickCreate?: (description: string) => void;
+  onCreateFromTemplate?: (templateId: string, templateName: string) => void;
   onBack?: () => void;
 }
 
-export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps) {
+type AgentTemplateLite = {
+  id: string;
+  name: string;
+  tagline: string;
+  category?: string;
+};
+
+export function IntroPage({ onContinue, onQuickCreate, onCreateFromTemplate, onBack }: IntroPageProps) {
   const t = useTranslations("characterCreation.intro");
   const tc = useTranslations("common");
   const [showSubtitle, setShowSubtitle] = useState(false);
@@ -24,6 +32,10 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
   const [quickDescription, setQuickDescription] = useState("");
   const [isQuickMode, setIsQuickMode] = useState(false);
   const [isElectronApp, setIsElectronApp] = useState(false);
+  const [templates, setTemplates] = useState<AgentTemplateLite[]>([]);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [templateCategory, setTemplateCategory] = useState("");
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
@@ -60,6 +72,27 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
       onQuickCreate(quickDescription.trim());
     }
   };
+
+  const loadTemplates = async () => {
+    if (!onCreateFromTemplate) return;
+    setLoadingTemplates(true);
+    try {
+      const params = new URLSearchParams();
+      if (templateQuery.trim()) params.set("q", templateQuery.trim());
+      if (templateCategory.trim()) params.set("category", templateCategory.trim());
+      const res = await fetch(`/api/characters/templates?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showPrompt || !onCreateFromTemplate) return;
+    void loadTemplates();
+  }, [showPrompt, onCreateFromTemplate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-terminal-cream">
@@ -145,6 +178,53 @@ export function IntroPage({ onContinue, onQuickCreate, onBack }: IntroPageProps)
                 </button>
               </div>
             )}
+
+            {onCreateFromTemplate ? (
+              <div className="mx-auto mt-6 w-full max-w-2xl rounded-lg border border-terminal-border bg-terminal-cream/50 p-4 text-left">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <input
+                    value={templateQuery}
+                    onChange={(e) => setTemplateQuery(e.target.value)}
+                    placeholder={t("templateSearch")}
+                    className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark"
+                  />
+                  <input
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    placeholder={t("templateCategory")}
+                    className="w-36 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark"
+                  />
+                  <button
+                    onClick={() => void loadTemplates()}
+                    className="rounded bg-terminal-dark px-3 py-2 font-mono text-xs text-terminal-cream"
+                  >
+                    {t("templateFilter")}
+                  </button>
+                </div>
+
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {loadingTemplates ? <p className="font-mono text-xs text-terminal-muted">{t("templateLoading")}</p> : null}
+                  {!loadingTemplates && templates.length === 0 ? (
+                    <p className="font-mono text-xs text-terminal-muted">{t("templateEmpty")}</p>
+                  ) : null}
+                  {templates.map((template) => (
+                    <div key={template.id} className="rounded border border-terminal-border/70 bg-white p-2">
+                      <p className="font-mono text-xs font-semibold text-terminal-dark">{template.name}</p>
+                      <p className="mt-1 font-mono text-[11px] text-terminal-muted">{template.tagline}</p>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-terminal-muted">{template.category || "general"}</span>
+                        <button
+                          onClick={() => onCreateFromTemplate(template.id, template.name)}
+                          className="rounded bg-terminal-green px-2 py-1 font-mono text-[11px] text-white"
+                        >
+                          {t("templateUse")}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </motion.div>
         )}
 

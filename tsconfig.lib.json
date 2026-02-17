@@ -19,6 +19,7 @@
     "hooks/**/*",
     "electron/**/*",
     "lib/**/__tests__/**/*",
+    "lib/**/*.unused.ts",
     "dist-electron/**/*",
     "tmp-clawdbot/**/*"
   ]

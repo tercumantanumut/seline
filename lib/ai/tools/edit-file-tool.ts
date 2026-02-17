@@ -2,14 +2,16 @@
  * Edit File Tool
  *
  * AI tool for making targeted edits to files within synced folders.
- * Uses single-string-replacement approach (like Claude Code / OpenCode):
- * - oldString must appear exactly once in the file (uniqueness check)
- * - File must have been read before editing (stale detection)
- * - Empty oldString creates a new file
+ * Uses "Fuzzy Match & Patch" algorithm (like MCP Filesystem Server):
+ * - Normalizes line endings (\r\n -> \n)
+ * - Tries exact match first
+ * - Fallback to fuzzy match (ignoring indentation/whitespace differences)
+ * - Preserves indentation when applying edits
+ * - Supports dry runs
  */
 
 import { tool, jsonSchema } from "ai";
-import { readFile, writeFile, access } from "fs/promises";
+import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import {
   isPathAllowed,
@@ -21,8 +23,11 @@ import {
   isFileStale,
   runPostWriteDiagnostics,
   generateLineNumberDiff,
-  generateContentPreview,
+  generateBeforeAfterDiff,
   type DiagnosticResult,
+  applyFileEdits,
+  type FileEdit,
+  atomicWriteFile,
 } from "@/lib/ai/filesystem";
 
 // ---------------------------------------------------------------------------
@@ -36,8 +41,10 @@ export interface EditFileToolOptions {
 
 interface EditFileInput {
   filePath: string;
-  oldString: string;
-  newString: string;
+  oldString?: string;
+  newString?: string;
+  edits?: FileEdit[];
+  dryRun?: boolean;
 }
 
 interface EditFileResult {
@@ -48,6 +55,7 @@ interface EditFileResult {
   linesChanged?: number;
   diagnostics?: DiagnosticResult;
   diff?: string;
+  dryRun?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,15 +75,32 @@ const editFileSchema = jsonSchema<EditFileInput>({
     oldString: {
       type: "string",
       description:
-        "The exact string to find and replace. Must appear exactly once in the file. Leave empty to create a new file.",
+        "Legacy: The exact string to find and replace. Leave empty to create a new file.",
     },
     newString: {
       type: "string",
       description:
-        "The replacement string. Leave empty to delete the matched text.",
+        "Legacy: The replacement string.",
+    },
+    edits: {
+      type: "array",
+      description: "List of edits to apply. Each edit has oldString and newString.",
+      items: {
+        type: "object",
+        properties: {
+          oldString: { type: "string" },
+          newString: { type: "string" },
+        },
+        required: ["oldString", "newString"],
+      },
+    },
+    dryRun: {
+      type: "boolean",
+      description: "If true, returns the diff without modifying the file.",
+      default: false,
     },
   },
-  required: ["filePath", "oldString", "newString"],
+  required: ["filePath"],
   additionalProperties: false,
 });
 
@@ -90,17 +115,15 @@ export function createEditFileTool(options: EditFileToolOptions) {
     description: `Edit a file by replacing a specific string with new content within synced folders.
 
 **Modes:**
-- **Edit**: Provide oldString (must be unique in file) and newString to replace it
-- **Create**: Set oldString to "" to create a new file with newString as content
-- **Delete text**: Set newString to "" to remove the matched oldString
+- **Edit**: Provide 'edits' array with oldString/newString pairs.
+- **Legacy Edit**: Provide oldString and newString directly.
+- **Create**: Set oldString to "" to create a new file with newString as content.
+- **Dry Run**: Set dryRun: true to preview changes.
 
-**Safety:**
-- Files must be read (via readFile) before editing
-- oldString must appear exactly once — add surrounding context if not unique
-- Paths are restricted to synced folders
-- Stale detection warns if file was modified since last read
-
-**After editing:** Diagnostics are run automatically (tsc, eslint) and errors are reported.`,
+**Capabilities:**
+- **Fuzzy Matching**: Matches code even if indentation differs slightly.
+- **Indentation Fix**: Automatically adjusts indentation of new code to match the file.
+- **Safety**: Validates paths, checks for stale files, and runs diagnostics.`,
 
     inputSchema: editFileSchema,
 
@@ -113,7 +136,25 @@ export function createEditFileTool(options: EditFileToolOptions) {
         };
       }
 
-      const { filePath, oldString, newString } = input;
+      const { filePath, oldString, newString, edits, dryRun = false } = input;
+
+      // Normalize input: Convert legacy oldString/newString to edits array
+      let fileEdits: FileEdit[] = [];
+      if (edits && edits.length > 0) {
+        fileEdits = edits;
+      } else if (oldString !== undefined && newString !== undefined) {
+        // Special case: Creation mode (oldString === "")
+        if (oldString === "") {
+          // Handled separately below
+        } else {
+          fileEdits = [{ oldString, newString }];
+        }
+      } else {
+        return {
+          status: "error",
+          error: "Must provide either 'edits' array or 'oldString' and 'newString'.",
+        };
+      }
 
       // Get synced folders
       let syncedFolders: string[];
@@ -134,7 +175,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
       }
 
       // Validate path
-      const validPath = isPathAllowed(filePath, syncedFolders);
+      const validPath = await isPathAllowed(filePath, syncedFolders);
       if (!validPath) {
         return {
           status: "error",
@@ -142,14 +183,25 @@ export function createEditFileTool(options: EditFileToolOptions) {
         };
       }
 
-      // CREATE MODE: oldString is empty
-      if (oldString === "") {
+      // CREATE MODE: oldString is empty (Legacy support)
+      if (oldString === "" && newString !== undefined && fileEdits.length === 0) {
+        if (dryRun) {
+           return {
+             status: "success",
+             filePath: validPath,
+             message: `[Dry Run] Would create ${basename(validPath)}`,
+             linesChanged: newString.split("\n").length,
+             diff: generateBeforeAfterDiff(validPath, "", newString),
+             dryRun: true,
+           };
+        }
+
         try {
           await access(validPath);
           // File already exists
           return {
             status: "error",
-            error: `File "${basename(validPath)}" already exists. Use oldString to edit existing files, or use writeFile to overwrite.`,
+            error: `File "${basename(validPath)}" already exists. Use edits to modify it, or writeFile to overwrite.`,
           };
         } catch {
           // File doesn't exist — create it
@@ -157,12 +209,12 @@ export function createEditFileTool(options: EditFileToolOptions) {
 
         try {
           await ensureParentDirectories(validPath);
-          await writeFile(validPath, newString, "utf-8");
+          await atomicWriteFile(validPath, newString);
           recordFileWrite(sessionId, validPath);
           recordFileRead(sessionId, validPath); // Mark as read after creation
 
           const lineCount = newString.split("\n").length;
-          const diff = generateContentPreview(validPath, newString);
+          const diff = generateBeforeAfterDiff(validPath, "", newString);
           const diagnostics = await runPostWriteDiagnostics(
             validPath,
             syncedFolders
@@ -184,7 +236,8 @@ export function createEditFileTool(options: EditFileToolOptions) {
         }
       }
 
-      // EDIT MODE: replace oldString with newString
+      // EDIT MODE: Apply edits
+      
       // Check if file was previously read
       if (!wasFileReadBefore(sessionId, validPath)) {
         return {
@@ -212,65 +265,45 @@ export function createEditFileTool(options: EditFileToolOptions) {
         };
       }
 
-      // Uniqueness check: oldString must appear exactly once
-      const firstIndex = content.indexOf(oldString);
-      if (firstIndex === -1) {
+      // Apply Edits using Fuzzy Match Logic
+      const result = applyFileEdits(content, fileEdits);
+
+      if (!result.success) {
         return {
           status: "error",
-          error: `oldString not found in "${basename(validPath)}". Make sure the string matches exactly (including whitespace and indentation).`,
+          error: result.error || "Failed to apply edits.",
         };
       }
 
-      const lastIndex = content.lastIndexOf(oldString);
-      if (firstIndex !== lastIndex) {
-        // Count occurrences
-        let count = 0;
-        let pos = 0;
-        while ((pos = content.indexOf(oldString, pos)) !== -1) {
-          count++;
-          pos += oldString.length;
-        }
+      // Generate line-numbered diff with @@ hunks (before → after)
+      const diff = generateBeforeAfterDiff(validPath, content, result.newContent);
+
+      if (dryRun) {
         return {
-          status: "error",
-          error: `oldString appears ${count} times in "${basename(validPath)}". It must be unique — add more surrounding context to make it unique.`,
+          status: "success",
+          filePath: validPath,
+          message: `[Dry Run] Would apply ${fileEdits.length} edit(s) to ${basename(validPath)}`,
+          linesChanged: result.linesChanged,
+          diff,
+          dryRun: true,
         };
       }
 
-      // No-op check
-      if (oldString === newString) {
-        return {
-          status: "error",
-          error: "oldString and newString are identical. No changes to make.",
-        };
-      }
-
-      // Apply the replacement
-      const newContent = content.slice(0, firstIndex) + newString + content.slice(firstIndex + oldString.length);
-
+      // Write changes
       try {
-        await writeFile(validPath, newContent, "utf-8");
+        await atomicWriteFile(validPath, result.newContent);
         recordFileWrite(sessionId, validPath);
-        recordFileRead(sessionId, validPath); // Update read time after our own write
+        recordFileRead(sessionId, validPath); // Update read time
 
-        // Count changed lines
-        const oldLines = oldString.split("\n").length;
-        const newLines = newString.split("\n").length;
-        const linesChanged = Math.max(oldLines, newLines);
-
-        // Generate diff
-        const diff = generateLineNumberDiff(validPath, content, oldString, newString);
-
-        // Run diagnostics (non-blocking, 5s timeout)
+        // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(
           validPath,
           syncedFolders
         ).catch(() => null);
 
         const parts = [`Edited ${basename(validPath)}`];
-        if (newString === "") {
-          parts.push(`(removed ${oldLines} lines)`);
-        } else {
-          parts.push(`(${oldLines} → ${newLines} lines)`);
+        if (result.linesChanged > 0) {
+          parts.push(`(${result.linesChanged} lines changed)`);
         }
         if (diagnostics?.hasErrors) {
           parts.push(`— ${diagnostics.errorCount} error(s) detected`);
@@ -280,7 +313,7 @@ export function createEditFileTool(options: EditFileToolOptions) {
           status: "success",
           filePath: validPath,
           message: parts.join(" "),
-          linesChanged,
+          linesChanged: result.linesChanged,
           diagnostics: diagnostics ?? undefined,
           diff,
         };

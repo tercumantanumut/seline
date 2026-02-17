@@ -16,6 +16,13 @@ import {
   fetchAntigravityProjectId,
   ANTIGRAVITY_SYSTEM_INSTRUCTION,
 } from "@/lib/auth/antigravity-auth";
+import {
+  classifyRecoverability,
+  getBackoffDelayMs,
+  shouldRetry,
+  sleepWithAbort,
+  type RecoveryClassification,
+} from "@/lib/ai/retry/stream-recovery";
 
 // Model aliases - map display names to Antigravity API model IDs
 // Verified working 2026-01-05: All models work directly without prefix
@@ -130,43 +137,7 @@ const ANTIGRAVITY_BOOLEAN_KEYS = new Set([
 // Retry configuration for Antigravity quota/resource exhaustion errors
 const ANTIGRAVITY_RETRY_CONFIG = {
   maxRetries: 3,
-  initialDelayMs: 1000,
-  maxDelayMs: 10000,
-  backoffFactor: 2,
 };
-
-/**
- * Check if an error message indicates a retryable quota/resource exhaustion error
- */
-function isRetryableAntigravityError(errorText: string): boolean {
-  const lowerError = errorText.toLowerCase();
-  return (
-    lowerError.includes("resource exhausted") ||
-    lowerError.includes("quota") ||
-    lowerError.includes("rate limit") ||
-    lowerError.includes("429") ||
-    lowerError.includes("503") ||
-    lowerError.includes("temporarily unavailable")
-  );
-}
-
-/**
- * Calculate delay for exponential backoff
- */
-function calculateRetryDelay(attempt: number): number {
-  const delay = ANTIGRAVITY_RETRY_CONFIG.initialDelayMs *
-    Math.pow(ANTIGRAVITY_RETRY_CONFIG.backoffFactor, attempt);
-  // Add jitter (±20%) to prevent thundering herd
-  const jitter = delay * 0.2 * (Math.random() * 2 - 1);
-  return Math.min(delay + jitter, ANTIGRAVITY_RETRY_CONFIG.maxDelayMs);
-}
-
-/**
- * Sleep for a given number of milliseconds
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 // Generate a unique request ID
 function generateRequestId(): string {
@@ -757,6 +728,87 @@ async function readRequestBody(body: BodyInit): Promise<string> {
   throw new Error("Unsupported request body type for Antigravity request");
 }
 
+function generateClaudeToolCallId(): string {
+  return `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+function getNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Ensure Claude functionCall/functionResponse parts share stable matching IDs.
+ *
+ * The Antigravity Claude gateway expects strict call/result pairing by ID.
+ * We only fill in missing IDs and preserve any IDs already provided by the SDK.
+ */
+function ensureClaudeFunctionPartIds(contents: unknown): void {
+  if (!Array.isArray(contents)) return;
+
+  const pendingIdsByName = new Map<string, string[]>();
+
+  for (const content of contents) {
+    if (!content || typeof content !== "object") continue;
+    const parts = (content as { parts?: unknown }).parts;
+    if (!Array.isArray(parts)) continue;
+
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue;
+      const partRecord = part as Record<string, unknown>;
+
+      const functionCall = partRecord.functionCall;
+      if (functionCall && typeof functionCall === "object") {
+        const callRecord = functionCall as Record<string, unknown>;
+        const functionName = getNonEmptyString(callRecord.name) ?? "__unknown_tool__";
+        const callId = getNonEmptyString(callRecord.id) ?? generateClaudeToolCallId();
+        callRecord.id = callId;
+
+        const queue = pendingIdsByName.get(functionName) ?? [];
+        queue.push(callId);
+        pendingIdsByName.set(functionName, queue);
+        continue;
+      }
+
+      const functionResponse = partRecord.functionResponse;
+      if (!functionResponse || typeof functionResponse !== "object") {
+        continue;
+      }
+
+      const responseRecord = functionResponse as Record<string, unknown>;
+      const functionName = getNonEmptyString(responseRecord.name) ?? "__unknown_tool__";
+      const existingId = getNonEmptyString(responseRecord.id);
+      const queue = pendingIdsByName.get(functionName);
+
+      if (existingId) {
+        if (queue && queue.length > 0) {
+          const matchIndex = queue.indexOf(existingId);
+          if (matchIndex !== -1) {
+            queue.splice(matchIndex, 1);
+          }
+          if (queue.length === 0) {
+            pendingIdsByName.delete(functionName);
+          }
+        }
+        continue;
+      }
+
+      if (!queue || queue.length === 0) {
+        continue;
+      }
+
+      const matchedId = queue.shift();
+      if (queue.length === 0) {
+        pendingIdsByName.delete(functionName);
+      }
+      if (matchedId) {
+        responseRecord.id = matchedId;
+      }
+    }
+  }
+}
+
 /**
  * Check if this is a Google Generative Language API request that should be intercepted
  */
@@ -837,50 +889,11 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
           normalizeAntigravityToolSchemas(parsedBody.tools);
         }
 
-        // For Claude models via Antigravity, we need to inject unique IDs into functionCall/functionResponse parts.
+        // For Claude models via Antigravity, ensure functionCall/functionResponse
+        // parts use stable shared IDs for strict call/result validation.
         const isClaudeModel = effectiveModel.includes("claude");
-        if (isClaudeModel && parsedBody.contents && Array.isArray(parsedBody.contents)) {
-          // Track functionCall IDs by name+index for matching with functionResponse
-          const functionCallIds = new Map<string, string[]>();
-          const functionResponseIndex = new Map<string, number>();
-
-          // First pass: inject IDs into all functionCall parts
-          for (const content of parsedBody.contents) {
-            if (content.parts && Array.isArray(content.parts)) {
-              for (const part of content.parts) {
-                if (part.functionCall && typeof part.functionCall === "object") {
-                  const funcName = (part.functionCall as Record<string, unknown>).name as string;
-                  const callId = `toolu_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
-
-                  if (!functionCallIds.has(funcName)) {
-                    functionCallIds.set(funcName, []);
-                  }
-                  functionCallIds.get(funcName)!.push(callId);
-                  (part.functionCall as Record<string, unknown>).id = callId;
-                }
-              }
-            }
-          }
-
-          // Second pass: inject matching IDs into functionResponse parts
-          for (const content of parsedBody.contents) {
-            if (content.parts && Array.isArray(content.parts)) {
-              for (const part of content.parts) {
-                if (part.functionResponse && typeof part.functionResponse === "object") {
-                  const funcName = (part.functionResponse as Record<string, unknown>).name as string;
-                  const ids = functionCallIds.get(funcName);
-
-                  if (ids && ids.length > 0) {
-                    const idx = functionResponseIndex.get(funcName) || 0;
-                    if (idx < ids.length) {
-                      (part.functionResponse as Record<string, unknown>).id = ids[idx];
-                      functionResponseIndex.set(funcName, idx + 1);
-                    }
-                  }
-                }
-              }
-            }
-          }
+        if (isClaudeModel) {
+          ensureClaudeFunctionPartIds(parsedBody.contents);
         }
 
         // Wrap the request in Antigravity's expected format
@@ -962,11 +975,27 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
         console.error(`[Antigravity] Error (attempt ${attempt + 1}): ${response.status} ${response.statusText}`);
         console.error(`[Antigravity] Response: ${errorText.substring(0, 500)}`);
 
-        // Check if this is a retryable error and we have retries left
-        if (attempt < ANTIGRAVITY_RETRY_CONFIG.maxRetries && isRetryableAntigravityError(errorText)) {
-          const delay = calculateRetryDelay(attempt);
-          console.log(`[Antigravity] Retryable error detected, waiting ${Math.round(delay)}ms before retry...`);
-          await sleep(delay);
+        const classification = classifyRecoverability({
+          provider: "antigravity",
+          statusCode: response.status,
+          message: errorText,
+        });
+        const shouldAttemptRetry = shouldRetry({
+          classification,
+          attempt,
+          maxAttempts: ANTIGRAVITY_RETRY_CONFIG.maxRetries,
+          aborted: init?.signal?.aborted ?? false,
+        });
+
+        if (shouldAttemptRetry) {
+          const delay = getBackoffDelayMs(attempt);
+          console.log("[Antigravity] Scheduling HTTP stream recovery retry", {
+            attempt: attempt + 1,
+            reason: classification.reason,
+            delayMs: delay,
+            outcome: "scheduled",
+          });
+          await sleepWithAbort(delay, init?.signal ?? undefined);
           return makeRequest(attempt + 1);
         }
 
@@ -981,13 +1010,31 @@ function createAntigravityFetch(accessToken: string, projectId: string): typeof 
             clearTimeoutOnce,
             // Retry callback for mid-stream errors
             async (errorText: string): Promise<ReadableStream<string> | null> => {
-              if (attempt >= ANTIGRAVITY_RETRY_CONFIG.maxRetries || !isRetryableAntigravityError(errorText)) {
-                console.error(`[Antigravity] Stream error not retryable or max retries exceeded`);
+              const classification = classifyRecoverability({
+                provider: "antigravity",
+                message: errorText,
+              });
+              const shouldAttemptRetry = shouldRetry({
+                classification,
+                attempt,
+                maxAttempts: ANTIGRAVITY_RETRY_CONFIG.maxRetries,
+                aborted: init?.signal?.aborted ?? false,
+              });
+              if (!shouldAttemptRetry) {
+                console.error("[Antigravity] Stream error not retryable or max retries exceeded", {
+                  attempt: attempt + 1,
+                  reason: classification.reason,
+                });
                 return null;
               }
-              const delay = calculateRetryDelay(attempt);
-              console.log(`[Antigravity] Mid-stream quota error, retrying in ${Math.round(delay)}ms...`);
-              await sleep(delay);
+              const delay = getBackoffDelayMs(attempt);
+              console.log("[Antigravity] Scheduling mid-stream recovery retry", {
+                attempt: attempt + 1,
+                reason: classification.reason,
+                delayMs: delay,
+                outcome: "scheduled",
+              });
+              await sleepWithAbort(delay, init?.signal ?? undefined);
 
               // Make a new request and return its stream
               try {
@@ -1046,44 +1093,40 @@ function createResponseTransformStreamWithRetry(
   let retryStream: ReadableStream<string> | null = null;
   let retryReader: ReadableStreamDefaultReader<string> | null = null;
 
-  /**
-   * Check if a parsed SSE data object contains a quota/resource error
-   */
-  const isQuotaError = (parsed: unknown): string | null => {
+  const classifyRecoverableStreamPayload = (parsed: unknown): RecoveryClassification | null => {
     if (typeof parsed !== "object" || parsed === null) return null;
 
     const obj = parsed as Record<string, unknown>;
 
-    // Check for error field
     if (obj.error && typeof obj.error === "object") {
       const error = obj.error as Record<string, unknown>;
       const message = String(error.message || error.error || "");
-      if (isRetryableAntigravityError(message)) {
-        return message;
+      const classification = classifyRecoverability({ provider: "antigravity", message });
+      if (classification.recoverable) {
+        return classification;
       }
     }
 
-    // Check for top-level error message
     if (obj.message && typeof obj.message === "string") {
-      if (isRetryableAntigravityError(obj.message)) {
-        return obj.message;
+      const classification = classifyRecoverability({ provider: "antigravity", message: obj.message });
+      if (classification.recoverable) {
+        return classification;
       }
     }
 
-    // Check candidates for finishReason: "OTHER" which can indicate quota issues
     if (obj.candidates && Array.isArray(obj.candidates)) {
       for (const candidate of obj.candidates) {
         if (candidate && typeof candidate === "object") {
           const c = candidate as Record<string, unknown>;
           if (c.finishReason === "OTHER" || c.finishReason === "RECITATION") {
-            // Check if there's an error message in the content
             const content = c.content as Record<string, unknown> | undefined;
             if (content?.parts && Array.isArray(content.parts)) {
               for (const part of content.parts) {
                 if (part && typeof part === "object" && "text" in part) {
                   const text = String((part as Record<string, unknown>).text || "");
-                  if (isRetryableAntigravityError(text)) {
-                    return text;
+                  const classification = classifyRecoverability({ provider: "antigravity", message: text });
+                  if (classification.recoverable) {
+                    return classification;
                   }
                 }
               }
@@ -1177,20 +1220,21 @@ function createResponseTransformStreamWithRetry(
         try {
           const parsed = JSON.parse(json);
 
-          // Check if this is a quota error that we should retry
-          const quotaErrorMsg = isQuotaError(parsed);
-          if (quotaErrorMsg && onRetryNeeded) {
-            console.log(`[Antigravity] Detected mid-stream quota error: ${quotaErrorMsg.substring(0, 100)}`);
+          const retryClassification = classifyRecoverableStreamPayload(parsed);
+          if (retryClassification && onRetryNeeded) {
+            const message = retryClassification.normalized.message;
+            console.log("[Antigravity] Detected recoverable mid-stream payload", {
+              reason: retryClassification.reason,
+              message: message.substring(0, 100),
+            });
 
-            // Attempt to get a retry stream
-            const newStream = await onRetryNeeded(quotaErrorMsg);
+            const newStream = await onRetryNeeded(message);
             if (newStream) {
               console.log(`[Antigravity] Got retry stream, continuing response...`);
               retryStream = newStream;
               retryReader = newStream.getReader();
-              // Process the retry stream
               await processRetryData(controller);
-              return; // Stop processing current stream
+              return;
             } else {
               console.log(`[Antigravity] Retry failed, forwarding error to client`);
             }
@@ -1339,3 +1383,4 @@ export function createAntigravityProvider(): ((modelId: string) => LanguageModel
     return google(effectiveModel) as unknown as LanguageModel;
   };
 }
+
