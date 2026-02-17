@@ -114,8 +114,9 @@ export function generateBeforeAfterDiff(
 }
 
 /**
- * Generates a preview of content with line numbers.
- * Retained for backward compatibility where a plain preview is still useful.
+ * @deprecated Dead code — no callers exist in the codebase.
+ * readFile tool has its own built-in formatting (line numbers, range selection).
+ * Kept temporarily for reference; safe to delete in a follow-up cleanup.
  */
 export function generateContentPreview(
   filePath: string,

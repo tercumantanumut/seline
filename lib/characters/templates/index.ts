@@ -8,6 +8,7 @@ import { CUSTOMER_SUPPORT_AGENT_TEMPLATE } from "./customer-support-agent";
 import { PERSONAL_FINANCE_TRACKER_TEMPLATE } from "./personal-finance-tracker";
 import { LEARNING_COACH_TEMPLATE } from "./learning-coach";
 import { PROJECT_MANAGER_TEMPLATE } from "./project-manager";
+import { resolveSelineTemplateTools, type ToolResolutionResult } from "./resolve-tools";
 import {
   createCharacter,
   getUserCharacters,
@@ -18,6 +19,7 @@ import { createSkill } from "@/lib/skills/queries";
 import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
 import { getUserWorkspacePath } from "@/lib/workspace/setup";
+import { loadSettings } from "@/lib/settings/settings-manager";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
@@ -129,6 +131,34 @@ export async function createAgentFromTemplate(
   template: AgentTemplate
 ): Promise<string | null> {
   try {
+    // For the Seline default template, resolve tools dynamically based on settings
+    let resolvedTools = template.enabledTools;
+    let toolWarnings: ToolResolutionResult["warnings"] = [];
+
+    if (template.id === "seline-default") {
+      try {
+        const settings = loadSettings();
+        const resolution = resolveSelineTemplateTools(settings);
+        resolvedTools = resolution.enabledTools;
+        toolWarnings = resolution.warnings;
+
+        if (toolWarnings.length > 0) {
+          console.log(
+            `[Templates] Seline template: ${toolWarnings.length} tool(s) disabled due to missing prerequisites:`
+          );
+          for (const w of toolWarnings) {
+            console.log(`  - ${w.toolName}: ${w.reason}`);
+          }
+        }
+        console.log(
+          `[Templates] Seline template resolved ${resolvedTools.length} tools (from ${template.enabledTools.length} static)`
+        );
+      } catch (error) {
+        console.warn("[Templates] Failed to resolve Seline tools dynamically, using static list:", error);
+        resolvedTools = template.enabledTools;
+      }
+    }
+
     const character = await createCharacter({
       userId,
       name: template.name,
@@ -137,7 +167,7 @@ export async function createAgentFromTemplate(
       status: "active",
       metadata: {
         purpose: template.purpose,
-        enabledTools: template.enabledTools,
+        enabledTools: resolvedTools,
         enabledMcpServers: [],
         enabledMcpTools: [],
         mcpToolPreferences: {},
@@ -248,3 +278,4 @@ async function configureSyncFolders(
 }
 
 export type { AgentTemplate, AgentTemplateMemory } from "./types";
+export { resolveSelineTemplateTools, type ToolResolutionResult, type ToolWarning } from "./resolve-tools";

@@ -1,0 +1,13 @@
+# Additional paths to skip in file watching (one glob pattern per line)
+# These entries are merged with built-in defaults from next.config.ts.
+
+# Build artifacts and generated outputs
+dist/**
+out/**
+coverage/**
+
+# Local runtime data
+.local-data/**
+
+# Large media/assets folders (customize as needed)
+assets/tmp/**

@@ -51,6 +51,8 @@ interface ReadFileResult {
   filePath?: string;
   language?: string;
   lineRange?: string;
+  startLine?: number;
+  endLine?: number;
   totalLines?: number;
   content?: string;
   truncated?: boolean;
@@ -204,6 +206,8 @@ async function tryReadFromKnowledgeBase(
       filePath: document.originalFilename,
       language: lang,
       lineRange: `${actualStartLine}-${actualEndLine}`,
+      startLine: actualStartLine,
+      endLine: actualEndLine,
       totalLines: lines.length,
       content: formattedContent,
       truncated,
@@ -263,6 +267,27 @@ export function createReadFileTool(options: ReadFileToolOptions) {
         return {
           status: "error",
           error: "Cannot specify both head and tail parameters.",
+        };
+      }
+
+      // Guard: reject absurdly large range requests to prevent context bloat
+      const MAX_RANGE_LINES = 10_000;
+      if (head && head > MAX_RANGE_LINES) {
+        return {
+          status: "error",
+          error: `Requested head=${head} exceeds maximum range of ${MAX_RANGE_LINES} lines. Use a smaller range or startLine/endLine.`,
+        };
+      }
+      if (tail && tail > MAX_RANGE_LINES) {
+        return {
+          status: "error",
+          error: `Requested tail=${tail} exceeds maximum range of ${MAX_RANGE_LINES} lines. Use a smaller range or startLine/endLine.`,
+        };
+      }
+      if (startLine && endLine && (endLine - startLine + 1) > MAX_RANGE_LINES) {
+        return {
+          status: "error",
+          error: `Requested range (${startLine}-${endLine} = ${endLine - startLine + 1} lines) exceeds maximum of ${MAX_RANGE_LINES} lines. Use a smaller range.`,
         };
       }
 
@@ -382,6 +407,8 @@ export function createReadFileTool(options: ReadFileToolOptions) {
           filePath: validPath,
           language: lang,
           lineRange: `${actualStartLine}-${actualEndLine}`,
+          startLine: actualStartLine,
+          endLine: actualEndLine,
           totalLines: lines.length,
           content: formattedContent,
           truncated,

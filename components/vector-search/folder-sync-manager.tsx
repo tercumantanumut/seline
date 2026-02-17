@@ -24,20 +24,37 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientDelete } from "@/lib/utils/resilient-fetch";
 
+type IndexingMode = "auto" | "full" | "files-only";
+type SyncMode = "auto" | "manual" | "scheduled" | "triggered";
+type ChunkPreset = "balanced" | "small" | "large" | "custom";
+type ReindexPolicy = "smart" | "always" | "never";
+
 interface SyncFolder {
   id: string;
   folderPath: string;
   displayName: string | null;
   recursive: boolean;
-  includeExtensions: string;
-  excludePatterns: string;
+  includeExtensions: string | string[];
+  excludePatterns: string | string[];
+  fileTypeFilters?: string | string[];
   status: "pending" | "syncing" | "synced" | "error" | "paused";
   lastSyncedAt: string | null;
   lastError: string | null;
   fileCount: number | null;
   chunkCount: number | null;
+  skippedCount?: number | null;
+  skipReasons?: Record<string, number> | string | null;
+  lastRunMetadata?: Record<string, unknown> | string | null;
+  lastRunTrigger?: "manual" | "scheduled" | "triggered" | "auto" | null;
   embeddingModel: string | null;
   indexingMode: "files-only" | "full" | "auto";
+  syncMode?: SyncMode;
+  syncCadenceMinutes?: number;
+  maxFileSizeBytes?: number;
+  chunkPreset?: ChunkPreset;
+  chunkSizeOverride?: number | null;
+  chunkOverlapOverride?: number | null;
+  reindexPolicy?: ReindexPolicy;
   isPrimary: boolean;
 }
 
@@ -58,6 +75,39 @@ interface FolderSyncManagerProps {
   characterId: string;
   className?: string;
   compact?: boolean;
+}
+
+function parseStringArray(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parseObject(value: Record<string, unknown> | string | null | undefined): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function formatBytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
 export function FolderSyncManager({ characterId, className, compact = false }: FolderSyncManagerProps) {
@@ -101,6 +151,17 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [useRecommendedExcludes, setUseRecommendedExcludes] = useState(true);
+
+  const [newIndexingMode, setNewIndexingMode] = useState<IndexingMode>("auto");
+  const [newSyncMode, setNewSyncMode] = useState<SyncMode>("auto");
+  const [newSyncCadenceMinutes, setNewSyncCadenceMinutes] = useState("60");
+  const [newFolderMode, setNewFolderMode] = useState<"simple" | "advanced">("simple");
+  const [newFileTypeFilters, setNewFileTypeFilters] = useState("");
+  const [newMaxFileSizeMB, setNewMaxFileSizeMB] = useState("10");
+  const [newChunkPreset, setNewChunkPreset] = useState<ChunkPreset>("balanced");
+  const [newChunkSizeOverride, setNewChunkSizeOverride] = useState("");
+  const [newChunkOverlapOverride, setNewChunkOverlapOverride] = useState("");
+  const [newReindexPolicy, setNewReindexPolicy] = useState<ReindexPolicy>("smart");
 
   const RECOMMENDED_EXCLUDES = [
     "node_modules",
@@ -246,6 +307,39 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const handleAddFolder = async () => {
     if (!newFolderPath.trim()) return;
 
+    const syncCadenceMinutes = Number(newSyncCadenceMinutes);
+    const maxFileSizeMB = Number(newMaxFileSizeMB);
+    const chunkSizeOverride = newChunkSizeOverride ? Number(newChunkSizeOverride) : undefined;
+    const chunkOverlapOverride = newChunkOverlapOverride ? Number(newChunkOverlapOverride) : undefined;
+
+    const effectiveIndexingMode: IndexingMode = newFolderMode === "simple" ? "auto" : newIndexingMode;
+    const effectiveSyncMode: SyncMode = newFolderMode === "simple" ? "auto" : newSyncMode;
+    const effectiveCadence = newFolderMode === "simple" ? 60 : syncCadenceMinutes;
+    const effectiveMaxFileSizeMB = newFolderMode === "simple" ? 10 : maxFileSizeMB;
+    const effectiveChunkPreset: ChunkPreset = newFolderMode === "simple" ? "balanced" : newChunkPreset;
+    const effectiveChunkSizeOverride = newFolderMode === "simple" ? undefined : chunkSizeOverride;
+    const effectiveChunkOverlapOverride = newFolderMode === "simple" ? undefined : chunkOverlapOverride;
+    const effectiveReindexPolicy: ReindexPolicy = newFolderMode === "simple" ? "smart" : newReindexPolicy;
+
+    if (!Number.isFinite(effectiveCadence) || effectiveCadence < 5) {
+      setError(t("cadenceValidation"));
+      return;
+    }
+    if (!Number.isFinite(effectiveMaxFileSizeMB) || effectiveMaxFileSizeMB <= 0 || effectiveMaxFileSizeMB > 512) {
+      setError(t("maxFileSizeValidation"));
+      return;
+    }
+    if (effectiveChunkPreset === "custom") {
+      if (!effectiveChunkSizeOverride || effectiveChunkSizeOverride < 100) {
+        setError(t("chunkSizeValidation"));
+        return;
+      }
+      if (effectiveChunkOverlapOverride === undefined || effectiveChunkOverlapOverride < 0 || effectiveChunkOverlapOverride >= effectiveChunkSizeOverride) {
+        setError(t("chunkOverlapValidation"));
+        return;
+      }
+    }
+
     setIsAdding(true);
     try {
       const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
@@ -256,6 +350,18 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
         recursive: newRecursive,
         includeExtensions: newExtensions.split(",").map((e) => e.trim()).filter(Boolean),
         excludePatterns: newExcludePatterns.split(",").map((p) => p.trim()).filter(Boolean),
+        indexingMode: effectiveIndexingMode,
+        syncMode: effectiveSyncMode,
+        syncCadenceMinutes: effectiveCadence,
+        fileTypeFilters: newFileTypeFilters
+          .split(",")
+          .map((e) => e.trim())
+          .filter(Boolean),
+        maxFileSizeBytes: Math.round(effectiveMaxFileSizeMB * 1024 * 1024),
+        chunkPreset: effectiveChunkPreset,
+        chunkSizeOverride: effectiveChunkSizeOverride,
+        chunkOverlapOverride: effectiveChunkOverlapOverride,
+        reindexPolicy: effectiveReindexPolicy,
       }, { timeout: 30_000 });
 
       if (error) {
@@ -278,6 +384,16 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     setNewRecursive(true);
     setNewExtensions(DEFAULT_EXTENSIONS);
     setNewExcludePatterns("node_modules,.git,dist,build,.next,__pycache__,.venv,venv,package-lock.json,pnpm-lock.yaml,yarn.lock");
+    setNewFolderMode("simple");
+    setNewIndexingMode("auto");
+    setNewSyncMode("auto");
+    setNewSyncCadenceMinutes("60");
+    setNewFileTypeFilters("");
+    setNewMaxFileSizeMB("10");
+    setNewChunkPreset("balanced");
+    setNewChunkSizeOverride("");
+    setNewChunkOverlapOverride("");
+    setNewReindexPolicy("smart");
     setShowAddForm(false);
     setFolderAnalysis(null);
     setAnalysisError(null);
@@ -410,7 +526,15 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       {/* Folder List */}
       {folders.length > 0 && (
         <div className="space-y-2">
-          {folders.map((folder) => (
+          {folders.map((folder) => {
+            const syncMode = folder.syncMode ?? "auto";
+            const includeExts = parseStringArray(folder.includeExtensions);
+            const excludeGlobs = parseStringArray(folder.excludePatterns);
+            const typeFilters = parseStringArray(folder.fileTypeFilters);
+            const skipReasons = parseObject(folder.skipReasons) as Record<string, number>;
+            const runMetadata = parseObject(folder.lastRunMetadata);
+
+            return (
             <div
               key={folder.id}
               className="rounded border border-terminal-border bg-terminal-cream/50 p-3"
@@ -517,20 +641,90 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       </span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">Mode:</span>{" "}
+                      <span className="text-terminal-muted">{t("indexingMode")}</span>{" "}
                       <span className={cn(
                         "text-xs font-mono px-2 py-0.5 rounded",
                         folder.indexingMode === "full" && "bg-terminal-green/20 text-terminal-green",
                         folder.indexingMode === "files-only" && "bg-terminal-blue/20 text-terminal-blue",
                         folder.indexingMode === "auto" && "bg-terminal-muted/20 text-terminal-muted"
                       )}>
-                        {folder.indexingMode === "full" ? "Full (with embeddings)" : folder.indexingMode === "files-only" ? "Files Only" : "Auto"}
+                        {folder.indexingMode === "full" ? t("modeFull") : folder.indexingMode === "files-only" ? t("modeFilesOnly") : t("modeAuto")}
                       </span>
                     </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("syncMode")}</span>{" "}
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {syncMode === "manual"
+                          ? t("modeManual")
+                          : syncMode === "scheduled"
+                            ? t("modeScheduled")
+                            : syncMode === "triggered"
+                              ? t("modeTriggered")
+                              : t("modeAuto")}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("syncCadenceMinutes")}</span>{" "}
+                      <span className="text-terminal-dark">{folder.syncCadenceMinutes ?? 60}</span>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("maxFileSizeMb")}</span>{" "}
+                      <span className="text-terminal-dark">{formatBytes(folder.maxFileSizeBytes ?? 10 * 1024 * 1024)}</span>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("chunkPreset")}</span>{" "}
+                      <span className="text-terminal-dark">{folder.chunkPreset ?? "balanced"}</span>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("reindexPolicy")}</span>{" "}
+                      <span className="text-terminal-dark">{folder.reindexPolicy ?? "smart"}</span>
+                    </div>
+                    <div>
+                      <span className="text-terminal-muted">{t("skipped")}</span>{" "}
+                      <span className="text-terminal-dark">{folder.skippedCount ?? 0}</span>
+                    </div>
+                    {folder.lastRunTrigger && (
+                      <div>
+                        <span className="text-terminal-muted">{t("lastRunTrigger")}</span>{" "}
+                        <span className="text-terminal-dark">{folder.lastRunTrigger}</span>
+                      </div>
+                    )}
                     {folder.embeddingModel && (
                       <div className="col-span-2">
                         <span className="text-terminal-muted">Model:</span>{" "}
                         <span className="text-terminal-dark">{folder.embeddingModel}</span>
+                      </div>
+                    )}
+                    {typeFilters.length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("fileTypeFilters")}</span>{" "}
+                        <span className="text-terminal-dark">{typeFilters.join(", ")}</span>
+                      </div>
+                    )}
+                    {includeExts.length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("fileExtensions")}</span>{" "}
+                        <span className="text-terminal-dark">{includeExts.join(", ")}</span>
+                      </div>
+                    )}
+                    {excludeGlobs.length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("excludePatterns")}</span>{" "}
+                        <span className="text-terminal-dark">{excludeGlobs.join(", ")}</span>
+                      </div>
+                    )}
+                    {Object.keys(skipReasons).length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("skipReasons")}</span>{" "}
+                        <span className="text-terminal-dark">
+                          {Object.entries(skipReasons).map(([reason, count]) => `${reason}: ${count}`).join(", ")}
+                        </span>
+                      </div>
+                    )}
+                    {Object.keys(runMetadata).length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("lastRunMetadata")}</span>{" "}
+                        <span className="text-terminal-dark">{JSON.stringify(runMetadata)}</span>
                       </div>
                     )}
                   </div>
@@ -540,7 +734,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -698,6 +893,31 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
             </Label>
           </div>
 
+          <div className="rounded border border-terminal-border bg-terminal-cream/40 p-3 space-y-2">
+            <div className="font-mono text-xs text-terminal-muted">{t("indexingControls")}</div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={newFolderMode === "simple" ? "default" : "outline"}
+                className="font-mono text-xs"
+                onClick={() => setNewFolderMode("simple")}
+              >
+                {t("simpleMode")}
+              </Button>
+              <Button
+                type="button"
+                variant={newFolderMode === "advanced" ? "default" : "outline"}
+                className="font-mono text-xs"
+                onClick={() => setNewFolderMode("advanced")}
+              >
+                {t("advancedMode")}
+              </Button>
+            </div>
+            <p className="font-mono text-xs text-terminal-muted">
+              {newFolderMode === "simple" ? t("simpleModeHint") : t("advancedModeHint")}
+            </p>
+          </div>
+
           {/* Advanced Options Toggle */}
           <button
             type="button"
@@ -715,6 +935,109 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           {/* Advanced Options */}
           {showAdvancedOptions && (
             <div className="space-y-3 pl-4 border-l-2 border-terminal-border">
+              {newFolderMode === "advanced" && (
+                <>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("indexingMode")}</Label>
+                    <select
+                      value={newIndexingMode}
+                      onChange={(e) => setNewIndexingMode(e.target.value as IndexingMode)}
+                      className="mt-1 w-full rounded border border-terminal-border bg-background px-2 py-1 font-mono text-xs"
+                    >
+                      <option value="auto">{t("modeAuto")}</option>
+                      <option value="full">{t("modeFull")}</option>
+                      <option value="files-only">{t("modeFilesOnly")}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("syncMode")}</Label>
+                    <select
+                      value={newSyncMode}
+                      onChange={(e) => setNewSyncMode(e.target.value as SyncMode)}
+                      className="mt-1 w-full rounded border border-terminal-border bg-background px-2 py-1 font-mono text-xs"
+                    >
+                      <option value="auto">{t("modeAuto")}</option>
+                      <option value="manual">{t("modeManual")}</option>
+                      <option value="scheduled">{t("modeScheduled")}</option>
+                      <option value="triggered">{t("modeTriggered")}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("syncCadenceMinutes")}</Label>
+                    <Input
+                      value={newSyncCadenceMinutes}
+                      onChange={(e) => setNewSyncCadenceMinutes(e.target.value)}
+                      placeholder="60"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("maxFileSizeMb")}</Label>
+                    <Input
+                      value={newMaxFileSizeMB}
+                      onChange={(e) => setNewMaxFileSizeMB(e.target.value)}
+                      placeholder="10"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("fileTypeFilters")}</Label>
+                    <Input
+                      value={newFileTypeFilters}
+                      onChange={(e) => setNewFileTypeFilters(e.target.value)}
+                      placeholder=".md,.ts,.tsx"
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("chunkPreset")}</Label>
+                    <select
+                      value={newChunkPreset}
+                      onChange={(e) => setNewChunkPreset(e.target.value as ChunkPreset)}
+                      className="mt-1 w-full rounded border border-terminal-border bg-background px-2 py-1 font-mono text-xs"
+                    >
+                      <option value="balanced">{t("chunkBalanced")}</option>
+                      <option value="small">{t("chunkSmall")}</option>
+                      <option value="large">{t("chunkLarge")}</option>
+                      <option value="custom">{t("chunkCustom")}</option>
+                    </select>
+                  </div>
+                  {newChunkPreset === "custom" && (
+                    <>
+                      <div>
+                        <Label className="font-mono text-xs text-terminal-muted">{t("chunkSizeOverride")}</Label>
+                        <Input
+                          value={newChunkSizeOverride}
+                          onChange={(e) => setNewChunkSizeOverride(e.target.value)}
+                          placeholder="1200"
+                          className="mt-1 font-mono text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="font-mono text-xs text-terminal-muted">{t("chunkOverlapOverride")}</Label>
+                        <Input
+                          value={newChunkOverlapOverride}
+                          onChange={(e) => setNewChunkOverlapOverride(e.target.value)}
+                          placeholder="200"
+                          className="mt-1 font-mono text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <Label className="font-mono text-xs text-terminal-muted">{t("reindexPolicy")}</Label>
+                    <select
+                      value={newReindexPolicy}
+                      onChange={(e) => setNewReindexPolicy(e.target.value as ReindexPolicy)}
+                      className="mt-1 w-full rounded border border-terminal-border bg-background px-2 py-1 font-mono text-xs"
+                    >
+                      <option value="smart">{t("reindexSmart")}</option>
+                      <option value="always">{t("reindexAlways")}</option>
+                      <option value="never">{t("reindexNever")}</option>
+                    </select>
+                  </div>
+                </>
+              )}
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="recommended-excludes"

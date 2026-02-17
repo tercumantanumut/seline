@@ -1,9 +1,54 @@
+import * as fs from "fs";
 import type { NextConfig, SizeLimit } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import path from "path";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const DOCUMENT_UPLOAD_BODY_SIZE_LIMIT = (process.env.NEXT_DOCUMENT_UPLOAD_BODY_SIZE_LIMIT || "100mb") as SizeLimit;
+const DEFAULT_WATCH_IGNORES = [
+  "**/node_modules/**",
+  "**/.next/**",
+  "**/dist-electron/**",
+  "**/.git/**",
+  "**/.local-data/**",
+  "**/.turbo/**",
+  "**/.cache/**",
+  "**/coverage/**",
+];
+
+function readWatchIgnorePatterns(projectRoot: string): string[] {
+  const watchIgnorePath = path.join(projectRoot, ".watchignore");
+
+  if (!fs.existsSync(watchIgnorePath)) {
+    return [];
+  }
+
+  try {
+    const content = fs.readFileSync(watchIgnorePath, "utf-8");
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
+  } catch (error) {
+    console.warn("[next.config] Failed to read .watchignore, using defaults only", error);
+    return [];
+  }
+}
+
+const watchIgnorePatterns = Array.from(new Set([...DEFAULT_WATCH_IGNORES, ...readWatchIgnorePatterns(__dirname)]));
+const watchPollingInterval = Number.parseInt(process.env.NEXT_WATCH_POLL_INTERVAL || "1000", 10);
+const enablePollingWatch = ["1", "true", "yes", "on"].includes((process.env.NEXT_WATCH_POLLING || "").toLowerCase());
+const safeWatchPollingInterval = Number.isFinite(watchPollingInterval) && watchPollingInterval > 0
+  ? watchPollingInterval
+  : 1000;
+
+if (enablePollingWatch) {
+  console.warn(`[next.config] Polling mode enabled for file watching (interval=${safeWatchPollingInterval}ms)`);
+}
+
+if (process.env.NODE_ENV === "development") {
+  console.log(`[next.config] Watch ignore patterns active (${watchIgnorePatterns.length}):`, watchIgnorePatterns.join(", "));
+}
 
 const nextConfig: NextConfig = {
   // Enable standalone output for Electron packaging
@@ -211,6 +256,20 @@ const nextConfig: NextConfig = {
 
       config.externals = [...existingExternals, remotionExternalsFn];
     }
+
+    const existingIgnored = config.watchOptions?.ignored;
+    const mergedIgnored = Array.isArray(existingIgnored)
+      ? [...existingIgnored, ...watchIgnorePatterns]
+      : existingIgnored
+        ? [existingIgnored, ...watchIgnorePatterns]
+        : watchIgnorePatterns;
+
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: Array.from(new Set(mergedIgnored)),
+      aggregateTimeout: config.watchOptions?.aggregateTimeout ?? 300,
+      ...(enablePollingWatch ? { poll: safeWatchPollingInterval } : {}),
+    };
 
     return config;
   },
