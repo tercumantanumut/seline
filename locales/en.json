@@ -2179,7 +2179,53 @@
     },
     "detail": {
       "viewSource": "View Source",
-      "installedOn": "Installed {date}"
+      "installedOn": "Installed {date}",
+      "author": "Author",
+      "homepage": "Homepage",
+      "source": "Source",
+      "skills": "Skills",
+      "agents": "Agents",
+      "hooks": "Hooks",
+      "mcpServers": "MCP Servers",
+      "lspServers": "LSP Servers",
+      "noDescription": "No description",
+      "handlers": "{count} handler(s)",
+      "connected": "connected"
+    },
+    "chatBadge": {
+      "loading": "Loading plugins...",
+      "active": "{count} plugin(s) active",
+      "noActive": "No active plugins",
+      "managePlugins": "Manage Plugins"
+    },
+    "marketplace": {
+      "browse": "Browse Marketplace",
+      "add": "Add Marketplace",
+      "addSource": "Add Source",
+      "refresh": "Refresh",
+      "install": "Install",
+      "installed": "Installed",
+      "available": "{count} available",
+      "noSources": "No marketplace sources configured",
+      "noSourcesHint": "Add a marketplace source to browse available plugins",
+      "noResults": "No plugins match your search",
+      "name": "Name",
+      "sourceUrl": "Source URL",
+      "removeConfirm": "Remove marketplace \"{name}\"?",
+      "removed": "Marketplace \"{name}\" removed",
+      "added": "Marketplace \"{name}\" added",
+      "installHint": "Download the .zip from the source and upload via Install Plugin"
+    },
+    "import": {
+      "pluginInstalled": "Plugin installed",
+      "skillImported": "Skill imported successfully",
+      "viewPlugins": "View Plugins",
+      "viewSkills": "View Skills",
+      "importFailed": "Import failed",
+      "parsingPackage": "Parsing package…",
+      "importingPlugin": "Installing plugin…",
+      "uploading": "Uploading…",
+      "importComplete": "Import complete!"
     }
   }
 }

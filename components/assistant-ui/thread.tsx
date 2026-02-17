@@ -83,6 +83,7 @@ import {
   type ContextWindowBlockedPayload,
 } from "./context-window-blocked-banner";
 import { resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
+import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
 
 
 interface ThreadProps {
@@ -121,6 +122,7 @@ export const Thread: FC<ThreadProps> = ({
   const [skillImportProgress, setSkillImportProgress] = useState(0);
   const [skillImportName, setSkillImportName] = useState<string | null>(null);
   const [skillImportError, setSkillImportError] = useState<string | null>(null);
+  const [importResultDetail, setImportResultDetail] = useState<string | null>(null);
   const dragCounter = useRef(0);
 
   // Deep research mode (for drag-drop gating)
@@ -197,14 +199,98 @@ export const Thread: FC<ThreadProps> = ({
         setSkillImportProgress(10);
         setSkillImportName(skillFile.name);
         setSkillImportError(null);
+        setImportResultDetail(null);
 
         // Yield to the event loop so React flushes the "uploading" overlay
-        // before we start the network request. Without this, React batches
-        // all setState calls up to the first `await fetch(...)` and the
-        // user sees nothing for ~1s.
+        // before we start the network request.
         await new Promise((r) => setTimeout(r, 0));
 
+        // Detect if this is a plugin zip (try plugin import first for .zip files)
+        const isZip = skillFile.name.endsWith(".zip");
+
         try {
+          if (isZip) {
+            // Try plugin import first
+            const formData = new FormData();
+            formData.append("file", skillFile);
+            formData.append("characterId", character.id);
+
+            setSkillImportPhase("parsing");
+            setSkillImportProgress(30);
+
+            const pluginResponse = await fetch("/api/plugins/import", {
+              method: "POST",
+              body: formData,
+            });
+
+            setSkillImportPhase("importing");
+            setSkillImportProgress(70);
+
+            if (pluginResponse.ok) {
+              const pluginResult = await pluginResponse.json();
+
+              // Build detail string for the overlay
+              const parts: string[] = [];
+              if (pluginResult.components?.skills?.length > 0) {
+                parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
+              }
+              if (pluginResult.components?.agents?.length > 0) {
+                parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
+              }
+              if (pluginResult.components?.hasHooks) {
+                parts.push("hooks enabled");
+              }
+              if (pluginResult.components?.mcpServers?.length > 0) {
+                parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
+              }
+
+              setSkillImportPhase("success");
+              setSkillImportProgress(100);
+              setSkillImportName(pluginResult.plugin?.name || skillFile.name);
+              setImportResultDetail(parts.length > 0 ? parts.join(", ") : null);
+
+              const isLegacy = pluginResult.isLegacySkillFormat;
+              toast.success(
+                isLegacy ? "Skill imported successfully" : "Plugin installed",
+                {
+                  description: isLegacy
+                    ? `${pluginResult.plugin?.name} is ready to use`
+                    : `${pluginResult.plugin?.name} (${parts.join(", ")})`,
+                  action: isLegacy
+                    ? {
+                        label: "View Skills",
+                        onClick: () => router.push(`/agents/${character.id}/skills`),
+                      }
+                    : {
+                        label: "View Plugins",
+                        onClick: () => router.push("/settings?section=plugins"),
+                      },
+                }
+              );
+
+              // Show warnings if any
+              if (pluginResult.warnings?.length > 0) {
+                for (const warning of pluginResult.warnings.slice(0, 3)) {
+                  toast.warning(warning);
+                }
+              }
+
+              // Auto-dismiss after 3 seconds
+              setTimeout(() => {
+                setIsImportingSkill(false);
+                setSkillImportPhase("idle");
+                setSkillImportProgress(0);
+                setSkillImportName(null);
+                setImportResultDetail(null);
+              }, 3000);
+              return;
+            }
+
+            // Plugin import failed — fall back to legacy skill import
+            console.log("[Thread] Plugin import failed, falling back to skill import");
+          }
+
+          // Legacy skill import path (.md files or .zip that failed plugin parse)
           const formData = new FormData();
           formData.append("file", skillFile);
           formData.append("characterId", character.id);
@@ -247,11 +333,11 @@ export const Thread: FC<ThreadProps> = ({
             setSkillImportName(null);
           }, 2500);
         } catch (error) {
-          console.error("[Thread] Skill import failed:", error);
+          console.error("[Thread] Skill/plugin import failed:", error);
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
           setSkillImportPhase("error");
           setSkillImportError(errorMsg);
-          toast.error("Skill import failed", {
+          toast.error("Import failed", {
             description: errorMsg,
           });
 
@@ -262,6 +348,7 @@ export const Thread: FC<ThreadProps> = ({
             setSkillImportProgress(0);
             setSkillImportName(null);
             setSkillImportError(null);
+            setImportResultDetail(null);
           }, 4000);
         }
         return;
@@ -416,6 +503,11 @@ export const Thread: FC<ThreadProps> = ({
               {skillImportPhase === "success" && skillImportName && (
                 <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
               )}
+
+              {/* Plugin component detail */}
+              {skillImportPhase === "success" && importResultDetail && (
+                <p className="text-xs font-mono text-terminal-green/80">{importResultDetail}</p>
+              )}
             </div>
           </div>
         )}
@@ -455,6 +547,8 @@ export const Thread: FC<ThreadProps> = ({
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
             <ThreadScrollToBottom />
+            {/* Plugin status badge in chat header */}
+            <PluginStatusBadge />
             <Composer 
               isBackgroundTaskRunning={isBackgroundTaskRunning} 
               isProcessingInBackground={isProcessingInBackground}

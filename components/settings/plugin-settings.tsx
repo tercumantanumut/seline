@@ -2,7 +2,10 @@
  * Plugin Settings Component
  *
  * Displays installed plugins with status management (enable/disable/uninstall).
+ * Expandable detail view shows skills, hooks, MCP servers, and metadata.
  * Also provides plugin import (zip upload) and marketplace management.
+ *
+ * Step 6: Plugin Detail View / Modal in Settings
  */
 
 "use client";
@@ -26,9 +29,17 @@ import {
   Server,
   FileCode,
   Bot,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Globe,
+  Shield,
+  Clock,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { MarketplaceBrowser } from "@/components/plugins/marketplace-browser";
 
 interface InstalledPlugin {
   id: string;
@@ -41,8 +52,16 @@ interface InstalledPlugin {
   installedAt: string;
   updatedAt: string;
   lastError?: string;
+  manifest: {
+    author?: { name: string; email?: string };
+    homepage?: string;
+    repository?: string;
+    license?: string;
+    keywords?: string[];
+    category?: string;
+  };
   components: {
-    skills: Array<{ name: string; description: string }>;
+    skills: Array<{ name: string; namespacedName?: string; description: string }>;
     agents: Array<{ name: string; description: string }>;
     hooks: { hooks: Record<string, unknown[]> } | null;
     mcpServers: Record<string, unknown> | null;
@@ -54,6 +73,8 @@ export function PluginSettings() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
+  const [showMarketplace, setShowMarketplace] = useState(false);
 
   const loadPlugins = useCallback(async () => {
     try {
@@ -83,7 +104,7 @@ export function PluginSettings() {
       if (!res.ok) throw new Error("Failed to update plugin");
       toast.success(`Plugin ${newStatus === "active" ? "enabled" : "disabled"}`);
       loadPlugins();
-    } catch (error) {
+    } catch {
       toast.error("Failed to update plugin status");
     }
   };
@@ -96,7 +117,7 @@ export function PluginSettings() {
       if (!res.ok) throw new Error("Failed to uninstall");
       toast.success(`Plugin "${pluginName}" uninstalled`);
       loadPlugins();
-    } catch (error) {
+    } catch {
       toast.error("Failed to uninstall plugin");
     }
   };
@@ -138,6 +159,18 @@ export function PluginSettings() {
     }
   };
 
+  const toggleExpanded = (pluginId: string) => {
+    setExpandedPlugins((prev) => {
+      const next = new Set(prev);
+      if (next.has(pluginId)) {
+        next.delete(pluginId);
+      } else {
+        next.add(pluginId);
+      }
+      return next;
+    });
+  };
+
   const getComponentCounts = (plugin: InstalledPlugin) => {
     const counts: string[] = [];
     const skills = plugin.components.skills?.length || 0;
@@ -177,7 +210,16 @@ export function PluginSettings() {
             Extend your agent with skills, hooks, MCP servers, and more.
           </p>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-mono text-xs"
+            onClick={() => setShowMarketplace(!showMarketplace)}
+          >
+            <Globe className="mr-1.5 size-3.5" />
+            {showMarketplace ? "Hide Marketplace" : "Browse Marketplace"}
+          </Button>
           <label
             className={cn(
               "inline-flex cursor-pointer items-center gap-2 rounded px-4 py-2 font-mono text-sm",
@@ -202,6 +244,11 @@ export function PluginSettings() {
         </div>
       </div>
 
+      {/* Marketplace Browser */}
+      {showMarketplace && (
+        <MarketplaceBrowser onInstallComplete={loadPlugins} />
+      )}
+
       {/* Empty state */}
       {plugins.length === 0 && (
         <Card className="border-dashed">
@@ -211,142 +258,372 @@ export function PluginSettings() {
               No plugins installed
             </p>
             <p className="mt-1 font-mono text-xs text-terminal-muted/70">
-              Upload a plugin .zip package to get started
+              Upload a plugin .zip package or browse the marketplace
             </p>
           </CardContent>
         </Card>
       )}
 
       {/* Plugin cards */}
-      {plugins.map((plugin) => (
-        <Card
-          key={plugin.id}
-          className={cn(
-            "transition-all",
-            plugin.status === "disabled" && "opacity-60",
-            plugin.status === "error" && "border-red-300"
-          )}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <Plug className="size-5 text-terminal-green" />
-                <div>
-                  <CardTitle className="font-mono text-base">
-                    {plugin.name}
-                    <span className="ml-2 font-normal text-terminal-muted">
-                      v{plugin.version}
-                    </span>
-                  </CardTitle>
-                  <p className="mt-0.5 font-mono text-xs text-terminal-muted">
-                    {plugin.description}
-                  </p>
+      {plugins.map((plugin) => {
+        const isExpanded = expandedPlugins.has(plugin.id);
+
+        return (
+          <Card
+            key={plugin.id}
+            className={cn(
+              "transition-all",
+              plugin.status === "disabled" && "opacity-60",
+              plugin.status === "error" && "border-red-300"
+            )}
+          >
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleExpanded(plugin.id)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="size-4 text-terminal-muted shrink-0" />
+                    ) : (
+                      <ChevronRight className="size-4 text-terminal-muted shrink-0" />
+                    )}
+                    <Plug className="size-5 text-terminal-green shrink-0" />
+                    <div>
+                      <CardTitle className="font-mono text-base">
+                        {plugin.name}
+                        <span className="ml-2 font-normal text-terminal-muted">
+                          v{plugin.version}
+                        </span>
+                      </CardTitle>
+                      <p className="mt-0.5 font-mono text-xs text-terminal-muted">
+                        {plugin.description}
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={plugin.status === "active"}
+                    onCheckedChange={() =>
+                      togglePlugin(plugin.id, plugin.status)
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-red-500 hover:text-red-600"
+                    onClick={() => uninstallPlugin(plugin.id, plugin.name)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
               </div>
+            </CardHeader>
 
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={plugin.status === "active"}
-                  onCheckedChange={() =>
-                    togglePlugin(plugin.id, plugin.status)
+            <CardContent className="pt-0">
+              {/* Status badges */}
+              <div className="flex flex-wrap gap-1.5">
+                <Badge
+                  variant={
+                    plugin.status === "active"
+                      ? "default"
+                      : plugin.status === "error"
+                        ? "destructive"
+                        : "secondary"
                   }
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-red-500 hover:text-red-600"
-                  onClick={() => uninstallPlugin(plugin.id, plugin.name)}
+                  className="font-mono text-[10px]"
                 >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="pt-0">
-            {/* Status badges */}
-            <div className="flex flex-wrap gap-1.5">
-              <Badge
-                variant={
-                  plugin.status === "active"
-                    ? "default"
-                    : plugin.status === "error"
-                      ? "destructive"
-                      : "secondary"
-                }
-                className="font-mono text-[10px]"
-              >
-                {plugin.status === "active" && (
-                  <CheckCircle className="mr-1 size-3" />
-                )}
-                {plugin.status === "error" && (
-                  <XCircle className="mr-1 size-3" />
-                )}
-                {plugin.status}
-              </Badge>
-
-              <Badge variant="outline" className="font-mono text-[10px]">
-                {plugin.scope}
-              </Badge>
-
-              {plugin.marketplaceName && (
-                <Badge variant="outline" className="font-mono text-[10px]">
-                  {plugin.marketplaceName}
+                  {plugin.status === "active" && (
+                    <CheckCircle className="mr-1 size-3" />
+                  )}
+                  {plugin.status === "error" && (
+                    <XCircle className="mr-1 size-3" />
+                  )}
+                  {plugin.status}
                 </Badge>
-              )}
-            </div>
 
-            {/* Component summary */}
-            {getComponentCounts(plugin).length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-3 font-mono text-xs text-terminal-muted">
-                {plugin.components.skills?.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    <FileCode className="size-3" />
-                    {plugin.components.skills.length} skill
-                    {plugin.components.skills.length > 1 ? "s" : ""}
-                  </span>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {plugin.scope}
+                </Badge>
+
+                {plugin.marketplaceName && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {plugin.marketplaceName}
+                  </Badge>
                 )}
-                {plugin.components.agents?.length > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Bot className="size-3" />
-                    {plugin.components.agents.length} agent
-                    {plugin.components.agents.length > 1 ? "s" : ""}
-                  </span>
+
+                {plugin.manifest?.license && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    <Shield className="mr-1 size-2.5" />
+                    {plugin.manifest.license}
+                  </Badge>
                 )}
-                {plugin.components.hooks && (
-                  <span className="flex items-center gap-1">
-                    <Webhook className="size-3" />
-                    hooks
-                  </span>
-                )}
-                {plugin.components.mcpServers && (
-                  <span className="flex items-center gap-1">
-                    <Server className="size-3" />
-                    {Object.keys(plugin.components.mcpServers).length} MCP
-                  </span>
+
+                {plugin.manifest?.category && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {plugin.manifest.category}
+                  </Badge>
                 )}
               </div>
-            )}
 
-            {/* Error display */}
-            {plugin.status === "error" && plugin.lastError && (
-              <Alert variant="destructive" className="mt-3">
-                <AlertCircle className="size-4" />
-                <AlertTitle className="font-mono text-xs">Error</AlertTitle>
-                <AlertDescription className="font-mono text-xs">
-                  {plugin.lastError}
-                </AlertDescription>
-              </Alert>
-            )}
+              {/* Component summary */}
+              {getComponentCounts(plugin).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-3 font-mono text-xs text-terminal-muted">
+                  {plugin.components.skills?.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <FileCode className="size-3" />
+                      {plugin.components.skills.length} skill
+                      {plugin.components.skills.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {plugin.components.agents?.length > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Bot className="size-3" />
+                      {plugin.components.agents.length} agent
+                      {plugin.components.agents.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {plugin.components.hooks && (
+                    <span className="flex items-center gap-1">
+                      <Webhook className="size-3" />
+                      hooks
+                    </span>
+                  )}
+                  {plugin.components.mcpServers && (
+                    <span className="flex items-center gap-1">
+                      <Server className="size-3" />
+                      {Object.keys(plugin.components.mcpServers).length} MCP
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {/* Install date */}
-            <p className="mt-3 font-mono text-[10px] text-terminal-muted/50">
-              Installed{" "}
-              {new Date(plugin.installedAt).toLocaleDateString()}
-            </p>
-          </CardContent>
-        </Card>
-      ))}
+              {/* Error display */}
+              {plugin.status === "error" && plugin.lastError && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertCircle className="size-4" />
+                  <AlertTitle className="font-mono text-xs">Error</AlertTitle>
+                  <AlertDescription className="font-mono text-xs">
+                    {plugin.lastError}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* ── Expanded Detail View ── */}
+              {isExpanded && (
+                <div className="mt-4 space-y-4 border-t border-terminal-border/20 pt-4">
+                  {/* Metadata */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {plugin.manifest?.author && (
+                      <div className="flex items-start gap-2">
+                        <Info className="size-3 text-terminal-muted mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Author</p>
+                          <p className="font-mono text-xs text-terminal-dark">
+                            {plugin.manifest.author.name}
+                            {plugin.manifest.author.email && (
+                              <span className="text-terminal-muted ml-1">
+                                ({plugin.manifest.author.email})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-2">
+                      <Clock className="size-3 text-terminal-muted mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Installed</p>
+                        <p className="font-mono text-xs text-terminal-dark">
+                          {new Date(plugin.installedAt).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Links */}
+                  {(plugin.manifest?.homepage || plugin.manifest?.repository) && (
+                    <div className="flex flex-wrap gap-2">
+                      {plugin.manifest.homepage && (
+                        <a
+                          href={plugin.manifest.homepage}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
+                        >
+                          <Globe className="size-3" />
+                          Homepage
+                          <ExternalLink className="size-2.5" />
+                        </a>
+                      )}
+                      {plugin.manifest.repository && (
+                        <a
+                          href={plugin.manifest.repository}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
+                        >
+                          <FileCode className="size-3" />
+                          Source
+                          <ExternalLink className="size-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Keywords */}
+                  {plugin.manifest?.keywords && plugin.manifest.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {plugin.manifest.keywords.map((kw) => (
+                        <Badge
+                          key={kw}
+                          variant="outline"
+                          className="font-mono text-[9px] px-1.5 py-0"
+                        >
+                          {kw}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Skills list */}
+                  {plugin.components.skills?.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
+                        <FileCode className="size-3.5" />
+                        Skills ({plugin.components.skills.length})
+                      </h4>
+                      <div className="space-y-1.5 pl-5">
+                        {plugin.components.skills.map((skill) => (
+                          <div key={skill.name} className="flex items-start gap-2">
+                            <span className="font-mono text-xs font-medium text-terminal-green shrink-0">
+                              /{skill.namespacedName || skill.name}
+                            </span>
+                            {skill.description && (
+                              <span className="font-mono text-xs text-terminal-muted">
+                                — {skill.description}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Agents list */}
+                  {plugin.components.agents?.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
+                        <Bot className="size-3.5" />
+                        Agents ({plugin.components.agents.length})
+                      </h4>
+                      <div className="space-y-1.5 pl-5">
+                        {plugin.components.agents.map((agent) => (
+                          <div key={agent.name} className="flex items-start gap-2">
+                            <span className="font-mono text-xs font-medium text-terminal-dark">
+                              {agent.name}
+                            </span>
+                            {agent.description && (
+                              <span className="font-mono text-xs text-terminal-muted">
+                                — {agent.description}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hooks detail */}
+                  {plugin.components.hooks && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
+                        <Webhook className="size-3.5" />
+                        Hooks
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        {Object.entries(plugin.components.hooks.hooks || {}).map(
+                          ([event, entries]) => (
+                            <div key={event} className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="font-mono text-[9px] px-1.5 py-0"
+                              >
+                                {event}
+                              </Badge>
+                              <span className="font-mono text-[10px] text-terminal-muted">
+                                {Array.isArray(entries) ? entries.length : 0} handler
+                                {Array.isArray(entries) && entries.length > 1 ? "s" : ""}
+                              </span>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MCP Servers detail */}
+                  {plugin.components.mcpServers && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
+                        <Server className="size-3.5" />
+                        MCP Servers ({Object.keys(plugin.components.mcpServers).length})
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        {Object.keys(plugin.components.mcpServers).map((name) => (
+                          <div key={name} className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-terminal-dark">
+                              {name}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-[9px] px-1.5 py-0 text-terminal-green"
+                            >
+                              connected
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* LSP Servers detail */}
+                  {plugin.components.lspServers && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
+                        <Server className="size-3.5" />
+                        LSP Servers ({Object.keys(plugin.components.lspServers).length})
+                      </h4>
+                      <div className="space-y-1 pl-5">
+                        {Object.keys(plugin.components.lspServers).map((name) => (
+                          <span key={name} className="font-mono text-xs text-terminal-dark block">
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Install date (compact, when not expanded) */}
+              {!isExpanded && (
+                <p className="mt-3 font-mono text-[10px] text-terminal-muted/50">
+                  Installed{" "}
+                  {new Date(plugin.installedAt).toLocaleDateString()}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
