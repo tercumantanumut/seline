@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon, Volume2Icon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon, Volume2Icon, PackageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
@@ -17,6 +17,7 @@ import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
+import { PluginSettings } from "@/components/settings/plugin-settings";
 import {
   LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
   formatDimensionLabel,
@@ -86,7 +87,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "voice";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "plugins" | "voice";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -737,6 +738,7 @@ export default function SettingsPage() {
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
     { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
     { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
+    { id: "plugins" as const, label: "Plugins", icon: PackageIcon },
     { id: "voice" as const, label: "Voice & Audio", icon: Volume2Icon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
@@ -2425,6 +2427,10 @@ function SettingsPanel({
         <MCPSettings />
       </div>
     );
+  }
+
+  if (section === "plugins") {
+    return <PluginSettings />;
   }
 
   if (section === "voice") {

@@ -2139,5 +2139,47 @@
       "activeTasks": "{count} active task(s)",
       "startedAgo": "Started {time}"
     }
+  },
+  "plugins": {
+    "title": "Plugins",
+    "subtitle": "Extend your agent with skills, hooks, MCP servers, and more.",
+    "install": "Install Plugin",
+    "installing": "Installing...",
+    "uninstall": "Uninstall",
+    "uninstallConfirm": "Uninstall plugin \"{name}\"? This cannot be undone.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "noPlugins": "No plugins installed",
+    "noPluginsHint": "Upload a plugin .zip package to get started",
+    "pluginInstalled": "Plugin \"{name}\" installed",
+    "pluginEnabled": "Plugin enabled",
+    "pluginDisabled": "Plugin disabled",
+    "pluginUninstalled": "Plugin \"{name}\" uninstalled",
+    "importFailed": "Plugin import failed",
+    "updateFailed": "Failed to update plugin status",
+    "uninstallFailed": "Failed to uninstall plugin",
+    "onlyZipSupported": "Only .zip plugin packages are supported",
+    "components": {
+      "skills": "{count} skill(s)",
+      "agents": "{count} agent(s)",
+      "hooks": "hooks",
+      "mcpServers": "{count} MCP server(s)"
+    },
+    "marketplace": {
+      "browse": "Browse Marketplace",
+      "add": "Add Marketplace",
+      "refresh": "Refresh",
+      "install": "Install",
+      "installed": "Installed"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "error": "Error"
+    },
+    "detail": {
+      "viewSource": "View Source",
+      "installedOn": "Installed {date}"
+    }
   }
 }
