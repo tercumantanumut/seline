@@ -7,7 +7,7 @@ export const CUSTOMER_SUPPORT_AGENT_TEMPLATE: AgentTemplate = {
   purpose: "Handles customer issues quickly with structured triage and response templates.",
   category: "operations",
   version: "1.0.0",
-  enabledTools: ["docsSearch", "readFile", "sendMessageToChannel", "createSkill", "runSkill", "updatePlan"],
+  enabledTools: ["docsSearch", "readFile", "sendMessageToChannel", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     { category: "communication_style", content: "Use empathetic language and keep responses under 7 lines unless asked for details.", reasoning: "Improves customer response quality and clarity." },
   ],

@@ -75,6 +75,11 @@ function isToolResultPart(part: unknown): part is {
   return obj.type === "tool-result" && "result" in obj;
 }
 
+function isRunSkillToolResult(part: unknown): boolean {
+  if (!isToolResultPart(part)) return false;
+  return part.toolName === "runSkill";
+}
+
 /**
  * Truncate a single tool-result's `result` field if it exceeds the limit.
  * Returns a new object (does not mutate the original).
@@ -155,6 +160,19 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
 
   const originalTokens = estimateTokens(content);
   const originalBytes = Buffer.byteLength(JSON.stringify(content), "utf8");
+
+  // Preserve full runSkill payloads in progress projection to avoid silently
+  // clipping skill content returned by action=inspect/action=run.
+  if (content.some(isRunSkillToolResult)) {
+    return {
+      content,
+      wasTruncated: false,
+      originalTokens,
+      finalTokens: originalTokens,
+      truncatedParts: 0,
+      hardCapped: false,
+    };
+  }
 
   // Fast path: content is within limits
   if (originalTokens <= MAX_PROGRESS_CONTENT_TOKENS) {

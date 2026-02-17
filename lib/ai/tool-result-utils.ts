@@ -261,7 +261,7 @@ export function normalizeToolResultOutput(
     // Exempt readFile from universal output limiting
     // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
     // and users explicitly request specific line ranges — truncating defeats the purpose
-    const EXEMPT_TOOLS = new Set(["readFile"]);
+    const EXEMPT_TOOLS = new Set(["readFile", "runSkill"]);
 
     // Apply token limit (universal safety net) — UNLESS tool is exempt
     // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.

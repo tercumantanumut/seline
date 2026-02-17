@@ -1217,6 +1217,29 @@ function initializeTables(sqlite: Database.Database): void {
       ON plugin_files (plugin_id, relative_path)
   `);
 
+  // Plugin skill revisions table — editable skill content history
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_skill_revisions (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      namespaced_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      change_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_skill_revisions_plugin_name_version
+      ON plugin_skill_revisions (plugin_id, namespaced_name, version)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_skill_revisions_plugin_name_created
+      ON plugin_skill_revisions (plugin_id, namespaced_name, created_at)
+  `);
+
   // Marketplaces table — registered marketplace catalogs
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS marketplaces (

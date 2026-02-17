@@ -35,6 +35,7 @@ import {
   unregisterPluginHooks,
   clearAllHooks,
 } from "./hooks-engine";
+import { seedPluginSkillRevisions } from "./skill-revision-queries";
 
 // =============================================================================
 // Plugin Installation
@@ -159,6 +160,11 @@ export async function installPlugin(input: InstallPluginInput): Promise<Installe
         isExecutable: file.isExecutable,
       }))
     );
+  }
+
+  // Seed revision history so plugin skills become patch-editable.
+  if (components.skills.length > 0) {
+    await seedPluginSkillRevisions(pluginRow.id, components.skills);
   }
 
   return mapInstalledPlugin(pluginRow);

@@ -7,7 +7,7 @@ export const MEETING_NOTES_ASSISTANT_TEMPLATE: AgentTemplate = {
   purpose: "Turns raw meeting notes into clean summaries, action items, and follow-up prompts.",
   category: "productivity",
   version: "1.0.0",
-  enabledTools: ["docsSearch", "readFile", "writeFile", "createSkill", "runSkill", "updatePlan"],
+  enabledTools: ["docsSearch", "readFile", "writeFile", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     { category: "communication_style", content: "Use bullet-first formatting for decisions, risks, and owners.", reasoning: "Improves readability for fast team reviews." },
   ],

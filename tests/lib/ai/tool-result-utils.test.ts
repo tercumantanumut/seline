@@ -60,6 +60,31 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
     expect(resultOutput.truncatedContentId).toBeUndefined();
   });
 
+  it("does not truncate runSkill output with large content fields", async () => {
+    const { limitToolOutput } = await import("@/lib/ai/output-limiter");
+    vi.mocked(limitToolOutput).mockClear();
+
+    const hugeContent = "x".repeat(150_000);
+    const output = {
+      success: true,
+      action: "inspect",
+      skill: { skillId: "db:skill-1", name: "Test Skill" },
+      content: hugeContent,
+      contentWithLineNumbers: hugeContent,
+    };
+
+    const result = normalizeToolResultOutput("runSkill", output, undefined, {
+      mode: "projection",
+    });
+
+    expect(limitToolOutput).not.toHaveBeenCalled();
+    const resultOutput = result.output as Record<string, unknown>;
+    expect(resultOutput.content).toBe(hugeContent);
+    expect(resultOutput.contentWithLineNumbers).toBe(hugeContent);
+    expect(resultOutput.truncated).toBeUndefined();
+    expect(resultOutput.truncatedContentId).toBeUndefined();
+  });
+
   it("preserves readFile result structure without modification", () => {
     const output = {
       status: "success",

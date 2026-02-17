@@ -131,8 +131,10 @@ export function buildCharacterSystemPrompt(
       sections.push(
         [
           "## Skill Matching Guidance",
-          "- Use `runSkill` when a user request clearly matches a skill trigger example.",
-          "- If multiple skills match, ask a brief clarification before running any skill.",
+          "- Use `runSkill` action=\"list\" and action=\"inspect\" for tool-first discovery before execution.",
+          "- Use `runSkill` action=\"run\" when a user request clearly matches a skill trigger example.",
+          "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",
+          "- If multiple skills match, ask a brief clarification before running.",
           "- If confidence is low, ask for confirmation instead of auto-running.",
         ].join("\n")
       );
@@ -294,8 +296,10 @@ export function buildCacheableCharacterPrompt(
         role: "system",
         content: [
           "## Skill Matching Guidance",
-          "- Use `runSkill` when a user request clearly matches a skill trigger example.",
-          "- If multiple skills match, ask a brief clarification before running any skill.",
+          "- Use `runSkill` action=\"list\" and action=\"inspect\" for tool-first discovery before execution.",
+          "- Use `runSkill` action=\"run\" when a user request clearly matches a skill trigger example.",
+          "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",
+          "- If multiple skills match, ask a brief clarification before running.",
           "- If confidence is low, ask for confirmation instead of auto-running.",
         ].join("\n"),
       });
@@ -359,4 +363,3 @@ export function buildFullSystemPrompt(options: CharacterPromptOptions): string {
 
   return prompt;
 }
-

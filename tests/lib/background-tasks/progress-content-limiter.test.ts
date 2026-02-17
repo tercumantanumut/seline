@@ -20,6 +20,30 @@ describe("limitProgressContent", () => {
     expect(result.truncatedParts).toBe(0);
   });
 
+  it("keeps oversized runSkill tool-result payloads unchanged", () => {
+    const hugeSkillContent = "x".repeat(250_000);
+    const content = [
+      { type: "text", text: "Inspecting skill" },
+      {
+        type: "tool-result",
+        toolCallId: "tc-runskill-1",
+        toolName: "runSkill",
+        result: {
+          success: true,
+          action: "inspect",
+          content: hugeSkillContent,
+          contentWithLineNumbers: hugeSkillContent,
+        },
+      },
+    ];
+
+    const result = limitProgressContent(content);
+
+    expect(result.wasTruncated).toBe(false);
+    expect(result.truncatedParts).toBe(0);
+    expect(result.content).toEqual(content);
+  });
+
   it("returns empty result for undefined input", () => {
     const result = limitProgressContent(undefined);
 

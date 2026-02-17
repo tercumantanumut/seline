@@ -135,6 +135,35 @@ export const pluginFiles = sqliteTable(
 );
 
 // =============================================================================
+// Plugin Skill Revisions Table — editable plugin skill content history
+// =============================================================================
+
+export const pluginSkillRevisions = sqliteTable(
+  "plugin_skill_revisions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    pluginId: text("plugin_id").references(() => plugins.id, { onDelete: "cascade" }).notNull(),
+    namespacedName: text("namespaced_name").notNull(),
+    content: text("content").notNull(),
+    version: integer("version").default(1).notNull(),
+    changeReason: text("change_reason"),
+    createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+  },
+  (table) => ({
+    pluginSkillVersionUnique: uniqueIndex("idx_plugin_skill_revisions_plugin_name_version").on(
+      table.pluginId,
+      table.namespacedName,
+      table.version
+    ),
+    pluginSkillLatestIdx: index("idx_plugin_skill_revisions_plugin_name_created").on(
+      table.pluginId,
+      table.namespacedName,
+      table.createdAt
+    ),
+  })
+);
+
+// =============================================================================
 // Agent Plugins Junction Table — Per-agent plugin assignments
 // =============================================================================
 
@@ -207,6 +236,7 @@ export const pluginsRelations = relations(plugins, ({ one, many }) => ({
   mcpServers: many(pluginMcpServers),
   lspServers: many(pluginLspServers),
   files: many(pluginFiles),
+  skillRevisions: many(pluginSkillRevisions),
   agentAssignments: many(agentPlugins),
 }));
 
@@ -253,6 +283,13 @@ export const pluginFilesRelations = relations(pluginFiles, ({ one }) => ({
   }),
 }));
 
+export const pluginSkillRevisionsRelations = relations(pluginSkillRevisions, ({ one }) => ({
+  plugin: one(plugins, {
+    fields: [pluginSkillRevisions.pluginId],
+    references: [plugins.id],
+  }),
+}));
+
 export const marketplacesRelations = relations(marketplaces, ({ one }) => ({
   user: one(users, {
     fields: [marketplaces.userId],
@@ -274,6 +311,8 @@ export type PluginLspServer = typeof pluginLspServers.$inferSelect;
 export type NewPluginLspServer = typeof pluginLspServers.$inferInsert;
 export type PluginFile = typeof pluginFiles.$inferSelect;
 export type NewPluginFile = typeof pluginFiles.$inferInsert;
+export type PluginSkillRevision = typeof pluginSkillRevisions.$inferSelect;
+export type NewPluginSkillRevision = typeof pluginSkillRevisions.$inferInsert;
 export type Marketplace = typeof marketplaces.$inferSelect;
 export type NewMarketplace = typeof marketplaces.$inferInsert;
 export type AgentPlugin = typeof agentPlugins.$inferSelect;

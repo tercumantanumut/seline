@@ -13,11 +13,8 @@ import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
-import { createCreateSkillTool } from "@/lib/ai/tools/create-skill-tool";
-import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
-import { createCopySkillTool } from "@/lib/ai/tools/copy-skill-tool";
 import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
@@ -75,7 +72,6 @@ import {
   loadActivePluginHooks,
 } from "@/lib/plugins/registry";
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
-import { getPluginSkillsForPrompt } from "@/lib/plugins/skill-loader";
 import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
 
 // ============================================================================
@@ -2380,15 +2376,6 @@ export async function POST(req: Request) {
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
       }),
-      createSkill: createCreateSkillTool({
-        sessionId,
-        userId: dbUser.id,
-        characterId: characterId || "",
-      }),
-      listSkills: createListSkillsTool({
-        userId: dbUser.id,
-        characterId: characterId || "",
-      }),
       runSkill: createRunSkillTool({
         sessionId,
         userId: dbUser.id,
@@ -2396,9 +2383,7 @@ export async function POST(req: Request) {
       }),
       updateSkill: createUpdateSkillTool({
         userId: dbUser.id,
-      }),
-      copySkill: createCopySkillTool({
-        userId: dbUser.id,
+        characterId: characterId || "",
       }),
     };
 
@@ -2664,23 +2649,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // Append plugin skills summary to system prompt (if scoped plugins have skills)
-    try {
-      const pluginSkillsSummary = await getPluginSkillsForPrompt(dbUser.id, pluginContext);
-      if (pluginSkillsSummary) {
-        if (typeof systemPromptValue === "string") {
-          systemPromptValue += pluginSkillsSummary;
-        } else if (Array.isArray(systemPromptValue)) {
-          // For cacheable blocks, append as a new uncached system block
-          systemPromptValue.push({
-            role: "system" as const,
-            content: pluginSkillsSummary,
-          });
-        }
-        console.log(`[CHAT API] Appended plugin skills summary to system prompt`);
-      }
-    } catch (pluginSkillError) {
-      console.warn("[CHAT API] Failed to load plugin skills (non-fatal):", pluginSkillError);
+    // Keep skills guidance minimal to avoid prompt bloat.
+    // Runtime discovery and execution happen through runSkill/updateSkill actions.
+    const runtimeSkillsHint =
+      "\n\n[Skills Runtime]\n" +
+      "Use runSkill for action=list|inspect|run (DB + plugin skills).\n" +
+      "Use updateSkill for action=create|patch|replace|metadata|copy|archive.\n" +
+      "Prefer tool-first skill discovery instead of relying on static prompt catalogs.";
+    if (typeof systemPromptValue === "string") {
+      systemPromptValue += runtimeSkillsHint;
+    } else if (Array.isArray(systemPromptValue)) {
+      systemPromptValue.push({
+        role: "system" as const,
+        content: runtimeSkillsHint,
+      });
     }
 
     // Create tools via the centralized Tool Registry
@@ -2857,19 +2839,6 @@ export async function POST(req: Request) {
       ...(allTools.updatePlan && {
         updatePlan: createUpdatePlanTool({ sessionId }),
       }),
-      ...(allTools.createSkill && {
-        createSkill: createCreateSkillTool({
-          sessionId,
-          userId: dbUser.id,
-          characterId: characterId || "",
-        }),
-      }),
-      ...(allTools.listSkills && {
-        listSkills: createListSkillsTool({
-          userId: dbUser.id,
-          characterId: characterId || "",
-        }),
-      }),
       ...(allTools.runSkill && {
         runSkill: createRunSkillTool({
           sessionId,
@@ -2880,11 +2849,7 @@ export async function POST(req: Request) {
       ...(allTools.updateSkill && {
         updateSkill: createUpdateSkillTool({
           userId: dbUser.id,
-        }),
-      }),
-      ...(allTools.copySkill && {
-        copySkill: createCopySkillTool({
-          userId: dbUser.id,
+          characterId: characterId || "",
         }),
       }),
       ...(allTools.compactSession && {

@@ -7,7 +7,7 @@ export const PROJECT_MANAGER_TEMPLATE: AgentTemplate = {
   purpose: "Transforms project context into milestones, risks, and execution plans with owners.",
   category: "productivity",
   version: "1.0.0",
-  enabledTools: ["updatePlan", "scheduleTask", "docsSearch", "createSkill", "runSkill", "updateSkill"],
+  enabledTools: ["updatePlan", "scheduleTask", "docsSearch", "runSkill", "updateSkill"],
   memories: [
     { category: "workflow_patterns", content: "Always call out blockers, dependencies, and owner accountability.", reasoning: "Improves execution discipline." },
   ],

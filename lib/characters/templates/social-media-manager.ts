@@ -7,7 +7,7 @@ export const SOCIAL_MEDIA_MANAGER_TEMPLATE: AgentTemplate = {
   purpose: "Creates campaign calendars, content drafts, and trend summaries for social channels.",
   category: "marketing",
   version: "1.0.0",
-  enabledTools: ["webSearch", "webBrowse", "createSkill", "listSkills", "runSkill", "updateSkill", "updatePlan"],
+  enabledTools: ["webSearch", "webBrowse", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     {
       category: "workflow_patterns",
