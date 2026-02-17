@@ -1,5 +1,25 @@
+const fs = require("node:fs");
 const path = require("node:path");
 const { notarize } = require("@electron/notarize");
+
+function loadNotarizeEnv(projectDir) {
+  let dotenv;
+  try {
+    dotenv = require("dotenv");
+  } catch {
+    return;
+  }
+
+  const candidates = [
+    path.join(projectDir, ".env.local"),
+    path.join(projectDir, ".env"),
+  ];
+
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    dotenv.config({ path: filePath, override: false });
+  }
+}
 
 /**
  * Notarize the signed macOS app after electron-builder signs it.
@@ -10,6 +30,9 @@ exports.default = async function notarizeMacApp(context) {
     return;
   }
 
+  const projectDir = context.packager?.projectDir || process.cwd();
+  loadNotarizeEnv(projectDir);
+
   const appleId = process.env.APPLE_ID;
   const teamId = process.env.APPLE_TEAM_ID;
   const appleIdPassword =
@@ -18,7 +41,7 @@ exports.default = async function notarizeMacApp(context) {
   if (!appleId || !teamId || !appleIdPassword) {
     console.warn(
       "[notarize] Skipping notarization because required env vars are missing. " +
-        "Set APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_SPECIFIC_PASSWORD."
+        "Set APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_SPECIFIC_PASSWORD (via environment or .env.local)."
     );
     return;
   }

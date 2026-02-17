@@ -71,7 +71,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAuth(request);
+    const authUserId = await requireAuth(request);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(authUserId, settings.localUserEmail);
     const { searchParams } = new URL(request.url);
     const marketplaceId = searchParams.get("id");
 
@@ -79,7 +81,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    await removeMarketplace(marketplaceId);
+    const removed = await removeMarketplace(marketplaceId, dbUser.id);
+    if (!removed) {
+      return NextResponse.json({ error: "Marketplace not found" }, { status: 404 });
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
     if (
