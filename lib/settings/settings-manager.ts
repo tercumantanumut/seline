@@ -2,6 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { loadConfigFromEnv } from "@/lib/config/vector-search";
 import type { MCPConfig } from "@/lib/mcp/types";
+import {
+  isModelCompatibleWithProvider,
+  validateAllModelsForProvider,
+  type BatchValidationResult,
+} from "@/lib/ai/model-validation";
 
 export interface AppSettings {
     // AI Provider settings
@@ -217,7 +222,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserId: crypto.randomUUID(),
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
-    toolLoadingMode: "deferred",  // Default to token-efficient deferred loading
+    toolLoadingMode: "always",  // Default to always-load for better onboarding UX
     webScraperProvider: "firecrawl",
     embeddingProvider: "openrouter",
     vectorDBEnabled: false,
@@ -292,76 +297,29 @@ function getSettingsPath(): string {
     return join(dataDir, "settings.json");
 }
 
-// Compatibility check to clear stale model values after a provider switch.
-// Uses exact model IDs for providers with ambiguous names (Antigravity's short
-// IDs like "claude-sonnet-4-5" overlap with Anthropic's "claude-" prefix),
-// and prefixes only for unambiguous providers.
-//
-// IMPORTANT: Antigravity uses exact-match to prevent its short model IDs
-// (e.g. "claude-sonnet-4-5") from passing the Anthropic prefix check ("claude-").
-// Without this, switching from Antigravity → Anthropic would keep the stale
-// Antigravity model ID, which the Anthropic API doesn't recognize.
-const ANTIGRAVITY_EXACT_MODELS = new Set([
-  "gemini-3-pro-high",
-  "gemini-3-pro-low",
-  "gemini-3-flash",
-  "claude-sonnet-4-5",
-  "claude-sonnet-4-5-thinking",
-  "claude-opus-4-6-thinking",
-  "gpt-oss-120b-medium",
-]);
+// ---------------------------------------------------------------------------
+// Model-provider validation (delegates to shared model-validation.ts)
+// ---------------------------------------------------------------------------
 
-const MODEL_PREFIXES: Record<string, string[]> = {
-  // Anthropic models always have a date suffix (e.g. "claude-sonnet-4-5-20250929")
-  // Using "claude-" prefix is safe here because Antigravity models are checked
-  // via exact match first (see isCompatibleWithProvider below)
-  anthropic: ["claude-", "claude-3", "claude-2", "claude-instant"],
-  kimi: ["kimi-", "moonshot-"],
-  codex: ["gpt-5", "codex"],
-  // Antigravity uses exact match (see ANTIGRAVITY_EXACT_MODELS), not prefixes
-  antigravity: [],
-  claudecode: ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"],
-  ollama: [], // accepts any model name
-  openrouter: [], // accepts anything
-};
-
-function isCompatibleWithProvider(model: string, provider: string): boolean {
-  const lowerModel = model.toLowerCase();
-
-  // Antigravity uses exact model ID matching to avoid ambiguity
-  if (provider === "antigravity") {
-    return ANTIGRAVITY_EXACT_MODELS.has(lowerModel);
-  }
-
-  // For Anthropic: model must match a prefix BUT must NOT be an Antigravity exact model
-  // This prevents "claude-sonnet-4-5" (Antigravity) from being accepted as Anthropic
-  if (provider === "anthropic") {
-    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) {
-      return false;
-    }
-  }
-
-  const prefixes = MODEL_PREFIXES[provider];
-  if (!prefixes || prefixes.length === 0) return true; // ollama, openrouter accept anything
-
-  return prefixes.some((p) => lowerModel.startsWith(p));
-}
-
-function normalizeModelsForProvider(settings: AppSettings): void {
-  const provider = settings.llmProvider;
-  if (!provider || provider === "openrouter") return;
-
-  // ollama accepts any model name
-  if (provider === "ollama") return;
-
-  const fields: (keyof AppSettings)[] = ["chatModel", "researchModel", "visionModel", "utilityModel"];
-  for (const field of fields) {
-    const val = settings[field];
-    if (typeof val === "string" && val && !isCompatibleWithProvider(val, provider)) {
-      console.log(`[Settings] Clearing incompatible ${field} "${val}" for provider "${provider}"`);
-      (settings as unknown as Record<string, unknown>)[field] = "";
-    }
-  }
+/**
+ * Validate model fields against the target provider.
+ * Used at write-time (settings save, provider switch) to reject incompatible
+ * models at the API boundary rather than silently clearing them on read.
+ *
+ * Returns the validation result so callers can surface errors to the user.
+ */
+export function validateSettingsModels(
+  settings: Pick<AppSettings, "llmProvider" | "chatModel" | "researchModel" | "visionModel" | "utilityModel">,
+): BatchValidationResult {
+  return validateAllModelsForProvider(
+    {
+      chatModel: settings.chatModel,
+      researchModel: settings.researchModel,
+      visionModel: settings.visionModel,
+      utilityModel: settings.utilityModel,
+    },
+    settings.llmProvider,
+  );
 }
 
 let cachedSettings: AppSettings | null = null;
@@ -391,9 +349,10 @@ export function loadSettings(): AppSettings {
         try {
             const data = readFileSync(settingsPath, "utf-8");
             const loaded: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
-            // Clear model fields that are incompatible with the current provider
-            // This prevents stale values from a previous provider from causing fallback warnings
-            normalizeModelsForProvider(loaded);
+            // NOTE: We no longer clear incompatible models on read.
+            // Validation happens at write-time (settings PUT, session model-config PUT)
+            // via model-validation.ts. The runtime guard in providers.ts handles any
+            // remaining edge cases by falling back to provider defaults.
             cachedSettings = loaded;
             cachedSettingsTimestamp = now;
             // Update environment variables so providers pick up the configured API keys

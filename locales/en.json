@@ -153,7 +153,7 @@
     "email": "Email",
     "password": "Password",
     "placeholderEmail": "you@example.com",
-    "placeholderPassword": "Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢",
+    "placeholderPassword": "••••••••",
     "signingIn": "Signing in...",
     "signIn": "Sign in",
     "error": "Login failed",
@@ -175,7 +175,7 @@
     "errorPasswordLength": "Password must be at least 6 characters",
     "errorPasswordMatch": "Passwords do not match",
     "placeholderEmail": "you@example.com",
-    "placeholderPassword": "Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
+    "placeholderPassword": "••••••••"
   },
   "picker": {
     "title": "Choose an Agent",
@@ -246,7 +246,7 @@
           "label": "Custom System Prompt Override",
           "placeholder": "You are a specialized AI assistant...\n\nYour capabilities include:\n- ...\n- ...",
           "helper": "Override the auto-generated system prompt with your own",
-          "warning": "Ã¢Å¡Â Ã¯Â¸Â Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
+          "warning": "⚠️ Custom prompts replace all auto-generated instructions. Use this only if you need complete control over the agent's behavior.",
           "clear": "Clear custom prompt"
         }
       }
@@ -254,12 +254,12 @@
     "deleteDialog": {
       "title": "Delete Agent",
       "description": "Are you sure you want to delete \"{name}\"?",
-      "warning": "Ã¢Å¡Â Ã¯Â¸Â This action cannot be undone. All conversations, documents, and settings for this agent will be permanently deleted.",
+      "warning": "⚠️ This action cannot be undone. All conversations, documents, and settings for this agent will be permanently deleted.",
       "confirm": "Delete Agent",
       "deleting": "Deleting..."
     },
     "toolEditor": {
-      "subtitle": "{name} Ã¢â‚¬Â¢ {count} tools enabled",
+      "subtitle": "{name} • {count} tools enabled",
       "searchPlaceholder": "Search tools...",
       "selectAll": "Select All",
       "deselectAll": "Deselect All",
@@ -519,7 +519,7 @@
       "uploading": "Uploading..."
     },
     "delete": "Delete",
-    "note": "PNG, JPEG, or WebP Ã‚Â· Max 10MB"
+    "note": "PNG, JPEG, or WebP · Max 10MB"
   },
   "documents": {
     "title": "Knowledge Base",
@@ -571,9 +571,9 @@
       "pasteError": "Failed to paste image",
       "filesDropped": "{count, plural, one {# image} other {# images}} attached",
       "dropError": "Failed to attach images",
-      "dropHint": "Drop images or skill files here",
-      "dropHintSubtext": "Supports .jpg, .png, .md, .zip",
-      "onlyImagesSupported": "Only image files or skill packages (.md, .zip) are supported",
+      "dropHint": "Drop images here",
+      "dropHintSubtext": "Release to attach",
+      "onlyImagesSupported": "Only image files are supported",
       "fileTooLarge": "File is too large ({size}MB). Maximum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# file is} other {# files are}} too large. Maximum: {max}MB",
       "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode"
@@ -707,7 +707,7 @@
     "recommendedExcludes": "Recommended excludes (build artifacts, caches, logs)",
     "fileExtensions": "File Extensions (comma-separated)",
     "excludePatterns": "Exclude Patterns (auto-detected from .gitignore)",
-    "patternsIncluded": "Ã¢Å“â€œ Patterns from .gitignore included",
+    "patternsIncluded": "✓ Patterns from .gitignore included",
     "cancel": "Cancel",
     "addFolder": "Add Folder",
     "addFolderToIndex": "Add Folder to Index",
@@ -719,7 +719,42 @@
     "reindexAll": "Reindex All",
     "reindexing": "Reindexing...",
     "reindexConfirm": "This will rebuild the index for all folders and may take a while. Continue?",
-    "reindexHint": "Use after enabling V2 to rebuild lexical vectors."
+    "reindexHint": "Use after enabling V2 to rebuild lexical vectors.",
+    "advancedMode": "Advanced mode",
+    "advancedModeHint": "Fine-tune sync trigger, cadence, filters, chunking, and reindex policy.",
+    "cadenceValidation": "Sync cadence must be at least 5 minutes.",
+    "chunkBalanced": "Balanced",
+    "chunkCustom": "Custom",
+    "chunkLarge": "Large chunks",
+    "chunkOverlapOverride": "Chunk overlap override",
+    "chunkOverlapValidation": "Chunk overlap must be >= 0 and smaller than chunk size.",
+    "chunkPreset": "Chunk preset",
+    "chunkSizeOverride": "Chunk size override",
+    "chunkSizeValidation": "Chunk size must be at least 100 characters.",
+    "chunkSmall": "Small chunks",
+    "fileTypeFilters": "File type filters",
+    "indexingControls": "Indexing controls",
+    "indexingMode": "Indexing mode",
+    "lastRunMetadata": "Last run metadata",
+    "lastRunTrigger": "Last run trigger",
+    "maxFileSizeMb": "Max file size (MB)",
+    "maxFileSizeValidation": "Max file size must be between 1 MB and 512 MB.",
+    "modeAuto": "Auto",
+    "modeFilesOnly": "Files only",
+    "modeFull": "Full",
+    "modeManual": "Manual",
+    "modeScheduled": "Scheduled",
+    "modeTriggered": "Triggered",
+    "reindexAlways": "Always",
+    "reindexNever": "Never",
+    "reindexPolicy": "Reindex policy",
+    "reindexSmart": "Smart (scheduled only)",
+    "simpleMode": "Simple mode",
+    "simpleModeHint": "Recommended defaults: auto sync, balanced chunking, smart reindex.",
+    "skipReasons": "Skip reasons",
+    "skipped": "Skipped",
+    "syncCadenceMinutes": "Sync cadence (minutes)",
+    "syncMode": "Sync mode"
   },
   "vectorSearchPhase": {
     "idle": "Ready",
@@ -766,14 +801,14 @@
       "quickCreate": "QUICK CREATE",
       "quickPrompt": "Describe your agent's role or purpose in one sentence:",
       "quickPlaceholder": "Customer support agent for our SaaS product that answers FAQs and drafts replies.",
-      "templateSearch": "Search templates",
+      "back": "← Back",
+      "generate": "GENERATE",
       "templateCategory": "Category",
+      "templateEmpty": "No templates found.",
       "templateFilter": "Filter",
       "templateLoading": "Loading templates...",
-      "templateEmpty": "No templates found.",
-      "templateUse": "Use Template",
-      "back": "Ã¢â€ Â Back",
-      "generate": "GENERATE"
+      "templateSearch": "Search templates",
+      "templateUse": "Use Template"
     },
     "name": {
       "question": "What shall we call your agent?",
@@ -781,8 +816,8 @@
       "placeholder": "Type a name...",
       "errorMinLength": "Name must be at least 2 characters",
       "errorMaxLength": "Name must be less than 50 characters",
-      "escToGoBack": "Ã¢â€ Â ESC to go back",
-      "continue": "Continue Ã¢â€ â€™"
+      "escToGoBack": "← ESC to go back",
+      "continue": "Continue →"
     },
     "concept": {
       "question": "Describe your agent's role, domain, and personality...",
@@ -794,9 +829,9 @@
       "example3": "Technical writing agent that explains APIs in clear, simple language",
       "errorMinLength": "Please describe your agent in at least 10 characters",
       "errorMaxLength": "Concept must be less than 500 characters",
-      "back": "Ã¢â€ Â Back",
-      "cmdEnter": "Ã¢Å’Ëœ+Enter to submit",
-      "continue": "Continue Ã¢â€ â€™"
+      "back": "← Back",
+      "cmdEnter": "⌘+Enter to submit",
+      "continue": "Continue →"
     },
     "identity": {
       "question": "Define your agent's identity and purpose...",
@@ -811,8 +846,8 @@
       "errorTaglineMax": "Tagline must be less than 100 characters",
       "errorPurposeMin": "Please describe the agent's purpose in at least 10 characters",
       "errorPurposeMax": "Purpose must be less than 1000 characters",
-      "back": "Ã¢â€ Â Back",
-      "continue": "Continue Ã¢â€ â€™"
+      "back": "← Back",
+      "continue": "Continue →"
     },
     "capabilities": {
       "question": "Select the tools this agent can use...",
@@ -934,8 +969,8 @@
         "flux2Klein9bEnabled": "Requires FLUX.2 Klein 9B enabled",
         "localGrepEnabled": "Requires Local Grep enabled"
       },
-      "back": "Ã¢â€ Â Back",
-      "continue": "Continue Ã¢â€ â€™"
+      "back": "← Back",
+      "continue": "Continue →"
     },
     "embeddingSetup": {
       "question": "Choose an embedding provider and model.",
@@ -965,7 +1000,7 @@
       "title": "MCP Tools",
       "description": "Select which MCP servers and tools to enable for this agent.",
       "noServersTitle": "No MCP Servers Configured",
-      "noServersDescription": "Configure MCP servers in Settings Ã¢â€ â€™ MCP Servers to enable external tools.",
+      "noServersDescription": "Configure MCP servers in Settings → MCP Servers to enable external tools.",
       "configureServers": "Open MCP Settings",
       "skipForNow": "Skip for Now",
       "serversNotConnected": "MCP servers are configured but not connected. Connect to discover available tools.",
@@ -999,8 +1034,8 @@
         "pixel": "Pixel Art",
         "pixelDesc": "Retro pixel style"
       },
-      "back": "Ã¢â€ Â Back",
-      "generateCharacter": "Generate Character Ã¢â€ â€™"
+      "back": "← Back",
+      "generateCharacter": "Generate Character →"
     },
     "knowledgeBase": {
       "question": "Upload documents to build the agent's knowledge base...",
@@ -1010,9 +1045,9 @@
       "supportedFormats": "Supports PDF, TXT, Markdown, HTML",
       "uploadedDocuments": "Uploaded Documents",
       "skipHint": "You can skip this step and add documents later",
-      "back": "Ã¢â€ Â Back",
-      "continue": "Continue Ã¢â€ â€™",
-      "skip": "Skip Ã¢â€ â€™"
+      "back": "← Back",
+      "continue": "Continue →",
+      "skip": "Skip →"
     },
     "vectorSearchPage": {
       "step": "Step 4",
@@ -1035,9 +1070,9 @@
       "toolsEnabled": "Tools: {count} enabled",
       "documentsCount": "Documents: {count} attached",
       "readyToDeploy": "Ready to deploy",
-      "back": "Ã¢â€ Â Back",
+      "back": "← Back",
       "creating": "Creating...",
-      "createAgent": "Create Agent Ã¢Å“â€œ"
+      "createAgent": "Create Agent ✓"
     },
     "loading": {
       "title": "Configuring agent {name}...",
@@ -1072,7 +1107,7 @@
       "or": "or",
       "uploadYourOwn": "Upload Your Own Image",
       "uploading": "Uploading...",
-      "supportedFormats": "PNG, JPEG, or WebP Ã¢â‚¬Â¢ Max 10MB",
+      "supportedFormats": "PNG, JPEG, or WebP • Max 10MB",
       "errors": {
         "invalidFormat": "Please upload a PNG, JPEG, or WebP image",
         "fileTooLarge": "Image must be less than 10MB"
@@ -1175,7 +1210,7 @@
       "disabledTooltip": "This server is disabled and will not connect. Toggle to enable.",
       "syncedFolderVariable": "Primary synced folder",
       "syncedFoldersArrayVariable": "All synced folders (separate arguments)",
-      "filesystemRequiresSyncedFolder": "Filesystem MCP server requires at least one synced folder. Please add a folder in Settings Ã¢â€ â€™ Vector Search.",
+      "filesystemRequiresSyncedFolder": "Filesystem MCP server requires at least one synced folder. Please add a folder in Settings → Vector Search.",
       "variablePreview": "Preview",
       "noFoldersSynced": "No folders synced yet",
       "variableHelp": "Use ${SYNCED_FOLDER} for single-folder access or ${SYNCED_FOLDERS_ARRAY} for multi-folder access",
@@ -1331,7 +1366,7 @@
       "language": {
         "label": "Language",
         "en": "English",
-        "tr": "TÃƒÂ¼rkÃƒÂ§e"
+        "tr": "Türkçe"
       },
       "toolLoading": {
         "label": "Tool Loading Mode",
@@ -1376,9 +1411,6 @@
       "knowledgeBase": "Knowledge Base",
       "agentMemoryShort": "Memory",
       "schedulesShort": "Schedules",
-      "skillsShort": "Skills",
-      "libraryShort": "Library",
-      "dashboardShort": "Dashboard",
       "usageShort": "Usage",
       "empty": "No chat history yet",
       "emptyHint": "Create a new chat or adjust filters to see conversations.",
@@ -1407,7 +1439,10 @@
       "exportError": "Failed to export chat",
       "edit": "Edit title",
       "save": "Save",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "dashboardShort": "Dashboard",
+      "libraryShort": "Library",
+      "skillsShort": "Skills"
     },
     "session": {
       "untitled": "Untitled chat",
@@ -1558,21 +1593,21 @@
         "tokens": {
           "title": "Token usage",
           "unit": "tokens",
-          "detail": "{input} input Ã¢â‚¬Â¢ {output} output"
+          "detail": "{input} input • {output} output"
         },
         "cost": {
           "title": "Estimated cost (Claude Sonnet 4.5)",
-          "detail": "{input} input Ã¢â‚¬Â¢ {output} output"
+          "detail": "{input} input • {output} output"
         },
         "stats": {
           "title": "Session stats",
           "messages": "{count} messages",
-          "breakdown": "{assistant} assistant Ã¢â‚¬Â¢ {user} user",
+          "breakdown": "{assistant} assistant • {user} user",
           "duration": "Duration ~{seconds}s"
         },
         "cache": {
           "title": "Cache savings",
-          "detail": "{read} read Ã¢â‚¬Â¢ {write} write"
+          "detail": "{read} read • {write} write"
         }
       },
       "tools": {
@@ -1584,9 +1619,9 @@
       },
       "media": {
         "title": "Media generation",
-        "total": "{images} images Ã¢â‚¬Â¢ {videos} videos",
+        "total": "{images} images • {videos} videos",
         "empty": "No images or videos were generated in this session.",
-        "service": "{images} images Ã¢â‚¬Â¢ {videos} videos"
+        "service": "{images} images • {videos} videos"
       }
     }
   },
@@ -1727,7 +1762,7 @@
         "calls": "{count} calls",
         "avg": "avg {duration}",
         "toolErrors": "Tool Errors",
-        "noErrors": "No tool errors Ã°Å¸Å½â€°",
+        "noErrors": "No tool errors 🎉",
         "errors": "{count} errors",
         "dailyTrends": "Daily Trends",
         "failedToLoad": "Failed to load analytics"
@@ -1782,12 +1817,12 @@
     },
     "delete": {
       "action": "Delete Permanently",
-      "title": "Are you sure?",
-      "description": "This will permanently delete this skill. This action cannot be undone.",
-      "confirm": "Delete",
       "cancel": "Cancel",
+      "confirm": "Delete",
+      "description": "This will permanently delete this skill. This action cannot be undone.",
+      "error": "Failed to delete skill",
       "success": "Skill deleted permanently",
-      "error": "Failed to delete skill"
+      "title": "Are you sure?"
     }
   },
   "schedules": {
@@ -1989,7 +2024,7 @@
       "title": "Quick Start Templates",
       "subtitle": "Choose a template to get started quickly",
       "useTemplate": "Use Template",
-      "createFromScratch": "Or create from scratch Ã¢â€ â€™",
+      "createFromScratch": "Or create from scratch →",
       "requiresIntegration": "Requires {integration} integration",
       "alternativeAvailable": "Will use {method} instead",
       "estimatedTime": "~{duration}",

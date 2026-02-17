@@ -272,6 +272,73 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     );
   }
 
+  // Handle readFile results
+  if (toolName === "readFile") {
+    const readResult = result as ToolResult & {
+      filePath?: string;
+      language?: string;
+      lineRange?: string;
+      totalLines?: number;
+      content?: string;
+      truncated?: boolean;
+      source?: string;
+      documentTitle?: string;
+    };
+
+    // Handle error status
+    if (readResult.status === "error") {
+      return (
+        <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
+          {readResult.error || "Failed to read file"}
+        </div>
+      );
+    }
+
+    const fileName = readResult.filePath
+      ? readResult.filePath.split("/").pop() || readResult.filePath
+      : "file";
+    const sourceLabel = readResult.source === "knowledge_base"
+      ? ` (Knowledge Base${readResult.documentTitle ? `: ${readResult.documentTitle}` : ""})`
+      : "";
+    const lineInfo = readResult.lineRange
+      ? `Lines ${readResult.lineRange}${readResult.totalLines ? ` of ${readResult.totalLines}` : ""}`
+      : readResult.totalLines
+        ? `${readResult.totalLines} lines`
+        : "";
+    const truncatedLabel = readResult.truncated ? " (truncated)" : "";
+
+    // For readFile, allow a much larger display limit since users explicitly requested this content
+    const content = readResult.content || "";
+    const READ_FILE_DISPLAY_LIMIT = 20_000;
+    const displayContent = content.length > READ_FILE_DISPLAY_LIMIT
+      ? content.substring(0, READ_FILE_DISPLAY_LIMIT) + `\n\n... [${(content.length - READ_FILE_DISPLAY_LIMIT).toLocaleString()} more characters — full content available to AI]`
+      : content;
+
+    return (
+      <div className={cn("font-mono", TOOL_RESULT_TEXT_CLASS)}>
+        <div className="flex items-center gap-2 mb-2 text-terminal-dark">
+          <span className="font-medium">{fileName}</span>
+          {readResult.language && (
+            <span className="text-xs text-terminal-muted">({readResult.language})</span>
+          )}
+          {sourceLabel && (
+            <span className="text-xs text-terminal-muted">{sourceLabel}</span>
+          )}
+        </div>
+        {lineInfo && (
+          <p className="text-xs text-terminal-muted mb-2">
+            {lineInfo}{truncatedLabel}
+          </p>
+        )}
+        {displayContent && (
+          <pre className={cn("mt-1 max-h-96 overflow-y-auto", TOOL_RESULT_PRE_CLASS)}>
+            {displayContent}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
   // Handle localGrep results
   if (toolName === "localGrep") {
     const grepResult = result as ToolResult & {

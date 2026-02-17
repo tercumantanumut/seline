@@ -146,6 +146,32 @@ export const agentSyncFolders = sqliteTable(
     })
       .default("auto")
       .notNull(), // files-only: track files only, full: create embeddings, auto: use embeddings if VectorDB enabled
+    syncMode: text("sync_mode", {
+      enum: ["auto", "manual", "scheduled", "triggered"],
+    })
+      .default("auto")
+      .notNull(),
+    syncCadenceMinutes: integer("sync_cadence_minutes").default(60).notNull(),
+    fileTypeFilters: text("file_type_filters", { mode: "json" }).default("[]").notNull(),
+    maxFileSizeBytes: integer("max_file_size_bytes").default(10485760).notNull(),
+    chunkPreset: text("chunk_preset", {
+      enum: ["balanced", "small", "large", "custom"],
+    })
+      .default("balanced")
+      .notNull(),
+    chunkSizeOverride: integer("chunk_size_override"),
+    chunkOverlapOverride: integer("chunk_overlap_override"),
+    reindexPolicy: text("reindex_policy", {
+      enum: ["smart", "always", "never"],
+    })
+      .default("smart")
+      .notNull(),
+    skippedCount: integer("skipped_count").default(0).notNull(),
+    skipReasons: text("skip_reasons", { mode: "json" }).default("{}").notNull(),
+    lastRunMetadata: text("last_run_metadata", { mode: "json" }).default("{}").notNull(),
+    lastRunTrigger: text("last_run_trigger", {
+      enum: ["manual", "scheduled", "triggered", "auto"],
+    }),
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
   },

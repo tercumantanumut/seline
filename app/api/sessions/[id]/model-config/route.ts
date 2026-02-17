@@ -14,6 +14,7 @@ import {
   buildSessionModelMetadata,
   clearSessionModelMetadata,
 } from "@/lib/ai/session-model-resolver";
+import { validateSessionModelConfig } from "@/lib/ai/model-validation";
 import type { SessionModelConfig } from "@/components/model-bag/model-bag.types";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -91,6 +92,18 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       newMetadata = clearSessionModelMetadata(currentMetadata);
       console.log(`[Session Model Config] Cleared overrides for session ${id}`);
     } else {
+      // Validate model-provider compatibility before persisting
+      const validation = validateSessionModelConfig(body, settings.llmProvider);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            error: "Incompatible session model configuration",
+            details: validation.errors,
+          },
+          { status: 400 },
+        );
+      }
+
       // Merge new overrides into metadata
       const modelMeta = buildSessionModelMetadata(body);
       newMetadata = {

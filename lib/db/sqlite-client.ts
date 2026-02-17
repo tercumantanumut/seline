@@ -486,6 +486,20 @@ function initializeTables(sqlite: Database.Database): void {
       last_error TEXT,
       file_count INTEGER DEFAULT 0,
       chunk_count INTEGER DEFAULT 0,
+      embedding_model TEXT,
+      indexing_mode TEXT NOT NULL DEFAULT 'auto' CHECK(indexing_mode IN ('files-only', 'full', 'auto')),
+      sync_mode TEXT NOT NULL DEFAULT 'auto' CHECK(sync_mode IN ('auto', 'manual', 'scheduled', 'triggered')),
+      sync_cadence_minutes INTEGER NOT NULL DEFAULT 60,
+      file_type_filters TEXT NOT NULL DEFAULT '[]',
+      max_file_size_bytes INTEGER NOT NULL DEFAULT 10485760,
+      chunk_preset TEXT NOT NULL DEFAULT 'balanced' CHECK(chunk_preset IN ('balanced', 'small', 'large', 'custom')),
+      chunk_size_override INTEGER,
+      chunk_overlap_override INTEGER,
+      reindex_policy TEXT NOT NULL DEFAULT 'smart' CHECK(reindex_policy IN ('smart', 'always', 'never')),
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      skip_reasons TEXT NOT NULL DEFAULT '{}',
+      last_run_metadata TEXT NOT NULL DEFAULT '{}',
+      last_run_trigger TEXT CHECK(last_run_trigger IN ('manual', 'scheduled', 'triggered', 'auto')),
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -689,6 +703,121 @@ function initializeTables(sqlite: Database.Database): void {
     console.log("[SQLite Migration] Set indexing_mode based on embedding_model presence");
   } catch {
     // Column already exists, ignore error
+  }
+
+  // Migration: Add sync_mode column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN sync_mode TEXT NOT NULL DEFAULT 'auto'`);
+    console.log("[SQLite Migration] Added sync_mode column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add sync_cadence_minutes column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN sync_cadence_minutes INTEGER NOT NULL DEFAULT 60`);
+    console.log("[SQLite Migration] Added sync_cadence_minutes column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add file_type_filters column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN file_type_filters TEXT NOT NULL DEFAULT '[]'`);
+    console.log("[SQLite Migration] Added file_type_filters column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add max_file_size_bytes column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN max_file_size_bytes INTEGER NOT NULL DEFAULT 10485760`);
+    console.log("[SQLite Migration] Added max_file_size_bytes column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_preset column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_preset TEXT NOT NULL DEFAULT 'balanced'`);
+    console.log("[SQLite Migration] Added chunk_preset column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_size_override column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_size_override INTEGER`);
+    console.log("[SQLite Migration] Added chunk_size_override column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add chunk_overlap_override column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN chunk_overlap_override INTEGER`);
+    console.log("[SQLite Migration] Added chunk_overlap_override column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add reindex_policy column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN reindex_policy TEXT NOT NULL DEFAULT 'smart'`);
+    console.log("[SQLite Migration] Added reindex_policy column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add skipped_count column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN skipped_count INTEGER NOT NULL DEFAULT 0`);
+    console.log("[SQLite Migration] Added skipped_count column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add skip_reasons column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN skip_reasons TEXT NOT NULL DEFAULT '{}'`);
+    console.log("[SQLite Migration] Added skip_reasons column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add last_run_metadata column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN last_run_metadata TEXT NOT NULL DEFAULT '{}'`);
+    console.log("[SQLite Migration] Added last_run_metadata column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Migration: Add last_run_trigger column to agent_sync_folders if it doesn't exist
+  try {
+    sqlite.exec(`ALTER TABLE agent_sync_folders ADD COLUMN last_run_trigger TEXT`);
+    console.log("[SQLite Migration] Added last_run_trigger column to agent_sync_folders");
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  // Ensure legacy rows have safe defaults for the new columns.
+  try {
+    sqlite.exec(`
+      UPDATE agent_sync_folders
+      SET
+        sync_mode = COALESCE(sync_mode, 'auto'),
+        sync_cadence_minutes = COALESCE(sync_cadence_minutes, 60),
+        file_type_filters = COALESCE(file_type_filters, '[]'),
+        max_file_size_bytes = COALESCE(max_file_size_bytes, 10485760),
+        chunk_preset = COALESCE(chunk_preset, 'balanced'),
+        reindex_policy = COALESCE(reindex_policy, 'smart'),
+        skipped_count = COALESCE(skipped_count, 0),
+        skip_reasons = COALESCE(skip_reasons, '{}'),
+        last_run_metadata = COALESCE(last_run_metadata, '{}')
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Failed to backfill vector sync defaults:", error);
   }
 
   // =========================================================================

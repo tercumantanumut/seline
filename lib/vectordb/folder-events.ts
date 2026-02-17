@@ -5,7 +5,7 @@
  */
 
 export type FolderChangeEvent = {
-    type: "added" | "removed" | "primary_changed"
+    type: "added" | "removed" | "updated" | "primary_changed"
     | "mcp_reload_started" | "mcp_reload_completed" | "mcp_reload_failed";
     folderId: string;
     wasPrimary?: boolean;

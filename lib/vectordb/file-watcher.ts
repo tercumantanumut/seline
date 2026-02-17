@@ -13,8 +13,8 @@ import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-sche
 import { eq, and } from "drizzle-orm";
 import { indexFileToVectorDB, removeFileFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher, createAggressiveIgnore } from "./ignore-patterns";
-import { isVectorDBEnabled } from "./client";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { resolveChunkingOverrides, resolveFolderSyncBehavior, shouldRunForTrigger } from "./sync-mode-resolver";
 import type { TaskEvent } from "@/lib/background-tasks/types";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
@@ -86,6 +86,27 @@ interface WatcherConfig {
   includeExtensions: string[];
   excludePatterns: string[];
   forcePolling?: boolean;
+}
+
+function parseJsonArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === "string");
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeExtensions(extensions: string[]): string[] {
+  return extensions.map((ext) => ext.startsWith(".") ? ext.slice(1).toLowerCase() : ext.toLowerCase());
 }
 
 // Track EMFILE retry attempts per folder to prevent infinite restart loops
@@ -272,7 +293,7 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   // Stop existing watcher if any
   await stopWatching(config.folderId);
 
-  const { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns, forcePolling: configForcePolling } = config;
+  let { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns, forcePolling: configForcePolling } = config;
 
   console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
 
@@ -321,19 +342,46 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
       return;
     }
 
-    // Determine if we should create embeddings based on indexing mode
-    const shouldCreateEmbeddings =
-      folder.indexingMode === "full" ||
-      (folder.indexingMode === "auto" && isVectorDBEnabled());
+    const behavior = resolveFolderSyncBehavior({
+      indexingMode: folder.indexingMode,
+      syncMode: folder.syncMode,
+      maxFileSizeBytes: folder.maxFileSizeBytes,
+      chunkPreset: folder.chunkPreset,
+      chunkSizeOverride: folder.chunkSizeOverride,
+      chunkOverlapOverride: folder.chunkOverlapOverride,
+      reindexPolicy: folder.reindexPolicy,
+    });
+
+    const fileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+    const effectiveIncludeExtensions = fileTypeFilters.length > 0
+      ? fileTypeFilters
+      : normalizeExtensions(parseJsonArray(folder.includeExtensions));
+    includeExtensions = effectiveIncludeExtensions;
+
+    if (!shouldRunForTrigger(behavior, "triggered")) {
+      console.log(`[FileWatcher] Folder ${folderId} ignores trigger runs in ${behavior.syncMode} mode`);
+      activeBatchProcessing.delete(folderId);
+      return;
+    }
+
+    const shouldCreateEmbeddings = behavior.shouldCreateEmbeddings;
+    const chunkingOverrides = resolveChunkingOverrides(behavior);
 
     console.log(
-      `[FileWatcher] Folder indexing mode: ${folder.indexingMode} (embeddings: ${shouldCreateEmbeddings})`
+      `[FileWatcher] Folder indexing mode: ${folder.indexingMode}, sync mode: ${behavior.syncMode} (embeddings: ${shouldCreateEmbeddings})`
     );
 
     try {
       await processWithConcurrency(filesToProcess, getMaxConcurrency(), async (filePath) => {
         try {
           const relativePath = relative(folderPath, filePath);
+
+          const { stat } = await import("fs/promises");
+          const fileStat = await stat(filePath);
+          if (fileStat.size > behavior.maxFileSizeBytes) {
+            console.log(`[FileWatcher] Skipping ${filePath}: exceeds max size ${behavior.maxFileSizeBytes}`);
+            return;
+          }
 
           if (shouldCreateEmbeddings) {
             console.log(`[FileWatcher] Indexing changed file with embeddings: ${filePath}`);
@@ -342,6 +390,12 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
               filePath,
               folderId,
               relativePath,
+              chunkingOverrides: chunkingOverrides.useOverrides
+                ? {
+                    maxCharacters: chunkingOverrides.chunkSize,
+                    overlapCharacters: chunkingOverrides.chunkOverlap,
+                  }
+                : undefined,
             });
           } else {
             // FILES-ONLY MODE: Just update the file tracking in the database without creating embeddings
@@ -490,8 +544,10 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
     }
     // Get extension without the leading dot for comparison
     const ext = extname(filePath).slice(1).toLowerCase();
-    // Normalize includeExtensions by removing any leading dots
-    const normalizedExts = includeExtensions.map(e => e.startsWith(".") ? e.slice(1).toLowerCase() : e.toLowerCase());
+    // Normalize include extensions by removing any leading dots
+    const normalizedExts = includeExtensions.map((e) =>
+      e.startsWith(".") ? e.slice(1).toLowerCase() : e.toLowerCase()
+    );
     if (normalizedExts.length > 0 && !normalizedExts.includes(ext)) {
       return; // Skip files with non-matching extensions
     }
