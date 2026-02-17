@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles, Crown, UserPlus, GitBranchPlus, Unlink } from "lucide-react";
 import { 
   Wrench,
   Database,
@@ -63,6 +63,7 @@ import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { useShallow } from "zustand/react/shallow";
+import { toast } from "sonner";
 import {
   resilientFetch,
   resilientPatch,
@@ -404,6 +405,13 @@ export function CharacterPicker() {
   const [workflowGroups, setWorkflowGroups] = useState<WorkflowGroup[]>([]);
   const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set());
   const [workflowAgentIds, setWorkflowAgentIds] = useState<Set<string>>(new Set());
+  const [workflowDrafts, setWorkflowDrafts] = useState<Record<string, { addAgentId?: string; initiatorId?: string }>>({});
+  const [workflowCreatorOpen, setWorkflowCreatorOpen] = useState(false);
+  const [creatingWorkflow, setCreatingWorkflow] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState("");
+  const [newWorkflowInitiatorId, setNewWorkflowInitiatorId] = useState("");
+  const [newWorkflowSubagentIds, setNewWorkflowSubagentIds] = useState<Set<string>>(new Set());
+  const [workflowMutationBusy, setWorkflowMutationBusy] = useState<string | null>(null);
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -705,6 +713,11 @@ export function CharacterPicker() {
   }, [characters, searchQuery]);
 
   // Standalone characters (not in any workflow)
+  const allStandaloneCharacters = useMemo(() => {
+    return characters.filter((c) => !workflowAgentIds.has(c.id));
+  }, [characters, workflowAgentIds]);
+
+  // Standalone characters (filtered)
   const standaloneCharacters = useMemo(() => {
     return filteredCharacters.filter((c) => !workflowAgentIds.has(c.id));
   }, [filteredCharacters, workflowAgentIds]);
@@ -837,9 +850,14 @@ export function CharacterPicker() {
           if (groups.length === 1) {
             setExpandedWorkflows(new Set([groups[0].id]));
           }
+        } else {
+          setWorkflowGroups([]);
+          setWorkflowAgentIds(new Set());
         }
       } catch (wfError) {
         console.warn("Failed to load workflows (non-fatal):", wfError);
+        setWorkflowGroups([]);
+        setWorkflowAgentIds(new Set());
       }
     } catch (error) {
       console.error("Failed to load characters:", error);
@@ -851,6 +869,136 @@ export function CharacterPicker() {
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
+
+  useEffect(() => {
+    setWorkflowDrafts((prev) => {
+      const next: Record<string, { addAgentId?: string; initiatorId?: string }> = {};
+      for (const workflow of workflowGroups) {
+        const existing = prev[workflow.id] || {};
+        next[workflow.id] = {
+          addAgentId: existing.addAgentId,
+          initiatorId: existing.initiatorId || workflow.initiatorId,
+        };
+      }
+      return next;
+    });
+  }, [workflowGroups]);
+
+  useEffect(() => {
+    if (!workflowCreatorOpen) return;
+    if (allStandaloneCharacters.length > 0 && !newWorkflowInitiatorId) {
+      setNewWorkflowInitiatorId(allStandaloneCharacters[0].id);
+    }
+  }, [workflowCreatorOpen, allStandaloneCharacters, newWorkflowInitiatorId]);
+
+  const updateWorkflowDraft = useCallback(
+    (workflowId: string, patch: Partial<{ addAgentId: string; initiatorId: string }>) => {
+      setWorkflowDrafts((prev) => ({
+        ...prev,
+        [workflowId]: {
+          ...(prev[workflowId] || {}),
+          ...patch,
+        },
+      }));
+    },
+    []
+  );
+
+  const mutateWorkflow = useCallback(
+    async (workflowId: string, payload: Record<string, unknown>) => {
+      setWorkflowMutationBusy(workflowId);
+      try {
+        const { error } = await resilientPatch(`/api/workflows/${workflowId}`, payload);
+        if (error) throw new Error(error);
+        await loadCharacters();
+        toast.success(t("workflows.updated"));
+      } catch (error) {
+        console.error("Workflow mutation failed:", error);
+        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+      } finally {
+        setWorkflowMutationBusy(null);
+      }
+    },
+    [loadCharacters, t]
+  );
+
+  const addSubagentToWorkflow = useCallback(
+    async (workflowId: string, agentId: string) => {
+      if (!agentId) return;
+      await mutateWorkflow(workflowId, {
+        action: "addSubagent",
+        agentId,
+      });
+      updateWorkflowDraft(workflowId, { addAgentId: "" });
+    },
+    [mutateWorkflow, updateWorkflowDraft]
+  );
+
+  const setWorkflowMainAgent = useCallback(
+    async (workflowId: string, initiatorId: string) => {
+      if (!initiatorId) return;
+      await mutateWorkflow(workflowId, {
+        action: "setInitiator",
+        initiatorId,
+      });
+    },
+    [mutateWorkflow]
+  );
+
+  const removeSubagentFromWorkflow = useCallback(
+    async (workflowId: string, agentId: string) => {
+      if (!confirm("Remove this sub-agent from the workflow?")) return;
+      await mutateWorkflow(workflowId, {
+        action: "removeMember",
+        agentId,
+      });
+    },
+    [mutateWorkflow]
+  );
+
+  const deleteWorkflowGroup = useCallback(
+    async (workflowId: string) => {
+      if (!confirm("Delete this workflow group? Members will stay as standalone agents.")) return;
+      setWorkflowMutationBusy(workflowId);
+      try {
+        const { error } = await resilientDelete(`/api/workflows/${workflowId}`);
+        if (error) throw new Error(error);
+        await loadCharacters();
+        toast.success(t("workflows.deleted"));
+      } catch (error) {
+        console.error("Workflow deletion failed:", error);
+        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+      } finally {
+        setWorkflowMutationBusy(null);
+      }
+    },
+    [loadCharacters, t]
+  );
+
+  const createWorkflowGroup = useCallback(async () => {
+    if (!newWorkflowInitiatorId) return;
+
+    setCreatingWorkflow(true);
+    try {
+      const { error } = await resilientPost("/api/workflows", {
+        name: newWorkflowName.trim() || undefined,
+        initiatorId: newWorkflowInitiatorId,
+        subAgentIds: Array.from(newWorkflowSubagentIds).filter((id) => id !== newWorkflowInitiatorId),
+      });
+      if (error) throw new Error(error);
+
+      setWorkflowCreatorOpen(false);
+      setNewWorkflowName("");
+      setNewWorkflowSubagentIds(new Set());
+      await loadCharacters();
+      toast.success(t("workflows.created"));
+    } catch (error) {
+      console.error("Create workflow failed:", error);
+      toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+    } finally {
+      setCreatingWorkflow(false);
+    }
+  }, [loadCharacters, newWorkflowInitiatorId, newWorkflowName, newWorkflowSubagentIds, t]);
 
   // Open tool editor for a character
   const openToolEditor = (character: CharacterSummary) => {
@@ -1166,6 +1314,20 @@ export function CharacterPicker() {
         </div>
       )}
 
+      {allStandaloneCharacters.length > 0 && (
+        <div className="flex justify-end">
+          <AnimatedButton
+            size="sm"
+            variant="outline"
+            className="font-mono text-xs"
+            onClick={() => setWorkflowCreatorOpen(true)}
+          >
+            <GitBranchPlus className="mr-1.5 h-3.5 w-3.5" />
+            {t("workflows.create")}
+          </AnimatedButton>
+        </div>
+      )}
+
       {/* Workflow Groups */}
       {filteredWorkflowGroups.length > 0 && (
         <div className="space-y-4 mb-6">
@@ -1253,6 +1415,91 @@ export function CharacterPicker() {
                 {isExpanded && (
                   <CardContent className="pt-0">
                     <div className="border-t border-terminal-border/20 pt-4 space-y-3">
+                      <div className="rounded border border-terminal-border/40 bg-terminal-bg/10 p-3">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={workflowDrafts[wf.id]?.addAgentId || ""}
+                              onChange={(event) =>
+                                updateWorkflowDraft(wf.id, { addAgentId: event.target.value })
+                              }
+                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                              disabled={workflowMutationBusy === wf.id}
+                            >
+                              <option value="">{t("workflows.addSubagentPlaceholder")}</option>
+                              {allStandaloneCharacters.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.displayName || agent.name}
+                                </option>
+                              ))}
+                            </select>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 font-mono text-xs"
+                              disabled={
+                                workflowMutationBusy === wf.id ||
+                                !workflowDrafts[wf.id]?.addAgentId
+                              }
+                              onClick={() =>
+                                addSubagentToWorkflow(
+                                  wf.id,
+                                  workflowDrafts[wf.id]?.addAgentId || ""
+                                )
+                              }
+                            >
+                              <UserPlus className="mr-1 h-3.5 w-3.5" />
+                              {t("workflows.addSubagent")}
+                            </AnimatedButton>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={workflowDrafts[wf.id]?.initiatorId || wf.initiatorId}
+                              onChange={(event) =>
+                                updateWorkflowDraft(wf.id, { initiatorId: event.target.value })
+                              }
+                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                              disabled={workflowMutationBusy === wf.id}
+                            >
+                              {wf.agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.displayName || agent.name}
+                                </option>
+                              ))}
+                            </select>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 font-mono text-xs"
+                              disabled={workflowMutationBusy === wf.id}
+                              onClick={() =>
+                                setWorkflowMainAgent(
+                                  wf.id,
+                                  workflowDrafts[wf.id]?.initiatorId || wf.initiatorId
+                                )
+                              }
+                            >
+                              <Crown className="mr-1 h-3.5 w-3.5" />
+                              {t("workflows.makeMain")}
+                            </AnimatedButton>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex justify-end">
+                          <AnimatedButton
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 font-mono text-xs text-red-600 border-red-200 hover:bg-red-50"
+                            disabled={workflowMutationBusy === wf.id}
+                            onClick={() => deleteWorkflowGroup(wf.id)}
+                          >
+                            <Unlink className="mr-1 h-3.5 w-3.5" />
+                            {t("workflows.deleteWorkflow")}
+                          </AnimatedButton>
+                        </div>
+                      </div>
+
                       {/* Initiator agent card */}
                       {initiator && (
                         <AgentCardInWorkflow
@@ -1308,6 +1555,17 @@ export function CharacterPicker() {
                                   onDelete={openDeleteDialog}
                                   router={router}
                                 />
+
+                                <div className="mt-1 flex justify-end">
+                                  <button
+                                    onClick={() => removeSubagentFromWorkflow(wf.id, agent.id)}
+                                    className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[10px] font-mono text-red-600 hover:bg-red-50 transition-colors"
+                                    disabled={workflowMutationBusy === wf.id}
+                                  >
+                                    <Unlink className="h-3 w-3" />
+                                    {t("workflows.removeSubagent")}
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1552,6 +1810,115 @@ export function CharacterPicker() {
           </Link>
         </AnimatedContainer>
       )}
+
+      {/* Workflow Creator Dialog */}
+      <Dialog open={workflowCreatorOpen} onOpenChange={setWorkflowCreatorOpen}>
+        <DialogContent className="sm:max-w-xl bg-terminal-cream">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <GitBranchPlus className="h-5 w-5 text-terminal-green" />
+              {t("workflows.create")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("workflows.createDescription")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.nameLabel")}
+              </Label>
+              <input
+                type="text"
+                value={newWorkflowName}
+                onChange={(event) => setNewWorkflowName(event.target.value)}
+                placeholder={t("workflows.namePlaceholder")}
+                className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.mainAgentLabel")}
+              </Label>
+              <select
+                value={newWorkflowInitiatorId}
+                onChange={(event) => setNewWorkflowInitiatorId(event.target.value)}
+                className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none"
+              >
+                <option value="">{t("workflows.selectMainAgent")}</option>
+                {allStandaloneCharacters.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.displayName || agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.subagentsLabel")}
+              </Label>
+              <div className="mt-1 max-h-48 overflow-y-auto rounded border border-terminal-border/50 bg-terminal-bg/10 p-2 space-y-1">
+                {allStandaloneCharacters
+                  .filter((agent) => agent.id !== newWorkflowInitiatorId)
+                  .map((agent) => {
+                    const checked = newWorkflowSubagentIds.has(agent.id);
+                    return (
+                      <label
+                        key={agent.id}
+                        className="flex items-center gap-2 rounded px-2 py-1 hover:bg-terminal-bg/30 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) => {
+                            setNewWorkflowSubagentIds((prev) => {
+                              const next = new Set(prev);
+                              if (value) next.add(agent.id);
+                              else next.delete(agent.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="font-mono text-xs text-terminal-dark">
+                          {agent.displayName || agent.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                {allStandaloneCharacters.filter((agent) => agent.id !== newWorkflowInitiatorId).length === 0 && (
+                  <p className="font-mono text-xs text-terminal-muted px-2 py-1">
+                    {t("workflows.noSubagentOptions")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <AnimatedButton
+              variant="outline"
+              className="font-mono"
+              onClick={() => setWorkflowCreatorOpen(false)}
+              disabled={creatingWorkflow}
+            >
+              {tc("cancel")}
+            </AnimatedButton>
+            <AnimatedButton
+              className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
+              onClick={createWorkflowGroup}
+              disabled={creatingWorkflow || !newWorkflowInitiatorId}
+            >
+              {creatingWorkflow ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t("workflows.create")
+              )}
+            </AnimatedButton>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tool Editor Dialog */}
       <Dialog open={toolEditorOpen} onOpenChange={setToolEditorOpen}>
@@ -2155,4 +2522,3 @@ export function CharacterPicker() {
     </div>
   );
 }
-

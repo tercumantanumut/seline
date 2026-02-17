@@ -23,6 +23,56 @@ const MAX_AUTO_AGENT_COUNT = 25;
 const MAX_AUTO_AGENT_NAME_LENGTH = 100;
 const MAX_AUTO_AGENT_TAGLINE_LENGTH = 200;
 
+interface InheritedAgentConfig {
+  enabledTools?: string[];
+  enabledPlugins?: string[];
+  enabledMcpServers?: string[];
+  enabledMcpTools?: string[];
+  mcpToolPreferences?: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>;
+  workflowSandboxPolicy?: {
+    allowSharedFolders?: boolean;
+    allowSharedMcp?: boolean;
+    allowSharedHooks?: boolean;
+  };
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result = value.filter((item): item is string => typeof item === "string");
+  return result.length > 0 ? result : undefined;
+}
+
+function buildInheritedConfig(raw: unknown): InheritedAgentConfig | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const metadata = raw as Record<string, unknown>;
+
+  const config: InheritedAgentConfig = {
+    enabledTools: toStringArray(metadata.enabledTools),
+    enabledPlugins: toStringArray(metadata.enabledPlugins),
+    enabledMcpServers: toStringArray(metadata.enabledMcpServers),
+    enabledMcpTools: toStringArray(metadata.enabledMcpTools),
+  };
+
+  if (
+    metadata.mcpToolPreferences &&
+    typeof metadata.mcpToolPreferences === "object" &&
+    !Array.isArray(metadata.mcpToolPreferences)
+  ) {
+    config.mcpToolPreferences = metadata.mcpToolPreferences as InheritedAgentConfig["mcpToolPreferences"];
+  }
+
+  if (
+    metadata.workflowSandboxPolicy &&
+    typeof metadata.workflowSandboxPolicy === "object" &&
+    !Array.isArray(metadata.workflowSandboxPolicy)
+  ) {
+    config.workflowSandboxPolicy =
+      metadata.workflowSandboxPolicy as InheritedAgentConfig["workflowSandboxPolicy"];
+  }
+
+  return config;
+}
+
 function normalizeAgentName(input: string): string {
   const collapsed = input.trim().replace(/\s+/g, " ");
   if (!collapsed) return "Plugin Agent";
@@ -68,9 +118,9 @@ async function createAgentsFromPlugin(input: {
   pluginName: string;
   pluginAgents: PluginAgentEntry[];
   warnings: string[];
-  initiatorEnabledTools?: string[];
+  inheritedConfig?: InheritedAgentConfig;
 }): Promise<Array<{ id: string; name: string; sourcePath: string }>> {
-  const { userId, pluginId, pluginName, pluginAgents, warnings, initiatorEnabledTools } = input;
+  const { userId, pluginId, pluginName, pluginAgents, warnings, inheritedConfig } = input;
 
   const existingCharacters = await getUserCharacters(userId);
   const usedNames = new Set<string>(
@@ -99,8 +149,22 @@ async function createAgentsFromPlugin(input: {
       status: "active",
       metadata: {
         purpose: seed.purpose || `Imported from plugin ${pluginName}`,
-        enabledPlugins: [pluginId],
-        ...(initiatorEnabledTools ? { enabledTools: initiatorEnabledTools } : {}),
+        enabledPlugins: Array.from(
+          new Set([...(inheritedConfig?.enabledPlugins || []), pluginId])
+        ),
+        ...(inheritedConfig?.enabledTools ? { enabledTools: inheritedConfig.enabledTools } : {}),
+        ...(inheritedConfig?.enabledMcpServers
+          ? { enabledMcpServers: inheritedConfig.enabledMcpServers }
+          : {}),
+        ...(inheritedConfig?.enabledMcpTools
+          ? { enabledMcpTools: inheritedConfig.enabledMcpTools }
+          : {}),
+        ...(inheritedConfig?.mcpToolPreferences
+          ? { mcpToolPreferences: inheritedConfig.mcpToolPreferences }
+          : {}),
+        ...(inheritedConfig?.workflowSandboxPolicy
+          ? { workflowSandboxPolicy: inheritedConfig.workflowSandboxPolicy }
+          : {}),
         pluginAgentSeed: {
           sourcePath: seed.sourcePath,
           description: seed.description,
@@ -197,6 +261,25 @@ export async function POST(request: NextRequest) {
       `hooks: ${parsed.components.hooks !== null}, mcp: ${parsed.components.mcpServers !== null})`
     );
 
+    let initiatorMetadata: Record<string, unknown> | null = null;
+    if (characterId) {
+      const initiator = await getCharacter(characterId);
+      if (!initiator || initiator.userId !== dbUser.id) {
+        return NextResponse.json({ error: "Selected initiator agent was not found" }, { status: 400 });
+      }
+      initiatorMetadata = (initiator.metadata as Record<string, unknown> | null) ?? null;
+    }
+
+    if (parsed.components.agents.length > 0 && !characterId) {
+      return NextResponse.json(
+        {
+          error:
+            "This plugin defines agents. Select an existing main agent before installing so sub-agents can be assigned to a workflow.",
+        },
+        { status: 400 }
+      );
+    }
+
     const plugin = await installPlugin({
       userId: dbUser.id,
       characterId: characterId || undefined,
@@ -205,17 +288,7 @@ export async function POST(request: NextRequest) {
       marketplaceName: marketplaceName || undefined,
     });
 
-    // Read initiator's enabledTools when importing via chat (characterId present)
-    let initiatorEnabledTools: string[] | undefined;
-    if (characterId) {
-      try {
-        const initiator = await getCharacter(characterId);
-        const meta = initiator?.metadata as { enabledTools?: string[] } | null;
-        initiatorEnabledTools = meta?.enabledTools;
-      } catch {
-        // Non-fatal — sub-agents will just have no tool filter
-      }
-    }
+    const inheritedConfig = buildInheritedConfig(initiatorMetadata);
 
     const createdAgents =
       parsed.components.agents.length > 0
@@ -225,7 +298,7 @@ export async function POST(request: NextRequest) {
             pluginName: parsed.manifest.name,
             pluginAgents: parsed.components.agents,
             warnings: parsed.warnings,
-            initiatorEnabledTools,
+            inheritedConfig,
           })
         : [];
 

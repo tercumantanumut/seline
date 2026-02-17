@@ -17,6 +17,14 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Loader2,
   Plug,
   Trash2,
@@ -69,12 +77,23 @@ interface InstalledPlugin {
   };
 }
 
+interface CharacterOption {
+  id: string;
+  name: string;
+  displayName?: string | null;
+  status: string;
+}
+
 export function PluginSettings() {
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
+  const [characters, setCharacters] = useState<CharacterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const [showMarketplace, setShowMarketplace] = useState(false);
+  const [confirmInstallOpen, setConfirmInstallOpen] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+  const [selectedTargetCharacterId, setSelectedTargetCharacterId] = useState<string>("");
   const directoryPickerProps = {
     webkitdirectory: "true",
     directory: "true",
@@ -96,6 +115,33 @@ export function PluginSettings() {
   useEffect(() => {
     loadPlugins();
   }, [loadPlugins]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCharacters = async () => {
+      try {
+        const res = await fetch("/api/characters");
+        if (!res.ok) return;
+        const data = await res.json();
+        const activeCharacters: CharacterOption[] = (data.characters || []).filter(
+          (character: CharacterOption) => character.status === "active"
+        );
+        if (cancelled) return;
+        setCharacters(activeCharacters);
+        if (activeCharacters.length > 0) {
+          setSelectedTargetCharacterId((prev) => prev || activeCharacters[0].id);
+        }
+      } catch {
+        // no-op
+      }
+    };
+
+    loadCharacters();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const togglePlugin = async (pluginId: string, currentStatus: string) => {
     const newStatus = currentStatus === "active" ? "disabled" : "active";
@@ -126,17 +172,37 @@ export function PluginSettings() {
     }
   };
 
+  const startInstallForFiles = (files: File[]) => {
+    if (files.length === 0) return;
+    if (characters.length === 0) {
+      toast.error("Create at least one agent before installing plugins with agent workflows.");
+      return;
+    }
+    setPendingUploadFiles(files);
+    setConfirmInstallOpen(true);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+    e.target.value = "";
+    startInstallForFiles(files);
+  };
+
+  const installPendingPluginFiles = async () => {
+    if (pendingUploadFiles.length === 0) return;
+    if (!selectedTargetCharacterId) {
+      toast.error("Select a main agent before continuing.");
+      return;
+    }
 
     setUploading(true);
     try {
       const formData = new FormData();
-      if (files.length === 1) {
-        formData.append("file", files[0]);
+      formData.append("characterId", selectedTargetCharacterId);
+      if (pendingUploadFiles.length === 1) {
+        formData.append("file", pendingUploadFiles[0]);
       } else {
-        for (const file of files) {
+        for (const file of pendingUploadFiles) {
           formData.append("files", file, file.webkitRelativePath || file.name);
         }
       }
@@ -168,14 +234,13 @@ export function PluginSettings() {
           : {}),
       });
 
+      setConfirmInstallOpen(false);
+      setPendingUploadFiles([]);
       loadPlugins();
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Plugin import failed"
-      );
+      toast.error(error instanceof Error ? error.message : "Plugin import failed");
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   };
 
@@ -271,6 +336,88 @@ export function PluginSettings() {
       {showMarketplace && (
         <MarketplaceBrowser onInstallComplete={loadPlugins} />
       )}
+
+      <Dialog
+        open={confirmInstallOpen}
+        onOpenChange={(open) => {
+          setConfirmInstallOpen(open);
+          if (!open && !uploading) {
+            setPendingUploadFiles([]);
+          }
+        }}
+      >
+        <DialogContent className="bg-terminal-cream sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark">
+              Confirm Plugin Install
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              Choose the existing main agent. Imported plugin sub-agents, tools, and shared folders will be attached to this workflow.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded border border-terminal-border/50 bg-terminal-bg/10 p-3">
+              <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                Files
+              </p>
+              <p className="mt-1 font-mono text-sm text-terminal-dark">
+                {pendingUploadFiles.length} file{pendingUploadFiles.length === 1 ? "" : "s"} selected
+              </p>
+              <p className="mt-1 line-clamp-2 font-mono text-xs text-terminal-muted">
+                {pendingUploadFiles.slice(0, 2).map((file) => file.name).join(", ")}
+                {pendingUploadFiles.length > 2 ? ` +${pendingUploadFiles.length - 2} more` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                Main Agent
+              </label>
+              <select
+                value={selectedTargetCharacterId}
+                onChange={(event) => setSelectedTargetCharacterId(event.target.value)}
+                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                disabled={uploading}
+              >
+                {characters.map((character) => (
+                  <option key={character.id} value={character.id}>
+                    {character.displayName || character.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="font-mono"
+              onClick={() => {
+                setConfirmInstallOpen(false);
+                setPendingUploadFiles([]);
+              }}
+              disabled={uploading}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
+              onClick={installPendingPluginFiles}
+              disabled={uploading || pendingUploadFiles.length === 0 || !selectedTargetCharacterId}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Installing...
+                </>
+              ) : (
+                "Install & Assign"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Empty state */}
       {plugins.length === 0 && (

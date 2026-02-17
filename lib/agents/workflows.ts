@@ -91,6 +91,40 @@ interface SyncSharedFoldersInput {
   dryRun?: boolean;
 }
 
+interface CreateManualWorkflowInput {
+  userId: string;
+  initiatorId: string;
+  subAgentIds: string[];
+  name?: string;
+}
+
+interface UpdateWorkflowConfigInput {
+  workflowId: string;
+  userId: string;
+  name?: string;
+  status?: WorkflowStatus;
+}
+
+interface AddSubagentToWorkflowInput {
+  workflowId: string;
+  userId: string;
+  agentId: string;
+  syncFolders?: boolean;
+}
+
+interface SetWorkflowInitiatorInput {
+  workflowId: string;
+  userId: string;
+  initiatorId: string;
+}
+
+interface RemoveWorkflowMemberInput {
+  workflowId: string;
+  userId: string;
+  agentId: string;
+  promoteToAgentId?: string;
+}
+
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -161,7 +195,7 @@ function mapWorkflowMemberRow(row: AgentWorkflowMemberRow): AgentWorkflowMember 
 
 async function buildSharedResourcesSnapshot(input: {
   initiatorId: string;
-  pluginId: string;
+  seedPluginIds?: string[];
 }): Promise<WorkflowSharedResources> {
   const [folders, pluginAssignments] = await Promise.all([
     db
@@ -177,7 +211,7 @@ async function buildSharedResourcesSnapshot(input: {
   ]);
 
   const pluginIds = Array.from(
-    new Set([input.pluginId, ...pluginAssignments.map((item) => item.pluginId)])
+    new Set([...(input.seedPluginIds || []), ...pluginAssignments.map((item) => item.pluginId)])
   );
 
   const pluginRows = pluginIds.length
@@ -211,6 +245,71 @@ async function buildSharedResourcesSnapshot(input: {
     mcpServerNames: Array.from(mcpServerNames),
     hookEvents: Array.from(hookEvents),
   };
+}
+
+async function assertCharacterOwnedByUser(userId: string, agentId: string): Promise<void> {
+  const row = await db
+    .select({ id: characters.id })
+    .from(characters)
+    .where(and(eq(characters.id, agentId), eq(characters.userId, userId)))
+    .limit(1);
+
+  if (row.length === 0) {
+    throw new Error("Agent not found");
+  }
+}
+
+async function assertAgentNotInActiveWorkflow(
+  agentId: string,
+  options?: { excludeWorkflowId?: string }
+): Promise<void> {
+  const conditions = [eq(agentWorkflowMembers.agentId, agentId), ne(agentWorkflows.status, "archived")];
+  if (options?.excludeWorkflowId) {
+    conditions.push(ne(agentWorkflowMembers.workflowId, options.excludeWorkflowId));
+  }
+
+  const membership = await db
+    .select({ workflowId: agentWorkflowMembers.workflowId })
+    .from(agentWorkflowMembers)
+    .innerJoin(agentWorkflows, eq(agentWorkflows.id, agentWorkflowMembers.workflowId))
+    .where(and(...conditions))
+    .limit(1);
+
+  if (membership.length > 0) {
+    throw new Error("Agent already belongs to an active workflow");
+  }
+}
+
+async function touchWorkflow(workflowId: string): Promise<void> {
+  await db
+    .update(agentWorkflows)
+    .set({ updatedAt: new Date().toISOString() })
+    .where(eq(agentWorkflows.id, workflowId));
+}
+
+async function refreshWorkflowSharedResources(
+  workflowId: string,
+  initiatorId: string
+): Promise<void> {
+  const workflow = await getWorkflowById(workflowId);
+  if (!workflow) return;
+
+  const seedPluginIds = workflow.metadata.pluginId ? [workflow.metadata.pluginId] : [];
+  const sharedResources = await buildSharedResourcesSnapshot({
+    initiatorId,
+    seedPluginIds,
+  });
+
+  await db
+    .update(agentWorkflows)
+    .set({
+      metadata: {
+        ...workflow.metadata,
+        sharedResources,
+      },
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentWorkflows.id, workflowId));
 }
 
 export async function addWorkflowMembers(input: AddWorkflowMembersInput): Promise<AgentWorkflowMember[]> {
@@ -273,7 +372,7 @@ export async function createWorkflowFromPluginImport(
 
   const sharedResources = await buildSharedResourcesSnapshot({
     initiatorId: input.initiatorId,
-    pluginId: input.pluginId,
+    seedPluginIds: [input.pluginId],
   });
 
   const [workflowRow] = await db
@@ -320,6 +419,296 @@ export async function createWorkflowFromPluginImport(
   });
 
   return mapWorkflowRow(workflowRow);
+}
+
+export async function createManualWorkflow(
+  input: CreateManualWorkflowInput
+): Promise<AgentWorkflow> {
+  const uniqueSubAgentIds = Array.from(
+    new Set(input.subAgentIds.filter((agentId) => agentId !== input.initiatorId))
+  );
+
+  await assertCharacterOwnedByUser(input.userId, input.initiatorId);
+  await assertAgentNotInActiveWorkflow(input.initiatorId);
+
+  for (const subAgentId of uniqueSubAgentIds) {
+    await assertCharacterOwnedByUser(input.userId, subAgentId);
+    await assertAgentNotInActiveWorkflow(subAgentId);
+  }
+
+  const sharedResources = await buildSharedResourcesSnapshot({
+    initiatorId: input.initiatorId,
+  });
+
+  const [workflowRow] = await db
+    .insert(agentWorkflows)
+    .values({
+      userId: input.userId,
+      name: input.name?.trim() || "Agent workflow",
+      initiatorId: input.initiatorId,
+      status: "active",
+      metadata: {
+        source: "manual",
+        sharedResources,
+      },
+    })
+    .returning();
+
+  await addWorkflowMembers({
+    workflowId: workflowRow.id,
+    members: [
+      {
+        workflowId: workflowRow.id,
+        agentId: input.initiatorId,
+        role: "initiator",
+      },
+      ...uniqueSubAgentIds.map((agentId) => ({
+        workflowId: workflowRow.id,
+        agentId,
+        role: "subagent" as const,
+      })),
+    ],
+  });
+
+  if (uniqueSubAgentIds.length > 0) {
+    await syncSharedFoldersToSubAgents({
+      userId: input.userId,
+      initiatorId: input.initiatorId,
+      subAgentIds: uniqueSubAgentIds,
+      workflowId: workflowRow.id,
+    });
+  }
+
+  return mapWorkflowRow(workflowRow);
+}
+
+export async function updateWorkflowConfig(
+  input: UpdateWorkflowConfigInput
+): Promise<AgentWorkflow> {
+  const workflow = await getWorkflowById(input.workflowId, input.userId);
+  if (!workflow) throw new Error("Workflow not found");
+
+  const nextName = input.name?.trim();
+  const nextValues: Partial<typeof agentWorkflows.$inferInsert> = {
+    updatedAt: new Date().toISOString(),
+  };
+  if (nextName) nextValues.name = nextName;
+  if (input.status) nextValues.status = input.status;
+
+  await db.update(agentWorkflows).set(nextValues).where(eq(agentWorkflows.id, input.workflowId));
+
+  const updated = await getWorkflowById(input.workflowId, input.userId);
+  if (!updated) throw new Error("Workflow not found");
+  return updated;
+}
+
+export async function addSubagentToWorkflow(
+  input: AddSubagentToWorkflowInput
+): Promise<AgentWorkflowMember> {
+  const workflow = await getWorkflowById(input.workflowId, input.userId);
+  if (!workflow) throw new Error("Workflow not found");
+  if (workflow.status === "archived") throw new Error("Cannot modify archived workflow");
+
+  await assertCharacterOwnedByUser(input.userId, input.agentId);
+  await assertAgentNotInActiveWorkflow(input.agentId, { excludeWorkflowId: input.workflowId });
+
+  const [member] = await addWorkflowMembers({
+    workflowId: input.workflowId,
+    members: [
+      {
+        workflowId: input.workflowId,
+        agentId: input.agentId,
+        role: "subagent",
+      },
+    ],
+  });
+
+  if (!member) {
+    throw new Error("Agent is already in this workflow");
+  }
+
+  if (input.syncFolders !== false) {
+    await syncSharedFoldersToSubAgents({
+      userId: input.userId,
+      initiatorId: workflow.initiatorId,
+      subAgentIds: [input.agentId],
+      workflowId: input.workflowId,
+    });
+  } else {
+    await touchWorkflow(input.workflowId);
+  }
+
+  return member;
+}
+
+export async function setWorkflowInitiator(
+  input: SetWorkflowInitiatorInput
+): Promise<AgentWorkflow> {
+  const workflow = await getWorkflowById(input.workflowId, input.userId);
+  if (!workflow) throw new Error("Workflow not found");
+
+  const member = await db
+    .select({ role: agentWorkflowMembers.role })
+    .from(agentWorkflowMembers)
+    .where(
+      and(
+        eq(agentWorkflowMembers.workflowId, input.workflowId),
+        eq(agentWorkflowMembers.agentId, input.initiatorId)
+      )
+    )
+    .limit(1);
+
+  if (member.length === 0) {
+    throw new Error("Selected agent is not a workflow member");
+  }
+
+  if (workflow.initiatorId === input.initiatorId) {
+    return workflow;
+  }
+
+  await db
+    .update(agentWorkflowMembers)
+    .set({ role: "subagent", updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(agentWorkflowMembers.workflowId, input.workflowId),
+        eq(agentWorkflowMembers.role, "initiator")
+      )
+    );
+
+  await db
+    .update(agentWorkflowMembers)
+    .set({ role: "initiator", updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(agentWorkflowMembers.workflowId, input.workflowId),
+        eq(agentWorkflowMembers.agentId, input.initiatorId)
+      )
+    );
+
+  await db
+    .update(agentWorkflows)
+    .set({
+      initiatorId: input.initiatorId,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentWorkflows.id, input.workflowId));
+
+  await refreshWorkflowSharedResources(input.workflowId, input.initiatorId);
+
+  const updated = await getWorkflowById(input.workflowId, input.userId);
+  if (!updated) throw new Error("Workflow not found");
+  return updated;
+}
+
+export async function removeWorkflowMember(
+  input: RemoveWorkflowMemberInput
+): Promise<{ workflowDeleted: boolean; newInitiatorId?: string }> {
+  const workflow = await getWorkflowById(input.workflowId, input.userId);
+  if (!workflow) throw new Error("Workflow not found");
+
+  const members = await getWorkflowMembers(input.workflowId);
+  const target = members.find((member) => member.agentId === input.agentId);
+  if (!target) throw new Error("Agent is not a workflow member");
+
+  if (members.length <= 1) {
+    await db.delete(agentWorkflows).where(eq(agentWorkflows.id, input.workflowId));
+    return { workflowDeleted: true };
+  }
+
+  let nextInitiatorId = workflow.initiatorId;
+
+  if (target.role === "initiator") {
+    const candidates = members.filter((member) => member.agentId !== input.agentId);
+    const explicitCandidate = input.promoteToAgentId
+      ? candidates.find((member) => member.agentId === input.promoteToAgentId)
+      : undefined;
+    const fallbackCandidate =
+      candidates.find((member) => member.role === "subagent") || candidates[0];
+    const replacement = explicitCandidate || fallbackCandidate;
+
+    if (!replacement) {
+      await db.delete(agentWorkflows).where(eq(agentWorkflows.id, input.workflowId));
+      return { workflowDeleted: true };
+    }
+
+    await db
+      .update(agentWorkflowMembers)
+      .set({ role: "subagent", updatedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(agentWorkflowMembers.workflowId, input.workflowId),
+          eq(agentWorkflowMembers.role, "initiator")
+        )
+      );
+
+    await db
+      .update(agentWorkflowMembers)
+      .set({ role: "initiator", updatedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(agentWorkflowMembers.workflowId, input.workflowId),
+          eq(agentWorkflowMembers.agentId, replacement.agentId)
+        )
+      );
+
+    await db
+      .update(agentWorkflows)
+      .set({
+        initiatorId: replacement.agentId,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(agentWorkflows.id, input.workflowId));
+
+    nextInitiatorId = replacement.agentId;
+  }
+
+  await db
+    .delete(agentWorkflowMembers)
+    .where(
+      and(
+        eq(agentWorkflowMembers.workflowId, input.workflowId),
+        eq(agentWorkflowMembers.agentId, input.agentId)
+      )
+    );
+
+  await touchWorkflow(input.workflowId);
+  await refreshWorkflowSharedResources(input.workflowId, nextInitiatorId);
+  return target.role === "initiator"
+    ? { workflowDeleted: false, newInitiatorId: nextInitiatorId }
+    : { workflowDeleted: false };
+}
+
+export async function deleteWorkflow(workflowId: string, userId: string): Promise<void> {
+  const workflow = await getWorkflowById(workflowId, userId);
+  if (!workflow) throw new Error("Workflow not found");
+
+  await db.delete(agentWorkflows).where(eq(agentWorkflows.id, workflowId));
+}
+
+export async function detachAgentFromWorkflows(
+  userId: string,
+  agentId: string
+): Promise<void> {
+  const rows = await db
+    .select({ workflowId: agentWorkflowMembers.workflowId })
+    .from(agentWorkflowMembers)
+    .innerJoin(agentWorkflows, eq(agentWorkflows.id, agentWorkflowMembers.workflowId))
+    .where(
+      and(
+        eq(agentWorkflows.userId, userId),
+        eq(agentWorkflowMembers.agentId, agentId),
+        ne(agentWorkflows.status, "archived")
+      )
+    );
+
+  for (const row of rows) {
+    await removeWorkflowMember({
+      workflowId: row.workflowId,
+      userId,
+      agentId,
+    });
+  }
 }
 
 export async function getWorkflowByAgentId(

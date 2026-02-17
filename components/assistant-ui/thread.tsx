@@ -280,6 +280,13 @@ export const Thread: FC<ThreadProps> = ({
           return;
         }
 
+        const confirmInstall = window.confirm(
+          `Install this plugin package for "${character.name}" and attach discovered sub-agents to this workflow?`
+        );
+        if (!confirmInstall) {
+          return;
+        }
+
         const MAX_SKILL_SIZE = 50 * 1024 * 1024;
         const oversized = pluginItems.find(({ file }) => file.size > MAX_SKILL_SIZE);
         if (oversized) {
