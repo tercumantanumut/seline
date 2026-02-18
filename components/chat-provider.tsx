@@ -370,6 +370,14 @@ export const ChatProvider: FC<ChatProviderProps> = ({
   if (characterId) {
     headers["X-Character-Id"] = characterId;
   }
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezone) {
+      headers["X-User-Timezone"] = timezone;
+    }
+  } catch {
+    // Ignore timezone detection failures in constrained runtimes.
+  }
 
   const runtime = useChatRuntime({
     id: sessionId,

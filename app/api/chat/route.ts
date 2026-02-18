@@ -187,6 +187,16 @@ function getDiscoveredToolsFromMetadata(
   return new Set(discovered.toolNames);
 }
 
+function isValidIanaTimezone(value: string | null | undefined): value is string {
+  if (!value || typeof value !== "string") return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolvePluginRootMap(
   plugins: Array<{ name: string; cachePath?: string }>
 ): Promise<Map<string, string>> {
@@ -1964,6 +1974,7 @@ export async function POST(req: Request) {
 
     // Get character ID from header (for character-specific chats)
     const characterId = req.headers.get("X-Character-Id");
+    const userTimezoneHeader = req.headers.get("X-User-Timezone")?.trim() || null;
     const taskSource = req.headers.get("X-Task-Source")?.toLowerCase();
     const isChannelSource = taskSource === "channel";
 
@@ -2003,10 +2014,13 @@ export async function POST(req: Request) {
       const session = await createSession({
         title: "New Design Session",
         userId: dbUser.id,
-        metadata: {},
+        metadata: isValidIanaTimezone(userTimezoneHeader)
+          ? { userTimezone: userTimezoneHeader }
+          : {},
       });
       sessionId = session.id;
       isNewSession = true;
+      sessionMetadata = (session.metadata as Record<string, unknown>) || {};
     } else {
       // Verify session exists and belongs to user
       const session = await getSession(sessionId);
@@ -2015,10 +2029,13 @@ export async function POST(req: Request) {
           id: sessionId,
           title: "New Design Session",
           userId: dbUser.id,
-          metadata: {},
+          metadata: isValidIanaTimezone(userTimezoneHeader)
+            ? { userTimezone: userTimezoneHeader }
+            : {},
         });
         sessionId = newSession.id;
         isNewSession = true;
+        sessionMetadata = (newSession.metadata as Record<string, unknown>) || {};
       } else if (session.userId !== dbUser.id) {
         // Session exists but belongs to another user
         return new Response(
@@ -2029,6 +2046,17 @@ export async function POST(req: Request) {
         // Session exists and belongs to user - extract metadata for system prompt tracking
         sessionMetadata = (session.metadata as Record<string, unknown>) || {};
       }
+    }
+
+    // Keep session timezone fresh so tools in this same request can rely on it.
+    if (isValidIanaTimezone(userTimezoneHeader) && sessionMetadata.userTimezone !== userTimezoneHeader) {
+      sessionMetadata = {
+        ...sessionMetadata,
+        userTimezone: userTimezoneHeader,
+      };
+      await updateSession(sessionId, {
+        metadata: sessionMetadata,
+      });
     }
 
     const appSettings = loadSettings();

@@ -12,6 +12,12 @@ import { db } from "@/lib/db/sqlite-client";
 import { scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
+import { CronJob } from "cron";
+import {
+  parseScheduledAtToUtcIso,
+  resolveScheduleTimezone,
+  isScheduledAtInFutureUtc,
+} from "@/lib/ai/tools/schedule-task-helpers";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -71,6 +77,76 @@ export async function PATCH(
       createdAt: _createdAt,
       ...updateData
     } = body;
+
+    const hasScheduleFieldUpdate =
+      Object.prototype.hasOwnProperty.call(updateData, "timezone") ||
+      Object.prototype.hasOwnProperty.call(updateData, "scheduleType") ||
+      Object.prototype.hasOwnProperty.call(updateData, "scheduledAt") ||
+      Object.prototype.hasOwnProperty.call(updateData, "cronExpression");
+
+    if (hasScheduleFieldUpdate) {
+      const existing = await db.query.scheduledTasks.findFirst({
+        where: and(
+          eq(scheduledTasks.id, id),
+          eq(scheduledTasks.userId, userId)
+        ),
+      });
+
+      if (!existing) {
+        return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
+      }
+
+      const mergedScheduleType = (updateData.scheduleType ?? existing.scheduleType) as "cron" | "interval" | "once";
+      const mergedTimezoneInput = (updateData.timezone ?? existing.timezone) as string;
+      const mergedCronExpression = (updateData.cronExpression ?? existing.cronExpression) as string | null;
+      const mergedScheduledAtInput = (updateData.scheduledAt ?? existing.scheduledAt) as string | null;
+
+      const timezoneResolution = resolveScheduleTimezone({
+        inputTimezone: mergedTimezoneInput,
+        sessionTimezone: null,
+      });
+      if (!timezoneResolution.ok) {
+        return NextResponse.json(
+          { error: timezoneResolution.error, reason: timezoneResolution.reason, diagnostics: timezoneResolution.diagnostics },
+          { status: 400 }
+        );
+      }
+
+      updateData.timezone = timezoneResolution.timezone;
+
+      if (mergedCronExpression) {
+        try {
+          new CronJob(mergedCronExpression, () => {}, null, false, timezoneResolution.timezone);
+        } catch (error) {
+          return NextResponse.json(
+            { error: `Invalid cron expression "${mergedCronExpression}": ${error instanceof Error ? error.message : "Unknown error"}` },
+            { status: 400 }
+          );
+        }
+      }
+
+      if (mergedScheduleType === "once" && mergedScheduledAtInput) {
+        const parsed = parseScheduledAtToUtcIso(mergedScheduledAtInput, timezoneResolution.timezone);
+        if (!parsed.ok) {
+          return NextResponse.json({ error: parsed.error }, { status: 400 });
+        }
+        if (!isScheduledAtInFutureUtc(parsed.scheduledAtIsoUtc)) {
+          return NextResponse.json(
+            {
+              error: "scheduledAt must be in the future for one-time schedules",
+              diagnostics: {
+                scheduledAtInput: mergedScheduledAtInput,
+                scheduledAtResolvedUtc: parsed.scheduledAtIsoUtc,
+                nowUtc: new Date().toISOString(),
+                timezone: timezoneResolution.timezone,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        updateData.scheduledAt = parsed.scheduledAtIsoUtc;
+      }
+    }
 
     const [updated] = await db.update(scheduledTasks)
       .set({

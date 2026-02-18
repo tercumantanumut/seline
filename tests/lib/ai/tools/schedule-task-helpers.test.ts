@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import {
   parseScheduledAtToUtcIso,
   isScheduledAtInFutureUtc,
+  isMinutePrecisionMatchUtc,
+  resolveScheduleTimezone,
 } from "@/lib/ai/tools/schedule-task-helpers";
 
 describe("schedule-task-helpers", () => {
@@ -54,5 +56,35 @@ describe("schedule-task-helpers", () => {
     // Ensure parseScheduledAtToUtcIso does not call Date.parse.
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it("resolves timezone from session metadata when input is missing", () => {
+    const res = resolveScheduleTimezone({
+      inputTimezone: undefined,
+      sessionTimezone: "Europe/Berlin",
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.timezone).toBe("Europe/Berlin");
+    expect(res.source).toBe("session");
+  });
+
+  it("rejects timezone resolution when both input and session timezone are missing", () => {
+    const res = resolveScheduleTimezone({
+      inputTimezone: undefined,
+      sessionTimezone: null,
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.reason).toBe("timezone_missing");
+  });
+
+  it("compares timestamps with minute precision for zero-drift checks", () => {
+    expect(
+      isMinutePrecisionMatchUtc("2030-01-01T09:00:59.000Z", "2030-01-01T09:00:00.000Z")
+    ).toBe(true);
+    expect(
+      isMinutePrecisionMatchUtc("2030-01-01T09:01:00.000Z", "2030-01-01T09:00:59.999Z")
+    ).toBe(false);
   });
 });
