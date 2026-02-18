@@ -8,6 +8,7 @@
 const fs = require("fs/promises");
 const path = require("path");
 const { spawn } = require("child_process");
+const crypto = require("crypto");
 
 const projectRoot = process.cwd();
 const quarantineRoot = path.join(projectRoot, ".next-build-quarantine");
@@ -70,13 +71,28 @@ async function cleanupQuarantineDir() {
 
 function runNextBuild() {
   return new Promise((resolve, reject) => {
+    const buildEnv = { ...process.env };
+
+    // Next.js evaluates server modules during `next build` page-data collection.
+    // Provide ephemeral defaults for required internal secrets if missing so
+    // packaging builds do not fail before runtime env injection.
+    if (!buildEnv.INTERNAL_API_SECRET) {
+      buildEnv.INTERNAL_API_SECRET = `build-secret-${crypto.randomBytes(16).toString("hex")}`;
+      console.warn("[build-clean-room] INTERNAL_API_SECRET missing; using ephemeral build-time value.");
+    }
+
+    if (!buildEnv.REMOTION_MEDIA_TOKEN) {
+      buildEnv.REMOTION_MEDIA_TOKEN = `build-media-${crypto.randomBytes(16).toString("hex")}`;
+      console.warn("[build-clean-room] REMOTION_MEDIA_TOKEN missing; using ephemeral build-time value.");
+    }
+
     const child = spawn(
       process.execPath,
       [path.join(projectRoot, "node_modules", "next", "dist", "bin", "next"), "build"],
       {
         cwd: projectRoot,
         stdio: "inherit",
-        env: process.env,
+        env: buildEnv,
       }
     );
 

@@ -229,4 +229,53 @@ describe("delegate-to-subagent-tool", () => {
     expect(result.success).toBe(false);
     expect(String(result.error || "")).toContain("cannot exceed 600");
   });
+
+  it("observe returns full lastResponse and bounded/truncated prior response previews", async () => {
+    const longPrior = "P".repeat(1_450);
+    const longLast = "L".repeat(9_200);
+    mocks.getMessages.mockResolvedValue([
+      { role: "assistant", content: [{ type: "text", text: "step-1" }] },
+      { role: "assistant", content: [{ type: "text", text: "step-2" }] },
+      { role: "assistant", content: [{ type: "text", text: longPrior }] },
+      { role: "assistant", content: [{ type: "text", text: "step-4" }] },
+      { role: "assistant", content: [{ type: "text", text: "step-5" }] },
+      { role: "assistant", content: [{ type: "text", text: "step-6" }] },
+      { role: "assistant", content: [{ type: "text", text: "step-7" }] },
+      { role: "assistant", content: [{ type: "text", text: "step-8" }] },
+      { role: "assistant", content: [{ type: "text", text: longLast }] },
+      { role: "tool", content: [{ type: "text", text: "tool output" }] },
+    ]);
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: async () => ({ done: true, value: undefined }),
+        }),
+      },
+      text: async () => "",
+    });
+
+    const tool = makeTool();
+    const start = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Investigate delegation history output",
+    });
+
+    const observed = await (tool as any).execute({
+      action: "observe",
+      delegationId: start.delegationId,
+    });
+
+    expect(observed.success).toBe(true);
+    expect(observed.lastResponse).toBe(longLast);
+    expect(observed.allResponses).toHaveLength(6);
+    expect(observed.allResponses?.join("\n")).not.toContain(longLast);
+    expect(observed.allResponses?.some((r: string) => r.includes("[Response truncated]"))).toBe(true);
+    expect(observed.responseCount).toBe(9);
+    expect(observed.responsePreviewCount).toBe(6);
+    expect(observed.responsePreviewOmittedCount).toBe(2);
+    expect(observed.responsePreviewTruncatedCount).toBe(1);
+  });
 });

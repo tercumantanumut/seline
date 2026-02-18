@@ -72,6 +72,10 @@ interface DelegateResult {
   toolCallCount?: number;
   lastResponse?: string;
   allResponses?: string[];
+  responseCount?: number;
+  responsePreviewCount?: number;
+  responsePreviewOmittedCount?: number;
+  responsePreviewTruncatedCount?: number;
   elapsed?: number;
   waitedMs?: number;
   waitTimedOut?: boolean;
@@ -112,6 +116,9 @@ const activeDelegations: Map<string, ActiveDelegation> =
 
 let delegationCounter = 0;
 const MAX_OBSERVE_WAIT_SECONDS = 10 * 60;
+const MAX_OBSERVE_PREVIEW_RESPONSES = 6;
+const MAX_OBSERVE_PREVIEW_CHARS = 1_200;
+const OBSERVE_RESPONSE_TRUNCATION_SUFFIX = "\n\n[Response truncated]";
 
 function nextDelegationId(): string {
   delegationCounter += 1;
@@ -287,6 +294,16 @@ function validateObserveWaitSeconds(waitSeconds?: number): { waitMs: number; err
   }
 
   return { waitMs: waitSeconds * 1000 };
+}
+
+function truncateObservePreview(response: string): { text: string; truncated: boolean } {
+  if (response.length <= MAX_OBSERVE_PREVIEW_CHARS) {
+    return { text: response, truncated: false };
+  }
+  return {
+    text: response.slice(0, MAX_OBSERVE_PREVIEW_CHARS) + OBSERVE_RESPONSE_TRUNCATION_SUFFIX,
+    truncated: true,
+  };
 }
 
 type SubagentCandidate = {
@@ -762,12 +779,24 @@ async function handleObserve(
   const assistantMessages = messages.filter((m) => m.role === "assistant");
   const toolMessages = messages.filter((m) => m.role === "tool");
 
-  // Extract all assistant responses
-  const allResponses = assistantMessages
+  // Extract all assistant responses.
+  // Return the final response in full via `lastResponse` and keep `allResponses`
+  // as a bounded preview list of prior assistant turns to avoid context blowups.
+  const assistantResponses = assistantMessages
     .map((m) => extractTextFromContent(m.content))
     .filter((t): t is string => !!t);
-
-  const lastResponse = allResponses[allResponses.length - 1];
+  const lastResponse = assistantResponses[assistantResponses.length - 1];
+  const priorResponses = assistantResponses.slice(0, -1);
+  const recentResponsePreviews = priorResponses.slice(-MAX_OBSERVE_PREVIEW_RESPONSES);
+  let responsePreviewTruncatedCount = 0;
+  const allResponses = recentResponsePreviews.map((response) => {
+    const preview = truncateObservePreview(response);
+    if (preview.truncated) {
+      responsePreviewTruncatedCount += 1;
+    }
+    return preview.text;
+  });
+  const responsePreviewOmittedCount = Math.max(0, priorResponses.length - recentResponsePreviews.length);
 
   const isRunning = !delegation.settled;
   const waitedMs = Date.now() - observeStart;
@@ -789,12 +818,12 @@ async function handleObserve(
     waitTimedOut: waitValidation.waitMs > 0 && isRunning,
     messageCount: messages.length,
     toolCallCount: toolMessages.length,
-    lastResponse: lastResponse
-      ? lastResponse.length > 8000
-        ? lastResponse.slice(0, 8000) + "\n\n[Response truncated]"
-        : lastResponse
-      : undefined,
+    lastResponse,
     allResponses,
+    responseCount: assistantResponses.length,
+    responsePreviewCount: allResponses.length,
+    responsePreviewOmittedCount,
+    responsePreviewTruncatedCount,
     delegations: buildDelegationsSummary(characterId),
   };
 }
