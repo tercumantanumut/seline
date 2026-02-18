@@ -2606,6 +2606,61 @@ export async function POST(req: Request) {
       }
     });
 
+    // ========================================================================
+    // ENVIRONMENT DETAILS — Fresh time injection (Roo Code pattern)
+    // ========================================================================
+    // Strip stale <environment_details> from all user messages so the model
+    // never sees old timestamps, then inject a fresh block into the last
+    // user message with the current server time + user timezone.
+    const envDetailsRegex = /\n*<environment_details>[\s\S]*?<\/environment_details>/g;
+    for (let i = 0; i < coreMessages.length; i++) {
+      if (coreMessages[i].role !== "user") continue;
+      const msg = coreMessages[i];
+      if (typeof msg.content === "string") {
+        coreMessages[i] = { ...msg, content: msg.content.replace(envDetailsRegex, "") };
+      } else if (Array.isArray(msg.content)) {
+        coreMessages[i] = {
+          ...msg,
+          content: (msg.content as Array<{ type: string; text?: string }>).map(part =>
+            part.type === "text" && part.text
+              ? { ...part, text: part.text.replace(envDetailsRegex, "") }
+              : part
+          ),
+        };
+      }
+    }
+
+    // Inject fresh environment_details into the last user message
+    {
+      const envNow = new Date();
+      const userTz = (sessionMetadata?.userTimezone as string) || null;
+      const tzOffset = userTz
+        ? (() => {
+            try {
+              const fmt = new Intl.DateTimeFormat("en", { timeZone: userTz, timeZoneName: "shortOffset" });
+              const offset = fmt.formatToParts(envNow).find(p => p.type === "timeZoneName")?.value || "";
+              return offset.replace("GMT", "UTC");
+            } catch {
+              return "";
+            }
+          })()
+        : "";
+      const envBlock = `\n\n<environment_details>\nCurrent time: ${envNow.toISOString()}${userTz ? `\nUser timezone: ${userTz}, ${tzOffset}` : ""}\n</environment_details>`;
+
+      const lastUserIdx = coreMessages.map(m => m.role).lastIndexOf("user");
+      if (lastUserIdx !== -1) {
+        const msg = coreMessages[lastUserIdx];
+        if (typeof msg.content === "string") {
+          coreMessages[lastUserIdx] = { ...msg, content: msg.content + envBlock };
+        } else if (Array.isArray(msg.content)) {
+          coreMessages[lastUserIdx] = {
+            ...msg,
+            content: [...(msg.content as any[]), { type: "text", text: envBlock }],
+          };
+        }
+      }
+    }
+
     // Build system prompt and get character context for tools
     // NOTE: Tool instructions are now embedded in tool descriptions (fullInstructions)
     // and discovered via searchTools. No need to concatenate them to system prompt.

@@ -95,6 +95,6 @@ Use this information for:
 - Relative time calculations ("this year", "last month", "recently")
 - Understanding temporal references in user messages
 
-Important: This is a snapshot generated at request start. For reminders/scheduling, backend validation uses runtime server time.`;
+Important: This time is regenerated fresh for every message. Always use the time shown here or in <environment_details>, never repeat a time you stated earlier in this conversation. For reminders/scheduling, backend validation uses runtime server time.`;
 }
 
