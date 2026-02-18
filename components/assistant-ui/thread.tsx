@@ -81,6 +81,7 @@ import { getModelIcon } from "@/components/model-bag/model-bag.utils";
 import type { ModelItem, LLMProvider } from "@/components/model-bag/model-bag.types";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
 import { ContextWindowIndicator } from "./context-window-indicator";
+import { ActiveModelIndicator } from "./active-model-indicator";
 import {
   ContextWindowBlockedBanner,
   type ContextWindowBlockedPayload,
@@ -1870,16 +1871,19 @@ const Composer: FC<{
         </div>
       </ComposerPrimitive.Root>
 
-      {/* Context window indicator — always visible once status is available */}
+      {/* Context window indicator + active model badge — always visible once status is available */}
       {(contextStatus || contextLoading) && (
-        <div className="mt-1.5 w-full px-1">
-          <ContextWindowIndicator
-            status={contextStatus}
-            isLoading={contextLoading}
-            onCompact={onCompact}
-            isCompacting={isCompacting}
-            compact
-          />
+        <div className="mt-1.5 w-full px-1 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <ContextWindowIndicator
+              status={contextStatus}
+              isLoading={contextLoading}
+              onCompact={onCompact}
+              isCompacting={isCompacting}
+              compact
+            />
+          </div>
+          <ActiveModelIndicator status={contextStatus} />
         </div>
       )}
 
@@ -1960,12 +1964,12 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           toast.error(putError);
           return;
         }
-        // Update global assignment for display purposes only (doesn't affect this session)
-        await bag.assignModelToRole(model.id, "chat");
-        // NOTE: We do NOT call switchProvider here because:
-        // 1. This is a per-session override, not a global change
-        // 2. switchProvider clears all model assignments and can cause race conditions
-        // 3. The session override takes precedence via session-model-resolver.ts
+        // NOTE: We intentionally do NOT write to global settings here.
+        // The model bag selection is a per-session override stored in session.metadata.
+        // Writing to global settings would cause getConfiguredProvider() / getConfiguredModel()
+        // to return the session override as if it were the global default, creating
+        // inconsistency between the session model and what logs/temperature/caching use.
+        // The session override takes precedence via session-model-resolver.ts.
         toast.success(`Switched to ${model.name} for this session`);
         setOpen(false);
       } catch {
@@ -1974,7 +1978,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
         setSaving(false);
       }
     },
-    [sessionId, bag]
+    [sessionId]
   );
 
   // Tier badge colors
