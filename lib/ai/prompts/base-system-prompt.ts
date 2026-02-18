@@ -11,6 +11,7 @@ import {
   MEDIA_DISPLAY_RULES,
   LANGUAGE_HANDLING,
   RESPONSE_STYLE,
+  WORKFLOW_SUBAGENT_BASELINE,
   TOOL_INVOCATION_FORMAT,
   TOOL_DISCOVERY_MINIMAL,
   TOOL_DISCOVERY_ALWAYS,
@@ -80,6 +81,7 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
     getTemporalContextBlock(),
     coreIdentity,
     RESPONSE_STYLE,
+    WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
     TOOL_INVOCATION_FORMAT, // Critical: Prevent tool syntax in text output
@@ -177,6 +179,7 @@ export function buildCacheableSystemPrompt(
   const staticBlocks = combineBlocks(
     coreIdentity,
     RESPONSE_STYLE,
+    WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
     TOOL_INVOCATION_FORMAT,

@@ -159,11 +159,19 @@ export async function createAgentFromTemplate(
       }
     }
 
+    let isDefault = template.isDefault ?? false;
+    if (isDefault) {
+      const existingDefault = await getUserDefaultCharacter(userId);
+      if (existingDefault) {
+        isDefault = false;
+      }
+    }
+
     const character = await createCharacter({
       userId,
       name: template.name,
       tagline: template.tagline,
-      isDefault: template.isDefault ?? false,
+      isDefault,
       status: "active",
       metadata: {
         purpose: template.purpose,
@@ -189,6 +197,16 @@ export async function createAgentFromTemplate(
 
     return characterId;
   } catch (error) {
+    if (template.isDefault) {
+      const message = error instanceof Error ? error.message : String(error ?? "");
+      if (message.includes("UNIQUE constraint failed: characters.user_id, characters.is_default")) {
+        const existingDefault = await getUserDefaultCharacter(userId);
+        if (existingDefault) {
+          return existingDefault.id;
+        }
+      }
+    }
+
     console.error("[Templates] Error creating agent from template:", error);
     return null;
   }

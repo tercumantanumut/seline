@@ -68,6 +68,79 @@ export interface WorkflowResourceContext {
   promptContext: string;
 }
 
+export interface WorkflowPromptContextDelegation {
+  delegationId: string;
+  delegateAgent: string;
+  task: string;
+  running: boolean;
+  elapsed: number;
+}
+
+export interface WorkflowPromptContextInput {
+  workflowName: string;
+  role: "initiator" | "subagent";
+  sharedPluginCount: number;
+  sharedFolderCount: number;
+  subagentDirectory: string[];
+  activeDelegations?: WorkflowPromptContextDelegation[];
+}
+
+export function buildWorkflowPromptContext(input: WorkflowPromptContextInput): string {
+  const lines: string[] = [
+    `Workflow: ${input.workflowName}`,
+    `Role: ${input.role}`,
+    `Shared plugins: ${input.sharedPluginCount}`,
+    `Shared folders: ${input.sharedFolderCount}`,
+    "Sub-agents:",
+    ...(input.subagentDirectory.length > 0 ? input.subagentDirectory : ["- none"]),
+    "",
+    "Standard terms: workflow, initiator, subagent, delegationId, agentId, observe, continue, stop.",
+  ];
+
+  if (input.role === "initiator") {
+    lines.push(
+      "",
+      "## Initiator / Orchestrator Contract",
+      "- Delegate when work is multi-step, parallelizable, or requires specialized subagent purpose/capability.",
+      "- Do work directly when the task is simple, single-step, or faster to complete in current context.",
+      "- Choose target subagent from directory by explicit purpose match before starting delegation.",
+      "- Required execution sequence: delegateToSubagent list -> start -> observe(waitSeconds) -> continue or stop.",
+      "- Avoid duplicate work: if a delegation to the same subagent is already active, reuse it via observe/continue/stop.",
+      "- Integrate and summarize subagent outputs back to the user with clear decisions and next actions.",
+      "",
+      "## Compatibility Mapping",
+      "- run_in_background: start is background by default in Seline. For near-foreground behavior, call observe with waitSeconds (for example 30, 60, 600).",
+      "- resume(agent_id): map to continue using delegationId (not agentId) to preserve delegation context.",
+      "- max_turns: no strict delegation parameter today; include explicit turn/stop constraints inside task instructions when needed.",
+    );
+
+    const activeDelegations = input.activeDelegations ?? [];
+    if (activeDelegations.length > 0) {
+      lines.push(
+        "",
+        "Active delegations (reuse these; do not start duplicates to the same subagent):",
+      );
+      for (const del of activeDelegations) {
+        const elapsed = Math.floor(del.elapsed / 1000);
+        const status = del.running ? `running ${elapsed}s` : "settled";
+        lines.push(`- ${del.delegationId}: "${del.delegateAgent}" - task: "${del.task}" (${status})`);
+      }
+    }
+  } else {
+    lines.push(
+      "",
+      "## Subagent / Executor Contract",
+      "- Execute the initiator's delegated task precisely; keep scope tight unless clarification is required.",
+      "- Return structured deliverables with sections: Summary, Findings, Evidence, Risks, Next Actions.",
+      "- If data is missing or conflicting, explicitly escalate with what is missing and the minimum clarification needed.",
+      "- Do not orchestrate further delegation unless the initiator explicitly requests it.",
+      "- When blocked, provide a concise blocker report plus a concrete proposed path forward.",
+    );
+  }
+
+  return lines.join("\n");
+}
+
 interface CreateWorkflowFromPluginImportInput {
   userId: string;
   initiatorId: string;
@@ -858,35 +931,17 @@ export async function getWorkflowResources(
       return `- ${agentName} (id: ${workflowMember.agentId}): ${purpose}`;
     });
 
-  const promptContextLines = [
-    `Workflow: ${workflow.name}`,
-    `Role: ${member.role}`,
-    `Shared plugins: ${sharedResources.pluginIds.length}`,
-    `Shared folders: ${sharedResources.syncFolderIds.length}`,
-    "Sub-agents:",
-    ...(subagentDirectory.length > 0 ? subagentDirectory : ["- none"]),
-  ];
+  const activeDelegations =
+    member.role === "initiator" ? getActiveDelegationsForCharacter(agentId) : [];
 
-  if (member.role === "initiator" && subagentDirectory.length > 0) {
-    promptContextLines.push(
-      "Delegation tip: use delegateToSubagent action=\"list\" if needed to refresh sub-agents, then start by agentName or agentId. When checking progress, prefer action=\"observe\" with waitSeconds (for example 30, 60, or 600) instead of tight re-check loops.",
-    );
-
-    // Inject real-time active delegations so the agent doesn't forget and start duplicates
-    const activeDelegations = getActiveDelegationsForCharacter(agentId);
-    if (activeDelegations.length > 0) {
-      promptContextLines.push("Active delegations (DO NOT start new delegations to these agents — use observe/continue/stop instead):");
-      for (const del of activeDelegations) {
-        const elapsed = Math.floor(del.elapsed / 1000);
-        const status = del.running ? `running ${elapsed}s` : "settled";
-        promptContextLines.push(
-          `- ${del.delegationId}: "${del.delegateAgent}" — task: "${del.task}" (${status})`,
-        );
-      }
-    }
-  }
-
-  const promptContext = promptContextLines.join("\n");
+  const promptContext = buildWorkflowPromptContext({
+    workflowName: workflow.name,
+    role: member.role,
+    sharedPluginCount: sharedResources.pluginIds.length,
+    sharedFolderCount: sharedResources.syncFolderIds.length,
+    subagentDirectory,
+    activeDelegations,
+  });
 
   return {
     workflowId,

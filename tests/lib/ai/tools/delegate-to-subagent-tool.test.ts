@@ -218,6 +218,55 @@ describe("delegate-to-subagent-tool", () => {
     expect((waitedObserve.waitedMs as number) >= 150).toBe(true);
   });
 
+  it("start supports run_in_background=false alias by performing start+observe wait", async () => {
+    const tool = makeTool();
+    const result = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Investigate flaky tests",
+      run_in_background: false,
+      waitSeconds: 0.2,
+    });
+
+    expect(result.success).toBe(true);
+    expect(typeof result.delegationId).toBe("string");
+    expect(result.running).toBe(false);
+    expect(result.completed).toBe(true);
+    expect(String(result.message || "")).toContain("runInBackground=false");
+  });
+
+  it("start supports resume alias by mapping to continue semantics", async () => {
+    const tool = makeTool();
+
+    const started = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Initial analysis",
+    });
+
+    const resumed = await (tool as any).execute({
+      action: "start",
+      resume: started.delegationId,
+      task: "Focus only on regressions",
+    });
+
+    expect(resumed.success).toBe(true);
+    expect(String(resumed.message || "")).toContain("Follow-up message sent");
+  });
+
+  it("start validates advisory max_turns alias range", async () => {
+    const tool = makeTool();
+    const result = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Analyze module",
+      max_turns: 999,
+    });
+
+    expect(result.success).toBe(false);
+    expect(String(result.error || "")).toContain("maxTurns");
+  });
+
   it("observe rejects waitSeconds over the max limit", async () => {
     const tool = makeTool();
     const result = await (tool as any).execute({

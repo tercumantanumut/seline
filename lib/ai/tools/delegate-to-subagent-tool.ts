@@ -49,6 +49,11 @@ interface DelegateToSubagentInput {
   delegationId?: string;
   followUpMessage?: string;
   waitSeconds?: number;
+  runInBackground?: boolean;
+  run_in_background?: boolean;
+  resume?: string;
+  maxTurns?: number;
+  max_turns?: number;
 }
 
 interface AvailableSubagent {
@@ -119,6 +124,7 @@ const MAX_OBSERVE_WAIT_SECONDS = 10 * 60;
 const MAX_OBSERVE_PREVIEW_RESPONSES = 6;
 const MAX_OBSERVE_PREVIEW_CHARS = 1_200;
 const OBSERVE_RESPONSE_TRUNCATION_SUFFIX = "\n\n[Response truncated]";
+const MAX_ADVISORY_MAX_TURNS = 100;
 
 function nextDelegationId(): string {
   delegationCounter += 1;
@@ -268,6 +274,14 @@ function extractTextFromContent(content: unknown): string | undefined {
 
 function normalizeLookup(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeCompatibilityInput(input: DelegateToSubagentInput): DelegateToSubagentInput {
+  return {
+    ...input,
+    runInBackground: input.runInBackground ?? input.run_in_background,
+    maxTurns: input.maxTurns ?? input.max_turns,
+  };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -437,13 +451,13 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   type: "object",
   title: "DelegateToSubagentInput",
   description:
-    "Delegate a task to a workflow sub-agent asynchronously. Use 'list' if needed to refresh available sub-agents (names + IDs), 'start' to begin, 'observe' to check progress and read the full response (optionally with waitSeconds), 'continue' to send follow-up messages, 'stop' to cancel.",
+    "Delegate work to workflow sub-agents. Core flow: list -> start -> observe(waitSeconds) -> continue/stop. Supports compatibility options for run_in_background, resume, and advisory max_turns.",
   properties: {
     action: {
       type: "string",
       enum: ["start", "observe", "continue", "stop", "list"],
       description:
-        "Action to perform: 'start' a new delegation, 'observe' progress and read the sub-agent's full response (supports waitSeconds), 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
+        "Action to perform: 'start' a new delegation, 'observe' progress and read full response, 'continue' with a follow-up message, 'stop' a running delegation, or 'list' available sub-agents and active delegations.",
     },
     agentId: {
       type: "string",
@@ -480,7 +494,36 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
       minimum: 0,
       maximum: MAX_OBSERVE_WAIT_SECONDS,
       description:
-        "Optional for 'observe'. Wait this many seconds before returning (or until delegation completes), to avoid rapid polling loops. Example: 30, 60, 600.",
+        "Optional for 'observe' (and for 'start' when runInBackground=false). Wait this many seconds before returning (or until delegation completes), to avoid rapid polling loops. Example: 30, 60, 600.",
+    },
+    runInBackground: {
+      type: "boolean",
+      description:
+        "Optional compatibility flag. For action='start', true (default) returns immediately; false performs a start then observe wait window before returning.",
+    },
+    run_in_background: {
+      type: "boolean",
+      description:
+        "Snake_case compatibility alias for runInBackground.",
+    },
+    resume: {
+      type: "string",
+      description:
+        "Optional compatibility alias for delegationId. With action='start', resume maps to continue using this delegationId and task as the follow-up message.",
+    },
+    maxTurns: {
+      type: "number",
+      minimum: 1,
+      maximum: MAX_ADVISORY_MAX_TURNS,
+      description:
+        "Optional advisory execution cap for subagent turns (not a strict runtime enforcement). The cap is forwarded as instruction text to the delegated task.",
+    },
+    max_turns: {
+      type: "number",
+      minimum: 1,
+      maximum: MAX_ADVISORY_MAX_TURNS,
+      description:
+        "Snake_case compatibility alias for maxTurns.",
     },
   },
   required: ["action"],
@@ -498,28 +541,35 @@ export function createDelegateToSubagentTool(
 
   return tool({
     description:
-      "Delegate a task to a sub-agent in your workflow team asynchronously. " +
-      "The sub-agent gets its own chat session (visible in the UI with active indicator). " +
-      "Use 'list' if needed to discover or refresh available sub-agents (names + IDs). " +
-      "Then use 'start' with either agentId or agentName, 'observe' to check progress and read the sub-agent's full response (optionally with waitSeconds), " +
-      "'continue' to send follow-up messages, or 'stop' to cancel.",
+      "Delegate work to a sub-agent in your workflow team. " +
+      "Preferred orchestration sequence: list -> start -> observe(waitSeconds) -> continue/stop. " +
+      "start runs in background by default; use runInBackground=false to start then wait via observe in a single call. " +
+      "Use resume as a compatibility alias to continue an existing delegation by delegationId.",
     inputSchema: delegateSchema,
     execute: async (input: DelegateToSubagentInput): Promise<DelegateResult> => {
-      switch (input.action) {
+      const normalizedInput = normalizeCompatibilityInput(input);
+
+      switch (normalizedInput.action) {
         case "start":
-          return handleStart(input, userId, characterId);
+          return handleStartAction(normalizedInput, userId, characterId);
         case "observe":
-          return handleObserve(input, characterId);
+          return handleObserve(normalizedInput, characterId);
         case "continue":
-          return handleContinue(input, characterId);
+          return handleContinue(
+            {
+              ...normalizedInput,
+              delegationId: normalizedInput.delegationId ?? normalizedInput.resume,
+            },
+            characterId
+          );
         case "stop":
-          return handleStop(input, characterId);
+          return handleStop(normalizedInput, characterId);
         case "list":
           return handleList(characterId);
         default:
           return {
             success: false,
-            error: `Unknown action: ${input.action}. Use start, observe, continue, stop, or list.`,
+            error: `Unknown action: ${normalizedInput.action}. Use start, observe, continue, stop, or list.`,
             delegations: buildDelegationsSummary(characterId),
           };
       }
@@ -563,17 +613,80 @@ function startBackgroundExecution(
 // Action handlers
 // ---------------------------------------------------------------------------
 
+async function handleStartAction(
+  input: DelegateToSubagentInput,
+  userId: string,
+  characterId: string,
+): Promise<DelegateResult> {
+  // Compatibility mode: resume + start maps to continue with task as follow-up.
+  if (input.resume) {
+    if (!input.task) {
+      return {
+        success: false,
+        error: "'task' is required when using 'resume' with action='start'.",
+        delegations: buildDelegationsSummary(characterId),
+      };
+    }
+
+    return handleContinue(
+      {
+        action: "continue",
+        delegationId: input.resume,
+        followUpMessage: input.task,
+      },
+      characterId,
+    );
+  }
+
+  const startResult = await handleStart(input, userId, characterId);
+  if (!startResult.success || input.runInBackground !== false || !startResult.delegationId) {
+    return startResult;
+  }
+
+  const observeResult = await handleObserve(
+    {
+      action: "observe",
+      delegationId: startResult.delegationId,
+      waitSeconds: input.waitSeconds ?? 120,
+    },
+    characterId,
+  );
+
+  if (!observeResult.success) {
+    return observeResult;
+  }
+
+  return {
+    ...observeResult,
+    availableAgents: startResult.availableAgents ?? observeResult.availableAgents,
+    message:
+      "runInBackground=false requested. Delegation was started and observed in one call. " +
+      "Use continue/observe with this delegationId for further work.",
+  };
+}
+
 async function handleStart(
   input: DelegateToSubagentInput,
   userId: string,
   characterId: string,
 ): Promise<DelegateResult> {
-  const { agentId, agentName, task, context: extraContext } = input;
+  const { agentId, agentName, task, context: extraContext, maxTurns } = input;
 
   if (!task) {
     return {
       success: false,
       error: "'task' is required for the 'start' action.",
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
+  if (
+    maxTurns !== undefined &&
+    (!Number.isFinite(maxTurns) || maxTurns < 1 || maxTurns > MAX_ADVISORY_MAX_TURNS)
+  ) {
+    return {
+      success: false,
+      error: `'maxTurns' must be between 1 and ${MAX_ADVISORY_MAX_TURNS}.`,
       delegations: buildDelegationsSummary(characterId),
     };
   }
@@ -675,9 +788,14 @@ async function handleStart(
   });
 
   // 6. Build the user message
+  const advisoryTurnConstraint =
+    maxTurns !== undefined
+      ? `\n\nExecution constraint from initiator: target completion in at most ${Math.floor(maxTurns)} assistant turns. If unresolved, return partial findings plus blockers.`
+      : "";
+
   const userMessage = extraContext
-    ? `${task}\n\nAdditional context:\n${extraContext}`
-    : task;
+    ? `${task}\n\nAdditional context:\n${extraContext}${advisoryTurnConstraint}`
+    : `${task}${advisoryTurnConstraint}`;
 
   // 7. Fire-and-forget: call internal chat API
   // The chat API handles user message persistence, agent run creation,
@@ -711,7 +829,7 @@ async function handleStart(
       "Delegation started. A real chat session has been created for the sub-agent. " +
       "Use 'observe' with the delegationId to check progress and read the full response. " +
       "Set observe.waitSeconds (for example 30, 60, or 600) to wait intentionally instead of re-checking too frequently. " +
-      "'continue' to send follow-up messages, or navigate to the sub-agent's chat to see it live.",
+      "Use runInBackground=false on start if you want a start+observe wait in one call. Use 'continue' to send follow-up messages (or use resume as a compatibility alias), or navigate to the sub-agent's chat to see it live.",
     availableAgents,
     delegations: buildDelegationsSummary(characterId),
   };
