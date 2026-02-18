@@ -163,6 +163,7 @@ interface CharacterSummary {
   isDefault?: boolean;
   metadata?: {
     enabledTools?: string[];
+    enabledMcpTools?: string[];
     enabledPlugins?: string[];
     purpose?: string;
   };
@@ -237,6 +238,7 @@ function AgentCardInWorkflow({
 }) {
   const initials = getCharacterInitials(character.name);
   const enabledTools = character.metadata?.enabledTools || [];
+  const enabledMcpTools = character.metadata?.enabledMcpTools || [];
   const topTools = getTopTools(enabledTools, 3);
   const purpose = character.metadata?.purpose;
   const primaryImage = character.images?.find((img) => img.isPrimary);
@@ -331,8 +333,17 @@ function AgentCardInWorkflow({
         <button
           onClick={() => onEditFolders(character)}
           className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
+          title={t("vectorTitle")}
         >
           <Database className="w-2.5 h-2.5" />
+        </button>
+        <button
+          onClick={() => onEditMcp(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-purple-500 transition-colors"
+          title={t("mcpToolsTitle")}
+        >
+          <Plug className="w-2.5 h-2.5" />
+          <span>{enabledMcpTools.length > 0 ? `${enabledMcpTools.length}` : "MCP"}</span>
         </button>
         <button
           onClick={() => onDelete(character)}

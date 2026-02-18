@@ -355,6 +355,38 @@ function incrementSkipReason(
   reasons[key] = (reasons[key] ?? 0) + 1;
 }
 
+const SMART_REINDEX_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function shouldSmartReindex(lastRunMetadata: unknown, nowMs: number = Date.now()): boolean {
+  const metadata = parseJsonObject(lastRunMetadata);
+  const lastSmartReindexAt = typeof metadata.smartReindexAt === "string"
+    ? Date.parse(metadata.smartReindexAt)
+    : Number.NaN;
+
+  if (!Number.isFinite(lastSmartReindexAt)) {
+    return true;
+  }
+
+  return nowMs - lastSmartReindexAt >= SMART_REINDEX_INTERVAL_MS;
+}
+
 /**
  * Add a folder to sync for an agent
  */
@@ -658,10 +690,17 @@ export async function syncFolder(
   }
 
   const shouldCreateEmbeddings = behavior.shouldCreateEmbeddings;
+  const existingRunMetadata = parseJsonObject(folder.lastRunMetadata);
+  const previousSmartReindexAt = typeof existingRunMetadata.smartReindexAt === "string"
+    ? existingRunMetadata.smartReindexAt
+    : undefined;
+  const smartReindexDue = behavior.reindexPolicy === "smart" && trigger === "scheduled"
+    ? shouldSmartReindex(folder.lastRunMetadata)
+    : false;
   const shouldForceReindex =
     forceReindex ||
     behavior.reindexPolicy === "always" ||
-    (behavior.reindexPolicy === "smart" && trigger === "scheduled");
+    smartReindexDue;
 
   console.log(
     `[SyncService] Syncing folder ${folder.displayName || folderPath} with indexing=${folder.indexingMode}, sync=${behavior.syncMode}, trigger=${trigger} (embeddings: ${shouldCreateEmbeddings})`
@@ -1071,6 +1110,9 @@ export async function syncFolder(
           syncMode: behavior.syncMode,
           reindexPolicy: behavior.reindexPolicy,
           forceReindex: shouldForceReindex,
+          smartReindexAt: smartReindexDue
+            ? new Date().toISOString()
+            : previousSmartReindexAt,
           filesProcessed: result.filesProcessed,
           filesIndexed: result.filesIndexed,
           filesSkipped: result.filesSkipped,
@@ -1226,16 +1268,60 @@ export async function updateSyncFolderSettings(config: SyncFolderUpdateConfig): 
     .where(eq(agentSyncFolders.id, folderId));
 
   const [folder] = await db
-    .select({ characterId: agentSyncFolders.characterId })
+    .select()
     .from(agentSyncFolders)
     .where(eq(agentSyncFolders.id, folderId));
 
-  if (folder) {
-    notifyFolderChange(folder.characterId, {
-      type: "updated",
-      folderId,
-    });
+  if (!folder) {
+    return;
   }
+
+  const behavior = resolveFolderSyncBehavior({
+    indexingMode: folder.indexingMode,
+    syncMode: folder.syncMode,
+    syncCadenceMinutes: folder.syncCadenceMinutes,
+    maxFileSizeBytes: folder.maxFileSizeBytes,
+    chunkPreset: folder.chunkPreset,
+    chunkSizeOverride: folder.chunkSizeOverride,
+    chunkOverlapOverride: folder.chunkOverlapOverride,
+    reindexPolicy: folder.reindexPolicy,
+  });
+
+  if (!behavior.allowsWatcherEvents && isWatching(folderId)) {
+    await stopWatching(folderId);
+  }
+
+  if (behavior.allowsWatcherEvents && folder.status === "synced" && !isWatching(folderId)) {
+    const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath);
+    if (!error) {
+      if (normalizedPath !== folder.folderPath) {
+        await db
+          .update(agentSyncFolders)
+          .set({
+            folderPath: normalizedPath,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agentSyncFolders.id, folder.id));
+      }
+
+      const includeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
+      const fileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+
+      await startWatching({
+        folderId: folder.id,
+        characterId: folder.characterId,
+        folderPath: normalizedPath,
+        recursive: folder.recursive,
+        includeExtensions: fileTypeFilters.length > 0 ? fileTypeFilters : includeExtensions,
+        excludePatterns: parseJsonArray(folder.excludePatterns),
+      });
+    }
+  }
+
+  notifyFolderChange(folder.characterId, {
+    type: "updated",
+    folderId,
+  });
 }
 
 export async function syncAllFolders(

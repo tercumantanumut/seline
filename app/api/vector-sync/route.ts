@@ -192,10 +192,12 @@ export async function POST(request: NextRequest) {
         reindexPolicy: reindexPolicy ?? "smart",
       });
 
-      // Auto-trigger sync only for auto mode unless explicitly disabled.
-      const shouldStartAutoSync = autoSync !== false && effectiveSyncMode === "auto";
+      // Trigger an initial sync for every non-manual mode so the folder has a
+      // baseline index and (for triggered mode) an active watcher.
+      const shouldStartAutoSync = autoSync !== false && effectiveSyncMode !== "manual";
       if (shouldStartAutoSync) {
-        syncFolder(folderId, {}, false, "auto").catch(err => {
+        const initialTrigger = effectiveSyncMode === "auto" ? "auto" : "manual";
+        syncFolder(folderId, {}, false, initialTrigger).catch(err => {
           console.error(`[VectorSync] Background sync failed for folder ${folderId}:`, err);
         });
       }
