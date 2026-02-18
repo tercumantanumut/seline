@@ -14,6 +14,67 @@ import {
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 
+function sanitizeLoneSurrogates(input: string): { value: string; changed: boolean } {
+  let changed = false;
+  let output = "";
+
+  for (let i = 0; i < input.length; i += 1) {
+    const code = input.charCodeAt(i);
+
+    // Preserve valid surrogate pairs and replace malformed lone surrogates.
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const nextCode = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
+      if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+        output += input[i] + input[i + 1];
+        i += 1;
+      } else {
+        output += "\ufffd";
+        changed = true;
+      }
+      continue;
+    }
+
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      output += "\ufffd";
+      changed = true;
+      continue;
+    }
+
+    output += input[i];
+  }
+
+  return { value: output, changed };
+}
+
+export function sanitizeJsonStringValues(value: unknown): { value: unknown; changed: boolean } {
+  if (typeof value === "string") {
+    return sanitizeLoneSurrogates(value);
+  }
+
+  if (Array.isArray(value)) {
+    let changed = false;
+    const sanitizedArray = value.map((entry) => {
+      const result = sanitizeJsonStringValues(entry);
+      changed = changed || result.changed;
+      return result.value;
+    });
+    return { value: sanitizedArray, changed };
+  }
+
+  if (value && typeof value === "object") {
+    let changed = false;
+    const sanitizedObject: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const result = sanitizeJsonStringValues(entry);
+      changed = changed || result.changed;
+      sanitizedObject[key] = result.value;
+    }
+    return { value: sanitizedObject, changed };
+  }
+
+  return { value, changed: false };
+}
+
 async function readErrorPreview(response: Response): Promise<string> {
   try {
     return await response.clone().text();
@@ -86,7 +147,12 @@ function createClaudeCodeFetch(): typeof fetch {
           }
         }
 
-        updatedInit = { ...init, body: JSON.stringify(body) };
+        const sanitizedBody = sanitizeJsonStringValues(body);
+        if (sanitizedBody.changed) {
+          console.warn("[ClaudeCode] Replaced lone surrogate characters in request body before API call");
+        }
+
+        updatedInit = { ...init, body: JSON.stringify(sanitizedBody.value) };
       } catch {
         // Not JSON, pass through unchanged
       }
