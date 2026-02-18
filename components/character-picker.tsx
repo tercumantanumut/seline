@@ -2169,7 +2169,7 @@ export function CharacterPicker() {
 
       {/* Folder Manager Dialog */}
       <Dialog open={folderManagerOpen} onOpenChange={setFolderManagerOpen}>
-        <DialogContent className="w-[90vw] sm:max-w-[45rem] bg-terminal-cream max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] sm:max-w-[72rem] bg-terminal-cream max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
               <DatabaseIcon className="w-5 h-5 text-terminal-green" />

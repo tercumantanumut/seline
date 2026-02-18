@@ -1293,7 +1293,16 @@ export async function updateSyncFolderSettings(config: SyncFolderUpdateConfig): 
 
   if (behavior.allowsWatcherEvents && folder.status === "synced" && !isWatching(folderId)) {
     const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath);
-    if (!error) {
+    if (error) {
+      await db
+        .update(agentSyncFolders)
+        .set({
+          status: "error",
+          lastError: error,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(agentSyncFolders.id, folder.id));
+    } else {
       if (normalizedPath !== folder.folderPath) {
         await db
           .update(agentSyncFolders)
@@ -1307,14 +1316,25 @@ export async function updateSyncFolderSettings(config: SyncFolderUpdateConfig): 
       const includeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
       const fileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
 
-      await startWatching({
-        folderId: folder.id,
-        characterId: folder.characterId,
-        folderPath: normalizedPath,
-        recursive: folder.recursive,
-        includeExtensions: fileTypeFilters.length > 0 ? fileTypeFilters : includeExtensions,
-        excludePatterns: parseJsonArray(folder.excludePatterns),
-      });
+      try {
+        await startWatching({
+          folderId: folder.id,
+          characterId: folder.characterId,
+          folderPath: normalizedPath,
+          recursive: folder.recursive,
+          includeExtensions: fileTypeFilters.length > 0 ? fileTypeFilters : includeExtensions,
+          excludePatterns: parseJsonArray(folder.excludePatterns),
+        });
+      } catch (watchError) {
+        await db
+          .update(agentSyncFolders)
+          .set({
+            status: "error",
+            lastError: watchError instanceof Error ? watchError.message : "Failed to start file watcher",
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agentSyncFolders.id, folder.id));
+      }
     }
   }
 

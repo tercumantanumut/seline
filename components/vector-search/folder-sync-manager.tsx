@@ -536,7 +536,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4 min-w-0 overflow-x-hidden", className)}>
       {!compact && folders.length > 0 && (
         <div className="rounded border border-terminal-border bg-terminal-cream/30 p-3">
           <p className="font-mono text-xs text-terminal-muted">
@@ -641,7 +641,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
               key={folder.id}
               className="rounded border border-terminal-border bg-terminal-cream/50 p-3"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-3">
                 <FolderIcon className="w-5 h-5 text-terminal-green flex-shrink-0" />
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -661,7 +661,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     {behaviorSummary}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="w-full md:w-auto flex flex-wrap justify-end items-center gap-1.5">
                   {getStatusIcon(folder.status)}
                   {!compact && (
                     <button
@@ -681,7 +681,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="icon"
                       onClick={() => handleSetPrimary(folder.id)}
                       title="Set as primary folder"
-                      className="h-8 w-8 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
+                      className="h-8 w-8 shrink-0 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
                     >
                       <StarIcon className="w-4 h-4" />
                     </Button>
@@ -692,7 +692,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="icon"
                       onClick={() => handleCancelSync(folder.id)}
                       title="Cancel sync"
-                      className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                     >
                       <XCircleIcon className="w-4 h-4" />
                     </Button>
@@ -702,7 +702,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="icon"
                       onClick={() => handleSyncFolder(folder.id)}
                       disabled={syncingFolderId === folder.id}
-                      className="h-8 w-8"
+                      className="h-8 w-8 shrink-0"
                     >
                       <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
                     </Button>
@@ -712,9 +712,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     size="sm"
                     onClick={() => handleToggleAutoUpdates(folder)}
                     disabled={updatingFolderId === folder.id}
-                    className="h-8 px-2 font-mono text-[10px]"
+                    className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
                   >
-                    {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (syncMode === "manual" ? t("resumeUpdates") : t("pauseUpdates"))}
+                    {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (syncMode === "manual" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
                   </Button>
                   {!isSimpleDefaults && (
                     <Button
@@ -722,9 +722,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="sm"
                       onClick={() => handleApplySimpleDefaults(folder)}
                       disabled={updatingFolderId === folder.id}
-                      className="h-8 px-2 font-mono text-[10px]"
+                      className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
                     >
-                      {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : t("applySimpleDefaults")}
+                      {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : t("applySimpleDefaultsShort")}
                     </Button>
                   )}
                   <Button
@@ -732,7 +732,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     size="icon"
                     onClick={() => handleRemoveFolder(folder.id)}
                     disabled={removingFolderId === folder.id}
-                    className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                   >
                     {removingFolderId === folder.id ? (
                       <Loader2Icon className="w-4 h-4 animate-spin" />
