@@ -130,6 +130,11 @@ export async function PUT(request: NextRequest) {
       sttProvider: body.sttProvider !== undefined ? body.sttProvider : currentSettings.sttProvider,
       sttLocalModel: body.sttLocalModel !== undefined ? body.sttLocalModel : currentSettings.sttLocalModel,
       whisperCppPath: body.whisperCppPath !== undefined ? body.whisperCppPath : currentSettings.whisperCppPath,
+      // Developer Workspace
+      devWorkspaceEnabled: body.devWorkspaceEnabled !== undefined ? body.devWorkspaceEnabled : currentSettings.devWorkspaceEnabled,
+      devWorkspaceAutoCleanup: body.devWorkspaceAutoCleanup !== undefined ? body.devWorkspaceAutoCleanup : currentSettings.devWorkspaceAutoCleanup,
+      devWorkspaceAutoCleanupDays: body.devWorkspaceAutoCleanupDays !== undefined ? body.devWorkspaceAutoCleanupDays : currentSettings.devWorkspaceAutoCleanupDays,
+      workspaceOnboardingSeen: body.workspaceOnboardingSeen !== undefined ? body.workspaceOnboardingSeen : currentSettings.workspaceOnboardingSeen,
     };
 
     // Only update API keys if they're provided and not masked
