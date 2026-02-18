@@ -12,6 +12,8 @@ import {
   Trash2,
   Download,
   RotateCcw,
+  GitBranch,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -256,6 +258,26 @@ export function SessionItem({
                   })()}
                 </Badge>
               ) : null}
+              {session.metadata?.workspaceInfo?.branch && (
+                <Badge
+                  className="border border-terminal-dark/10 bg-emerald-50/80 px-2 py-0.5 text-[10px] font-mono text-emerald-700 gap-1 cursor-default"
+                >
+                  <GitBranch className="h-2.5 w-2.5" />
+                  {session.metadata.workspaceInfo.branch.replace(/^(feature|fix|chore|bugfix|hotfix)\//, "").slice(0, 20)}
+                </Badge>
+              )}
+              {session.metadata?.workspaceInfo?.prNumber && session.metadata?.workspaceInfo?.prUrl && (
+                <Badge
+                  className="border border-blue-200 bg-blue-50/80 px-2 py-0.5 text-[10px] font-mono text-blue-700 gap-1 cursor-pointer hover:bg-blue-100/80"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    window.open(session.metadata.workspaceInfo!.prUrl!, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <ExternalLink className="h-2.5 w-2.5" />
+                  PR #{session.metadata.workspaceInfo.prNumber}
+                </Badge>
+              )}
             </div>
           </>
         )}
