@@ -15,6 +15,7 @@ import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
 import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
+import { createWorkspaceTool } from "@/lib/ai/tools/workspace-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -2852,6 +2853,44 @@ export async function POST(req: Request) {
       });
     }
 
+    // Inject workspace context when Developer Workspace is enabled
+    if (appSettings.devWorkspaceEnabled) {
+      const wsInfo = sessionMetadata?.workspaceInfo as Record<string, unknown> | undefined;
+      let workspaceBlock: string;
+
+      if (wsInfo && wsInfo.status) {
+        workspaceBlock =
+          `\n\n## Active Workspace\n` +
+          `You are working in a git worktree workspace:\n` +
+          `- Branch: ${wsInfo.branch || "unknown"}\n` +
+          `- Base: ${wsInfo.baseBranch || "unknown"}\n` +
+          `- Path: ${wsInfo.worktreePath || "unknown"}\n` +
+          `- Status: ${wsInfo.status}\n` +
+          (wsInfo.prUrl ? `- PR: ${wsInfo.prUrl}\n` : "") +
+          `\nFile tools (readFile, editFile, writeFile, localGrep) work in the worktree path. ` +
+          `Use executeCommand for git operations (commit, push, gh pr create) and builds. ` +
+          `When changes are ready, ask the user if they want to keep local, push, or create a PR. ` +
+          `NEVER fabricate PR URLs — only use real URLs from gh CLI output. ` +
+          `When done, use workspace({ action: "delete" }) to clean up.`;
+      } else {
+        workspaceBlock =
+          `\n\n[Developer Workspace]\n` +
+          `You have the "workspace" tool available. When the user asks you to work on code changes, ` +
+          `offer to create an isolated workspace (git worktree) so their main branch stays clean. ` +
+          `File tools will automatically work in the worktree once created.\n` +
+          `Use: workspace({ action: "create", branch: "feature/...", repoPath: "/path/to/repo" })`;
+      }
+
+      if (typeof systemPromptValue === "string") {
+        systemPromptValue += workspaceBlock;
+      } else if (Array.isArray(systemPromptValue)) {
+        systemPromptValue.push({
+          role: "system" as const,
+          content: workspaceBlock,
+        });
+      }
+    }
+
     // Create tools via the centralized Tool Registry
     // We load ALL tools (including deferred ones) but use activeTools to control visibility
     const registry = ToolRegistry.getInstance();
@@ -3042,6 +3081,13 @@ export async function POST(req: Request) {
       ...(allTools.compactSession && {
         compactSession: createCompactSessionTool({
           sessionId,
+        }),
+      }),
+      ...(allTools.workspace && appSettings.devWorkspaceEnabled && {
+        workspace: createWorkspaceTool({
+          sessionId,
+          characterId: characterId || "",
+          userId: dbUser.id,
         }),
       }),
     };
@@ -3704,10 +3750,15 @@ export async function POST(req: Request) {
             };
           }
 
+          // Re-read session metadata from DB to avoid overwriting changes made mid-stream
+          // (e.g. workspace tool writes workspaceInfo during tool execution)
+          const freshSession = await getSession(sessionId);
+          const freshMetadata = (freshSession?.metadata as Record<string, unknown>) || {};
+
           // Update session metadata with tracking and discovered tools
           const updatedSession = await updateSession(sessionId, {
             metadata: {
-              ...sessionMetadata,
+              ...freshMetadata,
               contextInjectionTracking: newTracking,
               ...(discoveredToolsMetadata && { discoveredTools: discoveredToolsMetadata }),
             },

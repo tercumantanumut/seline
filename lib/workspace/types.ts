@@ -44,6 +44,9 @@ export interface WorkspaceInfo {
 
   /** ISO timestamp of last status refresh */
   lastSyncedAt?: string;
+
+  /** Sync folder ID for file tool access (no vector indexing) */
+  syncFolderId?: string;
 }
 
 /**

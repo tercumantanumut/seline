@@ -51,7 +51,8 @@ function parseGitPorcelain(
 }
 
 // Get live git status for a worktree path
-function getLiveGitStatus(worktreePath: string): {
+// Includes both uncommitted changes AND committed changes ahead of baseBranch
+function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
   changedFileList: WorkspaceStatus["changedFileList"];
   changedFiles: number;
   diffStat: string | undefined;
@@ -67,20 +68,52 @@ function getLiveGitStatus(worktreePath: string): {
   }
 
   try {
+    // First check uncommitted changes
     const porcelain = execSync(
       "git status --porcelain",
       gitExecOptions(worktreePath)
     );
-    const changedFileList = parseGitPorcelain(porcelain);
+    let changedFileList = parseGitPorcelain(porcelain);
 
     let diffStat: string | undefined;
-    try {
-      diffStat = execSync(
-        "git diff --stat",
-        gitExecOptions(worktreePath)
-      ).trim() || undefined;
-    } catch {
-      // diff --stat can fail if there are no commits yet
+
+    if (changedFileList.length > 0) {
+      // There are uncommitted changes — show those
+      try {
+        diffStat = execSync(
+          "git diff --stat",
+          gitExecOptions(worktreePath)
+        ).trim() || undefined;
+      } catch {
+        // diff --stat can fail if there are no commits yet
+      }
+    } else if (baseBranch) {
+      // No uncommitted changes — check committed changes ahead of baseBranch
+      try {
+        const branchDiff = execSync(
+          `git diff --name-status ${baseBranch}...HEAD`,
+          gitExecOptions(worktreePath)
+        ).trim();
+
+        if (branchDiff) {
+          changedFileList = branchDiff.split("\n").filter(Boolean).map((line) => {
+            const [statusCode, ...pathParts] = line.split("\t");
+            const filePath = pathParts.join("\t"); // handle filenames with tabs
+            let status: "added" | "modified" | "deleted" | "renamed" = "modified";
+            if (statusCode === "A") status = "added";
+            else if (statusCode === "D") status = "deleted";
+            else if (statusCode?.startsWith("R")) status = "renamed";
+            return { path: filePath, status };
+          });
+        }
+
+        diffStat = execSync(
+          `git diff --stat ${baseBranch}...HEAD`,
+          gitExecOptions(worktreePath)
+        ).trim() || undefined;
+      } catch {
+        // baseBranch might not exist locally
+      }
     }
 
     return {
@@ -151,7 +184,7 @@ export async function GET(
     const workspaceStatus: WorkspaceStatus = { ...workspaceInfo };
 
     if (workspaceInfo.worktreePath) {
-      const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath);
+      const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
       workspaceStatus.changedFileList = liveStatus.changedFileList;
       workspaceStatus.changedFiles = liveStatus.changedFiles;
       workspaceStatus.diffStat = liveStatus.diffStat;
@@ -314,7 +347,7 @@ async function handleRefreshStatus(
     );
   }
 
-  const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath);
+  const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
 
   const updatedWorkspaceInfo: WorkspaceInfo = {
     ...workspaceInfo,

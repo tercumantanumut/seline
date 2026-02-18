@@ -96,7 +96,8 @@ type ToolDependency =
   | "comfyuiEnabled"
   | "flux2Klein4bEnabled"
   | "flux2Klein9bEnabled"
-  | "localGrepEnabled";
+  | "localGrepEnabled"
+  | "devWorkspaceEnabled";
 
 type ToolDefinition = {
   id: string;
@@ -130,6 +131,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "updatePlan", category: "utility" },
   { id: "sendMessageToChannel", category: "utility" },
   { id: "delegateToSubagent", category: "utility" },
+  { id: "workspace", category: "utility", dependencies: ["devWorkspaceEnabled"] },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
@@ -472,6 +474,7 @@ export function CharacterPicker() {
     flux2Klein4bEnabled: boolean;
     flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
+    devWorkspaceEnabled: boolean;
   }>({
     syncedFolders: false,
     embeddings: false,
@@ -483,6 +486,7 @@ export function CharacterPicker() {
     flux2Klein4bEnabled: false,
     flux2Klein9bEnabled: false,
     localGrepEnabled: true,
+    devWorkspaceEnabled: false,
   });
 
   // Group tools by category
@@ -692,6 +696,7 @@ export function CharacterPicker() {
           flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
           flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
           localGrepEnabled: settingsData.localGrepEnabled !== false,
+          devWorkspaceEnabled: settingsData.devWorkspaceEnabled === true,
         });
       } catch (error) {
         if (cancelled) return;
@@ -706,6 +711,7 @@ export function CharacterPicker() {
           flux2Klein4bEnabled: false,
           flux2Klein9bEnabled: false,
           localGrepEnabled: true,
+          devWorkspaceEnabled: false,
         });
       }
     };

@@ -82,6 +82,7 @@ import { createTranscribeTool } from "../tools/transcribe-tool";
 import { createSendMessageToChannelTool } from "../tools/channel-tools";
 import { createDelegateToSubagentTool } from "../tools/delegate-to-subagent-tool";
 import { createCompactSessionTool } from "../tools/compact-session-tool";
+import { createWorkspaceTool } from "../tools/workspace-tool";
 
 /**
  * Register all tools with the registry
@@ -746,6 +747,55 @@ Example: \`{ "steps": [{"id": "step_abc", "status": "completed"}], "mode": "merg
       requiresSession: true,
     } satisfies ToolMetadata,
     ({ sessionId }) => createUpdatePlanTool({ sessionId: sessionId || "UNSCOPED" })
+  );
+
+  // Workspace Tool - Create and manage git worktree workspaces
+  registry.register(
+    "workspace",
+    {
+      displayName: "Workspace",
+      category: "utility",
+      keywords: [
+        "workspace", "worktree", "git", "branch", "isolate", "feature",
+        "code changes", "separate branch", "pr", "pull request",
+      ],
+      shortDescription:
+        "Create and manage git worktree workspaces for isolated code changes",
+      fullInstructions: `## Workspace (Git Worktree Manager)
+
+Create isolated git worktrees so the user's main branch stays clean.
+File tools (readFile, editFile, writeFile, localGrep) automatically work in the worktree.
+
+**Actions:**
+- \`create\`: Create a new worktree + branch. Requires \`branch\` and \`repoPath\`.
+  Example: \`{ action: "create", branch: "feature/auth-refactor", repoPath: "/path/to/repo" }\`
+- \`status\`: Check live git status of the current workspace (changed files, branch info).
+- \`update-metadata\`: Update PR info or lifecycle status after creating a PR or finishing work.
+- \`delete\`: Remove the workspace — deletes git worktree and cleans up resources.
+
+**Workflow:**
+1. User asks to work on a feature → call workspace with action "create"
+2. Use file tools (readFile, editFile, writeFile) and executeCommand in the worktree path
+3. When changes are ready, **ask the user** what they want to do next and **memorize their preference** (if the memorize tool is available) so you don't have to ask again:
+   - Keep changes local (just commit)
+   - Push to remote (\`git push -u origin <branch>\`)
+   - Push and create a PR (\`gh pr create ...\`)
+4. If creating a PR: push first, then use \`gh pr create\`, then update-metadata with the real URL
+5. Clean up with action "delete" when work is complete
+
+**NEVER:**
+- Fabricate or guess PR URLs — only use URLs from \`gh pr create\` / \`gh pr view\` output
+- Push or create PRs without asking the user first
+- Skip verifying that a git command succeeded before proceeding to the next step`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId, characterId }) =>
+      createWorkspaceTool({
+        sessionId: sessionId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+      })
   );
 
   // ============================================================

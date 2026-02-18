@@ -449,6 +449,10 @@
         "name": "Update Plan",
         "description": "Create or update a visible task plan with step statuses"
       },
+      "workspace": {
+        "name": "Workspace",
+        "description": "Create and manage git worktree workspaces for isolated code changes"
+      },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
         "description": "Generate images with Flux.2 Flex via OpenRouter"
@@ -708,6 +712,7 @@
       "scheduleTask": "Schedule Task",
       "calculator": "Calculator",
       "updatePlan": "Update Plan",
+      "workspace": "Workspace",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -1003,6 +1008,8 @@
         "sendMessageToChannelDesc": "Send a direct message to the user via connected external channels",
         "delegateToSubagent": "Delegate to Sub-Agent",
         "delegateToSubagentDesc": "Send tasks to workflow sub-agents and receive their responses",
+        "workspace": "Workspace",
+        "workspaceDesc": "Create and manage git worktree workspaces for isolated code changes",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",

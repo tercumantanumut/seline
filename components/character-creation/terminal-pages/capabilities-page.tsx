@@ -32,6 +32,7 @@ export interface ToolCapability {
     | "flux2Klein4bEnabled"
     | "flux2Klein9bEnabled"
     | "localGrepEnabled"
+    | "devWorkspaceEnabled"
   )[];
 }
 
@@ -71,6 +72,7 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
   { id: "sendMessageToChannel", nameKey: "sendMessageToChannel", descKey: "sendMessageToChannelDesc", category: "utility" },
+  { id: "workspace", nameKey: "workspace", descKey: "workspaceDesc", category: "utility", dependencies: ["devWorkspaceEnabled"] },
   // OpenRouter Image Tools
   {
     id: "generateImageFlux2Flex",
@@ -375,6 +377,7 @@ export function CapabilitiesPage({
     flux2Klein4bEnabled: boolean;
     flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
+    devWorkspaceEnabled: boolean;
   }>({
     syncedFolders: false,
     embeddings: false,
@@ -386,6 +389,7 @@ export function CapabilitiesPage({
     flux2Klein4bEnabled: false,
     flux2Klein9bEnabled: false,
     localGrepEnabled: true,
+    devWorkspaceEnabled: false,
   });
 
   // Check dependencies on mount
@@ -426,6 +430,7 @@ export function CapabilitiesPage({
           flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
           flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
           localGrepEnabled: settingsData.localGrepEnabled !== false,
+          devWorkspaceEnabled: settingsData.devWorkspaceEnabled === true,
         }));
       } catch {
         // Settings fetch failed — only update syncedFolders if we got a valid count
