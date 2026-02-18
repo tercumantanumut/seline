@@ -1249,10 +1249,19 @@
           "placeholder": "sk-...",
           "helper": "API anahtarınızı platform.moonshot.cn'den alın"
         },
+        "webSearchProvider": {
+          "label": "Web Arama Sağlayıcısı",
+          "helper": "Otomatik mod, API anahtarı varsa Tavily kullanır, yoksa DuckDuckGo'ya (ücretsiz) döner",
+          "options": {
+            "auto": "Otomatik (Anahtar varsa Tavily, yoksa DuckDuckGo)",
+            "tavily": "Tavily (API anahtarı gerekli)",
+            "duckduckgo": "DuckDuckGo (ücretsiz, anahtar gereksiz)"
+          }
+        },
         "tavily": {
           "label": "Tavily API Anahtarı",
           "placeholder": "tvly-...",
-          "helper": "Derin Araştırma web araması için gerekli"
+          "helper": "DuckDuckGo kullanırken isteğe bağlı. Tavily sağlayıcısı ve Derin Araştırma gelişmiş modu için gerekli"
         },
         "webScraperProvider": {
           "label": "Web Tarama Saglayicisi",

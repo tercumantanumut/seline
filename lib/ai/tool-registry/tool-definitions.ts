@@ -990,7 +990,7 @@ Find URLs, then use \`webBrowse\` to read them. Max 2 webSearch calls per conver
 **Don't use for:** reading URL content (use webBrowse directly), comprehensive research (use Deep Research).`,
       loading: { deferLoading: true },
       requiresSession: false,
-      enableEnvVar: "TAVILY_API_KEY",
+      // No enableEnvVar — DuckDuckGo fallback needs no API key
     } satisfies ToolMetadata,
     () => createWebSearchTool()
   );

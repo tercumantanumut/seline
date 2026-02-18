@@ -67,7 +67,7 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                         Enable Web Search
                     </h1>
                     <p className="font-mono text-terminal-muted max-w-lg mx-auto">
-                        Configure Tavily API to unlock Deep Research and web search capabilities for your agents
+                        Web search works out of the box with DuckDuckGo (free). Add a Tavily API key for richer results and Deep Research.
                     </p>
                 </div>
 
@@ -193,8 +193,11 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                         <ol className="font-mono text-xs text-terminal-muted space-y-1 list-decimal list-inside">
                             <li>Sign up at tavily.com (free tier available)</li>
                             <li>Copy your API key from the dashboard</li>
-                            <li>Paste it above and click "Test API Key"</li>
+                            <li>Paste it above and click &quot;Test API Key&quot;</li>
                         </ol>
+                        <p className="font-mono text-xs text-terminal-muted mt-2">
+                            💡 No API key? Skip this step — DuckDuckGo provides free web search automatically.
+                        </p>
                     </div>
                 </div>
 

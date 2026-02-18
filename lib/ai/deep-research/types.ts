@@ -169,7 +169,7 @@ export interface DeepResearchConfig {
   maxSearchQueries: number;
   maxIterations: number;
   maxConcurrentSearches: number;
-  searchProvider: 'tavily' | 'serper' | 'mock';
+  searchProvider: 'tavily' | 'duckduckgo' | 'serper' | 'mock';
   modelProvider: 'anthropic' | 'openrouter' | 'codex';
   abortSignal?: AbortSignal;
 }
