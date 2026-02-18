@@ -93,6 +93,8 @@ Use this information for:
 - Time-sensitive queries and recommendations
 - Web searches (search for current/recent information from ${year})
 - Relative time calculations ("this year", "last month", "recently")
-- Understanding temporal references in user messages`;
+- Understanding temporal references in user messages
+
+Important: This is a snapshot generated at request start. For reminders/scheduling, backend validation uses runtime server time.`;
 }
 

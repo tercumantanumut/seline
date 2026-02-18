@@ -11,6 +11,12 @@ import { db } from "@/lib/db/sqlite-client";
 import { scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
+import { CronJob } from "cron";
+import {
+  parseScheduledAtToUtcIso,
+  resolveScheduleTimezone,
+  isScheduledAtInFutureUtc,
+} from "@/lib/ai/tools/schedule-task-helpers";
 
 // GET /api/schedules - List all schedules for user
 export async function GET(req: NextRequest) {
@@ -103,6 +109,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const timezoneResolution = resolveScheduleTimezone({
+      inputTimezone: timezone,
+      sessionTimezone: null,
+    });
+    if (!timezoneResolution.ok) {
+      return NextResponse.json(
+        { error: timezoneResolution.error, reason: timezoneResolution.reason, diagnostics: timezoneResolution.diagnostics },
+        { status: 400 }
+      );
+    }
+    const resolvedTimezone = timezoneResolution.timezone;
+
+    if (cronExpression) {
+      try {
+        new CronJob(cronExpression, () => {}, null, false, resolvedTimezone);
+      } catch (error) {
+        return NextResponse.json(
+          { error: `Invalid cron expression "${cronExpression}": ${error instanceof Error ? error.message : "Unknown error"}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    let canonicalScheduledAt: string | null = scheduledAt ?? null;
+    if (scheduleType === "once" && scheduledAt) {
+      const parsed = parseScheduledAtToUtcIso(scheduledAt, resolvedTimezone);
+      if (!parsed.ok) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+      canonicalScheduledAt = parsed.scheduledAtIsoUtc;
+      if (!isScheduledAtInFutureUtc(canonicalScheduledAt)) {
+        return NextResponse.json(
+          {
+            error: "scheduledAt must be in the future for one-time schedules",
+            diagnostics: {
+              scheduledAtInput: scheduledAt,
+              scheduledAtResolvedUtc: canonicalScheduledAt,
+              nowUtc: new Date().toISOString(),
+              timezone: resolvedTimezone,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const [schedule] = await db.insert(scheduledTasks).values({
       userId,
       characterId,
@@ -111,8 +163,8 @@ export async function POST(req: NextRequest) {
       scheduleType: scheduleType || "cron",
       cronExpression,
       intervalMinutes,
-      scheduledAt,
-      timezone: timezone || "UTC",
+      scheduledAt: canonicalScheduledAt,
+      timezone: resolvedTimezone,
       initialPrompt,
       promptVariables: promptVariables || {},
       contextSources: contextSources || [],
