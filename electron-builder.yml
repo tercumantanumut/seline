@@ -131,7 +131,9 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  hardenedRuntime: true
+  sign: false
+  identity: null
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
@@ -165,7 +167,7 @@ nsis:
 
 # DMG settings for macOS
 dmg:
-  sign: true
+  sign: false
   contents:
     - x: 130
       y: 220
