@@ -1811,8 +1811,15 @@ function mergeCanonicalAssistantContent(
     }
 
     if (incoming.type === "text") {
-      const last = base[base.length - 1];
-      if (last?.type === "text" && last.text === incoming.text) {
+      let latestExistingText: string | undefined;
+      for (let i = base.length - 1; i >= 0; i -= 1) {
+        const part = base[i];
+        if (part.type === "text") {
+          latestExistingText = part.text;
+          break;
+        }
+      }
+      if (latestExistingText === incoming.text) {
         continue;
       }
       base.push(incoming);

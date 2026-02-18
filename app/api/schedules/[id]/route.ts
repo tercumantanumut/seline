@@ -114,6 +114,20 @@ export async function PATCH(
 
       updateData.timezone = timezoneResolution.timezone;
 
+      if (mergedScheduleType === "once" && !mergedScheduledAtInput) {
+        return NextResponse.json(
+          { error: "scheduledAt required for once schedule type" },
+          { status: 400 }
+        );
+      }
+
+      if (mergedScheduleType === "cron" && !mergedCronExpression) {
+        return NextResponse.json(
+          { error: "cronExpression required for cron schedule type" },
+          { status: 400 }
+        );
+      }
+
       if (mergedCronExpression) {
         try {
           new CronJob(mergedCronExpression, () => {}, null, false, timezoneResolution.timezone);

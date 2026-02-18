@@ -223,6 +223,46 @@ export const Thread: FC<ThreadProps> = ({
   const [skillImportError, setSkillImportError] = useState<string | null>(null);
   const [importResultDetail, setImportResultDetail] = useState<string | null>(null);
   const dragCounter = useRef(0);
+  const isMountedRef = useRef(true);
+  const importAbortControllerRef = useRef<AbortController | null>(null);
+  const importRequestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSkillImportReset = useCallback((delayMs: number, clearError: boolean) => {
+    if (importResetTimeoutRef.current) {
+      clearTimeout(importResetTimeoutRef.current);
+    }
+    importResetTimeoutRef.current = setTimeout(() => {
+      importResetTimeoutRef.current = null;
+      if (!isMountedRef.current) {
+        return;
+      }
+      setIsImportingSkill(false);
+      setSkillImportPhase("idle");
+      setSkillImportProgress(0);
+      setSkillImportName(null);
+      if (clearError) {
+        setSkillImportError(null);
+      }
+      setImportResultDetail(null);
+    }, delayMs);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      importAbortControllerRef.current?.abort();
+      importAbortControllerRef.current = null;
+      if (importRequestTimeoutRef.current) {
+        clearTimeout(importRequestTimeoutRef.current);
+        importRequestTimeoutRef.current = null;
+      }
+      if (importResetTimeoutRef.current) {
+        clearTimeout(importResetTimeoutRef.current);
+        importResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Deep research mode (for drag-drop gating)
   const deepResearch = useOptionalDeepResearch();
@@ -297,6 +337,17 @@ export const Thread: FC<ThreadProps> = ({
           return;
         }
 
+        importAbortControllerRef.current?.abort();
+        importAbortControllerRef.current = null;
+        if (importRequestTimeoutRef.current) {
+          clearTimeout(importRequestTimeoutRef.current);
+          importRequestTimeoutRef.current = null;
+        }
+        if (importResetTimeoutRef.current) {
+          clearTimeout(importResetTimeoutRef.current);
+          importResetTimeoutRef.current = null;
+        }
+
         setIsImportingSkill(true);
         setSkillImportPhase("uploading");
         setSkillImportProgress(10);
@@ -306,6 +357,8 @@ export const Thread: FC<ThreadProps> = ({
 
         await new Promise((r) => setTimeout(r, 0));
 
+        let importController: AbortController | null = null;
+        let importTimedOut = false;
         try {
           const formData = new FormData();
           formData.append("characterId", character.id);
@@ -322,10 +375,33 @@ export const Thread: FC<ThreadProps> = ({
           setSkillImportPhase("parsing");
           setSkillImportProgress(30);
 
-          const pluginResponse = await fetch("/api/plugins/import", {
-            method: "POST",
-            body: formData,
-          });
+          importController = new AbortController();
+          importAbortControllerRef.current = importController;
+          importRequestTimeoutRef.current = setTimeout(() => {
+            importTimedOut = true;
+            importController?.abort();
+          }, 120_000);
+
+          let pluginResponse: Response;
+          try {
+            pluginResponse = await fetch("/api/plugins/import", {
+              method: "POST",
+              body: formData,
+              signal: importController.signal,
+            });
+          } finally {
+            if (importRequestTimeoutRef.current) {
+              clearTimeout(importRequestTimeoutRef.current);
+              importRequestTimeoutRef.current = null;
+            }
+            if (importAbortControllerRef.current === importController) {
+              importAbortControllerRef.current = null;
+            }
+          }
+
+          if (!isMountedRef.current || importController.signal.aborted) {
+            return;
+          }
 
           setSkillImportPhase("importing");
           setSkillImportProgress(70);
@@ -336,6 +412,9 @@ export const Thread: FC<ThreadProps> = ({
           }
 
           const pluginResult = await pluginResponse.json();
+          if (!isMountedRef.current || importController.signal.aborted) {
+            return;
+          }
 
           const parts: string[] = [];
           if (pluginResult.components?.skills?.length > 0) {
@@ -394,14 +473,30 @@ export const Thread: FC<ThreadProps> = ({
             }
           }
 
-          setTimeout(() => {
-            setIsImportingSkill(false);
-            setSkillImportPhase("idle");
-            setSkillImportProgress(0);
-            setSkillImportName(null);
-            setImportResultDetail(null);
-          }, 3000);
+          scheduleSkillImportReset(3000, false);
         } catch (error) {
+          const isAbortError =
+            (error instanceof DOMException && error.name === "AbortError") ||
+            (error instanceof Error && error.name === "AbortError");
+          const wasAborted = Boolean(importController?.signal.aborted) || isAbortError;
+          if (wasAborted) {
+            if (!isMountedRef.current) {
+              return;
+            }
+            if (importTimedOut) {
+              const timeoutMessage = "Import timed out after 2 minutes. Please try again.";
+              setSkillImportPhase("error");
+              setSkillImportError(timeoutMessage);
+              toast.error("Import timed out", {
+                description: timeoutMessage,
+              });
+              scheduleSkillImportReset(4000, true);
+            }
+            return;
+          }
+          if (!isMountedRef.current) {
+            return;
+          }
           console.error("[Thread] Skill/plugin import failed:", error);
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
           setSkillImportPhase("error");
@@ -410,14 +505,7 @@ export const Thread: FC<ThreadProps> = ({
             description: errorMsg,
           });
 
-          setTimeout(() => {
-            setIsImportingSkill(false);
-            setSkillImportPhase("idle");
-            setSkillImportProgress(0);
-            setSkillImportName(null);
-            setSkillImportError(null);
-            setImportResultDetail(null);
-          }, 4000);
+          scheduleSkillImportReset(4000, true);
         }
         return;
       }
@@ -461,7 +549,7 @@ export const Thread: FC<ThreadProps> = ({
         toast.error(t("composer.dropError"));
       }
     },
-    [threadRuntime, t, isDeepResearchMode, character, router]
+    [threadRuntime, t, isDeepResearchMode, character, router, scheduleSkillImportReset]
   );
 
   // Context window status tracking
