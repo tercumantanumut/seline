@@ -129,11 +129,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
       }
       const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
-      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+      if (chunkSizeOverride !== undefined && chunkSizeOverride !== null && normalizedChunkSize === undefined) {
         return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
       }
       const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
-      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+      if (chunkOverlapOverride !== undefined && chunkOverlapOverride !== null && normalizedChunkOverlap === undefined) {
         return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
       }
       if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {
@@ -344,11 +344,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
       }
       const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
-      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+      if (chunkSizeOverride !== undefined && chunkSizeOverride !== null && normalizedChunkSize === undefined) {
         return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
       }
       const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
-      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+      if (chunkOverlapOverride !== undefined && chunkOverlapOverride !== null && normalizedChunkOverlap === undefined) {
         return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
       }
       if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {
