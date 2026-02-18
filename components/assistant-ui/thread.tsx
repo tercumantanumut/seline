@@ -84,6 +84,7 @@ import {
 } from "./context-window-blocked-banner";
 import { resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
 import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
+import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 
 
 interface ThreadProps {
@@ -1543,6 +1544,9 @@ const Composer: FC<{
           />
         </div>
       )}
+
+      {/* Active delegations indicator */}
+      <ActiveDelegationsIndicator characterId={character?.id ?? null} />
     </div>
   );
 };

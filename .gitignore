@@ -1,3 +1,6 @@
+# Seline marketing website (standalone, excluded from main repo)
+seline-web/
+
 # Dependencies
 node_modules
 .pnpm-store

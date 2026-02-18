@@ -9,6 +9,7 @@ import {
 import { agentSyncFolders, characters } from "@/lib/db/sqlite-character-schema";
 import { agentPlugins, plugins } from "@/lib/db/sqlite-plugins-schema";
 import { appendRunEvent, completeAgentRun, createAgentRun } from "@/lib/observability";
+import { getActiveDelegationsForCharacter } from "@/lib/ai/tools/delegate-to-subagent-tool";
 
 export type WorkflowStatus = "active" | "paused" | "archived";
 
@@ -870,6 +871,19 @@ export async function getWorkflowResources(
     promptContextLines.push(
       "Delegation tip: use delegateToSubagent action=\"list\" if needed to refresh sub-agents, then start by agentName or agentId. When checking progress, prefer action=\"observe\" with waitSeconds (for example 30, 60, or 600) instead of tight re-check loops.",
     );
+
+    // Inject real-time active delegations so the agent doesn't forget and start duplicates
+    const activeDelegations = getActiveDelegationsForCharacter(agentId);
+    if (activeDelegations.length > 0) {
+      promptContextLines.push("Active delegations (DO NOT start new delegations to these agents — use observe/continue/stop instead):");
+      for (const del of activeDelegations) {
+        const elapsed = Math.floor(del.elapsed / 1000);
+        const status = del.running ? `running ${elapsed}s` : "settled";
+        promptContextLines.push(
+          `- ${del.delegationId}: "${del.delegateAgent}" — task: "${del.task}" (${status})`,
+        );
+      }
+    }
   }
 
   const promptContext = promptContextLines.join("\n");

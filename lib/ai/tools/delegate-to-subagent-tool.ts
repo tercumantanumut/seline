@@ -117,6 +117,59 @@ function nextDelegationId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Read-only accessor for external consumers (API routes, system prompt)
+// ---------------------------------------------------------------------------
+
+export function getActiveDelegationsForCharacter(
+  characterId: string,
+): Array<{
+  delegationId: string;
+  sessionId: string;
+  delegateAgentId: string;
+  delegateAgent: string;
+  task: string;
+  running: boolean;
+  elapsed: number;
+}> {
+  const results: Array<{
+    delegationId: string;
+    sessionId: string;
+    delegateAgentId: string;
+    delegateAgent: string;
+    task: string;
+    running: boolean;
+    elapsed: number;
+  }> = [];
+
+  const staleIds: string[] = [];
+  for (const [id, del] of activeDelegations.entries()) {
+    if (del.delegatorId !== characterId) continue;
+    if (del.settled && Date.now() - del.startedAt > 10 * 60 * 1000) {
+      staleIds.push(id);
+      continue;
+    }
+    results.push({
+      delegationId: id,
+      sessionId: del.sessionId,
+      delegateAgentId: del.delegateId,
+      delegateAgent: del.delegateName,
+      task: del.task.length > 100 ? del.task.slice(0, 100) + "..." : del.task,
+      running: !del.settled,
+      elapsed: Date.now() - del.startedAt,
+    });
+  }
+  for (const id of staleIds) {
+    activeDelegations.delete(id);
+  }
+  return results;
+}
+
+/** Build compact delegations array for inclusion in all tool responses. */
+function buildDelegationsSummary(characterId: string): DelegateResult["delegations"] {
+  return getActiveDelegationsForCharacter(characterId);
+}
+
+// ---------------------------------------------------------------------------
 // Background execution helper (mirrors lib/scheduler/task-queue.ts:539-624)
 // ---------------------------------------------------------------------------
 
@@ -162,8 +215,9 @@ async function executeDelegation(
   });
 
   if (!response.ok) {
+    const errorText = await response.text().catch(() => "").then(t => t.slice(0, 500));
     throw new Error(
-      `Chat API returned ${response.status}: ${await response.text()}`,
+      `Chat API returned ${response.status}: ${errorText}`,
     );
   }
 
@@ -445,17 +499,18 @@ export function createDelegateToSubagentTool(
         case "start":
           return handleStart(input, userId, characterId);
         case "observe":
-          return handleObserve(input);
+          return handleObserve(input, characterId);
         case "continue":
-          return handleContinue(input);
+          return handleContinue(input, characterId);
         case "stop":
-          return handleStop(input);
+          return handleStop(input, characterId);
         case "list":
           return handleList(characterId);
         default:
           return {
             success: false,
             error: `Unknown action: ${input.action}. Use start, observe, continue, stop, or list.`,
+            delegations: buildDelegationsSummary(characterId),
           };
       }
     },
@@ -509,6 +564,7 @@ async function handleStart(
     return {
       success: false,
       error: "'task' is required for the 'start' action.",
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -547,6 +603,7 @@ async function handleStart(
       success: false,
       error: resolution.error,
       availableAgents,
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -556,7 +613,29 @@ async function handleStart(
       success: false,
       error: "Cannot delegate to yourself. Choose a different sub-agent from the workflow.",
       availableAgents,
+      delegations: buildDelegationsSummary(characterId),
     };
+  }
+
+  // 3b. Prevent duplicate delegation to the same sub-agent
+  for (const [existingId, existingDel] of activeDelegations.entries()) {
+    if (
+      existingDel.delegateId === resolution.candidate.agentId &&
+      existingDel.delegatorId === characterId &&
+      !existingDel.settled
+    ) {
+      return {
+        success: false,
+        delegationId: existingId,
+        sessionId: existingDel.sessionId,
+        delegateAgent: existingDel.delegateName,
+        error:
+          `Active delegation already exists to "${existingDel.delegateName}" (${existingId}). ` +
+          `Use observe/continue/stop instead of starting a new one.`,
+        availableAgents,
+        delegations: buildDelegationsSummary(characterId),
+      };
+    }
   }
 
   // 4. Load the sub-agent character
@@ -618,22 +697,26 @@ async function handleStart(
     sessionId: session.id,
     delegateAgent: delegation.delegateName,
     message:
+      `IMPORTANT: Save this delegationId (${delegationId}) — required for observe/continue/stop. ` +
       "Delegation started. A real chat session has been created for the sub-agent. " +
       "Use 'observe' with the delegationId to check progress and read the full response. " +
       "Set observe.waitSeconds (for example 30, 60, or 600) to wait intentionally instead of re-checking too frequently. " +
       "'continue' to send follow-up messages, or navigate to the sub-agent's chat to see it live.",
     availableAgents,
+    delegations: buildDelegationsSummary(characterId),
   };
 }
 
 async function handleObserve(
   input: DelegateToSubagentInput,
+  characterId: string,
 ): Promise<DelegateResult> {
   const { delegationId, waitSeconds } = input;
   if (!delegationId) {
     return {
       success: false,
       error: "'delegationId' is required for the 'observe' action.",
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -650,6 +733,7 @@ async function handleObserve(
     return {
       success: false,
       error: `Delegation ${delegationId} not found. It may have already completed and been cleaned up.`,
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -676,6 +760,7 @@ async function handleObserve(
       elapsed: Date.now() - delegation.startedAt,
       waitedMs,
       waitTimedOut: waitValidation.waitMs > 0 && !delegation.settled,
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -717,11 +802,13 @@ async function handleObserve(
         : lastResponse
       : undefined,
     allResponses,
+    delegations: buildDelegationsSummary(characterId),
   };
 }
 
 async function handleContinue(
   input: DelegateToSubagentInput,
+  characterId: string,
 ): Promise<DelegateResult> {
   const { delegationId, followUpMessage } = input;
 
@@ -729,12 +816,14 @@ async function handleContinue(
     return {
       success: false,
       error: "'delegationId' is required for the 'continue' action.",
+      delegations: buildDelegationsSummary(characterId),
     };
   }
   if (!followUpMessage) {
     return {
       success: false,
       error: "'followUpMessage' is required for the 'continue' action.",
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -743,6 +832,7 @@ async function handleContinue(
     return {
       success: false,
       error: `Delegation ${delegationId} not found. It may have already completed and been cleaned up.`,
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -765,17 +855,20 @@ async function handleContinue(
     message:
       "Follow-up message sent. The sub-agent is processing your message. " +
       "Use 'observe' to check the response, and set observe.waitSeconds to avoid tight polling loops.",
+    delegations: buildDelegationsSummary(characterId),
   };
 }
 
 async function handleStop(
   input: DelegateToSubagentInput,
+  characterId: string,
 ): Promise<DelegateResult> {
   const { delegationId } = input;
   if (!delegationId) {
     return {
       success: false,
       error: "'delegationId' is required for the 'stop' action.",
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -784,6 +877,7 @@ async function handleStop(
     return {
       success: false,
       error: `Delegation ${delegationId} not found. It may have already completed.`,
+      delegations: buildDelegationsSummary(characterId),
     };
   }
 
@@ -795,6 +889,7 @@ async function handleStop(
     success: true,
     delegationId,
     message: `Delegation ${delegationId} stopped and cancelled.`,
+    delegations: buildDelegationsSummary(characterId),
   };
 }
 

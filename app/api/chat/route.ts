@@ -548,7 +548,7 @@ async function extractContent(
             toolName,
             output,
             normalizedInput,
-            { mode: "canonical" }
+            { mode: "projection" }
           ).output;
           contentParts.push({
             type: "tool-result",
@@ -669,7 +669,7 @@ async function extractContent(
             part.toolName,
             rawOutput,
             normalizedInput,
-            { mode: "canonical" }
+            { mode: "projection" }
           ).output;
           contentParts.push({
             type: "tool-result",
@@ -685,7 +685,7 @@ async function extractContent(
           part.toolName,
           rawOutput,
           normalizedInput,
-          { mode: "canonical" }
+          { mode: "projection" }
         ).output;
         contentParts.push({
           type: "tool-result",
@@ -722,7 +722,7 @@ async function extractContent(
             toolName,
             toolOutput,
             normalizedInput,
-            { mode: "canonical" }
+            { mode: "projection" }
           ).output;
           contentParts.push({
             type: "tool-result",

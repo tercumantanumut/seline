@@ -405,6 +405,24 @@ The tool returns immediately with a processId. Poll with processId to check stat
                      syncedFolders // Whitelist of allowed directories (second parameter)
                  );
 
+                // Hard reject outputs that would overflow the context window.
+                // This prevents massive outputs (e.g. recursive find, full node_modules listing)
+                // from ever entering message history.
+                const MAX_OUTPUT_CHARS = 100_000; // ~25K tokens
+                const totalOutputSize = (result.stdout?.length || 0) + (result.stderr?.length || 0);
+                if (totalOutputSize > MAX_OUTPUT_CHARS) {
+                    return {
+                        status: "error",
+                        error:
+                            `Command output too large (${Math.round(totalOutputSize / 1000)}KB, ~${Math.round(totalOutputSize / 4000)}K tokens). ` +
+                            `This would overflow the context window. ` +
+                            `Use more specific commands — add filters, pipe to head/tail/grep, or limit output scope. ` +
+                            `Example: use 'find ... | head -50' or 'ls src/' instead of recursive searches.`,
+                        exitCode: result.exitCode,
+                        executionTime: result.executionTime,
+                    };
+                }
+
                 const toolResult: ExecuteCommandToolResult = {
                     status: result.success
                         ? "success"

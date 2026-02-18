@@ -13,7 +13,7 @@
     "dev": "next dev",
     "dev:turbo": "next dev --turbopack",
     "web:dev": "npm rebuild better-sqlite3 && next dev",
-    "build": "next build",
+    "build": "node scripts/next-build-clean-room.js",
     "start": "next start",
     "typecheck": "tsx scripts/typecheck.ts",
     "typecheck:all": "tsx scripts/typecheck.ts",
