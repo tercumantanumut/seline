@@ -23,6 +23,7 @@ export interface SessionInfo {
     sessionResearchModel?: string;
     sessionVisionModel?: string;
     sessionUtilityModel?: string;
+    workspaceInfo?: import("@/lib/workspace/types").WorkspaceInfo;
   };
 }
 

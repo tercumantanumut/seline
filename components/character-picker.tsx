@@ -58,6 +58,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
+import { WorkspaceDashboard } from "@/components/workspace/workspace-dashboard";
+import { WorkspaceOnboarding } from "@/components/workspace/workspace-onboarding";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
@@ -617,6 +619,8 @@ export function CharacterPicker() {
   const [folderManagerOpen, setFolderManagerOpen] = useState(false);
   const [folderManagerCharacter, setFolderManagerCharacter] = useState<CharacterSummary | null>(null);
   const [vectorDBEnabled, setVectorDBEnabled] = useState(false);
+  const [devWorkspaceEnabled, setDevWorkspaceEnabled] = useState(false);
+  const [showWorkspaceOnboarding, setShowWorkspaceOnboarding] = useState(false);
 
   // MCP tools editor state
   const [mcpToolEditorOpen, setMcpToolEditorOpen] = useState(false);
@@ -639,10 +643,16 @@ export function CharacterPicker() {
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch settings to check if Vector Search is enabled
+  // Fetch settings to check if Vector Search and Developer Workspace are enabled
   useEffect(() => {
-    resilientFetch<{ vectorDBEnabled?: boolean }>("/api/settings").then(({ data }) => {
-      if (data) setVectorDBEnabled(data.vectorDBEnabled === true);
+    resilientFetch<{ vectorDBEnabled?: boolean; devWorkspaceEnabled?: boolean; workspaceOnboardingSeen?: boolean }>("/api/settings").then(({ data }) => {
+      if (data) {
+        setVectorDBEnabled(data.vectorDBEnabled === true);
+        setDevWorkspaceEnabled(data.devWorkspaceEnabled === true);
+        if (data.devWorkspaceEnabled && !data.workspaceOnboardingSeen) {
+          setShowWorkspaceOnboarding(true);
+        }
+      }
     });
   }, []);
 
@@ -1320,6 +1330,17 @@ export function CharacterPicker() {
             </button>
           )}
         </div>
+      )}
+
+      {/* Active Workspaces Dashboard */}
+      {devWorkspaceEnabled && (
+        <WorkspaceDashboard
+          onNavigateToSession={(sessionId, agentId) => {
+            if (agentId) {
+              router.push(`/chat/${agentId}?session=${sessionId}`);
+            }
+          }}
+        />
       )}
 
       {allStandaloneCharacters.length > 0 && (
@@ -2527,6 +2548,12 @@ export function CharacterPicker() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Workspace Onboarding Tour */}
+      <WorkspaceOnboarding
+        open={showWorkspaceOnboarding}
+        onComplete={() => setShowWorkspaceOnboarding(false)}
+      />
     </div>
   );
 }

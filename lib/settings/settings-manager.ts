@@ -222,6 +222,12 @@ export interface AppSettings {
     rtkVerbosity?: 0 | 1 | 2 | 3;   // RTK verbosity level: 0=quiet, 1=-v, 2=-vv, 3=-vvv (default: 0)
     rtkUltraCompact?: boolean;       // Enable RTK ultra-compact mode with -u flag (default: false)
     rtkDbPath?: string;              // Path to RTK SQLite database (set by Electron)
+
+    // Developer Workspace (git worktree integration)
+    devWorkspaceEnabled?: boolean;          // Master toggle — shows workspace indicators, diff views, dashboard
+    devWorkspaceAutoCleanup?: boolean;      // Auto-remove worktrees after PR merge (default: true)
+    devWorkspaceAutoCleanupDays?: number;   // Days before auto-cleanup (default: 7)
+    workspaceOnboardingSeen?: boolean;      // Whether the workspace onboarding tour has been shown
 }
 
 const DEFAULT_SETTINGS: AppSettings = {

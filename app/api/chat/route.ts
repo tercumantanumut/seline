@@ -1,4 +1,4 @@
-import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
+import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
@@ -2613,21 +2613,27 @@ export async function POST(req: Request) {
     // never sees old timestamps, then inject a fresh block into the last
     // user message with the current server time + user timezone.
     const envDetailsRegex = /\n*<environment_details>[\s\S]*?<\/environment_details>/g;
-    for (let i = 0; i < coreMessages.length; i++) {
-      if (coreMessages[i].role !== "user") continue;
-      const msg = coreMessages[i];
-      if (typeof msg.content === "string") {
-        coreMessages[i] = { ...msg, content: msg.content.replace(envDetailsRegex, "") };
-      } else if (Array.isArray(msg.content)) {
-        coreMessages[i] = {
-          ...msg,
-          content: (msg.content as Array<{ type: string; text?: string }>).map(part =>
-            part.type === "text" && part.text
-              ? { ...part, text: part.text.replace(envDetailsRegex, "") }
-              : part
-          ),
-        };
+
+    // Helper to strip stale environment_details from a user message's content
+    function stripEnvDetails(userMsg: UserModelMessage): UserModelMessage {
+      if (typeof userMsg.content === "string") {
+        return { ...userMsg, content: userMsg.content.replace(envDetailsRegex, "") };
       }
+      // Array content (TextPart | ImagePart | FilePart)[]
+      return {
+        ...userMsg,
+        content: userMsg.content.map((part) =>
+          part.type === "text"
+            ? { ...part, text: part.text.replace(envDetailsRegex, "") }
+            : part
+        ),
+      };
+    }
+
+    for (let i = 0; i < coreMessages.length; i++) {
+      const msg = coreMessages[i];
+      if (msg.role !== "user") continue;
+      coreMessages[i] = stripEnvDetails(msg);
     }
 
     // Inject fresh environment_details into the last user message
@@ -2650,13 +2656,15 @@ export async function POST(req: Request) {
       const lastUserIdx = coreMessages.map(m => m.role).lastIndexOf("user");
       if (lastUserIdx !== -1) {
         const msg = coreMessages[lastUserIdx];
-        if (typeof msg.content === "string") {
-          coreMessages[lastUserIdx] = { ...msg, content: msg.content + envBlock };
-        } else if (Array.isArray(msg.content)) {
-          coreMessages[lastUserIdx] = {
-            ...msg,
-            content: [...(msg.content as any[]), { type: "text", text: envBlock }],
-          };
+        if (msg.role === "user") {
+          if (typeof msg.content === "string") {
+            coreMessages[lastUserIdx] = { ...msg, content: msg.content + envBlock };
+          } else {
+            coreMessages[lastUserIdx] = {
+              ...msg,
+              content: [...msg.content, { type: "text" as const, text: envBlock }],
+            };
+          }
         }
       }
     }

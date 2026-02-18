@@ -23,6 +23,9 @@ import {
     useSessionSyncStore,
     sessionInfoArrayToSyncData,
 } from "@/lib/stores/session-sync-store";
+import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
+import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
+import { getWorkspaceInfo } from "@/lib/workspace/types";
 
 interface CharacterFullData {
     id: string;
@@ -176,6 +179,12 @@ export default function ChatInterface({
         [sessions, sessionId]
     );
     const isChannelSession = Boolean(activeSessionMeta?.channelType);
+    const currentWorkspaceInfo = useMemo(() => {
+        const session = sessions.find((s) => s.id === sessionId);
+        const metadata = session?.metadata as Record<string, unknown> | undefined;
+        return metadata ? getWorkspaceInfo(metadata) : null;
+    }, [sessions, sessionId]);
+    const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
 
     // Refs for debouncing and memoization to prevent UI flashing
     const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -1121,6 +1130,15 @@ export default function ChatInterface({
                     initialMessages={messages}
                 >
                     <div className="flex h-full flex-col gap-3">
+                        {currentWorkspaceInfo && (
+                            <div className="flex items-center justify-end px-4 pt-2">
+                                <WorkspaceIndicator
+                                    sessionId={sessionId}
+                                    workspaceInfo={currentWorkspaceInfo}
+                                    onOpenDiffPanel={() => setIsDiffPanelOpen(true)}
+                                />
+                            </div>
+                        )}
                         {activeRun && (
                             <div className="px-4 pt-2 space-y-2">
                                 <ScheduledRunBanner
@@ -1144,6 +1162,14 @@ export default function ChatInterface({
                     </div>
                 </ChatProvider>
             </CharacterProvider>
+            {currentWorkspaceInfo && (
+                <DiffReviewPanel
+                    sessionId={sessionId}
+                    workspaceInfo={currentWorkspaceInfo}
+                    isOpen={isDiffPanelOpen}
+                    onClose={() => setIsDiffPanelOpen(false)}
+                />
+            )}
         </Shell>
     );
 }
