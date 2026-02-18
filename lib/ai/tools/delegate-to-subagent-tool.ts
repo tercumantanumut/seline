@@ -25,6 +25,7 @@ import {
   createSession,
   getMessages,
 } from "@/lib/db/sqlite-queries";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -204,8 +205,7 @@ async function executeDelegation(
       "Content-Type": "application/json",
       "X-Session-Id": sessionId,
       "X-Character-Id": characterId,
-      "X-Internal-Auth":
-        process.env.INTERNAL_API_SECRET || "seline-internal-scheduler",
+      "X-Internal-Auth": INTERNAL_API_SECRET,
     },
     body: JSON.stringify({
       messages: [{ role: "user", content: userMessage }],

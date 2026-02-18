@@ -131,9 +131,10 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
-  identity: null
+  entitlements: "build-resources/entitlements.mac.plist"
+  entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
   # icon: "build-resources/icon.icns"
   # Build only for current architecture by default (use CLI flags to override)
   target:

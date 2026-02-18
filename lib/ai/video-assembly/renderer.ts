@@ -15,6 +15,7 @@ import { join } from "path";
 import { nanoid } from "nanoid";
 import type { VideoAssemblyPlan, VideoAssemblyConfig } from "./types";
 import { getTotalFrames } from "./remotion/types";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
 /**
  * Progress callback type
@@ -123,7 +124,7 @@ async function getBundle(): Promise<string> {
       ? "http://localhost:3456"
       : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
-    const mediaToken = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+    const mediaToken = INTERNAL_API_SECRET;
 
     console.log("[VIDEO-RENDERER] Using serve URL for media:", serveUrl);
 

@@ -72,6 +72,7 @@ import {
 } from "@/lib/plugins/registry";
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
 import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
 // ============================================================================
 // System Prompt Injection
@@ -1875,7 +1876,7 @@ export async function POST(req: Request) {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const internalAuth = req.headers.get("X-Internal-Auth");
-    const expectedSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+    const expectedSecret = INTERNAL_API_SECRET;
 
     let userId: string;
 
@@ -3074,28 +3075,36 @@ export async function POST(req: Request) {
 
               // PostToolUse: fire-and-forget
               if (hasPostHooks) {
-                runPostToolUseHooks(
-                  toolId,
-                  (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                  result,
-                  sessionId,
-                  allowedPluginNames,
-                  pluginRoots
-                );
+                try {
+                  runPostToolUseHooks(
+                    toolId,
+                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                    result,
+                    sessionId,
+                    allowedPluginNames,
+                    pluginRoots
+                  );
+                } catch (hookError) {
+                  console.error("[Hooks] PostToolUse hook dispatch failed:", hookError);
+                }
               }
 
               return result;
             } catch (error) {
               // PostToolUseFailure: fire-and-forget
               if (hasFailureHooks) {
-                runPostToolUseFailureHooks(
-                  toolId,
-                  (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                  error instanceof Error ? error.message : String(error),
-                  sessionId,
-                  allowedPluginNames,
-                  pluginRoots
-                );
+                try {
+                  runPostToolUseFailureHooks(
+                    toolId,
+                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                    error instanceof Error ? error.message : String(error),
+                    sessionId,
+                    allowedPluginNames,
+                    pluginRoots
+                  );
+                } catch (hookError) {
+                  console.error("[Hooks] PostToolUseFailure hook dispatch failed:", hookError);
+                }
               }
               throw error;
             }
@@ -3210,12 +3219,16 @@ export async function POST(req: Request) {
         }
       }
       if (hasStopHooks) {
-        runStopHooks(
-          sessionId,
-          options?.streamAborted ? "aborted" : "error",
-          allowedPluginNames,
-          pluginRoots
-        );
+        try {
+          runStopHooks(
+            sessionId,
+            options?.streamAborted ? "aborted" : "error",
+            allowedPluginNames,
+            pluginRoots
+          );
+        } catch (hookError) {
+          console.error("[Hooks] Stop hook dispatch failed:", hookError);
+        }
       }
     };
     const runId = agentRun?.id;
@@ -3347,7 +3360,11 @@ export async function POST(req: Request) {
           if (runFinalized) return;
           runFinalized = true;
           if (hasStopHooks) {
-            runStopHooks(sessionId, "completed", allowedPluginNames, pluginRoots);
+            try {
+              runStopHooks(sessionId, "completed", allowedPluginNames, pluginRoots);
+            } catch (hookError) {
+              console.error("[Hooks] Stop hook dispatch failed:", hookError);
+            }
           }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
@@ -3607,7 +3624,11 @@ export async function POST(req: Request) {
           if (runFinalized) return;
           runFinalized = true;
           if (hasStopHooks) {
-            runStopHooks(sessionId, "aborted", allowedPluginNames, pluginRoots);
+            try {
+              runStopHooks(sessionId, "aborted", allowedPluginNames, pluginRoots);
+            } catch (hookError) {
+              console.error("[Hooks] Stop hook dispatch failed:", hookError);
+            }
           }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);

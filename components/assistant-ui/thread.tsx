@@ -367,10 +367,11 @@ export const Thread: FC<ThreadProps> = ({
           setImportResultDetail(parts.length > 0 ? parts.join(", ") : null);
 
           const isLegacy = pluginResult.isLegacySkillFormat;
+          const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
           toast.success(isLegacy ? "Skill imported successfully" : "Plugin installed", {
             description: isLegacy
               ? `${pluginResult.plugin?.name} is ready to use`
-              : `${pluginResult.plugin?.name} (${parts.join(", ")})`,
+              : `${pluginResult.plugin?.name}${summary}`,
             action: isLegacy
               ? {
                   label: "View Skills",

@@ -236,7 +236,7 @@ describe.sequential("Chat Tool History Fidelity - Real Pipeline", () => {
         headers: {
           "Content-Type": "application/json",
           "X-Session-Id": session.id,
-          "X-Internal-Auth": process.env.INTERNAL_API_SECRET || "seline-internal-scheduler",
+          "X-Internal-Auth": process.env.INTERNAL_API_SECRET as string,
         },
         body: JSON.stringify({
           sessionId: session.id,
