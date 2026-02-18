@@ -216,6 +216,7 @@ export function PluginSettings() {
       if (!res.ok) throw new Error(data.error || "Import failed");
 
       const createdAgents = Array.isArray(data.createdAgents) ? data.createdAgents.length : 0;
+      const auxCount: number = data.auxiliaryFiles?.count ?? 0;
       const descriptionParts = [
         `${data.components?.skills?.length || 0} skills`,
         `${data.components?.agents?.length || 0} agents`,
@@ -226,6 +227,9 @@ export function PluginSettings() {
       if (data.workflow) {
         descriptionParts.push(`workflow created with ${(data.workflow.subAgentIds?.length || 0) + 1} agents`);
       }
+      if (auxCount > 0) {
+        descriptionParts.push(`${auxCount} reference file${auxCount !== 1 ? "s" : ""} linked to workspace`);
+      }
 
       toast.success(`Plugin "${data.plugin?.name}" installed`, {
         description: descriptionParts.join(", "),
@@ -233,6 +237,12 @@ export function PluginSettings() {
           ? { action: { label: "View Agents", onClick: () => window.location.assign("/") } }
           : {}),
       });
+
+      if (data.auxiliaryFiles?.workspaceRegistered) {
+        toast.info("Plugin workspace folder registered", {
+          description: "Reference files are now accessible to the agent via its sync folder.",
+        });
+      }
 
       setConfirmInstallOpen(false);
       setPendingUploadFiles([]);

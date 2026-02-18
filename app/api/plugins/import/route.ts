@@ -14,7 +14,11 @@ import {
   createWorkflowFromPluginImport,
   syncSharedFoldersToSubAgents,
 } from "@/lib/agents/workflows";
-import type { PluginAgentEntry, PluginParseResult, PluginScope } from "@/lib/plugins/types";
+import type { InstalledPlugin, PluginAgentEntry, PluginParseResult, PluginScope } from "@/lib/plugins/types";
+import { mkdir, copyFile } from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
+import { getUserWorkspacePath } from "@/lib/workspace/setup";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -186,6 +190,100 @@ async function createAgentsFromPlugin(input: {
   return created;
 }
 
+// =============================================================================
+// Plugin Auxiliary File Workspace Materialization
+// =============================================================================
+
+interface WorkspaceLinkResult {
+  linkedPath: string | null;
+  auxiliaryFileCount: number;
+  workspaceRegistered: boolean;
+}
+
+/**
+ * Copy plugin auxiliary files (references, scripts, etc.) to the agent's workspace
+ * and register that directory as a sync folder so the agent can read them.
+ *
+ * Auxiliary files = anything in the plugin package that is NOT a skill or agent
+ * markdown file and is NOT a backup artifact.
+ */
+async function linkPluginAuxiliaryFilesToWorkspace(
+  plugin: InstalledPlugin,
+  parsed: PluginParseResult,
+  characterId: string,
+  userId: string,
+): Promise<WorkspaceLinkResult> {
+  if (!plugin.cachePath) {
+    return { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
+  }
+
+  // Build set of relative paths that are already handled as skills/agents in the DB
+  const handledPaths = new Set<string>([
+    ...parsed.components.skills.map((s) => s.relativePath),
+    ...parsed.components.agents.map((a) => a.relativePath),
+  ]);
+
+  // Auxiliary = files not captured as skills/agents and not backup artifacts
+  const auxFiles = parsed.files.filter(
+    (f) => !handledPaths.has(f.relativePath) && !f.relativePath.endsWith(".backup"),
+  );
+
+  if (auxFiles.length === 0) {
+    return { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
+  }
+
+  // Destination: ~/.seline/workspace/plugins/{plugin-name}/
+  // plugin.name is already kebab-case from the manifest (enforced by sanitizePluginName)
+  const workspaceBase = getUserWorkspacePath();
+  const pluginWorkspaceDir = path.join(workspaceBase, "plugins", plugin.name);
+
+  // Copy each auxiliary file, preserving subdirectory structure
+  await mkdir(pluginWorkspaceDir, { recursive: true });
+  for (const auxFile of auxFiles) {
+    const src = path.join(plugin.cachePath, auxFile.relativePath);
+    const dest = path.join(pluginWorkspaceDir, auxFile.relativePath);
+    // Safety: ensure dest is inside pluginWorkspaceDir (guards against path traversal)
+    if (!path.resolve(dest).startsWith(path.resolve(pluginWorkspaceDir))) {
+      continue;
+    }
+    if (!existsSync(src)) continue;
+    await mkdir(path.dirname(dest), { recursive: true });
+    await copyFile(src, dest);
+  }
+
+  // Register as a sync folder for this agent if not already covered
+  const { getSyncFolders, addSyncFolder } = await import("@/lib/vectordb/sync-service");
+  const existingFolders = await getSyncFolders(characterId);
+
+  const resolvedPluginDir = path.resolve(pluginWorkspaceDir);
+
+  // Check exact match OR parent directory already watched
+  const alreadyLinked = existingFolders.some(
+    (f) => path.resolve(f.folderPath) === resolvedPluginDir,
+  );
+  const coveredByParent = existingFolders.some(
+    (f) => resolvedPluginDir.startsWith(path.resolve(f.folderPath) + path.sep),
+  );
+
+  if (!alreadyLinked && !coveredByParent) {
+    await addSyncFolder({
+      userId,
+      characterId,
+      folderPath: pluginWorkspaceDir,
+      displayName: `${plugin.name} plugin files`,
+      recursive: true,
+      indexingMode: "files-only",
+      syncMode: "manual",
+    });
+  }
+
+  return {
+    linkedPath: pluginWorkspaceDir,
+    auxiliaryFileCount: auxFiles.length,
+    workspaceRegistered: !alreadyLinked && !coveredByParent,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const requestId = Math.random().toString(36).slice(2, 8);
 
@@ -287,6 +385,19 @@ export async function POST(request: NextRequest) {
       scope,
       marketplaceName: marketplaceName || undefined,
     });
+
+    // Link auxiliary files (references, scripts, etc.) to the agent's workspace
+    const workspaceLink: WorkspaceLinkResult = characterId
+      ? await linkPluginAuxiliaryFilesToWorkspace(plugin, parsed, characterId, dbUser.id).catch(
+          (err) => {
+            console.warn(
+              `[PluginImport:${requestId}] Failed to link auxiliary files (non-fatal):`,
+              err,
+            );
+            return { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
+          },
+        )
+      : { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
 
     const inheritedConfig = buildInheritedConfig(initiatorMetadata);
 
@@ -414,6 +525,11 @@ export async function POST(request: NextRequest) {
       workflow,
       isLegacySkillFormat: parsed.isLegacySkillFormat,
       warnings: parsed.warnings,
+      auxiliaryFiles: {
+        count: workspaceLink.auxiliaryFileCount,
+        path: workspaceLink.linkedPath,
+        workspaceRegistered: workspaceLink.workspaceRegistered,
+      },
     });
   } catch (error) {
     console.error(`[PluginImport:${requestId}] Error:`, error);
