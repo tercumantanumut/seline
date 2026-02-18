@@ -7,6 +7,7 @@
     "save": "Save",
     "close": "Close",
     "error": "An error occurred. Please try again.",
+    "somethingWentWrong": "Something went wrong.",
     "retry": "Retry",
     "email": "Email",
     "password": "Password",
@@ -652,7 +653,12 @@
       "startResearch": "Start Research",
       "edit": "Edit",
       "copy": "Copy",
-      "regenerate": "Regenerate"
+      "regenerate": "Regenerate",
+      "readAloud": "Read aloud",
+      "stopAudio": "Stop audio",
+      "voiceInput": "Voice input",
+      "stopVoiceInput": "Stop recording",
+      "transcribingAudio": "Transcribing audio..."
     },
     "toast": {
       "copied": "Message copied to clipboard"

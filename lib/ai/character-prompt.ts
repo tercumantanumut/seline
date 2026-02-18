@@ -12,6 +12,7 @@ import { formatSkillsForPromptFromSummary } from "@/lib/skills/prompt-injection"
 import {
   MEDIA_DISPLAY_RULES,
   RESPONSE_STYLE,
+  WORKFLOW_SUBAGENT_BASELINE,
   LANGUAGE_HANDLING,
   TOOL_INVOCATION_FORMAT,
   TOOL_DISCOVERY_MINIMAL,
@@ -146,6 +147,7 @@ export function buildCharacterSystemPrompt(
 
   // Universal guidelines from shared blocks
   sections.push(RESPONSE_STYLE);
+  sections.push(WORKFLOW_SUBAGENT_BASELINE);
   sections.push(LANGUAGE_HANDLING);
   sections.push(MEDIA_DISPLAY_RULES);
   sections.push(TOOL_INVOCATION_FORMAT); // Critical: Prevent tool syntax in text output
@@ -312,6 +314,7 @@ export function buildCacheableCharacterPrompt(
   // Block 4: Universal guidelines (static, highly cacheable)
   const guidelines = combineBlocks(
     RESPONSE_STYLE,
+    WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
     TOOL_INVOCATION_FORMAT,

@@ -834,20 +834,31 @@ Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are
       shortDescription: "Delegate a task to a workflow sub-agent and receive their response",
       fullInstructions: `## Delegate to Sub-Agent
 
-Send a task to a sub-agent in your workflow team. The sub-agent will process the task
-using their specialized knowledge and tools, then return a response.
+Delegate work to a workflow sub-agent. Use this when tasks are multi-step, parallelizable,
+or better handled by a subagent's stated purpose.
 
-Only available when you are an initiator agent in an active workflow.
+Only available to initiator role in an active workflow.
 
-Recommended flow:
-1) If necessary, call \`delegateToSubagent({ action: "list" })\` to refresh available sub-agents.
-2) Choose a target from \`availableAgents\` (includes \`agentName\` and \`agentId\`), or use the workflow prompt-injected directory.
-3) Start delegation with either \`agentId\` or \`agentName\`.
-4) Observe intentionally with wait time to avoid tight polling loops: \`{ action: "observe", delegationId, waitSeconds: 30 }\` (or 60/600 as needed).
+Required sequence:
+1) \`list\` - refresh available sub-agents and active delegations.
+2) \`start\` - target by \`agentId\` or \`agentName\`, send precise task.
+3) \`observe\` - check progress and collect response (prefer \`waitSeconds\` like 30/60/600).
+4) \`continue\` or \`stop\` - refine or cancel existing delegation.
+
+Rules:
+- Do not start duplicate delegations to the same subagent while one is active.
+- Reuse existing \`delegationId\` with \`observe\` / \`continue\` / \`stop\`.
+- Include constraints and expected output format in task text.
+
+Compatibility options:
+- \`runInBackground\` (or \`run_in_background\`): default true. If false on \`start\`, tool performs start + observe wait in one call.
+- \`resume\`: compatibility alias for existing \`delegationId\` (maps to \`continue\` semantics).
+- \`maxTurns\` (or \`max_turns\`): advisory cap forwarded into task instructions (not strict runtime enforcement).
 
 Examples:
-- \`{ action: "start", agentName: "Research Analyst", task: "Summarize the API docs changes" }\`
-- \`{ action: "start", agentId: "a1b2c3", task: "Run a code quality review on auth modules" }\``,
+- \`{ action: "start", agentName: "Research Analyst", task: "Summarize API docs changes with risks and next actions." }\`
+- \`{ action: "observe", delegationId: "del-123", waitSeconds: 60 }\`
+- \`{ action: "continue", delegationId: "del-123", followUpMessage: "Focus only on migration risks." }\``,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,

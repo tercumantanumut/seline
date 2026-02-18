@@ -7,6 +7,7 @@
     "save": "Kaydet",
     "close": "Kapat",
     "error": "Bir hata oluştu. Lütfen tekrar deneyin.",
+    "somethingWentWrong": "Bir şeyler ters gitti.",
     "retry": "Tekrar dene",
     "email": "E-posta",
     "password": "Şifre",
@@ -648,7 +649,12 @@
       "edit": "Düzenle",
       "copy": "Kopyala",
       "regenerate": "Yeniden oluştur",
-      "toolsInitializing": "Araçlar başlatılıyor. Lütfen bekleyin..."
+      "toolsInitializing": "Araçlar başlatılıyor. Lütfen bekleyin...",
+      "readAloud": "Sesli oku",
+      "stopAudio": "Sesi durdur",
+      "voiceInput": "Sesle yaz",
+      "stopVoiceInput": "Kaydı durdur",
+      "transcribingAudio": "Ses yazıya dönüştürülüyor..."
     },
     "toast": {
       "copied": "Mesaj panoya kopyalandı"
