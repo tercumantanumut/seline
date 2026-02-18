@@ -172,6 +172,9 @@ export const agentSyncFolders = sqliteTable(
     lastRunTrigger: text("last_run_trigger", {
       enum: ["manual", "scheduled", "triggered", "auto"],
     }),
+    // Workflow inheritance tracking: set when a folder is copied to a member via workflow folder sharing
+    inheritedFromWorkflowId: text("inherited_from_workflow_id"),
+    inheritedFromAgentId: text("inherited_from_agent_id"),
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
   },
@@ -179,6 +182,7 @@ export const agentSyncFolders = sqliteTable(
     userIdx: index("agent_sync_folders_user_idx").on(table.userId),
     characterIdx: index("agent_sync_folders_character_idx").on(table.characterId),
     primaryIdx: index("agent_sync_folders_primary_idx").on(table.characterId, table.isPrimary),
+    inheritedWorkflowIdx: index("agent_sync_folders_inherited_workflow_idx").on(table.inheritedFromWorkflowId),
   })
 );
 

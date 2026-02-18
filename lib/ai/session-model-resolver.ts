@@ -22,6 +22,9 @@ import {
   getVisionModel,
   getUtilityModel,
   getConfiguredProvider,
+  getConfiguredModel,
+  getProviderDisplayName,
+  getProviderTemperature,
   type LLMProvider,
 } from "@/lib/ai/providers";
 
@@ -259,4 +262,61 @@ export function clearSessionModelMetadata(
     delete result[key];
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Session-aware provider/display helpers
+// ---------------------------------------------------------------------------
+
+/** Provider display name map (matches model-bag.constants.ts) */
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: "Anthropic",
+  openrouter: "OpenRouter",
+  antigravity: "Antigravity",
+  codex: "OpenAI Codex",
+  claudecode: "Claude Code",
+  kimi: "Moonshot Kimi",
+  ollama: "Ollama",
+};
+
+/**
+ * Get the display name for the LLM being used in a session.
+ * Returns session override info if present, otherwise the global display name.
+ *
+ * Example: "OpenRouter (moonshotai/kimi-k2.5)" or "Claude Code (claude-sonnet-4-5)"
+ */
+export function getSessionDisplayName(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+): string {
+  const config = extractSessionModelConfig(sessionMetadata);
+  if (config?.sessionChatModel) {
+    const providerName = config.sessionProvider
+      ? (PROVIDER_NAMES[config.sessionProvider] || config.sessionProvider)
+      : "Unknown";
+    return `${providerName} (${config.sessionChatModel})`;
+  }
+  // No session override — use global
+  return getProviderDisplayName();
+}
+
+/**
+ * Get the appropriate temperature for a session's provider.
+ * Checks session-level provider override before falling back to global.
+ *
+ * This is critical for providers like Kimi that require fixed temperature values.
+ */
+export function getSessionProviderTemperature(
+  sessionMetadata: Record<string, unknown> | null | undefined,
+  requestedTemp: number,
+): number {
+  const config = extractSessionModelConfig(sessionMetadata);
+  if (config?.sessionProvider) {
+    // Session has a provider override — check provider-specific temperature rules
+    if (config.sessionProvider === "kimi") {
+      return 1; // Kimi K2.5 fixed value
+    }
+    return requestedTemp;
+  }
+  // No session override — use global provider temperature logic
+  return getProviderTemperature(requestedTemp);
 }

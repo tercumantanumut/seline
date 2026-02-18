@@ -1,6 +1,5 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
-import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, getProviderTemperature } from "@/lib/ai/providers";
-import { resolveSessionLanguageModel } from "@/lib/ai/session-model-resolver";
+import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -25,7 +24,7 @@ import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/messa
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import { ContextWindowManager, type ContextWindowStatus as ManagedContextWindowStatus } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
+import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
@@ -3199,14 +3198,18 @@ export async function POST(req: Request) {
     // System prompt is conditionally included to reduce token usage (first message + periodic re-injection)
     // NOTE: Tools MUST always be passed - unlike system prompt, tools are function definitions
     // that must be present for the AI to actually invoke them. Without tools, AI just outputs fake tool calls.
-    const provider = getConfiguredProvider();
+    //
+    // Use session-aware provider resolution: session override > global settings > default
+    const sessionProvider = getSessionProvider(sessionMetadata);
+    const provider = sessionProvider;
     configuredProvider = provider;
+    const sessionDisplayName = getSessionDisplayName(sessionMetadata);
     const cachingStatus = useCaching
       ? `enabled (${cacheConfig.defaultTtl} TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
       : "disabled";
 
     console.log(
-      `[CHAT API] Using LLM: ${getProviderDisplayName()}, ` +
+      `[CHAT API] Using LLM: ${sessionDisplayName}, ` +
       `system prompt injected: ${injectContext}, ` +
       `caching: ${cachingStatus}`
     );
@@ -3297,8 +3300,8 @@ export async function POST(req: Request) {
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
         // Tool operations benefit from more deterministic behavior
-        // Note: getProviderTemperature() handles provider-specific requirements (e.g., Kimi requires temp=1)
-        temperature: getProviderTemperature(initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
+        // Note: Session-aware temperature handles provider-specific requirements (e.g., Kimi requires temp=1)
+        temperature: getSessionProviderTemperature(sessionMetadata, initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
         // Tool choice: "auto" allows model to decide between tools and text
         // Could be set to "required" to force tool use, but "auto" is more flexible
         toolChoice: AI_CONFIG.toolChoice,

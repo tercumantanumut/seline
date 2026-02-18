@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db/sqlite-client";
 import {
   agentWorkflows,
@@ -10,6 +10,7 @@ import { agentSyncFolders, characters } from "@/lib/db/sqlite-character-schema";
 import { agentPlugins, plugins } from "@/lib/db/sqlite-plugins-schema";
 import { appendRunEvent, completeAgentRun, createAgentRun } from "@/lib/observability";
 import { getActiveDelegationsForCharacter } from "@/lib/ai/tools/delegate-to-subagent-tool";
+import { notifyFolderChange } from "@/lib/vectordb/folder-events";
 
 export type WorkflowStatus = "active" | "paused" | "archived";
 
@@ -270,19 +271,52 @@ function mapWorkflowMemberRow(row: AgentWorkflowMemberRow): AgentWorkflowMember 
 async function buildSharedResourcesSnapshot(input: {
   initiatorId: string;
   seedPluginIds?: string[];
+  /** When provided, collects all members' own (non-inherited) folders instead of just the initiator's. */
+  workflowId?: string;
 }): Promise<WorkflowSharedResources> {
-  const [folders, pluginAssignments] = await Promise.all([
-    db
+  // Collect own (non-inherited) folder IDs from either just the initiator or all workflow members
+  let syncFolderIds: string[];
+  if (input.workflowId) {
+    // Get all members of this workflow
+    const memberRows = await db
+      .select({ agentId: agentWorkflowMembers.agentId })
+      .from(agentWorkflowMembers)
+      .where(eq(agentWorkflowMembers.workflowId, input.workflowId));
+    const memberIds = memberRows.map((m) => m.agentId);
+
+    // Collect each member's own (non-inherited) folders
+    const folderRows = memberIds.length
+      ? await db
+          .select({ id: agentSyncFolders.id })
+          .from(agentSyncFolders)
+          .where(
+            and(
+              inArray(agentSyncFolders.characterId, memberIds),
+              isNull(agentSyncFolders.inheritedFromWorkflowId)
+            )
+          )
+      : [];
+    syncFolderIds = folderRows.map((f) => f.id);
+  } else {
+    // Initial creation: only the initiator's own folders
+    const folderRows = await db
       .select({ id: agentSyncFolders.id })
       .from(agentSyncFolders)
-      .where(eq(agentSyncFolders.characterId, input.initiatorId)),
-    db
-      .select({ pluginId: agentPlugins.pluginId })
-      .from(agentPlugins)
       .where(
-        and(eq(agentPlugins.agentId, input.initiatorId), eq(agentPlugins.enabled, true))
-      ),
-  ]);
+        and(
+          eq(agentSyncFolders.characterId, input.initiatorId),
+          isNull(agentSyncFolders.inheritedFromWorkflowId)
+        )
+      );
+    syncFolderIds = folderRows.map((f) => f.id);
+  }
+
+  const pluginAssignments = await db
+    .select({ pluginId: agentPlugins.pluginId })
+    .from(agentPlugins)
+    .where(
+      and(eq(agentPlugins.agentId, input.initiatorId), eq(agentPlugins.enabled, true))
+    );
 
   const pluginIds = Array.from(
     new Set([...(input.seedPluginIds || []), ...pluginAssignments.map((item) => item.pluginId)])
@@ -314,7 +348,7 @@ async function buildSharedResourcesSnapshot(input: {
   }
 
   return {
-    syncFolderIds: folders.map((folder) => folder.id),
+    syncFolderIds,
     pluginIds,
     mcpServerNames: Array.from(mcpServerNames),
     hookEvents: Array.from(hookEvents),
@@ -369,9 +403,11 @@ async function refreshWorkflowSharedResources(
   if (!workflow) return;
 
   const seedPluginIds = workflow.metadata.pluginId ? [workflow.metadata.pluginId] : [];
+  // Include all members' own folders in the shared resources snapshot
   const sharedResources = await buildSharedResourcesSnapshot({
     initiatorId,
     seedPluginIds,
+    workflowId,
   });
 
   await db
@@ -545,12 +581,27 @@ export async function createManualWorkflow(
   });
 
   if (uniqueSubAgentIds.length > 0) {
+    // Sync initiator's folders → all subagents
     await syncSharedFoldersToSubAgents({
       userId: input.userId,
       initiatorId: input.initiatorId,
       subAgentIds: uniqueSubAgentIds,
       workflowId: workflowRow.id,
     });
+
+    // Sync each subagent's own folders → initiator + other subagents
+    for (const subAgentId of uniqueSubAgentIds) {
+      const otherMembers = [input.initiatorId, ...uniqueSubAgentIds.filter((id) => id !== subAgentId)];
+      await syncOwnFoldersToWorkflowMembers({
+        userId: input.userId,
+        sourceAgentId: subAgentId,
+        targetAgentIds: otherMembers,
+        workflowId: workflowRow.id,
+      });
+    }
+
+    // Refresh shared resources to reflect all members' folders
+    await refreshWorkflowSharedResources(workflowRow.id, input.initiatorId);
   }
 
   return mapWorkflowRow(workflowRow);
@@ -602,12 +653,31 @@ export async function addSubagentToWorkflow(
   }
 
   if (input.syncFolders !== false) {
+    // Sync all existing members' folders → new subagent
     await syncSharedFoldersToSubAgents({
       userId: input.userId,
       initiatorId: workflow.initiatorId,
       subAgentIds: [input.agentId],
       workflowId: input.workflowId,
     });
+
+    // Sync the new subagent's own folders → all other existing members
+    const existingMembers = await getWorkflowMembers(input.workflowId);
+    const otherMemberIds = existingMembers
+      .map((m) => m.agentId)
+      .filter((id) => id !== input.agentId);
+
+    if (otherMemberIds.length > 0) {
+      await syncOwnFoldersToWorkflowMembers({
+        userId: input.userId,
+        sourceAgentId: input.agentId,
+        targetAgentIds: otherMemberIds,
+        workflowId: input.workflowId,
+      });
+    }
+
+    // Refresh shared resources to reflect the new member's folders
+    await refreshWorkflowSharedResources(input.workflowId, workflow.initiatorId);
   } else {
     await touchWorkflow(input.workflowId);
   }
@@ -737,6 +807,15 @@ export async function removeWorkflowMember(
     nextInitiatorId = replacement.agentId;
   }
 
+  // Clean up inherited folders before removing the member
+  await cleanupInheritedFoldersOnRemoval({
+    workflowId: input.workflowId,
+    leavingAgentId: input.agentId,
+    remainingMemberIds: members
+      .map((m) => m.agentId)
+      .filter((id) => id !== input.agentId),
+  });
+
   await db
     .delete(agentWorkflowMembers)
     .where(
@@ -756,6 +835,34 @@ export async function removeWorkflowMember(
 export async function deleteWorkflow(workflowId: string, userId: string): Promise<void> {
   const workflow = await getWorkflowById(workflowId, userId);
   if (!workflow) throw new Error("Workflow not found");
+
+  // Clean up all inherited sync folders for every member before deleting the workflow
+  const members = await getWorkflowMembers(workflowId);
+  for (const member of members) {
+    const inherited = await db
+      .select({ id: agentSyncFolders.id })
+      .from(agentSyncFolders)
+      .where(
+        and(
+          eq(agentSyncFolders.characterId, member.agentId),
+          eq(agentSyncFolders.inheritedFromWorkflowId, workflowId)
+        )
+      );
+
+    if (inherited.length > 0) {
+      await db
+        .delete(agentSyncFolders)
+        .where(
+          and(
+            eq(agentSyncFolders.characterId, member.agentId),
+            eq(agentSyncFolders.inheritedFromWorkflowId, workflowId)
+          )
+        );
+      for (const { id } of inherited) {
+        notifyFolderChange(member.agentId, { type: "removed", folderId: id, wasPrimary: false });
+      }
+    }
+  }
 
   await db.delete(agentWorkflows).where(eq(agentWorkflows.id, workflowId));
 }
@@ -955,10 +1062,16 @@ export async function getWorkflowResources(
 export async function syncSharedFoldersToSubAgents(
   input: SyncSharedFoldersInput
 ): Promise<{ syncedCount: number; skippedCount: number; syncedByAgent: Record<string, number> }> {
+  // Only sync own (non-inherited) folders from the initiator to subagents
   const initiatorFolders = await db
     .select()
     .from(agentSyncFolders)
-    .where(eq(agentSyncFolders.characterId, input.initiatorId));
+    .where(
+      and(
+        eq(agentSyncFolders.characterId, input.initiatorId),
+        isNull(agentSyncFolders.inheritedFromWorkflowId)
+      )
+    );
 
   if (initiatorFolders.length === 0 || input.subAgentIds.length === 0) {
     return { syncedCount: 0, skippedCount: 0, syncedByAgent: {} };
@@ -984,7 +1097,7 @@ export async function syncSharedFoldersToSubAgents(
       }
 
       if (!input.dryRun) {
-        await db.insert(agentSyncFolders).values({
+        const [inserted] = await db.insert(agentSyncFolders).values({
           userId: input.userId,
           characterId: subAgentId,
           folderPath: folder.folderPath,
@@ -1012,7 +1125,13 @@ export async function syncSharedFoldersToSubAgents(
           skipReasons: {},
           lastRunMetadata: {},
           lastRunTrigger: null,
-        });
+          inheritedFromWorkflowId: input.workflowId,
+          inheritedFromAgentId: input.initiatorId,
+        }).returning();
+
+        if (inserted) {
+          notifyFolderChange(subAgentId, { type: "added", folderId: inserted.id });
+        }
       }
 
       existingPaths.add(folder.folderPath);
@@ -1033,6 +1152,175 @@ export async function syncSharedFoldersToSubAgents(
   }
 
   return { syncedCount, skippedCount, syncedByAgent };
+}
+
+/**
+ * Share a new workflow member's own (non-inherited) sync folders to other workflow members.
+ * Called when an agent with existing folders is added to a workflow so other members
+ * can also access those folders.
+ */
+async function syncOwnFoldersToWorkflowMembers(input: {
+  userId: string;
+  sourceAgentId: string;
+  targetAgentIds: string[];
+  workflowId: string;
+  dryRun?: boolean;
+}): Promise<{ syncedCount: number; skippedCount: number }> {
+  if (input.targetAgentIds.length === 0) {
+    return { syncedCount: 0, skippedCount: 0 };
+  }
+
+  // Only share the source agent's own (non-inherited) folders
+  const sourceFolders = await db
+    .select()
+    .from(agentSyncFolders)
+    .where(
+      and(
+        eq(agentSyncFolders.characterId, input.sourceAgentId),
+        isNull(agentSyncFolders.inheritedFromWorkflowId)
+      )
+    );
+
+  if (sourceFolders.length === 0) {
+    return { syncedCount: 0, skippedCount: 0 };
+  }
+
+  let syncedCount = 0;
+  let skippedCount = 0;
+
+  for (const targetAgentId of input.targetAgentIds) {
+    const existingFolders = await db
+      .select({ folderPath: agentSyncFolders.folderPath })
+      .from(agentSyncFolders)
+      .where(eq(agentSyncFolders.characterId, targetAgentId));
+
+    const existingPaths = new Set(existingFolders.map((f) => f.folderPath));
+
+    for (const folder of sourceFolders) {
+      if (existingPaths.has(folder.folderPath)) {
+        skippedCount += 1;
+        continue;
+      }
+
+      if (!input.dryRun) {
+        const [inserted] = await db.insert(agentSyncFolders).values({
+          userId: input.userId,
+          characterId: targetAgentId,
+          folderPath: folder.folderPath,
+          displayName: folder.displayName,
+          isPrimary: false,
+          recursive: folder.recursive,
+          includeExtensions: folder.includeExtensions,
+          excludePatterns: folder.excludePatterns,
+          status: "pending",
+          lastSyncedAt: null,
+          lastError: null,
+          fileCount: 0,
+          chunkCount: 0,
+          embeddingModel: folder.embeddingModel,
+          indexingMode: folder.indexingMode,
+          syncMode: folder.syncMode,
+          syncCadenceMinutes: folder.syncCadenceMinutes,
+          fileTypeFilters: folder.fileTypeFilters,
+          maxFileSizeBytes: folder.maxFileSizeBytes,
+          chunkPreset: folder.chunkPreset,
+          chunkSizeOverride: folder.chunkSizeOverride,
+          chunkOverlapOverride: folder.chunkOverlapOverride,
+          reindexPolicy: folder.reindexPolicy,
+          skippedCount: 0,
+          skipReasons: {},
+          lastRunMetadata: {},
+          lastRunTrigger: null,
+          inheritedFromWorkflowId: input.workflowId,
+          inheritedFromAgentId: input.sourceAgentId,
+        }).returning();
+
+        if (inserted) {
+          notifyFolderChange(targetAgentId, { type: "added", folderId: inserted.id });
+        }
+      }
+
+      existingPaths.add(folder.folderPath);
+      syncedCount += 1;
+    }
+  }
+
+  return { syncedCount, skippedCount };
+}
+
+/**
+ * Remove inherited sync folders when a member leaves a workflow.
+ * Cleans up in both directions:
+ * 1. Removes folders the leaving agent inherited from others via this workflow.
+ * 2. Removes folder copies that were shared from the leaving agent to other members.
+ */
+async function cleanupInheritedFoldersOnRemoval(input: {
+  workflowId: string;
+  leavingAgentId: string;
+  remainingMemberIds: string[];
+}): Promise<void> {
+  // 1. Remove folders that the leaving agent inherited from this workflow
+  const leavingAgentInherited = await db
+    .select({ id: agentSyncFolders.id })
+    .from(agentSyncFolders)
+    .where(
+      and(
+        eq(agentSyncFolders.characterId, input.leavingAgentId),
+        eq(agentSyncFolders.inheritedFromWorkflowId, input.workflowId)
+      )
+    );
+
+  if (leavingAgentInherited.length > 0) {
+    await db
+      .delete(agentSyncFolders)
+      .where(
+        and(
+          eq(agentSyncFolders.characterId, input.leavingAgentId),
+          eq(agentSyncFolders.inheritedFromWorkflowId, input.workflowId)
+        )
+      );
+
+    for (const { id } of leavingAgentInherited) {
+      notifyFolderChange(input.leavingAgentId, { type: "removed", folderId: id, wasPrimary: false });
+    }
+  }
+
+  // 2. Remove copies of the leaving agent's folders that were shared to other members
+  if (input.remainingMemberIds.length > 0) {
+    const otherMembersInherited = await db
+      .select({ id: agentSyncFolders.id, characterId: agentSyncFolders.characterId })
+      .from(agentSyncFolders)
+      .where(
+        and(
+          inArray(agentSyncFolders.characterId, input.remainingMemberIds),
+          eq(agentSyncFolders.inheritedFromWorkflowId, input.workflowId),
+          eq(agentSyncFolders.inheritedFromAgentId, input.leavingAgentId)
+        )
+      );
+
+    if (otherMembersInherited.length > 0) {
+      await db
+        .delete(agentSyncFolders)
+        .where(
+          and(
+            inArray(agentSyncFolders.characterId, input.remainingMemberIds),
+            eq(agentSyncFolders.inheritedFromWorkflowId, input.workflowId),
+            eq(agentSyncFolders.inheritedFromAgentId, input.leavingAgentId)
+          )
+        );
+
+      // Notify each affected agent
+      const affectedAgents = new Set(otherMembersInherited.map((r) => r.characterId));
+      for (const agentId of affectedAgents) {
+        const folderIds = otherMembersInherited
+          .filter((r) => r.characterId === agentId)
+          .map((r) => r.id);
+        for (const folderId of folderIds) {
+          notifyFolderChange(agentId, { type: "removed", folderId, wasPrimary: false });
+        }
+      }
+    }
+  }
 }
 
 export async function shareFolderToWorkflowSubagents(input: {
@@ -1100,7 +1388,9 @@ export async function shareFolderToWorkflowSubagents(input: {
     }
 
     if (!input.dryRun) {
-      await db.insert(agentSyncFolders).values({
+      // The folder's original owner is tracked via characterId on the source folder record
+      const sourceAgentId = folder.inheritedFromAgentId ?? folder.characterId;
+      const [inserted] = await db.insert(agentSyncFolders).values({
         userId: input.userId,
         characterId: subAgentId,
         folderPath: folder.folderPath,
@@ -1128,7 +1418,13 @@ export async function shareFolderToWorkflowSubagents(input: {
         skipReasons: {},
         lastRunMetadata: {},
         lastRunTrigger: null,
-      });
+        inheritedFromWorkflowId: input.workflowId,
+        inheritedFromAgentId: sourceAgentId,
+      }).returning();
+
+      if (inserted) {
+        notifyFolderChange(subAgentId, { type: "added", folderId: inserted.id });
+      }
     }
 
     syncedCount += 1;

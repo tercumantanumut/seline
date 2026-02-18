@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeJsonStringValues } from "@/lib/ai/providers/claudecode-provider";
+import {
+  normalizeAnthropicToolUseInputs,
+  sanitizeJsonStringValues,
+} from "@/lib/ai/providers/claudecode-provider";
 
 describe("sanitizeJsonStringValues", () => {
   it("preserves valid surrogate pairs", () => {
@@ -29,6 +32,62 @@ describe("sanitizeJsonStringValues", () => {
     expect(result.value).toEqual({
       top: "A�B�C",
       nested: [{ text: "��" }],
+    });
+  });
+});
+
+describe("normalizeAnthropicToolUseInputs", () => {
+  it("parses tool_use input when input is a JSON string object", () => {
+    const body = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_1",
+              name: "editFile",
+              input: "{\"filePath\":\"app/today/page.tsx\",\"edits\":[{\"oldString\":\"a\",\"newString\":\"b\"}]}",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = normalizeAnthropicToolUseInputs(body);
+
+    expect(result.fixedCount).toBe(1);
+    const normalizedInput = (result.body.messages as Array<any>)[0].content[0].input;
+    expect(normalizedInput).toEqual({
+      filePath: "app/today/page.tsx",
+      edits: [{ oldString: "a", newString: "b" }],
+    });
+  });
+
+  it("replaces non-object tool_use input with recovery placeholder", () => {
+    const body = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_2",
+              name: "editFile",
+              input: "[1,2,3]",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = normalizeAnthropicToolUseInputs(body);
+
+    expect(result.fixedCount).toBe(1);
+    const normalizedInput = (result.body.messages as Array<any>)[0].content[0].input;
+    expect(normalizedInput).toEqual({
+      _recoveredInvalidToolUseInput: true,
+      _inputType: "string",
     });
   });
 });

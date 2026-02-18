@@ -56,6 +56,8 @@ interface SyncFolder {
   chunkOverlapOverride?: number | null;
   reindexPolicy?: ReindexPolicy;
   isPrimary: boolean;
+  inheritedFromWorkflowId?: string | null;
+  inheritedFromAgentId?: string | null;
 }
 
 interface FolderAnalysis {
@@ -653,6 +655,14 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                         Primary
                       </span>
                     )}
+                    {folder.inheritedFromWorkflowId && (
+                      <span
+                        className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider"
+                        title="This folder is shared from a workflow"
+                      >
+                        Workflow
+                      </span>
+                    )}
                   </div>
                   <p className="font-mono text-xs text-terminal-muted truncate" title={folder.folderPath}>
                     {folder.folderPath}
@@ -675,7 +685,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       )}
                     </button>
                   )}
-                  {!folder.isPrimary && (
+                  {!folder.isPrimary && !folder.inheritedFromWorkflowId && (
                     <Button
                       variant="ghost"
                       size="icon"

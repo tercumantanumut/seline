@@ -125,15 +125,16 @@ extraResources:
 asar: true
 compression: "normal"
 
+# Run notarization hook after macOS signing completes.
+afterSign: "scripts/notarize.js"
+
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
 
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  sign: false
-  identity: null
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
@@ -167,7 +168,7 @@ nsis:
 
 # DMG settings for macOS
 dmg:
-  sign: false
+  sign: true
   contents:
     - x: 130
       y: 220

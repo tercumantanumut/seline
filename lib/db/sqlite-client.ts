@@ -1793,82 +1793,79 @@ function runDataMigrations(sqlite: Database.Database): void {
       "SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
     ).get() as { sql?: string } | undefined;
     const tableSql = tableSqlRow?.sql || "";
-    if (!tableSql || !tableSql.includes("scheduled_tasks_old")) {
-      return;
-    }
+    if (tableSql && tableSql.includes("scheduled_tasks_old")) {
+      console.log("[SQLite Migration] Updating scheduled_task_runs foreign key to scheduled_tasks");
+      sqlite.exec("BEGIN IMMEDIATE");
+      sqlite.exec("PRAGMA foreign_keys=OFF");
+      try {
+        sqlite.exec("ALTER TABLE scheduled_task_runs RENAME TO scheduled_task_runs_old");
+        const oldTableExists = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+        ).get();
+        if (!oldTableExists) {
+          sqlite.exec("ROLLBACK");
+          console.warn("[SQLite Migration] scheduled_task_runs_old missing after rename, skipping migration");
+        } else {
+          sqlite.exec(`
+            CREATE TABLE scheduled_task_runs (
+              id TEXT PRIMARY KEY,
+              task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+              agent_run_id TEXT,
+              session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+              status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
+              scheduled_for TEXT NOT NULL,
+              started_at TEXT,
+              completed_at TEXT,
+              duration_ms INTEGER,
+              attempt_number INTEGER NOT NULL DEFAULT 1,
+              result_summary TEXT,
+              error TEXT,
+              resolved_prompt TEXT,
+              metadata TEXT NOT NULL DEFAULT '{}',
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `);
 
-    console.log("[SQLite Migration] Updating scheduled_task_runs foreign key to scheduled_tasks");
-    sqlite.exec("BEGIN IMMEDIATE");
-    sqlite.exec("PRAGMA foreign_keys=OFF");
-    try {
-      sqlite.exec("ALTER TABLE scheduled_task_runs RENAME TO scheduled_task_runs_old");
-      const oldTableExists = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
-      ).get();
-      if (!oldTableExists) {
+          sqlite.exec(`
+            INSERT INTO scheduled_task_runs (
+              id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+              completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+              metadata, created_at
+            )
+            SELECT
+              id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+              completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+              metadata, created_at
+            FROM scheduled_task_runs_old
+          `);
+
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
+              ON scheduled_task_runs (task_id, created_at DESC)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
+              ON scheduled_task_runs (status, scheduled_for)
+          `);
+
+          sqlite.exec("DROP TABLE IF EXISTS scheduled_task_runs_old");
+          sqlite.exec("COMMIT");
+        }
+      } catch (migrationError) {
         sqlite.exec("ROLLBACK");
-        console.warn("[SQLite Migration] scheduled_task_runs_old missing after rename, skipping migration");
-        return;
+        const hasOldTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+        ).get();
+        const hasNewTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
+        ).get();
+        if (hasOldTable && !hasNewTable) {
+          sqlite.exec("ALTER TABLE scheduled_task_runs_old RENAME TO scheduled_task_runs");
+        }
+        console.warn("[SQLite Migration] scheduled_task_runs foreign key migration aborted:", migrationError);
+      } finally {
+        sqlite.exec("PRAGMA foreign_keys=ON");
       }
-
-      sqlite.exec(`
-        CREATE TABLE scheduled_task_runs (
-          id TEXT PRIMARY KEY,
-          task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
-          agent_run_id TEXT,
-          session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
-          scheduled_for TEXT NOT NULL,
-          started_at TEXT,
-          completed_at TEXT,
-          duration_ms INTEGER,
-          attempt_number INTEGER NOT NULL DEFAULT 1,
-          result_summary TEXT,
-          error TEXT,
-          resolved_prompt TEXT,
-          metadata TEXT NOT NULL DEFAULT '{}',
-          created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-      `);
-
-      sqlite.exec(`
-        INSERT INTO scheduled_task_runs (
-          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
-          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
-          metadata, created_at
-        )
-        SELECT
-          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
-          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
-          metadata, created_at
-        FROM scheduled_task_runs_old
-      `);
-
-      sqlite.exec(`
-        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
-          ON scheduled_task_runs (task_id, created_at DESC)
-      `);
-      sqlite.exec(`
-        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
-          ON scheduled_task_runs (status, scheduled_for)
-      `);
-
-      sqlite.exec("DROP TABLE IF EXISTS scheduled_task_runs_old");
-      sqlite.exec("COMMIT");
-    } catch (migrationError) {
-      sqlite.exec("ROLLBACK");
-      const hasOldTable = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
-      ).get();
-      const hasNewTable = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
-      ).get();
-      if (hasOldTable && !hasNewTable) {
-        sqlite.exec("ALTER TABLE scheduled_task_runs_old RENAME TO scheduled_task_runs");
-      }
-      console.warn("[SQLite Migration] scheduled_task_runs foreign key migration aborted:", migrationError);
-    } finally {
-      sqlite.exec("PRAGMA foreign_keys=ON");
     }
   } catch (error) {
     try {
@@ -1908,6 +1905,25 @@ function runDataMigrations(sqlite: Database.Database): void {
     }
   } catch (error) {
     console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
+  }
+
+  // Migration: Add workflow folder inheritance tracking columns
+  try {
+    const folderCols = sqlite.prepare("PRAGMA table_info(agent_sync_folders)").all() as Array<{ name: string }>;
+    const colNames = new Set(folderCols.map((c) => c.name));
+
+    if (!colNames.has("inherited_from_workflow_id")) {
+      sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_workflow_id TEXT");
+    }
+    if (!colNames.has("inherited_from_agent_id")) {
+      sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_agent_id TEXT");
+    }
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS agent_sync_folders_inherited_workflow_idx
+      ON agent_sync_folders (inherited_from_workflow_id)
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Workflow folder tracking columns migration failed:", error);
   }
 }
 
