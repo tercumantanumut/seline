@@ -375,7 +375,7 @@ export async function parsePluginPackage(
 
   // Legacy format is only the root-level SKILL.md package.
   // Nested skills/*/SKILL.md should be treated as full plugin-like content.
-  const skillMdEntry = pickFirstZipEntry(zip, (name) => name === "SKILL.md");
+  const skillMdEntry = pickFirstZipEntry(zip, (name) => name === "SKILL.md" || name.endsWith("/SKILL.md"));
 
   if (skillMdEntry) {
     return parseLegacySkillPlugin(zip, skillMdEntry, warnings);
