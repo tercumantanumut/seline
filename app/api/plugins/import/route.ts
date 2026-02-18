@@ -237,19 +237,26 @@ async function linkPluginAuxiliaryFilesToWorkspace(
   const workspaceBase = getUserWorkspacePath();
   const pluginWorkspaceDir = path.join(workspaceBase, "plugins", plugin.name);
 
-  // Copy each auxiliary file, preserving subdirectory structure
-  await mkdir(pluginWorkspaceDir, { recursive: true });
-  for (const auxFile of auxFiles) {
-    const src = path.join(plugin.cachePath, auxFile.relativePath);
+  // Copy auxiliary files in parallel, preserving subdirectory structure
+  const dirsNeeded = new Set<string>();
+  dirsNeeded.add(pluginWorkspaceDir);
+  const validAuxFiles = auxFiles.filter((auxFile) => {
     const dest = path.join(pluginWorkspaceDir, auxFile.relativePath);
-    // Safety: ensure dest is inside pluginWorkspaceDir (guards against path traversal)
-    if (!path.resolve(dest).startsWith(path.resolve(pluginWorkspaceDir))) {
-      continue;
-    }
-    if (!existsSync(src)) continue;
-    await mkdir(path.dirname(dest), { recursive: true });
-    await copyFile(src, dest);
-  }
+    if (!path.resolve(dest).startsWith(path.resolve(pluginWorkspaceDir))) return false;
+    const src = path.join(plugin.cachePath!, auxFile.relativePath);
+    if (!existsSync(src)) return false;
+    dirsNeeded.add(path.dirname(dest));
+    return true;
+  });
+
+  await Promise.all([...dirsNeeded].map((dir) => mkdir(dir, { recursive: true })));
+  await Promise.all(
+    validAuxFiles.map((auxFile) => {
+      const src = path.join(plugin.cachePath!, auxFile.relativePath);
+      const dest = path.join(pluginWorkspaceDir, auxFile.relativePath);
+      return copyFile(src, dest);
+    })
+  );
 
   // Register as a sync folder for this agent if not already covered
   const { getSyncFolders, addSyncFolder } = await import("@/lib/vectordb/sync-service");

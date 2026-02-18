@@ -65,25 +65,36 @@ async function persistPluginFilesToCache(
 ): Promise<string> {
   const cacheRoot = requestedCachePath || path.join(getPluginCacheBaseDir(), pluginId);
   const normalizedRoot = path.resolve(cacheRoot);
-  await mkdir(normalizedRoot, { recursive: true });
+
+  // Validate all paths and collect unique directories needed
+  const dirsNeeded = new Set<string>();
+  dirsNeeded.add(normalizedRoot);
 
   for (const file of files) {
     const targetPath = path.resolve(normalizedRoot, file.relativePath);
     if (targetPath !== normalizedRoot && !targetPath.startsWith(`${normalizedRoot}${path.sep}`)) {
       throw new Error(`Refusing to write plugin file outside cache root: ${file.relativePath}`);
     }
-
-    await mkdir(path.dirname(targetPath), { recursive: true });
-    await writeFile(targetPath, file.content);
-
-    if (file.isExecutable) {
-      try {
-        await chmod(targetPath, 0o755);
-      } catch {
-        // Non-fatal on platforms/filesystems that don't support chmod.
-      }
-    }
+    dirsNeeded.add(path.dirname(targetPath));
   }
+
+  // Create all directories in parallel (mkdir -p is idempotent)
+  await Promise.all([...dirsNeeded].map((dir) => mkdir(dir, { recursive: true })));
+
+  // Write all files in parallel
+  await Promise.all(
+    files.map(async (file) => {
+      const targetPath = path.resolve(normalizedRoot, file.relativePath);
+      await writeFile(targetPath, file.content);
+      if (file.isExecutable) {
+        try {
+          await chmod(targetPath, 0o755);
+        } catch {
+          // Non-fatal on platforms/filesystems that don't support chmod.
+        }
+      }
+    })
+  );
 
   return normalizedRoot;
 }

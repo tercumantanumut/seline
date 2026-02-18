@@ -134,16 +134,18 @@ function normalizeManifest(
   return manifest;
 }
 
-async function buildZipFromUploadedFiles(files: UploadedPluginFile[]): Promise<Buffer> {
+/**
+ * Create a JSZip instance from pre-loaded file entries.
+ * Attaches the entries as `__preloadedEntries` so extractAllFiles can
+ * return them directly without re-decompressing.
+ */
+function createVirtualZip(entries: PluginFileEntry[]): JSZip {
   const zip = new JSZip();
-  for (const file of files) {
-    const normalized = normalizeRelativePath(file.relativePath);
-    if (!normalized || !isPathSafe(normalized)) {
-      continue;
-    }
-    zip.file(normalized, file.content);
+  for (const entry of entries) {
+    zip.file(entry.relativePath, entry.content);
   }
-  return zip.generateAsync({ type: "nodebuffer" });
+  (zip as any).__preloadedEntries = entries;
+  return zip;
 }
 
 export async function parsePluginFromFiles(
@@ -154,8 +156,37 @@ export async function parsePluginFromFiles(
     throw new Error("No files provided for plugin import");
   }
 
-  const zipBuffer = await buildZipFromUploadedFiles(files);
-  return parsePluginPackage(zipBuffer, options);
+  // Detect nested zip — common pattern: vercel/vercel.zip alongside vercel/vercel/SKILL.md
+  const zipFile = files.find((f) => f.relativePath.toLowerCase().endsWith(".zip"));
+  if (zipFile) {
+    const zipName = path.basename(zipFile.relativePath, path.extname(zipFile.relativePath));
+    return parsePluginPackage(zipFile.content, {
+      ...options,
+      sourceLabel: options.sourceLabel || zipName,
+    });
+  }
+
+  // Build file entries directly — skip zip encode/decode round-trip
+  const entries: PluginFileEntry[] = [];
+  for (const file of files) {
+    const normalized = normalizeRelativePath(file.relativePath);
+    if (!normalized || !isPathSafe(normalized)) continue;
+    const ext = path.extname(normalized).toLowerCase();
+    if (BLOCKED_EXTENSIONS.includes(ext)) continue;
+    if (file.content.length > MAX_FILE_SIZE) continue;
+    entries.push({
+      relativePath: normalized,
+      content: file.content,
+      mimeType: mime.lookup(normalized) || "application/octet-stream",
+      size: file.content.length,
+      isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
+    });
+  }
+
+  const zip = createVirtualZip(entries);
+  const resolvedOptions = { ...DEFAULT_PARSE_OPTIONS, ...options };
+  const warnings: string[] = [];
+  return parsePluginFromZip(zip, warnings, resolvedOptions);
 }
 
 export async function parsePluginFromMarkdown(
@@ -265,34 +296,56 @@ async function extractAllFiles(
   skipPath?: string,
   warnings?: string[]
 ): Promise<PluginFileEntry[]> {
+  // Fast path: if this zip was created from pre-loaded entries, return them directly
+  const preloaded = (zip as any).__preloadedEntries as PluginFileEntry[] | undefined;
+  if (preloaded) {
+    return preloaded.filter((f) => {
+      if (skipPath && f.relativePath === skipPath) return false;
+      if (rootPrefix && !f.relativePath.startsWith(rootPrefix)) return false;
+      return true;
+    }).map((f) => rootPrefix ? { ...f, relativePath: f.relativePath.slice(rootPrefix.length) } : f);
+  }
+
+  // Real zip: extract in parallel batches
+  const eligibleEntries = (Object.entries(zip.files) as Array<[string, JSZip.JSZipObject]>).filter(
+    ([filePath, entry]) => {
+      if (entry.dir) return false;
+      if (skipPath && filePath === skipPath) return false;
+      if (rootPrefix && !filePath.startsWith(rootPrefix)) return false;
+      const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
+      if (!relativePath || !isPathSafe(relativePath)) return false;
+      if (BLOCKED_EXTENSIONS.includes(path.extname(relativePath).toLowerCase())) {
+        warnings?.push(`Skipped blocked file type: ${relativePath}`);
+        return false;
+      }
+      return true;
+    }
+  );
+
+  const BATCH_SIZE = 20;
   const files: PluginFileEntry[] = [];
-  for (const [filePath, entry] of Object.entries(zip.files) as Array<[string, JSZip.JSZipObject]>) {
-    if (entry.dir) continue;
-    if (skipPath && filePath === skipPath) continue;
-    if (rootPrefix && !filePath.startsWith(rootPrefix)) continue;
 
-    const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
-    if (!relativePath || !isPathSafe(relativePath)) continue;
-
-    const ext = path.extname(relativePath).toLowerCase();
-    if (BLOCKED_EXTENSIONS.includes(ext)) {
-      warnings?.push(`Skipped blocked file type: ${relativePath}`);
-      continue;
-    }
-
-    const content = await entry.async("nodebuffer");
-    if (content.length > MAX_FILE_SIZE) {
-      warnings?.push(`Skipped oversized file: ${relativePath} (${(content.length / 1024 / 1024).toFixed(1)}MB)`);
-      continue;
-    }
-
-    files.push({
-      relativePath,
-      content,
-      mimeType: mime.lookup(relativePath) || "application/octet-stream",
-      size: content.length,
-      isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
-    });
+  for (let i = 0; i < eligibleEntries.length; i += BATCH_SIZE) {
+    const batch = eligibleEntries.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map(async ([filePath, entry]) => {
+        const relativePath = rootPrefix ? filePath.slice(rootPrefix.length) : filePath;
+        const content = await entry.async("nodebuffer");
+        if (content.length > MAX_FILE_SIZE) {
+          warnings?.push(`Skipped oversized file: ${relativePath} (${(content.length / 1024 / 1024).toFixed(1)}MB)`);
+          return null;
+        }
+        const ext = path.extname(relativePath).toLowerCase();
+        return {
+          relativePath,
+          content,
+          mimeType: mime.lookup(relativePath) || "application/octet-stream",
+          size: content.length,
+          isExecutable: EXECUTABLE_EXTENSIONS.includes(ext),
+        } as PluginFileEntry;
+      })
+    );
+    files.push(...results.filter((f): f is PluginFileEntry => f !== null));
   }
 
   return files;
@@ -350,31 +403,27 @@ function safeMatter(content: string): { data: Record<string, unknown>; content: 
 }
 
 /**
- * Parse a plugin zip buffer into a PluginParseResult.
+ * Core plugin parsing logic operating on a pre-loaded JSZip instance.
  *
  * Detection logic:
  * 1. Look for .claude-plugin/plugin.json → full plugin format
  * 2. Fall back to SKILL.md → legacy skill-only format (wrapped as plugin)
+ * 3. Infer manifest-less plugin from directory structure
  */
-export async function parsePluginPackage(
-  zipBuffer: Buffer,
-  options: ParsePluginPackageOptions = {}
+async function parsePluginFromZip(
+  zip: JSZip,
+  warnings: string[],
+  options: Required<ParsePluginPackageOptions>,
 ): Promise<PluginParseResult> {
-  const resolvedOptions = { ...DEFAULT_PARSE_OPTIONS, ...options };
-  const zip = await JSZip.loadAsync(zipBuffer);
-  const warnings: string[] = [];
-
   const pluginJsonEntry = pickFirstZipEntry(
     zip,
     (name) => name === ".claude-plugin/plugin.json" || name.endsWith("/.claude-plugin/plugin.json")
   );
 
   if (pluginJsonEntry) {
-    return parseFullPlugin(zip, pluginJsonEntry, warnings, resolvedOptions);
+    return parseFullPlugin(zip, pluginJsonEntry, warnings, options);
   }
 
-  // Legacy format is only the root-level SKILL.md package.
-  // Nested skills/*/SKILL.md should be treated as full plugin-like content.
   const skillMdEntry = pickFirstZipEntry(zip, (name) => name === "SKILL.md" || name.endsWith("/SKILL.md"));
 
   if (skillMdEntry) {
@@ -382,7 +431,7 @@ export async function parsePluginPackage(
   }
 
   const files = await extractAllFiles(zip, "", undefined, warnings);
-  const inferred = maybeParseManifestlessPlugin(files, resolvedOptions.sourceLabel, warnings);
+  const inferred = maybeParseManifestlessPlugin(files, options.sourceLabel, warnings);
   if (inferred) {
     warnings.push("Imported package without .claude-plugin/plugin.json by inferring plugin structure.");
     return inferred;
@@ -392,6 +441,19 @@ export async function parsePluginPackage(
     "Invalid plugin package: no .claude-plugin/plugin.json or SKILL.md found. " +
       "See https://code.claude.com/docs/en/plugins for the expected structure."
   );
+}
+
+/**
+ * Parse a plugin zip buffer into a PluginParseResult.
+ */
+export async function parsePluginPackage(
+  zipBuffer: Buffer,
+  options: ParsePluginPackageOptions = {}
+): Promise<PluginParseResult> {
+  const resolvedOptions = { ...DEFAULT_PARSE_OPTIONS, ...options };
+  const zip = await JSZip.loadAsync(zipBuffer);
+  const warnings: string[] = [];
+  return parsePluginFromZip(zip, warnings, resolvedOptions);
 }
 
 // =============================================================================

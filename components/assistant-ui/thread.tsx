@@ -161,9 +161,7 @@ async function collectDroppedImportFiles(event: React.DragEvent): Promise<Droppe
     while (true) {
       const batch = await readDirectoryBatch(reader);
       if (batch.length === 0) break;
-      for (const child of batch) {
-        await walkEntry(child, `${prefix}${entry.name}/`);
-      }
+      await Promise.all(batch.map((child) => walkEntry(child, `${prefix}${entry.name}/`)));
     }
   };
 
