@@ -124,7 +124,7 @@ async function collectDroppedImportFiles(event: React.DragEvent): Promise<Droppe
   const dataTransferItems = Array.from(event.dataTransfer.items || []) as WebkitDataTransferItem[];
   const entries = dataTransferItems
     .map((item) => item.webkitGetAsEntry?.())
-    .filter((entry): entry is FileSystemEntry => entry !== null);
+    .filter((entry): entry is FileSystemEntry => entry != null);
 
   if (entries.length === 0) {
     return Array.from(event.dataTransfer.files).map((file) => ({

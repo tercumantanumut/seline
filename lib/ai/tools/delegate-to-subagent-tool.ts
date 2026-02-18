@@ -26,6 +26,7 @@ import {
   getMessages,
 } from "@/lib/db/sqlite-queries";
 import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
+import { isElectronProduction } from "@/lib/utils/environment";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,15 +176,7 @@ function buildDelegationsSummary(characterId: string): DelegateResult["delegatio
 // ---------------------------------------------------------------------------
 
 function getChatApiBaseUrl(): string {
-  // Match lib/scheduler/task-queue.ts — electron production uses port 3456
-  const isElectronProduction =
-    (typeof process !== "undefined" &&
-      !!(process as unknown as Record<string, unknown>).resourcesPath ||
-      !!process.env.ELECTRON_RESOURCES_PATH) &&
-    process.env.ELECTRON_IS_DEV !== "1" &&
-    process.env.NODE_ENV !== "development";
-
-  return isElectronProduction
+  return isElectronProduction()
     ? "http://localhost:3456"
     : "http://localhost:3000";
 }
@@ -959,3 +952,4 @@ async function handleList(
         : `${results.length} active delegation(s) found. ${availableAgents.length} available sub-agent(s) listed.`,
   };
 }
+
