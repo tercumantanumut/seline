@@ -1,0 +1,692 @@
+/**
+ * Plugin Registry — CRUD operations for installed plugins.
+ *
+ * Handles installing, listing, updating, and uninstalling plugins
+ * with proper DB persistence and hook/MCP lifecycle management.
+ */
+
+import { and, eq, desc, or, isNull } from "drizzle-orm";
+import { mkdir, writeFile, chmod } from "fs/promises";
+import path from "path";
+import { db } from "@/lib/db/sqlite-client";
+import {
+  plugins,
+  pluginHooks,
+  pluginMcpServers,
+  pluginLspServers,
+  pluginFiles,
+  marketplaces,
+  agentPlugins,
+} from "@/lib/db/sqlite-plugins-schema";
+import type { Plugin, NewPlugin, Marketplace, NewMarketplace } from "@/lib/db/sqlite-plugins-schema";
+import type {
+  PluginParseResult,
+  PluginScope,
+  PluginStatus,
+  InstalledPlugin,
+  PluginComponents,
+  PluginManifest,
+  PluginHooksConfig,
+  PluginMCPConfig,
+  PluginLSPConfig,
+  RegisteredMarketplace,
+  MarketplaceManifest,
+} from "./types";
+import {
+  registerPluginHooks,
+  unregisterPluginHooks,
+} from "./hooks-engine";
+import { seedPluginSkillRevisions } from "./skill-revision-queries";
+
+// =============================================================================
+// Plugin Installation
+// =============================================================================
+
+export interface InstallPluginInput {
+  userId: string;
+  characterId?: string;
+  parsed: PluginParseResult;
+  scope?: PluginScope;
+  marketplaceName?: string;
+  cachePath?: string;
+}
+
+function getPluginCacheBaseDir(): string {
+  if (process.env.LOCAL_DATA_PATH) {
+    return path.join(process.env.LOCAL_DATA_PATH, "plugins");
+  }
+  return path.join(process.cwd(), ".local-data", "plugins");
+}
+
+async function persistPluginFilesToCache(
+  pluginId: string,
+  files: PluginParseResult["files"],
+  requestedCachePath?: string
+): Promise<string> {
+  const cacheRoot = requestedCachePath || path.join(getPluginCacheBaseDir(), pluginId);
+  const normalizedRoot = path.resolve(cacheRoot);
+
+  // Validate all paths and collect unique directories needed
+  const dirsNeeded = new Set<string>();
+  dirsNeeded.add(normalizedRoot);
+
+  for (const file of files) {
+    const targetPath = path.resolve(normalizedRoot, file.relativePath);
+    if (targetPath !== normalizedRoot && !targetPath.startsWith(`${normalizedRoot}${path.sep}`)) {
+      throw new Error(`Refusing to write plugin file outside cache root: ${file.relativePath}`);
+    }
+    dirsNeeded.add(path.dirname(targetPath));
+  }
+
+  // Create all directories in parallel (mkdir -p is idempotent)
+  await Promise.all([...dirsNeeded].map((dir) => mkdir(dir, { recursive: true })));
+
+  // Write all files in parallel
+  await Promise.all(
+    files.map(async (file) => {
+      const targetPath = path.resolve(normalizedRoot, file.relativePath);
+      await writeFile(targetPath, file.content);
+      if (file.isExecutable) {
+        try {
+          await chmod(targetPath, 0o755);
+        } catch {
+          // Non-fatal on platforms/filesystems that don't support chmod.
+        }
+      }
+    })
+  );
+
+  return normalizedRoot;
+}
+
+/**
+ * Install a plugin from a parsed plugin package.
+ * Inserts the plugin record, hooks, MCP servers, LSP servers, and files.
+ * Also registers hooks in the in-memory hook engine.
+ */
+export async function installPlugin(input: InstallPluginInput): Promise<InstalledPlugin> {
+  const {
+    userId,
+    characterId,
+    parsed,
+    scope = "user",
+    marketplaceName,
+    cachePath,
+  } = input;
+
+  const manifest = parsed.manifest;
+  const components = parsed.components;
+
+  // Insert plugin record
+  const [pluginRow] = await db
+    .insert(plugins)
+    .values({
+      name: manifest.name,
+      description: manifest.description,
+      version: manifest.version,
+      scope,
+      status: "active",
+      marketplaceName: marketplaceName || null,
+      manifest: manifest as unknown as Record<string, unknown>,
+      components: components as unknown as Record<string, unknown>,
+      userId,
+      characterId: characterId || null,
+      cachePath: null,
+    })
+    .returning();
+
+  let resolvedCachePath: string | null = null;
+  if (parsed.files.length > 0) {
+    try {
+      resolvedCachePath = await persistPluginFilesToCache(pluginRow.id, parsed.files, cachePath);
+      await db
+        .update(plugins)
+        .set({ cachePath: resolvedCachePath })
+        .where(eq(plugins.id, pluginRow.id));
+    } catch (error) {
+      console.warn(
+        `[Plugin Registry] Failed to persist plugin files for ${manifest.name}:`,
+        error
+      );
+      resolvedCachePath = null;
+    }
+  }
+
+  // Insert hooks into DB
+  if (components.hooks?.hooks) {
+    const hookRows: Array<{
+      pluginId: string;
+      event: string;
+      matcher: string | null;
+      handlerType: "command" | "prompt" | "agent";
+      command: string | null;
+      timeout: number;
+      statusMessage: string | null;
+    }> = [];
+
+    for (const [event, entries] of Object.entries(components.hooks.hooks)) {
+      if (!entries) continue;
+      for (const entry of entries) {
+        for (const handler of entry.hooks) {
+          hookRows.push({
+            pluginId: pluginRow.id,
+            event,
+            matcher: entry.matcher || null,
+            handlerType: handler.type,
+            command: handler.command || null,
+            timeout: handler.timeout || 600,
+            statusMessage: handler.statusMessage || null,
+          });
+        }
+      }
+    }
+
+    if (hookRows.length > 0) {
+      await db.insert(pluginHooks).values(hookRows);
+    }
+
+    // Register hooks in-memory
+    registerPluginHooks(manifest.name, components.hooks);
+  }
+
+  // Insert MCP server configs
+  if (components.mcpServers) {
+    const mcpRows = Object.entries(components.mcpServers).map(([serverName, config]) => ({
+      pluginId: pluginRow.id,
+      serverName,
+      config: config as unknown as Record<string, unknown>,
+    }));
+
+    if (mcpRows.length > 0) {
+      await db.insert(pluginMcpServers).values(mcpRows);
+    }
+  }
+
+  // Insert LSP server configs
+  if (components.lspServers) {
+    const lspRows = Object.entries(components.lspServers).map(([serverName, config]) => ({
+      pluginId: pluginRow.id,
+      serverName,
+      config: config as unknown as Record<string, unknown>,
+    }));
+
+    if (lspRows.length > 0) {
+      await db.insert(pluginLspServers).values(lspRows);
+    }
+  }
+
+  // Insert plugin files (metadata only, not content — files stay on disk in cache)
+  if (parsed.files.length > 0) {
+    await db.insert(pluginFiles).values(
+      parsed.files.map((file) => ({
+        pluginId: pluginRow.id,
+        relativePath: file.relativePath,
+        mimeType: file.mimeType,
+        size: file.size,
+        isExecutable: file.isExecutable,
+      }))
+    );
+  }
+
+  // Seed revision history so plugin skills become patch-editable.
+  if (components.skills.length > 0) {
+    await seedPluginSkillRevisions(pluginRow.id, components.skills);
+  }
+
+  return mapInstalledPlugin({
+    ...pluginRow,
+    cachePath: resolvedCachePath,
+  });
+}
+
+// =============================================================================
+// Plugin Queries
+// =============================================================================
+
+/**
+ * Get all installed plugins for a user, optionally filtered by scope or character.
+ */
+export async function getInstalledPlugins(
+  userId: string,
+  options?: { scope?: PluginScope; characterId?: string; status?: PluginStatus }
+): Promise<InstalledPlugin[]> {
+  const conditions = [eq(plugins.userId, userId)];
+
+  if (options?.scope) {
+    conditions.push(eq(plugins.scope, options.scope));
+  }
+  if (options?.characterId) {
+    conditions.push(eq(plugins.characterId, options.characterId));
+  }
+  if (options?.status) {
+    conditions.push(eq(plugins.status, options.status));
+  }
+
+  const rows = await db
+    .select()
+    .from(plugins)
+    .where(and(...conditions))
+    .orderBy(desc(plugins.installedAt));
+
+  return rows.map(mapInstalledPlugin);
+}
+
+/**
+ * Get a single installed plugin by ID.
+ */
+export async function getPluginById(pluginId: string): Promise<InstalledPlugin | null> {
+  const [row] = await db.select().from(plugins).where(eq(plugins.id, pluginId));
+  return row ? mapInstalledPlugin(row) : null;
+}
+
+/**
+ * Get a single installed plugin by ID scoped to a specific user.
+ */
+export async function getPluginByIdForUser(
+  pluginId: string,
+  userId: string
+): Promise<InstalledPlugin | null> {
+  const [row] = await db
+    .select()
+    .from(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+  return row ? mapInstalledPlugin(row) : null;
+}
+
+/**
+ * Get a plugin by name and marketplace for a user.
+ */
+export async function getPluginByName(
+  userId: string,
+  name: string,
+  marketplaceName?: string
+): Promise<InstalledPlugin | null> {
+  const conditions = [eq(plugins.userId, userId), eq(plugins.name, name)];
+  if (marketplaceName) {
+    conditions.push(eq(plugins.marketplaceName, marketplaceName));
+  }
+
+  const [row] = await db
+    .select()
+    .from(plugins)
+    .where(and(...conditions));
+
+  return row ? mapInstalledPlugin(row) : null;
+}
+
+// =============================================================================
+// Plugin Update / Uninstall
+// =============================================================================
+
+/**
+ * Update a plugin's status.
+ */
+export async function updatePluginStatus(
+  pluginId: string,
+  status: PluginStatus,
+  lastError?: string
+): Promise<void> {
+  await db
+    .update(plugins)
+    .set({
+      status,
+      lastError: lastError || null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(plugins.id, pluginId));
+
+  // If disabling, unregister hooks
+  if (status === "disabled" || status === "error") {
+    const plugin = await getPluginById(pluginId);
+    if (plugin) {
+      unregisterPluginHooks(plugin.name);
+    }
+  }
+}
+
+/**
+ * Update a plugin's status, scoped to a specific user.
+ * Returns false when the plugin does not exist for that user.
+ */
+export async function updatePluginStatusForUser(
+  pluginId: string,
+  userId: string,
+  status: PluginStatus,
+  lastError?: string
+): Promise<boolean> {
+  const updatedRows = await db
+    .update(plugins)
+    .set({
+      status,
+      lastError: lastError || null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)))
+    .returning({ id: plugins.id, name: plugins.name });
+
+  if (updatedRows.length === 0) {
+    return false;
+  }
+
+  if (status === "disabled" || status === "error") {
+    unregisterPluginHooks(updatedRows[0].name);
+  }
+
+  return true;
+}
+
+/**
+ * Uninstall a plugin — removes DB records and unregisters hooks.
+ * CASCADE handles hook/mcp/lsp/file deletion.
+ */
+export async function uninstallPlugin(pluginId: string): Promise<void> {
+  const plugin = await getPluginById(pluginId);
+  if (plugin) {
+    unregisterPluginHooks(plugin.name);
+  }
+
+  await db.delete(plugins).where(eq(plugins.id, pluginId));
+}
+
+/**
+ * Uninstall a plugin scoped to a specific user.
+ * Returns the uninstalled plugin name, or null if not found for that user.
+ */
+export async function uninstallPluginForUser(
+  pluginId: string,
+  userId: string
+): Promise<string | null> {
+  const [plugin] = await db
+    .select({ name: plugins.name })
+    .from(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+
+  if (!plugin) {
+    return null;
+  }
+
+  unregisterPluginHooks(plugin.name);
+  await db
+    .delete(plugins)
+    .where(and(eq(plugins.id, pluginId), eq(plugins.userId, userId)));
+
+  return plugin.name;
+}
+
+// =============================================================================
+// Marketplace CRUD
+// =============================================================================
+
+export async function addMarketplace(input: {
+  userId: string;
+  name: string;
+  source: string;
+  catalog?: MarketplaceManifest;
+}): Promise<RegisteredMarketplace> {
+  const [row] = await db
+    .insert(marketplaces)
+    .values({
+      name: input.name,
+      source: input.source,
+      catalog: input.catalog ? (input.catalog as unknown as Record<string, unknown>) : null,
+      userId: input.userId,
+      lastFetchedAt: input.catalog ? new Date().toISOString() : null,
+    })
+    .returning();
+
+  return mapMarketplace(row);
+}
+
+export async function getMarketplaces(userId: string): Promise<RegisteredMarketplace[]> {
+  const rows = await db
+    .select()
+    .from(marketplaces)
+    .where(eq(marketplaces.userId, userId))
+    .orderBy(desc(marketplaces.createdAt));
+
+  return rows.map(mapMarketplace);
+}
+
+export async function removeMarketplace(
+  marketplaceId: string,
+  userId: string
+): Promise<boolean> {
+  const [existing] = await db
+    .select({ id: marketplaces.id })
+    .from(marketplaces)
+    .where(and(eq(marketplaces.id, marketplaceId), eq(marketplaces.userId, userId)));
+
+  if (!existing) {
+    return false;
+  }
+
+  await db
+    .delete(marketplaces)
+    .where(and(eq(marketplaces.id, marketplaceId), eq(marketplaces.userId, userId)));
+  return true;
+}
+
+export async function updateMarketplaceCatalog(
+  marketplaceId: string,
+  catalog: MarketplaceManifest
+): Promise<void> {
+  await db
+    .update(marketplaces)
+    .set({
+      catalog: catalog as unknown as Record<string, unknown>,
+      lastFetchedAt: new Date().toISOString(),
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(marketplaces.id, marketplaceId));
+}
+
+// =============================================================================
+// Per-Agent Plugin Assignment
+// =============================================================================
+
+export interface AgentPluginAssignment {
+  plugin: InstalledPlugin;
+  enabledForAgent: boolean;
+}
+
+/**
+ * Get all available plugins for assignment to an agent.
+ * Includes global plugins and character-scoped plugins for this character.
+ */
+export async function getAvailablePluginsForAgent(
+  userId: string,
+  agentId: string,
+  characterId?: string
+): Promise<AgentPluginAssignment[]> {
+  const rows = await db
+    .select({
+      id: plugins.id,
+      name: plugins.name,
+      description: plugins.description,
+      version: plugins.version,
+      scope: plugins.scope,
+      status: plugins.status,
+      marketplaceName: plugins.marketplaceName,
+      manifest: plugins.manifest,
+      components: plugins.components,
+      installedAt: plugins.installedAt,
+      updatedAt: plugins.updatedAt,
+      lastError: plugins.lastError,
+      characterId: plugins.characterId,
+      cachePath: plugins.cachePath,
+      assignmentEnabled: agentPlugins.enabled,
+    })
+    .from(plugins)
+    .leftJoin(
+      agentPlugins,
+      and(eq(agentPlugins.pluginId, plugins.id), eq(agentPlugins.agentId, agentId))
+    )
+    .where(
+      and(
+        eq(plugins.userId, userId),
+        eq(plugins.status, "active"),
+        characterId
+          ? or(isNull(plugins.characterId), eq(plugins.characterId, characterId))
+          : isNull(plugins.characterId)
+      )
+    )
+    .orderBy(desc(plugins.installedAt));
+
+  return rows.map((row) => ({
+    plugin: mapInstalledPlugin({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      version: row.version,
+      scope: row.scope,
+      status: row.status,
+      marketplaceName: row.marketplaceName,
+      manifest: row.manifest,
+      components: row.components,
+      userId,
+      characterId: row.characterId,
+      cachePath: row.cachePath,
+      lastError: row.lastError,
+      installedAt: row.installedAt,
+      updatedAt: row.updatedAt,
+    }),
+    enabledForAgent: row.assignmentEnabled ?? true,
+  }));
+}
+
+/**
+ * Get plugins that are effectively enabled for a specific agent.
+ */
+export async function getEnabledPluginsForAgent(
+  userId: string,
+  agentId: string,
+  characterId?: string
+): Promise<InstalledPlugin[]> {
+  const available = await getAvailablePluginsForAgent(userId, agentId, characterId);
+  return available
+    .filter((entry) => entry.enabledForAgent)
+    .map((entry) => entry.plugin);
+}
+
+/**
+ * Enable a plugin for an agent (upsert).
+ */
+export async function enablePluginForAgent(agentId: string, pluginId: string): Promise<void> {
+  const existing = await db
+    .select({ id: agentPlugins.id })
+    .from(agentPlugins)
+    .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+
+  if (existing.length > 0) {
+    await db
+      .update(agentPlugins)
+      .set({ enabled: true })
+      .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+    return;
+  }
+
+  await db.insert(agentPlugins).values({ agentId, pluginId, enabled: true });
+}
+
+/**
+ * Disable a plugin for an agent (upsert).
+ */
+export async function disablePluginForAgent(agentId: string, pluginId: string): Promise<void> {
+  const existing = await db
+    .select({ id: agentPlugins.id })
+    .from(agentPlugins)
+    .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+
+  if (existing.length > 0) {
+    await db
+      .update(agentPlugins)
+      .set({ enabled: false })
+      .where(and(eq(agentPlugins.agentId, agentId), eq(agentPlugins.pluginId, pluginId)));
+    return;
+  }
+
+  await db.insert(agentPlugins).values({ agentId, pluginId, enabled: false });
+}
+
+/**
+ * Toggle a plugin assignment for an agent.
+ */
+export async function setPluginEnabledForAgent(
+  agentId: string,
+  pluginId: string,
+  enabled: boolean
+): Promise<void> {
+  if (enabled) {
+    await enablePluginForAgent(agentId, pluginId);
+    return;
+  }
+  await disablePluginForAgent(agentId, pluginId);
+}
+
+// =============================================================================
+// Load Active Plugin Hooks
+// =============================================================================
+
+/**
+ * Load and register hooks for a specific plugin list.
+ * This function is additive/replace-per-plugin and avoids global clears so
+ * concurrent requests do not wipe each other's hook registrations.
+ */
+export function loadPluginHooks(pluginsToLoad: InstalledPlugin[]): number {
+  let hookCount = 0;
+  for (const plugin of pluginsToLoad) {
+    if (!plugin.components.hooks) {
+      // Ensure stale hook registrations for this plugin are removed.
+      unregisterPluginHooks(plugin.name);
+      continue;
+    }
+    registerPluginHooks(plugin.name, plugin.components.hooks);
+    hookCount++;
+  }
+
+  return hookCount;
+}
+
+/**
+ * Load and register hooks from all active plugins for a user.
+ */
+export async function loadActivePluginHooks(userId: string): Promise<number> {
+  const activePlugins = await getInstalledPlugins(userId, { status: "active" });
+  return loadPluginHooks(activePlugins);
+}
+
+// =============================================================================
+// Mappers
+// =============================================================================
+
+function mapInstalledPlugin(row: Plugin): InstalledPlugin {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    version: row.version,
+    scope: row.scope as PluginScope,
+    status: row.status as PluginStatus,
+    marketplaceName: row.marketplaceName || undefined,
+    manifest: row.manifest as unknown as PluginManifest,
+    components: row.components as unknown as PluginComponents,
+    installedAt: row.installedAt,
+    updatedAt: row.updatedAt,
+    lastError: row.lastError || undefined,
+    cachePath: row.cachePath || undefined,
+  };
+}
+
+function mapMarketplace(row: Marketplace): RegisteredMarketplace {
+  return {
+    id: row.id,
+    name: row.name,
+    source: row.source,
+    catalog: row.catalog as unknown as MarketplaceManifest | null,
+    autoUpdate: row.autoUpdate,
+    lastFetchedAt: row.lastFetchedAt,
+    lastError: row.lastError,
+    createdAt: row.createdAt,
+  };
+}

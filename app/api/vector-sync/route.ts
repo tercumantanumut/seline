@@ -129,11 +129,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
       }
       const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
-      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+      if (chunkSizeOverride !== undefined && chunkSizeOverride !== null && normalizedChunkSize === undefined) {
         return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
       }
       const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
-      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+      if (chunkOverlapOverride !== undefined && chunkOverlapOverride !== null && normalizedChunkOverlap === undefined) {
         return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
       }
       if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {
@@ -192,10 +192,12 @@ export async function POST(request: NextRequest) {
         reindexPolicy: reindexPolicy ?? "smart",
       });
 
-      // Auto-trigger sync only for auto mode unless explicitly disabled.
-      const shouldStartAutoSync = autoSync !== false && effectiveSyncMode === "auto";
+      // Trigger an initial sync for every non-manual mode so the folder has a
+      // baseline index and (for triggered mode) an active watcher.
+      const shouldStartAutoSync = autoSync !== false && effectiveSyncMode !== "manual";
       if (shouldStartAutoSync) {
-        syncFolder(folderId, {}, false, "auto").catch(err => {
+        const initialTrigger = effectiveSyncMode === "auto" ? "auto" : "manual";
+        syncFolder(folderId, {}, false, initialTrigger).catch(err => {
           console.error(`[VectorSync] Background sync failed for folder ${folderId}:`, err);
         });
       }
@@ -342,11 +344,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "maxFileSizeBytes must be a positive number" }, { status: 400 });
       }
       const normalizedChunkSize = normalizePositiveInt(chunkSizeOverride);
-      if (chunkSizeOverride !== undefined && normalizedChunkSize === undefined) {
+      if (chunkSizeOverride !== undefined && chunkSizeOverride !== null && normalizedChunkSize === undefined) {
         return NextResponse.json({ error: "chunkSizeOverride must be a positive number" }, { status: 400 });
       }
       const normalizedChunkOverlap = normalizePositiveInt(chunkOverlapOverride);
-      if (chunkOverlapOverride !== undefined && normalizedChunkOverlap === undefined) {
+      if (chunkOverlapOverride !== undefined && chunkOverlapOverride !== null && normalizedChunkOverlap === undefined) {
         return NextResponse.json({ error: "chunkOverlapOverride must be a positive number" }, { status: 400 });
       }
       if (chunkPreset === "custom" && (!normalizedChunkSize || normalizedChunkOverlap === undefined)) {

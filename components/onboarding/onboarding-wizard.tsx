@@ -10,18 +10,23 @@ import {
     ProviderStep,
     AuthStep,
     EmbeddingStep,
+    WebSearchStep,
+    WebScrapingStep,
     CompleteStep,
 } from "./steps";
-import { Sparkles, Key, Database, CheckCircle2 } from "lucide-react";
+import { Sparkles, Key, Database, CheckCircle2, Search, Globe } from "lucide-react";
 
 import type { LLMProvider } from "./steps/provider-step";
 
-type OnboardingStep = "welcome" | "provider" | "auth" | "embedding" | "complete";
+type OnboardingStep = "welcome" | "provider" | "auth" | "embedding" | "web-search" | "web-scraping" | "complete";
 
 interface OnboardingState {
     llmProvider: LLMProvider;
     apiKey: string;
     isAuthenticated: boolean;
+    tavilyApiKey: string;
+    webScraperProvider: "firecrawl" | "local";
+    firecrawlApiKey: string;
 }
 
 const ONBOARDING_STEPS = [
@@ -29,6 +34,8 @@ const ONBOARDING_STEPS = [
     { id: "provider", label: "Provider", icon: <Key className="w-4 h-4" /> },
     { id: "auth", label: "Connect", icon: <Key className="w-4 h-4" /> },
     { id: "embedding", label: "Search", icon: <Database className="w-4 h-4" /> },
+    { id: "web-search", label: "Web Search", icon: <Search className="w-4 h-4" /> },
+    { id: "web-scraping", label: "Web Scraping", icon: <Globe className="w-4 h-4" /> },
     { id: "complete", label: "Ready", icon: <CheckCircle2 className="w-4 h-4" /> },
 ];
 
@@ -54,6 +61,9 @@ export function OnboardingWizard() {
         llmProvider: "antigravity", // Default to free option
         apiKey: "",
         isAuthenticated: false,
+        tavilyApiKey: "",
+        webScraperProvider: "local",
+        firecrawlApiKey: "",
     });
 
     const router = useRouter();
@@ -65,7 +75,12 @@ export function OnboardingWizard() {
 
     const handleComplete = async () => {
         try {
-            await resilientPost("/api/onboarding", {});
+            // Save configured settings from onboarding
+            await resilientPost("/api/onboarding", {
+                tavilyApiKey: state.tavilyApiKey || undefined,
+                webScraperProvider: state.webScraperProvider || "local",
+                firecrawlApiKey: state.firecrawlApiKey || undefined,
+            });
             router.push("/");
         } catch (error) {
             console.error("Failed to complete onboarding:", error);
@@ -153,8 +168,32 @@ export function OnboardingWizard() {
                             )}
                             {currentStep === "embedding" && (
                                 <EmbeddingStep
-                                    onContinue={() => navigateTo("complete")}
+                                    onContinue={() => navigateTo("web-search")}
                                     onBack={() => navigateTo("auth", -1)}
+                                    onSkip={() => navigateTo("web-search")}
+                                />
+                            )}
+                            {currentStep === "web-search" && (
+                                <WebSearchStep
+                                    onContinue={(tavilyApiKey) => {
+                                        setState({ ...state, tavilyApiKey });
+                                        navigateTo("web-scraping");
+                                    }}
+                                    onBack={() => navigateTo("embedding", -1)}
+                                    onSkip={() => navigateTo("web-scraping")}
+                                />
+                            )}
+                            {currentStep === "web-scraping" && (
+                                <WebScrapingStep
+                                    onContinue={(provider, firecrawlApiKey) => {
+                                        setState({
+                                            ...state,
+                                            webScraperProvider: provider,
+                                            firecrawlApiKey: firecrawlApiKey || "",
+                                        });
+                                        navigateTo("complete");
+                                    }}
+                                    onBack={() => navigateTo("web-search", -1)}
                                     onSkip={() => navigateTo("complete")}
                                 />
                             )}

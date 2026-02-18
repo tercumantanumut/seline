@@ -6,7 +6,7 @@
  */
 
 import chokidar, { FSWatcher } from "chokidar";
-import { extname, relative, join } from "path";
+import { extname, relative, join, resolve } from "path";
 import { access } from "fs/promises";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
@@ -28,6 +28,10 @@ const globalForWatchers = globalThis as unknown as {
     characterId: string;
     folderPath: string;
   }>;
+  // Maps resolved physical path → folderId that owns the watcher.
+  // Used as a synchronous lock to prevent duplicate chokidar instances
+  // when multiple folder IDs point to the same directory (workflow inheritance).
+  watchingPaths?: Map<string, string>;
 };
 
 // Initialize global state if not already present
@@ -43,6 +47,9 @@ if (!globalForWatchers.deferredQueues) {
 if (!globalForWatchers.folderProcessors) {
   globalForWatchers.folderProcessors = new Map();
 }
+if (!globalForWatchers.watchingPaths) {
+  globalForWatchers.watchingPaths = new Map();
+}
 
 // Map of folder ID to watcher instance (use global in dev mode to persist across hot reloads)
 const watchers = globalForWatchers.fileWatchers;
@@ -55,6 +62,7 @@ const folderQueues = globalForWatchers.folderQueues;
 const deferredQueues = globalForWatchers.deferredQueues;
 
 const folderProcessors = globalForWatchers.folderProcessors;
+const watchingPaths = globalForWatchers.watchingPaths;
 
 const activeBatchProcessing = new Set<string>();
 const pendingBatchRun = new Map<string, boolean>();
@@ -294,6 +302,31 @@ export async function startWatching(config: WatcherConfig): Promise<void> {
   await stopWatching(config.folderId);
 
   let { folderId, characterId, folderPath, recursive, includeExtensions, excludePatterns, forcePolling: configForcePolling } = config;
+
+  // Deduplicate: if another watcher has already claimed the same physical path,
+  // skip creating a new chokidar instance. This happens when multiple agents share
+  // the same folder via workflow inheritance. One chokidar watcher per path is enough;
+  // running multiple watchers on the same path causes duplicate batch processing with
+  // synchronous SQLite ops that can block the Node.js event loop.
+  //
+  // This check is synchronous to prevent races when multiple startWatching() calls
+  // are fire-and-forget from syncFolder() — the async watchers/folderProcessors maps
+  // aren't populated until later, but watchingPaths is claimed immediately.
+  const resolvedPath = resolve(folderPath);
+  const existingClaimant = watchingPaths.get(resolvedPath);
+  if (existingClaimant && existingClaimant !== folderId) {
+    console.log(
+      `[FileWatcher] Path ${folderPath} already claimed by folder ${existingClaimant}, ` +
+      `skipping duplicate watcher for ${folderId}`
+    );
+    await db
+      .update(agentSyncFolders)
+      .set({ status: "synced" })
+      .where(eq(agentSyncFolders.id, folderId));
+    return;
+  }
+  // Claim this path synchronously before any async operations
+  watchingPaths.set(resolvedPath, folderId);
 
   console.log(`[FileWatcher] Starting watch for folder: ${folderPath}`);
 
@@ -749,6 +782,14 @@ export async function stopWatching(folderId: string): Promise<void> {
 
   if (folderProcessors.has(folderId)) {
     folderProcessors.delete(folderId);
+  }
+
+  // Release path claim so another folder can watch this path if needed
+  for (const [p, id] of watchingPaths.entries()) {
+    if (id === folderId) {
+      watchingPaths.delete(p);
+      break;
+    }
   }
 
   pendingBatchRun.delete(folderId);

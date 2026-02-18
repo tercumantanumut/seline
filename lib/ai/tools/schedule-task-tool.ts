@@ -17,9 +17,10 @@ import { scheduledTasks } from "@/lib/db/sqlite-schedule-schema";
 import { eq } from "drizzle-orm";
 import { CronJob } from "cron";
 import { getScheduler } from "@/lib/scheduler/scheduler-service";
-import { normalizeTimezone, isValidTimezone } from "@/lib/utils/timezone";
 import {
+  isMinutePrecisionMatchUtc,
   parseScheduledAtToUtcIso,
+  resolveScheduleTimezone,
   isScheduledAtInFutureUtc,
 } from "@/lib/ai/tools/schedule-task-helpers";
 
@@ -34,6 +35,7 @@ interface ScheduleTaskInput {
   intervalMinutes?: number;
   scheduledAt?: string;
   timezone?: string;
+  agentProposedAt?: string;
   prompt: string;
   enabled?: boolean;
   priority?: "high" | "normal" | "low";
@@ -91,7 +93,12 @@ const scheduleTaskSchema = jsonSchema<ScheduleTaskInput>({
     timezone: {
       type: "string",
       description:
-        "Timezone for schedule execution (IANA format preferred). Default: user's device timezone or 'UTC'. Examples: 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo'. Also accepts: 'GMT+1', 'CET', 'EST', 'Berlin', 'Tokyo' — these will be auto-converted to IANA format. IMPORTANT: Always ask the user to confirm their timezone/city if not explicitly stated.",
+        "Timezone for schedule execution (IANA format preferred). Resolved from the provided value or persisted session timezone. Examples: 'Europe/Berlin', 'America/New_York', 'Asia/Tokyo'. Also accepts: 'GMT+1', 'CET', 'EST', 'Berlin', 'Tokyo' — these will be auto-converted to IANA format. IMPORTANT: Always ask the user to confirm their timezone/city if not explicitly stated.",
+    },
+    agentProposedAt: {
+      type: "string",
+      description:
+        "Optional agent-proposed timestamp for strict drift checks. If it does not match backend-resolved time (minute precision), request is rejected.",
     },
     prompt: {
       type: "string",
@@ -159,7 +166,7 @@ The task will execute with the agent's full context and tools. Use template vari
 - ALWAYS use IANA timezone format (e.g., "Europe/Berlin", "America/New_York")
 - If user says "GMT+1" or "Berlin time", convert to "Europe/Berlin"
 - If timezone is ambiguous, ASK the user to confirm their city before scheduling
-- Default: user's device timezone if known, otherwise UTC
+- If timezone is omitted, backend resolves it from session metadata; if unavailable, scheduling is rejected
 
 **Delivery channel:**
 - By default ("auto"), results are delivered to the same channel the user is chatting from
@@ -180,6 +187,7 @@ The task will execute with the agent's full context and tools. Use template vari
         cronExpression,
         intervalMinutes,
         scheduledAt,
+        agentProposedAt,
         prompt,
         enabled = true,
         priority = "normal",
@@ -188,18 +196,20 @@ The task will execute with the agent's full context and tools. Use template vari
         calendarDurationMinutes = 15,
       } = input;
 
-      // === Timezone normalization ===
-      const rawTimezone = input.timezone || "UTC";
-      const tzResult = normalizeTimezone(rawTimezone);
-      const timezone = tzResult.timezone;
-
-      // Validate the normalized timezone is actually valid
-      if (!isValidTimezone(timezone)) {
+      const sessionTimezone = await getSessionTimezone(sessionId);
+      const timezoneResolution = resolveScheduleTimezone({
+        inputTimezone: input.timezone,
+        sessionTimezone,
+      });
+      if (!timezoneResolution.ok) {
         return {
           success: false,
-          error: `Invalid timezone "${rawTimezone}". Please use an IANA timezone like "Europe/Berlin", "America/New_York", or "Asia/Tokyo". You can also use city names like "Berlin" or "Tokyo".`,
+          error: timezoneResolution.error,
+          reason: timezoneResolution.reason,
+          diagnostics: timezoneResolution.diagnostics,
         };
       }
+      const timezone = timezoneResolution.timezone;
 
       // Validate required fields based on schedule type
       if (scheduleType === "cron" && !cronExpression) {
@@ -239,15 +249,56 @@ The task will execute with the agent's full context and tools. Use template vari
       // IMPORTANT: avoid locale-dependent `new Date(string)` parsing.
       let scheduledAtUtcIso: string | null = null;
       if (scheduleType === "once" && scheduledAt) {
+        const nowUtcIso = new Date().toISOString();
         const parsed = parseScheduledAtToUtcIso(scheduledAt, timezone);
         if (!parsed.ok) {
           return { success: false, error: parsed.error };
         }
         scheduledAtUtcIso = parsed.scheduledAtIsoUtc;
+
+        if (agentProposedAt) {
+          const proposed = parseScheduledAtToUtcIso(agentProposedAt, "UTC");
+          if (!proposed.ok) {
+            return {
+              success: false,
+              error: `Invalid agentProposedAt timestamp "${agentProposedAt}".`,
+              reason: "time_mismatch",
+              diagnostics: {
+                reason: "invalid_agent_proposed",
+                agentProposed: agentProposedAt,
+                backendResolved: scheduledAtUtcIso,
+                userNow: nowUtcIso,
+                timezone,
+                precision: "minute",
+              },
+            };
+          }
+
+          if (!isMinutePrecisionMatchUtc(proposed.scheduledAtIsoUtc, scheduledAtUtcIso)) {
+            return {
+              success: false,
+              error: "Time mismatch: agent-proposed time does not match backend resolution.",
+              reason: "time_mismatch",
+              diagnostics: {
+                reason: "time_mismatch",
+                agentProposed: proposed.scheduledAtIsoUtc,
+                backendResolved: scheduledAtUtcIso,
+                userNow: nowUtcIso,
+                timezone,
+                precision: "minute",
+              },
+            };
+          }
+        }
+
         if (!isScheduledAtInFutureUtc(scheduledAtUtcIso)) {
+          const nowInScheduleTimezone = new Date().toLocaleString("en-US", { timeZone: timezone });
           return {
             success: false,
-            error: "scheduledAt must be in the future for one-time schedules",
+            error:
+              `scheduledAt must be in the future for one-time schedules. ` +
+              `Resolved scheduledAt(UTC): ${scheduledAtUtcIso}. ` +
+              `Current time(UTC): ${nowUtcIso}. Current time(${timezone}): ${nowInScheduleTimezone}.`,
           };
         }
       }
@@ -369,11 +420,11 @@ The task will execute with the agent's full context and tools. Use template vari
           priority,
           enabled,
           delivery: deliveryDescription,
+          nowIsoUtc: new Date().toISOString(),
         };
 
-        // Include timezone normalization warning if applicable
-        if (tzResult.normalized && tzResult.warning) {
-          result.timezoneNote = tzResult.warning;
+        if (timezoneResolution.note) {
+          result.timezoneNote = timezoneResolution.note;
         }
 
         // Include calendar mirroring result
@@ -393,6 +444,21 @@ The task will execute with the agent's full context and tools. Use template vari
       }
     },
   });
+}
+
+async function getSessionTimezone(sessionId: string): Promise<string | null> {
+  try {
+    const { getSession } = await import("@/lib/db/queries");
+    const session = await getSession(sessionId);
+    if (!session?.metadata || typeof session.metadata !== "object") {
+      return null;
+    }
+    const metadata = session.metadata as Record<string, unknown>;
+    const value = metadata.userTimezone;
+    return typeof value === "string" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================

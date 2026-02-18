@@ -36,6 +36,8 @@ import {
   CircleStopIcon,
   PackageIcon,
   SearchIcon,
+  MicIcon,
+  Volume2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -60,6 +62,7 @@ import { PatchFileToolUI } from "./patch-file-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
+import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import FileMentionAutocomplete from "./file-mention-autocomplete";
@@ -78,11 +81,14 @@ import { getModelIcon } from "@/components/model-bag/model-bag.utils";
 import type { ModelItem, LLMProvider } from "@/components/model-bag/model-bag.types";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
 import { ContextWindowIndicator } from "./context-window-indicator";
+import { ActiveModelIndicator } from "./active-model-indicator";
 import {
   ContextWindowBlockedBanner,
   type ContextWindowBlockedPayload,
 } from "./context-window-blocked-banner";
-import { resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
+import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
+import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
+import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 
 
 interface ThreadProps {
@@ -95,6 +101,107 @@ interface ThreadProps {
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+}
+
+interface DroppedImportFile {
+  file: File;
+  relativePath: string;
+}
+
+interface VoiceUiSettings {
+  ttsEnabled: boolean;
+  sttEnabled: boolean;
+}
+
+type WebkitDataTransferItem = DataTransferItem & {
+  webkitGetAsEntry?: () => FileSystemEntry | null;
+};
+
+function readEntryFile(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readDirectoryBatch(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    reader.readEntries(resolve, reject);
+  });
+}
+
+async function collectDroppedImportFiles(event: React.DragEvent): Promise<DroppedImportFile[]> {
+  const dataTransferItems = Array.from(event.dataTransfer.items || []) as WebkitDataTransferItem[];
+  const entries = dataTransferItems
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter((entry): entry is FileSystemEntry => entry != null);
+
+  if (entries.length === 0) {
+    return Array.from(event.dataTransfer.files).map((file) => ({
+      file,
+      relativePath: file.name,
+    }));
+  }
+
+  const droppedFiles: DroppedImportFile[] = [];
+
+  const walkEntry = async (entry: FileSystemEntry, prefix = ""): Promise<void> => {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await readEntryFile(fileEntry);
+      droppedFiles.push({
+        file,
+        relativePath: `${prefix}${entry.name}`,
+      });
+      return;
+    }
+
+    const directoryEntry = entry as FileSystemDirectoryEntry;
+    const reader = directoryEntry.createReader();
+
+    while (true) {
+      const batch = await readDirectoryBatch(reader);
+      if (batch.length === 0) break;
+      await Promise.all(batch.map((child) => walkEntry(child, `${prefix}${entry.name}/`)));
+    }
+  };
+
+  for (const entry of entries) {
+    await walkEntry(entry);
+  }
+
+  if (droppedFiles.length > 0) {
+    return droppedFiles;
+  }
+
+  return Array.from(event.dataTransfer.files).map((file) => ({
+    file,
+    relativePath: file.name,
+  }));
+}
+
+function isDirectPluginFile(relativePath: string): boolean {
+  const lower = relativePath.toLowerCase();
+  return lower.endsWith(".zip") || lower.endsWith(".md") || lower.endsWith(".mds");
+}
+
+function isPluginStructureFile(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, "/").toLowerCase();
+  return (
+    normalized.includes("/.claude-plugin/plugin.json") ||
+    normalized.endsWith(".claude-plugin/plugin.json") ||
+    normalized.includes("/commands/") ||
+    normalized.startsWith("commands/") ||
+    normalized.includes("/skills/") ||
+    normalized.startsWith("skills/") ||
+    normalized.includes("/agents/") ||
+    normalized.startsWith("agents/") ||
+    normalized.includes("/hooks/") ||
+    normalized.startsWith("hooks/") ||
+    normalized.endsWith("/.mcp.json") ||
+    normalized.endsWith(".mcp.json") ||
+    normalized.endsWith("/.lsp.json") ||
+    normalized.endsWith(".lsp.json")
+  );
 }
 
 export const Thread: FC<ThreadProps> = ({
@@ -121,11 +228,85 @@ export const Thread: FC<ThreadProps> = ({
   const [skillImportProgress, setSkillImportProgress] = useState(0);
   const [skillImportName, setSkillImportName] = useState<string | null>(null);
   const [skillImportError, setSkillImportError] = useState<string | null>(null);
+  const [importResultDetail, setImportResultDetail] = useState<string | null>(null);
   const dragCounter = useRef(0);
+  const isMountedRef = useRef(true);
+  const importAbortControllerRef = useRef<AbortController | null>(null);
+  const importRequestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSkillImportReset = useCallback((delayMs: number, clearError: boolean) => {
+    if (importResetTimeoutRef.current) {
+      clearTimeout(importResetTimeoutRef.current);
+    }
+    importResetTimeoutRef.current = setTimeout(() => {
+      importResetTimeoutRef.current = null;
+      if (!isMountedRef.current) {
+        return;
+      }
+      setIsImportingSkill(false);
+      setSkillImportPhase("idle");
+      setSkillImportProgress(0);
+      setSkillImportName(null);
+      if (clearError) {
+        setSkillImportError(null);
+      }
+      setImportResultDetail(null);
+    }, delayMs);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      importAbortControllerRef.current?.abort();
+      importAbortControllerRef.current = null;
+      if (importRequestTimeoutRef.current) {
+        clearTimeout(importRequestTimeoutRef.current);
+        importRequestTimeoutRef.current = null;
+      }
+      if (importResetTimeoutRef.current) {
+        clearTimeout(importResetTimeoutRef.current);
+        importResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Deep research mode (for drag-drop gating)
   const deepResearch = useOptionalDeepResearch();
   const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
+  const [voiceUiSettings, setVoiceUiSettings] = useState<VoiceUiSettings>({
+    ttsEnabled: false,
+    sttEnabled: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadVoiceSettings = async () => {
+      const { data, error } = await resilientFetch<{
+        ttsEnabled?: boolean;
+        sttEnabled?: boolean;
+      }>("/api/settings", {
+        timeout: 10_000,
+        retries: 0,
+      });
+
+      if (cancelled || error || !data) {
+        return;
+      }
+
+      setVoiceUiSettings({
+        ttsEnabled: Boolean(data.ttsEnabled),
+        sttEnabled: Boolean(data.sttEnabled),
+      });
+    };
+
+    void loadVoiceSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Drag-and-drop handlers (full-page drop zone) ──────────────────────
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -167,105 +348,209 @@ export const Thread: FC<ThreadProps> = ({
         return;
       }
 
-      const files = Array.from(e.dataTransfer.files);
+      const droppedItems = await collectDroppedImportFiles(e);
 
-      // ── Skill files (.zip / .md) ──────────────────────────────────
-      const skillFiles = files.filter(
-        (f) => f.name.endsWith(".zip") || f.name.endsWith(".md")
+      // ── Skill/plugin files (.zip / .md / .mds / folder structures) ───────
+      const pluginItems = droppedItems.filter(
+        ({ relativePath }) => isDirectPluginFile(relativePath) || isPluginStructureFile(relativePath)
       );
 
-      if (skillFiles.length > 0) {
-        const skillFile = skillFiles[0];
-
+      if (pluginItems.length > 0) {
         if (!character?.id || character.id === "default") {
           toast.error("Please select an agent before importing skills");
           return;
         }
 
+        const confirmInstall = window.confirm(
+          `Install this plugin package for "${character.name}" and attach discovered sub-agents to this workflow?`
+        );
+        if (!confirmInstall) {
+          return;
+        }
+
         const MAX_SKILL_SIZE = 50 * 1024 * 1024;
-        if (skillFile.size > MAX_SKILL_SIZE) {
+        const oversized = pluginItems.find(({ file }) => file.size > MAX_SKILL_SIZE);
+        if (oversized) {
           toast.error("Skill file exceeds 50MB limit", {
-            description: `File size: ${Math.round(skillFile.size / 1024 / 1024)}MB`,
+            description: `File size: ${Math.round(oversized.file.size / 1024 / 1024)}MB (${oversized.relativePath})`,
           });
           return;
         }
 
-        // Set initial state — React 18 batches these, but the first
-        // await below forces a render so the overlay appears immediately.
+        importAbortControllerRef.current?.abort();
+        importAbortControllerRef.current = null;
+        if (importRequestTimeoutRef.current) {
+          clearTimeout(importRequestTimeoutRef.current);
+          importRequestTimeoutRef.current = null;
+        }
+        if (importResetTimeoutRef.current) {
+          clearTimeout(importResetTimeoutRef.current);
+          importResetTimeoutRef.current = null;
+        }
+
         setIsImportingSkill(true);
         setSkillImportPhase("uploading");
         setSkillImportProgress(10);
-        setSkillImportName(skillFile.name);
+        setSkillImportName(pluginItems[0].relativePath);
         setSkillImportError(null);
+        setImportResultDetail(null);
 
-        // Yield to the event loop so React flushes the "uploading" overlay
-        // before we start the network request. Without this, React batches
-        // all setState calls up to the first `await fetch(...)` and the
-        // user sees nothing for ~1s.
         await new Promise((r) => setTimeout(r, 0));
 
+        let importController: AbortController | null = null;
+        let importTimedOut = false;
         try {
           const formData = new FormData();
-          formData.append("file", skillFile);
           formData.append("characterId", character.id);
+
+          if (pluginItems.length === 1 && isDirectPluginFile(pluginItems[0].relativePath)) {
+            const single = pluginItems[0];
+            formData.append("file", single.file, single.relativePath);
+          } else {
+            for (const item of pluginItems) {
+              formData.append("files", item.file, item.relativePath);
+            }
+          }
 
           setSkillImportPhase("parsing");
           setSkillImportProgress(30);
 
-          const response = await fetch("/api/skills/import", {
-            method: "POST",
-            body: formData,
-          });
+          importController = new AbortController();
+          importAbortControllerRef.current = importController;
+          importRequestTimeoutRef.current = setTimeout(() => {
+            importTimedOut = true;
+            importController?.abort();
+          }, 120_000);
+
+          let pluginResponse: Response;
+          try {
+            pluginResponse = await fetch("/api/plugins/import", {
+              method: "POST",
+              body: formData,
+              signal: importController.signal,
+            });
+          } finally {
+            if (importRequestTimeoutRef.current) {
+              clearTimeout(importRequestTimeoutRef.current);
+              importRequestTimeoutRef.current = null;
+            }
+            if (importAbortControllerRef.current === importController) {
+              importAbortControllerRef.current = null;
+            }
+          }
+
+          if (!isMountedRef.current || importController.signal.aborted) {
+            return;
+          }
 
           setSkillImportPhase("importing");
           setSkillImportProgress(70);
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Import failed");
+          if (!pluginResponse.ok) {
+            const pluginError = await pluginResponse.json().catch(() => null);
+            throw new Error(pluginError?.error || "Import failed");
           }
 
-          const result = await response.json();
+          const pluginResult = await pluginResponse.json();
+          if (!isMountedRef.current || importController.signal.aborted) {
+            return;
+          }
+
+          const parts: string[] = [];
+          if (pluginResult.components?.skills?.length > 0) {
+            parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
+          }
+          if (pluginResult.components?.agents?.length > 0) {
+            parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
+          }
+          if (pluginResult.components?.hasHooks) {
+            parts.push("hooks enabled");
+          }
+          if (pluginResult.components?.mcpServers?.length > 0) {
+            parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
+          }
+          if (Array.isArray(pluginResult.createdAgents) && pluginResult.createdAgents.length > 0) {
+            parts.push(
+              `${pluginResult.createdAgents.length} agent profile${pluginResult.createdAgents.length > 1 ? "s" : ""} created`
+            );
+          }
+          if (pluginResult.workflow) {
+            parts.push(
+              `workflow created with ${(pluginResult.workflow.subAgentIds?.length || 0) + 1} agents`
+            );
+          }
 
           setSkillImportPhase("success");
           setSkillImportProgress(100);
-          setSkillImportName(result.skillName || skillFile.name);
+          setSkillImportName(pluginResult.plugin?.name || pluginItems[0].relativePath);
+          setImportResultDetail(parts.length > 0 ? parts.join(", ") : null);
 
-          toast.success("Skill imported successfully", {
-            description: `${result.skillName} is ready to use`,
-            action: {
-              label: "View Skills",
-              onClick: () => router.push(`/agents/${character.id}/skills`),
-            },
+          const isLegacy = pluginResult.isLegacySkillFormat;
+          const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+          toast.success(isLegacy ? "Skill imported successfully" : "Plugin installed", {
+            description: isLegacy
+              ? `${pluginResult.plugin?.name} is ready to use`
+              : `${pluginResult.plugin?.name}${summary}`,
+            action: isLegacy
+              ? {
+                  label: "View Skills",
+                  onClick: () => router.push(`/agents/${character.id}/skills`),
+                }
+              : pluginResult.workflow
+                ? {
+                    label: "View Workflow",
+                    onClick: () => router.push("/"),
+                  }
+                : {
+                    label: "View Plugins",
+                    onClick: () => router.push("/settings?section=plugins"),
+                  },
           });
 
-          // Auto-dismiss after 2.5 seconds
-          setTimeout(() => {
-            setIsImportingSkill(false);
-            setSkillImportPhase("idle");
-            setSkillImportProgress(0);
-            setSkillImportName(null);
-          }, 2500);
+          if (pluginResult.warnings?.length > 0) {
+            for (const warning of pluginResult.warnings.slice(0, 3)) {
+              toast.warning(warning);
+            }
+          }
+
+          scheduleSkillImportReset(3000, false);
         } catch (error) {
-          console.error("[Thread] Skill import failed:", error);
+          const isAbortError =
+            (error instanceof DOMException && error.name === "AbortError") ||
+            (error instanceof Error && error.name === "AbortError");
+          const wasAborted = Boolean(importController?.signal.aborted) || isAbortError;
+          if (wasAborted) {
+            if (!isMountedRef.current) {
+              return;
+            }
+            if (importTimedOut) {
+              const timeoutMessage = "Import timed out after 2 minutes. Please try again.";
+              setSkillImportPhase("error");
+              setSkillImportError(timeoutMessage);
+              toast.error("Import timed out", {
+                description: timeoutMessage,
+              });
+              scheduleSkillImportReset(4000, true);
+            }
+            return;
+          }
+          if (!isMountedRef.current) {
+            return;
+          }
+          console.error("[Thread] Skill/plugin import failed:", error);
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
           setSkillImportPhase("error");
           setSkillImportError(errorMsg);
-          toast.error("Skill import failed", {
+          toast.error("Import failed", {
             description: errorMsg,
           });
 
-          // Auto-dismiss error after 4 seconds
-          setTimeout(() => {
-            setIsImportingSkill(false);
-            setSkillImportPhase("idle");
-            setSkillImportProgress(0);
-            setSkillImportName(null);
-            setSkillImportError(null);
-          }, 4000);
+          scheduleSkillImportReset(4000, true);
         }
         return;
       }
+
+      const files = droppedItems.map(({ file }) => file);
 
       // ── Image attachments ─────────────────────────────────────────
       const imageFiles = files.filter((f) => f.type.startsWith("image/"));
@@ -304,7 +589,7 @@ export const Thread: FC<ThreadProps> = ({
         toast.error(t("composer.dropError"));
       }
     },
-    [threadRuntime, t, isDeepResearchMode, character, router]
+    [threadRuntime, t, isDeepResearchMode, character, router, scheduleSkillImportReset]
   );
 
   // Context window status tracking
@@ -330,6 +615,11 @@ export const Thread: FC<ThreadProps> = ({
       }
     },
     [onSessionActivity, refreshContextStatus]
+  );
+
+  const AssistantMessageWithVoice: FC = useCallback(
+    () => <AssistantMessage ttsEnabled={voiceUiSettings.ttsEnabled} />,
+    [voiceUiSettings.ttsEnabled]
   );
 
   return (
@@ -416,6 +706,11 @@ export const Thread: FC<ThreadProps> = ({
               {skillImportPhase === "success" && skillImportName && (
                 <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
               )}
+
+              {/* Plugin component detail */}
+              {skillImportPhase === "success" && importResultDetail && (
+                <p className="text-xs font-mono text-terminal-green/80">{importResultDetail}</p>
+              )}
             </div>
           </div>
         )}
@@ -429,7 +724,7 @@ export const Thread: FC<ThreadProps> = ({
             <ThreadPrimitive.Messages
               components={{
                 UserMessage,
-                AssistantMessage,
+                AssistantMessage: AssistantMessageWithVoice,
                 SystemMessage,
                 EditComposer,
               }}
@@ -455,10 +750,13 @@ export const Thread: FC<ThreadProps> = ({
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
             <ThreadScrollToBottom />
+            {/* Plugin status badge in chat header */}
+            <PluginStatusBadge />
             <Composer 
               isBackgroundTaskRunning={isBackgroundTaskRunning} 
               isProcessingInBackground={isProcessingInBackground}
               sessionId={sessionId}
+              sttEnabled={voiceUiSettings.sttEnabled}
               onCancelBackgroundRun={onCancelBackgroundRun}
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
@@ -674,6 +972,7 @@ const Composer: FC<{
   isBackgroundTaskRunning?: boolean;
   isProcessingInBackground?: boolean;
   sessionId?: string;
+  sttEnabled?: boolean;
   onCancelBackgroundRun?: () => void;
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
@@ -686,6 +985,7 @@ const Composer: FC<{
   isBackgroundTaskRunning = false,
   isProcessingInBackground = false,
   sessionId,
+  sttEnabled = false,
   onCancelBackgroundRun,
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
@@ -703,6 +1003,11 @@ const Composer: FC<{
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
 
   // Cursor position for @ mention autocomplete
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -1003,6 +1308,166 @@ const Composer: FC<{
     }
   }, [isOperationRunning]);
 
+  const stopRecordingStream = useCallback(() => {
+    if (recordingStreamRef.current) {
+      for (const track of recordingStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      recordingStreamRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      try {
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state !== "inactive") {
+          recorder.stop();
+        }
+      } catch {
+        // noop
+      }
+      stopRecordingStream();
+      recordingChunksRef.current = [];
+      mediaRecorderRef.current = null;
+    };
+  }, [stopRecordingStream]);
+
+  const handleVoiceInput = useCallback(async () => {
+    if (!sttEnabled) {
+      return;
+    }
+
+    if (isTranscribingVoice) {
+      return;
+    }
+
+    const activeRecorder = mediaRecorderRef.current;
+    if (isRecordingVoice && activeRecorder && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      toast.error("Voice input is not supported in this environment.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+      ];
+      const supportedMimeType = preferredMimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+      const recorder = supportedMimeType
+        ? new MediaRecorder(stream, { mimeType: supportedMimeType })
+        : new MediaRecorder(stream);
+
+      recordingStreamRef.current = stream;
+      recordingChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setIsRecordingVoice(false);
+        setIsTranscribingVoice(false);
+        mediaRecorderRef.current = null;
+        recordingChunksRef.current = [];
+        stopRecordingStream();
+        toast.error("Voice recording failed.");
+      };
+
+      recorder.onstop = async () => {
+        setIsRecordingVoice(false);
+        const mimeType = recorder.mimeType || "audio/webm";
+        const chunks = recordingChunksRef.current;
+        recordingChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        stopRecordingStream();
+
+        if (chunks.length === 0) {
+          toast.error("No audio captured. Please try again.");
+          return;
+        }
+
+        const audioBlob = new Blob(chunks, { type: mimeType });
+        if (audioBlob.size === 0) {
+          toast.error("No audio captured. Please try again.");
+          return;
+        }
+
+        setIsTranscribingVoice(true);
+        try {
+          const extension = mimeType.includes("ogg")
+            ? "ogg"
+            : mimeType.includes("wav")
+              ? "wav"
+              : mimeType.includes("mp4") || mimeType.includes("m4a")
+                ? "m4a"
+                : "webm";
+          const formData = new FormData();
+          formData.append("file", audioBlob, `voice-input.${extension}`);
+
+          const response = await fetch("/api/voice/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) {
+            throw new Error(payload?.error || "Transcription failed");
+          }
+
+          const transcript = typeof payload?.text === "string" ? payload.text.trim() : "";
+          if (!transcript) {
+            throw new Error("No speech detected");
+          }
+
+          setInputValue((prev) => {
+            if (!prev.trim()) {
+              return transcript;
+            }
+            return `${prev}${prev.endsWith(" ") ? "" : " "}${transcript}`;
+          });
+
+          requestAnimationFrame(() => {
+            const textarea = inputRef.current;
+            if (!textarea) {
+              return;
+            }
+            textarea.focus();
+            const cursor = textarea.value.length;
+            textarea.setSelectionRange(cursor, cursor);
+            setCursorPosition(cursor);
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Transcription failed";
+          toast.error(errorMessage);
+        } finally {
+          setIsTranscribingVoice(false);
+        }
+      };
+
+      recorder.start(250);
+      setIsRecordingVoice(true);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Could not access microphone";
+      toast.error(errorMessage);
+      setIsRecordingVoice(false);
+      setIsTranscribingVoice(false);
+      mediaRecorderRef.current = null;
+      recordingChunksRef.current = [];
+      stopRecordingStream();
+    }
+  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream]);
+
   // Auto-grow textarea height based on content
   const adjustTextareaHeight = useCallback(() => {
     const textarea = inputRef.current;
@@ -1278,6 +1743,41 @@ const Composer: FC<{
               </Tooltip>
             )}
 
+            {sttEnabled && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleVoiceInput}
+                    disabled={isTranscribingVoice || mcpStatus.isReloading}
+                    className={cn(
+                      "size-8",
+                      isRecordingVoice
+                        ? "text-red-600 bg-red-100 hover:bg-red-200"
+                        : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+                    )}
+                  >
+                    {isTranscribingVoice ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : isRecordingVoice ? (
+                      <CircleStopIcon className="size-4" />
+                    ) : (
+                      <MicIcon className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
+                  {isTranscribingVoice
+                    ? t("tooltips.transcribingAudio")
+                    : isRecordingVoice
+                      ? t("tooltips.stopVoiceInput")
+                      : t("tooltips.voiceInput")}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <ComposerPrimitive.AddAttachment asChild>
@@ -1369,18 +1869,24 @@ const Composer: FC<{
         </div>
       </ComposerPrimitive.Root>
 
-      {/* Context window indicator — shown below composer when status is not safe */}
-      {contextStatus && contextStatus.status !== "safe" && (
-        <div className="mt-1.5 w-full px-1">
-          <ContextWindowIndicator
-            status={contextStatus}
-            isLoading={contextLoading}
-            onCompact={onCompact}
-            isCompacting={isCompacting}
-            compact
-          />
+      {/* Context window indicator + active model badge — always visible once status is available */}
+      {(contextStatus || contextLoading) && (
+        <div className="mt-1.5 w-full px-1 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <ContextWindowIndicator
+              status={contextStatus}
+              isLoading={contextLoading}
+              onCompact={onCompact}
+              isCompacting={isCompacting}
+              compact
+            />
+          </div>
+          <ActiveModelIndicator status={contextStatus} />
         </div>
       )}
+
+      {/* Active delegations indicator */}
+      <ActiveDelegationsIndicator characterId={character?.id ?? null} />
     </div>
   );
 };
@@ -1456,12 +1962,12 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           toast.error(putError);
           return;
         }
-        // Update global assignment for display purposes only (doesn't affect this session)
-        await bag.assignModelToRole(model.id, "chat");
-        // NOTE: We do NOT call switchProvider here because:
-        // 1. This is a per-session override, not a global change
-        // 2. switchProvider clears all model assignments and can cause race conditions
-        // 3. The session override takes precedence via session-model-resolver.ts
+        // NOTE: We intentionally do NOT write to global settings here.
+        // The model bag selection is a per-session override stored in session.metadata.
+        // Writing to global settings would cause getConfiguredProvider() / getConfiguredModel()
+        // to return the session override as if it were the global default, creating
+        // inconsistency between the session model and what logs/temperature/caching use.
+        // The session override takes precedence via session-model-resolver.ts.
         toast.success(`Switched to ${model.name} for this session`);
         setOpen(false);
       } catch {
@@ -1470,7 +1976,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
         setSaving(false);
       }
     },
-    [sessionId, bag]
+    [sessionId]
   );
 
   // Tier badge colors
@@ -1923,7 +2429,7 @@ const EditComposer: FC = () => {
   );
 };
 
-const AssistantMessage: FC = () => {
+const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = false }) => {
   const { character } = useCharacter();
   const displayChar = character || DEFAULT_CHARACTER;
   const messageRef = useRef<HTMLDivElement>(null);
@@ -2022,7 +2528,7 @@ const AssistantMessage: FC = () => {
         )}
 
         <BranchPicker />
-        <AssistantActionBar />
+        <AssistantActionBar ttsEnabled={ttsEnabled} messageText={messageText} />
       </div>
     </MessagePrimitive.Root>
   );
@@ -2049,11 +2555,83 @@ const BranchPicker: FC = () => {
   );
 };
 
-const AssistantActionBar: FC = () => {
+const AssistantActionBar: FC<{ ttsEnabled?: boolean; messageText?: string }> = ({
+  ttsEnabled = false,
+  messageText,
+}) => {
   const t = useTranslations("assistantUi");
+  const voiceCtx = useOptionalVoice();
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioUrlRef = useRef<string | null>(null);
+  const sanitizedMessageText = (messageText || "").trim();
   const handleCopyClick = useCallback(() => {
     toast.success(t("toast.copied"));
   }, [t]);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const isPlayingCurrentMessage = Boolean(
+    voiceCtx?.voice.isPlaying &&
+    audioUrlRef.current &&
+    voiceCtx.voice.currentAudioUrl === audioUrlRef.current
+  );
+
+  const handleSpeakClick = useCallback(async () => {
+    if (!ttsEnabled || !sanitizedMessageText) {
+      return;
+    }
+
+    if (isPlayingCurrentMessage && voiceCtx) {
+      voiceCtx.stopAudio();
+      return;
+    }
+
+    setIsSpeaking(true);
+    voiceCtx?.setSynthesizing(true);
+    try {
+      const response = await fetch("/api/voice/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sanitizedMessageText }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to synthesize speech");
+      }
+
+      const audioBlob = await response.blob();
+      if (!audioBlob.size) {
+        throw new Error("No audio generated");
+      }
+
+      const nextAudioUrl = URL.createObjectURL(audioBlob);
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+      audioUrlRef.current = nextAudioUrl;
+
+      if (voiceCtx) {
+        voiceCtx.playAudio(nextAudioUrl);
+      } else {
+        const audio = new Audio(nextAudioUrl);
+        void audio.play();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to synthesize speech";
+      toast.error(errorMessage);
+    } finally {
+      setIsSpeaking(false);
+      voiceCtx?.setSynthesizing(false);
+    }
+  }, [isPlayingCurrentMessage, sanitizedMessageText, ttsEnabled, voiceCtx]);
 
   return (
     <ActionBarPrimitive.Root
@@ -2061,6 +2639,23 @@ const AssistantActionBar: FC = () => {
       autohide="not-last"
       className="flex gap-1"
     >
+      {ttsEnabled && sanitizedMessageText.length > 0 && (
+        <TooltipIconButton
+          tooltip={isPlayingCurrentMessage ? t("tooltips.stopAudio") : t("tooltips.readAloud")}
+          side="bottom"
+          className="text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+          onClick={handleSpeakClick}
+          disabled={isSpeaking}
+        >
+          {isSpeaking ? (
+            <Loader2Icon className="size-3 animate-spin" />
+          ) : isPlayingCurrentMessage ? (
+            <CircleStopIcon className="size-3" />
+          ) : (
+            <Volume2Icon className="size-3" />
+          )}
+        </TooltipIconButton>
+      )}
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton
           tooltip={t("tooltips.copy")}

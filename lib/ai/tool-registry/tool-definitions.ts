@@ -7,6 +7,7 @@
  * LOADING STRATEGY (optimized for token efficiency):
  * - alwaysLoad: true  → Core tools that must always be available:
  *   - searchTools, listAllTools: Required for discovering other tools
+ *   - compactSession: Explicit agent-controlled context compaction
  *   - describeImage: Essential for virtual try-on workflows
  * - deferLoading: true → All other tools (discovered on-demand via searchTools)
  *
@@ -71,17 +72,16 @@ import {
   createFlux2Klein9BReferenceTool,
 } from "../tools/flux2-klein-9b-generate-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
-import { createCreateSkillTool } from "../tools/create-skill-tool";
-import { createListSkillsTool } from "../tools/list-skills-tool";
 import { createRunSkillTool } from "../tools/run-skill-tool";
 import { createUpdateSkillTool } from "../tools/update-skill-tool";
-import { createCopySkillTool } from "../tools/copy-skill-tool";
 import { createMemorizeTool } from "../tools/memorize-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createSpeakAloudTool } from "../tools/speak-aloud-tool";
 import { createTranscribeTool } from "../tools/transcribe-tool";
 import { createSendMessageToChannelTool } from "../tools/channel-tools";
+import { createDelegateToSubagentTool } from "../tools/delegate-to-subagent-tool";
+import { createCompactSessionTool } from "../tools/compact-session-tool";
 
 /**
  * Register all tools with the registry
@@ -156,6 +156,32 @@ export function registerAllTools(): void {
     () =>
       createRetrieveFullContentTool({
         sessionId: "UNSCOPED",
+      })
+  );
+
+  // Compact Session - explicit, agent-controlled context compaction
+  registry.register(
+    "compactSession",
+    {
+      displayName: "Compact Session",
+      category: "utility",
+      keywords: [
+        "compact",
+        "compaction",
+        "context",
+        "context window",
+        "token budget",
+        "summarize history",
+        "free tokens",
+      ],
+      shortDescription:
+        "Run explicit session compaction to free context tokens before long workflows",
+      loading: { alwaysLoad: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createCompactSessionTool({
+        sessionId: sessionId || "UNSCOPED",
       })
   );
 
@@ -569,51 +595,14 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
       })
   );
 
-  // Skills: create skill from conversation workflows
-  registry.register(
-    "createSkill",
-    {
-      displayName: "Create Skill",
-      category: "utility",
-      keywords: ["skill", "create skill", "save skill", "recipe", "automation"],
-      shortDescription: "Save a reusable skill recipe for this agent from a conversation flow",
-      loading: { deferLoading: true },
-      requiresSession: true,
-    } satisfies ToolMetadata,
-    ({ sessionId, userId, characterId }) =>
-      createCreateSkillTool({
-        sessionId: sessionId || "UNSCOPED",
-        userId: userId || "UNSCOPED",
-        characterId: characterId || "UNSCOPED",
-      })
-  );
-
-  // Skills: list saved skills for an agent
-  registry.register(
-    "listSkills",
-    {
-      displayName: "List Skills",
-      category: "utility",
-      keywords: ["list skills", "skills", "catalog", "show skills"],
-      shortDescription: "List saved skills for this agent with status and run metadata",
-      loading: { deferLoading: true },
-      requiresSession: false,
-    } satisfies ToolMetadata,
-    ({ userId, characterId }) =>
-      createListSkillsTool({
-        userId: userId || "UNSCOPED",
-        characterId: characterId || "UNSCOPED",
-      })
-  );
-
-  // Skills: run a saved skill and optionally schedule it
+  // Skills runtime: unified discovery/inspect/run for DB + plugin skills
   registry.register(
     "runSkill",
     {
       displayName: "Run Skill",
       category: "utility",
-      keywords: ["run skill", "execute skill", "skill by name", "skill by id"],
-      shortDescription: "Run a saved skill by id/name and optionally create a linked schedule",
+      keywords: ["run skill", "inspect skill", "list skills", "execute skill", "skill by id", "skill by name"],
+      shortDescription: "Unified skill runtime: list, inspect full content, and run DB/plugin skills",
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
@@ -625,37 +614,21 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
       })
   );
 
-  // Skills: update existing skill with feedback and version checks
+  // Skills runtime: unified create/patch/replace/metadata/copy/archive mutations
   registry.register(
     "updateSkill",
     {
       displayName: "Update Skill",
       category: "utility",
-      keywords: ["update skill", "improve skill", "revise skill", "version", "skill feedback"],
-      shortDescription: "Update an existing skill with optional version conflict checks and change reason",
+      keywords: ["update skill", "create skill", "patch skill", "replace skill", "copy skill", "archive skill", "skill feedback"],
+      shortDescription: "Unified skill mutation tool with patch-first editing and version checks",
       loading: { deferLoading: true },
       requiresSession: false,
     } satisfies ToolMetadata,
-    ({ userId }) =>
+    ({ userId, characterId }) =>
       createUpdateSkillTool({
         userId: userId || "UNSCOPED",
-      })
-  );
-
-  // Skills: copy skill to another owned agent as an independent clone
-  registry.register(
-    "copySkill",
-    {
-      displayName: "Copy Skill",
-      category: "utility",
-      keywords: ["copy skill", "clone skill", "share skill", "transfer skill", "provenance"],
-      shortDescription: "Copy a skill to another owned agent with provenance metadata",
-      loading: { deferLoading: true },
-      requiresSession: false,
-    } satisfies ToolMetadata,
-    ({ userId }) =>
-      createCopySkillTool({
-        userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
       })
   );
 
@@ -845,6 +818,55 @@ Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are
         sessionId: sessionId || "UNSCOPED",
         userId: userId || "UNSCOPED",
         sessionMetadata: {},
+      })
+  );
+
+  // Delegate to Sub-Agent Tool (workflow inter-agent communication)
+  registry.register(
+    "delegateToSubagent",
+    {
+      displayName: "Delegate to Sub-Agent",
+      category: "utility",
+      keywords: [
+        "delegate", "subagent", "sub-agent", "workflow", "agent", "team",
+        "assign", "task", "collaborate", "orchestrate",
+      ],
+      shortDescription: "Delegate a task to a workflow sub-agent and receive their response",
+      fullInstructions: `## Delegate to Sub-Agent
+
+Delegate work to a workflow sub-agent. Use this when tasks are multi-step, parallelizable,
+or better handled by a subagent's stated purpose.
+
+Only available to initiator role in an active workflow.
+
+Required sequence:
+1) \`list\` - refresh available sub-agents and active delegations.
+2) \`start\` - target by \`agentId\` or \`agentName\`, send precise task.
+3) \`observe\` - check progress and collect response (prefer \`waitSeconds\` like 30/60/600).
+4) \`continue\` or \`stop\` - refine or cancel existing delegation.
+
+Rules:
+- Do not start duplicate delegations to the same subagent while one is active.
+- Reuse existing \`delegationId\` with \`observe\` / \`continue\` / \`stop\`.
+- Include constraints and expected output format in task text.
+
+Compatibility options:
+- \`runInBackground\` (or \`run_in_background\`): default true. If false on \`start\`, tool performs start + observe wait in one call.
+- \`resume\`: compatibility alias for existing \`delegationId\` (maps to \`continue\` semantics).
+- \`maxTurns\` (or \`max_turns\`): advisory cap forwarded into task instructions (not strict runtime enforcement).
+
+Examples:
+- \`{ action: "start", agentName: "Research Analyst", task: "Summarize API docs changes with risks and next actions." }\`
+- \`{ action: "observe", delegationId: "del-123", waitSeconds: 60 }\`
+- \`{ action: "continue", delegationId: "del-123", followUpMessage: "Focus only on migration risks." }\``,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId, characterId }) =>
+      createDelegateToSubagentTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
       })
   );
 

@@ -2,24 +2,24 @@ import { describe, it, expect } from "vitest";
 import { validateCommand } from "@/lib/command-execution/validator";
 
 describe("Command Validator Tests", () => {
-    it("Should reject commands with single quotes", () => {
-        expect(validateCommand("echo 'hacked'", []).valid).toBe(false);
+    it("Should allow commands with single quotes", () => {
+        expect(validateCommand("echo 'hacked'", []).valid).toBe(true);
     });
 
-    it("Should reject commands with double quotes", () => {
-        expect(validateCommand('echo "hacked"', []).valid).toBe(false);
+    it("Should allow commands with double quotes", () => {
+        expect(validateCommand('echo "hacked"', []).valid).toBe(true);
     });
 
-    it("Should reject ;", () => {
-        expect(validateCommand("echo; rm -rf", []).valid).toBe(false);
+    it("Should allow commands containing semicolon", () => {
+        expect(validateCommand("echo; rm -rf", []).valid).toBe(true);
     });
 
-    it("Should reject &&", () => {
-        expect(validateCommand("echo && rm -rf", []).valid).toBe(false);
+    it("Should allow commands containing &&", () => {
+        expect(validateCommand("echo && rm -rf", []).valid).toBe(true);
     });
 
-    it("Should reject |", () => {
-        expect(validateCommand("echo | bash", []).valid).toBe(false);
+    it("Should allow commands containing pipe", () => {
+        expect(validateCommand("echo | bash", []).valid).toBe(true);
     });
 
     it("Should allow safe echo", () => {
@@ -30,12 +30,16 @@ describe("Command Validator Tests", () => {
         expect(validateCommand("ls", ["-la"]).valid).toBe(true);
     });
 
-    it("Should block rm", () => {
+    it("Should require confirmation for rm", () => {
         expect(validateCommand("rm", []).valid).toBe(false);
     });
 
-    it("Should block format", () => {
-        expect(validateCommand("format", []).valid).toBe(false);
+    it("Should allow rm with explicit confirmation", () => {
+        expect(validateCommand("rm", [], { confirmRemoval: true }).valid).toBe(true);
+    });
+
+    it("Should allow format", () => {
+        expect(validateCommand("format", []).valid).toBe(true);
     });
 
     it("Should allow format-json", () => {

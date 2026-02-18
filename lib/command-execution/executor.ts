@@ -14,7 +14,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
-import { saveTerminalLog, truncateOutput } from "./log-manager";
+import { saveTerminalLog } from "./log-manager";
 import { getRTKBinary, getRTKEnvironment, getRTKFlags, shouldUseRTK } from "@/lib/rtk";
 import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./types";
 
@@ -24,8 +24,8 @@ import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./typ
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
 // Note: This byte limit prevents memory/performance issues during execution.
-// Token-based limiting (25K tokens) happens in normalizeToolResultOutput()
-// to ensure consistent behavior across all tools (bash, MCP, custom).
+// Projection/token limiting happens later in model/transport shaping paths.
+// Canonical history persistence remains lossless where possible.
 
 /**
  * Get the bundled Node.js binaries directory
@@ -201,12 +201,12 @@ export async function startBackgroundProcess(
     processId: string;
     error?: string;
 }> {
-    const { command, args, cwd, characterId } = options;
+    const { command, args, cwd, characterId, confirmRemoval } = options;
     const timeout = options.timeout ?? BACKGROUND_TIMEOUT;
     const maxOutputSize = options.maxOutputSize ?? MAX_BACKGROUND_OUTPUT;
 
     // Validate command
-    const cmdValidation = validateCommand(command, args);
+    const cmdValidation = validateCommand(command, args, { confirmRemoval });
     if (!cmdValidation.valid) {
         return { processId: "", error: cmdValidation.error };
     }
@@ -387,6 +387,7 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         args,
         cwd,
         characterId,
+        confirmRemoval,
         maxOutputSize = DEFAULT_MAX_OUTPUT_SIZE,
     } = options;
 
@@ -398,7 +399,7 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
     commandLogger.logExecutionStart(command, args, cwd, context);
 
     // Validate command
-    const cmdValidation = validateCommand(command, args);
+    const cmdValidation = validateCommand(command, args, { confirmRemoval });
     commandLogger.logValidation(cmdValidation.valid, command, cmdValidation.error, { characterId, cwd });
 
     if (!cmdValidation.valid) {
@@ -520,21 +521,17 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
 
                 // Save full log
                 const logId = saveTerminalLog(stdout, stderr);
-                
-                // Truncate output for LLM context
-                const truncatedStdout = truncateOutput(stdout);
-                const truncatedStderr = truncateOutput(stderr);
 
                 resolve({
                     success: !killed && code === 0,
-                    stdout: truncatedStdout.content.trim(),
-                    stderr: truncatedStderr.content.trim(),
+                    stdout: stdout.trim(),
+                    stderr: stderr.trim(),
                     exitCode: code,
                     signal: signal,
                     error: killed ? "Process terminated due to timeout or output limit" : undefined,
                     executionTime,
                     logId,
-                    isTruncated: truncatedStdout.isTruncated || truncatedStderr.isTruncated,
+                    isTruncated: false,
                 });
             });
 

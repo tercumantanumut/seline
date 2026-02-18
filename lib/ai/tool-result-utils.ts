@@ -8,6 +8,16 @@ type ToolResultNormalization = {
   error?: string;
 };
 
+export type ToolResultNormalizationMode = "canonical" | "projection";
+
+export interface NormalizeToolResultOptions {
+  /**
+   * `canonical`: for durable persistence in session history. Must be lossless.
+   * `projection`: for model input / transport shaping. May apply truncation.
+   */
+  mode: ToolResultNormalizationMode;
+}
+
 const MAX_TOOL_SUMMARY_LENGTH = 280;
 
 function truncateSummary(text: string, maxLength: number = MAX_TOOL_SUMMARY_LENGTH): string {
@@ -198,6 +208,30 @@ export function buildToolSummary(toolName: string, input?: unknown, output?: unk
   }
 }
 
+const PROJECTION_TRUNCATION_SENTINEL = "OUTPUT TRUNCATED TO PREVENT CONTEXT OVERFLOW";
+
+function hasProjectionTruncationMarker(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.includes(PROJECTION_TRUNCATION_SENTINEL);
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  if (typeof obj.truncatedContentId === "string" && obj.truncatedContentId.startsWith("trunc_")) {
+    return true;
+  }
+
+  if (obj.content && hasProjectionTruncationMarker(obj.content)) return true;
+  if (obj.text && hasProjectionTruncationMarker(obj.text)) return true;
+  if (obj.stdout && hasProjectionTruncationMarker(obj.stdout)) return true;
+  if (obj.output && hasProjectionTruncationMarker(obj.output)) return true;
+  return false;
+}
+
 export function getToolSummaryFromOutput(toolName: string, output?: unknown, input?: unknown): string {
   const resultObj = getRecord(output);
   const summary = getString(resultObj?.summary);
@@ -210,56 +244,69 @@ export function getToolSummaryFromOutput(toolName: string, output?: unknown, inp
 export function normalizeToolResultOutput(
   toolName: string,
   output: unknown,
-  input?: unknown
+  input: unknown = undefined,
+  options: NormalizeToolResultOptions
 ): ToolResultNormalization {
-  // executeCommand already persists full output to logs, so keep context payload compact.
-  let normalizedOutput = toolName === "executeCommand" ? compactExecuteCommandOutput(output) : output;
+  // Canonical history must remain lossless. Projection is allowed to compact/limit.
+  const mode = options.mode;
+  let normalizedOutput =
+    mode === "projection" && toolName === "executeCommand"
+      ? compactExecuteCommandOutput(output)
+      : output;
 
   // Get session ID from run context for content storage
   const sessionId = getRunContext()?.sessionId;
 
-  // Exempt readFile from universal output limiting
-  // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
-  // and users explicitly request specific line ranges — truncating defeats the purpose
-  const EXEMPT_TOOLS = new Set(["readFile"]);
+  if (mode === "projection") {
+    // Exempt readFile from universal output limiting
+    // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
+    // and users explicitly request specific line ranges — truncating defeats the purpose
+    const EXEMPT_TOOLS = new Set(["readFile", "runSkill"]);
 
-  // Apply token limit (universal safety net) — UNLESS tool is exempt
-  // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.
-  const limitResult = !EXEMPT_TOOLS.has(toolName)
-    ? limitToolOutput(normalizedOutput, toolName, sessionId)
-    : { limited: false, output: "", originalLength: 0, truncatedLength: 0, estimatedTokens: 0 };
+    // Apply token limit (universal safety net) — UNLESS tool is exempt
+    // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.
+    const limitResult = !EXEMPT_TOOLS.has(toolName)
+      ? limitToolOutput(normalizedOutput, toolName, sessionId)
+      : { limited: false, output: "", originalLength: 0, truncatedLength: 0, estimatedTokens: 0 };
 
-  // If limited, update output with truncated version
-  if (limitResult.limited) {
-    console.log(
-      `[ToolResult] Limited ${toolName} output: ` +
-        `${limitResult.originalLength} → ${limitResult.truncatedLength} chars ` +
-        `(~${limitResult.estimatedTokens} tokens)`
+    // If limited, update output with truncated version
+    if (limitResult.limited) {
+      console.log(
+        `[ToolResult] Limited ${toolName} output: ` +
+          `${limitResult.originalLength} → ${limitResult.truncatedLength} chars ` +
+          `(~${limitResult.estimatedTokens} tokens)`
+      );
+
+      // Handle string output
+      if (typeof normalizedOutput === "string") {
+        normalizedOutput = limitResult.output;
+      }
+      // Handle object output with text fields
+      else if (normalizedOutput && typeof normalizedOutput === "object") {
+        const obj = normalizedOutput as Record<string, unknown>;
+
+        // Update the primary text field
+        if (typeof obj.content === "string") {
+          obj.content = limitResult.output;
+        } else if (typeof obj.text === "string") {
+          obj.text = limitResult.output;
+        } else if (typeof obj.stdout === "string") {
+          obj.stdout = limitResult.output;
+        }
+
+        // Mark as truncated
+        obj.truncated = true;
+        if (limitResult.contentId) {
+          obj.truncatedContentId = limitResult.contentId;
+        }
+      }
+    }
+  } else if (hasProjectionTruncationMarker(normalizedOutput)) {
+    // Guardrail: canonical writes should not receive projection-truncated payloads.
+    console.warn(
+      `[ToolResult] Canonical normalization for ${toolName} received projected truncation markers. ` +
+      `This indicates projection data leaking into canonical history.`
     );
-
-    // Handle string output
-    if (typeof normalizedOutput === "string") {
-      normalizedOutput = limitResult.output;
-    }
-    // Handle object output with text fields
-    else if (normalizedOutput && typeof normalizedOutput === "object") {
-      const obj = normalizedOutput as Record<string, unknown>;
-
-      // Update the primary text field
-      if (typeof obj.content === "string") {
-        obj.content = limitResult.output;
-      } else if (typeof obj.text === "string") {
-        obj.text = limitResult.output;
-      } else if (typeof obj.stdout === "string") {
-        obj.stdout = limitResult.output;
-      }
-
-      // Mark as truncated
-      obj.truncated = true;
-      if (limitResult.contentId) {
-        obj.truncatedContentId = limitResult.contentId;
-      }
-    }
   }
 
   // Continue with existing normalization logic

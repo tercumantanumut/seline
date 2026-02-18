@@ -14,6 +14,124 @@ import {
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 
+function sanitizeLoneSurrogates(input: string): { value: string; changed: boolean } {
+  let changed = false;
+  let output = "";
+
+  for (let i = 0; i < input.length; i += 1) {
+    const code = input.charCodeAt(i);
+
+    // Preserve valid surrogate pairs and replace malformed lone surrogates.
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const nextCode = i + 1 < input.length ? input.charCodeAt(i + 1) : 0;
+      if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+        output += input[i] + input[i + 1];
+        i += 1;
+      } else {
+        output += "\ufffd";
+        changed = true;
+      }
+      continue;
+    }
+
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      output += "\ufffd";
+      changed = true;
+      continue;
+    }
+
+    output += input[i];
+  }
+
+  return { value: output, changed };
+}
+
+export function sanitizeJsonStringValues(value: unknown): { value: unknown; changed: boolean } {
+  if (typeof value === "string") {
+    return sanitizeLoneSurrogates(value);
+  }
+
+  if (Array.isArray(value)) {
+    let changed = false;
+    const sanitizedArray = value.map((entry) => {
+      const result = sanitizeJsonStringValues(entry);
+      changed = changed || result.changed;
+      return result.value;
+    });
+    return { value: sanitizedArray, changed };
+  }
+
+  if (value && typeof value === "object") {
+    let changed = false;
+    const sanitizedObject: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const result = sanitizeJsonStringValues(entry);
+      changed = changed || result.changed;
+      sanitizedObject[key] = result.value;
+    }
+    return { value: sanitizedObject, changed };
+  }
+
+  return { value, changed: false };
+}
+
+function isDictionary(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function normalizeAnthropicToolUseInputs(body: Record<string, unknown>): {
+  body: Record<string, unknown>;
+  fixedCount: number;
+} {
+  const messages = body.messages;
+  if (!Array.isArray(messages)) {
+    return { body, fixedCount: 0 };
+  }
+
+  let fixedCount = 0;
+  const normalizedMessages = messages.map((message) => {
+    if (!isDictionary(message) || !Array.isArray(message.content)) {
+      return message;
+    }
+
+    const normalizedContent = message.content.map((part) => {
+      if (!isDictionary(part) || part.type !== "tool_use") {
+        return part;
+      }
+
+      const input = part.input;
+      if (isDictionary(input)) {
+        return part;
+      }
+
+      if (typeof input === "string") {
+        try {
+          const parsed = JSON.parse(input);
+          if (isDictionary(parsed)) {
+            fixedCount += 1;
+            return { ...part, input: parsed };
+          }
+        } catch {
+          // Fall through to placeholder object.
+        }
+      }
+
+      fixedCount += 1;
+      return {
+        ...part,
+        input: {
+          _recoveredInvalidToolUseInput: true,
+          _inputType: input === null ? "null" : Array.isArray(input) ? "array" : typeof input,
+        },
+      };
+    });
+
+    return { ...message, content: normalizedContent };
+  });
+
+  return { body: { ...body, messages: normalizedMessages }, fixedCount };
+}
+
 async function readErrorPreview(response: Response): Promise<string> {
   try {
     return await response.clone().text();
@@ -75,18 +193,30 @@ function createClaudeCodeFetch(): typeof fetch {
           for (let i = 0; i < apiMessages.length; i++) {
             const msg = apiMessages[i];
             const content = msg.content;
-            if (typeof content === 'string') {
+            if (typeof content === "string") {
               console.log(`  [${i}] role=${msg.role}, content=string(${content.length})`);
             } else if (Array.isArray(content)) {
               const types = (content as Array<{ type: string; id?: string; tool_use_id?: string }>).map(
-                p => p.type + (p.id ? `:${p.id}` : '') + (p.tool_use_id ? `:${p.tool_use_id}` : '')
+                (p) => p.type + (p.id ? `:${p.id}` : "") + (p.tool_use_id ? `:${p.tool_use_id}` : "")
               );
-              console.log(`  [${i}] role=${msg.role}, parts=[${types.join(', ')}]`);
+              console.log(`  [${i}] role=${msg.role}, parts=[${types.join(", ")}]`);
             }
           }
         }
 
-        updatedInit = { ...init, body: JSON.stringify(body) };
+        const normalizedToolInputs = normalizeAnthropicToolUseInputs(body);
+        if (normalizedToolInputs.fixedCount > 0) {
+          console.warn(
+            `[ClaudeCode] Normalized ${normalizedToolInputs.fixedCount} invalid tool_use.input payload(s) before API call`
+          );
+        }
+
+        const sanitizedBody = sanitizeJsonStringValues(normalizedToolInputs.body);
+        if (sanitizedBody.changed) {
+          console.warn("[ClaudeCode] Replaced lone surrogate characters in request body before API call");
+        }
+
+        updatedInit = { ...init, body: JSON.stringify(sanitizedBody.value) };
       } catch {
         // Not JSON, pass through unchanged
       }

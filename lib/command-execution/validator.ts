@@ -4,50 +4,15 @@
  * Validates commands and paths for safe execution.
  * Implements multi-layer security:
  * - Path validation: Only allows execution within synced folders
- * - Command blacklist: Blocks dangerous commands
- * - Shell injection prevention: Detects dangerous characters
+ * - Command confirmation: Requires explicit opt-in for removal commands
  */
 
 import { resolve, normalize, sep, isAbsolute } from "path";
 import type { ValidationResult } from "./types";
 
-/**
- * Dangerous commands that are blocked for security reasons
- */
-const DANGEROUS_COMMANDS = [
-    // Destructive file operations
-    "rm", "rmdir", "del", "erase", "rd",
-    // Disk formatting
-    "format", "mkfs", "diskpart",
-    // Low-level disk operations
-    "dd", "fdisk", "parted",
-    // Privilege escalation
-    "sudo", "su", "runas", "doas",
-    // Permission changes
-    "chmod", "chown", "chgrp", "icacls", "cacls", "takeown",
-    // Windows system commands
-    "reg", "regedit", "bcdedit", "sfc",
-    // Process manipulation
-    "kill", "pkill", "killall", "taskkill",
-    // Shutdown/restart
-    "shutdown", "reboot", "poweroff", "halt",
-];
+const REMOVAL_COMMANDS = ["rm", "rmdir", "del", "erase", "rd"];
 
-/**
- * Network commands that are blocked by default
- * Note: curl/wget are allowed as they're useful for downloading
- */
-const NETWORK_COMMANDS = [
-    "invoke-webrequest", "invoke-restmethod",
-    "nc", "netcat", "ncat", "telnet", "ssh", "scp", "sftp",
-];
-
-/**
- * Note: Args passed as array are properly escaped by Node.js even with shell:true.
- * Security relies on the combination of command validation, path validation, and array-arg quoting.
- * We only block these in the command, not in args.
- */
-const DANGEROUS_COMMAND_PATTERN = /[;&|`$()\[\]<>'"]/;
+const NETWORK_COMMANDS: string[] = [];
 
 /**
  * Path traversal pattern - matches ".." only as a path segment
@@ -122,9 +87,9 @@ function getBaseCommand(command: string): string {
 export function validateCommand(
     command: string,
     args: string[],
-    options?: { allowNetwork?: boolean }
+    options?: { allowNetwork?: boolean; confirmRemoval?: boolean }
 ): ValidationResult {
-    const { allowNetwork = false } = options || {};
+    const { allowNetwork = false, confirmRemoval = false } = options || {};
 
     // Check for empty command
     if (!command || command.trim() === "") {
@@ -137,12 +102,14 @@ export function validateCommand(
     // Get base command name for checking
     const baseCommand = getBaseCommand(command);
 
-    // Check against dangerous commands blacklist
-    // Use exact match to avoid blocking safe commands that contain dangerous substrings (e.g. "format-json")
-    if (DANGEROUS_COMMANDS.some((cmd) => baseCommand === cmd)) {
+    // Removal commands require explicit opt-in from the caller.
+    // Use exact match to avoid false positives on command names like "my-rm-tool".
+    if (REMOVAL_COMMANDS.some((cmd) => baseCommand === cmd) && !confirmRemoval) {
         return {
             valid: false,
-            error: `Command '${command}' is blocked for security reasons.`,
+            error:
+                `Command '${command}' is a removal command and requires explicit confirmation. ` +
+                `Re-run with confirmRemoval: true if you intend to delete files.`,
         };
     }
 
@@ -154,18 +121,9 @@ export function validateCommand(
         };
     }
 
-    // Check for shell injection patterns in command itself
-    // Note: Args are escaped by Node.js when passed as array, so we only check command
-    if (DANGEROUS_COMMAND_PATTERN.test(command)) {
-        return {
-            valid: false,
-            error: "Command contains potentially dangerous characters.",
-        };
-    }
-
     // Args are passed as an array to spawn(), which properly escapes them
     // even with shell:true. Security depends on:
-    // 1. Command blocklist/validation (checked above)
+    // 1. Command validation/confirmation (checked above)
     // 2. Path validation (checked in executeCommandWithValidation)
     // 3. Platform-specific shell quoting for args (handled by Node.js)
     // We checks for path traversal here as an extra layer of defense.
@@ -205,7 +163,7 @@ export function validateCommand(
 export function isCommandBlocked(command: string): boolean {
     const baseCommand = getBaseCommand(command);
     return (
-        DANGEROUS_COMMANDS.some((cmd) => baseCommand === cmd) ||
+        REMOVAL_COMMANDS.some((cmd) => baseCommand === cmd) ||
         NETWORK_COMMANDS.some((cmd) => baseCommand === cmd)
     );
 }
@@ -215,7 +173,7 @@ export function isCommandBlocked(command: string): boolean {
  */
 export function getBlockedCommands(): { dangerous: string[]; network: string[] } {
     return {
-        dangerous: [...DANGEROUS_COMMANDS],
+        dangerous: [...REMOVAL_COMMANDS],
         network: [...NETWORK_COMMANDS],
     };
 }

@@ -7,7 +7,7 @@ export const DATA_ANALYST_TEMPLATE: AgentTemplate = {
   purpose: "Analyzes tabular metrics, spots changes, and proposes concrete next steps.",
   category: "analytics",
   version: "1.0.0",
-  enabledTools: ["readFile", "localGrep", "calculator", "createSkill", "runSkill", "updatePlan"],
+  enabledTools: ["readFile", "localGrep", "calculator", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     { category: "workflow_patterns", content: "Always include assumptions and confidence when data is incomplete.", reasoning: "Avoids overclaiming from partial datasets." },
   ],

@@ -81,8 +81,15 @@ export function useTaskNotifications() {
       if (isScheduledChat) {
         return;
       }
+      const isDelegationChat =
+        task.type === "chat" &&
+        task.metadata &&
+        typeof task.metadata === "object" &&
+        "isDelegation" in task.metadata;
       const displayName =
-        task.type === "scheduled"
+        isDelegationChat
+          ? "Delegation"
+          : task.type === "scheduled"
           ? task.taskName || "Scheduled task"
           : task.type === "chat"
           ? "Chat session"
@@ -95,6 +102,9 @@ export function useTaskNotifications() {
         useSessionSyncStore.getState().setActiveRun(task.sessionId, task.runId);
       }
       dispatchLifecycleEvent("background-task-started", event);
+
+      // Suppress toasts for delegation tasks — the initiator agent reports status
+      if (isDelegationChat) return;
 
       const runningKey =
         task.type === "scheduled"
@@ -132,8 +142,15 @@ export function useTaskNotifications() {
       if (isScheduledChat) {
         return;
       }
+      const isDelegationChat =
+        task.type === "chat" &&
+        task.metadata &&
+        typeof task.metadata === "object" &&
+        "isDelegation" in task.metadata;
       const displayName =
-        task.type === "scheduled"
+        isDelegationChat
+          ? "Delegation"
+          : task.type === "scheduled"
           ? task.taskName || "Scheduled task"
           : task.type === "chat"
           ? "Chat session"
@@ -146,6 +163,9 @@ export function useTaskNotifications() {
         useSessionSyncStore.getState().setActiveRun(task.sessionId, null);
       }
       dispatchLifecycleEvent("background-task-completed", event);
+
+      // Suppress toasts for delegation tasks — the initiator agent reports status
+      if (isDelegationChat) return;
 
       if (task.status === "succeeded") {
         const completedKey = task.type === "chat" ? "chatCompleted" : "taskCompleted";

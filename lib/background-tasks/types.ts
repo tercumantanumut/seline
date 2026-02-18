@@ -51,7 +51,7 @@ export interface ChannelTask extends BaseTask {
 export interface ChatTask extends BaseTask {
   type: "chat";
   pipelineName: string;
-  triggerType: "chat" | "api" | "job" | "cron" | "webhook" | "tool";
+  triggerType: "chat" | "api" | "job" | "cron" | "webhook" | "tool" | "delegation";
   messageCount?: number;
 }
 
@@ -80,6 +80,8 @@ export interface TaskProgressEvent {
   progressContentOriginalTokens?: number;
   progressContentFinalTokens?: number;
   progressContentTruncatedParts?: number;
+  /** Indicates progressContent is a transport-safe projection, not canonical chat history. */
+  progressContentProjectionOnly?: boolean;
   startedAt?: string;
   timestamp: string;
 }

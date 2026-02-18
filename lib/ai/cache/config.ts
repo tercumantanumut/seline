@@ -6,6 +6,7 @@
  */
 
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { getConfiguredProvider } from "@/lib/ai/providers";
 import type { CacheConfig } from "./types";
 
 /**
@@ -50,8 +51,6 @@ export function getCacheConfig(): CacheConfig {
  */
 export function shouldUseCache(): boolean {
   try {
-    // Dynamically import to avoid circular dependencies
-    const { getConfiguredProvider } = require("@/lib/ai/providers");
     const provider = getConfiguredProvider();
     const config = getCacheConfig();
 

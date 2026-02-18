@@ -6,6 +6,8 @@
  */
 
 import { tool, jsonSchema } from "ai";
+import fs from "fs/promises";
+import path from "path";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import {
     executeCommandWithValidation,
@@ -43,6 +45,54 @@ function stripOuterQuotes(value: string): string {
         return trimmed.slice(1, -1).trim();
     }
     return trimmed;
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+    try {
+        await fs.access(targetPath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function resolveClaudePluginRootPlaceholder(command: string): Promise<string> {
+    const placeholder = "${CLAUDE_PLUGIN_ROOT}";
+    if (!command.includes(placeholder)) {
+        return command;
+    }
+
+    const suffix = command.split(placeholder).slice(1).join(placeholder);
+    const normalizedSuffix = suffix.replace(/^[\\/]+/, "");
+    const envRoot = process.env.CLAUDE_PLUGIN_ROOT;
+    if (envRoot && await pathExists(path.join(envRoot, normalizedSuffix))) {
+        return command.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, envRoot);
+    }
+
+    const pluginBases = [
+        path.join(process.cwd(), "test_plugins"),
+        path.join(process.cwd(), ".local-data", "plugins"),
+        process.env.LOCAL_DATA_PATH ? path.join(process.env.LOCAL_DATA_PATH, "plugins") : null,
+    ].filter((value): value is string => Boolean(value));
+
+    for (const base of pluginBases) {
+        let entries;
+        try {
+            entries = await fs.readdir(base, { withFileTypes: true });
+        } catch {
+            continue;
+        }
+
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const candidateRoot = path.join(base, entry.name);
+            if (await pathExists(path.join(candidateRoot, normalizedSuffix))) {
+                return command.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, candidateRoot);
+            }
+        }
+    }
+
+    return command;
 }
 
 /**
@@ -138,6 +188,11 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput & { logId?: string }
             type: "string",
             description: "The log ID to read when command is 'readLog'.",
         },
+        confirmRemoval: {
+            type: "boolean",
+            description:
+                "Required for removal commands (rm/rmdir/del/erase/rd). Set true only when deletion is explicitly intended.",
+        },
     },
     required: [],
     additionalProperties: false,
@@ -155,7 +210,7 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
 
 **Security:**
 - Commands only run within indexed/synced folders
-- Dangerous commands (rm, sudo, format, etc.) are blocked
+- Removal commands require explicit confirmation (\`confirmRemoval: true\`)
 - Smart default timeouts (30s normal, 120s for package managers)
 - Output size limits prevent memory issues
 
@@ -179,7 +234,8 @@ The tool returns immediately with a processId. Poll with processId to check stat
 - timeout: Max execution time in ms (auto-detected based on command type)
 - background: Run in background and return processId (default: false)
 - processId: Check/manage a background process by its ID
-- logId: The log ID to read when command is 'readLog'`,
+- logId: The log ID to read when command is 'readLog'
+- confirmRemoval: Must be true for removal commands (rm/rmdir/del/erase/rd)`,
 
         inputSchema: executeCommandSchema,
 
@@ -194,7 +250,7 @@ The tool returns immediately with a processId. Poll with processId to check stat
                 };
             }
 
-            const { command, args = [], cwd, timeout, background, processId, logId } = input;
+            const { command, args = [], cwd, timeout, background, processId, logId, confirmRemoval = false } = input;
 
             // ── Read Log ────────────────────────────────────────────────
             if (command === "readLog" && logId) {
@@ -305,7 +361,8 @@ The tool returns immediately with a processId. Poll with processId to check stat
             }
 
             try {
-                const normalizedInput = normalizeExecuteCommandInput(command, args);
+                const resolvedCommand = await resolveClaudePluginRootPlaceholder(command);
+                const normalizedInput = normalizeExecuteCommandInput(resolvedCommand, args);
 
                 // ── Background execution ────────────────────────────────
                 if (background) {
@@ -317,6 +374,7 @@ The tool returns immediately with a processId. Poll with processId to check stat
                             cwd: executionDir,
                             timeout: Math.min(timeout || 600_000, maxBgTimeout),
                             characterId: characterId,
+                            confirmRemoval,
                         },
                         syncedFolders
                     );
@@ -342,9 +400,28 @@ The tool returns immediately with a processId. Poll with processId to check stat
                          cwd: executionDir,
                          timeout: timeout ? Math.min(timeout, maxTimeout) : undefined, // let executor pick smart default
                          characterId: characterId,
+                         confirmRemoval,
                      },
                      syncedFolders // Whitelist of allowed directories (second parameter)
                  );
+
+                // Hard reject outputs that would overflow the context window.
+                // This prevents massive outputs (e.g. recursive find, full node_modules listing)
+                // from ever entering message history.
+                const MAX_OUTPUT_CHARS = 100_000; // ~25K tokens
+                const totalOutputSize = (result.stdout?.length || 0) + (result.stderr?.length || 0);
+                if (totalOutputSize > MAX_OUTPUT_CHARS) {
+                    return {
+                        status: "error",
+                        error:
+                            `Command output too large (${Math.round(totalOutputSize / 1000)}KB, ~${Math.round(totalOutputSize / 4000)}K tokens). ` +
+                            `This would overflow the context window. ` +
+                            `Use more specific commands — add filters, pipe to head/tail/grep, or limit output scope. ` +
+                            `Example: use 'find ... | head -50' or 'ls src/' instead of recursive searches.`,
+                        exitCode: result.exitCode,
+                        executionTime: result.executionTime,
+                    };
+                }
 
                 const toolResult: ExecuteCommandToolResult = {
                     status: result.success

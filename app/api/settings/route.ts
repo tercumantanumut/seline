@@ -86,6 +86,12 @@ export async function PUT(request: NextRequest) {
       vectorSearchMaxLineLength: body.vectorSearchMaxLineLength !== undefined ? body.vectorSearchMaxLineLength : currentSettings.vectorSearchMaxLineLength,
       // Preferences
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
+      postEditHooksPreset: body.postEditHooksPreset !== undefined ? body.postEditHooksPreset : currentSettings.postEditHooksPreset,
+      postEditHooksEnabled: body.postEditHooksEnabled !== undefined ? body.postEditHooksEnabled : currentSettings.postEditHooksEnabled,
+      postEditTypecheckEnabled: body.postEditTypecheckEnabled !== undefined ? body.postEditTypecheckEnabled : currentSettings.postEditTypecheckEnabled,
+      postEditLintEnabled: body.postEditLintEnabled !== undefined ? body.postEditLintEnabled : currentSettings.postEditLintEnabled,
+      postEditTypecheckScope: body.postEditTypecheckScope !== undefined ? body.postEditTypecheckScope : currentSettings.postEditTypecheckScope,
+      postEditRunInPatchTool: body.postEditRunInPatchTool !== undefined ? body.postEditRunInPatchTool : currentSettings.postEditRunInPatchTool,
       promptCachingEnabled: body.promptCachingEnabled !== undefined ? body.promptCachingEnabled : currentSettings.promptCachingEnabled,
       promptCachingTtl: body.promptCachingTtl !== undefined ? body.promptCachingTtl : currentSettings.promptCachingTtl,
       // RTK (experimental)

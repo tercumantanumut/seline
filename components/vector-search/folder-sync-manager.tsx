@@ -56,6 +56,8 @@ interface SyncFolder {
   chunkOverlapOverride?: number | null;
   reindexPolicy?: ReindexPolicy;
   isPrimary: boolean;
+  inheritedFromWorkflowId?: string | null;
+  inheritedFromAgentId?: string | null;
 }
 
 interface FolderAnalysis {
@@ -118,6 +120,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [showAddForm, setShowAddForm] = useState(false);
   const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
   const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
+  const [updatingFolderId, setUpdatingFolderId] = useState<string | null>(null);
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
   const [reindexing, setReindexing] = useState(false);
 
@@ -153,7 +156,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [useRecommendedExcludes, setUseRecommendedExcludes] = useState(true);
 
   const [newIndexingMode, setNewIndexingMode] = useState<IndexingMode>("auto");
-  const [newSyncMode, setNewSyncMode] = useState<SyncMode>("auto");
+  const [newSyncMode, setNewSyncMode] = useState<SyncMode>("triggered");
   const [newSyncCadenceMinutes, setNewSyncCadenceMinutes] = useState("60");
   const [newFolderMode, setNewFolderMode] = useState<"simple" | "advanced">("simple");
   const [newFileTypeFilters, setNewFileTypeFilters] = useState("");
@@ -161,7 +164,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [newChunkPreset, setNewChunkPreset] = useState<ChunkPreset>("balanced");
   const [newChunkSizeOverride, setNewChunkSizeOverride] = useState("");
   const [newChunkOverlapOverride, setNewChunkOverlapOverride] = useState("");
-  const [newReindexPolicy, setNewReindexPolicy] = useState<ReindexPolicy>("smart");
+  const [newReindexPolicy, setNewReindexPolicy] = useState<ReindexPolicy>("never");
 
   const RECOMMENDED_EXCLUDES = [
     "node_modules",
@@ -313,13 +316,14 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     const chunkOverlapOverride = newChunkOverlapOverride ? Number(newChunkOverlapOverride) : undefined;
 
     const effectiveIndexingMode: IndexingMode = newFolderMode === "simple" ? "auto" : newIndexingMode;
-    const effectiveSyncMode: SyncMode = newFolderMode === "simple" ? "auto" : newSyncMode;
+    // Simple mode now behaves like the classic flow: watcher-driven updates only.
+    const effectiveSyncMode: SyncMode = newFolderMode === "simple" ? "triggered" : newSyncMode;
     const effectiveCadence = newFolderMode === "simple" ? 60 : syncCadenceMinutes;
     const effectiveMaxFileSizeMB = newFolderMode === "simple" ? 10 : maxFileSizeMB;
     const effectiveChunkPreset: ChunkPreset = newFolderMode === "simple" ? "balanced" : newChunkPreset;
     const effectiveChunkSizeOverride = newFolderMode === "simple" ? undefined : chunkSizeOverride;
     const effectiveChunkOverlapOverride = newFolderMode === "simple" ? undefined : chunkOverlapOverride;
-    const effectiveReindexPolicy: ReindexPolicy = newFolderMode === "simple" ? "smart" : newReindexPolicy;
+    const effectiveReindexPolicy: ReindexPolicy = newFolderMode === "simple" ? "never" : newReindexPolicy;
 
     if (!Number.isFinite(effectiveCadence) || effectiveCadence < 5) {
       setError(t("cadenceValidation"));
@@ -386,14 +390,14 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     setNewExcludePatterns("node_modules,.git,dist,build,.next,__pycache__,.venv,venv,package-lock.json,pnpm-lock.yaml,yarn.lock");
     setNewFolderMode("simple");
     setNewIndexingMode("auto");
-    setNewSyncMode("auto");
+    setNewSyncMode("triggered");
     setNewSyncCadenceMinutes("60");
     setNewFileTypeFilters("");
     setNewMaxFileSizeMB("10");
     setNewChunkPreset("balanced");
     setNewChunkSizeOverride("");
     setNewChunkOverlapOverride("");
-    setNewReindexPolicy("smart");
+    setNewReindexPolicy("never");
     setShowAddForm(false);
     setFolderAnalysis(null);
     setAnalysisError(null);
@@ -457,6 +461,42 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     }
   };
 
+  const handleUpdateFolder = async (folderId: string, updates: Record<string, unknown>) => {
+    setUpdatingFolderId(folderId);
+    try {
+      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
+        action: "update",
+        folderId,
+        ...updates,
+      });
+      if (error) throw new Error(error);
+      await loadFolders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update folder settings");
+    } finally {
+      setUpdatingFolderId(null);
+    }
+  };
+
+  const handleApplySimpleDefaults = async (folder: SyncFolder) => {
+    await handleUpdateFolder(folder.id, {
+      indexingMode: "auto",
+      syncMode: "triggered",
+      syncCadenceMinutes: 60,
+      maxFileSizeBytes: 10 * 1024 * 1024,
+      chunkPreset: "balanced",
+      chunkSizeOverride: null,
+      chunkOverlapOverride: null,
+      reindexPolicy: "never",
+    });
+  };
+
+  const handleToggleAutoUpdates = async (folder: SyncFolder) => {
+    const currentSyncMode = folder.syncMode ?? "auto";
+    const nextSyncMode: SyncMode = currentSyncMode === "manual" ? "triggered" : "manual";
+    await handleUpdateFolder(folder.id, { syncMode: nextSyncMode });
+  };
+
   const handleReindexAll = async () => {
     if (!window.confirm(t("reindexConfirm"))) {
       return;
@@ -498,7 +538,18 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   }
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4 min-w-0 overflow-x-hidden", className)}>
+      {!compact && folders.length > 0 && (
+        <div className="rounded border border-terminal-border bg-terminal-cream/30 p-3">
+          <p className="font-mono text-xs text-terminal-muted">
+            {t("statusSummary", {
+              syncing: folders.filter((folder) => folder.status === "syncing").length,
+              synced: folders.filter((folder) => folder.status === "synced").length,
+              paused: folders.filter((folder) => folder.status === "paused").length,
+            })}
+          </p>
+        </div>
+      )}
       {error && (
         <div className="rounded border border-destructive/30 bg-destructive/10 p-3 font-mono text-sm text-destructive">
           {error}
@@ -520,6 +571,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           <span className="font-mono text-xs text-terminal-muted">
             {t("reindexHint")}
           </span>
+          <span className="font-mono text-xs text-terminal-muted">
+            {t("transparencyHint")}
+          </span>
         </div>
       )}
 
@@ -534,12 +588,62 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
             const skipReasons = parseObject(folder.skipReasons) as Record<string, number>;
             const runMetadata = parseObject(folder.lastRunMetadata);
 
+            const behaviorSummary = syncMode === "auto"
+              ? t("behaviorHybrid")
+              : syncMode === "triggered"
+                ? t("behaviorEventDriven")
+                : syncMode === "scheduled"
+                  ? t("behaviorScheduled")
+                  : t("behaviorManual");
+            const indexingModeLabel = folder.indexingMode === "full"
+              ? t("modeFull")
+              : folder.indexingMode === "files-only"
+                ? t("modeFilesOnly")
+                : t("modeAuto");
+            const syncModeLabel = syncMode === "manual"
+              ? t("modeManual")
+              : syncMode === "scheduled"
+                ? t("modeScheduled")
+                : syncMode === "triggered"
+                  ? t("modeTriggered")
+                  : t("modeAuto");
+            const chunkPresetLabel = folder.chunkPreset === "small"
+              ? t("chunkSmall")
+              : folder.chunkPreset === "large"
+                ? t("chunkLarge")
+                : folder.chunkPreset === "custom"
+                  ? t("chunkCustom")
+                  : t("chunkBalanced");
+            const reindexPolicyLabel = (folder.reindexPolicy ?? "smart") === "always"
+              ? t("reindexAlways")
+              : (folder.reindexPolicy ?? "smart") === "never"
+                ? t("reindexNever")
+                : t("reindexSmart");
+            const isSimpleDefaults =
+              folder.indexingMode === "auto" &&
+              syncMode === "triggered" &&
+              (folder.reindexPolicy ?? "smart") === "never" &&
+              (folder.chunkPreset ?? "balanced") === "balanced" &&
+              (folder.maxFileSizeBytes ?? 10 * 1024 * 1024) === 10 * 1024 * 1024;
+            const forceReindex = runMetadata.forceReindex === true;
+            const lastRunReason = folder.lastRunTrigger === "triggered"
+              ? t("lastRunReasonFileChange")
+              : folder.lastRunTrigger === "manual"
+                ? t("lastRunReasonManual")
+                : folder.lastRunTrigger === "auto"
+                  ? t("lastRunReasonInitial")
+                  : folder.lastRunTrigger === "scheduled" && forceReindex
+                    ? t("lastRunReasonScheduledFull")
+                    : folder.lastRunTrigger === "scheduled"
+                      ? t("lastRunReasonScheduledCheck")
+                      : null;
+
             return (
             <div
               key={folder.id}
               className="rounded border border-terminal-border bg-terminal-cream/50 p-3"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-start gap-2 md:flex-nowrap md:items-center md:gap-3">
                 <FolderIcon className="w-5 h-5 text-terminal-green flex-shrink-0" />
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -551,12 +655,23 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                         Primary
                       </span>
                     )}
+                    {folder.inheritedFromWorkflowId && (
+                      <span
+                        className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider"
+                        title="This folder is shared from a workflow"
+                      >
+                        Workflow
+                      </span>
+                    )}
                   </div>
                   <p className="font-mono text-xs text-terminal-muted truncate" title={folder.folderPath}>
                     {folder.folderPath}
                   </p>
+                  <p className="font-mono text-[10px] text-terminal-muted mt-1">
+                    {behaviorSummary}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="w-full md:w-auto flex flex-wrap justify-end items-center gap-1.5">
                   {getStatusIcon(folder.status)}
                   {!compact && (
                     <button
@@ -570,13 +685,13 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       )}
                     </button>
                   )}
-                  {!folder.isPrimary && (
+                  {!folder.isPrimary && !folder.inheritedFromWorkflowId && (
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetPrimary(folder.id)}
                       title="Set as primary folder"
-                      className="h-8 w-8 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
+                      className="h-8 w-8 shrink-0 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
                     >
                       <StarIcon className="w-4 h-4" />
                     </Button>
@@ -587,7 +702,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="icon"
                       onClick={() => handleCancelSync(folder.id)}
                       title="Cancel sync"
-                      className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                     >
                       <XCircleIcon className="w-4 h-4" />
                     </Button>
@@ -597,9 +712,29 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       size="icon"
                       onClick={() => handleSyncFolder(folder.id)}
                       disabled={syncingFolderId === folder.id}
-                      className="h-8 w-8"
+                      className="h-8 w-8 shrink-0"
                     >
                       <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggleAutoUpdates(folder)}
+                    disabled={updatingFolderId === folder.id}
+                    className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
+                  >
+                    {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : (syncMode === "manual" ? t("resumeUpdatesShort") : t("pauseUpdatesShort"))}
+                  </Button>
+                  {!isSimpleDefaults && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleApplySimpleDefaults(folder)}
+                      disabled={updatingFolderId === folder.id}
+                      className="h-8 px-2 font-mono text-[10px] whitespace-nowrap"
+                    >
+                      {updatingFolderId === folder.id ? <Loader2Icon className="w-3 h-3 animate-spin" /> : t("applySimpleDefaultsShort")}
                     </Button>
                   )}
                   <Button
@@ -607,7 +742,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     size="icon"
                     onClick={() => handleRemoveFolder(folder.id)}
                     disabled={removingFolderId === folder.id}
-                    className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                   >
                     {removingFolderId === folder.id ? (
                       <Loader2Icon className="w-4 h-4 animate-spin" />
@@ -641,52 +776,46 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       </span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("indexingMode")}</span>{" "}
+                      <span className="text-terminal-muted">{t("indexingBehavior")}</span>{" "}
                       <span className={cn(
                         "text-xs font-mono px-2 py-0.5 rounded",
                         folder.indexingMode === "full" && "bg-terminal-green/20 text-terminal-green",
                         folder.indexingMode === "files-only" && "bg-terminal-blue/20 text-terminal-blue",
                         folder.indexingMode === "auto" && "bg-terminal-muted/20 text-terminal-muted"
                       )}>
-                        {folder.indexingMode === "full" ? t("modeFull") : folder.indexingMode === "files-only" ? t("modeFilesOnly") : t("modeAuto")}
+                        {indexingModeLabel}
                       </span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("syncMode")}</span>{" "}
+                      <span className="text-terminal-muted">{t("updatesMode")}</span>{" "}
                       <Badge variant="outline" className="font-mono text-[10px]">
-                        {syncMode === "manual"
-                          ? t("modeManual")
-                          : syncMode === "scheduled"
-                            ? t("modeScheduled")
-                            : syncMode === "triggered"
-                              ? t("modeTriggered")
-                              : t("modeAuto")}
+                        {syncModeLabel}
                       </Badge>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("syncCadenceMinutes")}</span>{" "}
+                      <span className="text-terminal-muted">{t("checkEveryMinutes")}</span>{" "}
                       <span className="text-terminal-dark">{folder.syncCadenceMinutes ?? 60}</span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("maxFileSizeMb")}</span>{" "}
+                      <span className="text-terminal-muted">{t("largestFileSize")}</span>{" "}
                       <span className="text-terminal-dark">{formatBytes(folder.maxFileSizeBytes ?? 10 * 1024 * 1024)}</span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("chunkPreset")}</span>{" "}
-                      <span className="text-terminal-dark">{folder.chunkPreset ?? "balanced"}</span>
+                      <span className="text-terminal-muted">{t("searchDetailLevel")}</span>{" "}
+                      <span className="text-terminal-dark">{chunkPresetLabel}</span>
                     </div>
                     <div>
-                      <span className="text-terminal-muted">{t("reindexPolicy")}</span>{" "}
-                      <span className="text-terminal-dark">{folder.reindexPolicy ?? "smart"}</span>
+                      <span className="text-terminal-muted">{t("fullRescanPolicy")}</span>{" "}
+                      <span className="text-terminal-dark">{reindexPolicyLabel}</span>
                     </div>
                     <div>
                       <span className="text-terminal-muted">{t("skipped")}</span>{" "}
                       <span className="text-terminal-dark">{folder.skippedCount ?? 0}</span>
                     </div>
                     {folder.lastRunTrigger && (
-                      <div>
-                        <span className="text-terminal-muted">{t("lastRunTrigger")}</span>{" "}
-                        <span className="text-terminal-dark">{folder.lastRunTrigger}</span>
+                      <div className="col-span-2">
+                        <span className="text-terminal-muted">{t("lastRunReason")}</span>{" "}
+                        <span className="text-terminal-dark">{lastRunReason ?? folder.lastRunTrigger}</span>
                       </div>
                     )}
                     {folder.embeddingModel && (
@@ -725,6 +854,11 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       <div className="col-span-2">
                         <span className="text-terminal-muted">{t("lastRunMetadata")}</span>{" "}
                         <span className="text-terminal-dark">{JSON.stringify(runMetadata)}</span>
+                      </div>
+                    )}
+                    {syncMode === "auto" && (
+                      <div className="col-span-2 rounded border border-terminal-amber/30 bg-terminal-amber/10 px-2 py-1 text-[10px] font-mono text-terminal-amber">
+                        {t("autoModeWarning")}
                       </div>
                     )}
                   </div>
@@ -916,6 +1050,11 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
             <p className="font-mono text-xs text-terminal-muted">
               {newFolderMode === "simple" ? t("simpleModeHint") : t("advancedModeHint")}
             </p>
+            {newFolderMode === "simple" && (
+              <div className="rounded border border-terminal-green/30 bg-terminal-green/10 px-2 py-1">
+                <p className="font-mono text-[10px] text-terminal-green">{t("simpleModeBehavior")}</p>
+              </div>
+            )}
           </div>
 
           {/* Advanced Options Toggle */}
@@ -1035,6 +1174,9 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       <option value="always">{t("reindexAlways")}</option>
                       <option value="never">{t("reindexNever")}</option>
                     </select>
+                    {newReindexPolicy === "smart" && (
+                      <p className="mt-1 font-mono text-[10px] text-terminal-muted">{t("reindexSmartDescription")}</p>
+                    )}
                   </div>
                 </>
               )}
