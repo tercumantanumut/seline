@@ -298,7 +298,9 @@ export function createEditFileTool(options: EditFileToolOptions) {
         // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(
           validPath,
-          syncedFolders
+          syncedFolders,
+          5000,
+          "edit_file"
         ).catch(() => null);
 
         const parts = [`Edited ${basename(validPath)}`];

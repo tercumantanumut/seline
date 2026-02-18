@@ -14,6 +14,7 @@ import {
   agentMetadataSchema,
 } from "@/lib/characters/validation";
 import { z } from "zod";
+import { detachAgentFromWorkflows } from "@/lib/agents/workflows";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -155,6 +156,13 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       }
     } catch (error) {
       console.warn("[DeleteCharacter] Error during cleanup, continuing with deletion:", error);
+    }
+
+    // Delete the character (CASCADE will delete related data)
+    try {
+      await detachAgentFromWorkflows(dbUser.id, id);
+    } catch (error) {
+      console.warn("[DeleteCharacter] Failed to detach agent from workflows, continuing:", error);
     }
 
     // Delete the character (CASCADE will delete related data)

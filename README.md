@@ -138,6 +138,15 @@ npm run electron:dev
 ```
 This runs the Next.js dev server (with stdio fix) and launches Electron against `http://localhost:3000`.
 
+## Required Runtime Secrets
+
+Set these in `.env` (and in CI/test environments that load server modules):
+
+- `INTERNAL_API_SECRET` - internal API auth secret used by scheduler/delegation/internal routes.
+- `REMOTION_MEDIA_TOKEN` - token appended to Remotion media URLs during video assembly.
+
+Use different random values for each secret.
+
 ## Build Commands
 ```bash
 # Windows installer + portable

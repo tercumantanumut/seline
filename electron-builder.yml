@@ -125,17 +125,20 @@ extraResources:
 asar: true
 compression: "normal"
 
+# Run notarization hook after macOS signing completes.
+afterSign: "scripts/notarize.js"
+
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
 
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  # icon: "build-resources/icon.icns"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
+  # icon: "build-resources/icon.icns"
   # Build only for current architecture by default (use CLI flags to override)
   target:
     - target: "dmg"
@@ -165,7 +168,7 @@ nsis:
 
 # DMG settings for macOS
 dmg:
-  sign: false
+  sign: true
   contents:
     - x: 130
       y: 220
@@ -177,11 +180,6 @@ dmg:
     width: 540
     height: 380
 
-# Notarization settings (for production releases)
-# Uncomment and configure for App Store / notarized releases
-# afterSign: "scripts/notarize.js"
-# notarize:
-#   teamId: "YOUR_TEAM_ID"
 
 # Publish configuration (for auto-updates)
 # publish:

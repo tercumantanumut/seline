@@ -45,9 +45,6 @@ const ALWAYS_ENABLED_TOOLS = [
 /** Utility tools that are ALWAYS enabled — no external dependencies */
 const UTILITY_TOOLS = [
   "calculator",
-  "copySkill",
-  "createSkill",
-  "listSkills",
   "memorize",
   "runSkill",
   "scheduleTask",

@@ -1107,7 +1107,253 @@ function initializeTables(sqlite: Database.Database): void {
       ON scheduled_task_runs (status, scheduled_for)
   `);
 
-  console.log("[SQLite] All tables initialized");
+  // ==========================================================================
+  // Plugin System Tables
+  // ==========================================================================
+
+  // Plugins table — installed plugin records
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugins (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      version TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'user' CHECK(scope IN ('user', 'project', 'local', 'managed')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled', 'error')),
+      marketplace_name TEXT,
+      manifest TEXT NOT NULL DEFAULT '{}',
+      components TEXT NOT NULL DEFAULT '{}',
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
+      cache_path TEXT,
+      last_error TEXT,
+      installed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugins_user_scope
+      ON plugins (user_id, scope, status)
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugins_name_marketplace_user
+      ON plugins (name, marketplace_name, user_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugins_character
+      ON plugins (character_id)
+  `);
+
+  // Plugin hooks table — hook registrations from plugins
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_hooks (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      event TEXT NOT NULL,
+      matcher TEXT,
+      handler_type TEXT NOT NULL CHECK(handler_type IN ('command', 'prompt', 'agent')),
+      command TEXT,
+      timeout INTEGER DEFAULT 600,
+      status_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_hooks_plugin_event
+      ON plugin_hooks (plugin_id, event)
+  `);
+
+  // Plugin MCP servers table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_mcp_servers (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      server_name TEXT NOT NULL,
+      config TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_mcp_servers_plugin_server
+      ON plugin_mcp_servers (plugin_id, server_name)
+  `);
+
+  // Plugin LSP servers table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_lsp_servers (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      server_name TEXT NOT NULL,
+      config TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_lsp_servers_plugin_server
+      ON plugin_lsp_servers (plugin_id, server_name)
+  `);
+
+  // Plugin files table — raw file metadata from imported plugins
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_files (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      relative_path TEXT NOT NULL,
+      mime_type TEXT,
+      size INTEGER NOT NULL,
+      is_executable INTEGER DEFAULT 0 NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_files_plugin_path
+      ON plugin_files (plugin_id, relative_path)
+  `);
+
+  // Plugin skill revisions table — editable skill content history
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_skill_revisions (
+      id TEXT PRIMARY KEY,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      namespaced_name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      change_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_skill_revisions_plugin_name_version
+      ON plugin_skill_revisions (plugin_id, namespaced_name, version)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_plugin_skill_revisions_plugin_name_created
+      ON plugin_skill_revisions (plugin_id, namespaced_name, created_at)
+  `);
+
+  // Marketplaces table — registered marketplace catalogs
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS marketplaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL,
+      catalog TEXT,
+      auto_update INTEGER NOT NULL DEFAULT 1,
+      last_fetched_at TEXT,
+      last_error TEXT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_marketplaces_user
+      ON marketplaces (user_id)
+  `);
+
+  // Agent workflows table — links an initiator agent with workflow metadata
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_workflows (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      initiator_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'paused', 'archived')),
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflows_user_status
+      ON agent_workflows (user_id, status)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflows_initiator
+      ON agent_workflows (initiator_id)
+  `);
+
+  // Agent workflow members table — maps agents into workflow membership and role
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_workflow_members (
+      id TEXT PRIMARY KEY,
+      workflow_id TEXT NOT NULL REFERENCES agent_workflows(id) ON DELETE CASCADE,
+      agent_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('initiator', 'subagent')),
+      source_path TEXT,
+      metadata_seed TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_workflow_members_workflow_agent
+      ON agent_workflow_members (workflow_id, agent_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflow_members_agent
+      ON agent_workflow_members (agent_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_workflow_members_workflow_role
+      ON agent_workflow_members (workflow_id, role)
+  `);
+
+  // Agent Plugins junction table — per-agent plugin assignments
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_plugins (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+      workflow_id TEXT REFERENCES agent_workflows(id) ON DELETE SET NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  try {
+    sqlite.exec(`ALTER TABLE agent_plugins ADD COLUMN workflow_id TEXT REFERENCES agent_workflows(id) ON DELETE SET NULL`);
+    console.log("[SQLite Migration] Added workflow_id column to agent_plugins");
+  } catch {
+    // Column already exists
+  }
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_plugins_agent_plugin
+      ON agent_plugins (agent_id, plugin_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_agent
+      ON agent_plugins (agent_id, enabled)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_plugin
+      ON agent_plugins (plugin_id)
+  `);
+
+  sqlite.exec(`
+    CREATE INDEX IF NOT EXISTS idx_agent_plugins_workflow
+      ON agent_plugins (workflow_id)
+  `);
+
+  console.log("[SQLite] All tables initialized (including plugin and workflow systems)");
 
   // Run data migrations
   runDataMigrations(sqlite);
@@ -1547,82 +1793,79 @@ function runDataMigrations(sqlite: Database.Database): void {
       "SELECT sql FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
     ).get() as { sql?: string } | undefined;
     const tableSql = tableSqlRow?.sql || "";
-    if (!tableSql || !tableSql.includes("scheduled_tasks_old")) {
-      return;
-    }
+    if (tableSql && tableSql.includes("scheduled_tasks_old")) {
+      console.log("[SQLite Migration] Updating scheduled_task_runs foreign key to scheduled_tasks");
+      sqlite.exec("BEGIN IMMEDIATE");
+      sqlite.exec("PRAGMA foreign_keys=OFF");
+      try {
+        sqlite.exec("ALTER TABLE scheduled_task_runs RENAME TO scheduled_task_runs_old");
+        const oldTableExists = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+        ).get();
+        if (!oldTableExists) {
+          sqlite.exec("ROLLBACK");
+          console.warn("[SQLite Migration] scheduled_task_runs_old missing after rename, skipping migration");
+        } else {
+          sqlite.exec(`
+            CREATE TABLE scheduled_task_runs (
+              id TEXT PRIMARY KEY,
+              task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+              agent_run_id TEXT,
+              session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+              status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
+              scheduled_for TEXT NOT NULL,
+              started_at TEXT,
+              completed_at TEXT,
+              duration_ms INTEGER,
+              attempt_number INTEGER NOT NULL DEFAULT 1,
+              result_summary TEXT,
+              error TEXT,
+              resolved_prompt TEXT,
+              metadata TEXT NOT NULL DEFAULT '{}',
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `);
 
-    console.log("[SQLite Migration] Updating scheduled_task_runs foreign key to scheduled_tasks");
-    sqlite.exec("BEGIN IMMEDIATE");
-    sqlite.exec("PRAGMA foreign_keys=OFF");
-    try {
-      sqlite.exec("ALTER TABLE scheduled_task_runs RENAME TO scheduled_task_runs_old");
-      const oldTableExists = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
-      ).get();
-      if (!oldTableExists) {
+          sqlite.exec(`
+            INSERT INTO scheduled_task_runs (
+              id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+              completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+              metadata, created_at
+            )
+            SELECT
+              id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
+              completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
+              metadata, created_at
+            FROM scheduled_task_runs_old
+          `);
+
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
+              ON scheduled_task_runs (task_id, created_at DESC)
+          `);
+          sqlite.exec(`
+            CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
+              ON scheduled_task_runs (status, scheduled_for)
+          `);
+
+          sqlite.exec("DROP TABLE IF EXISTS scheduled_task_runs_old");
+          sqlite.exec("COMMIT");
+        }
+      } catch (migrationError) {
         sqlite.exec("ROLLBACK");
-        console.warn("[SQLite Migration] scheduled_task_runs_old missing after rename, skipping migration");
-        return;
+        const hasOldTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
+        ).get();
+        const hasNewTable = sqlite.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
+        ).get();
+        if (hasOldTable && !hasNewTable) {
+          sqlite.exec("ALTER TABLE scheduled_task_runs_old RENAME TO scheduled_task_runs");
+        }
+        console.warn("[SQLite Migration] scheduled_task_runs foreign key migration aborted:", migrationError);
+      } finally {
+        sqlite.exec("PRAGMA foreign_keys=ON");
       }
-
-      sqlite.exec(`
-        CREATE TABLE scheduled_task_runs (
-          id TEXT PRIMARY KEY,
-          task_id TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
-          agent_run_id TEXT,
-          session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled', 'timeout')),
-          scheduled_for TEXT NOT NULL,
-          started_at TEXT,
-          completed_at TEXT,
-          duration_ms INTEGER,
-          attempt_number INTEGER NOT NULL DEFAULT 1,
-          result_summary TEXT,
-          error TEXT,
-          resolved_prompt TEXT,
-          metadata TEXT NOT NULL DEFAULT '{}',
-          created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-      `);
-
-      sqlite.exec(`
-        INSERT INTO scheduled_task_runs (
-          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
-          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
-          metadata, created_at
-        )
-        SELECT
-          id, task_id, agent_run_id, session_id, status, scheduled_for, started_at,
-          completed_at, duration_ms, attempt_number, result_summary, error, resolved_prompt,
-          metadata, created_at
-        FROM scheduled_task_runs_old
-      `);
-
-      sqlite.exec(`
-        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task
-          ON scheduled_task_runs (task_id, created_at DESC)
-      `);
-      sqlite.exec(`
-        CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_status
-          ON scheduled_task_runs (status, scheduled_for)
-      `);
-
-      sqlite.exec("DROP TABLE IF EXISTS scheduled_task_runs_old");
-      sqlite.exec("COMMIT");
-    } catch (migrationError) {
-      sqlite.exec("ROLLBACK");
-      const hasOldTable = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs_old'"
-      ).get();
-      const hasNewTable = sqlite.prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scheduled_task_runs'"
-      ).get();
-      if (hasOldTable && !hasNewTable) {
-        sqlite.exec("ALTER TABLE scheduled_task_runs_old RENAME TO scheduled_task_runs");
-      }
-      console.warn("[SQLite Migration] scheduled_task_runs foreign key migration aborted:", migrationError);
-    } finally {
-      sqlite.exec("PRAGMA foreign_keys=ON");
     }
   } catch (error) {
     try {
@@ -1662,6 +1905,25 @@ function runDataMigrations(sqlite: Database.Database): void {
     }
   } catch (error) {
     console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
+  }
+
+  // Migration: Add workflow folder inheritance tracking columns
+  try {
+    const folderCols = sqlite.prepare("PRAGMA table_info(agent_sync_folders)").all() as Array<{ name: string }>;
+    const colNames = new Set(folderCols.map((c) => c.name));
+
+    if (!colNames.has("inherited_from_workflow_id")) {
+      sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_workflow_id TEXT");
+    }
+    if (!colNames.has("inherited_from_agent_id")) {
+      sqlite.exec("ALTER TABLE agent_sync_folders ADD COLUMN inherited_from_agent_id TEXT");
+    }
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS agent_sync_folders_inherited_workflow_idx
+      ON agent_sync_folders (inherited_from_workflow_id)
+    `);
+  } catch (error) {
+    console.warn("[SQLite Migration] Workflow folder tracking columns migration failed:", error);
   }
 }
 

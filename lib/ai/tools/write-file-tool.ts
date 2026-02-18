@@ -210,7 +210,9 @@ export function createWriteFileTool(options: WriteFileToolOptions) {
         // Run diagnostics
         const diagnostics = await runPostWriteDiagnostics(
           validPath,
-          syncedFolders
+          syncedFolders,
+          5000,
+          "write_file"
         ).catch(() => null);
 
         const action = fileExists ? "Wrote" : "Created";

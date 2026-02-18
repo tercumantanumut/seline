@@ -1,6 +1,5 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
-import { getLanguageModel, getProviderDisplayName, getConfiguredProvider, ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, getProviderTemperature } from "@/lib/ai/providers";
-import { resolveSessionLanguageModel } from "@/lib/ai/session-model-resolver";
+import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -13,11 +12,9 @@ import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
-import { createCreateSkillTool } from "@/lib/ai/tools/create-skill-tool";
-import { createListSkillsTool } from "@/lib/ai/tools/list-skills-tool";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
-import { createCopySkillTool } from "@/lib/ai/tools/copy-skill-tool";
+import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -26,8 +23,8 @@ import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
-import { ContextWindowManager } from "@/lib/context-window";
-import { getSessionModelId, getSessionProvider } from "@/lib/ai/session-model-resolver";
+import { ContextWindowManager, type ContextWindowStatus as ManagedContextWindowStatus } from "@/lib/context-window";
+import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, updateMessage } from "@/lib/db/queries";
@@ -55,7 +52,6 @@ import {
   enhanceFrontendMessagesWithToolResults,
   type FrontendMessage,
 } from "@/lib/messages/tool-enhancement";
-import { estimateMessageTokens } from "@/lib/utils";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import {
   withRunContext,
@@ -67,6 +63,15 @@ import {
 import { nextOrderingIndex, allocateOrderingIndices } from "@/lib/session/message-ordering";
 import fs from "fs/promises";
 import path from "path";
+import { runPreToolUseHooks, runPostToolUseHooks, runPostToolUseFailureHooks, runStopHooks } from "@/lib/plugins/hook-integration";
+import {
+  getEnabledPluginsForAgent,
+  getInstalledPlugins,
+  loadPluginHooks,
+} from "@/lib/plugins/registry";
+import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
+import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
 // ============================================================================
 // System Prompt Injection
@@ -181,6 +186,41 @@ function getDiscoveredToolsFromMetadata(
   return new Set(discovered.toolNames);
 }
 
+function isValidIanaTimezone(value: string | null | undefined): value is string {
+  if (!value || typeof value !== "string") return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolvePluginRootMap(
+  plugins: Array<{ name: string; cachePath?: string }>
+): Promise<Map<string, string>> {
+  const roots = new Map<string, string>();
+
+  for (const plugin of plugins) {
+    const candidates = [
+      plugin.cachePath,
+      path.join(process.cwd(), "test_plugins", plugin.name),
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        roots.set(plugin.name, candidate);
+        break;
+      } catch {
+        // Try next candidate.
+      }
+    }
+  }
+
+  return roots;
+}
+
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
 
@@ -245,19 +285,6 @@ async function imageUrlToBase64(imageUrl: string): Promise<string> {
 // Maximum text content length before smart truncation kicks in
 // Content exceeding this limit is truncated, with full content stored for on-demand retrieval
 const MAX_TEXT_CONTENT_LENGTH = 10000;
-
-// Helper to check if a tool has ephemeral results (shown in UI but excluded from AI history)
-// MCP tools have large outputs like browser snapshots that don't need to persist in context
-function isEphemeralTool(toolName: string): boolean {
-  // All MCP tools are ephemeral by default (their results are processed once then excluded)
-  if (toolName.startsWith("mcp_")) {
-    return true;
-  }
-  return false;
-}
-
-// When the conversation nears context limits, switch tool results to deterministic summaries
-const TOOL_SUMMARY_TOKEN_THRESHOLD = 120000;
 
 // Limit how many missing tool results we attempt to re-fetch per request
 const MAX_TOOL_REFETCH = 6;
@@ -377,7 +404,6 @@ function stripFakeToolCallJson(text: string): string {
 // includeUrlHelpers: when true, adds [Image URL: ...] text for AI context (not for DB storage)
 // convertUserImagesToBase64: when true, converts USER-uploaded image URLs to base64 (not tool-generated images)
 // sessionId: when provided, enables smart truncation with full content retrieval
-// toolSummaryMode: when true, replace tool outputs with deterministic summaries to reduce context bloat
 async function extractContent(
   msg: {
     role?: string;
@@ -407,7 +433,6 @@ async function extractContent(
   includeUrlHelpers = false,
   convertUserImagesToBase64 = false,
   sessionId?: string,
-  toolSummaryMode = false
 ): Promise<string | Array<{
   type: string;
   text?: string;
@@ -513,13 +538,6 @@ async function extractContent(
         // This prevents the model from learning to mimic these markers and causing fake tool call hallucinations
         const toolName = part.toolName || "tool";
 
-        // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
-        // This saves tokens for large outputs like browser snapshots that were already processed
-        if (isEphemeralTool(toolName)) {
-          console.log(`[EXTRACT] Skipping ephemeral tool ${toolName} from AI context`);
-          continue;
-        }
-
         console.log(`[EXTRACT] Found dynamic-tool: ${toolName}, output:`, JSON.stringify(part.output, null, 2));
         const output = part.output as { images?: Array<{ url: string }>; videos?: Array<{ url: string }>; text?: string; status?: string } | null;
         const toolCallId = part.toolCallId;
@@ -536,9 +554,12 @@ async function extractContent(
         }
 
         if (toolCallId && output !== undefined) {
-          const normalizedOutput = toolSummaryMode
-            ? summarizeToolResult(toolName, output)
-            : normalizeToolResultOutput(toolName, output, normalizedInput).output;
+          const normalizedOutput = normalizeToolResultOutput(
+            toolName,
+            output,
+            normalizedInput,
+            { mode: "projection" }
+          ).output;
           contentParts.push({
             type: "tool-result",
             toolCallId,
@@ -654,9 +675,12 @@ async function extractContent(
         // Preserve that as a structured tool-result to keep call/result pairs valid.
         const rawOutput = part.output ?? part.result;
         if (rawOutput !== undefined && !explicitToolResultIds.has(part.toolCallId)) {
-          const normalizedOutput = toolSummaryMode
-            ? summarizeToolResult(part.toolName, rawOutput)
-            : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+          const normalizedOutput = normalizeToolResultOutput(
+            part.toolName,
+            rawOutput,
+            normalizedInput,
+            { mode: "projection" }
+          ).output;
           contentParts.push({
             type: "tool-result",
             toolCallId: part.toolCallId,
@@ -667,9 +691,12 @@ async function extractContent(
       } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
         const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};
         const rawOutput = part.output ?? part.result;
-        const normalizedOutput = toolSummaryMode
-          ? summarizeToolResult(part.toolName, rawOutput)
-          : normalizeToolResultOutput(part.toolName, rawOutput, normalizedInput).output;
+        const normalizedOutput = normalizeToolResultOutput(
+          part.toolName,
+          rawOutput,
+          normalizedInput,
+          { mode: "projection" }
+        ).output;
         contentParts.push({
           type: "tool-result",
           toolCallId: part.toolCallId,
@@ -681,12 +708,6 @@ async function extractContent(
         // CRITICAL: Tool results are kept as structured data in the parts, NOT converted to text
         // The AI SDK handles tool-result parts natively - no need for [SYSTEM: ...] markers
         const toolName = part.type.replace("tool-", "");
-
-        // Skip ephemeral tools (MCP) - their results are shown in UI but excluded from AI history
-        if (isEphemeralTool(toolName)) {
-          console.log(`[EXTRACT] Skipping ephemeral tool ${toolName} from AI context`);
-          continue;
-        }
 
         const partWithOutput = part as typeof part & {
           input?: unknown;
@@ -707,9 +728,12 @@ async function extractContent(
           });
         }
         if (toolCallId && toolOutput !== undefined) {
-          const normalizedOutput = toolSummaryMode
-            ? summarizeToolResult(toolName, toolOutput)
-            : normalizeToolResultOutput(toolName, toolOutput, normalizedInput).output;
+          const normalizedOutput = normalizeToolResultOutput(
+            toolName,
+            toolOutput,
+            normalizedInput,
+            { mode: "projection" }
+          ).output;
           contentParts.push({
             type: "tool-result",
             toolCallId,
@@ -840,7 +864,7 @@ async function extractContent(
       }
     }
 
-    const normalizedParts = filterOrphanToolCalls(contentParts);
+    const normalizedParts = reconcileToolCallPairs(contentParts);
 
     // If no content parts, return non-empty fallback string for AI providers
     if (normalizedParts.length === 0) {
@@ -910,139 +934,18 @@ async function extractContent(
   return "[Message content not available]";
 }
 
-function estimateFrontendMessageTokens(
-  messages: FrontendMessage[],
-  sessionSummary?: string | null
-): number {
-  let total = 0;
+function buildContextWindowPromptBlock(status: ManagedContextWindowStatus): string {
+  const warningPct = Math.round((status.thresholds.warning / status.maxTokens) * 100);
+  const criticalPct = Math.round((status.thresholds.critical / status.maxTokens) * 100);
+  const hardPct = Math.round((status.thresholds.hardLimit / status.maxTokens) * 100);
 
-  if (sessionSummary) {
-    total += estimateMessageTokens({ content: sessionSummary });
-  }
+  return `\n\n[Context Window Status]
+Current: ${status.formatted.current}/${status.formatted.max} (${status.formatted.percentage})
+Thresholds: warning=${warningPct}%, critical=${criticalPct}%, hard=${hardPct}%
 
-  for (const msg of messages) {
-    if (Array.isArray(msg.content)) {
-      total += estimateMessageTokens({ content: msg.content });
-      continue;
-    }
-    if (typeof msg.content === "string") {
-      total += estimateMessageTokens({ content: msg.content });
-      continue;
-    }
-    if (Array.isArray(msg.parts)) {
-      total += estimateMessageTokens({ content: msg.parts });
-      continue;
-    }
-    total += 10;
-  }
-
-  return total;
-}
-
-function shouldUseToolSummaries(
-  messages: FrontendMessage[],
-  sessionSummary?: string | null
-): boolean {
-  const estimatedTokens = estimateFrontendMessageTokens(messages, sessionSummary);
-  return estimatedTokens >= TOOL_SUMMARY_TOKEN_THRESHOLD;
-}
-
-const TOOL_HISTORY_SUMMARY_MAX_CHARS = 320;
-
-function summarizeHistoricalToolOutput(output: unknown): string {
-  if (typeof output === "string") {
-    return output.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
-  }
-
-  if (output && typeof output === "object") {
-    const maybeTyped = output as { type?: unknown; value?: unknown };
-    if (maybeTyped.type === "text" && typeof maybeTyped.value === "string") {
-      return maybeTyped.value.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
-    }
-    if (maybeTyped.type === "json") {
-      try {
-        const jsonText = JSON.stringify(maybeTyped.value);
-        return jsonText.slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
-      } catch {
-        return "[unserializable json output]";
-      }
-    }
-    try {
-      return JSON.stringify(output).slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
-    } catch {
-      return "[unserializable output]";
-    }
-  }
-
-  return String(output ?? "").slice(0, TOOL_HISTORY_SUMMARY_MAX_CHARS);
-}
-
-function sanitizeToolHistoryForAntigravityClaude(messages: ModelMessage[]): ModelMessage[] {
-  let removedCalls = 0;
-  let removedResults = 0;
-
-  const sanitized: ModelMessage[] = messages.map((message): ModelMessage => {
-    if (message.role !== "assistant" || !Array.isArray(message.content)) {
-      return message;
-    }
-
-    const keptParts: Array<Record<string, unknown>> = [];
-    const summaryLines: string[] = [];
-
-    for (const rawPart of message.content as Array<Record<string, unknown>>) {
-      const partType = rawPart?.type;
-      if (partType === "tool-call") {
-        removedCalls += 1;
-        continue;
-      }
-      if (partType === "tool-result") {
-        removedResults += 1;
-        const toolName = typeof rawPart.toolName === "string" ? rawPart.toolName : "tool";
-        const summary = summarizeHistoricalToolOutput(rawPart.output);
-        summaryLines.push(`[Previous ${toolName} result] ${summary}`);
-        continue;
-      }
-      keptParts.push(rawPart);
-    }
-
-    if (summaryLines.length > 0) {
-      keptParts.push({
-        type: "text",
-        text: summaryLines.join("\n"),
-      });
-    }
-
-    if (keptParts.length === 0) {
-      return {
-        ...message,
-        content: "[Previous tool activity omitted for Claude compatibility.]",
-      } as ModelMessage;
-    }
-
-    if (
-      keptParts.length === 1 &&
-      keptParts[0].type === "text" &&
-      typeof keptParts[0].text === "string"
-    ) {
-      return {
-        ...message,
-        content: keptParts[0].text,
-      } as ModelMessage;
-    }
-
-    return {
-      ...message,
-      content: keptParts as ModelMessage["content"],
-    } as ModelMessage;
-  });
-
-  if (removedCalls > 0 || removedResults > 0) {
-    console.log(
-      `[CHAT API] Antigravity Claude history sanitization: removed ${removedCalls} tool-call and ${removedResults} tool-result parts`
-    );
-  }
-
-  return sanitized;
+You have access to the compactSession tool.
+Use compactSession when you judge that upcoming work will likely exhaust context (for example long multi-step operations or large tool outputs).
+Avoid repeated compaction unless additional headroom is needed.`;
 }
 
 /**
@@ -1055,21 +958,14 @@ function sanitizeToolHistoryForAntigravityClaude(messages: ModelMessage[]): Mode
  *
  * This function moves tool-result parts from assistant messages into role:"tool" messages
  * placed immediately after, which the AI SDK correctly converts to Anthropic tool_result blocks.
- *
- * Also removes orphan tool-call parts (those without matching tool-result anywhere)
- * to prevent the same error when tool execution was interrupted.
  */
 function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelMessage[] {
   // First pass: collect all tool-call and tool-result IDs across all messages
-  const allToolCallIds = new Set<string>();
   const allToolResultIds = new Set<string>();
 
   for (const message of messages) {
     if (!Array.isArray(message.content)) continue;
     for (const part of message.content as Array<Record<string, unknown>>) {
-      if (part.type === "tool-call" && typeof part.toolCallId === "string") {
-        allToolCallIds.add(part.toolCallId);
-      }
       if (part.type === "tool-result" && typeof part.toolCallId === "string") {
         allToolResultIds.add(part.toolCallId);
       }
@@ -1078,7 +974,23 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
 
   const result: ModelMessage[] = [];
   let splitCount = 0;
-  let removedOrphanCalls = 0;
+  let reconstructedCalls = 0;
+  let reconstructedResults = 0;
+
+  const makeSyntheticToolResult = (
+    toolCallId: string,
+    toolName?: string
+  ): Record<string, unknown> => ({
+    type: "tool-result",
+    toolCallId,
+    toolName: toolName || "tool",
+    output: toModelToolResultOutput({
+      status: "error",
+      error: "Tool call had no persisted tool result in conversation history.",
+      reconstructed: true,
+    }),
+    status: "error",
+  });
 
   for (const message of messages) {
     if (message.role !== "assistant" || !Array.isArray(message.content)) {
@@ -1107,18 +1019,43 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
 
     // No tool-calls in this message — check for orphan tool-results
     if (lastToolCallIdx === -1) {
-      const hasToolResults = parts.some(p => p.type === "tool-result");
-      if (hasToolResults) {
-        // Orphan tool-results without tool-calls — convert to text
-        const filtered = parts.filter(p => p.type !== "tool-result");
-        if (filtered.length > 0) {
-          result.push({ ...message, content: filtered as ModelMessage["content"] } as ModelMessage);
-        } else {
-          result.push({ ...message, content: "[Previous tool activity omitted.]" } as ModelMessage);
-        }
-      } else {
+      const toolResultsOnly = parts.filter((p) => p.type === "tool-result");
+      if (toolResultsOnly.length === 0) {
         result.push(message);
+        continue;
       }
+
+      const nonToolResultParts = parts.filter((p) => p.type !== "tool-result");
+      const syntheticCalls = toolResultsOnly
+        .filter((part) => typeof part.toolCallId === "string")
+        .map((part) => ({
+          type: "tool-call",
+          toolCallId: part.toolCallId as string,
+          toolName: (typeof part.toolName === "string" ? part.toolName : "tool"),
+          input: {
+            __reconstructed: true,
+            reason: "missing_tool_call_in_history",
+          },
+        }));
+
+      reconstructedCalls += syntheticCalls.length;
+      const assistantParts = [...nonToolResultParts, ...syntheticCalls];
+      const firstAssistantPart = assistantParts[0] as Record<string, unknown> | undefined;
+      result.push({
+        ...message,
+        content:
+          assistantParts.length === 1 &&
+          firstAssistantPart?.type === "text" &&
+          typeof firstAssistantPart.text === "string"
+            ? (firstAssistantPart.text as string)
+            : (assistantParts as ModelMessage["content"]),
+      } as ModelMessage);
+
+      splitCount += toolResultsOnly.length;
+      result.push({
+        role: "tool",
+        content: toolResultsOnly as ModelMessage["content"],
+      } as ModelMessage);
       continue;
     }
 
@@ -1139,9 +1076,8 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
       }
 
       if (part.type === "tool-call" && typeof part.toolCallId === "string" && !allToolResultIds.has(part.toolCallId)) {
-        // Orphan tool-call without matching result — remove
-        removedOrphanCalls++;
-        continue;
+        toolResultParts.push(makeSyntheticToolResult(part.toolCallId, typeof part.toolName === "string" ? part.toolName : undefined));
+        reconstructedResults += 1;
       }
 
       if (i <= lastToolCallIdx) {
@@ -1151,8 +1087,8 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
       }
     }
 
-    // No tool-results found and no orphans — keep as-is
-    if (toolResultParts.length === 0 && removedOrphanCalls === 0 && afterToolCalls.length === 0) {
+    // No tool-results found and no trailing text — keep as-is
+    if (toolResultParts.length === 0 && afterToolCalls.length === 0) {
       result.push(message);
       continue;
     }
@@ -1192,16 +1128,17 @@ function splitToolResultsFromAssistantMessages(messages: ModelMessage[]): ModelM
     }
   }
 
-  if (splitCount > 0 || removedOrphanCalls > 0) {
+  if (splitCount > 0 || reconstructedCalls > 0 || reconstructedResults > 0) {
     console.log(
-      `[CHAT API] Claude message splitting: moved ${splitCount} tool-result parts to role:tool messages, removed ${removedOrphanCalls} orphan tool-calls`
+      `[CHAT API] Claude message splitting: moved ${splitCount} tool-result parts to role:tool messages, ` +
+      `reconstructed ${reconstructedCalls} missing tool-calls and ${reconstructedResults} missing tool-results`
     );
   }
 
   return result;
 }
 
-function filterOrphanToolCalls(
+function reconcileToolCallPairs(
   parts: Array<{
     type: string;
     text?: string;
@@ -1220,82 +1157,74 @@ function filterOrphanToolCalls(
   input?: unknown;
   output?: unknown;
 }> {
-  const toolCallIds = new Set(
-    parts
-      .filter(
-        (part): part is { type: "tool-call"; toolCallId: string } =>
-          part.type === "tool-call" && typeof part.toolCallId === "string"
-      )
-      .map((part) => part.toolCallId)
-  );
-  const toolResultIds = new Set(
-    parts
-      .filter(
-        (part): part is { type: "tool-result"; toolCallId: string } =>
-          part.type === "tool-result" && typeof part.toolCallId === "string"
-      )
-      .map((part) => part.toolCallId)
-  );
+  const normalized: Array<{
+    type: string;
+    text?: string;
+    image?: string;
+    toolCallId?: string;
+    toolName?: string;
+    input?: unknown;
+    output?: unknown;
+  }> = [];
+  const toolCallIds = new Set<string>();
+  const toolResultIds = new Set<string>();
 
-  let removedOrphanCalls = 0;
-  let removedOrphanResults = 0;
-  let removedDuplicateCalls = 0;
-  let removedDuplicateResults = 0;
-  const seenToolCalls = new Set<string>();
-  const seenToolResults = new Set<string>();
+  let reconstructedCalls = 0;
+  let reconstructedResults = 0;
 
-  const filtered = parts.filter((part) => {
-    if (part.type === "tool-call") {
-      if (typeof part.toolCallId !== "string") {
-        removedOrphanCalls += 1;
-        return false;
-      }
-      if (!toolResultIds.has(part.toolCallId)) {
-        removedOrphanCalls += 1;
-        return false;
-      }
-      if (seenToolCalls.has(part.toolCallId)) {
-        removedDuplicateCalls += 1;
-        return false;
-      }
-      seenToolCalls.add(part.toolCallId);
-      return true;
-    }
-
-    if (part.type === "tool-result") {
-      if (typeof part.toolCallId !== "string") {
-        removedOrphanResults += 1;
-        return false;
-      }
+  for (const part of parts) {
+    if (part.type === "tool-result" && typeof part.toolCallId === "string") {
       if (!toolCallIds.has(part.toolCallId)) {
-        removedOrphanResults += 1;
-        return false;
+        normalized.push({
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName || "tool",
+          input: {
+            __reconstructed: true,
+            reason: "missing_tool_call_in_history",
+          },
+        });
+        toolCallIds.add(part.toolCallId);
+        reconstructedCalls += 1;
       }
-      if (seenToolResults.has(part.toolCallId)) {
-        removedDuplicateResults += 1;
-        return false;
-      }
-      seenToolResults.add(part.toolCallId);
-      return true;
+      toolResultIds.add(part.toolCallId);
+      normalized.push(part);
+      continue;
     }
 
-    return true;
-  });
+    if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+      toolCallIds.add(part.toolCallId);
+    }
 
-  if (
-    removedOrphanCalls > 0 ||
-    removedOrphanResults > 0 ||
-    removedDuplicateCalls > 0 ||
-    removedDuplicateResults > 0
-  ) {
+    normalized.push(part);
+  }
+
+  for (const toolCallId of toolCallIds) {
+    if (toolResultIds.has(toolCallId)) continue;
+    const callPart = normalized.find(
+      (part) => part.type === "tool-call" && part.toolCallId === toolCallId
+    );
+    normalized.push({
+      type: "tool-result",
+      toolCallId,
+      toolName: callPart?.toolName || "tool",
+      output: toModelToolResultOutput({
+        status: "error",
+        error: "Tool execution did not return a persisted result in history.",
+        reconstructed: true,
+      }),
+    });
+    reconstructedResults += 1;
+  }
+
+  if (reconstructedCalls > 0 || reconstructedResults > 0) {
     console.warn(
-      `[CHAT API] Filtered tool parts before model send: ` +
-      `orphan calls=${removedOrphanCalls}, orphan results=${removedOrphanResults}, ` +
-      `duplicate calls=${removedDuplicateCalls}, duplicate results=${removedDuplicateResults}`
+      `[CHAT API] Reconciled tool call/result pairs before model send: ` +
+      `reconstructedCalls=${reconstructedCalls}, reconstructedResults=${reconstructedResults}`
     );
   }
 
-  return filtered;
+  return normalized;
 }
 
 function toModelToolResultOutput(
@@ -1314,51 +1243,6 @@ function toModelToolResultOutput(
       value: { status: "error", error: "Tool result was not JSON-serializable." },
     };
   }
-}
-
-function summarizeToolResult(toolName: string, output: unknown): unknown {
-  const normalized = normalizeToolResultOutput(toolName, output, undefined).output as Record<string, unknown> | string | null;
-
-  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
-    return normalized;
-  }
-
-  const summary: Record<string, unknown> = {};
-  const status = normalized.status;
-  if (typeof status === "string") {
-    summary.status = status;
-  }
-
-  if (typeof normalized.message === "string" && normalized.message.trim()) {
-    summary.message = normalized.message;
-  }
-
-  if (typeof normalized.exitCode === "number") {
-    summary.exitCode = normalized.exitCode;
-  }
-
-  if (typeof normalized.executionTime === "number") {
-    summary.executionTime = normalized.executionTime;
-  }
-
-  if (typeof normalized.logId === "string" && normalized.logId) {
-    summary.logId = normalized.logId;
-  }
-
-  if (typeof normalized.stdout === "string" && normalized.stdout) {
-    summary.stdoutPreview = normalized.stdout.slice(0, 300);
-  }
-
-  if (typeof normalized.stderr === "string" && normalized.stderr) {
-    summary.stderrPreview = normalized.stderr.slice(0, 300);
-  }
-
-  if (Object.keys(summary).length === 0) {
-    return { status: "success", summarized: true };
-  }
-
-  summary.summarized = true;
-  return summary;
 }
 
 function normalizeToolCallInput(
@@ -1660,7 +1544,12 @@ function recordToolResultChunk(
   }
   const normalizedName = toolName || state.toolCallParts.get(toolCallId)?.toolName || "tool";
   const callPart = ensureToolCallPart(state, toolCallId, normalizedName);
-  const normalized = normalizeToolResultOutput(normalizedName, output, callPart.args);
+  const normalized = normalizeToolResultOutput(
+    normalizedName,
+    output,
+    callPart.args,
+    { mode: "canonical" }
+  );
   const status = normalized.status.toLowerCase();
   const isErrorStatus = status === "error" || status === "failed";
   callPart.state = isErrorStatus ? "output-error" : "output-available";
@@ -1692,14 +1581,318 @@ function recordToolResultChunk(
   return true;
 }
 
+interface StepToolCallLike {
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+}
+
+interface StepToolResultLike {
+  toolCallId: string;
+  output: unknown;
+  toolName?: string;
+}
+
+interface StepLike {
+  toolCalls?: StepToolCallLike[];
+  toolResults?: StepToolResultLike[];
+  text?: string;
+}
+
+function buildCanonicalAssistantContentFromSteps(
+  steps: StepLike[] | undefined,
+  fallbackText?: string
+): DBContentPart[] {
+  const content: DBContentPart[] = [];
+  const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
+  const seenToolCalls = new Set<string>();
+  const seenToolResults = new Set<string>();
+
+  if (steps && steps.length > 0) {
+    for (const step of steps) {
+      if (step.toolCalls) {
+        for (const call of step.toolCalls) {
+          const normalizedInput = normalizeToolCallInput(
+            call.input,
+            call.toolName,
+            call.toolCallId
+          );
+          if (!normalizedInput) continue;
+          if (seenToolCalls.has(call.toolCallId)) continue;
+          seenToolCalls.add(call.toolCallId);
+          content.push({
+            type: "tool-call",
+            toolCallId: call.toolCallId,
+            toolName: call.toolName,
+            args: normalizedInput,
+          });
+          toolCallMetadata.set(call.toolCallId, {
+            toolName: call.toolName,
+            input: normalizedInput,
+          });
+        }
+      }
+
+      if (step.toolResults) {
+        for (const res of step.toolResults) {
+          if (seenToolResults.has(res.toolCallId)) continue;
+          seenToolResults.add(res.toolCallId);
+
+          const meta = toolCallMetadata.get(res.toolCallId);
+          const toolName = res.toolName || meta?.toolName || "tool";
+          const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input, {
+            mode: "canonical",
+          });
+          const status = normalized.status.toLowerCase();
+          const state =
+            status === "error" || status === "failed"
+              ? "output-error"
+              : "output-available";
+
+          content.push({
+            type: "tool-result",
+            toolCallId: res.toolCallId,
+            toolName,
+            result: normalized.output,
+            status: normalized.status,
+            timestamp: new Date().toISOString(),
+            state,
+          });
+        }
+      }
+
+      if (step.text?.trim()) {
+        const cleanedStepText = stripFakeToolCallJson(step.text);
+        if (cleanedStepText.trim()) {
+          content.push({ type: "text", text: cleanedStepText });
+        }
+      }
+    }
+  }
+
+  if (content.length === 0 && fallbackText?.trim()) {
+    const cleanedFallbackText = stripFakeToolCallJson(fallbackText);
+    if (cleanedFallbackText.trim()) {
+      content.push({ type: "text", text: cleanedFallbackText });
+    }
+  }
+
+  return content;
+}
+
+function isReconstructedMissingResult(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const obj = value as Record<string, unknown>;
+  if (obj.reconstructed === true) return true;
+  const error = typeof obj.error === "string" ? obj.error : "";
+  return error.includes("did not return a persisted result");
+}
+
+function reconcileDbToolCallResultPairs(parts: DBContentPart[]): DBContentPart[] {
+  const normalized: DBContentPart[] = [];
+  const toolCallIds = new Set<string>();
+  const toolResultIds = new Set<string>();
+
+  for (const part of parts) {
+    if (part.type === "tool-result") {
+      if (!toolCallIds.has(part.toolCallId)) {
+        normalized.push({
+          type: "tool-call",
+          toolCallId: part.toolCallId,
+          toolName: part.toolName || "tool",
+          args: {
+            __reconstructed: true,
+            reason: "missing_tool_call_in_history",
+          },
+          state: "input-available",
+        });
+        toolCallIds.add(part.toolCallId);
+      }
+      toolResultIds.add(part.toolCallId);
+      normalized.push(part);
+      continue;
+    }
+
+    if (part.type === "tool-call") {
+      toolCallIds.add(part.toolCallId);
+    }
+
+    normalized.push(part);
+  }
+
+  for (const toolCallId of toolCallIds) {
+    if (toolResultIds.has(toolCallId)) continue;
+    const callPart = normalized.find(
+      (part): part is DBToolCallPart => part.type === "tool-call" && part.toolCallId === toolCallId
+    );
+    normalized.push({
+      type: "tool-result",
+      toolCallId,
+      toolName: callPart?.toolName || "tool",
+      result: {
+        status: "error",
+        error: "Tool execution did not return a persisted result in conversation history.",
+        reconstructed: true,
+      },
+      status: "error",
+      state: "output-error",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return normalized;
+}
+
+function mergeCanonicalAssistantContent(
+  streamedParts: DBContentPart[] | undefined,
+  stepParts: DBContentPart[]
+): DBContentPart[] {
+  const base = Array.isArray(streamedParts)
+    ? cloneContentParts(streamedParts)
+    : [];
+
+  if (base.length === 0) {
+    return reconcileDbToolCallResultPairs(stepParts);
+  }
+  if (stepParts.length === 0) {
+    return reconcileDbToolCallResultPairs(base);
+  }
+
+  const callIndexById = new Map<string, number>();
+  const resultIndexById = new Map<string, number>();
+
+  for (let i = 0; i < base.length; i += 1) {
+    const part = base[i];
+    if (part.type === "tool-call") {
+      callIndexById.set(part.toolCallId, i);
+    } else if (part.type === "tool-result") {
+      resultIndexById.set(part.toolCallId, i);
+    }
+  }
+
+  for (const incoming of stepParts) {
+    if (incoming.type === "tool-call") {
+      const existingIdx = callIndexById.get(incoming.toolCallId);
+      if (existingIdx === undefined) {
+        callIndexById.set(incoming.toolCallId, base.length);
+        base.push(incoming);
+      } else {
+        const existing = base[existingIdx] as DBToolCallPart;
+        if (!existing.args && incoming.args) {
+          existing.args = incoming.args;
+        }
+        if (!existing.toolName && incoming.toolName) {
+          existing.toolName = incoming.toolName;
+        }
+        if (!existing.state && incoming.state) {
+          existing.state = incoming.state;
+        }
+      }
+      continue;
+    }
+
+    if (incoming.type === "tool-result") {
+      const existingIdx = resultIndexById.get(incoming.toolCallId);
+      if (existingIdx === undefined) {
+        resultIndexById.set(incoming.toolCallId, base.length);
+        base.push(incoming);
+      } else {
+        const existing = base[existingIdx] as DBToolResultPart;
+        if (isReconstructedMissingResult(existing.result)) {
+          base[existingIdx] = incoming;
+        } else if (!existing.result && incoming.result) {
+          base[existingIdx] = incoming;
+        } else if (existing.preliminary && !incoming.preliminary) {
+          base[existingIdx] = incoming;
+        }
+      }
+      continue;
+    }
+
+    if (incoming.type === "text") {
+      let latestExistingText: string | undefined;
+      for (let i = base.length - 1; i >= 0; i -= 1) {
+        const part = base[i];
+        if (part.type === "text") {
+          latestExistingText = part.text;
+          break;
+        }
+      }
+      if (latestExistingText === incoming.text) {
+        continue;
+      }
+      base.push(incoming);
+      continue;
+    }
+
+    base.push(incoming);
+  }
+
+  return reconcileDbToolCallResultPairs(base);
+}
+
+function countCanonicalTruncationMarkers(parts: DBContentPart[]): number {
+  let count = 0;
+  for (const part of parts) {
+    if (part.type !== "tool-result") continue;
+    const result = part.result;
+    if (!result || typeof result !== "object" || Array.isArray(result)) continue;
+    const obj = result as Record<string, unknown>;
+    if (obj.truncated === true) {
+      count += 1;
+      continue;
+    }
+    if (typeof obj.truncatedContentId === "string" && obj.truncatedContentId.startsWith("trunc_")) {
+      count += 1;
+      continue;
+    }
+  }
+  return count;
+}
+
+function isAbortLikeTerminationError(errorMessage: string): boolean {
+  const lower = errorMessage.toLowerCase();
+  return (
+    lower.includes("abort") ||
+    lower.includes("terminated") ||
+    lower.includes("interrupted") ||
+    lower.includes("controller was closed") ||
+    lower.includes("connection reset") ||
+    lower.includes("socket hang up")
+  );
+}
+
+function shouldTreatStreamErrorAsCancellation(args: {
+  errorMessage: string;
+  isCreditError: boolean;
+  streamAborted: boolean;
+  classificationRecoverable: boolean;
+  classificationReason?: string;
+}): boolean {
+  const {
+    errorMessage,
+    isCreditError,
+    streamAborted,
+    classificationRecoverable,
+    classificationReason,
+  } = args;
+
+  if (isCreditError) return false;
+  if (streamAborted) return true;
+  if (classificationReason === "user_abort") return true;
+
+  return classificationRecoverable && isAbortLikeTerminationError(errorMessage);
+}
+
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
+  let configuredProvider: string | undefined;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const internalAuth = req.headers.get("X-Internal-Auth");
-    const expectedSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";
+    const expectedSecret = INTERNAL_API_SECRET;
 
     let userId: string;
 
@@ -1707,15 +1900,17 @@ export async function POST(req: Request) {
     const scheduledTaskId = isScheduledRun ? req.headers.get("X-Scheduled-Task-Id") : null;
     const scheduledTaskName = isScheduledRun ? req.headers.get("X-Scheduled-Task-Name") : null;
 
-    if (isScheduledRun && internalAuth === expectedSecret) {
-      // Scheduled task execution - use provided session's user
+    const isInternalAuth = internalAuth === expectedSecret;
+
+    if (isInternalAuth) {
+      // Internal auth bypass (scheduled tasks, delegation sub-agents, etc.)
       // The user ID will be extracted from the session
       const headerSessionId = req.headers.get("X-Session-Id");
       if (headerSessionId) {
         const session = await getSession(headerSessionId);
         if (session?.userId) {
           userId = session.userId;
-          console.log(`[CHAT API] Scheduled task execution for user ${userId}`);
+          console.log(`[CHAT API] Internal auth bypass for user ${userId}`);
         } else {
           return new Response(
             JSON.stringify({ error: "Invalid session for scheduled task" }),
@@ -1738,26 +1933,32 @@ export async function POST(req: Request) {
 
     const selectedProvider = (settings.llmProvider || process.env.LLM_PROVIDER || "").toLowerCase();
 
-    // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
-    // This prevents authentication failures when token expires during normal usage
-    if (selectedProvider === "antigravity") {
-      const tokenValid = await ensureAntigravityTokenValid();
-      if (!tokenValid) {
-        return new Response(
-          JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
+    // Skip LLM provider token pre-checks for internal auth requests (scheduled tasks,
+    // delegation sub-agents). The pre-check is a UI convenience; the actual streamText
+    // call handles auth. Internal requests hitting a fresh module instance (hot reload)
+    // may not have cached tokens, causing spurious 401s.
+    if (!isInternalAuth) {
+      // CRITICAL: If Antigravity is selected, ensure token is valid/refreshed BEFORE making API calls
+      // This prevents authentication failures when token expires during normal usage
+      if (selectedProvider === "antigravity") {
+        const tokenValid = await ensureAntigravityTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Antigravity authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
       }
-    }
 
-    // CRITICAL: If Claude Code is selected, ensure token is valid/refreshed BEFORE making API calls
-    if (selectedProvider === "claudecode") {
-      const tokenValid = await ensureClaudeCodeTokenValid();
-      if (!tokenValid) {
-        return new Response(
-          JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
+      // CRITICAL: If Claude Code is selected, ensure token is valid/refreshed BEFORE making API calls
+      if (selectedProvider === "claudecode") {
+        const tokenValid = await ensureClaudeCodeTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
       }
     }
 
@@ -1779,6 +1980,7 @@ export async function POST(req: Request) {
 
     // Get character ID from header (for character-specific chats)
     const characterId = req.headers.get("X-Character-Id");
+    const userTimezoneHeader = req.headers.get("X-User-Timezone")?.trim() || null;
     const taskSource = req.headers.get("X-Task-Source")?.toLowerCase();
     const isChannelSource = taskSource === "channel";
 
@@ -1813,16 +2015,18 @@ export async function POST(req: Request) {
     let sessionId = providedSessionId;
     let isNewSession = false;
     let sessionMetadata: Record<string, unknown> = {};
-    let sessionSummary: string | null = null;
 
     if (!sessionId) {
       const session = await createSession({
         title: "New Design Session",
         userId: dbUser.id,
-        metadata: {},
+        metadata: isValidIanaTimezone(userTimezoneHeader)
+          ? { userTimezone: userTimezoneHeader }
+          : {},
       });
       sessionId = session.id;
       isNewSession = true;
+      sessionMetadata = (session.metadata as Record<string, unknown>) || {};
     } else {
       // Verify session exists and belongs to user
       const session = await getSession(sessionId);
@@ -1831,10 +2035,13 @@ export async function POST(req: Request) {
           id: sessionId,
           title: "New Design Session",
           userId: dbUser.id,
-          metadata: {},
+          metadata: isValidIanaTimezone(userTimezoneHeader)
+            ? { userTimezone: userTimezoneHeader }
+            : {},
         });
         sessionId = newSession.id;
         isNewSession = true;
+        sessionMetadata = (newSession.metadata as Record<string, unknown>) || {};
       } else if (session.userId !== dbUser.id) {
         // Session exists but belongs to another user
         return new Response(
@@ -1844,8 +2051,18 @@ export async function POST(req: Request) {
       } else {
         // Session exists and belongs to user - extract metadata for system prompt tracking
         sessionMetadata = (session.metadata as Record<string, unknown>) || {};
-        sessionSummary = session.summary ?? null;
       }
+    }
+
+    // Keep session timezone fresh so tools in this same request can rely on it.
+    if (isValidIanaTimezone(userTimezoneHeader) && sessionMetadata.userTimezone !== userTimezoneHeader) {
+      sessionMetadata = {
+        ...sessionMetadata,
+        userTimezone: userTimezoneHeader,
+      };
+      await updateSession(sessionId, {
+        metadata: sessionMetadata,
+      });
     }
 
     const appSettings = loadSettings();
@@ -2037,6 +2254,7 @@ export async function POST(req: Request) {
                 progressContentOriginalTokens: progressLimit.originalTokens,
                 progressContentFinalTokens: progressLimit.finalTokens,
                 progressContentTruncatedParts: progressLimit.truncatedParts,
+                progressContentProjectionOnly: true,
                 startedAt: nowISO(),
               }
             );
@@ -2127,6 +2345,8 @@ export async function POST(req: Request) {
     const chatAbortController = new AbortController();
     registerChatAbortController(agentRun.id, chatAbortController);
 
+    const isDelegation = sessionMetadata?.isDelegation === true;
+
     const chatTask: ChatTask = {
       type: "chat",
       runId: agentRun.id,
@@ -2136,10 +2356,10 @@ export async function POST(req: Request) {
       status: "running",
       startedAt: nowISO(),
       pipelineName: "chat",
-      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : "chat",
+      triggerType: isScheduledRun ? "cron" : isChannelSource ? "webhook" : isDelegation ? "delegation" : "chat",
       messageCount: messages.length,
       metadata:
-        isScheduledRun || isChannelSource
+        isScheduledRun || isChannelSource || isDelegation
           ? {
               ...(isScheduledRun
                 ? {
@@ -2151,6 +2371,13 @@ export async function POST(req: Request) {
                 ? {
                     suppressFromUI: true,
                     taskSource: "channel",
+                  }
+                : {}),
+              ...(isDelegation
+                ? {
+                    isDelegation: true,
+                    parentAgentId: sessionMetadata.parentAgentId,
+                    workflowId: sessionMetadata.workflowId,
                   }
                 : {}),
             }
@@ -2276,15 +2503,6 @@ export async function POST(req: Request) {
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
       }),
-      createSkill: createCreateSkillTool({
-        sessionId,
-        userId: dbUser.id,
-        characterId: characterId || "",
-      }),
-      listSkills: createListSkillsTool({
-        userId: dbUser.id,
-        characterId: characterId || "",
-      }),
       runSkill: createRunSkillTool({
         sessionId,
         userId: dbUser.id,
@@ -2292,9 +2510,7 @@ export async function POST(req: Request) {
       }),
       updateSkill: createUpdateSkillTool({
         userId: dbUser.id,
-      }),
-      copySkill: createCopySkillTool({
-        userId: dbUser.id,
+        characterId: characterId || "",
       }),
     };
 
@@ -2311,11 +2527,6 @@ export async function POST(req: Request) {
 
     console.log(`[CHAT API] Enhanced ${enhancedMessages.length} messages with DB tool results`);
 
-    const useToolSummaries = shouldUseToolSummaries(enhancedMessages, sessionSummary);
-    if (useToolSummaries) {
-      console.log(`[CHAT API] Tool summary mode enabled (context nearing limit)`);
-    }
-
     // Convert to core format for the AI SDK
     // includeUrlHelpers=true so Claude gets URL text like [Image URL: /api/media/...] for tool calls
     // convertUserImagesToBase64=true - Send base64 images so Claude can actually SEE user uploads
@@ -2328,7 +2539,6 @@ export async function POST(req: Request) {
           true,   // includeUrlHelpers - Claude needs URL text for tool calls
           true,   // convertUserImagesToBase64 - send actual image data so Claude can see it
           sessionId,  // sessionId - enables smart truncation with full content retrieval
-          useToolSummaries
         );
         // DEBUG: Log what we're sending to Claude (avoid logging full content to prevent log spam)
         console.log(`[CHAT API] Message ${idx} (${msg.role}):`, JSON.stringify({
@@ -2345,24 +2555,13 @@ export async function POST(req: Request) {
       })
     );
 
-    const isAntigravityClaudeModel =
-      currentProvider === "antigravity" &&
-      typeof currentModelId === "string" &&
-      currentModelId.toLowerCase().includes("claude");
-
-    if (isAntigravityClaudeModel) {
-      coreMessages = sanitizeToolHistoryForAntigravityClaude(coreMessages);
-    }
-
     // Split tool-result parts from assistant messages into role:"tool" messages
     // for native Claude/Anthropic providers. The AI SDK's Anthropic converter silently
     // drops regular tool-result parts from assistant messages, causing orphan tool_use errors.
     const isNativeClaudeProvider =
-      !isAntigravityClaudeModel && (
-        currentProvider === "claudecode" ||
-        currentProvider === "anthropic" ||
-        (typeof currentModelId === "string" && currentModelId.toLowerCase().includes("claude"))
-      );
+      currentProvider === "claudecode" ||
+      currentProvider === "anthropic" ||
+      (typeof currentModelId === "string" && currentModelId.toLowerCase().includes("claude"));
 
     if (isNativeClaudeProvider) {
       coreMessages = splitToolResultsFromAssistantMessages(coreMessages);
@@ -2420,6 +2619,7 @@ export async function POST(req: Request) {
     let characterAvatarUrl: string | null = null;
     let characterAppearanceDescription: string | null = null;
     let enabledTools: string[] | undefined;
+    let pluginContext: { agentId?: string; characterId?: string } | undefined;
 
     if (characterId) {
       const character = await getCharacterFull(characterId);
@@ -2442,6 +2642,8 @@ export async function POST(req: Request) {
         } catch (skillError) {
           console.warn("[CHAT API] Failed to hydrate skill summaries for prompt:", skillError);
         }
+
+        pluginContext = { agentId: characterId, characterId };
 
         // Build character-specific system prompt (includes shared blocks)
         const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
@@ -2490,9 +2692,101 @@ export async function POST(req: Request) {
             cacheTtl: cacheConfig.defaultTtl,
           })
         : getSystemPrompt({
-            stylyApiEnabled: hasStylyApiKey(),
-            toolLoadingMode,
-          });
+          stylyApiEnabled: hasStylyApiKey(),
+          toolLoadingMode,
+        });
+    }
+
+    // Always provide live context-window thresholds/status so the model can
+    // make an explicit decision about calling compactSession.
+    const contextWindowBlock = buildContextWindowPromptBlock(contextCheck.status);
+    if (typeof systemPromptValue === "string") {
+      systemPromptValue += contextWindowBlock;
+    } else if (Array.isArray(systemPromptValue)) {
+      systemPromptValue.push({
+        role: "system" as const,
+        content: contextWindowBlock,
+      });
+    }
+
+    // Load and scope plugins for this chat context (agent-specific when character is selected).
+    let scopedPlugins = await getInstalledPlugins(dbUser.id, { status: "active" });
+    if (pluginContext?.agentId) {
+      scopedPlugins = await getEnabledPluginsForAgent(
+        dbUser.id,
+        pluginContext.agentId,
+        pluginContext.characterId
+      );
+    }
+
+    // Resolve workflow membership and merge shared resources into chat context
+    if (characterId) {
+      try {
+        const workflowCtx = await getWorkflowByAgentId(characterId);
+        if (workflowCtx) {
+          const resources = await getWorkflowResources(workflowCtx.workflow.id, characterId);
+          if (resources) {
+            // Merge inherited plugin IDs into scoped plugins (if not already present)
+            if (resources.sharedResources.pluginIds.length > 0) {
+              const existingIds = new Set(scopedPlugins.map((p) => p.id));
+              const allPlugins = await getInstalledPlugins(dbUser.id, { status: "active" });
+              for (const plugin of allPlugins) {
+                if (resources.sharedResources.pluginIds.includes(plugin.id) && !existingIds.has(plugin.id)) {
+                  scopedPlugins.push(plugin);
+                  existingIds.add(plugin.id);
+                }
+              }
+            }
+
+            // Append workflow role context to system prompt
+            const workflowBlock = `\n\n[Workflow Context]\n${resources.promptContext}`;
+            if (typeof systemPromptValue === "string") {
+              systemPromptValue += workflowBlock;
+            } else if (Array.isArray(systemPromptValue)) {
+              systemPromptValue.push({
+                role: "system" as const,
+                content: workflowBlock,
+              });
+            }
+
+            console.log(
+              `[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`
+            );
+          }
+        }
+      } catch (workflowError) {
+        console.warn("[CHAT API] Failed to resolve workflow context (non-fatal):", workflowError);
+      }
+    }
+
+    // Load hooks for the currently scoped plugins only.
+    // This prevents cross-agent leakage from unrelated active plugins.
+    try {
+      const hookCount = loadPluginHooks(scopedPlugins);
+      if (hookCount > 0) {
+        console.log(`[CHAT API] Loaded hooks from ${hookCount} scoped plugin(s)`);
+      }
+    } catch (pluginHookError) {
+      console.warn("[CHAT API] Failed to load scoped plugin hooks (non-fatal):", pluginHookError);
+    }
+
+    // Resolve plugin roots for ${CLAUDE_PLUGIN_ROOT} substitution in hook commands.
+    const pluginRoots = await resolvePluginRootMap(scopedPlugins);
+
+    // Keep skills guidance minimal to avoid prompt bloat.
+    // Runtime discovery and execution happen through runSkill/updateSkill actions.
+    const runtimeSkillsHint =
+      "\n\n[Skills Runtime]\n" +
+      "Use runSkill for action=list|inspect|run (DB + plugin skills).\n" +
+      "Use updateSkill for action=create|patch|replace|metadata|copy|archive.\n" +
+      "Prefer tool-first skill discovery instead of relying on static prompt catalogs.";
+    if (typeof systemPromptValue === "string") {
+      systemPromptValue += runtimeSkillsHint;
+    } else if (Array.isArray(systemPromptValue)) {
+      systemPromptValue.push({
+        role: "system" as const,
+        content: runtimeSkillsHint,
+      });
     }
 
     // Create tools via the centralized Tool Registry
@@ -2536,7 +2830,7 @@ export async function POST(req: Request) {
     const useDeferredLoading = appSettings.toolLoadingMode !== "always";
 
     // Load tools needed for this request:
-    // - Non-deferred (alwaysLoad) tools: searchTools, listAllTools, retrieveFullContent, describeImage
+    // - Non-deferred (alwaysLoad) tools: searchTools, compactSession, plus other always-load registry tools
     // - Previously discovered tools (from session metadata)
     // - If toolLoadingMode="always": all agent-enabled tools load upfront
     // - If toolLoadingMode="deferred": agent-enabled tools require discovery via searchTools
@@ -2669,19 +2963,6 @@ export async function POST(req: Request) {
       ...(allTools.updatePlan && {
         updatePlan: createUpdatePlanTool({ sessionId }),
       }),
-      ...(allTools.createSkill && {
-        createSkill: createCreateSkillTool({
-          sessionId,
-          userId: dbUser.id,
-          characterId: characterId || "",
-        }),
-      }),
-      ...(allTools.listSkills && {
-        listSkills: createListSkillsTool({
-          userId: dbUser.id,
-          characterId: characterId || "",
-        }),
-      }),
       ...(allTools.runSkill && {
         runSkill: createRunSkillTool({
           sessionId,
@@ -2692,11 +2973,12 @@ export async function POST(req: Request) {
       ...(allTools.updateSkill && {
         updateSkill: createUpdateSkillTool({
           userId: dbUser.id,
+          characterId: characterId || "",
         }),
       }),
-      ...(allTools.copySkill && {
-        copySkill: createCopySkillTool({
-          userId: dbUser.id,
+      ...(allTools.compactSession && {
+        compactSession: createCompactSessionTool({
+          sessionId,
         }),
       }),
     };
@@ -2730,6 +3012,35 @@ export async function POST(req: Request) {
       console.error("[CHAT API] Failed to load MCP tools:", error);
     }
 
+    // Load MCP servers from scoped plugins (namespaced as plugin:name:server)
+    try {
+      const { connectPluginMCPServers } = await import("@/lib/plugins/mcp-integration");
+      let totalConnected = 0;
+      let totalFailed = 0;
+
+      for (const plugin of scopedPlugins) {
+        if (!plugin.components.mcpServers) continue;
+
+        const result = await connectPluginMCPServers(
+          plugin.name,
+          plugin.components.mcpServers,
+          characterId || undefined
+        );
+        totalConnected += result.connected.length;
+        totalFailed += result.failed.length;
+      }
+
+      const pluginMcpResult = { totalConnected, totalFailed };
+      if (pluginMcpResult.totalConnected > 0) {
+        console.log(`[CHAT API] Connected ${pluginMcpResult.totalConnected} plugin MCP server(s)`);
+      }
+      if (pluginMcpResult.totalFailed > 0) {
+        console.warn(`[CHAT API] Failed to connect ${pluginMcpResult.totalFailed} plugin MCP server(s)`);
+      }
+    } catch (pluginMcpError) {
+      console.warn("[CHAT API] Failed to load plugin MCP servers (non-fatal):", pluginMcpError);
+    }
+
     let customComfyUIToolResult: { allTools: Record<string, Tool>; alwaysLoadToolIds: string[]; deferredToolIds: string[] } = {
       allTools: {},
       alwaysLoadToolIds: [],
@@ -2753,12 +3064,90 @@ export async function POST(req: Request) {
     }
 
     // Merge MCP + Custom ComfyUI tools with regular tools
-    const allToolsWithMCP = {
+    let allToolsWithMCP: Record<string, Tool> = {
       ...tools,
       ...mcpToolResult.allTools,
       ...customComfyUIToolResult.allTools,
     };
 
+    // Wrap tools with plugin hooks (PreToolUse / PostToolUse / PostToolUseFailure)
+    // Only wrap if there are registered hooks to avoid unnecessary overhead
+    const hasPreHooks = getRegisteredHooks("PreToolUse").length > 0;
+    const hasPostHooks = getRegisteredHooks("PostToolUse").length > 0;
+    const hasFailureHooks = getRegisteredHooks("PostToolUseFailure").length > 0;
+    const hasStopHooks = getRegisteredHooks("Stop").length > 0;
+    const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
+
+    if (hasPreHooks || hasPostHooks || hasFailureHooks) {
+      const wrappedTools: Record<string, Tool> = {};
+      for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
+        if (!originalTool.execute) {
+          wrappedTools[toolId] = originalTool;
+          continue;
+        }
+        const origExecute = originalTool.execute;
+        wrappedTools[toolId] = {
+          ...originalTool,
+          execute: async (args: unknown, options: unknown) => {
+            // PreToolUse: can block tool execution
+            if (hasPreHooks) {
+              const hookResult = await runPreToolUseHooks(
+                toolId,
+                (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                sessionId,
+                allowedPluginNames,
+                pluginRoots
+              );
+              if (hookResult.blocked) {
+                console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
+                return `Tool blocked by plugin hook: ${hookResult.blockReason}`;
+              }
+            }
+
+            try {
+              const result = await origExecute(args, options as any);
+
+              // PostToolUse: fire-and-forget
+              if (hasPostHooks) {
+                try {
+                  runPostToolUseHooks(
+                    toolId,
+                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                    result,
+                    sessionId,
+                    allowedPluginNames,
+                    pluginRoots
+                  );
+                } catch (hookError) {
+                  console.error("[Hooks] PostToolUse hook dispatch failed:", hookError);
+                }
+              }
+
+              return result;
+            } catch (error) {
+              // PostToolUseFailure: fire-and-forget
+              if (hasFailureHooks) {
+                try {
+                  runPostToolUseFailureHooks(
+                    toolId,
+                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
+                    error instanceof Error ? error.message : String(error),
+                    sessionId,
+                    allowedPluginNames,
+                    pluginRoots
+                  );
+                } catch (hookError) {
+                  console.error("[Hooks] PostToolUseFailure hook dispatch failed:", hookError);
+                }
+              }
+              throw error;
+            }
+          },
+        };
+      }
+      allToolsWithMCP = wrappedTools;
+      console.log(`[CHAT API] Wrapped ${Object.keys(wrappedTools).length} tools with plugin hooks (pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`);
+    }
 
     // Build the initial activeTools array (tool names that are active from the start)
     // When toolLoadingMode="always", ALL tools are active from step 0 (no discovery needed)
@@ -2809,36 +3198,74 @@ export async function POST(req: Request) {
     // System prompt is conditionally included to reduce token usage (first message + periodic re-injection)
     // NOTE: Tools MUST always be passed - unlike system prompt, tools are function definitions
     // that must be present for the AI to actually invoke them. Without tools, AI just outputs fake tool calls.
-    const provider = getConfiguredProvider();
+    //
+    // Use session-aware provider resolution: session override > global settings > default
+    const sessionProvider = getSessionProvider(sessionMetadata);
+    const provider = sessionProvider;
+    configuredProvider = provider;
+    const sessionDisplayName = getSessionDisplayName(sessionMetadata);
     const cachingStatus = useCaching
       ? `enabled (${cacheConfig.defaultTtl} TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
       : "disabled";
 
     console.log(
-      `[CHAT API] Using LLM: ${getProviderDisplayName()}, ` +
+      `[CHAT API] Using LLM: ${sessionDisplayName}, ` +
       `system prompt injected: ${injectContext}, ` +
       `caching: ${cachingStatus}`
     );
     let runFinalized = false;
-    const finalizeFailedRun = async (errorMessage: string, isCreditError: boolean) => {
+    const finalizeFailedRun = async (
+      errorMessage: string,
+      isCreditError: boolean,
+      options?: { sourceError?: unknown; streamAborted?: boolean }
+    ) => {
       if (runFinalized) return;
       runFinalized = true;
       if (chatTaskRegistered && agentRun?.id) {
         try {
-          removeChatAbortController(agentRun.id);
-          await completeAgentRun(agentRun.id, "failed", {
-            error: isCreditError ? "Insufficient credits" : errorMessage,
+          const classification = classifyRecoverability({
+            provider,
+            error: options?.sourceError,
+            message: errorMessage,
           });
+          const shouldCancel = shouldTreatStreamErrorAsCancellation({
+            errorMessage,
+            isCreditError,
+            streamAborted: options?.streamAborted ?? streamAbortSignal.aborted,
+            classificationRecoverable: classification.recoverable,
+            classificationReason: classification.reason,
+          });
+
+          const runStatus = shouldCancel ? "cancelled" : "failed";
+          removeChatAbortController(agentRun.id);
+          await completeAgentRun(agentRun.id, runStatus, shouldCancel
+            ? { reason: "stream_interrupted" }
+            : { error: isCreditError ? "Insufficient credits" : errorMessage });
+
           const registryTask = taskRegistry.get(agentRun.id);
           const registryDurationMs = registryTask
             ? Date.now() - new Date(registryTask.startedAt).getTime()
             : undefined;
-          taskRegistry.updateStatus(agentRun.id, "failed", {
-            durationMs: registryDurationMs,
-            error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
-          });
+          taskRegistry.updateStatus(agentRun.id, runStatus, shouldCancel
+            ? { durationMs: registryDurationMs }
+            : {
+                durationMs: registryDurationMs,
+                error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
+              });
         } catch (failureError) {
-          console.error("[CHAT API] Failed to mark agent run as failed:", failureError);
+          console.error("[CHAT API] Failed to finalize agent run after stream error:", failureError);
+        }
+      }
+      if (hasStopHooks) {
+        try {
+          runStopHooks(
+            sessionId,
+            options?.streamAborted ? "aborted" : "error",
+            allowedPluginNames,
+            pluginRoots
+          );
+        } catch (hookError) {
+          console.error("[Hooks] Stop hook dispatch failed:", hookError);
         }
       }
     };
@@ -2873,8 +3300,8 @@ export async function POST(req: Request) {
         // Use slightly lower temperature when tools are available to reduce
         // "fake tool call" issues where model outputs tool syntax as text
         // Tool operations benefit from more deterministic behavior
-        // Note: getProviderTemperature() handles provider-specific requirements (e.g., Kimi requires temp=1)
-        temperature: getProviderTemperature(initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
+        // Note: Session-aware temperature handles provider-specific requirements (e.g., Kimi requires temp=1)
+        temperature: getSessionProviderTemperature(sessionMetadata, initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
         // Tool choice: "auto" allows model to decide between tools and text
         // Could be set to "required" to force tool use, but "auto" is more flexible
         toolChoice: AI_CONFIG.toolChoice,
@@ -2937,7 +3364,10 @@ export async function POST(req: Request) {
             errorMessageLower.includes("quota") ||
             errorMessageLower.includes("credit") ||
             errorMessageLower.includes("429");
-          await finalizeFailedRun(errorMessage, isCreditError);
+          await finalizeFailedRun(errorMessage, isCreditError, {
+            sourceError: error,
+            streamAborted: streamAbortSignal.aborted,
+          });
         },
         onChunk: shouldEmitProgress
           ? async ({ chunk }) => {
@@ -2967,6 +3397,13 @@ export async function POST(req: Request) {
         onFinish: async ({ text, steps, usage, providerMetadata }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (hasStopHooks) {
+            try {
+              runStopHooks(sessionId, "completed", allowedPluginNames, pluginRoots);
+            } catch (hookError) {
+              console.error("[Hooks] Stop hook dispatch failed:", hookError);
+            }
+          }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
           }
@@ -2977,92 +3414,18 @@ export async function POST(req: Request) {
           if (streamingState && syncStreamingMessage) {
             await syncStreamingMessage(true);
           }
-          // Save assistant message to database
-          // Build content by iterating through steps in order to preserve
-          // the interleaved sequence: tool-call → tool-result → text per step
-          const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
-          const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
-          // Separate dedup sets: tool-calls and tool-results naturally share the same
-          // toolCallId (a result references its call). Using a single shared set caused
-          // all tool-results to be dropped because the call was already recorded.
-          const seenToolCalls = new Set<string>();
-          const seenToolResults = new Set<string>();
-
-          if (steps && steps.length > 0) {
-            for (const step of steps) {
-              // Add tool calls from this step (if any)
-              if (step.toolCalls) {
-                for (const call of step.toolCalls) {
-                  const normalizedInput = normalizeToolCallInput(
-                    call.input,
-                    call.toolName,
-                    call.toolCallId
-                  );
-                  if (!normalizedInput) {
-                    continue;
-                  }
-                  if (seenToolCalls.has(call.toolCallId)) {
-                    continue;
-                  }
-                  seenToolCalls.add(call.toolCallId);
-                  content.push({
-                    type: "tool-call",
-                    toolCallId: call.toolCallId,
-                    toolName: call.toolName,
-                    args: normalizedInput,
-                  });
-                  toolCallMetadata.set(call.toolCallId, {
-                    toolName: call.toolName,
-                    input: normalizedInput,
-                  });
-                }
-              }
-
-              // Add tool results from this step (if any)
-              if (step.toolResults) {
-                for (const res of step.toolResults) {
-                  const meta = toolCallMetadata.get(res.toolCallId);
-                  const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
-                  const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
-                  const status = normalized.status.toLowerCase();
-                  const state =
-                    status === "error" || status === "failed"
-                      ? "output-error"
-                      : "output-available";
-                  if (seenToolResults.has(res.toolCallId)) {
-                    continue;
-                  }
-                  seenToolResults.add(res.toolCallId);
-                  content.push({
-                    type: "tool-result",
-                    toolCallId: res.toolCallId,
-                    toolName,
-                    result: normalized.output,
-                    status: normalized.status,
-                    timestamp: new Date().toISOString(),
-                    state,
-                  });
-                }
-              }
-
-              // Add text from this step (if any and non-empty)
-              // Strip fake tool call JSON to prevent feedback loop
-              if (step.text?.trim()) {
-                const cleanedStepText = stripFakeToolCallJson(step.text);
-                if (cleanedStepText.trim()) {
-                  content.push({ type: "text", text: cleanedStepText });
-                }
-              }
-            }
-          }
-
-          // Fallback: if no steps but we have final text, add it
-          // (this handles simple responses without tool calls)
-          if (content.length === 0 && text?.trim()) {
-            const cleanedFallbackText = stripFakeToolCallJson(text);
-            if (cleanedFallbackText.trim()) {
-              content.push({ type: "text", text: cleanedFallbackText });
-            }
+          // Save assistant message to database.
+          // Streaming state is canonical-first; step data only fills gaps.
+          const stepContent = buildCanonicalAssistantContentFromSteps(
+            steps as StepLike[] | undefined,
+            text
+          );
+          const content = mergeCanonicalAssistantContent(streamingState?.parts, stepContent);
+          const canonicalTruncationCount = countCanonicalTruncationMarkers(content);
+          if (canonicalTruncationCount > 0) {
+            console.error(
+              `[CHAT API] Canonical history invariant violation: detected ${canonicalTruncationCount} truncated tool results in final assistant content`
+            );
           }
 
           // DEFENSIVE CHECK: Detect "fake tool calls" where model outputs tool syntax as text
@@ -3298,6 +3661,13 @@ export async function POST(req: Request) {
         onAbort: async ({ steps }) => {
           if (runFinalized) return;
           runFinalized = true;
+          if (hasStopHooks) {
+            try {
+              runStopHooks(sessionId, "aborted", allowedPluginNames, pluginRoots);
+            } catch (hookError) {
+              console.error("[Hooks] Stop hook dispatch failed:", hookError);
+            }
+          }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
           }
@@ -3308,72 +3678,16 @@ export async function POST(req: Request) {
             }
 
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
-            // Build content from completed steps using the same logic as onFinish
-            // This preserves the partial response so AI has context on subsequent messages
-            const content: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: unknown; result?: unknown; status?: string; timestamp?: string; state?: string }> = [];
-            const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
-            // Separate dedup sets (same fix as onFinish path above)
-            const seenPartialToolCalls = new Set<string>();
-            const seenPartialToolResults = new Set<string>();
-
-            if (steps && steps.length > 0) {
-              for (const step of steps) {
-                // Add tool calls from this step (if any)
-                if (step.toolCalls) {
-                  for (const call of step.toolCalls) {
-                    if (seenPartialToolCalls.has(call.toolCallId)) {
-                      continue;
-                    }
-                    seenPartialToolCalls.add(call.toolCallId);
-                    content.push({
-                      type: "tool-call",
-                      toolCallId: call.toolCallId,
-                      toolName: call.toolName,
-                      args: call.input,
-                    });
-                    toolCallMetadata.set(call.toolCallId, {
-                      toolName: call.toolName,
-                      input: call.input,
-                    });
-                  }
-                }
-
-                // Add tool results from this step (if any)
-                if (step.toolResults) {
-                  for (const res of step.toolResults) {
-                    if (seenPartialToolResults.has(res.toolCallId)) {
-                      continue;
-                    }
-                    seenPartialToolResults.add(res.toolCallId);
-                    const meta = toolCallMetadata.get(res.toolCallId);
-                    const toolName = (res as { toolName?: string }).toolName || meta?.toolName || "tool";
-                    const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input);
-                    const status = normalized.status.toLowerCase();
-                    const state =
-                      status === "error" || status === "failed"
-                        ? "output-error"
-                        : "output-available";
-                    content.push({
-                      type: "tool-result",
-                      toolCallId: res.toolCallId,
-                      toolName,
-                      result: normalized.output,
-                      status: normalized.status,
-                      timestamp: new Date().toISOString(),
-                      state,
-                    });
-                  }
-                }
-
-                // Add text from this step (if any and non-empty)
-                // Strip fake tool call JSON to prevent feedback loop
-                if (step.text?.trim()) {
-                  const cleanedStepText = stripFakeToolCallJson(step.text);
-                  if (cleanedStepText.trim()) {
-                    content.push({ type: "text", text: cleanedStepText });
-                  }
-                }
-              }
+            // Build canonical content from the partial stream and completed steps.
+            const stepContent = buildCanonicalAssistantContentFromSteps(
+              steps as StepLike[] | undefined
+            );
+            const content = mergeCanonicalAssistantContent(streamingState?.parts, stepContent);
+            const canonicalTruncationCount = countCanonicalTruncationMarkers(content);
+            if (canonicalTruncationCount > 0) {
+              console.error(
+                `[CHAT API] Canonical history invariant violation: detected ${canonicalTruncationCount} truncated tool results in aborted assistant content`
+              );
             }
 
             // Save partial assistant message IF there was any content generated
@@ -3524,7 +3838,10 @@ export async function POST(req: Request) {
               errorMessageLower.includes("quota") ||
               errorMessageLower.includes("credit") ||
               errorMessageLower.includes("429");
-            void finalizeFailedRun(errorMessage, isCreditError);
+            void finalizeFailedRun(errorMessage, isCreditError, {
+              sourceError: error,
+              streamAborted: streamAbortSignal.aborted,
+            });
           },
         }),
       onError: (error) => {
@@ -3535,7 +3852,10 @@ export async function POST(req: Request) {
           errorMessageLower.includes("quota") ||
           errorMessageLower.includes("credit") ||
           errorMessageLower.includes("429");
-        void finalizeFailedRun(errorMessage, isCreditError);
+        void finalizeFailedRun(errorMessage, isCreditError, {
+          sourceError: error,
+          streamAborted: streamAbortSignal.aborted,
+        });
         return "Streaming interrupted. The run was marked accordingly.";
       },
       messageMetadata: ({ part }) => {
@@ -3583,23 +3903,40 @@ export async function POST(req: Request) {
       errorMessageLower.includes("credit") ||
       errorMessageLower.includes("429");
 
-    // Mark the agent run as failed so the background processing banner clears
+    // Finalize run status so the background processing indicator clears reliably.
     if (chatTaskRegistered && agentRun?.id) {
       try {
-        removeChatAbortController(agentRun.id);
-        await completeAgentRun(agentRun.id, "failed", {
-          error: isCreditError ? "Insufficient credits" : errorMessage,
+        const classification = classifyRecoverability({
+          provider: configuredProvider,
+          error,
+          message: errorMessage,
         });
+        const shouldCancel = shouldTreatStreamErrorAsCancellation({
+          errorMessage,
+          isCreditError,
+          streamAborted: req.signal.aborted,
+          classificationRecoverable: classification.recoverable,
+          classificationReason: classification.reason,
+        });
+
+        const runStatus = shouldCancel ? "cancelled" : "failed";
+        removeChatAbortController(agentRun.id);
+        await completeAgentRun(agentRun.id, runStatus, shouldCancel
+          ? { reason: "stream_interrupted" }
+          : { error: isCreditError ? "Insufficient credits" : errorMessage });
+
         const registryTask = taskRegistry.get(agentRun.id);
         const registryDurationMs = registryTask
           ? Date.now() - new Date(registryTask.startedAt).getTime()
           : undefined;
-        taskRegistry.updateStatus(agentRun.id, "failed", {
-          durationMs: registryDurationMs,
-          error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
-        });
+        taskRegistry.updateStatus(agentRun.id, runStatus, shouldCancel
+          ? { durationMs: registryDurationMs }
+          : {
+              durationMs: registryDurationMs,
+              error: isCreditError ? "Task interrupted - insufficient credits" : errorMessage,
+            });
       } catch (e) {
-        console.error("[CHAT API] Failed to mark agent run as failed:", e);
+        console.error("[CHAT API] Failed to finalize run status in chat error handler:", e);
       }
     }
 

@@ -21,8 +21,16 @@ export function estimateMessageTokens(message: { content: unknown }): number {
       if (typeof part === "string") {
         return total + Math.ceil(part.length / 4);
       }
-      if (part && typeof part === "object" && "text" in part) {
-        return total + Math.ceil(String(part.text).length / 4);
+      if (part && typeof part === "object") {
+        const typedPart = part as { text?: unknown };
+        if (typeof typedPart.text === "string") {
+          return total + Math.ceil(typedPart.text.length / 4);
+        }
+        try {
+          return total + Math.ceil(JSON.stringify(part).length / 4);
+        } catch {
+          return total + 10;
+        }
       }
       return total + 10; // Default estimate for other content types
     }, 0);

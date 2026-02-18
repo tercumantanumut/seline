@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles, Crown, UserPlus, GitBranchPlus, Unlink } from "lucide-react";
 import { 
   Wrench,
   Database,
@@ -28,6 +28,8 @@ import { getCharacterInitials } from "@/components/assistant-ui/character-contex
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedContainer } from "@/components/ui/animated-container";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ToolBadge, getTopTools } from "@/components/ui/tool-badge";
 import { animate, stagger } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
@@ -54,13 +56,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { useShallow } from "zustand/react/shallow";
-import { resilientFetch, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
+import { toast } from "sonner";
+import {
+  resilientFetch,
+  resilientPatch,
+  resilientDelete,
+  resilientPost,
+} from "@/lib/utils/resilient-fetch";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -112,15 +121,13 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "showProductImages", category: "utility" },
   { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", category: "utility" },
-  { id: "createSkill", category: "utility" },
-  { id: "listSkills", category: "utility" },
   { id: "runSkill", category: "utility" },
   { id: "updateSkill", category: "utility" },
-  { id: "copySkill", category: "utility" },
   { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },
   { id: "updatePlan", category: "utility" },
   { id: "sendMessageToChannel", category: "utility" },
+  { id: "delegateToSubagent", category: "utility" },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
@@ -156,6 +163,8 @@ interface CharacterSummary {
   isDefault?: boolean;
   metadata?: {
     enabledTools?: string[];
+    enabledMcpTools?: string[];
+    enabledPlugins?: string[];
     purpose?: string;
   };
   images?: Array<{
@@ -172,6 +181,198 @@ interface CharacterSummary {
     successRate: number | null;
     lastActive: string | null;
   };
+}
+
+interface WorkflowMember {
+  agentId: string;
+  role: "initiator" | "subagent";
+}
+
+interface WorkflowGroup {
+  id: string;
+  name: string;
+  status: string;
+  initiatorId: string;
+  metadata: {
+    sharedResources?: {
+      syncFolderIds?: string[];
+      pluginIds?: string[];
+      mcpServerNames?: string[];
+      hookEvents?: string[];
+    };
+  };
+  members: WorkflowMember[];
+  agents: CharacterSummary[];
+}
+
+function AgentCardInWorkflow({
+  character,
+  role,
+  isLast,
+  t,
+  hasActiveSession,
+  onContinueChat,
+  onNewChat,
+  onEditIdentity,
+  onEditTools,
+  onEditFolders,
+  onEditMcp,
+  onEditPlugins,
+  onDelete,
+  router,
+}: {
+  character: CharacterSummary;
+  role: "initiator" | "subagent";
+  isLast: boolean;
+  t: ReturnType<typeof useTranslations>;
+  hasActiveSession: (charId: string, initialStatus?: boolean) => boolean;
+  onContinueChat: (id: string) => void;
+  onNewChat: (id: string) => void;
+  onEditIdentity: (c: CharacterSummary) => void;
+  onEditTools: (c: CharacterSummary) => void;
+  onEditFolders: (c: CharacterSummary) => void;
+  onEditMcp: (c: CharacterSummary) => void;
+  onEditPlugins: (c: CharacterSummary) => void;
+  onDelete: (c: CharacterSummary) => void;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const initials = getCharacterInitials(character.name);
+  const enabledTools = character.metadata?.enabledTools || [];
+  const enabledMcpTools = character.metadata?.enabledMcpTools || [];
+  const topTools = getTopTools(enabledTools, 3);
+  const purpose = character.metadata?.purpose;
+  const primaryImage = character.images?.find((img) => img.isPrimary);
+  const avatarImage = character.images?.find((img) => img.imageType === "avatar");
+  const imageUrl = avatarImage?.url || primaryImage?.url;
+
+  return (
+    <AnimatedCard
+      hoverLift
+      className={`bg-terminal-cream ${role === "initiator" ? "border-l-4 border-l-terminal-green" : ""}`}
+    >
+      <div className="p-4 pb-2">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Avatar className="w-10 h-10 shadow-sm">
+              {imageUrl ? <AvatarImage src={imageUrl} alt={character.name} /> : null}
+              <AvatarFallback className="bg-terminal-green/10 text-terminal-green font-mono text-xs">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            {hasActiveSession(character.id, character.hasActiveSession) && (
+              <div className="absolute -top-1 -right-1 z-10">
+                <div className="flex items-center justify-center bg-green-500 rounded-full w-4 h-4 shadow-md">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium font-mono text-terminal-dark truncate">
+                {character.displayName || character.name}
+              </p>
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-mono shrink-0 ${
+                  role === "initiator"
+                    ? "bg-terminal-green/10 text-terminal-green border-terminal-green/30"
+                    : "bg-terminal-muted/10 text-terminal-muted border-terminal-border"
+                }`}
+              >
+                {role === "initiator" ? t("workflows.initiator") : t("workflows.subagent")}
+              </Badge>
+            </div>
+            {character.tagline && (
+              <p className="text-xs text-terminal-muted font-mono line-clamp-1">
+                {character.tagline}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {purpose && (
+          <p className="text-[11px] text-terminal-muted/80 font-mono line-clamp-1 mt-1.5 pl-0.5">
+            {purpose}
+          </p>
+        )}
+
+        {topTools.length > 0 && (
+          <div className="flex items-center gap-1 mt-1.5">
+            {topTools.map((toolId) => (
+              <ToolBadge key={toolId} toolId={toolId} size="xs" />
+            ))}
+            {enabledTools.length > 3 && (
+              <span className="text-[10px] font-mono text-terminal-muted">
+                +{enabledTools.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Compact action row */}
+      <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => onEditIdentity(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
+        >
+          <Pencil className="w-2.5 h-2.5" />
+          <span>{t("edit")}</span>
+        </button>
+        <button
+          onClick={() => onEditTools(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
+        >
+          <Wrench className="w-2.5 h-2.5" />
+          <span>{enabledTools.length > 0 ? `${enabledTools.length}` : t("configureTools")}</span>
+        </button>
+        <button
+          onClick={() => onEditFolders(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
+          title={t("vectorTitle")}
+        >
+          <Database className="w-2.5 h-2.5" />
+        </button>
+        <button
+          onClick={() => onEditMcp(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-purple-500 transition-colors"
+          title={t("mcpToolsTitle")}
+        >
+          <Plug className="w-2.5 h-2.5" />
+          <span>{enabledMcpTools.length > 0 ? `${enabledMcpTools.length}` : "MCP"}</span>
+        </button>
+        <button
+          onClick={() => onDelete(character)}
+          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-red-500 transition-colors ml-auto"
+        >
+          <Trash className="w-2.5 h-2.5" />
+        </button>
+      </div>
+
+      <div className="px-4 pb-3 pt-0 flex gap-1.5">
+        <AnimatedButton
+          size="sm"
+          className="flex-1 gap-1.5 bg-terminal-dark hover:bg-terminal-dark/90 text-terminal-cream font-mono text-xs h-7"
+          onClick={() => onContinueChat(character.id)}
+        >
+          <MessageCircle className="w-3 h-3" />
+          {t("continue")}
+        </AnimatedButton>
+        <AnimatedButton
+          size="sm"
+          variant="outline"
+          className="gap-1 text-terminal-dark hover:bg-terminal-dark/5 font-mono text-xs h-7"
+          onClick={() => onNewChat(character.id)}
+        >
+          <PlusCircle className="w-3 h-3" />
+        </AnimatedButton>
+      </div>
+    </AnimatedCard>
+  );
 }
 
 export function CharacterPicker() {
@@ -207,6 +408,18 @@ export function CharacterPicker() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<CharacterSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Workflow state
+  const [workflowGroups, setWorkflowGroups] = useState<WorkflowGroup[]>([]);
+  const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set());
+  const [workflowAgentIds, setWorkflowAgentIds] = useState<Set<string>>(new Set());
+  const [workflowDrafts, setWorkflowDrafts] = useState<Record<string, { addAgentId?: string; initiatorId?: string }>>({});
+  const [workflowCreatorOpen, setWorkflowCreatorOpen] = useState(false);
+  const [creatingWorkflow, setCreatingWorkflow] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState("");
+  const [newWorkflowInitiatorId, setNewWorkflowInitiatorId] = useState("");
+  const [newWorkflowSubagentIds, setNewWorkflowSubagentIds] = useState<Set<string>>(new Set());
+  const [workflowMutationBusy, setWorkflowMutationBusy] = useState<string | null>(null);
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -411,6 +624,18 @@ export function CharacterPicker() {
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpTools, setMcpTools] = useState<string[]>([]);
 
+  // Plugin assignment editor state
+  const [pluginEditorOpen, setPluginEditorOpen] = useState(false);
+  const [agentPlugins, setAgentPlugins] = useState<Array<{
+    id: string;
+    name: string;
+    description: string;
+    version: string;
+    enabledForAgent: boolean;
+  }>>([]);
+  const [loadingAgentPlugins, setLoadingAgentPlugins] = useState(false);
+  const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
+
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -495,6 +720,43 @@ export function CharacterPicker() {
     });
   }, [characters, searchQuery]);
 
+  // Standalone characters (not in any workflow)
+  const allStandaloneCharacters = useMemo(() => {
+    return characters.filter((c) => !workflowAgentIds.has(c.id));
+  }, [characters, workflowAgentIds]);
+
+  // Standalone characters (filtered)
+  const standaloneCharacters = useMemo(() => {
+    return filteredCharacters.filter((c) => !workflowAgentIds.has(c.id));
+  }, [filteredCharacters, workflowAgentIds]);
+
+  // Filtered workflow groups (matching search)
+  const filteredWorkflowGroups = useMemo(() => {
+    if (!searchQuery.trim()) return workflowGroups;
+    const query = searchQuery.toLowerCase();
+    return workflowGroups.filter((wf) => {
+      if (wf.name.toLowerCase().includes(query)) return true;
+      return wf.agents.some((agent) => {
+        const name = (agent.displayName || agent.name).toLowerCase();
+        const tagline = (agent.tagline || "").toLowerCase();
+        const purpose = (agent.metadata?.purpose || "").toLowerCase();
+        return name.includes(query) || tagline.includes(query) || purpose.includes(query);
+      });
+    });
+  }, [workflowGroups, searchQuery]);
+
+  const toggleWorkflow = useCallback((workflowId: string) => {
+    setExpandedWorkflows((prev) => {
+      const next = new Set(prev);
+      if (next.has(workflowId)) {
+        next.delete(workflowId);
+      } else {
+        next.add(workflowId);
+      }
+      return next;
+    });
+  }, []);
+
   // Open folder manager for a character
   const openFolderManager = (character: CharacterSummary) => {
     setFolderManagerCharacter(character);
@@ -549,6 +811,62 @@ export function CharacterPicker() {
       } else {
         setCharacters(activeChars);
       }
+      // Fetch workflow groups and partition agents
+      try {
+        const { data: wfData } = await resilientFetch<{
+          workflows: Array<{
+            id: string;
+            name: string;
+            initiatorId: string;
+            status: string;
+            metadata: WorkflowGroup["metadata"];
+            members: WorkflowMember[];
+          }>;
+        }>("/api/workflows?status=all");
+
+        if (wfData?.workflows && wfData.workflows.length > 0) {
+          const charById = new Map(activeChars.map((c: CharacterSummary) => [c.id, c]));
+          const memberAgentIds = new Set<string>();
+          const groups: WorkflowGroup[] = [];
+
+          for (const wf of wfData.workflows) {
+            const agents: CharacterSummary[] = [];
+            for (const m of wf.members) {
+              const agent = charById.get(m.agentId);
+              if (agent) {
+                agents.push(agent);
+                memberAgentIds.add(m.agentId);
+              }
+            }
+            if (agents.length > 0) {
+              groups.push({
+                id: wf.id,
+                name: wf.name,
+                status: wf.status,
+                initiatorId: wf.initiatorId,
+                metadata: typeof wf.metadata === "string" ? JSON.parse(wf.metadata) : (wf.metadata || {}),
+                members: wf.members,
+                agents,
+              });
+            }
+          }
+
+          setWorkflowGroups(groups);
+          setWorkflowAgentIds(memberAgentIds);
+
+          // Auto-expand if there's only one workflow (better first-time UX)
+          if (groups.length === 1) {
+            setExpandedWorkflows(new Set([groups[0].id]));
+          }
+        } else {
+          setWorkflowGroups([]);
+          setWorkflowAgentIds(new Set());
+        }
+      } catch (wfError) {
+        console.warn("Failed to load workflows (non-fatal):", wfError);
+        setWorkflowGroups([]);
+        setWorkflowAgentIds(new Set());
+      }
     } catch (error) {
       console.error("Failed to load characters:", error);
     } finally {
@@ -559,6 +877,136 @@ export function CharacterPicker() {
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
+
+  useEffect(() => {
+    setWorkflowDrafts((prev) => {
+      const next: Record<string, { addAgentId?: string; initiatorId?: string }> = {};
+      for (const workflow of workflowGroups) {
+        const existing = prev[workflow.id] || {};
+        next[workflow.id] = {
+          addAgentId: existing.addAgentId,
+          initiatorId: existing.initiatorId || workflow.initiatorId,
+        };
+      }
+      return next;
+    });
+  }, [workflowGroups]);
+
+  useEffect(() => {
+    if (!workflowCreatorOpen) return;
+    if (allStandaloneCharacters.length > 0 && !newWorkflowInitiatorId) {
+      setNewWorkflowInitiatorId(allStandaloneCharacters[0].id);
+    }
+  }, [workflowCreatorOpen, allStandaloneCharacters, newWorkflowInitiatorId]);
+
+  const updateWorkflowDraft = useCallback(
+    (workflowId: string, patch: Partial<{ addAgentId: string; initiatorId: string }>) => {
+      setWorkflowDrafts((prev) => ({
+        ...prev,
+        [workflowId]: {
+          ...(prev[workflowId] || {}),
+          ...patch,
+        },
+      }));
+    },
+    []
+  );
+
+  const mutateWorkflow = useCallback(
+    async (workflowId: string, payload: Record<string, unknown>) => {
+      setWorkflowMutationBusy(workflowId);
+      try {
+        const { error } = await resilientPatch(`/api/workflows/${workflowId}`, payload);
+        if (error) throw new Error(error);
+        await loadCharacters();
+        toast.success(t("workflows.updated"));
+      } catch (error) {
+        console.error("Workflow mutation failed:", error);
+        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+      } finally {
+        setWorkflowMutationBusy(null);
+      }
+    },
+    [loadCharacters, t]
+  );
+
+  const addSubagentToWorkflow = useCallback(
+    async (workflowId: string, agentId: string) => {
+      if (!agentId) return;
+      await mutateWorkflow(workflowId, {
+        action: "addSubagent",
+        agentId,
+      });
+      updateWorkflowDraft(workflowId, { addAgentId: "" });
+    },
+    [mutateWorkflow, updateWorkflowDraft]
+  );
+
+  const setWorkflowMainAgent = useCallback(
+    async (workflowId: string, initiatorId: string) => {
+      if (!initiatorId) return;
+      await mutateWorkflow(workflowId, {
+        action: "setInitiator",
+        initiatorId,
+      });
+    },
+    [mutateWorkflow]
+  );
+
+  const removeSubagentFromWorkflow = useCallback(
+    async (workflowId: string, agentId: string) => {
+      if (!confirm("Remove this sub-agent from the workflow?")) return;
+      await mutateWorkflow(workflowId, {
+        action: "removeMember",
+        agentId,
+      });
+    },
+    [mutateWorkflow]
+  );
+
+  const deleteWorkflowGroup = useCallback(
+    async (workflowId: string) => {
+      if (!confirm("Delete this workflow group? Members will stay as standalone agents.")) return;
+      setWorkflowMutationBusy(workflowId);
+      try {
+        const { error } = await resilientDelete(`/api/workflows/${workflowId}`);
+        if (error) throw new Error(error);
+        await loadCharacters();
+        toast.success(t("workflows.deleted"));
+      } catch (error) {
+        console.error("Workflow deletion failed:", error);
+        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+      } finally {
+        setWorkflowMutationBusy(null);
+      }
+    },
+    [loadCharacters, t]
+  );
+
+  const createWorkflowGroup = useCallback(async () => {
+    if (!newWorkflowInitiatorId) return;
+
+    setCreatingWorkflow(true);
+    try {
+      const { error } = await resilientPost("/api/workflows", {
+        name: newWorkflowName.trim() || undefined,
+        initiatorId: newWorkflowInitiatorId,
+        subAgentIds: Array.from(newWorkflowSubagentIds).filter((id) => id !== newWorkflowInitiatorId),
+      });
+      if (error) throw new Error(error);
+
+      setWorkflowCreatorOpen(false);
+      setNewWorkflowName("");
+      setNewWorkflowSubagentIds(new Set());
+      await loadCharacters();
+      toast.success(t("workflows.created"));
+    } catch (error) {
+      console.error("Create workflow failed:", error);
+      toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+    } finally {
+      setCreatingWorkflow(false);
+    }
+  }, [loadCharacters, newWorkflowInitiatorId, newWorkflowName, newWorkflowSubagentIds, t]);
 
   // Open tool editor for a character
   const openToolEditor = (character: CharacterSummary) => {
@@ -679,6 +1127,72 @@ export function CharacterPicker() {
     setMcpTools(metadata?.enabledMcpTools || []);
     setMcpToolPreferences(metadata?.mcpToolPreferences || {});
     setMcpToolEditorOpen(true);
+  };
+
+  const openPluginEditor = async (character: CharacterSummary) => {
+    setEditingCharacter(character);
+    setPluginEditorOpen(true);
+    setLoadingAgentPlugins(true);
+
+    try {
+      const { data, error } = await resilientFetch<{
+        plugins?: Array<{
+          id: string;
+          name: string;
+          description: string;
+          version: string;
+          enabledForAgent: boolean;
+        }>;
+      }>(`/api/characters/${character.id}/plugins`);
+
+      if (error || !data) throw new Error(error || "Failed to load plugins");
+      setAgentPlugins(
+        (data.plugins || []).sort((a, b) => {
+          const aEnabled = a.enabledForAgent ? 1 : 0;
+          const bEnabled = b.enabledForAgent ? 1 : 0;
+          if (aEnabled !== bEnabled) return bEnabled - aEnabled;
+          return a.name.localeCompare(b.name);
+        })
+      );
+    } catch (error) {
+      console.error("Failed to load agent plugins:", error);
+      setAgentPlugins([]);
+    } finally {
+      setLoadingAgentPlugins(false);
+    }
+  };
+
+  const toggleAgentPlugin = async (pluginId: string, enabled: boolean) => {
+    if (!editingCharacter) return;
+
+    setSavingPluginId(pluginId);
+    try {
+      const { error } = await resilientPost(`/api/characters/${editingCharacter.id}/plugins`, {
+        pluginId,
+        enabled,
+      });
+      if (error) throw new Error(error);
+
+      let nextPlugins = agentPlugins;
+      setAgentPlugins((prev) => {
+        nextPlugins = prev.map((plugin) =>
+          plugin.id === pluginId ? { ...plugin, enabledForAgent: enabled } : plugin
+        );
+        return nextPlugins;
+      });
+
+      const enabledPlugins = nextPlugins
+        .filter((plugin) => plugin.enabledForAgent)
+        .map((plugin) => plugin.id);
+
+      await resilientPatch(`/api/characters/${editingCharacter.id}`, {
+        metadata: { enabledPlugins },
+      });
+    } catch (error) {
+      console.error("Failed to update agent plugin:", error);
+    } finally {
+      setSavingPluginId(null);
+    }
   };
 
   // Determine which MCP tools are being removed compared to the saved state
@@ -808,6 +1322,272 @@ export function CharacterPicker() {
         </div>
       )}
 
+      {allStandaloneCharacters.length > 0 && (
+        <div className="flex justify-end">
+          <AnimatedButton
+            size="sm"
+            variant="outline"
+            className="font-mono text-xs"
+            onClick={() => setWorkflowCreatorOpen(true)}
+          >
+            <GitBranchPlus className="mr-1.5 h-3.5 w-3.5" />
+            {t("workflows.create")}
+          </AnimatedButton>
+        </div>
+      )}
+
+      {/* Workflow Groups */}
+      {filteredWorkflowGroups.length > 0 && (
+        <div className="space-y-4 mb-6">
+          <h3 className="font-mono text-sm font-medium text-terminal-muted uppercase tracking-wider">
+            {t("workflows.sectionTitle")}
+          </h3>
+          {filteredWorkflowGroups.map((wf) => {
+            const isExpanded = expandedWorkflows.has(wf.id);
+            const initiator = wf.agents.find((a) => a.id === wf.initiatorId);
+            const subAgents = wf.agents.filter((a) => a.id !== wf.initiatorId);
+            const sharedResources = wf.metadata?.sharedResources;
+            const statusColor =
+              wf.status === "active"
+                ? "bg-green-100 text-green-700 border-green-200"
+                : wf.status === "paused"
+                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                : "bg-gray-100 text-gray-500 border-gray-200";
+
+            return (
+              <Card key={wf.id} className="transition-all bg-terminal-cream border-terminal-border">
+                <CardHeader className="pb-3">
+                  <button
+                    onClick={() => toggleWorkflow(wf.id)}
+                    className="flex items-center gap-3 text-left w-full"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-terminal-muted shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-terminal-muted shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="font-mono text-base truncate">
+                        {wf.name}
+                      </CardTitle>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={`text-[10px] font-mono ${statusColor}`}>
+                          {wf.status === "active"
+                            ? t("workflows.statusActive")
+                            : wf.status === "paused"
+                            ? t("workflows.statusPaused")
+                            : t("workflows.statusArchived")}
+                        </Badge>
+                        <span className="text-xs font-mono text-terminal-muted">
+                          {t("workflows.agentCount", { count: wf.agents.length })}
+                        </span>
+                        {sharedResources?.syncFolderIds && sharedResources.syncFolderIds.length > 0 && (
+                          <span className="text-[10px] font-mono text-terminal-muted">
+                            {t("workflows.sharedFolders", { count: sharedResources.syncFolderIds.length })}
+                          </span>
+                        )}
+                        {sharedResources?.pluginIds && sharedResources.pluginIds.length > 0 && (
+                          <span className="text-[10px] font-mono text-terminal-muted">
+                            {t("workflows.sharedPlugins", { count: sharedResources.pluginIds.length })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <AnimatedButton
+                        size="sm"
+                        variant="outline"
+                        className="text-xs font-mono h-7 px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (initiator) handleContinueChat(initiator.id);
+                        }}
+                      >
+                        {t("workflows.run")}
+                      </AnimatedButton>
+                      <AnimatedButton
+                        size="sm"
+                        variant="outline"
+                        className="text-xs font-mono h-7 px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (initiator) openFolderManager(initiator);
+                        }}
+                      >
+                        {t("workflows.shareFolder")}
+                      </AnimatedButton>
+                    </div>
+                  </button>
+                </CardHeader>
+
+                {isExpanded && (
+                  <CardContent className="pt-0">
+                    <div className="border-t border-terminal-border/20 pt-4 space-y-3">
+                      <div className="rounded border border-terminal-border/40 bg-terminal-bg/10 p-3">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={workflowDrafts[wf.id]?.addAgentId || ""}
+                              onChange={(event) =>
+                                updateWorkflowDraft(wf.id, { addAgentId: event.target.value })
+                              }
+                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                              disabled={workflowMutationBusy === wf.id}
+                            >
+                              <option value="">{t("workflows.addSubagentPlaceholder")}</option>
+                              {allStandaloneCharacters.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.displayName || agent.name}
+                                </option>
+                              ))}
+                            </select>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 font-mono text-xs"
+                              disabled={
+                                workflowMutationBusy === wf.id ||
+                                !workflowDrafts[wf.id]?.addAgentId
+                              }
+                              onClick={() =>
+                                addSubagentToWorkflow(
+                                  wf.id,
+                                  workflowDrafts[wf.id]?.addAgentId || ""
+                                )
+                              }
+                            >
+                              <UserPlus className="mr-1 h-3.5 w-3.5" />
+                              {t("workflows.addSubagent")}
+                            </AnimatedButton>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={workflowDrafts[wf.id]?.initiatorId || wf.initiatorId}
+                              onChange={(event) =>
+                                updateWorkflowDraft(wf.id, { initiatorId: event.target.value })
+                              }
+                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                              disabled={workflowMutationBusy === wf.id}
+                            >
+                              {wf.agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.displayName || agent.name}
+                                </option>
+                              ))}
+                            </select>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 font-mono text-xs"
+                              disabled={workflowMutationBusy === wf.id}
+                              onClick={() =>
+                                setWorkflowMainAgent(
+                                  wf.id,
+                                  workflowDrafts[wf.id]?.initiatorId || wf.initiatorId
+                                )
+                              }
+                            >
+                              <Crown className="mr-1 h-3.5 w-3.5" />
+                              {t("workflows.makeMain")}
+                            </AnimatedButton>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex justify-end">
+                          <AnimatedButton
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 font-mono text-xs text-red-600 border-red-200 hover:bg-red-50"
+                            disabled={workflowMutationBusy === wf.id}
+                            onClick={() => deleteWorkflowGroup(wf.id)}
+                          >
+                            <Unlink className="mr-1 h-3.5 w-3.5" />
+                            {t("workflows.deleteWorkflow")}
+                          </AnimatedButton>
+                        </div>
+                      </div>
+
+                      {/* Initiator agent card */}
+                      {initiator && (
+                        <AgentCardInWorkflow
+                          character={initiator}
+                          role="initiator"
+                          isLast={subAgents.length === 0}
+                          t={t}
+                          hasActiveSession={hasActiveSession}
+                          onContinueChat={handleContinueChat}
+                          onNewChat={handleNewChat}
+                          onEditIdentity={openIdentityEditor}
+                          onEditTools={openToolEditor}
+                          onEditFolders={openFolderManager}
+                          onEditMcp={openMcpToolEditor}
+                          onEditPlugins={openPluginEditor}
+                          onDelete={openDeleteDialog}
+                          router={router}
+                        />
+                      )}
+
+                      {/* Sub-agents with connecting line */}
+                      {subAgents.length === 0 && (
+                        <p className="text-xs font-mono text-terminal-muted/60 ml-6 py-2">
+                          {t("workflows.noSubagents")}
+                        </p>
+                      )}
+                      {subAgents.length > 0 && (
+                        <div className="relative ml-6">
+                          {/* Vertical connecting line */}
+                          <div className="absolute left-0 top-0 bottom-4 w-px border-l-2 border-terminal-green/30" />
+
+                          <div className="space-y-3">
+                            {subAgents.map((agent, idx) => (
+                              <div key={agent.id} className="relative pl-6">
+                                {/* Horizontal branch line */}
+                                <div className="absolute left-0 top-6 w-5 h-px border-t-2 border-terminal-green/30" />
+                                {/* Dot at junction */}
+                                <div className="absolute left-[-3px] top-[21px] w-[8px] h-[8px] rounded-full bg-terminal-green/40" />
+
+                                <AgentCardInWorkflow
+                                  character={agent}
+                                  role="subagent"
+                                  isLast={idx === subAgents.length - 1}
+                                  t={t}
+                                  hasActiveSession={hasActiveSession}
+                                  onContinueChat={handleContinueChat}
+                                  onNewChat={handleNewChat}
+                                  onEditIdentity={openIdentityEditor}
+                                  onEditTools={openToolEditor}
+                                  onEditFolders={openFolderManager}
+                                  onEditMcp={openMcpToolEditor}
+                                  onEditPlugins={openPluginEditor}
+                                  onDelete={openDeleteDialog}
+                                  router={router}
+                                />
+
+                                <div className="mt-1 flex justify-end">
+                                  <button
+                                    onClick={() => removeSubagentFromWorkflow(wf.id, agent.id)}
+                                    className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[10px] font-mono text-red-600 hover:bg-red-50 transition-colors"
+                                    disabled={workflowMutationBusy === wf.id}
+                                  >
+                                    <Unlink className="h-3 w-3" />
+                                    {t("workflows.removeSubagent")}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Create New Agent Card */}
         <AnimatedCard
@@ -829,7 +1609,7 @@ export function CharacterPicker() {
         </AnimatedCard>
 
         {/* Character Cards */}
-        {filteredCharacters.map((character) => {
+        {standaloneCharacters.map((character) => {
           const primaryImage = character.images?.find(img => img.isPrimary);
           const avatarImage = character.images?.find(img => img.imageType === "avatar");
           const imageUrl = avatarImage?.url || primaryImage?.url;
@@ -953,6 +1733,18 @@ export function CharacterPicker() {
                   <span>{t("mcpTools")}</span>
                 </button>
                 <button
+                  onClick={() => openPluginEditor(character)}
+                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
+                  title={t("plugins.title")}
+                >
+                  <Plug className="w-3 h-3" />
+                  <span>
+                    {character.metadata?.enabledPlugins?.length
+                      ? t("plugins.enabledCount", { count: character.metadata.enabledPlugins.length })
+                      : t("plugins.configure")}
+                  </span>
+                </button>
+                <button
                   onClick={() => router.push("/dashboard")}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
                   title="Dashboard"
@@ -993,7 +1785,7 @@ export function CharacterPicker() {
       </div>
 
       {/* No search results */}
-      {characters.length > 0 && filteredCharacters.length === 0 && searchQuery && (
+      {characters.length > 0 && standaloneCharacters.length === 0 && filteredWorkflowGroups.length === 0 && searchQuery && (
         <AnimatedContainer delay={100} className="text-center py-8">
           <Search className="w-12 h-12 mx-auto mb-4 text-terminal-muted opacity-50" />
           <p className="font-mono text-terminal-muted">{t("noResults")}</p>
@@ -1026,6 +1818,115 @@ export function CharacterPicker() {
           </Link>
         </AnimatedContainer>
       )}
+
+      {/* Workflow Creator Dialog */}
+      <Dialog open={workflowCreatorOpen} onOpenChange={setWorkflowCreatorOpen}>
+        <DialogContent className="sm:max-w-xl bg-terminal-cream">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <GitBranchPlus className="h-5 w-5 text-terminal-green" />
+              {t("workflows.create")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("workflows.createDescription")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.nameLabel")}
+              </Label>
+              <input
+                type="text"
+                value={newWorkflowName}
+                onChange={(event) => setNewWorkflowName(event.target.value)}
+                placeholder={t("workflows.namePlaceholder")}
+                className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.mainAgentLabel")}
+              </Label>
+              <select
+                value={newWorkflowInitiatorId}
+                onChange={(event) => setNewWorkflowInitiatorId(event.target.value)}
+                className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none"
+              >
+                <option value="">{t("workflows.selectMainAgent")}</option>
+                {allStandaloneCharacters.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.displayName || agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
+                {t("workflows.subagentsLabel")}
+              </Label>
+              <div className="mt-1 max-h-48 overflow-y-auto rounded border border-terminal-border/50 bg-terminal-bg/10 p-2 space-y-1">
+                {allStandaloneCharacters
+                  .filter((agent) => agent.id !== newWorkflowInitiatorId)
+                  .map((agent) => {
+                    const checked = newWorkflowSubagentIds.has(agent.id);
+                    return (
+                      <label
+                        key={agent.id}
+                        className="flex items-center gap-2 rounded px-2 py-1 hover:bg-terminal-bg/30 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) => {
+                            setNewWorkflowSubagentIds((prev) => {
+                              const next = new Set(prev);
+                              if (value) next.add(agent.id);
+                              else next.delete(agent.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="font-mono text-xs text-terminal-dark">
+                          {agent.displayName || agent.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                {allStandaloneCharacters.filter((agent) => agent.id !== newWorkflowInitiatorId).length === 0 && (
+                  <p className="font-mono text-xs text-terminal-muted px-2 py-1">
+                    {t("workflows.noSubagentOptions")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <AnimatedButton
+              variant="outline"
+              className="font-mono"
+              onClick={() => setWorkflowCreatorOpen(false)}
+              disabled={creatingWorkflow}
+            >
+              {tc("cancel")}
+            </AnimatedButton>
+            <AnimatedButton
+              className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
+              onClick={createWorkflowGroup}
+              disabled={creatingWorkflow || !newWorkflowInitiatorId}
+            >
+              {creatingWorkflow ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t("workflows.create")
+              )}
+            </AnimatedButton>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tool Editor Dialog */}
       <Dialog open={toolEditorOpen} onOpenChange={setToolEditorOpen}>
@@ -1201,9 +2102,74 @@ export function CharacterPicker() {
         </DialogContent>
       </Dialog>
 
+      {/* Agent Plugin Assignment Dialog */}
+      <Dialog open={pluginEditorOpen} onOpenChange={setPluginEditorOpen}>
+        <DialogContent className="sm:max-w-2xl bg-terminal-cream max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <Plug className="w-5 h-5 text-terminal-green" />
+              {t("plugins.title")}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("plugins.subtitle", {
+                name: editingCharacter?.displayName || editingCharacter?.name || "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+            {loadingAgentPlugins ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-terminal-green" />
+              </div>
+            ) : agentPlugins.length === 0 ? (
+              <div className="rounded border border-dashed border-terminal-border/60 p-4 text-center font-mono text-sm text-terminal-muted">
+                {t("plugins.empty")}
+              </div>
+            ) : (
+              agentPlugins.map((plugin) => (
+                <div
+                  key={plugin.id}
+                  className="rounded border border-terminal-border/50 bg-terminal-bg/10 p-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-sm text-terminal-dark truncate">
+                        {plugin.name}
+                      </p>
+                      <p className="font-mono text-xs text-terminal-muted mt-0.5">
+                        v{plugin.version}
+                      </p>
+                      <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-2">
+                        {plugin.description}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={plugin.enabledForAgent}
+                      onCheckedChange={(checked) => toggleAgentPlugin(plugin.id, checked)}
+                      disabled={savingPluginId === plugin.id}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-terminal-border/50">
+            <AnimatedButton
+              variant="outline"
+              onClick={() => setPluginEditorOpen(false)}
+              className="font-mono"
+            >
+              {tc("close")}
+            </AnimatedButton>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Folder Manager Dialog */}
       <Dialog open={folderManagerOpen} onOpenChange={setFolderManagerOpen}>
-        <DialogContent className="w-[90vw] sm:max-w-[45rem] bg-terminal-cream max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] sm:max-w-[72rem] bg-terminal-cream max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
               <DatabaseIcon className="w-5 h-5 text-terminal-green" />
@@ -1564,4 +2530,3 @@ export function CharacterPicker() {
     </div>
   );
 }
-

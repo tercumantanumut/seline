@@ -6,25 +6,10 @@
  * violating Next.js route export restrictions.
  */
 
-import { Tool } from "ai";
 import { getToolResultsForSession, createMessage } from "@/lib/db/queries";
 import { isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import type { DBToolResultPart } from "@/lib/messages/converter";
-
-// Constants
-// Only re-fetch deterministic, read-only tools to avoid side effects
-const TOOL_REFETCH_ALLOWLIST = new Set([
-  "readFile",
-  "localGrep",
-  "vectorSearch",
-  "docsSearch",
-  "webSearch",
-  "webBrowse",
-  "webQuery",
-  "retrieveFullContent",
-]);
-const MAX_TOOL_REFETCH = 10;
 
 // Types
 export interface FrontendMessagePart {
@@ -54,7 +39,8 @@ export interface FrontendMessage {
 }
 
 export interface ToolResultEnhancementOptions {
-  refetchTools?: Record<string, Tool>;
+  // Kept for API compatibility; strict history mode does not refetch missing results.
+  refetchTools?: Record<string, unknown>;
   maxRefetch?: number;
 }
 
@@ -163,16 +149,15 @@ export async function enhanceFrontendMessagesWithToolResults(
   sessionId: string,
   options: ToolResultEnhancementOptions = {}
 ): Promise<FrontendMessage[]> {
+  void options;
   // Fetch all tool results from the database for this session
   const toolResults = await getToolResultsForSession(sessionId);
 
   console.log(`[TOOL-ENHANCEMENT] Hybrid approach: ${frontendMessages.length} frontend messages, ${toolResults.size} tool results from DB`);
 
   const resolvedToolResults = new Map(toolResults);
-  const refetchTools = options.refetchTools ?? {};
-  const maxRefetch = options.maxRefetch ?? MAX_TOOL_REFETCH;
-  const missingToolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }> = [];
   const persistedToolResults = new Set<string>();
+  let missingToolResultCount = 0;
 
   for (const msg of frontendMessages) {
     if (msg.role !== "assistant" || !Array.isArray(msg.parts)) {
@@ -198,7 +183,9 @@ export async function enhanceFrontendMessagesWithToolResults(
 
       if (!isMissingToolResult(partOutput)) {
         if (isMissingToolResult(existing)) {
-          const normalized = normalizeToolResultOutput(toolName, partOutput, args);
+          const normalized = normalizeToolResultOutput(toolName, partOutput, args, {
+            mode: "canonical",
+          });
           resolvedToolResults.set(part.toolCallId, normalized.output);
           if (!persistedToolResults.has(part.toolCallId)) {
             await persistToolResultMessage({
@@ -215,123 +202,15 @@ export async function enhanceFrontendMessagesWithToolResults(
       }
 
       if (!isMissingToolResult(existing)) continue;
-
-      missingToolCalls.push({
-        toolCallId: part.toolCallId,
-        toolName,
-        args,
-      });
+      missingToolResultCount += 1;
     }
   }
 
-  if (missingToolCalls.length > 0) {
-    console.warn(`[TOOL-ENHANCEMENT] Missing ${missingToolCalls.length} tool results; attempting refetch`);
-  }
-
-  let refetchCount = 0;
-  for (const call of missingToolCalls) {
-    const { toolCallId, toolName, args } = call;
-    const normalizedToolName = toolName || "tool";
-
-    if (refetchCount >= maxRefetch) {
-      console.warn(`[TOOL-ENHANCEMENT] Refetch limit reached (${maxRefetch}), storing fallback errors for remaining missing tool results`);
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Refetch skipped due to per-request limit." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    if (!TOOL_REFETCH_ALLOWLIST.has(normalizedToolName)) {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Tool result missing and refetch is disabled for this tool." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    const tool = refetchTools[normalizedToolName] as Tool & { execute?: (input: unknown) => Promise<unknown> };
-    if (!tool || typeof tool.execute !== "function") {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Tool not available for refetch." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    if (args === undefined) {
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: "Missing tool input; unable to refetch." },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-      continue;
-    }
-
-    refetchCount += 1;
-    try {
-      const refetchOutput = await tool.execute(args);
-      const normalized = normalizeToolResultOutput(normalizedToolName, refetchOutput, args);
-      resolvedToolResults.set(toolCallId, normalized.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: normalized.output,
-        status: normalized.status,
-      });
-      console.log(`[TOOL-ENHANCEMENT] Refetched tool result for ${normalizedToolName} (${toolCallId})`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const fallback = normalizeToolResultOutput(
-        normalizedToolName,
-        { status: "error", error: `Refetch failed: ${message}` },
-        args
-      );
-      resolvedToolResults.set(toolCallId, fallback.output);
-      await persistToolResultMessage({
-        sessionId,
-        toolCallId,
-        toolName: normalizedToolName,
-        result: fallback.output,
-        status: fallback.status,
-      });
-    }
+  if (missingToolResultCount > 0) {
+    console.warn(
+      `[TOOL-ENHANCEMENT] Missing ${missingToolResultCount} tool results; ` +
+      `strict history mode leaves canonical history unchanged (no refetch/fallback rewrite).`
+    );
   }
 
   const getOutputState = (result: unknown) => {

@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    setupFiles: ["./tests/setup.ts"],
     include: ["**/*.test.ts", "**/*.spec.ts"],
     exclude: ["**/node_modules/**", "**/.next/**", "**/integration/**", "**/tmp-clawdbot/**"],
     coverage: {

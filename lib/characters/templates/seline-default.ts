@@ -29,9 +29,6 @@ const SELINE_STATIC_TOOLS: string[] = [
   "webBrowse",
   // Utility tools (always enabled)
   "calculator",
-  "copySkill",
-  "createSkill",
-  "listSkills",
   "memorize",
   "runSkill",
   "scheduleTask",

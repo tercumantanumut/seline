@@ -20,6 +20,8 @@ export interface ExecuteOptions {
   timeout?: number;
   /** Maximum output buffer size in bytes (default: 1048576 = 1MB) */
   maxOutputSize?: number;
+  /** Explicit confirmation required for removal commands (rm/rmdir/del/...) */
+  confirmRemoval?: boolean;
 }
 
 /**
@@ -84,6 +86,8 @@ export interface ExecuteCommandInput {
   background?: boolean;
   /** Process ID to check status of a background process (instead of executing a new command) */
   processId?: string;
+  /** Explicit confirmation required for removal commands (rm/rmdir/del/...) */
+  confirmRemoval?: boolean;
 }
 
 /**

@@ -18,6 +18,7 @@ import { taskRegistry } from "@/lib/background-tasks/registry";
 import type { ScheduledTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
+import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
 
 export interface QueuedTask {
   runId: string;
@@ -569,7 +570,7 @@ export class TaskQueue {
         "X-Scheduled-Task-Id": task.taskId,
         "X-Scheduled-Task-Name": task.taskName,
         // Internal auth bypass for scheduled tasks
-        "X-Internal-Auth": process.env.INTERNAL_API_SECRET || "seline-internal-scheduler",
+        "X-Internal-Auth": INTERNAL_API_SECRET,
       },
       body: JSON.stringify({
         messages: [

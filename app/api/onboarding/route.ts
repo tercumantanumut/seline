@@ -48,6 +48,21 @@ export async function POST(request: Request) {
             settings.globalMemoryDefaults = body.globalMemoryDefaults;
         }
 
+        // Apply Tavily API key if provided
+        if (body.tavilyApiKey && typeof body.tavilyApiKey === "string") {
+            settings.tavilyApiKey = body.tavilyApiKey.trim();
+        }
+
+        // Apply web scraping provider settings
+        if (body.webScraperProvider === "firecrawl" || body.webScraperProvider === "local") {
+            settings.webScraperProvider = body.webScraperProvider;
+        }
+
+        // Apply Firecrawl API key if provided
+        if (body.firecrawlApiKey && typeof body.firecrawlApiKey === "string") {
+            settings.firecrawlApiKey = body.firecrawlApiKey.trim();
+        }
+
         settings.onboardingComplete = true;
         settings.onboardingCompletedAt = new Date().toISOString();
         settings.onboardingVersion = 1;

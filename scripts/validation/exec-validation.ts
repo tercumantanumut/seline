@@ -149,6 +149,8 @@ async function main() {
     console.error("\nAvailable validations:");
     console.error("  - validate-message-ordering-migration");
     console.error("  - validate-chat-overflow-guards");
+    console.error("  - validate-tool-error-auditability");
+    console.error("  - validate-macos-signing-notarization");
     process.exit(1);
   }
 

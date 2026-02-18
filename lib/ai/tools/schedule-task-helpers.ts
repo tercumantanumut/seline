@@ -6,6 +6,7 @@
  */
 
 import { DateTime } from "luxon";
+import { isValidTimezone, normalizeTimezone } from "@/lib/utils/timezone";
 
 const SIMPLE_DATETIME_WITH_SPACE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
 
@@ -76,4 +77,120 @@ export function isScheduledAtInFutureUtc(
   const ms = Date.parse(scheduledAtIsoUtc);
   if (!Number.isFinite(ms)) return false;
   return ms > nowMs;
+}
+
+export type ResolveTimezoneResult =
+  | {
+      ok: true;
+      timezone: string;
+      source: "input" | "session";
+      note?: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      reason: "timezone_missing" | "timezone_invalid";
+      diagnostics: {
+        inputTimezone?: string;
+        sessionTimezone?: string | null;
+      };
+    };
+
+function normalizeSessionTimezoneValue(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("local::")) {
+    const concrete = trimmed.slice("local::".length).trim();
+    return concrete || null;
+  }
+  return trimmed;
+}
+
+export function resolveScheduleTimezone(args: {
+  inputTimezone?: string;
+  sessionTimezone?: string | null;
+}): ResolveTimezoneResult {
+  const rawInputTimezone = args.inputTimezone?.trim();
+  const sessionTimezone = normalizeSessionTimezoneValue(args.sessionTimezone);
+
+  if (rawInputTimezone) {
+    if (rawInputTimezone.startsWith("local::")) {
+      if (sessionTimezone && isValidTimezone(sessionTimezone)) {
+        return {
+          ok: true,
+          timezone: sessionTimezone,
+          source: "session",
+          note: `Resolved local timezone from session metadata as "${sessionTimezone}"`,
+        };
+      }
+
+      const concrete = rawInputTimezone.slice("local::".length).trim();
+      if (concrete && isValidTimezone(concrete)) {
+        return {
+          ok: true,
+          timezone: concrete,
+          source: "input",
+        };
+      }
+
+      return {
+        ok: false,
+        error: "Timezone is required. Could not resolve local timezone from this session.",
+        reason: "timezone_missing",
+        diagnostics: {
+          inputTimezone: rawInputTimezone,
+          sessionTimezone,
+        },
+      };
+    }
+
+    const normalized = normalizeTimezone(rawInputTimezone);
+    if (!isValidTimezone(normalized.timezone)) {
+      return {
+        ok: false,
+        error:
+          `Invalid timezone "${rawInputTimezone}". Use an IANA timezone like ` +
+          `"Europe/Berlin" or "America/New_York".`,
+        reason: "timezone_invalid",
+        diagnostics: {
+          inputTimezone: rawInputTimezone,
+          sessionTimezone,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      timezone: normalized.timezone,
+      source: "input",
+      note: normalized.normalized ? normalized.warning : undefined,
+    };
+  }
+
+  if (sessionTimezone && isValidTimezone(sessionTimezone)) {
+    return {
+      ok: true,
+      timezone: sessionTimezone,
+      source: "session",
+      note: `No timezone was supplied; resolved from session metadata ("${sessionTimezone}").`,
+    };
+  }
+
+  return {
+    ok: false,
+    error: "Timezone is required. Please provide an IANA timezone (for example: Europe/Berlin).",
+    reason: "timezone_missing",
+    diagnostics: {
+      inputTimezone: rawInputTimezone,
+      sessionTimezone,
+    },
+  };
+}
+
+export function isMinutePrecisionMatchUtc(aIsoUtc: string, bIsoUtc: string): boolean {
+  const aMs = Date.parse(aIsoUtc);
+  const bMs = Date.parse(bIsoUtc);
+  if (!Number.isFinite(aMs) || !Number.isFinite(bMs)) return false;
+  return Math.floor(aMs / 60_000) === Math.floor(bMs / 60_000);
 }

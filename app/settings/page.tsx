@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon, Volume2Icon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, RefreshCwIcon, XIcon, PlugIcon, Volume2Icon, PackageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
@@ -17,6 +17,7 @@ import { CustomWorkflowsManager, LocalModelsManager } from "@/components/comfyui
 import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
+import { PluginSettings } from "@/components/settings/plugin-settings";
 import {
   LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
   formatDimensionLabel,
@@ -47,6 +48,12 @@ interface AppSettings {
   localUserEmail: string;
   promptCachingEnabled?: boolean;
   promptCachingTtl?: "5m" | "1h";
+  postEditHooksPreset?: "off" | "fast" | "strict";
+  postEditHooksEnabled?: boolean;
+  postEditTypecheckEnabled?: boolean;
+  postEditLintEnabled?: boolean;
+  postEditTypecheckScope?: "auto" | "app" | "lib" | "electron" | "tooling" | "all";
+  postEditRunInPatchTool?: boolean;
   rtkEnabled?: boolean;
   rtkInstalled?: boolean;
   rtkVerbosity?: 0 | 1 | 2 | 3;
@@ -86,7 +93,7 @@ interface AppSettings {
   };
 }
 
-type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "voice";
+type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "plugins" | "voice";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -121,6 +128,12 @@ export default function SettingsPage() {
     openrouterArgs: "{}",
     theme: "dark" as "dark" | "light" | "system",
     toolLoadingMode: "always" as "deferred" | "always",
+    postEditHooksPreset: "off" as "off" | "fast" | "strict",
+    postEditHooksEnabled: false,
+    postEditTypecheckEnabled: false,
+    postEditLintEnabled: false,
+    postEditTypecheckScope: "auto" as "auto" | "app" | "lib" | "electron" | "tooling" | "all",
+    postEditRunInPatchTool: false,
     promptCachingEnabled: true,
     promptCachingTtl: "5m" as "5m" | "1h",
     rtkEnabled: false,
@@ -232,6 +245,12 @@ export default function SettingsPage() {
         openrouterArgs: data.openrouterArgs || "{}",
         theme: data.theme || "dark",
         toolLoadingMode: data.toolLoadingMode || "always",
+        postEditHooksPreset: data.postEditHooksPreset ?? "off",
+        postEditHooksEnabled: data.postEditHooksEnabled ?? false,
+        postEditTypecheckEnabled: data.postEditTypecheckEnabled ?? false,
+        postEditLintEnabled: data.postEditLintEnabled ?? false,
+        postEditTypecheckScope: data.postEditTypecheckScope ?? "auto",
+        postEditRunInPatchTool: data.postEditRunInPatchTool ?? false,
         promptCachingEnabled: data.promptCachingEnabled ?? true,
         promptCachingTtl: data.promptCachingTtl ?? "5m",
         rtkEnabled: data.rtkEnabled ?? false,
@@ -737,6 +756,7 @@ export default function SettingsPage() {
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
     { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
     { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
+    { id: "plugins" as const, label: "Plugins", icon: PackageIcon },
     { id: "voice" as const, label: "Voice & Audio", icon: Volume2Icon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
@@ -848,6 +868,12 @@ interface FormState {
   openrouterArgs: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
+  postEditHooksPreset: "off" | "fast" | "strict";
+  postEditHooksEnabled: boolean;
+  postEditTypecheckEnabled: boolean;
+  postEditLintEnabled: boolean;
+  postEditTypecheckScope: "auto" | "app" | "lib" | "electron" | "tooling" | "all";
+  postEditRunInPatchTool: boolean;
   promptCachingEnabled: boolean;
   promptCachingTtl: "5m" | "1h";
   rtkEnabled: boolean;
@@ -2427,6 +2453,10 @@ function SettingsPanel({
     );
   }
 
+  if (section === "plugins") {
+    return <PluginSettings />;
+  }
+
   if (section === "voice") {
     return (
       <div className="space-y-6">
@@ -2745,6 +2775,138 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.alwaysHelper")}</p>
             </div>
           </label>
+        </div>
+      </div>
+
+      {/* Post-Edit Hooks */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">Post-Edit Hooks</h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            Configure checks that run automatically after AI edits and writes.
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-2 block font-mono text-sm text-terminal-dark">Preset</label>
+          <div className="space-y-2">
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="postEditHooksPreset"
+                value="off"
+                checked={formState.postEditHooksPreset === "off"}
+                onChange={() => {
+                  updateField("postEditHooksPreset", "off");
+                  updateField("postEditHooksEnabled", false);
+                  updateField("postEditTypecheckEnabled", false);
+                  updateField("postEditLintEnabled", false);
+                }}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">Off</span>
+                <p className="font-mono text-xs text-terminal-muted">Skip all post-edit checks.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="postEditHooksPreset"
+                value="fast"
+                checked={formState.postEditHooksPreset === "fast"}
+                onChange={() => {
+                  updateField("postEditHooksPreset", "fast");
+                  updateField("postEditHooksEnabled", true);
+                  updateField("postEditTypecheckEnabled", true);
+                  updateField("postEditLintEnabled", false);
+                  updateField("postEditTypecheckScope", "auto");
+                  updateField("postEditRunInPatchTool", false);
+                }}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">Fast (Recommended)</span>
+                <p className="font-mono text-xs text-terminal-muted">Typecheck only, scope inferred from edited file.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="postEditHooksPreset"
+                value="strict"
+                checked={formState.postEditHooksPreset === "strict"}
+                onChange={() => {
+                  updateField("postEditHooksPreset", "strict");
+                  updateField("postEditHooksEnabled", true);
+                  updateField("postEditTypecheckEnabled", true);
+                  updateField("postEditLintEnabled", true);
+                  updateField("postEditTypecheckScope", "all");
+                  updateField("postEditRunInPatchTool", true);
+                }}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">Strict</span>
+                <p className="font-mono text-xs text-terminal-muted">Typecheck all scopes + ESLint + include patch operations.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">Enable hooks</span>
+            <input
+              type="checkbox"
+              checked={formState.postEditHooksEnabled}
+              onChange={(e) => updateField("postEditHooksEnabled", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">Run in patch tool</span>
+            <input
+              type="checkbox"
+              checked={formState.postEditRunInPatchTool}
+              onChange={(e) => updateField("postEditRunInPatchTool", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">Typecheck</span>
+            <input
+              type="checkbox"
+              checked={formState.postEditTypecheckEnabled}
+              onChange={(e) => updateField("postEditTypecheckEnabled", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">ESLint</span>
+            <input
+              type="checkbox"
+              checked={formState.postEditLintEnabled}
+              onChange={(e) => updateField("postEditLintEnabled", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+        </div>
+
+        <div>
+          <label className="mb-1 block font-mono text-sm text-terminal-dark">Typecheck scope</label>
+          <select
+            value={formState.postEditTypecheckScope}
+            onChange={(e) => updateField("postEditTypecheckScope", e.target.value as FormState["postEditTypecheckScope"])}
+            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+          >
+            <option value="auto">Auto (infer from file path)</option>
+            <option value="app">App only</option>
+            <option value="lib">Lib only</option>
+            <option value="electron">Electron only</option>
+            <option value="tooling">Tooling only</option>
+            <option value="all">All scopes</option>
+          </select>
         </div>
       </div>
 

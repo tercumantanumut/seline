@@ -13,7 +13,7 @@ import { useTranslations } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
-import type { TaskEvent, TaskStatus } from "@/lib/background-tasks/types";
+import type { TaskEvent, TaskStatus, UnifiedTask } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { CharacterSidebar } from "@/components/chat/chat-sidebar";
@@ -119,7 +119,7 @@ interface SessionState {
 
 interface ActiveRunState {
     runId: string;
-    taskName: string;
+    taskName?: string;
     startedAt: string;
 }
 
@@ -795,11 +795,15 @@ export default function ChatInterface({
             return;
         }
 
+        const isBackgroundTask = (task: UnifiedTask) =>
+            task.type === "scheduled" ||
+            (task.type === "chat" && task.metadata && typeof task.metadata === "object" && "isDelegation" in task.metadata);
+
         const handleTaskCompleted = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
             if (!detail) return;
 
-            if (detail.eventType === "task:completed" && detail.task.type === "scheduled" && detail.task.sessionId === sessionId) {
+            if (detail.eventType === "task:completed" && isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
                 // Debounce the reload to allow final progress update to settle
                 if (reloadDebounceRef.current) {
                     clearTimeout(reloadDebounceRef.current);
@@ -827,10 +831,10 @@ export default function ChatInterface({
             const detail = (event as CustomEvent<TaskEvent>).detail;
             if (!detail) return;
 
-            if (detail.eventType === "task:started" && detail.task.type === "scheduled" && detail.task.sessionId === sessionId) {
+            if (detail.eventType === "task:started" && isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
                 setActiveRun({
                     runId: detail.task.runId,
-                    taskName: detail.task.taskName,
+                    taskName: "taskName" in detail.task ? detail.task.taskName : undefined,
                     startedAt: detail.task.startedAt,
                 });
                 void reloadSessionMessages(sessionId, { remount: true });
@@ -1184,7 +1188,7 @@ function ScheduledRunBanner({
                     <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/60" />
                     <div className="space-y-1">
                         <p className="font-mono text-sm text-terminal-dark">
-                            {t("scheduledRun.active", { taskName: run.taskName || "Scheduled task" })}
+                            {t("scheduledRun.active", { taskName: run.taskName || "Background task" })}
                         </p>
                         <p className="text-xs text-terminal-muted">
                             {t("scheduledRun.description")}

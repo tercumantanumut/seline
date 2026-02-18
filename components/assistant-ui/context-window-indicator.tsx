@@ -57,6 +57,10 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
 
   const percentage = Math.min(status.percentage, 100);
   const statusKey = status.status;
+  const warningPct = Math.round((status.thresholds.warning / status.maxTokens) * 100);
+  const criticalPct = Math.round((status.thresholds.critical / status.maxTokens) * 100);
+  const hardPct = Math.round((status.thresholds.hardLimit / status.maxTokens) * 100);
+  const thresholdsLabel = `Warn ${warningPct}% · Crit ${criticalPct}% · Hard ${hardPct}%`;
 
   const barColor = {
     safe: "bg-terminal-green",
@@ -95,6 +99,9 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
             <span className="text-[10px] font-mono tabular-nums">
               {status.formatted.percentage}
             </span>
+            <span className="text-[9px] font-mono text-terminal-muted/60 tabular-nums">
+              {thresholdsLabel}
+            </span>
             {statusKey === "exceeded" && (
               <AlertTriangleIcon className="size-3 text-red-500" />
             )}
@@ -105,6 +112,9 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
           className="bg-terminal-dark text-terminal-cream font-mono text-xs max-w-xs"
         >
           <p>{tooltipText}</p>
+          <p className="mt-1 text-terminal-cream/80">
+            {`Thresholds (warning / critical / hard limit): ${thresholdsLabel}`}
+          </p>
           {showAction && (
             <Button
               variant="ghost"
@@ -149,6 +159,7 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
 
       <div className="flex items-center justify-between text-[10px] font-mono text-terminal-muted/50">
         <span>{status.formatted.current} / {status.formatted.max}</span>
+        <span className="tabular-nums">{thresholdsLabel}</span>
         {showAction && (
           <Button
             variant="ghost"

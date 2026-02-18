@@ -53,9 +53,6 @@ describe("resolveSelineTemplateTools", () => {
 
       const utilityTools = [
         "calculator",
-        "copySkill",
-        "createSkill",
-        "listSkills",
         "memorize",
         "runSkill",
         "scheduleTask",
@@ -277,8 +274,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 11 utility = 17 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(17);
+      // 6 core + 8 utility = 14 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(14);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).not.toContain("webSearch");
       expect(result.enabledTools).not.toContain("webBrowse");
@@ -289,7 +286,7 @@ describe("resolveSelineTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 20 tools when all prerequisites are met", () => {
+    it("should return exactly 17 tools when all prerequisites are met", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
@@ -297,11 +294,11 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 11 utility + 3 conditional = 20
-      expect(result.enabledTools).toHaveLength(20);
+      // 6 core + 8 utility + 3 conditional = 17
+      expect(result.enabledTools).toHaveLength(17);
     });
 
-    it("should return exactly 17 tools when no conditional tools are available", () => {
+    it("should return exactly 14 tools when no conditional tools are available", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -310,8 +307,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 11 utility = 17
-      expect(result.enabledTools).toHaveLength(17);
+      // 6 core + 8 utility = 14
+      expect(result.enabledTools).toHaveLength(14);
     });
   });
 
