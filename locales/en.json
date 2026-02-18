@@ -1275,10 +1275,19 @@
           "placeholder": "sk-...",
           "helper": "Get your API key from platform.moonshot.cn"
         },
+        "webSearchProvider": {
+          "label": "Web Search Provider",
+          "helper": "Auto uses Tavily when API key is set, otherwise falls back to DuckDuckGo (free)",
+          "options": {
+            "auto": "Auto (Tavily if key set, else DuckDuckGo)",
+            "tavily": "Tavily (requires API key)",
+            "duckduckgo": "DuckDuckGo (free, no key needed)"
+          }
+        },
         "tavily": {
           "label": "Tavily API Key",
           "placeholder": "tvly-...",
-          "helper": "Required for Deep Research web search"
+          "helper": "Optional when using DuckDuckGo. Required for Tavily provider and Deep Research advanced mode"
         },
         "webScraperProvider": {
           "label": "Web Scraping Provider",

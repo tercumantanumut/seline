@@ -1,15 +1,16 @@
 /**
  * Deep Research Search Module
- * 
+ *
  * Provides web search capabilities for the deep research workflow.
- * Supports Tavily API (primary) with fallback options.
+ * Supports Tavily API (primary) and DuckDuckGo (free fallback).
  */
 
 import type { ResearchSource, ResearchFinding } from './types';
 import { loadSettings } from '@/lib/settings/settings-manager';
+import { getSearchProvider } from '@/lib/ai/web-search/providers';
 
 // ============================================================================
-// Tavily Search Integration
+// Tavily Search Integration (kept for direct deep research use)
 // ============================================================================
 
 interface TavilySearchResult {
@@ -46,8 +47,8 @@ export async function tavilySearch(
 ): Promise<ResearchSource[]> {
   const apiKey = getTavilyApiKey();
   if (!apiKey) {
-    console.warn('[DEEP-RESEARCH] Tavily API key not configured, using mock search');
-    return mockSearch(query);
+    console.warn('[DEEP-RESEARCH] Tavily API key not configured, falling back to DuckDuckGo');
+    return duckduckgoSearch(query, options);
   }
 
   const { maxResults = 5, searchDepth = 'advanced', includeAnswer = false, abortSignal } = options;
@@ -94,6 +95,41 @@ export async function tavilySearch(
 }
 
 // ============================================================================
+// DuckDuckGo Search Integration
+// ============================================================================
+
+/**
+ * Search using DuckDuckGo (free, no API key needed)
+ */
+export async function duckduckgoSearch(
+  query: string,
+  options: {
+    maxResults?: number;
+    abortSignal?: AbortSignal;
+  } = {}
+): Promise<ResearchSource[]> {
+  const { maxResults = 5 } = options;
+
+  try {
+    const provider = getSearchProvider('duckduckgo');
+    const result = await provider.search(query, { maxResults });
+
+    return result.sources.map((s) => ({
+      url: s.url,
+      title: s.title,
+      snippet: s.snippet,
+      relevanceScore: s.relevanceScore,
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Research cancelled');
+    }
+    console.error('[DEEP-RESEARCH] DuckDuckGo search error:', error);
+    return [];
+  }
+}
+
+// ============================================================================
 // Mock Search (for development/testing)
 // ============================================================================
 
@@ -102,7 +138,7 @@ export async function tavilySearch(
  */
 export function mockSearch(query: string): ResearchSource[] {
   console.log('[DEEP-RESEARCH] Using mock search for:', query);
-  
+
   return [
     {
       url: 'https://example.com/article-1',
@@ -120,11 +156,47 @@ export function mockSearch(query: string): ResearchSource[] {
 }
 
 // ============================================================================
+// Provider-Aware Search
+// ============================================================================
+
+/**
+ * Search using the configured provider (auto-selects based on settings)
+ */
+async function providerSearch(
+  query: string,
+  options: {
+    maxResults?: number;
+    abortSignal?: AbortSignal;
+  } = {}
+): Promise<ResearchSource[]> {
+  const provider = getSearchProvider();
+
+  if (provider.name === 'tavily') {
+    return tavilySearch(query, {
+      maxResults: options.maxResults,
+      searchDepth: 'advanced',
+      abortSignal: options.abortSignal,
+    });
+  }
+
+  if (provider.name === 'duckduckgo') {
+    return duckduckgoSearch(query, options);
+  }
+
+  // Fallback to mock
+  return mockSearch(query);
+}
+
+// ============================================================================
 // Search Orchestration
 // ============================================================================
 
 /**
- * Execute multiple searches in parallel with rate limiting
+ * Execute multiple searches in parallel with rate limiting.
+ * Uses the configured search provider (Tavily or DuckDuckGo).
+ *
+ * Note: DuckDuckGo requires sequential requests — concurrent DDG searches
+ * will trigger rate limiting. The function reduces concurrency to 1 for DDG.
  */
 export async function executeSearches(
   queries: string[],
@@ -135,24 +207,27 @@ export async function executeSearches(
     abortSignal?: AbortSignal;
   } = {}
 ): Promise<ResearchFinding[]> {
-  const { maxConcurrent = 3, maxResultsPerQuery = 5, onProgress, abortSignal } = options;
+  const provider = getSearchProvider();
+  // DDG needs sequential requests to avoid rate limits
+  const effectiveConcurrency = provider.name === 'duckduckgo' ? 1 : (options.maxConcurrent ?? 3);
+  const { maxResultsPerQuery = 5, onProgress, abortSignal } = options;
   const findings: ResearchFinding[] = [];
 
   // Process queries in batches
-  for (let i = 0; i < queries.length; i += maxConcurrent) {
+  for (let i = 0; i < queries.length; i += effectiveConcurrency) {
     // Check for abort before starting each batch
     if (abortSignal?.aborted) {
       throw new Error('Research cancelled');
     }
 
-    const batch = queries.slice(i, i + maxConcurrent);
+    const batch = queries.slice(i, i + effectiveConcurrency);
 
     const batchResults = await Promise.all(
       batch.map(async (query, batchIndex) => {
         const globalIndex = i + batchIndex;
         onProgress?.(globalIndex, queries.length, query);
 
-        const sources = await tavilySearch(query, { maxResults: maxResultsPerQuery, abortSignal });
+        const sources = await providerSearch(query, { maxResults: maxResultsPerQuery, abortSignal });
 
         return {
           query,
@@ -173,9 +248,9 @@ export async function executeSearches(
 }
 
 /**
- * Check if search is available (API key configured)
+ * Check if search is available (any provider configured)
  */
 export function isSearchAvailable(): boolean {
-  return !!getTavilyApiKey();
+  const provider = getSearchProvider();
+  return provider.isAvailable();
 }
-

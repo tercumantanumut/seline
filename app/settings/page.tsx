@@ -34,6 +34,7 @@ interface AppSettings {
   tavilyApiKey?: string;
   firecrawlApiKey?: string;
   webScraperProvider?: "firecrawl" | "local";
+  webSearchProvider?: "tavily" | "duckduckgo" | "auto";
   stylyAiApiKey?: string;
   huggingFaceToken?: string;
   chatModel?: string;
@@ -117,6 +118,7 @@ export default function SettingsPage() {
     tavilyApiKey: "",
     firecrawlApiKey: "",
     webScraperProvider: "firecrawl" as "firecrawl" | "local",
+    webSearchProvider: "auto" as "tavily" | "duckduckgo" | "auto",
     stylyAiApiKey: "",
     huggingFaceToken: "",
     chatModel: "",
@@ -238,6 +240,7 @@ export default function SettingsPage() {
         tavilyApiKey: data.tavilyApiKey || "",
         firecrawlApiKey: data.firecrawlApiKey || "",
         webScraperProvider: data.webScraperProvider || "firecrawl",
+        webSearchProvider: data.webSearchProvider || "auto",
         stylyAiApiKey: data.stylyAiApiKey || "",
         huggingFaceToken: data.huggingFaceToken || "",
         chatModel: data.chatModel || "",
@@ -864,6 +867,7 @@ interface FormState {
   tavilyApiKey: string;
   firecrawlApiKey: string;
   webScraperProvider: "firecrawl" | "local";
+  webSearchProvider: "tavily" | "duckduckgo" | "auto";
   stylyAiApiKey: string;
   huggingFaceToken: string;
   chatModel: string;
@@ -1740,6 +1744,56 @@ function SettingsPanel({
               <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-terminal-green underline hover:text-terminal-green/80">
                 platform.openai.com
               </a>
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-mono text-sm text-terminal-muted">
+              {t("api.fields.webSearchProvider.label")}
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="auto"
+                  checked={formState.webSearchProvider === "auto"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.auto")}
+                </span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="tavily"
+                  checked={formState.webSearchProvider === "tavily"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.tavily")}
+                </span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="duckduckgo"
+                  checked={formState.webSearchProvider === "duckduckgo"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.duckduckgo")}
+                </span>
+              </label>
+            </div>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              {t("api.fields.webSearchProvider.helper")}
             </p>
           </div>
 

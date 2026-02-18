@@ -74,6 +74,7 @@
     "@lancedb/lancedb": "^0.22.3",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@phosphor-icons/react": "^2.1.10",
+    "@phukon/duckduckgo-search": "^1.1.0",
     "@qdrant/js-client-rest": "^1.16.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.2",

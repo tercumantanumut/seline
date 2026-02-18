@@ -21,6 +21,7 @@ export interface AppSettings {
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+    webSearchProvider?: "tavily" | "duckduckgo" | "auto"; // Web search provider (default: auto)
   huggingFaceToken?: string; // For downloading gated models from Hugging Face
 
     // MCP (Model Context Protocol) settings
@@ -459,6 +460,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.webScraperProvider) {
         process.env.WEB_SCRAPER_PROVIDER = settings.webScraperProvider;
+    }
+    if (settings.webSearchProvider) {
+        process.env.WEB_SEARCH_PROVIDER = settings.webSearchProvider;
     }
     if (settings.stylyAiApiKey) {
         process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;
