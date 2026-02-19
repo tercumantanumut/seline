@@ -24,7 +24,11 @@ import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
-import { ContextWindowManager, type ContextWindowStatus as ManagedContextWindowStatus } from "@/lib/context-window";
+import {
+  ContextWindowManager,
+  getContextWindowLimit,
+  type ContextWindowStatus as ManagedContextWindowStatus,
+} from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { triggerExtraction } from "@/lib/agent-memory";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
@@ -2323,7 +2327,17 @@ export async function POST(req: Request) {
       `(${contextCheck.status.formatted.current}/${contextCheck.status.formatted.max}, ` +
       `${contextCheck.status.formatted.percentage})`
     );
-    
+
+    const modelContextWindowLimit = getContextWindowLimit(currentModelId, currentProvider);
+    const streamToolResultBudgetTokens = Math.max(
+      1,
+      Math.floor(modelContextWindowLimit * 0.75 - contextCheck.status.currentTokens)
+    );
+    console.log(
+      `[CHAT API] Tool-result stream budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens ` +
+      `(model=${modelContextWindowLimit.toLocaleString()}, inUse=${contextCheck.status.currentTokens.toLocaleString()})`
+    );
+
     // If compaction was performed, log the result
     if (contextCheck.compactionResult?.success) {
       console.log(
@@ -3217,11 +3231,17 @@ export async function POST(req: Request) {
 
           try {
             const rawResult = await origExecute(args, options as any);
-            const guardedResult = guardToolResultForStreaming(toolId, rawResult);
+            const guardedResult = guardToolResultForStreaming(toolId, rawResult, {
+              maxTokens: streamToolResultBudgetTokens,
+              metadata: {
+                sourceFileName: "app/api/chat/route.ts",
+              },
+            });
             if (guardedResult.blocked) {
               console.warn(
-                `[CHAT API] Tool result blocked for streaming: ${toolId} ` +
-                `(~${guardedResult.estimatedTokens.toLocaleString()} tokens)`
+                `[CHAT API] Tool result validated as oversized: ${toolId} ` +
+                `(~${guardedResult.estimatedTokens.toLocaleString()} tokens, ` +
+                `budget=${streamToolResultBudgetTokens.toLocaleString()})`
               );
             }
 
@@ -3266,7 +3286,8 @@ export async function POST(req: Request) {
     allToolsWithMCP = wrappedTools;
     console.log(
       `[CHAT API] Wrapped ${Object.keys(wrappedTools).length} tools with stream guard ` +
-      `(pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`
+      `(budget=${streamToolResultBudgetTokens.toLocaleString()} tokens, ` +
+      `pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`
     );
 
     // Build the initial activeTools array (tool names that are active from the start)

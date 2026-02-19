@@ -1,6 +1,6 @@
 import { estimateTokens } from "@/lib/ai/output-limiter";
 
-export const MAX_STREAM_TOOL_RESULT_TOKENS = 25_000;
+export const MIN_STREAM_TOOL_RESULT_TOKENS = 1;
 
 interface OversizedToolResult {
   status: "error";
@@ -10,12 +10,20 @@ interface OversizedToolResult {
   tokenLimit: number;
   estimatedTokens: number;
   oversizedForStreaming: true;
+  metadata?: Record<string, unknown>;
+  logId?: string;
+  truncatedContentId?: string;
 }
 
 export interface GuardToolResultForStreamingResult {
   blocked: boolean;
   estimatedTokens: number;
   result: unknown;
+}
+
+export interface GuardToolResultForStreamingOptions {
+  maxTokens?: number;
+  metadata?: Record<string, unknown>;
 }
 
 function safeStringify(value: unknown): string {
@@ -35,35 +43,92 @@ function estimateTokensSafely(content: unknown): number {
   }
 }
 
-function buildOversizedToolResult(toolName: string, estimatedTokens: number): OversizedToolResult {
-  const safeToolName = toolName || "tool";
-  const baseMessage =
-    `Tool output from ${safeToolName} was too large (~${estimatedTokens.toLocaleString()} tokens) ` +
-    `and was not returned to keep streaming stable (limit: ${MAX_STREAM_TOOL_RESULT_TOKENS.toLocaleString()} tokens).`;
+function normalizeTokenLimit(maxTokens?: number): number {
+  if (typeof maxTokens !== "number" || !Number.isFinite(maxTokens)) {
+    return Number.MAX_SAFE_INTEGER;
+  }
 
-  const guidance =
+  return Math.max(MIN_STREAM_TOOL_RESULT_TOKENS, Math.floor(maxTokens));
+}
+
+function extractRetrievalIds(result: unknown): {
+  logId?: string;
+  truncatedContentId?: string;
+} {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return {};
+  }
+
+  const record = result as Record<string, unknown>;
+  const logId = typeof record.logId === "string" ? record.logId : undefined;
+  const truncatedContentId =
+    typeof record.truncatedContentId === "string" ? record.truncatedContentId : undefined;
+
+  return {
+    logId,
+    truncatedContentId,
+  };
+}
+
+function buildOversizedToolResult(
+  toolName: string,
+  estimatedTokens: number,
+  tokenLimit: number,
+  rawResult: unknown,
+  metadata?: Record<string, unknown>
+): OversizedToolResult {
+  const safeToolName = toolName || "tool";
+  const retrieval = extractRetrievalIds(rawResult);
+  const sourceFileName =
+    metadata && typeof metadata.sourceFileName === "string" ? metadata.sourceFileName : undefined;
+
+  let error =
+    `Tool output from ${safeToolName} exceeded the remaining context budget ` +
+    `(~${estimatedTokens.toLocaleString()} tokens, allowed: ${tokenLimit.toLocaleString()}). ` +
+    `Streaming continued, but this tool result was replaced with a validation error. `;
+
+  if (sourceFileName) {
+    error += `Source file: ${sourceFileName}. `;
+  }
+
+  if (retrieval.logId) {
+    error +=
+      `Full output is still available via executeCommand({ command: "readLog", logId: "${retrieval.logId}" }). `;
+  }
+
+  if (retrieval.truncatedContentId) {
+    error +=
+      `Truncated content is available via retrieveFullContent({ contentId: "${retrieval.truncatedContentId}" }). `;
+  }
+
+  error +=
     safeToolName === "executeCommand"
-      ? "Use a narrower command (filters, head/tail, or a smaller path), then try again."
-      : "Refine the query to request a smaller, focused result and try again.";
+      ? "Narrow the command scope (filters, head/tail, specific paths) and retry."
+      : "Refine the request and retry with a smaller result scope.";
 
   return {
     status: "error",
-    error: `${baseMessage} ${guidance}`,
-    summary: `${safeToolName} output blocked because it exceeded streaming limits`,
+    error,
+    summary: `${safeToolName} output exceeded context budget and was validated`,
     toolName: safeToolName,
-    tokenLimit: MAX_STREAM_TOOL_RESULT_TOKENS,
+    tokenLimit,
     estimatedTokens,
     oversizedForStreaming: true,
+    ...(metadata ? { metadata } : {}),
+    ...(retrieval.logId ? { logId: retrieval.logId } : {}),
+    ...(retrieval.truncatedContentId ? { truncatedContentId: retrieval.truncatedContentId } : {}),
   };
 }
 
 export function guardToolResultForStreaming(
   toolName: string,
-  result: unknown
+  result: unknown,
+  options: GuardToolResultForStreamingOptions = {}
 ): GuardToolResultForStreamingResult {
   const estimatedTokens = estimateTokensSafely(result);
+  const tokenLimit = normalizeTokenLimit(options.maxTokens);
 
-  if (estimatedTokens <= MAX_STREAM_TOOL_RESULT_TOKENS) {
+  if (estimatedTokens <= tokenLimit) {
     return {
       blocked: false,
       estimatedTokens,
@@ -74,6 +139,6 @@ export function guardToolResultForStreaming(
   return {
     blocked: true,
     estimatedTokens,
-    result: buildOversizedToolResult(toolName, estimatedTokens),
+    result: buildOversizedToolResult(toolName, estimatedTokens, tokenLimit, result, options.metadata),
   };
 }
