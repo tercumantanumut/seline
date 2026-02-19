@@ -355,27 +355,4 @@ describe("foreground execution", () => {
         expect(result.status).toBe("no_folders");
     });
 
-    it("returns structured error when command output exceeds streaming token guard", async () => {
-        executorMocks.executeCommandWithValidation.mockResolvedValue({
-            success: true,
-            stdout: "x".repeat(140_000),
-            stderr: "",
-            exitCode: 0,
-            signal: null,
-            executionTime: 15,
-            logId: "log_huge",
-            isTruncated: false,
-        });
-
-        const tool = makeTool();
-        const result = await tool.execute(
-            { command: "node", args: ["-e", "console.log('huge')"] },
-            createToolContext(),
-        );
-
-        expect(result.status).toBe("error");
-        expect(result.oversizedForStreaming).toBe(true);
-        expect(result.tokenLimit).toBe(25_000);
-        expect(result.error).toContain("too large");
-    });
 });

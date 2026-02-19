@@ -18,7 +18,6 @@ import {
     cleanupBackgroundProcesses,
 } from "@/lib/command-execution";
 import { readTerminalLog } from "@/lib/command-execution/log-manager";
-import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
 import type {
     ExecuteCommandToolOptions,
     ExecuteCommandInput,
@@ -420,11 +419,6 @@ The tool returns immediately with a processId. Poll with processId to check stat
                     logId: result.logId,
                     isTruncated: result.isTruncated,
                 };
-
-                const streamGuard = guardToolResultForStreaming("executeCommand", toolResult);
-                if (streamGuard.blocked) {
-                    return streamGuard.result as ExecuteCommandToolResult;
-                }
 
                 return toolResult;
             } catch (error) {
