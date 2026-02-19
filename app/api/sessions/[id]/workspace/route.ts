@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import * as fs from "fs";
+import { promisify } from "util";
 import {
   getSession,
   updateSession,
@@ -15,12 +16,14 @@ import type {
   WorkspaceAction,
 } from "@/lib/workspace/types";
 
+const execFileAsync = promisify(execFile);
+
 // Validate that a path is safe for use in shell commands
 function isValidWorktreePath(path: string): boolean {
   return (
     typeof path === "string" &&
     path.startsWith("/") &&
-    !/[;&|`$(){}!#]/.test(path)
+    !/[;&|`$(){}!#"'\\<>\n\r]/.test(path)
   );
 }
 
@@ -34,9 +37,93 @@ function isValidBranchName(name: string): boolean {
   );
 }
 
-// Default execSync options for git commands
+const WORKSPACE_TYPES = new Set<WorkspaceInfo["type"]>(["worktree", "local", "clone"]);
+const WORKSPACE_STATUSES = new Set<WorkspaceInfo["status"]>([
+  "active",
+  "changes-ready",
+  "pr-open",
+  "merged",
+  "cleanup-pending",
+]);
+const WORKSPACE_PR_STATUSES = new Set<NonNullable<WorkspaceInfo["prStatus"]>>([
+  "draft",
+  "open",
+  "merged",
+  "closed",
+]);
+
+function sanitizeWorkspacePatch(payload: unknown): Partial<WorkspaceInfo> {
+  if (!payload || typeof payload !== "object") return {};
+
+  const body = payload as Record<string, unknown>;
+  const safePayload: Partial<WorkspaceInfo> = {};
+
+  if (typeof body.type === "string" && WORKSPACE_TYPES.has(body.type as WorkspaceInfo["type"])) {
+    safePayload.type = body.type as WorkspaceInfo["type"];
+  }
+  if (typeof body.branch === "string" && isValidBranchName(body.branch)) {
+    safePayload.branch = body.branch;
+  }
+  if (typeof body.baseBranch === "string" && isValidBranchName(body.baseBranch)) {
+    safePayload.baseBranch = body.baseBranch;
+  }
+  if (typeof body.worktreePath === "string") {
+    safePayload.worktreePath = body.worktreePath;
+  }
+  if (typeof body.repoUrl === "string") {
+    safePayload.repoUrl = body.repoUrl;
+  }
+  if (typeof body.prUrl === "string") {
+    safePayload.prUrl = body.prUrl;
+  }
+  if (typeof body.prNumber === "number" && Number.isFinite(body.prNumber)) {
+    safePayload.prNumber = body.prNumber;
+  }
+  if (
+    typeof body.prStatus === "string" &&
+    WORKSPACE_PR_STATUSES.has(body.prStatus as NonNullable<WorkspaceInfo["prStatus"]>)
+  ) {
+    safePayload.prStatus = body.prStatus as NonNullable<WorkspaceInfo["prStatus"]>;
+  }
+  if (
+    typeof body.status === "string" &&
+    WORKSPACE_STATUSES.has(body.status as WorkspaceInfo["status"])
+  ) {
+    safePayload.status = body.status as WorkspaceInfo["status"];
+  }
+  if (typeof body.changedFiles === "number" && Number.isFinite(body.changedFiles)) {
+    safePayload.changedFiles = body.changedFiles;
+  }
+  if (typeof body.lastSyncedAt === "string") {
+    safePayload.lastSyncedAt = body.lastSyncedAt;
+  }
+  if (typeof body.syncFolderId === "string") {
+    safePayload.syncFolderId = body.syncFolderId;
+  }
+
+  return safePayload;
+}
+
+// Default git options for child process git commands
 function gitExecOptions(cwd: string) {
-  return { cwd, encoding: "utf-8" as const, timeout: 30000 };
+  return {
+    cwd,
+    encoding: "utf-8" as const,
+    timeout: 30000,
+    maxBuffer: 10 * 1024 * 1024,
+  };
+}
+
+async function runGitCommand(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, gitExecOptions(cwd));
+  return stdout;
+}
+
+function runGitCommandSync(cwd: string, args: string[], input?: string): string {
+  return execFileSync("git", args, {
+    ...gitExecOptions(cwd),
+    input,
+  });
 }
 
 // Parse `git status --porcelain` output into changed file list
@@ -62,12 +149,12 @@ function parseGitPorcelain(
 
 // Get live git status for a worktree path
 // Includes both uncommitted changes AND committed changes ahead of baseBranch
-function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
+async function getLiveGitStatus(worktreePath: string, baseBranch?: string): Promise<{
   changedFileList: WorkspaceStatus["changedFileList"];
   changedFiles: number;
   diffStat: string | undefined;
   worktreeExists: boolean;
-} {
+}> {
   if (!isValidWorktreePath(worktreePath) || !fs.existsSync(worktreePath)) {
     return {
       changedFileList: [],
@@ -79,10 +166,7 @@ function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
 
   try {
     // First check uncommitted changes
-    const porcelain = execSync(
-      "git status --porcelain",
-      gitExecOptions(worktreePath)
-    );
+    const porcelain = await runGitCommand(worktreePath, ["status", "--porcelain"]);
     let changedFileList = parseGitPorcelain(porcelain);
 
     let diffStat: string | undefined;
@@ -90,19 +174,15 @@ function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
     if (changedFileList.length > 0) {
       // There are uncommitted changes — show those
       try {
-        diffStat = execSync(
-          "git diff --stat",
-          gitExecOptions(worktreePath)
-        ).trim() || undefined;
+        diffStat = (await runGitCommand(worktreePath, ["diff", "--stat"])).trim() || undefined;
       } catch {
         // diff --stat can fail if there are no commits yet
       }
     } else if (baseBranch && isValidBranchName(baseBranch)) {
       // No uncommitted changes — check committed changes ahead of baseBranch
       try {
-        const branchDiff = execSync(
-          `git diff --name-status ${baseBranch}...HEAD`,
-          gitExecOptions(worktreePath)
+        const branchDiff = (
+          await runGitCommand(worktreePath, ["diff", "--name-status", `${baseBranch}...HEAD`])
         ).trim();
 
         if (branchDiff) {
@@ -117,9 +197,8 @@ function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
           });
         }
 
-        diffStat = execSync(
-          `git diff --stat ${baseBranch}...HEAD`,
-          gitExecOptions(worktreePath)
+        diffStat = (
+          await runGitCommand(worktreePath, ["diff", "--stat", `${baseBranch}...HEAD`])
         ).trim() || undefined;
       } catch {
         // baseBranch might not exist locally
@@ -194,7 +273,7 @@ export async function GET(
     const workspaceStatus: WorkspaceStatus = { ...workspaceInfo };
 
     if (workspaceInfo.worktreePath) {
-      const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
+      const liveStatus = await getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
       workspaceStatus.changedFileList = liveStatus.changedFileList;
       workspaceStatus.changedFiles = liveStatus.changedFiles;
       workspaceStatus.diffStat = liveStatus.diffStat;
@@ -237,14 +316,14 @@ export async function PATCH(
     }
 
     const { session } = ownershipResult;
-    const body = (await req.json()) as Partial<WorkspaceInfo>;
+    const safePayload = sanitizeWorkspacePatch(await req.json());
 
     const existingMetadata = (session.metadata as Record<string, unknown>) || {};
     const existingWorkspaceInfo = getWorkspaceInfo(existingMetadata) || {};
 
     const mergedWorkspaceInfo = {
       ...existingWorkspaceInfo,
-      ...body,
+      ...safePayload,
     };
 
     const mergedMetadata = {
@@ -357,7 +436,7 @@ async function handleRefreshStatus(
     );
   }
 
-  const liveStatus = getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
+  const liveStatus = await getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
 
   const updatedWorkspaceInfo: WorkspaceInfo = {
     ...workspaceInfo,
@@ -393,10 +472,7 @@ async function handleCleanup(
     if (fs.existsSync(worktreePath)) {
       try {
         // Find the main repo directory by resolving the git common dir
-        const commonDir = execSync(
-          "git rev-parse --git-common-dir",
-          gitExecOptions(worktreePath)
-        ).trim();
+        const commonDir = runGitCommandSync(worktreePath, ["rev-parse", "--git-common-dir"]).trim();
         // The main repo is the parent of the .git directory
         const mainRepoDir = fs.realpathSync(
           commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
@@ -404,10 +480,7 @@ async function handleCleanup(
             : commonDir + "/.."
         );
 
-        execSync(
-          `git worktree remove "${worktreePath}" --force`,
-          gitExecOptions(mainRepoDir)
-        );
+        runGitCommandSync(mainRepoDir, ["worktree", "remove", worktreePath, "--force"]);
       } catch (err) {
         console.error("Failed to remove git worktree:", err);
         // Continue anyway to clean up metadata
@@ -459,10 +532,7 @@ async function handleSyncToLocal(
 
   try {
     // Find the main repository directory
-    const commonDir = execSync(
-      "git rev-parse --git-common-dir",
-      gitExecOptions(worktreePath)
-    ).trim();
+    const commonDir = runGitCommandSync(worktreePath, ["rev-parse", "--git-common-dir"]).trim();
     const mainRepoDir = fs.realpathSync(
       commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
         ? commonDir.replace(/[/\\]\.git$/, "")
@@ -472,10 +542,7 @@ async function handleSyncToLocal(
     // Generate patch from the diff between base branch and feature branch
     let patch: string;
     try {
-      patch = execSync(
-        `git diff ${baseBranch}...${branch}`,
-        gitExecOptions(worktreePath)
-      );
+      patch = runGitCommandSync(worktreePath, ["diff", `${baseBranch}...${branch}`]);
     } catch (err) {
       return NextResponse.json(
         {
@@ -496,19 +563,8 @@ async function handleSyncToLocal(
 
     // Apply the patch to the main repo
     try {
-      execSync("git apply --check --3way -", {
-        cwd: mainRepoDir,
-        encoding: "utf-8",
-        timeout: 30000,
-        input: patch,
-      });
-
-      execSync("git apply --3way -", {
-        cwd: mainRepoDir,
-        encoding: "utf-8",
-        timeout: 30000,
-        input: patch,
-      });
+      runGitCommandSync(mainRepoDir, ["apply", "--check", "--3way", "-"], patch);
+      runGitCommandSync(mainRepoDir, ["apply", "--3way", "-"], patch);
     } catch (err) {
       return NextResponse.json(
         {
