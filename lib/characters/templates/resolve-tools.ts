@@ -33,7 +33,7 @@ export interface ToolWarning {
 // ============================================================================
 
 /** Core tools that are ALWAYS enabled — no prerequisites */
-const ALWAYS_ENABLED_TOOLS = [
+export const ALWAYS_ENABLED_TOOLS = [
   "docsSearch",
   "localGrep",
   "readFile",
@@ -43,7 +43,7 @@ const ALWAYS_ENABLED_TOOLS = [
 ] as const;
 
 /** Utility tools that are ALWAYS enabled — no external dependencies */
-const UTILITY_TOOLS = [
+export const UTILITY_TOOLS = [
   "calculator",
   "memorize",
   "runSkill",
@@ -52,7 +52,21 @@ const UTILITY_TOOLS = [
   "showProductImages",
   "updatePlan",
   "updateSkill",
+  "delegateToSubagent",
 ] as const;
+
+/**
+ * Static default tools for new agents.
+ *
+ * Includes always-on core + utility tools plus webSearch (DuckDuckGo fallback).
+ * Excludes webBrowse because it depends on scraper configuration and can appear
+ * checked-but-unavailable in capabilities UI when prerequisites are missing.
+ */
+export const DEFAULT_ENABLED_TOOLS: string[] = [
+  ...ALWAYS_ENABLED_TOOLS,
+  ...UTILITY_TOOLS,
+  "webSearch",
+];
 
 /** Tools that are EXCLUDED from the Seline template by design */
 const EXCLUDED_TOOLS = [
