@@ -178,7 +178,7 @@ export const DEFAULT_CONFIG: DeepResearchConfig = {
   maxSearchQueries: 10,
   maxIterations: 3,
   maxConcurrentSearches: 3,
-  searchProvider: 'tavily',
+  searchProvider: 'duckduckgo',
   modelProvider: 'anthropic',
 };
 

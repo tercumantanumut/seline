@@ -142,7 +142,7 @@ async function executeWebSearch(
       status: "no_provider",
       query,
       sources: [],
-      message: "Web search is not configured. Set a Tavily API key in settings, or switch to DuckDuckGo (free, no key needed) in Settings → Web Search Provider.",
+      message: "Web search is currently unavailable because Tavily is selected without an API key. Switch Web Search Provider to Auto or DuckDuckGo, or add your Tavily key in Settings.",
       iterationPerformed: false,
     };
   }

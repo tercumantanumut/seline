@@ -90,7 +90,6 @@ type ToolDependency =
   | "syncedFolders"
   | "embeddings"
   | "vectorDbEnabled"
-  | "tavilyKey"
   | "webScraper"
   | "openrouterKey"
   | "comfyuiEnabled"
@@ -467,7 +466,6 @@ export function CharacterPicker() {
     syncedFolders: boolean;
     embeddings: boolean;
     vectorDbEnabled: boolean;
-    tavilyKey: boolean;
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
@@ -479,7 +477,6 @@ export function CharacterPicker() {
     syncedFolders: false,
     embeddings: false,
     vectorDbEnabled: false,
-    tavilyKey: false,
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
@@ -689,7 +686,6 @@ export function CharacterPicker() {
           syncedFolders: foldersCount > 0,
           embeddings: embeddingsReady,
           vectorDbEnabled: settingsData.vectorDBEnabled === true,
-          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
           webScraper: webScraperReady,
           openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
           comfyuiEnabled: settingsData.comfyuiEnabled === true,
@@ -704,7 +700,6 @@ export function CharacterPicker() {
           syncedFolders: foldersCount > 0,
           embeddings: false,
           vectorDbEnabled: false,
-          tavilyKey: false,
           webScraper: false,
           openrouterKey: false,
           comfyuiEnabled: false,

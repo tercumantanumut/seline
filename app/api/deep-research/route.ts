@@ -6,6 +6,7 @@
  */
 
 import { runDeepResearch, type DeepResearchEvent, type DeepResearchConfig } from '@/lib/ai/deep-research';
+import { getWebSearchProviderStatus } from '@/lib/ai/web-search/providers';
 import { requireAuth } from '@/lib/auth/local-auth';
 import { createSession, createMessage, getOrCreateLocalUser } from '@/lib/db/queries';
 import { nextOrderingIndex } from '@/lib/session/message-ordering';
@@ -228,15 +229,17 @@ export async function POST(req: Request) {
 
 // GET endpoint to check if deep research is available
 export async function GET() {
-  const tavilyConfigured = !!process.env.TAVILY_API_KEY;
-  
+  const searchStatus = getWebSearchProviderStatus();
+
   return new Response(
     JSON.stringify({
       available: true,
-      searchConfigured: tavilyConfigured,
-      message: tavilyConfigured 
-        ? 'Deep Research is fully configured'
-        : 'Deep Research available with mock search (configure TAVILY_API_KEY for real search)',
+      searchConfigured: searchStatus.available,
+      searchProvider: searchStatus.activeProvider,
+      searchEnhanced: searchStatus.enhanced,
+      message: searchStatus.enhanced
+        ? 'Deep Research is configured with Tavily-enhanced web search.'
+        : 'Deep Research is configured with DuckDuckGo web search (works out of the box). Add Tavily for enhanced search quality.',
     }),
     {
       headers: { 'Content-Type': 'application/json' },

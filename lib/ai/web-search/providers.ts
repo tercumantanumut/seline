@@ -33,6 +33,16 @@ export interface WebSearchProvider {
   isAvailable(): boolean;
 }
 
+export interface WebSearchProviderStatus {
+  configuredProvider: WebSearchProviderType;
+  activeProvider: "tavily" | "duckduckgo";
+  available: boolean;
+  tavilyConfigured: boolean;
+  enhanced: boolean;
+  supportsAnswerSummary: boolean;
+  isFallback: boolean;
+}
+
 // ============================================================================
 // Tavily Provider
 // ============================================================================
@@ -177,36 +187,77 @@ export class DuckDuckGoProvider implements WebSearchProvider {
 export type WebSearchProviderType = "tavily" | "duckduckgo" | "auto";
 
 /**
- * Get the appropriate search provider based on settings.
+ * Get the runtime search provider based on settings and availability.
  *
- * "auto" mode: Uses Tavily if API key is set, otherwise falls back to DuckDuckGo.
+ * DuckDuckGo is treated as baseline so search works out of the box.
  */
 export function getSearchProvider(override?: WebSearchProviderType): WebSearchProvider {
-  const providerSetting = override ?? getConfiguredProvider();
+  const status = getWebSearchProviderStatus(override);
+  return status.activeProvider === "tavily" ? new TavilyProvider() : new DuckDuckGoProvider();
+}
 
-  if (providerSetting === "tavily") {
-    return new TavilyProvider();
-  }
-
-  if (providerSetting === "duckduckgo") {
-    return new DuckDuckGoProvider();
-  }
-
-  // "auto" mode: prefer Tavily if available, fallback to DDG
+/**
+ * Resolve runtime status for web search across APIs/UI.
+ * DuckDuckGo is the baseline provider, while Tavily is an optional enhancement.
+ */
+export function getWebSearchProviderStatus(override?: WebSearchProviderType): WebSearchProviderStatus {
+  const configuredProvider = override ?? getConfiguredProvider();
   const tavily = new TavilyProvider();
-  if (tavily.isAvailable()) {
-    return tavily;
+  const tavilyConfigured = tavily.isAvailable();
+
+  if (configuredProvider === "tavily") {
+    return {
+      configuredProvider,
+      activeProvider: "tavily",
+      available: tavilyConfigured,
+      tavilyConfigured,
+      enhanced: tavilyConfigured,
+      supportsAnswerSummary: tavilyConfigured,
+      isFallback: false,
+    };
   }
 
-  return new DuckDuckGoProvider();
+  if (configuredProvider === "duckduckgo") {
+    return {
+      configuredProvider,
+      activeProvider: "duckduckgo",
+      available: true,
+      tavilyConfigured,
+      enhanced: false,
+      supportsAnswerSummary: false,
+      isFallback: false,
+    };
+  }
+
+  // auto mode: prefer Tavily when configured, otherwise fall back to DuckDuckGo
+  if (tavilyConfigured) {
+    return {
+      configuredProvider,
+      activeProvider: "tavily",
+      available: true,
+      tavilyConfigured,
+      enhanced: true,
+      supportsAnswerSummary: true,
+      isFallback: false,
+    };
+  }
+
+  return {
+    configuredProvider,
+    activeProvider: "duckduckgo",
+    available: true,
+    tavilyConfigured,
+    enhanced: false,
+    supportsAnswerSummary: false,
+    isFallback: true,
+  };
 }
 
 /**
  * Check if any web search provider is available.
  */
 export function isAnySearchProviderAvailable(): boolean {
-  const provider = getSearchProvider();
-  return provider.isAvailable();
+  return getWebSearchProviderStatus().available;
 }
 
 function getConfiguredProvider(): WebSearchProviderType {
