@@ -103,8 +103,11 @@ export function DiffReviewPanel({
       } else if (data?.workspace) {
         setWorkspaceStatus(data.workspace);
         // Auto-select first file
-        if (data.workspace.changedFileList && data.workspace.changedFileList.length > 0 && !selectedFile) {
-          setSelectedFile(data.workspace.changedFileList[0].path);
+        if (data.workspace.changedFileList && data.workspace.changedFileList.length > 0) {
+          const firstPath = data.workspace.changedFileList[0]?.path;
+          if (firstPath) {
+            setSelectedFile((prev) => prev ?? firstPath);
+          }
         }
       }
     } catch {
@@ -112,7 +115,7 @@ export function DiffReviewPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [sessionId, selectedFile]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (isOpen) {
