@@ -243,6 +243,9 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// PATCH is an alias for PUT — both support partial updates via deep merge with current settings.
+export { PUT as PATCH };
+
 function maskApiKey(key: string): string {
   if (key.length <= 8) return "••••••••";
   return key.slice(0, 4) + "••••••••" + key.slice(-4);
