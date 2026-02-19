@@ -26,7 +26,6 @@ export interface ToolCapability {
     | "syncedFolders"
     | "embeddings"
     | "vectorDbEnabled"
-    | "tavilyKey"
     | "webScraper"
     | "openrouterKey"
     | "comfyuiEnabled"
@@ -372,7 +371,6 @@ export function CapabilitiesPage({
     syncedFolders: boolean;
     embeddings: boolean;
     vectorDbEnabled: boolean;
-    tavilyKey: boolean;
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
@@ -384,7 +382,6 @@ export function CapabilitiesPage({
     syncedFolders: false,
     embeddings: false,
     vectorDbEnabled: false,
-    tavilyKey: false,
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
@@ -425,7 +422,6 @@ export function CapabilitiesPage({
           syncedFolders: foldersCount !== null ? foldersCount > 0 : prev.syncedFolders,
           embeddings: embeddingsReady,
           vectorDbEnabled: settingsData.vectorDBEnabled === true,
-          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
           webScraper: webScraperReady,
           openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
           comfyuiEnabled: settingsData.comfyuiEnabled === true,
