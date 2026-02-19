@@ -24,6 +24,16 @@ function isValidWorktreePath(path: string): boolean {
   );
 }
 
+// Validate that a branch name is safe for use in shell commands
+function isValidBranchName(name: string): boolean {
+  return (
+    typeof name === "string" &&
+    name.length > 0 &&
+    name.length < 256 &&
+    /^[a-zA-Z0-9._\-/]+$/.test(name)
+  );
+}
+
 // Default execSync options for git commands
 function gitExecOptions(cwd: string) {
   return { cwd, encoding: "utf-8" as const, timeout: 30000 };
@@ -87,7 +97,7 @@ function getLiveGitStatus(worktreePath: string, baseBranch?: string): {
       } catch {
         // diff --stat can fail if there are no commits yet
       }
-    } else if (baseBranch) {
+    } else if (baseBranch && isValidBranchName(baseBranch)) {
       // No uncommitted changes — check committed changes ahead of baseBranch
       try {
         const branchDiff = execSync(
@@ -440,6 +450,13 @@ async function handleSyncToLocal(
     );
   }
 
+  if (!isValidBranchName(baseBranch) || !isValidBranchName(branch)) {
+    return NextResponse.json(
+      { error: "Invalid branch name. Use only alphanumeric, dot, dash, underscore, and slash characters." },
+      { status: 400 }
+    );
+  }
+
   try {
     // Find the main repository directory
     const commonDir = execSync(
@@ -502,21 +519,13 @@ async function handleSyncToLocal(
       );
     }
 
-    // Count applied files
-    const appliedPorcelain = execSync(
-      "git status --porcelain",
-      gitExecOptions(mainRepoDir)
-    );
-    const appliedFiles = appliedPorcelain
-      .trim()
-      .split("\n")
-      .filter(Boolean).length;
+    // Count files from the patch itself — avoids counting pre-existing changes in mainRepoDir
+    const appliedFiles = (patch.match(/^diff --git /gm) || []).length;
 
     return NextResponse.json({
       success: true,
       message: `Synced ${appliedFiles} file(s) to local repository`,
       appliedFiles,
-      mainRepoDir,
     });
   } catch (error) {
     console.error("Failed to sync to local:", error);
