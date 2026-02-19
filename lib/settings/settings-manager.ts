@@ -307,6 +307,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     rtkInstalled: false,
     rtkVerbosity: 0,
     rtkUltraCompact: false,
+    // Developer Workspace defaults
+    devWorkspaceEnabled: false,
+    devWorkspaceAutoCleanup: true,
+    devWorkspaceAutoCleanupDays: 7,
+    workspaceOnboardingSeen: false,
 };
 
 function getSettingsPath(): string {

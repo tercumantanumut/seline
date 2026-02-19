@@ -137,30 +137,29 @@ describe("resolveSelineTemplateTools", () => {
       expect(result.warnings.find((w) => w.toolId === "webSearch")).toBeUndefined();
     });
 
-    it("should NOT include webSearch when tavilyApiKey is missing", () => {
+    it("should include webSearch even when tavilyApiKey is missing (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: undefined });
       const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("webSearch");
+      expect(result.enabledTools).toContain("webSearch");
     });
 
-    it("should NOT include webSearch when tavilyApiKey is empty string", () => {
+    it("should include webSearch even when tavilyApiKey is empty string (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: "" });
       const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("webSearch");
+      expect(result.enabledTools).toContain("webSearch");
     });
 
-    it("should NOT include webSearch when tavilyApiKey is whitespace only", () => {
+    it("should include webSearch even when tavilyApiKey is whitespace only (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: "   " });
       const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("webSearch");
+      expect(result.enabledTools).toContain("webSearch");
     });
 
-    it("should include a warning when webSearch is disabled", () => {
+    it("should NOT emit a warning for webSearch (always enabled via DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: undefined });
       const result = resolveSelineTemplateTools(settings);
       const warning = result.warnings.find((w) => w.toolId === "webSearch");
-      expect(warning).toBeDefined();
-      expect(warning!.settingsKeys).toContain("tavilyApiKey");
+      expect(warning).toBeUndefined();
     });
   });
 
@@ -248,7 +247,7 @@ describe("resolveSelineTemplateTools", () => {
   // Bare minimum configuration — only core and utility tools
   // =========================================================================
   describe("bare minimum configuration", () => {
-    it("should have 3 warnings when nothing is configured", () => {
+    it("should have 2 warnings when nothing is configured (webSearch always on via DuckDuckGo)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -257,15 +256,14 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      expect(result.warnings).toHaveLength(3);
+      expect(result.warnings).toHaveLength(2);
       expect(result.warnings.map((w) => w.toolId).sort()).toEqual([
         "vectorSearch",
         "webBrowse",
-        "webSearch",
       ]);
     });
 
-    it("should still include core + utility tools with no configuration", () => {
+    it("should still include core + utility + webSearch tools with no configuration", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -274,10 +272,10 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 8 utility = 14 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(14);
+      // 6 core + 8 utility + 1 always-on webSearch = 15 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(15);
       expect(result.enabledTools).not.toContain("vectorSearch");
-      expect(result.enabledTools).not.toContain("webSearch");
+      expect(result.enabledTools).toContain("webSearch");
       expect(result.enabledTools).not.toContain("webBrowse");
     });
   });
@@ -298,7 +296,7 @@ describe("resolveSelineTemplateTools", () => {
       expect(result.enabledTools).toHaveLength(17);
     });
 
-    it("should return exactly 14 tools when no conditional tools are available", () => {
+    it("should return exactly 15 tools when no optional tools are available (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -307,8 +305,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 8 utility = 14
-      expect(result.enabledTools).toHaveLength(14);
+      // 6 core + 8 utility + 1 always-on webSearch = 15
+      expect(result.enabledTools).toHaveLength(15);
     });
   });
 

@@ -67,6 +67,15 @@ function isValidPath(p: string): boolean {
   );
 }
 
+function isValidBranchName(name: string): boolean {
+  return (
+    typeof name === "string" &&
+    name.length > 0 &&
+    name.length < 256 &&
+    /^[a-zA-Z0-9._\-/]+$/.test(name)
+  );
+}
+
 function gitExecOptions(cwd: string) {
   return { cwd, encoding: "utf-8" as const, timeout: 30000 };
 }
@@ -204,6 +213,14 @@ async function handleCreate(
     return { status: "error" as const, error: "Invalid repoPath. Must be an absolute path without shell metacharacters." };
   }
 
+  // Branch name safety
+  if (!isValidBranchName(branch)) {
+    return { status: "error" as const, error: "Invalid branch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
+  }
+  if (baseBranch && !isValidBranchName(baseBranch)) {
+    return { status: "error" as const, error: "Invalid baseBranch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
+  }
+
   // Verify it's a git repo
   if (!fs.existsSync(path.join(repoPath, ".git"))) {
     return { status: "error" as const, error: `"${repoPath}" does not appear to be a git repository (no .git directory).` };
@@ -251,6 +268,11 @@ async function handleCreate(
   // Ensure parent directory exists
   if (!fs.existsSync(worktreeParent)) {
     fs.mkdirSync(worktreeParent, { recursive: true });
+  }
+
+  // Validate resolvedBaseBranch (may be from git output) before shell interpolation
+  if (!isValidBranchName(resolvedBaseBranch)) {
+    return { status: "error" as const, error: "Resolved base branch name contains invalid characters." };
   }
 
   // Create the git worktree
@@ -381,7 +403,7 @@ async function handleStatus(sessionId: string) {
           return { path: filePath, status: fileStatus };
         });
         changedFiles = changedFileList.length;
-      } else if (workspaceInfo.baseBranch) {
+      } else if (workspaceInfo.baseBranch && isValidBranchName(workspaceInfo.baseBranch)) {
         // No uncommitted changes — check committed changes ahead of baseBranch
         try {
           const branchDiff = execSync(

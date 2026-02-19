@@ -267,16 +267,16 @@ export function SessionItem({
                 </Badge>
               )}
               {session.metadata?.workspaceInfo?.prNumber && session.metadata?.workspaceInfo?.prUrl && (
-                <Badge
-                  className="border border-blue-200 bg-blue-50/80 px-2 py-0.5 text-[10px] font-mono text-blue-700 gap-1 cursor-pointer hover:bg-blue-100/80"
-                  onClick={(e: React.MouseEvent) => {
-                    e.stopPropagation();
-                    window.open(session.metadata.workspaceInfo!.prUrl!, "_blank", "noopener,noreferrer");
-                  }}
+                <a
+                  className="inline-flex items-center gap-1 border border-blue-200 bg-blue-50/80 px-2 py-0.5 text-[10px] font-mono text-blue-700 rounded-md cursor-pointer hover:bg-blue-100/80"
+                  href={session.metadata.workspaceInfo.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-2.5 w-2.5" />
                   PR #{session.metadata.workspaceInfo.prNumber}
-                </Badge>
+                </a>
               )}
             </div>
           </>
