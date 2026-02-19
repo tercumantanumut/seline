@@ -23,8 +23,8 @@ const Plug = PhosphorPlug;
 const BarChart2 = ChartBar;
 const Trash2 = Trash;
 const Sparkles = LucideSparkles;
-import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
+import { CreateAgentModal } from "@/components/character-creation/create-agent-modal";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedContainer } from "@/components/ui/animated-container";
@@ -382,6 +382,7 @@ export function CharacterPicker() {
   const router = useRouter();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
@@ -1619,18 +1620,17 @@ export function CharacterPicker() {
           data-animate-card
           hoverLift
           className="bg-terminal-cream/50 hover:bg-terminal-cream cursor-pointer"
+          onClick={() => setCreateModalOpen(true)}
         >
-          <Link href="/create-character" className="block h-full">
-            <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-4 p-6">
-              <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
-                <Plus className="w-8 h-8 text-terminal-green" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
-                <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
-              </div>
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-4 p-6">
+            <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
+              <Plus className="w-8 h-8 text-terminal-green" />
             </div>
-          </Link>
+            <div className="text-center">
+              <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
+              <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
+            </div>
+          </div>
         </AnimatedCard>
 
         {/* Character Cards */}
@@ -1835,14 +1835,23 @@ export function CharacterPicker() {
           <p className="font-mono text-terminal-muted max-w-md mx-auto mb-6">
             {t("emptyDescription")}
           </p>
-          <Link href="/create-character">
-            <AnimatedButton className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
-              <Plus className="w-4 h-4" />
-              {t("create")}
-            </AnimatedButton>
-          </Link>
+          <AnimatedButton
+            onClick={() => setCreateModalOpen(true)}
+            className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
+          >
+            <Plus className="w-4 h-4" />
+            {t("create")}
+          </AnimatedButton>
         </AnimatedContainer>
       )}
+
+      <CreateAgentModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onCreated={() => {
+          void loadCharacters();
+        }}
+      />
 
       {/* Workflow Creator Dialog */}
       <Dialog open={workflowCreatorOpen} onOpenChange={setWorkflowCreatorOpen}>

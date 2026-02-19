@@ -214,6 +214,21 @@
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Vector Search Folders",
+    "createModal": {
+      "title": "Create an Agent",
+      "quickCreateTab": "Quick Create",
+      "fromTemplateTab": "From Template",
+      "descriptionPlaceholder": "Describe your agent in one sentence...",
+      "createAndChat": "Create & Chat",
+      "creating": "Creating...",
+      "advancedSetup": "Advanced setup →",
+      "errorExpansion": "Failed to generate agent profile. Check your AI provider settings.",
+      "errorCreation": "Failed to create agent. Please try again.",
+      "useTemplate": "Use →",
+      "loadingTemplates": "Loading templates...",
+      "noTemplates": "No templates found",
+      "minCharsHint": "Minimum 10 characters"
+    },
     "workflows": {
       "sectionTitle": "Workflows",
       "create": "Create Workflow",

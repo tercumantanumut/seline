@@ -214,6 +214,21 @@
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Vektör Arama Klasörleri",
+    "createModal": {
+      "title": "Bir Ajan Oluştur",
+      "quickCreateTab": "Hızlı Oluştur",
+      "fromTemplateTab": "Şablondan",
+      "descriptionPlaceholder": "Ajanını tek cümlede tanımla...",
+      "createAndChat": "Oluştur ve Sohbete Başla",
+      "creating": "Oluşturuluyor...",
+      "advancedSetup": "Gelişmiş kurulum →",
+      "errorExpansion": "Ajan profili oluşturulamadı. AI sağlayıcı ayarlarını kontrol edin.",
+      "errorCreation": "Ajan oluşturulamadı. Lütfen tekrar deneyin.",
+      "useTemplate": "Kullan →",
+      "loadingTemplates": "Şablonlar yükleniyor...",
+      "noTemplates": "Şablon bulunamadı",
+      "minCharsHint": "En az 10 karakter"
+    },
     "workflows": {
       "sectionTitle": "İş Akışları",
       "create": "İş Akışı Oluştur",
