@@ -29,6 +29,8 @@ describe("buildWorkflowPromptContext", () => {
     expect(prompt).toContain("run_in_background");
     expect(prompt).toContain("resume(agent_id)");
     expect(prompt).toContain("max_turns");
+    expect(prompt).toContain("prefer background: true");
+    expect(prompt).toContain("sleep 45");
     expect(prompt).toContain("Active delegations");
     expect(prompt).toContain("del-123");
   });
