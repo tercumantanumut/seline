@@ -224,10 +224,18 @@
       "advancedSetup": "Advanced setup →",
       "errorExpansion": "Failed to generate agent profile. Check your AI provider settings.",
       "errorCreation": "Failed to create agent. Please try again.",
+      "sessionExpired": "Session expired, please reload.",
+      "providerSetupRequired": "Please configure an AI provider in Settings first.",
+      "rateLimited": "Too many requests right now. Please wait and try again.",
+      "requestTimeout": "Request timed out. Please try again.",
+      "networkError": "Network error. Please check your connection and try again.",
       "useTemplate": "Use →",
       "loadingTemplates": "Loading templates...",
+      "templateLoadError": "Could not load templates. Please try again.",
+      "retryTemplates": "Retry",
       "noTemplates": "No templates found",
-      "minCharsHint": "Minimum 10 characters"
+      "minCharsHint": "Minimum 10 characters",
+      "descriptionQualityHint": "Tip: include goals, audience, and tone for better results."
     },
     "workflows": {
       "sectionTitle": "Workflows",

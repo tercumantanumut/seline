@@ -1619,10 +1619,14 @@ export function CharacterPicker() {
         <AnimatedCard
           data-animate-card
           hoverLift
-          className="bg-terminal-cream/50 hover:bg-terminal-cream cursor-pointer"
-          onClick={() => setCreateModalOpen(true)}
+          className="bg-terminal-cream/50 hover:bg-terminal-cream"
         >
-          <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-4 p-6">
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            aria-label={t("create")}
+            className="flex h-full min-h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-lg p-6 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-2 focus-visible:ring-offset-terminal-cream"
+          >
             <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
               <Plus className="w-8 h-8 text-terminal-green" />
             </div>
@@ -1630,7 +1634,7 @@ export function CharacterPicker() {
               <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
               <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
             </div>
-          </div>
+          </button>
         </AnimatedCard>
 
         {/* Character Cards */}

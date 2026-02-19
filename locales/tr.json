@@ -224,10 +224,18 @@
       "advancedSetup": "Gelişmiş kurulum →",
       "errorExpansion": "Ajan profili oluşturulamadı. AI sağlayıcı ayarlarını kontrol edin.",
       "errorCreation": "Ajan oluşturulamadı. Lütfen tekrar deneyin.",
+      "sessionExpired": "Oturum süresi doldu, lütfen sayfayı yenileyin.",
+      "providerSetupRequired": "Lütfen önce Ayarlar'dan bir AI sağlayıcısı yapılandırın.",
+      "rateLimited": "Şu anda çok fazla istek var. Lütfen bekleyip tekrar deneyin.",
+      "requestTimeout": "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.",
+      "networkError": "Ağ hatası. Lütfen bağlantınızı kontrol edip tekrar deneyin.",
       "useTemplate": "Kullan →",
       "loadingTemplates": "Şablonlar yükleniyor...",
+      "templateLoadError": "Şablonlar yüklenemedi. Lütfen tekrar deneyin.",
+      "retryTemplates": "Tekrar dene",
       "noTemplates": "Şablon bulunamadı",
-      "minCharsHint": "En az 10 karakter"
+      "minCharsHint": "En az 10 karakter",
+      "descriptionQualityHint": "İpucu: daha iyi sonuçlar için hedef, kitle ve tonu ekleyin."
     },
     "workflows": {
       "sectionTitle": "İş Akışları",

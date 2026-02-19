@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -30,41 +30,75 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
 
   const [activeTab, setActiveTab] = useState<"quick" | "template">("quick");
   const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isQuickCreating, setIsQuickCreating] = useState(false);
+  const [creatingTemplateId, setCreatingTemplateId] = useState<string | null>(null);
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
+  const [templatesLoadFailed, setTemplatesLoadFailed] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const isBusy = isQuickCreating || creatingTemplateId !== null;
+  const inputLength = inputValue.trim().length;
+
+  const mapCreateErrorMessage = useCallback(
+    (message: string, fallbackKey: "errorCreation" | "errorExpansion") => {
+      const lowered = message.toLowerCase();
+
+      if (message === "SESSION_EXPIRED") return t("sessionExpired");
+      if (lowered.includes("model") || lowered.includes("provider") || lowered.includes("api key")) {
+        return t("providerSetupRequired");
+      }
+      if (lowered.includes("429") || lowered.includes("rate limit")) return t("rateLimited");
+      if (lowered.includes("timeout") || lowered.includes("timed out") || lowered.includes("aborted")) {
+        return t("requestTimeout");
+      }
+      if (lowered.includes("network") || lowered.includes("fetch")) return t("networkError");
+
+      return fallbackKey === "errorExpansion" ? t("errorExpansion") : t("errorCreation");
+    },
+    [t]
+  );
+
+  const loadTemplates = useCallback(async () => {
+    setIsTemplatesLoading(true);
+    setTemplatesLoadFailed(false);
+
+    try {
+      const response = await fetch("/api/characters/templates", { method: "GET" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as { templates?: Template[] };
+      if (Array.isArray(data.templates)) {
+        setTemplates(data.templates);
+      } else {
+        setTemplates([]);
+      }
+    } catch {
+      setTemplates([]);
+      setTemplatesLoadFailed(true);
+    } finally {
+      setIsTemplatesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) {
       setError(null);
+      setTemplatesLoadFailed(false);
+      setIsQuickCreating(false);
+      setCreatingTemplateId(null);
       return;
     }
 
-    const loadTemplates = async () => {
-      setIsTemplatesLoading(true);
-      try {
-        const response = await fetch("/api/characters/templates", { method: "GET" });
-        const data = (await response.json()) as { templates?: Template[] };
-        if (Array.isArray(data.templates)) {
-          setTemplates(data.templates);
-        } else {
-          setTemplates([]);
-        }
-      } catch {
-        setTemplates([]);
-      } finally {
-        setIsTemplatesLoading(false);
-      }
-    };
-
     void loadTemplates();
-  }, [open]);
+  }, [loadTemplates, open]);
 
   const handleQuickCreate = async () => {
-    if (inputValue.trim().length < 10 || isLoading) return;
+    if (inputLength < 10 || isBusy) return;
 
-    setIsLoading(true);
+    setIsQuickCreating(true);
     setError(null);
 
     try {
@@ -78,7 +112,7 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
       }
 
       if (expandErr || !expandData?.agent) {
-        throw new Error(expandErr || t("errorExpansion"));
+        throw new Error(`EXPANSION_ERROR:${expandErr || "unknown"}`);
       }
 
       const { name, tagline, purpose } = expandData.agent;
@@ -98,37 +132,29 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
       }
 
       if (createErr || !createData?.character?.id) {
-        throw new Error(createErr || t("errorCreation"));
+        throw new Error(createErr || "CREATE_FAILED");
       }
 
       onCreated();
       onOpenChange(false);
       router.push(`/chat/${createData.character.id}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("errorCreation");
+      const message = err instanceof Error ? err.message : "CREATE_FAILED";
+      const mappedError = message.startsWith("EXPANSION_ERROR:")
+        ? mapCreateErrorMessage(message.replace("EXPANSION_ERROR:", ""), "errorExpansion")
+        : mapCreateErrorMessage(message, "errorCreation");
 
-      if (message === "SESSION_EXPIRED") {
-        setError("Session expired, please reload");
-      } else if (
-        message.toLowerCase().includes("model") ||
-        message.toLowerCase().includes("provider") ||
-        message.toLowerCase().includes("api key")
-      ) {
-        setError("Please configure an AI provider in Settings first");
-      } else {
-        setError(message);
-      }
-
-      toast.error(t("errorCreation"));
+      setError(mappedError);
+      toast.error(mappedError);
     } finally {
-      setIsLoading(false);
+      setIsQuickCreating(false);
     }
   };
 
   const handleUseTemplate = async (templateId: string) => {
-    if (isLoading) return;
+    if (isBusy) return;
 
-    setIsLoading(true);
+    setCreatingTemplateId(templateId);
     setError(null);
 
     try {
@@ -143,26 +169,23 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
       }
 
       if (createErr || !data?.characterId) {
-        throw new Error(createErr || t("errorCreation"));
+        throw new Error(createErr || "CREATE_FAILED");
       }
 
       onCreated();
       onOpenChange(false);
       router.push(`/chat/${data.characterId}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("errorCreation");
-      if (message === "SESSION_EXPIRED") {
-        setError("Session expired, please reload");
-      } else {
-        setError(message);
-      }
-      toast.error(t("errorCreation"));
+      const message = err instanceof Error ? err.message : "CREATE_FAILED";
+      const mappedError = mapCreateErrorMessage(message, "errorCreation");
+      setError(mappedError);
+      toast.error(mappedError);
     } finally {
-      setIsLoading(false);
+      setCreatingTemplateId(null);
     }
   };
 
-  const isQuickCreateDisabled = isLoading || inputValue.trim().length < 10;
+  const isQuickCreateDisabled = isBusy || inputLength < 10;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,23 +223,23 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
               }}
               placeholder={t("descriptionPlaceholder")}
               className="h-24 w-full resize-none rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark focus:outline-none focus:ring-1 focus:ring-terminal-green"
-              disabled={isLoading}
+              disabled={isBusy}
             />
             <p className="text-xs font-mono text-terminal-muted">
-              {inputValue.trim().length < 10 ? t("minCharsHint") : `${inputValue.trim().length}/10`}
+              {inputLength < 10 ? t("minCharsHint") : t("descriptionQualityHint")}
             </p>
             <Button
               onClick={() => void handleQuickCreate()}
               disabled={isQuickCreateDisabled}
               className="w-full bg-terminal-green font-mono text-white hover:bg-terminal-green/90"
             >
-              {isLoading ? (
+              {isQuickCreating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("creating")}
                 </>
               ) : (
-                `${t("createAndChat")} →`
+                `${t("createAndChat")} ->`
               )}
             </Button>
           </TabsContent>
@@ -225,27 +248,44 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
             <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
               {isTemplatesLoading ? (
                 <p className="col-span-3 py-4 text-center font-mono text-xs text-terminal-muted">{t("loadingTemplates")}</p>
+              ) : templatesLoadFailed ? (
+                <div className="col-span-3 flex flex-col items-center gap-2 py-4 text-center">
+                  <p className="font-mono text-xs text-red-600">{t("templateLoadError")}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void loadTemplates()}
+                    disabled={isBusy || isTemplatesLoading}
+                    className="h-7 px-2 text-[10px] font-mono"
+                  >
+                    {t("retryTemplates")}
+                  </Button>
+                </div>
               ) : templates.length === 0 ? (
                 <p className="col-span-3 py-4 text-center font-mono text-xs text-terminal-muted">{t("noTemplates")}</p>
               ) : (
-                templates.map((tmpl) => (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => void handleUseTemplate(tmpl.id)}
-                    disabled={isLoading}
-                    className="cursor-pointer rounded-lg border border-terminal-border bg-white p-3 text-left transition-colors hover:border-terminal-green disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <p className="line-clamp-1 font-mono text-xs font-medium text-terminal-dark">{tmpl.name}</p>
-                    {tmpl.tagline ? (
-                      <p className="mt-0.5 line-clamp-2 font-mono text-[10px] text-terminal-muted">{tmpl.tagline}</p>
-                    ) : null}
-                    {isLoading ? (
-                      <Loader2 className="mt-2 h-3 w-3 animate-spin text-terminal-green" />
-                    ) : (
-                      <span className="mt-1 block font-mono text-[10px] text-terminal-green">{t("useTemplate")}</span>
-                    )}
-                  </button>
-                ))
+                templates.map((tmpl) => {
+                  const isTemplateLoading = creatingTemplateId === tmpl.id;
+
+                  return (
+                    <button
+                      key={tmpl.id}
+                      onClick={() => void handleUseTemplate(tmpl.id)}
+                      disabled={isBusy}
+                      className="cursor-pointer rounded-lg border border-terminal-border bg-white p-3 text-left transition-colors hover:border-terminal-green disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <p className="line-clamp-1 font-mono text-xs font-medium text-terminal-dark">{tmpl.name}</p>
+                      {tmpl.tagline ? (
+                        <p className="mt-0.5 line-clamp-2 font-mono text-[10px] text-terminal-muted">{tmpl.tagline}</p>
+                      ) : null}
+                      {isTemplateLoading ? (
+                        <Loader2 className="mt-2 h-3 w-3 animate-spin text-terminal-green" />
+                      ) : (
+                        <span className="mt-1 block font-mono text-[10px] text-terminal-green">{t("useTemplate")}</span>
+                      )}
+                    </button>
+                  );
+                })
               )}
             </div>
           </TabsContent>
