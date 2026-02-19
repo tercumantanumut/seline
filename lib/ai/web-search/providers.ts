@@ -4,12 +4,14 @@
  * Abstraction layer for multiple web search backends.
  * Currently supports Tavily (API-based, paid) and DuckDuckGo (scraping-based, free).
  *
- * DuckDuckGo uses `@phukon/duckduckgo-search` with the `lite` backend for reliability.
+ * DuckDuckGo uses a vendored copy of `@phukon/duckduckgo-search@1.1.0`
+ * with the `lite` backend for reliability.
  * It returns { title, href, body } per result — no relevance scores or AI answers.
  */
 
 import type { WebSearchSource } from "./index";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { createDDGS } from "./ddgs";
 
 // ============================================================================
 // Provider Interface
@@ -136,9 +138,7 @@ export class DuckDuckGoProvider implements WebSearchProvider {
     const { maxResults = 10 } = options;
 
     try {
-      // Dynamic import to avoid loading DDGS dependencies unless needed
-      const { DDGS } = await import("@phukon/duckduckgo-search");
-      const ddgs = new DDGS();
+      const ddgs = await createDDGS();
 
       const raw = await ddgs.text({
         keywords: query,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createDDGS } from "@/lib/ai/web-search/ddgs";
 
 /**
  * POST /api/web-search/validate
@@ -14,8 +15,7 @@ export async function POST(req: NextRequest) {
         // DuckDuckGo validation — just test a search
         if (provider === "duckduckgo") {
             try {
-                const { DDGS } = await import("@phukon/duckduckgo-search");
-                const ddgs = new DDGS();
+                const ddgs = await createDDGS();
                 const results = await ddgs.text({ keywords: "test", maxResults: 1, backend: "lite" });
                 if (results && results.length > 0) {
                     return NextResponse.json({ valid: true });

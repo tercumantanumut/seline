@@ -1,0 +1,46 @@
+{
+  "name": "@phukon/duckduckgo-search",
+  "version": "1.1.0",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "prebuild": "pnpm run clean",
+    "build": "tsup",
+    "preversion": "pnpm run build",
+    "postversion": "git push --tags",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phukon/duckduckgo_search.git"
+  },
+  "keywords": [
+    "duckduckgo",
+    "search",
+    "browser"
+  ],
+  "author": "Riki Phukon",
+  "license": "mit",
+  "description": "",
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.5.1",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "jsdom": "^26.0.0",
+    "winston": "^3.17.0"
+  }
+}
