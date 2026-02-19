@@ -17,6 +17,7 @@ import {
 import { useReducedMotion } from "./hooks/use-reduced-motion";
 import { resilientFetch, resilientPost, resilientPut, resilientPatch } from "@/lib/utils/resilient-fetch";
 import { useAgentExpansion } from "@/lib/characters/hooks";
+import { DEFAULT_ENABLED_TOOLS } from "@/lib/characters/templates/resolve-tools";
 import { WizardProgress, WIZARD_STEPS, type WizardStep } from "@/components/ui/wizard-progress";
 import { WindowsTitleBar } from "@/components/layout/windows-titlebar";
 import { useTranslations } from "next-intl";
@@ -51,7 +52,7 @@ interface WizardState {
 
 const initialState: WizardState = {
   identity: { name: "", tagline: "", purpose: "" },
-  enabledTools: ["docsSearch"],
+  enabledTools: DEFAULT_ENABLED_TOOLS,
   documents: [],
   createdCharacterId: null,
   enabledMcpServers: [],

@@ -3,6 +3,9 @@ import {
   resolveSelineTemplateTools,
   getExcludedSelineTools,
   isToolAvailableForSeline,
+  DEFAULT_ENABLED_TOOLS,
+  ALWAYS_ENABLED_TOOLS,
+  UTILITY_TOOLS,
   type ToolResolutionResult,
 } from "@/lib/characters/templates/resolve-tools";
 import type { AppSettings } from "@/lib/settings/settings-manager";
@@ -41,6 +44,17 @@ describe("resolveSelineTemplateTools", () => {
         expect(result.enabledTools).toContain(tool);
       }
     });
+
+    it("should export always-enabled core tools constant", () => {
+      expect(ALWAYS_ENABLED_TOOLS).toEqual([
+        "docsSearch",
+        "localGrep",
+        "readFile",
+        "editFile",
+        "writeFile",
+        "executeCommand",
+      ]);
+    });
   });
 
   // =========================================================================
@@ -60,10 +74,15 @@ describe("resolveSelineTemplateTools", () => {
         "showProductImages",
         "updatePlan",
         "updateSkill",
+        "delegateToSubagent",
       ];
       for (const tool of utilityTools) {
         expect(result.enabledTools).toContain(tool);
       }
+    });
+
+    it("should export utility tools constant including delegateToSubagent", () => {
+      expect(UTILITY_TOOLS).toContain("delegateToSubagent");
     });
   });
 
@@ -137,6 +156,10 @@ describe("resolveSelineTemplateTools", () => {
       expect(result.warnings.find((w) => w.toolId === "webSearch")).toBeUndefined();
     });
 
+    it("should include webSearch in default enabled tools", () => {
+      expect(DEFAULT_ENABLED_TOOLS).toContain("webSearch");
+    });
+
     it("should include webSearch even when tavilyApiKey is missing (DuckDuckGo fallback)", () => {
       const settings = buildSettings({ tavilyApiKey: undefined });
       const result = resolveSelineTemplateTools(settings);
@@ -172,6 +195,10 @@ describe("resolveSelineTemplateTools", () => {
       const result = resolveSelineTemplateTools(settings);
       expect(result.enabledTools).toContain("webBrowse");
       expect(result.warnings.find((w) => w.toolId === "webBrowse")).toBeUndefined();
+    });
+
+    it("should not include webBrowse in default enabled tools", () => {
+      expect(DEFAULT_ENABLED_TOOLS).not.toContain("webBrowse");
     });
 
     it("should include webBrowse when webScraperProvider is 'local'", () => {
@@ -272,8 +299,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 8 utility + 1 always-on webSearch = 15 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(15);
+      // 6 core + 9 utility + 1 always-on webSearch = 16 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(16);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
       expect(result.enabledTools).not.toContain("webBrowse");
@@ -284,7 +311,7 @@ describe("resolveSelineTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 17 tools when all prerequisites are met", () => {
+    it("should return exactly 18 tools when all prerequisites are met", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
@@ -292,11 +319,11 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 8 utility + 3 conditional = 17
-      expect(result.enabledTools).toHaveLength(17);
+      // 6 core + 9 utility + 3 conditional = 18
+      expect(result.enabledTools).toHaveLength(18);
     });
 
-    it("should return exactly 15 tools when no optional tools are available (webSearch always on)", () => {
+    it("should return exactly 16 tools when no optional tools are available (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -305,8 +332,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 8 utility + 1 always-on webSearch = 15
-      expect(result.enabledTools).toHaveLength(15);
+      // 6 core + 9 utility + 1 always-on webSearch = 16
+      expect(result.enabledTools).toHaveLength(16);
     });
   });
 
@@ -340,6 +367,21 @@ describe("getExcludedSelineTools", () => {
   it("should return exactly 2 excluded tools", () => {
     const excluded = getExcludedSelineTools();
     expect(excluded).toHaveLength(2);
+  });
+});
+
+describe("DEFAULT_ENABLED_TOOLS", () => {
+  it("should include core and utility tools plus webSearch", () => {
+    expect(DEFAULT_ENABLED_TOOLS).toEqual([
+      ...ALWAYS_ENABLED_TOOLS,
+      ...UTILITY_TOOLS,
+      "webSearch",
+    ]);
+  });
+
+  it("should include delegateToSubagent and exclude webBrowse", () => {
+    expect(DEFAULT_ENABLED_TOOLS).toContain("delegateToSubagent");
+    expect(DEFAULT_ENABLED_TOOLS).not.toContain("webBrowse");
   });
 });
 

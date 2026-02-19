@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { AlertTriangleIcon, LockIcon } from "lucide-react";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
+import { DEFAULT_ENABLED_TOOLS } from "@/lib/characters/templates/resolve-tools";
 
 /** Tool capability definition for the wizard */
 export interface ToolCapability {
@@ -57,7 +58,7 @@ const BASE_TOOLS: ToolCapability[] = [
     category: "knowledge",
     dependencies: ["syncedFolders", "localGrepEnabled"],
   },
-  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search" },
   { id: "webBrowse", nameKey: "webBrowse", descKey: "webBrowseDesc", category: "search", dependencies: ["webScraper"] },
   { id: "webQuery", nameKey: "webQuery", descKey: "webQueryDesc", category: "search", dependencies: ["webScraper"] },
   { id: "firecrawlCrawl", nameKey: "firecrawlCrawl", descKey: "firecrawlCrawlDesc", category: "search", dependencies: ["webScraper"] },
@@ -72,6 +73,7 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
   { id: "sendMessageToChannel", nameKey: "sendMessageToChannel", descKey: "sendMessageToChannelDesc", category: "utility" },
+  { id: "delegateToSubagent", nameKey: "delegateToSubagent", descKey: "delegateToSubagentDesc", category: "utility" },
   { id: "workspace", nameKey: "workspace", descKey: "workspaceDesc", category: "utility", dependencies: ["devWorkspaceEnabled"] },
   // OpenRouter Image Tools
   {
@@ -276,7 +278,7 @@ export function CapabilitiesPage({
   agentName,
   agentId,
   templateId,
-  initialEnabledTools = ["docsSearch"],
+  initialEnabledTools = DEFAULT_ENABLED_TOOLS,
   onSubmit,
   onBack,
 }: CapabilitiesPageProps) {

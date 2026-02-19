@@ -115,7 +115,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "writeFile", category: "knowledge", dependencies: ["syncedFolders"] },
   { id: "patchFile", category: "knowledge", dependencies: ["syncedFolders"] },
   { id: "localGrep", category: "knowledge", dependencies: ["syncedFolders", "localGrepEnabled"] },
-  { id: "webSearch", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webSearch", category: "search" },
   { id: "webBrowse", category: "search", dependencies: ["webScraper"] },
   { id: "webQuery", category: "search", dependencies: ["webScraper"] },
   { id: "firecrawlCrawl", category: "search", dependencies: ["webScraper"] },
