@@ -33,7 +33,7 @@ export interface ToolWarning {
 // ============================================================================
 
 /** Core tools that are ALWAYS enabled — no prerequisites */
-const ALWAYS_ENABLED_TOOLS = [
+export const ALWAYS_ENABLED_TOOLS = [
   "docsSearch",
   "localGrep",
   "readFile",
@@ -43,7 +43,7 @@ const ALWAYS_ENABLED_TOOLS = [
 ] as const;
 
 /** Utility tools that are ALWAYS enabled — no external dependencies */
-const UTILITY_TOOLS = [
+export const UTILITY_TOOLS = [
   "calculator",
   "memorize",
   "runSkill",
@@ -52,7 +52,21 @@ const UTILITY_TOOLS = [
   "showProductImages",
   "updatePlan",
   "updateSkill",
+  "delegateToSubagent",
 ] as const;
+
+/**
+ * Static default tools for new agents.
+ *
+ * Includes always-on core + utility tools plus webSearch (DuckDuckGo fallback).
+ * Excludes webBrowse because it depends on scraper configuration and can appear
+ * checked-but-unavailable in capabilities UI when prerequisites are missing.
+ */
+export const DEFAULT_ENABLED_TOOLS: string[] = [
+  ...ALWAYS_ENABLED_TOOLS,
+  ...UTILITY_TOOLS,
+  "webSearch",
+];
 
 /** Tools that are EXCLUDED from the Seline template by design */
 const EXCLUDED_TOOLS = [
@@ -99,20 +113,14 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
     console.log("[SelineTemplate] Vector Search disabled: vectorDBEnabled is not true");
   }
 
-  // 4. Conditional: Web Search (requires Tavily API key)
+  // 4. Web Search (always enabled — DuckDuckGo fallback needs no API key)
+  enabledTools.push("webSearch");
   const hasTavilyKey = typeof settings.tavilyApiKey === "string" && settings.tavilyApiKey.trim().length > 0;
+  const webSearchProvider = settings.webSearchProvider || "auto";
   if (hasTavilyKey) {
-    enabledTools.push("webSearch");
-    console.log("[SelineTemplate] Web Search enabled: tavilyApiKey is set");
+    console.log("[SelineTemplate] Web Search enabled: tavilyApiKey is set (provider: " + webSearchProvider + ")");
   } else {
-    warnings.push({
-      toolId: "webSearch",
-      toolName: "Web Search",
-      reason: "Tavily API key is not configured",
-      settingsKeys: ["tavilyApiKey"],
-      action: "Add your Tavily API key in Settings → API Keys to enable web search",
-    });
-    console.log("[SelineTemplate] Web Search disabled: tavilyApiKey not set");
+    console.log("[SelineTemplate] Web Search enabled: using DuckDuckGo fallback (provider: " + webSearchProvider + ")");
   }
 
   // 5. Conditional: Web Browse (requires Firecrawl API key OR local web scraper)

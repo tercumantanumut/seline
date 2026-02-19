@@ -351,11 +351,36 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         }
     };
 
-    const handleContinue = () => {
-        if (isAuthenticated) {
-            onAuthenticated();
-        } else {
+    const persistProviderSelection = async (): Promise<boolean> => {
+        const { error: saveError } = await resilientPut("/api/settings", {
+            llmProvider: provider,
+        });
+
+        if (saveError) {
+            setError("Failed to save provider selection");
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleContinue = async () => {
+        if (!isAuthenticated) {
             onSkip();
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const providerSaved = await persistProviderSelection();
+            if (!providerSaved) {
+                return;
+            }
+            onAuthenticated();
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -547,9 +572,10 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                         )}
                         <Button
                             onClick={handleContinue}
+                            disabled={loading}
                             className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
                         >
-                            Continue
+                            {loading ? "Saving..." : "Continue"}
                             <ArrowRight className="w-4 h-4" />
                         </Button>
                     </div>

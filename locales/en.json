@@ -214,6 +214,29 @@
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Vector Search Folders",
+    "createModal": {
+      "title": "Create an Agent",
+      "quickCreateTab": "Quick Create",
+      "fromTemplateTab": "From Template",
+      "descriptionPlaceholder": "Describe your agent in one sentence...",
+      "createAndChat": "Create & Chat",
+      "creating": "Creating...",
+      "advancedSetup": "Advanced setup →",
+      "errorExpansion": "Failed to generate agent profile. Check your AI provider settings.",
+      "errorCreation": "Failed to create agent. Please try again.",
+      "sessionExpired": "Session expired, please reload.",
+      "providerSetupRequired": "Please configure an AI provider in Settings first.",
+      "rateLimited": "Too many requests right now. Please wait and try again.",
+      "requestTimeout": "Request timed out. Please try again.",
+      "networkError": "Network error. Please check your connection and try again.",
+      "useTemplate": "Use →",
+      "loadingTemplates": "Loading templates...",
+      "templateLoadError": "Could not load templates. Please try again.",
+      "retryTemplates": "Retry",
+      "noTemplates": "No templates found",
+      "minCharsHint": "Minimum 10 characters",
+      "descriptionQualityHint": "Tip: include goals, audience, and tone for better results."
+    },
     "workflows": {
       "sectionTitle": "Workflows",
       "create": "Create Workflow",
@@ -329,7 +352,8 @@
         "comfyuiEnabled": "Requires ComfyUI enabled",
         "flux2Klein4bEnabled": "Requires FLUX.2 Klein 4B enabled",
         "flux2Klein9bEnabled": "Requires FLUX.2 Klein 9B enabled",
-        "localGrepEnabled": "Requires Local Grep enabled"
+        "localGrepEnabled": "Requires Local Grep enabled",
+        "devWorkspaceEnabled": "Requires Developer Workspace enabled"
       }
     },
     "tools": {
@@ -448,6 +472,10 @@
       "updatePlan": {
         "name": "Update Plan",
         "description": "Create or update a visible task plan with step statuses"
+      },
+      "workspace": {
+        "name": "Workspace",
+        "description": "Create and manage git worktree workspaces for isolated code changes"
       },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
@@ -708,6 +736,7 @@
       "scheduleTask": "Schedule Task",
       "calculator": "Calculator",
       "updatePlan": "Update Plan",
+      "workspace": "Workspace",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -1003,6 +1032,8 @@
         "sendMessageToChannelDesc": "Send a direct message to the user via connected external channels",
         "delegateToSubagent": "Delegate to Sub-Agent",
         "delegateToSubagentDesc": "Send tasks to workflow sub-agents and receive their responses",
+        "workspace": "Workspace",
+        "workspaceDesc": "Create and manage git worktree workspaces for isolated code changes",
         "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
         "generateImageFlux2FlexDesc": "Generate images using Flux.2 Flex via OpenRouter",
         "editImageFlux2Flex": "Edit (Flux.2 Flex)",
@@ -1059,7 +1090,8 @@
         "comfyuiEnabled": "Requires ComfyUI enabled",
         "flux2Klein4bEnabled": "Requires FLUX.2 Klein 4B enabled",
         "flux2Klein9bEnabled": "Requires FLUX.2 Klein 9B enabled",
-        "localGrepEnabled": "Requires Local Grep enabled"
+        "localGrepEnabled": "Requires Local Grep enabled",
+        "devWorkspaceEnabled": "Requires Developer Workspace enabled"
       },
       "back": "← Back",
       "continue": "Continue →"
@@ -1268,10 +1300,19 @@
           "placeholder": "sk-...",
           "helper": "Get your API key from platform.moonshot.cn"
         },
+        "webSearchProvider": {
+          "label": "Web Search Provider",
+          "helper": "Auto uses Tavily when API key is set, otherwise falls back to DuckDuckGo (free)",
+          "options": {
+            "auto": "Auto (Tavily if key set, else DuckDuckGo)",
+            "tavily": "Tavily (requires API key)",
+            "duckduckgo": "DuckDuckGo (free, no key needed)"
+          }
+        },
         "tavily": {
           "label": "Tavily API Key",
           "placeholder": "tvly-...",
-          "helper": "Required for Deep Research web search"
+          "helper": "Optional when using DuckDuckGo. Required for Tavily provider and Deep Research advanced mode"
         },
         "webScraperProvider": {
           "label": "Web Scraping Provider",

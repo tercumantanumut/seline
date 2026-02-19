@@ -21,6 +21,7 @@ export interface AppSettings {
     tavilyApiKey?: string;    // For Deep Research web search
     firecrawlApiKey?: string; // For web scraping with Firecrawl
     webScraperProvider?: "firecrawl" | "local"; // Web scraping provider selection
+    webSearchProvider?: "tavily" | "duckduckgo" | "auto"; // Web search provider (default: auto)
   huggingFaceToken?: string; // For downloading gated models from Hugging Face
 
     // MCP (Model Context Protocol) settings
@@ -222,6 +223,12 @@ export interface AppSettings {
     rtkVerbosity?: 0 | 1 | 2 | 3;   // RTK verbosity level: 0=quiet, 1=-v, 2=-vv, 3=-vvv (default: 0)
     rtkUltraCompact?: boolean;       // Enable RTK ultra-compact mode with -u flag (default: false)
     rtkDbPath?: string;              // Path to RTK SQLite database (set by Electron)
+
+    // Developer Workspace (git worktree integration)
+    devWorkspaceEnabled?: boolean;          // Master toggle — shows workspace indicators, diff views, dashboard
+    devWorkspaceAutoCleanup?: boolean;      // Auto-remove worktrees after PR merge (default: true)
+    devWorkspaceAutoCleanupDays?: number;   // Days before auto-cleanup (default: 7)
+    workspaceOnboardingSeen?: boolean;      // Whether the workspace onboarding tour has been shown
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -300,6 +307,11 @@ const DEFAULT_SETTINGS: AppSettings = {
     rtkInstalled: false,
     rtkVerbosity: 0,
     rtkUltraCompact: false,
+    // Developer Workspace defaults
+    devWorkspaceEnabled: false,
+    devWorkspaceAutoCleanup: true,
+    devWorkspaceAutoCleanupDays: 7,
+    workspaceOnboardingSeen: false,
 };
 
 function getSettingsPath(): string {
@@ -453,6 +465,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.webScraperProvider) {
         process.env.WEB_SCRAPER_PROVIDER = settings.webScraperProvider;
+    }
+    if (settings.webSearchProvider) {
+        process.env.WEB_SEARCH_PROVIDER = settings.webSearchProvider;
     }
     if (settings.stylyAiApiKey) {
         process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;

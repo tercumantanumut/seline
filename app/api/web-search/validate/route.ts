@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createDDGS } from "@/lib/ai/web-search/ddgs";
 
 /**
  * POST /api/web-search/validate
- * Validates a Tavily API key by making a test search request
+ * Validates a web search provider:
+ *   - Tavily: validates API key with a test search
+ *   - DuckDuckGo: runs a test search (no key needed)
  */
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { apiKey } = body;
+        const { apiKey, provider } = body;
 
+        // DuckDuckGo validation — just test a search
+        if (provider === "duckduckgo") {
+            try {
+                const ddgs = await createDDGS();
+                const results = await ddgs.text({ keywords: "test", maxResults: 1, backend: "lite" });
+                if (results && results.length > 0) {
+                    return NextResponse.json({ valid: true });
+                }
+                return NextResponse.json({ valid: false, error: "DuckDuckGo returned no results" });
+            } catch (error) {
+                console.error("[DDG Validation] Error:", error);
+                return NextResponse.json({
+                    valid: false,
+                    error: "DuckDuckGo search test failed",
+                });
+            }
+        }
+
+        // Tavily validation — requires API key
         if (!apiKey || typeof apiKey !== "string") {
             return NextResponse.json(
                 { valid: false, error: "API key is required" },
@@ -16,7 +38,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Test the API key with a simple search
         const response = await fetch("https://api.tavily.com/search", {
             method: "POST",
             headers: {
@@ -39,9 +60,9 @@ export async function POST(req: NextRequest) {
             });
         }
     } catch (error) {
-        console.error("[Tavily Validation] Error:", error);
+        console.error("[Web Search Validation] Error:", error);
         return NextResponse.json(
-            { valid: false, error: "Failed to validate API key" },
+            { valid: false, error: "Failed to validate" },
             { status: 500 }
         );
     }

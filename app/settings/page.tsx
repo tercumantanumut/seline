@@ -34,6 +34,7 @@ interface AppSettings {
   tavilyApiKey?: string;
   firecrawlApiKey?: string;
   webScraperProvider?: "firecrawl" | "local";
+  webSearchProvider?: "tavily" | "duckduckgo" | "auto";
   stylyAiApiKey?: string;
   huggingFaceToken?: string;
   chatModel?: string;
@@ -117,6 +118,7 @@ export default function SettingsPage() {
     tavilyApiKey: "",
     firecrawlApiKey: "",
     webScraperProvider: "firecrawl" as "firecrawl" | "local",
+    webSearchProvider: "auto" as "tavily" | "duckduckgo" | "auto",
     stylyAiApiKey: "",
     huggingFaceToken: "",
     chatModel: "",
@@ -139,6 +141,10 @@ export default function SettingsPage() {
     rtkEnabled: false,
     rtkVerbosity: 0 as 0 | 1 | 2 | 3,
     rtkUltraCompact: false,
+    // Developer Workspace settings
+    devWorkspaceEnabled: false,
+    devWorkspaceAutoCleanup: true,
+    devWorkspaceAutoCleanupDays: 7,
     embeddingReindexRequired: false,
     vectorDBEnabled: false,
     vectorSearchHybridEnabled: false,
@@ -234,6 +240,7 @@ export default function SettingsPage() {
         tavilyApiKey: data.tavilyApiKey || "",
         firecrawlApiKey: data.firecrawlApiKey || "",
         webScraperProvider: data.webScraperProvider || "firecrawl",
+        webSearchProvider: data.webSearchProvider || "auto",
         stylyAiApiKey: data.stylyAiApiKey || "",
         huggingFaceToken: data.huggingFaceToken || "",
         chatModel: data.chatModel || "",
@@ -256,6 +263,9 @@ export default function SettingsPage() {
         rtkEnabled: data.rtkEnabled ?? false,
         rtkVerbosity: data.rtkVerbosity ?? 0,
         rtkUltraCompact: data.rtkUltraCompact ?? false,
+        devWorkspaceEnabled: data.devWorkspaceEnabled ?? false,
+        devWorkspaceAutoCleanup: data.devWorkspaceAutoCleanup ?? true,
+        devWorkspaceAutoCleanupDays: data.devWorkspaceAutoCleanupDays ?? 7,
         embeddingReindexRequired: data.embeddingReindexRequired ?? false,
         vectorDBEnabled: data.vectorDBEnabled || false,
         vectorSearchHybridEnabled: data.vectorSearchHybridEnabled ?? false,
@@ -857,6 +867,7 @@ interface FormState {
   tavilyApiKey: string;
   firecrawlApiKey: string;
   webScraperProvider: "firecrawl" | "local";
+  webSearchProvider: "tavily" | "duckduckgo" | "auto";
   stylyAiApiKey: string;
   huggingFaceToken: string;
   chatModel: string;
@@ -879,6 +890,9 @@ interface FormState {
   rtkEnabled: boolean;
   rtkVerbosity: 0 | 1 | 2 | 3;
   rtkUltraCompact: boolean;
+  devWorkspaceEnabled: boolean;
+  devWorkspaceAutoCleanup: boolean;
+  devWorkspaceAutoCleanupDays: number;
   embeddingReindexRequired: boolean;
   vectorDBEnabled: boolean;
   vectorSearchHybridEnabled: boolean;
@@ -1730,6 +1744,56 @@ function SettingsPanel({
               <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-terminal-green underline hover:text-terminal-green/80">
                 platform.openai.com
               </a>
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-mono text-sm text-terminal-muted">
+              {t("api.fields.webSearchProvider.label")}
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="auto"
+                  checked={formState.webSearchProvider === "auto"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.auto")}
+                </span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="tavily"
+                  checked={formState.webSearchProvider === "tavily"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.tavily")}
+                </span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="webSearchProvider"
+                  value="duckduckgo"
+                  checked={formState.webSearchProvider === "duckduckgo"}
+                  onChange={(e) => updateField("webSearchProvider", e.target.value as "tavily" | "duckduckgo" | "auto")}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-terminal-dark">
+                  {t("api.fields.webSearchProvider.options.duckduckgo")}
+                </span>
+              </label>
+            </div>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              {t("api.fields.webSearchProvider.helper")}
             </p>
           </div>
 
@@ -3032,6 +3096,78 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             <span className="font-mono text-sm text-terminal-dark">Ultra Compact (-u)</span>
           </label>
         </div>
+      </div>
+
+      {/* Developer Workspace (Git Worktree Integration) */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">
+            Developer Workspace
+          </h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            Enable workspace indicators, diff views, and parallel workspace management for git-based coding workflows.
+            Your agent can work in isolated git worktrees and submit changes as pull requests.
+          </p>
+        </div>
+
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <span className="font-mono text-sm text-terminal-dark">Enable Developer Workspace</span>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              Shows branch indicators in chat, diff review panels, and a workspace dashboard on the home page.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={formState.devWorkspaceEnabled}
+            onChange={(e) => updateField("devWorkspaceEnabled", e.target.checked)}
+            className="size-5 accent-terminal-green"
+          />
+        </label>
+
+        {formState.devWorkspaceEnabled && (
+          <div className="space-y-4 border-t border-terminal-border pt-4">
+            <label className="flex items-center justify-between gap-3">
+              <div>
+                <span className="font-mono text-sm text-terminal-dark">Auto-cleanup old worktrees</span>
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  Automatically remove worktrees after their PR is merged or after a set number of days.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={formState.devWorkspaceAutoCleanup}
+                onChange={(e) => updateField("devWorkspaceAutoCleanup", e.target.checked)}
+                className="size-5 accent-terminal-green"
+              />
+            </label>
+
+            {formState.devWorkspaceAutoCleanup && (
+              <div>
+                <label className="mb-1 block font-mono text-xs text-terminal-muted">
+                  Cleanup after (days)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={formState.devWorkspaceAutoCleanupDays}
+                  onChange={(e) => updateField("devWorkspaceAutoCleanupDays", Math.max(1, Math.min(30, Number(e.target.value))))}
+                  className="w-24 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                />
+              </div>
+            )}
+
+            <div className="rounded border border-dashed border-terminal-border bg-terminal-cream/50 p-3">
+              <p className="font-mono text-xs text-terminal-muted">
+                <strong className="text-terminal-dark">Recommended MCP servers:</strong>{" "}
+                Install <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code> for
+                worktree management or <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code> for
+                PR workflows. Configure them in the MCP Servers section.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

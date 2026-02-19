@@ -1,5 +1,6 @@
 import type { AgentTemplate } from "./types";
 import { getDefaultSelineMemories } from "./platform-memories";
+import { DEFAULT_ENABLED_TOOLS } from "./resolve-tools";
 
 /**
  * Static fallback tool list for the Seline default template.
@@ -16,26 +17,10 @@ import { getDefaultSelineMemories } from "./platform-memories";
  * - patchFile: Redundant with editFile for most use cases
  */
 const SELINE_STATIC_TOOLS: string[] = [
-  // Core tools (always enabled)
-  "docsSearch",
-  "localGrep",
-  "readFile",
-  "editFile",
-  "writeFile",
-  "executeCommand",
+  ...DEFAULT_ENABLED_TOOLS,
   // Conditional tools (included in static list for preview/display)
   "vectorSearch",
-  "webSearch",
   "webBrowse",
-  // Utility tools (always enabled)
-  "calculator",
-  "memorize",
-  "runSkill",
-  "scheduleTask",
-  "sendMessageToChannel",
-  "showProductImages",
-  "updatePlan",
-  "updateSkill",
 ];
 
 export const SELINE_DEFAULT_TEMPLATE: AgentTemplate = {

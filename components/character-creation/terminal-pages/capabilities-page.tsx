@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { AlertTriangleIcon, LockIcon } from "lucide-react";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
+import { DEFAULT_ENABLED_TOOLS } from "@/lib/characters/templates/resolve-tools";
 
 /** Tool capability definition for the wizard */
 export interface ToolCapability {
@@ -25,13 +26,13 @@ export interface ToolCapability {
     | "syncedFolders"
     | "embeddings"
     | "vectorDbEnabled"
-    | "tavilyKey"
     | "webScraper"
     | "openrouterKey"
     | "comfyuiEnabled"
     | "flux2Klein4bEnabled"
     | "flux2Klein9bEnabled"
     | "localGrepEnabled"
+    | "devWorkspaceEnabled"
   )[];
 }
 
@@ -56,7 +57,7 @@ const BASE_TOOLS: ToolCapability[] = [
     category: "knowledge",
     dependencies: ["syncedFolders", "localGrepEnabled"],
   },
-  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search" },
   { id: "webBrowse", nameKey: "webBrowse", descKey: "webBrowseDesc", category: "search", dependencies: ["webScraper"] },
   { id: "webQuery", nameKey: "webQuery", descKey: "webQueryDesc", category: "search", dependencies: ["webScraper"] },
   { id: "firecrawlCrawl", nameKey: "firecrawlCrawl", descKey: "firecrawlCrawlDesc", category: "search", dependencies: ["webScraper"] },
@@ -71,6 +72,8 @@ const BASE_TOOLS: ToolCapability[] = [
   { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
   { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
   { id: "sendMessageToChannel", nameKey: "sendMessageToChannel", descKey: "sendMessageToChannelDesc", category: "utility" },
+  { id: "delegateToSubagent", nameKey: "delegateToSubagent", descKey: "delegateToSubagentDesc", category: "utility" },
+  { id: "workspace", nameKey: "workspace", descKey: "workspaceDesc", category: "utility", dependencies: ["devWorkspaceEnabled"] },
   // OpenRouter Image Tools
   {
     id: "generateImageFlux2Flex",
@@ -274,7 +277,7 @@ export function CapabilitiesPage({
   agentName,
   agentId,
   templateId,
-  initialEnabledTools = ["docsSearch"],
+  initialEnabledTools = DEFAULT_ENABLED_TOOLS,
   onSubmit,
   onBack,
 }: CapabilitiesPageProps) {
@@ -368,24 +371,24 @@ export function CapabilitiesPage({
     syncedFolders: boolean;
     embeddings: boolean;
     vectorDbEnabled: boolean;
-    tavilyKey: boolean;
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
     flux2Klein4bEnabled: boolean;
     flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
+    devWorkspaceEnabled: boolean;
   }>({
     syncedFolders: false,
     embeddings: false,
     vectorDbEnabled: false,
-    tavilyKey: false,
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
     flux2Klein4bEnabled: false,
     flux2Klein9bEnabled: false,
     localGrepEnabled: true,
+    devWorkspaceEnabled: false,
   });
 
   // Check dependencies on mount
@@ -419,13 +422,13 @@ export function CapabilitiesPage({
           syncedFolders: foldersCount !== null ? foldersCount > 0 : prev.syncedFolders,
           embeddings: embeddingsReady,
           vectorDbEnabled: settingsData.vectorDBEnabled === true,
-          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
           webScraper: webScraperReady,
           openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
           comfyuiEnabled: settingsData.comfyuiEnabled === true,
           flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
           flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
           localGrepEnabled: settingsData.localGrepEnabled !== false,
+          devWorkspaceEnabled: settingsData.devWorkspaceEnabled === true,
         }));
       } catch {
         // Settings fetch failed — only update syncedFolders if we got a valid count

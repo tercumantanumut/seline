@@ -1,7 +1,8 @@
 /**
  * Web Search Tool
  *
- * Lightweight web search tool using Tavily API.
+ * Lightweight web search tool with provider abstraction.
+ * Supports Tavily (paid, rich metadata) and DuckDuckGo (free, basic results).
  * Designed for quick lookups, not comprehensive research.
  *
  * Key differences from Deep Research:
@@ -17,32 +18,7 @@
 import { tool, jsonSchema } from "ai";
 import { cacheWebSearchResults, formatBriefSearchResults, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
-import { loadSettings } from "@/lib/settings/settings-manager";
-
-// ============================================================================
-// Tavily API Integration
-// ============================================================================
-
-interface TavilySearchResult {
-  title: string;
-  url: string;
-  content: string;
-  score: number;
-}
-
-interface TavilyResponse {
-  results: TavilySearchResult[];
-  query: string;
-  answer?: string;
-}
-
-const TAVILY_API_URL = "https://api.tavily.com/search";
-
-function getTavilyApiKey(): string | undefined {
-  // Ensure settings are loaded so process.env is updated (Electron standalone).
-  loadSettings();
-  return process.env.TAVILY_API_KEY;
-}
+import { getSearchProvider, isAnySearchProviderAvailable } from "./providers";
 
 // ============================================================================
 // Types
@@ -56,13 +32,14 @@ export interface WebSearchSource {
 }
 
 export interface WebSearchResult {
-  status: "success" | "error" | "no_api_key";
+  status: "success" | "error" | "no_provider";
   query: string;
   sources: WebSearchSource[];
   answer?: string;
   message?: string;
   iterationPerformed: boolean;
   formattedResults?: string;  // Pre-formatted markdown with source links
+  provider?: string;          // Which provider was used
 }
 
 /**
@@ -91,68 +68,6 @@ function formatSearchResults(sources: WebSearchSource[], answer?: string): strin
 }
 
 // ============================================================================
-// Core Search Function
-// ============================================================================
-
-/**
- * Perform a web search using Tavily API
- */
-async function performWebSearch(
-  query: string,
-  options: {
-    maxResults?: number;
-    searchDepth?: "basic" | "advanced";
-    includeAnswer?: boolean;
-    apiKey?: string;
-  } = {}
-): Promise<{ sources: WebSearchSource[]; answer?: string }> {
-  const apiKey = options.apiKey ?? getTavilyApiKey();
-  if (!apiKey) {
-    console.warn("[WEB-SEARCH] Tavily API key not configured");
-    return { sources: [] };
-  }
-
-  const { maxResults = 10, searchDepth = "basic", includeAnswer = true } = options;
-
-  try {
-    const response = await fetch(TAVILY_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        max_results: maxResults,
-        search_depth: searchDepth,
-        include_answer: includeAnswer,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[WEB-SEARCH] Tavily search failed:", errorText);
-      throw new Error(`Tavily search failed: ${response.status}`);
-    }
-
-    const data: TavilyResponse = await response.json();
-
-    return {
-      sources: data.results.map((result) => ({
-        url: result.url,
-        title: result.title,
-        snippet: result.content,
-        relevanceScore: result.score,
-      })),
-      answer: data.answer,
-    };
-  } catch (error) {
-    console.error("[WEB-SEARCH] Search error:", error);
-    return { sources: [] };
-  }
-}
-
-// ============================================================================
 // Tool Schema
 // ============================================================================
 
@@ -178,7 +93,7 @@ const webSearchSchema = jsonSchema<{
     },
     includeAnswer: {
       type: "boolean",
-      description: "Whether to include an AI-generated answer summary (default: true)",
+      description: "Whether to include an AI-generated answer summary (default: true, only available with Tavily provider)",
     },
     iterateIfLowQuality: {
       type: "boolean",
@@ -218,32 +133,33 @@ async function executeWebSearch(
 ): Promise<WebSearchResult> {
   const { userId, characterId } = options;
   const { query, maxResults = 5, includeAnswer = true, iterateIfLowQuality = false } = args;
-  const apiKey = getTavilyApiKey();
 
-  // Check API key
-  if (!apiKey) {
+  // Get the configured provider
+  const provider = getSearchProvider();
+
+  if (!provider.isAvailable()) {
     return {
-      status: "no_api_key",
+      status: "no_provider",
       query,
       sources: [],
-      message: "Web search is not configured. Please set the TAVILY_API_KEY environment variable.",
+      message: "Web search is currently unavailable because Tavily is selected without an API key. Switch Web Search Provider to Auto or DuckDuckGo, or add your Tavily key in Settings.",
       iterationPerformed: false,
     };
   }
 
   // Perform initial search
-  const initialResult = await performWebSearch(query, {
+  const initialResult = await provider.search(query, {
     maxResults,
     includeAnswer,
     searchDepth: "basic",
-    apiKey,
   });
 
   let finalSources = initialResult.sources;
   let iterationPerformed = false;
 
-  // Check if we should iterate (only if enabled and results are low quality)
-  if (iterateIfLowQuality && initialResult.sources.length > 0) {
+  // Check if we should iterate (only if enabled, results are low quality, AND provider has real scores)
+  // Skip quality check for DuckDuckGo since scores are synthetic/position-based
+  if (iterateIfLowQuality && provider.name === "tavily" && initialResult.sources.length > 0) {
     const avgScore =
       initialResult.sources.reduce((sum, s) => sum + s.relevanceScore, 0) /
       initialResult.sources.length;
@@ -255,11 +171,10 @@ async function executeWebSearch(
 
       // Refine the query for better results
       const refinedQuery = `${query} (detailed information)`;
-      const refinedResult = await performWebSearch(refinedQuery, {
+      const refinedResult = await provider.search(refinedQuery, {
         maxResults,
         includeAnswer,
         searchDepth: "advanced",
-        apiKey,
       });
 
       // Merge results, preferring higher scoring ones
@@ -303,6 +218,7 @@ async function executeWebSearch(
       answer: initialResult.answer,
       iterationPerformed,
       formattedResults: formatBriefSearchResults(finalSources),
+      provider: provider.name,
     };
   }
 
@@ -314,6 +230,7 @@ async function executeWebSearch(
     answer: initialResult.answer,
     iterationPerformed,
     formattedResults: formatSearchResults(finalSources, initialResult.answer),
+    provider: provider.name,
   };
 }
 
@@ -333,7 +250,7 @@ export function createWebSearchTool(options: WebSearchToolOptions = {}) {
   );
 
   return tool({
-    description: `Search the web for current information using Tavily. Use for quick lookups, fact-checking, or finding recent information. Maximum 10 results per search.
+    description: `Search the web for current information. Use for quick lookups, fact-checking, or finding recent information. Maximum 10 results per search.
 
 **DO NOT use for:**
 - Image or video generation tasks (use the appropriate generation/editing tools directly)
@@ -354,9 +271,8 @@ For comprehensive research, use the Deep Research feature instead.`,
 }
 
 /**
- * Check if web search is available (API key configured)
+ * Check if web search is available (any provider configured)
  */
 export function isWebSearchAvailable(): boolean {
-  return !!getTavilyApiKey();
+  return isAnySearchProviderAvailable();
 }
-

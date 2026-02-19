@@ -102,6 +102,7 @@
     "@whiskeysockets/baileys": "^6.7.12",
     "ai": "^6.0.7",
     "animejs": "^4.2.2",
+    "axios": "^1.7.9",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.5.0",
     "canvas-confetti": "^1.9.4",
@@ -118,6 +119,7 @@
     "grammy": "^1.35.1",
     "gray-matter": "^4.0.3",
     "jimp": "^1.6.0",
+    "jsdom": "^26.0.0",
     "jszip": "^3.10.1",
     "lru-cache": "^11.2.4",
     "lucide-react": "^0.468.0",
@@ -144,6 +146,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "winston": "^3.17.0",
     "zlib-sync": "^0.1.10",
     "zod": "^3.24.1"
   },

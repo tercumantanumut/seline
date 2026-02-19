@@ -130,6 +130,11 @@ export async function PUT(request: NextRequest) {
       sttProvider: body.sttProvider !== undefined ? body.sttProvider : currentSettings.sttProvider,
       sttLocalModel: body.sttLocalModel !== undefined ? body.sttLocalModel : currentSettings.sttLocalModel,
       whisperCppPath: body.whisperCppPath !== undefined ? body.whisperCppPath : currentSettings.whisperCppPath,
+      // Developer Workspace
+      devWorkspaceEnabled: body.devWorkspaceEnabled !== undefined ? body.devWorkspaceEnabled : currentSettings.devWorkspaceEnabled,
+      devWorkspaceAutoCleanup: body.devWorkspaceAutoCleanup !== undefined ? body.devWorkspaceAutoCleanup : currentSettings.devWorkspaceAutoCleanup,
+      devWorkspaceAutoCleanupDays: body.devWorkspaceAutoCleanupDays !== undefined ? body.devWorkspaceAutoCleanupDays : currentSettings.devWorkspaceAutoCleanupDays,
+      workspaceOnboardingSeen: body.workspaceOnboardingSeen !== undefined ? body.workspaceOnboardingSeen : currentSettings.workspaceOnboardingSeen,
     };
 
     // Only update API keys if they're provided and not masked
@@ -237,6 +242,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 }
+
+// PATCH is an alias for PUT — both support partial updates via deep merge with current settings.
+export { PUT as PATCH };
 
 function maskApiKey(key: string): string {
   if (key.length <= 8) return "••••••••";

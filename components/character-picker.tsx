@@ -23,8 +23,8 @@ const Plug = PhosphorPlug;
 const BarChart2 = ChartBar;
 const Trash2 = Trash;
 const Sparkles = LucideSparkles;
-import Link from "next/link";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
+import { CreateAgentModal } from "@/components/character-creation/create-agent-modal";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { AnimatedContainer } from "@/components/ui/animated-container";
@@ -58,6 +58,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { FolderSyncManager } from "@/components/vector-search/folder-sync-manager";
+import { WorkspaceDashboard } from "@/components/workspace/workspace-dashboard";
+import { WorkspaceOnboarding } from "@/components/workspace/workspace-onboarding";
 import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { MCPToolsPage } from "@/components/character-creation/terminal-pages/mcp-tools-page";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
@@ -88,13 +90,13 @@ type ToolDependency =
   | "syncedFolders"
   | "embeddings"
   | "vectorDbEnabled"
-  | "tavilyKey"
   | "webScraper"
   | "openrouterKey"
   | "comfyuiEnabled"
   | "flux2Klein4bEnabled"
   | "flux2Klein9bEnabled"
-  | "localGrepEnabled";
+  | "localGrepEnabled"
+  | "devWorkspaceEnabled";
 
 type ToolDefinition = {
   id: string;
@@ -112,7 +114,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "writeFile", category: "knowledge", dependencies: ["syncedFolders"] },
   { id: "patchFile", category: "knowledge", dependencies: ["syncedFolders"] },
   { id: "localGrep", category: "knowledge", dependencies: ["syncedFolders", "localGrepEnabled"] },
-  { id: "webSearch", category: "search", dependencies: ["tavilyKey"] },
+  { id: "webSearch", category: "search" },
   { id: "webBrowse", category: "search", dependencies: ["webScraper"] },
   { id: "webQuery", category: "search", dependencies: ["webScraper"] },
   { id: "firecrawlCrawl", category: "search", dependencies: ["webScraper"] },
@@ -128,6 +130,7 @@ const BASE_TOOLS: ToolDefinition[] = [
   { id: "updatePlan", category: "utility" },
   { id: "sendMessageToChannel", category: "utility" },
   { id: "delegateToSubagent", category: "utility" },
+  { id: "workspace", category: "utility", dependencies: ["devWorkspaceEnabled"] },
   // OpenRouter Image Tools
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
@@ -379,6 +382,7 @@ export function CharacterPicker() {
   const router = useRouter();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
@@ -463,24 +467,24 @@ export function CharacterPicker() {
     syncedFolders: boolean;
     embeddings: boolean;
     vectorDbEnabled: boolean;
-    tavilyKey: boolean;
     webScraper: boolean;
     openrouterKey: boolean;
     comfyuiEnabled: boolean;
     flux2Klein4bEnabled: boolean;
     flux2Klein9bEnabled: boolean;
     localGrepEnabled: boolean;
+    devWorkspaceEnabled: boolean;
   }>({
     syncedFolders: false,
     embeddings: false,
     vectorDbEnabled: false,
-    tavilyKey: false,
     webScraper: false,
     openrouterKey: false,
     comfyuiEnabled: false,
     flux2Klein4bEnabled: false,
     flux2Klein9bEnabled: false,
     localGrepEnabled: true,
+    devWorkspaceEnabled: false,
   });
 
   // Group tools by category
@@ -617,6 +621,8 @@ export function CharacterPicker() {
   const [folderManagerOpen, setFolderManagerOpen] = useState(false);
   const [folderManagerCharacter, setFolderManagerCharacter] = useState<CharacterSummary | null>(null);
   const [vectorDBEnabled, setVectorDBEnabled] = useState(false);
+  const [devWorkspaceEnabled, setDevWorkspaceEnabled] = useState(false);
+  const [showWorkspaceOnboarding, setShowWorkspaceOnboarding] = useState(false);
 
   // MCP tools editor state
   const [mcpToolEditorOpen, setMcpToolEditorOpen] = useState(false);
@@ -639,10 +645,16 @@ export function CharacterPicker() {
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch settings to check if Vector Search is enabled
+  // Fetch settings to check if Vector Search and Developer Workspace are enabled
   useEffect(() => {
-    resilientFetch<{ vectorDBEnabled?: boolean }>("/api/settings").then(({ data }) => {
-      if (data) setVectorDBEnabled(data.vectorDBEnabled === true);
+    resilientFetch<{ vectorDBEnabled?: boolean; devWorkspaceEnabled?: boolean; workspaceOnboardingSeen?: boolean }>("/api/settings").then(({ data }) => {
+      if (data) {
+        setVectorDBEnabled(data.vectorDBEnabled === true);
+        setDevWorkspaceEnabled(data.devWorkspaceEnabled === true);
+        if (data.devWorkspaceEnabled && !data.workspaceOnboardingSeen) {
+          setShowWorkspaceOnboarding(true);
+        }
+      }
     });
   }, []);
 
@@ -675,13 +687,13 @@ export function CharacterPicker() {
           syncedFolders: foldersCount > 0,
           embeddings: embeddingsReady,
           vectorDbEnabled: settingsData.vectorDBEnabled === true,
-          tavilyKey: typeof settingsData.tavilyApiKey === "string" && settingsData.tavilyApiKey.trim().length > 0,
           webScraper: webScraperReady,
           openrouterKey: typeof settingsData.openrouterApiKey === "string" && settingsData.openrouterApiKey.trim().length > 0,
           comfyuiEnabled: settingsData.comfyuiEnabled === true,
           flux2Klein4bEnabled: settingsData.flux2Klein4bEnabled === true,
           flux2Klein9bEnabled: settingsData.flux2Klein9bEnabled === true,
           localGrepEnabled: settingsData.localGrepEnabled !== false,
+          devWorkspaceEnabled: settingsData.devWorkspaceEnabled === true,
         });
       } catch (error) {
         if (cancelled) return;
@@ -689,13 +701,13 @@ export function CharacterPicker() {
           syncedFolders: foldersCount > 0,
           embeddings: false,
           vectorDbEnabled: false,
-          tavilyKey: false,
           webScraper: false,
           openrouterKey: false,
           comfyuiEnabled: false,
           flux2Klein4bEnabled: false,
           flux2Klein9bEnabled: false,
           localGrepEnabled: true,
+          devWorkspaceEnabled: false,
         });
       }
     };
@@ -1322,6 +1334,17 @@ export function CharacterPicker() {
         </div>
       )}
 
+      {/* Active Workspaces Dashboard */}
+      {devWorkspaceEnabled && (
+        <WorkspaceDashboard
+          onNavigateToSession={(sessionId, agentId) => {
+            if (agentId) {
+              router.push(`/chat/${agentId}?session=${sessionId}`);
+            }
+          }}
+        />
+      )}
+
       {allStandaloneCharacters.length > 0 && (
         <div className="flex justify-end">
           <AnimatedButton
@@ -1357,9 +1380,12 @@ export function CharacterPicker() {
             return (
               <Card key={wf.id} className="transition-all bg-terminal-cream border-terminal-border">
                 <CardHeader className="pb-3">
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => toggleWorkflow(wf.id)}
-                    className="flex items-center gap-3 text-left w-full"
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleWorkflow(wf.id)}
+                    className="flex items-center gap-3 text-left w-full cursor-pointer"
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 text-terminal-muted shrink-0" />
@@ -1417,7 +1443,7 @@ export function CharacterPicker() {
                         {t("workflows.shareFolder")}
                       </AnimatedButton>
                     </div>
-                  </button>
+                  </div>
                 </CardHeader>
 
                 {isExpanded && (
@@ -1593,19 +1619,22 @@ export function CharacterPicker() {
         <AnimatedCard
           data-animate-card
           hoverLift
-          className="bg-terminal-cream/50 hover:bg-terminal-cream cursor-pointer"
+          className="bg-terminal-cream/50 hover:bg-terminal-cream"
         >
-          <Link href="/create-character" className="block h-full">
-            <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-4 p-6">
-              <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
-                <Plus className="w-8 h-8 text-terminal-green" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
-                <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
-              </div>
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            aria-label={t("create")}
+            className="flex h-full min-h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-lg p-6 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-2 focus-visible:ring-offset-terminal-cream"
+          >
+            <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
+              <Plus className="w-8 h-8 text-terminal-green" />
             </div>
-          </Link>
+            <div className="text-center">
+              <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
+              <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
+            </div>
+          </button>
         </AnimatedCard>
 
         {/* Character Cards */}
@@ -1810,14 +1839,23 @@ export function CharacterPicker() {
           <p className="font-mono text-terminal-muted max-w-md mx-auto mb-6">
             {t("emptyDescription")}
           </p>
-          <Link href="/create-character">
-            <AnimatedButton className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
-              <Plus className="w-4 h-4" />
-              {t("create")}
-            </AnimatedButton>
-          </Link>
+          <AnimatedButton
+            onClick={() => setCreateModalOpen(true)}
+            className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
+          >
+            <Plus className="w-4 h-4" />
+            {t("create")}
+          </AnimatedButton>
         </AnimatedContainer>
       )}
+
+      <CreateAgentModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onCreated={() => {
+          void loadCharacters();
+        }}
+      />
 
       {/* Workflow Creator Dialog */}
       <Dialog open={workflowCreatorOpen} onOpenChange={setWorkflowCreatorOpen}>
@@ -2527,6 +2565,12 @@ export function CharacterPicker() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Workspace Onboarding Tour */}
+      <WorkspaceOnboarding
+        open={showWorkspaceOnboarding}
+        onComplete={() => setShowWorkspaceOnboarding(false)}
+      />
     </div>
   );
 }

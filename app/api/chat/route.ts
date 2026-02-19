@@ -1,4 +1,4 @@
-import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool } from "ai";
+import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
@@ -15,6 +15,7 @@ import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
 import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
 import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
+import { createWorkspaceTool } from "@/lib/ai/tools/workspace-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
@@ -2606,6 +2607,69 @@ export async function POST(req: Request) {
       }
     });
 
+    // ========================================================================
+    // ENVIRONMENT DETAILS — Fresh time injection (Roo Code pattern)
+    // ========================================================================
+    // Strip stale <environment_details> from all user messages so the model
+    // never sees old timestamps, then inject a fresh block into the last
+    // user message with the current server time + user timezone.
+    const envDetailsRegex = /\n*<environment_details>[\s\S]*?<\/environment_details>/g;
+
+    // Helper to strip stale environment_details from a user message's content
+    function stripEnvDetails(userMsg: UserModelMessage): UserModelMessage {
+      if (typeof userMsg.content === "string") {
+        return { ...userMsg, content: userMsg.content.replace(envDetailsRegex, "") };
+      }
+      // Array content (TextPart | ImagePart | FilePart)[]
+      return {
+        ...userMsg,
+        content: userMsg.content.map((part) =>
+          part.type === "text"
+            ? { ...part, text: part.text.replace(envDetailsRegex, "") }
+            : part
+        ),
+      };
+    }
+
+    for (let i = 0; i < coreMessages.length; i++) {
+      const msg = coreMessages[i];
+      if (msg.role !== "user") continue;
+      coreMessages[i] = stripEnvDetails(msg);
+    }
+
+    // Inject fresh environment_details into the last user message
+    {
+      const envNow = new Date();
+      const userTz = (sessionMetadata?.userTimezone as string) || null;
+      const tzOffset = userTz
+        ? (() => {
+            try {
+              const fmt = new Intl.DateTimeFormat("en", { timeZone: userTz, timeZoneName: "shortOffset" });
+              const offset = fmt.formatToParts(envNow).find(p => p.type === "timeZoneName")?.value || "";
+              return offset.replace("GMT", "UTC");
+            } catch {
+              return "";
+            }
+          })()
+        : "";
+      const envBlock = `\n\n<environment_details>\nCurrent time: ${envNow.toISOString()}${userTz ? `\nUser timezone: ${userTz}, ${tzOffset}` : ""}\n</environment_details>`;
+
+      const lastUserIdx = coreMessages.map(m => m.role).lastIndexOf("user");
+      if (lastUserIdx !== -1) {
+        const msg = coreMessages[lastUserIdx];
+        if (msg.role === "user") {
+          if (typeof msg.content === "string") {
+            coreMessages[lastUserIdx] = { ...msg, content: msg.content + envBlock };
+          } else {
+            coreMessages[lastUserIdx] = {
+              ...msg,
+              content: [...msg.content, { type: "text" as const, text: envBlock }],
+            };
+          }
+        }
+      }
+    }
+
     // Build system prompt and get character context for tools
     // NOTE: Tool instructions are now embedded in tool descriptions (fullInstructions)
     // and discovered via searchTools. No need to concatenate them to system prompt.
@@ -2787,6 +2851,44 @@ export async function POST(req: Request) {
         role: "system" as const,
         content: runtimeSkillsHint,
       });
+    }
+
+    // Inject workspace context when Developer Workspace is enabled
+    if (appSettings.devWorkspaceEnabled) {
+      const wsInfo = sessionMetadata?.workspaceInfo as Record<string, unknown> | undefined;
+      let workspaceBlock: string;
+
+      if (wsInfo && wsInfo.status) {
+        workspaceBlock =
+          `\n\n## Active Workspace\n` +
+          `You are working in a git worktree workspace:\n` +
+          `- Branch: ${wsInfo.branch || "unknown"}\n` +
+          `- Base: ${wsInfo.baseBranch || "unknown"}\n` +
+          `- Path: ${wsInfo.worktreePath || "unknown"}\n` +
+          `- Status: ${wsInfo.status}\n` +
+          (wsInfo.prUrl ? `- PR: ${wsInfo.prUrl}\n` : "") +
+          `\nFile tools (readFile, editFile, writeFile, localGrep) work in the worktree path. ` +
+          `Use executeCommand for git operations (commit, push, gh pr create) and builds. ` +
+          `When changes are ready, ask the user if they want to keep local, push, or create a PR. ` +
+          `NEVER fabricate PR URLs — only use real URLs from gh CLI output. ` +
+          `When done, use workspace({ action: "delete" }) to clean up.`;
+      } else {
+        workspaceBlock =
+          `\n\n[Developer Workspace]\n` +
+          `You have the "workspace" tool available. When the user asks you to work on code changes, ` +
+          `offer to create an isolated workspace (git worktree) so their main branch stays clean. ` +
+          `File tools will automatically work in the worktree once created.\n` +
+          `Use: workspace({ action: "create", branch: "feature/...", repoPath: "/path/to/repo" })`;
+      }
+
+      if (typeof systemPromptValue === "string") {
+        systemPromptValue += workspaceBlock;
+      } else if (Array.isArray(systemPromptValue)) {
+        systemPromptValue.push({
+          role: "system" as const,
+          content: workspaceBlock,
+        });
+      }
     }
 
     // Create tools via the centralized Tool Registry
@@ -2979,6 +3081,13 @@ export async function POST(req: Request) {
       ...(allTools.compactSession && {
         compactSession: createCompactSessionTool({
           sessionId,
+        }),
+      }),
+      ...(allTools.workspace && appSettings.devWorkspaceEnabled && {
+        workspace: createWorkspaceTool({
+          sessionId,
+          characterId: characterId || "",
+          userId: dbUser.id,
         }),
       }),
     };
@@ -3641,10 +3750,15 @@ export async function POST(req: Request) {
             };
           }
 
+          // Re-read session metadata from DB to avoid overwriting changes made mid-stream
+          // (e.g. workspace tool writes workspaceInfo during tool execution)
+          const freshSession = await getSession(sessionId);
+          const freshMetadata = (freshSession?.metadata as Record<string, unknown>) || {};
+
           // Update session metadata with tracking and discovered tools
           const updatedSession = await updateSession(sessionId, {
             metadata: {
-              ...sessionMetadata,
+              ...freshMetadata,
               contextInjectionTracking: newTracking,
               ...(discoveredToolsMetadata && { discoveredTools: discoveredToolsMetadata }),
             },

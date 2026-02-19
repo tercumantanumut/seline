@@ -214,6 +214,29 @@
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Vektör Arama Klasörleri",
+    "createModal": {
+      "title": "Bir Ajan Oluştur",
+      "quickCreateTab": "Hızlı Oluştur",
+      "fromTemplateTab": "Şablondan",
+      "descriptionPlaceholder": "Ajanını tek cümlede tanımla...",
+      "createAndChat": "Oluştur ve Sohbete Başla",
+      "creating": "Oluşturuluyor...",
+      "advancedSetup": "Gelişmiş kurulum →",
+      "errorExpansion": "Ajan profili oluşturulamadı. AI sağlayıcı ayarlarını kontrol edin.",
+      "errorCreation": "Ajan oluşturulamadı. Lütfen tekrar deneyin.",
+      "sessionExpired": "Oturum süresi doldu, lütfen sayfayı yenileyin.",
+      "providerSetupRequired": "Lütfen önce Ayarlar'dan bir AI sağlayıcısı yapılandırın.",
+      "rateLimited": "Şu anda çok fazla istek var. Lütfen bekleyip tekrar deneyin.",
+      "requestTimeout": "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.",
+      "networkError": "Ağ hatası. Lütfen bağlantınızı kontrol edip tekrar deneyin.",
+      "useTemplate": "Kullan →",
+      "loadingTemplates": "Şablonlar yükleniyor...",
+      "templateLoadError": "Şablonlar yüklenemedi. Lütfen tekrar deneyin.",
+      "retryTemplates": "Tekrar dene",
+      "noTemplates": "Şablon bulunamadı",
+      "minCharsHint": "En az 10 karakter",
+      "descriptionQualityHint": "İpucu: daha iyi sonuçlar için hedef, kitle ve tonu ekleyin."
+    },
     "workflows": {
       "sectionTitle": "İş Akışları",
       "create": "İş Akışı Oluştur",
@@ -1249,10 +1272,19 @@
           "placeholder": "sk-...",
           "helper": "API anahtarınızı platform.moonshot.cn'den alın"
         },
+        "webSearchProvider": {
+          "label": "Web Arama Sağlayıcısı",
+          "helper": "Otomatik mod, API anahtarı varsa Tavily kullanır, yoksa DuckDuckGo'ya (ücretsiz) döner",
+          "options": {
+            "auto": "Otomatik (Anahtar varsa Tavily, yoksa DuckDuckGo)",
+            "tavily": "Tavily (API anahtarı gerekli)",
+            "duckduckgo": "DuckDuckGo (ücretsiz, anahtar gereksiz)"
+          }
+        },
         "tavily": {
           "label": "Tavily API Anahtarı",
           "placeholder": "tvly-...",
-          "helper": "Derin Araştırma web araması için gerekli"
+          "helper": "DuckDuckGo kullanırken isteğe bağlı. Tavily sağlayıcısı ve Derin Araştırma gelişmiş modu için gerekli"
         },
         "webScraperProvider": {
           "label": "Web Tarama Saglayicisi",

@@ -1,0 +1,548 @@
+/**
+ * Workspace Tool
+ *
+ * Creates and manages git worktree workspaces for isolated code changes.
+ * The agent calls this to create a workspace, check status, update metadata, or delete it.
+ * Workspace info persists in sessions.metadata.workspaceInfo.
+ *
+ * On create: registers the worktree as a sync folder (files-only, no vectors)
+ * so that file tools (readFile, editFile, writeFile, localGrep) can access it.
+ * On delete: removes the sync folder and git worktree, clears metadata.
+ */
+
+import { tool, jsonSchema } from "ai";
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+import { getSession, updateSession } from "@/lib/db/queries";
+import type { WorkspaceInfo } from "@/lib/workspace/types";
+import { getWorkspaceInfo } from "@/lib/workspace/types";
+import { addSyncFolder, removeSyncFolder, setSyncFolderStatus } from "@/lib/vectordb/sync-service";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface WorkspaceInput {
+  action: "create" | "status" | "update-metadata" | "delete";
+
+  // For "create":
+  branch?: string;
+  baseBranch?: string;
+  repoPath?: string;
+
+  // For "update-metadata":
+  prUrl?: string;
+  prNumber?: number;
+  prStatus?: "draft" | "open" | "merged" | "closed";
+  status?: "active" | "changes-ready" | "pr-open" | "merged" | "cleanup-pending";
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Broad set of extensions for code-centric workspace sync folders */
+const WORKSPACE_EXTENSIONS = [
+  "ts", "tsx", "js", "jsx", "mjs", "cjs",
+  "py", "rb", "go", "rs", "java", "kt", "swift", "c", "cpp", "h", "hpp",
+  "json", "yaml", "yml", "toml",
+  "md", "txt", "html", "css", "scss", "less",
+  "sql", "graphql", "proto",
+  "sh", "bash", "zsh",
+  "env", "env.local", "env.example",
+  "dockerfile", "dockerignore",
+  "gitignore", "editorconfig",
+];
+
+// ---------------------------------------------------------------------------
+// Safety helpers (reused from workspace route pattern)
+// ---------------------------------------------------------------------------
+
+function isValidPath(p: string): boolean {
+  return (
+    typeof p === "string" &&
+    p.startsWith("/") &&
+    !/[;&|`$(){}!#]/.test(p)
+  );
+}
+
+function isValidBranchName(name: string): boolean {
+  return (
+    typeof name === "string" &&
+    name.length > 0 &&
+    name.length < 256 &&
+    /^[a-zA-Z0-9._\-/]+$/.test(name)
+  );
+}
+
+function gitExecOptions(cwd: string) {
+  return { cwd, encoding: "utf-8" as const, timeout: 30000 };
+}
+
+/** Slugify a branch name for use as a directory name */
+function branchSlug(branch: string): string {
+  return branch.replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
+// ---------------------------------------------------------------------------
+// Tool Factory
+// ---------------------------------------------------------------------------
+
+export function createWorkspaceTool({
+  sessionId,
+  characterId,
+  userId,
+}: {
+  sessionId: string;
+  characterId: string;
+  userId: string;
+}) {
+  return tool({
+    description: `Create and manage git worktree workspaces for isolated code changes.
+
+Use this when the user asks you to work on a feature, fix, or task in a separate branch.
+
+**Actions:**
+- "create": Create a new git worktree + branch for isolated work. Requires \`branch\` and \`repoPath\`. File tools (readFile, editFile, writeFile, localGrep) will automatically work in the worktree.
+- "status": Check live git status of the current workspace (changed files, branch info).
+- "update-metadata": Update workspace metadata (PR URL, status, etc.) after creating a PR or finishing work.
+- "delete": Remove the workspace — deletes the git worktree and cleans up all associated resources.`,
+
+    inputSchema: jsonSchema<WorkspaceInput>({
+      type: "object",
+      title: "WorkspaceInput",
+      description: "Input for workspace management",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["create", "status", "update-metadata", "delete"],
+          description: 'The workspace action to perform.',
+        },
+        branch: {
+          type: "string",
+          description: 'Branch name for the new workspace (e.g., "feature/auth-refactor"). Required for "create".',
+        },
+        baseBranch: {
+          type: "string",
+          description: 'Base branch to create from (defaults to current branch or "main").',
+        },
+        repoPath: {
+          type: "string",
+          description: 'Absolute path to the git repository. Required for "create".',
+        },
+        prUrl: {
+          type: "string",
+          description: 'Pull request URL. For "update-metadata".',
+        },
+        prNumber: {
+          type: "number",
+          description: 'Pull request number. For "update-metadata".',
+        },
+        prStatus: {
+          type: "string",
+          enum: ["draft", "open", "merged", "closed"],
+          description: 'Pull request status. For "update-metadata".',
+        },
+        status: {
+          type: "string",
+          enum: ["active", "changes-ready", "pr-open", "merged", "cleanup-pending"],
+          description: 'Workspace lifecycle status. For "update-metadata".',
+        },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    }),
+
+    execute: async (input: WorkspaceInput) => {
+      try {
+        if (sessionId === "UNSCOPED") {
+          return { status: "error" as const, error: "workspace tool requires an active session." };
+        }
+
+        const { action } = input;
+
+        switch (action) {
+          case "create":
+            return await handleCreate(sessionId, characterId, userId, input);
+          case "status":
+            return await handleStatus(sessionId);
+          case "update-metadata":
+            return await handleUpdateMetadata(sessionId, input);
+          case "delete":
+            return await handleDelete(sessionId);
+          default:
+            return { status: "error" as const, error: `Unknown action: ${action}` };
+        }
+      } catch (error) {
+        console.error("[workspace] Unexpected error:", error);
+        return {
+          status: "error" as const,
+          error: `Workspace operation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        };
+      }
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Action handlers
+// ---------------------------------------------------------------------------
+
+async function handleCreate(
+  sessionId: string,
+  characterId: string,
+  userId: string,
+  input: WorkspaceInput,
+) {
+  const { branch, baseBranch, repoPath } = input;
+
+  // Validate required fields
+  if (!branch) {
+    return { status: "error" as const, error: 'Missing required field "branch" for create action.' };
+  }
+  if (!repoPath) {
+    return { status: "error" as const, error: 'Missing required field "repoPath" for create action.' };
+  }
+  if (characterId === "UNSCOPED" || userId === "UNSCOPED") {
+    return { status: "error" as const, error: "Workspace creation requires an active agent context." };
+  }
+
+  // Path safety
+  if (!isValidPath(repoPath)) {
+    return { status: "error" as const, error: "Invalid repoPath. Must be an absolute path without shell metacharacters." };
+  }
+
+  // Branch name safety
+  if (!isValidBranchName(branch)) {
+    return { status: "error" as const, error: "Invalid branch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
+  }
+  if (baseBranch && !isValidBranchName(baseBranch)) {
+    return { status: "error" as const, error: "Invalid baseBranch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
+  }
+
+  // Verify it's a git repo
+  if (!fs.existsSync(path.join(repoPath, ".git"))) {
+    return { status: "error" as const, error: `"${repoPath}" does not appear to be a git repository (no .git directory).` };
+  }
+
+  // Check if workspace already exists for this session
+  const session = await getSession(sessionId);
+  if (!session) {
+    return { status: "error" as const, error: "Session not found." };
+  }
+  const metadata = (session.metadata || {}) as Record<string, unknown>;
+  const existingWorkspace = getWorkspaceInfo(metadata);
+  if (existingWorkspace && existingWorkspace.worktreePath && fs.existsSync(existingWorkspace.worktreePath)) {
+    return {
+      status: "error" as const,
+      error: `This session already has an active workspace at "${existingWorkspace.worktreePath}" on branch "${existingWorkspace.branch}". Use "status" to check it or "update-metadata" to update it.`,
+    };
+  }
+
+  // Determine base branch
+  let resolvedBaseBranch = baseBranch;
+  if (!resolvedBaseBranch) {
+    try {
+      resolvedBaseBranch = execSync(
+        "git branch --show-current",
+        gitExecOptions(repoPath)
+      ).trim();
+    } catch {
+      resolvedBaseBranch = "main";
+    }
+  }
+
+  // Compute worktree path: <repoPath>/../worktrees/<branch-slug>
+  const worktreeParent = path.join(repoPath, "..", "worktrees");
+  const worktreePath = path.join(worktreeParent, branchSlug(branch));
+
+  // Don't overwrite existing directory
+  if (fs.existsSync(worktreePath)) {
+    return {
+      status: "error" as const,
+      error: `Worktree directory already exists at "${worktreePath}". Choose a different branch name or clean up the existing worktree.`,
+    };
+  }
+
+  // Ensure parent directory exists
+  if (!fs.existsSync(worktreeParent)) {
+    fs.mkdirSync(worktreeParent, { recursive: true });
+  }
+
+  // Validate resolvedBaseBranch (may be from git output) before shell interpolation
+  if (!isValidBranchName(resolvedBaseBranch)) {
+    return { status: "error" as const, error: "Resolved base branch name contains invalid characters." };
+  }
+
+  // Create the git worktree
+  try {
+    execSync(
+      `git worktree add -b "${branch}" "${worktreePath}" "${resolvedBaseBranch}"`,
+      gitExecOptions(repoPath)
+    );
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    // If branch already exists, try without -b
+    if (errMsg.includes("already exists")) {
+      try {
+        execSync(
+          `git worktree add "${worktreePath}" "${branch}"`,
+          gitExecOptions(repoPath)
+        );
+      } catch (err2) {
+        return {
+          status: "error" as const,
+          error: `Failed to create worktree: ${err2 instanceof Error ? err2.message : String(err2)}`,
+        };
+      }
+    } else {
+      return {
+        status: "error" as const,
+        error: `Failed to create worktree: ${errMsg}`,
+      };
+    }
+  }
+
+  // Register worktree as sync folder (files-only, no vectors, no watcher)
+  // This enables file tools (readFile, editFile, writeFile, localGrep) to access the worktree
+  let syncFolderId: string | undefined;
+  try {
+    syncFolderId = await addSyncFolder({
+      userId,
+      characterId,
+      folderPath: worktreePath,
+      displayName: `Workspace: ${branch}`,
+      recursive: true,
+      includeExtensions: WORKSPACE_EXTENSIONS,
+      syncMode: "manual",
+      indexingMode: "files-only",
+      reindexPolicy: "never",
+    });
+    // Mark as "synced" immediately — addSyncFolder creates with "pending",
+    // but we need "synced" so file tools recognize it as ready
+    await setSyncFolderStatus(syncFolderId, "synced");
+  } catch (syncErr) {
+    console.error("[workspace] Failed to register sync folder (non-fatal):", syncErr);
+    // Non-fatal: worktree exists, agent can still use executeCommand
+    // File tools just won't have access
+  }
+
+  // Build workspace info
+  const workspaceInfo: WorkspaceInfo = {
+    type: "worktree",
+    branch,
+    baseBranch: resolvedBaseBranch,
+    worktreePath,
+    status: "active",
+    changedFiles: 0,
+    lastSyncedAt: new Date().toISOString(),
+    syncFolderId,
+  };
+
+  // Persist to session metadata
+  await updateSession(sessionId, {
+    metadata: {
+      ...metadata,
+      workspaceInfo,
+    },
+  });
+
+  return {
+    status: "success" as const,
+    message: `Workspace created successfully.`,
+    workspace: {
+      branch,
+      baseBranch: resolvedBaseBranch,
+      worktreePath,
+      status: "active",
+      syncFolderId,
+    },
+    hint: `The worktree is at "${worktreePath}". File tools (readFile, editFile, writeFile, localGrep) can now access this path. Use executeCommand for git operations and builds. When done, use workspace tool with action "delete" to clean up.`,
+  };
+}
+
+async function handleStatus(sessionId: string) {
+  const session = await getSession(sessionId);
+  if (!session) {
+    return { status: "error" as const, error: "Session not found." };
+  }
+
+  const metadata = (session.metadata || {}) as Record<string, unknown>;
+  const workspaceInfo = getWorkspaceInfo(metadata);
+
+  if (!workspaceInfo) {
+    return {
+      status: "success" as const,
+      message: "No workspace is configured for this session.",
+      workspace: null,
+    };
+  }
+
+  // If worktree path exists, get live git status
+  let changedFiles = workspaceInfo.changedFiles ?? 0;
+  let changedFileList: Array<{ path: string; status: string }> = [];
+  let worktreeExists = false;
+
+  if (workspaceInfo.worktreePath && isValidPath(workspaceInfo.worktreePath) && fs.existsSync(workspaceInfo.worktreePath)) {
+    worktreeExists = true;
+    try {
+      // Check uncommitted changes first
+      const porcelain = execSync(
+        "git status --porcelain",
+        gitExecOptions(workspaceInfo.worktreePath)
+      );
+      if (porcelain.trim()) {
+        changedFileList = porcelain.trim().split("\n").filter(Boolean).map((line) => {
+          const statusCode = line.substring(0, 2).trim();
+          const filePath = line.substring(3);
+          let fileStatus = "modified";
+          if (statusCode === "A" || statusCode === "??") fileStatus = "added";
+          else if (statusCode === "D") fileStatus = "deleted";
+          else if (statusCode.startsWith("R")) fileStatus = "renamed";
+          return { path: filePath, status: fileStatus };
+        });
+        changedFiles = changedFileList.length;
+      } else if (workspaceInfo.baseBranch && isValidBranchName(workspaceInfo.baseBranch)) {
+        // No uncommitted changes — check committed changes ahead of baseBranch
+        try {
+          const branchDiff = execSync(
+            `git diff --name-status ${workspaceInfo.baseBranch}...HEAD`,
+            gitExecOptions(workspaceInfo.worktreePath)
+          ).trim();
+          if (branchDiff) {
+            changedFileList = branchDiff.split("\n").filter(Boolean).map((line) => {
+              const [sc, ...pp] = line.split("\t");
+              const fp = pp.join("\t");
+              let fs = "modified";
+              if (sc === "A") fs = "added";
+              else if (sc === "D") fs = "deleted";
+              else if (sc?.startsWith("R")) fs = "renamed";
+              return { path: fp, status: fs };
+            });
+            changedFiles = changedFileList.length;
+          }
+        } catch {
+          // baseBranch might not exist locally
+        }
+      }
+    } catch {
+      // git status failed — directory might not be a valid repo anymore
+    }
+
+    // Update metadata with latest counts
+    await updateSession(sessionId, {
+      metadata: {
+        ...metadata,
+        workspaceInfo: {
+          ...workspaceInfo,
+          changedFiles,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      },
+    });
+  }
+
+  return {
+    status: "success" as const,
+    workspace: {
+      ...workspaceInfo,
+      changedFiles,
+      worktreeExists,
+      changedFileList: changedFileList.length > 0 ? changedFileList : undefined,
+    },
+  };
+}
+
+async function handleUpdateMetadata(sessionId: string, input: WorkspaceInput) {
+  const session = await getSession(sessionId);
+  if (!session) {
+    return { status: "error" as const, error: "Session not found." };
+  }
+
+  const metadata = (session.metadata || {}) as Record<string, unknown>;
+  const workspaceInfo = getWorkspaceInfo(metadata);
+
+  if (!workspaceInfo) {
+    return { status: "error" as const, error: "No workspace exists for this session. Create one first." };
+  }
+
+  // Merge provided fields
+  const updates: Partial<WorkspaceInfo> = {};
+  if (input.prUrl !== undefined) updates.prUrl = input.prUrl;
+  if (input.prNumber !== undefined) updates.prNumber = input.prNumber;
+  if (input.prStatus !== undefined) updates.prStatus = input.prStatus;
+  if (input.status !== undefined) updates.status = input.status;
+
+  const updatedWorkspaceInfo: WorkspaceInfo = {
+    ...workspaceInfo,
+    ...updates,
+    lastSyncedAt: new Date().toISOString(),
+  };
+
+  await updateSession(sessionId, {
+    metadata: {
+      ...metadata,
+      workspaceInfo: updatedWorkspaceInfo,
+    },
+  });
+
+  return {
+    status: "success" as const,
+    message: "Workspace metadata updated.",
+    workspace: updatedWorkspaceInfo,
+  };
+}
+
+async function handleDelete(sessionId: string) {
+  const session = await getSession(sessionId);
+  if (!session) {
+    return { status: "error" as const, error: "Session not found." };
+  }
+
+  const metadata = (session.metadata || {}) as Record<string, unknown>;
+  const workspaceInfo = getWorkspaceInfo(metadata);
+
+  if (!workspaceInfo) {
+    return { status: "error" as const, error: "No workspace to delete." };
+  }
+
+  // 1. Remove sync folder (stops watcher if any, cleans DB — no vectors to clean)
+  if (workspaceInfo.syncFolderId) {
+    try {
+      await removeSyncFolder(workspaceInfo.syncFolderId);
+    } catch (err) {
+      console.error("[workspace] Failed to remove sync folder (continuing):", err);
+    }
+  }
+
+  // 2. Remove git worktree
+  if (workspaceInfo.worktreePath && isValidPath(workspaceInfo.worktreePath) && fs.existsSync(workspaceInfo.worktreePath)) {
+    try {
+      const commonDir = execSync(
+        "git rev-parse --git-common-dir",
+        gitExecOptions(workspaceInfo.worktreePath)
+      ).trim();
+      const mainRepoDir = fs.realpathSync(
+        commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
+          ? commonDir.replace(/[/\\]\.git$/, "")
+          : commonDir + "/.."
+      );
+      execSync(
+        `git worktree remove "${workspaceInfo.worktreePath}" --force`,
+        gitExecOptions(mainRepoDir)
+      );
+    } catch (err) {
+      console.error("[workspace] Failed to remove git worktree (continuing):", err);
+    }
+  }
+
+  // 3. Clear workspace metadata from session
+  const { workspaceInfo: _removed, ...restMetadata } = metadata;
+  await updateSession(sessionId, { metadata: restMetadata });
+
+  return {
+    status: "success" as const,
+    message: "Workspace deleted and cleaned up.",
+  };
+}
