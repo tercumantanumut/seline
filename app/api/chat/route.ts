@@ -54,6 +54,7 @@ import {
   type FrontendMessage,
 } from "@/lib/messages/tool-enhancement";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
 import {
   withRunContext,
   createAgentRun,
@@ -3180,83 +3181,93 @@ export async function POST(req: Request) {
     };
 
     // Wrap tools with plugin hooks (PreToolUse / PostToolUse / PostToolUseFailure)
-    // Only wrap if there are registered hooks to avoid unnecessary overhead
+    // and always apply streaming guardrails to prevent oversized tool results from breaking SSE.
     const hasPreHooks = getRegisteredHooks("PreToolUse").length > 0;
     const hasPostHooks = getRegisteredHooks("PostToolUse").length > 0;
     const hasFailureHooks = getRegisteredHooks("PostToolUseFailure").length > 0;
     const hasStopHooks = getRegisteredHooks("Stop").length > 0;
     const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
 
-    if (hasPreHooks || hasPostHooks || hasFailureHooks) {
-      const wrappedTools: Record<string, Tool> = {};
-      for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
-        if (!originalTool.execute) {
-          wrappedTools[toolId] = originalTool;
-          continue;
-        }
-        const origExecute = originalTool.execute;
-        wrappedTools[toolId] = {
-          ...originalTool,
-          execute: async (args: unknown, options: unknown) => {
-            // PreToolUse: can block tool execution
-            if (hasPreHooks) {
-              const hookResult = await runPreToolUseHooks(
-                toolId,
-                (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                sessionId,
-                allowedPluginNames,
-                pluginRoots
-              );
-              if (hookResult.blocked) {
-                console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
-                return `Tool blocked by plugin hook: ${hookResult.blockReason}`;
-              }
-            }
-
-            try {
-              const result = await origExecute(args, options as any);
-
-              // PostToolUse: fire-and-forget
-              if (hasPostHooks) {
-                try {
-                  runPostToolUseHooks(
-                    toolId,
-                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                    result,
-                    sessionId,
-                    allowedPluginNames,
-                    pluginRoots
-                  );
-                } catch (hookError) {
-                  console.error("[Hooks] PostToolUse hook dispatch failed:", hookError);
-                }
-              }
-
-              return result;
-            } catch (error) {
-              // PostToolUseFailure: fire-and-forget
-              if (hasFailureHooks) {
-                try {
-                  runPostToolUseFailureHooks(
-                    toolId,
-                    (args && typeof args === "object" ? args : {}) as Record<string, unknown>,
-                    error instanceof Error ? error.message : String(error),
-                    sessionId,
-                    allowedPluginNames,
-                    pluginRoots
-                  );
-                } catch (hookError) {
-                  console.error("[Hooks] PostToolUseFailure hook dispatch failed:", hookError);
-                }
-              }
-              throw error;
-            }
-          },
-        };
+    const wrappedTools: Record<string, Tool> = {};
+    for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
+      if (!originalTool.execute) {
+        wrappedTools[toolId] = originalTool;
+        continue;
       }
-      allToolsWithMCP = wrappedTools;
-      console.log(`[CHAT API] Wrapped ${Object.keys(wrappedTools).length} tools with plugin hooks (pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`);
+      const origExecute = originalTool.execute;
+      wrappedTools[toolId] = {
+        ...originalTool,
+        execute: async (args: unknown, options: unknown) => {
+          const normalizedArgs = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+
+          // PreToolUse: can block tool execution
+          if (hasPreHooks) {
+            const hookResult = await runPreToolUseHooks(
+              toolId,
+              normalizedArgs,
+              sessionId,
+              allowedPluginNames,
+              pluginRoots
+            );
+            if (hookResult.blocked) {
+              console.log(`[Hooks] Tool "${toolId}" blocked by plugin hook: ${hookResult.blockReason}`);
+              return `Tool blocked by plugin hook: ${hookResult.blockReason}`;
+            }
+          }
+
+          try {
+            const rawResult = await origExecute(args, options as any);
+            const guardedResult = guardToolResultForStreaming(toolId, rawResult);
+            if (guardedResult.blocked) {
+              console.warn(
+                `[CHAT API] Tool result blocked for streaming: ${toolId} ` +
+                `(~${guardedResult.estimatedTokens.toLocaleString()} tokens)`
+              );
+            }
+
+            // PostToolUse: fire-and-forget
+            if (hasPostHooks) {
+              try {
+                runPostToolUseHooks(
+                  toolId,
+                  normalizedArgs,
+                  guardedResult.result,
+                  sessionId,
+                  allowedPluginNames,
+                  pluginRoots
+                );
+              } catch (hookError) {
+                console.error("[Hooks] PostToolUse hook dispatch failed:", hookError);
+              }
+            }
+
+            return guardedResult.result;
+          } catch (error) {
+            // PostToolUseFailure: fire-and-forget
+            if (hasFailureHooks) {
+              try {
+                runPostToolUseFailureHooks(
+                  toolId,
+                  normalizedArgs,
+                  error instanceof Error ? error.message : String(error),
+                  sessionId,
+                  allowedPluginNames,
+                  pluginRoots
+                );
+              } catch (hookError) {
+                console.error("[Hooks] PostToolUseFailure hook dispatch failed:", hookError);
+              }
+            }
+            throw error;
+          }
+        },
+      };
     }
+    allToolsWithMCP = wrappedTools;
+    console.log(
+      `[CHAT API] Wrapped ${Object.keys(wrappedTools).length} tools with stream guard ` +
+      `(pre:${hasPreHooks}, post:${hasPostHooks}, failure:${hasFailureHooks})`
+    );
 
     // Build the initial activeTools array (tool names that are active from the start)
     // When toolLoadingMode="always", ALL tools are active from step 0 (no discovery needed)
