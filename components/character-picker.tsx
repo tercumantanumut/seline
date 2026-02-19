@@ -1384,9 +1384,12 @@ export function CharacterPicker() {
             return (
               <Card key={wf.id} className="transition-all bg-terminal-cream border-terminal-border">
                 <CardHeader className="pb-3">
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => toggleWorkflow(wf.id)}
-                    className="flex items-center gap-3 text-left w-full"
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleWorkflow(wf.id)}
+                    className="flex items-center gap-3 text-left w-full cursor-pointer"
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 text-terminal-muted shrink-0" />
@@ -1444,7 +1447,7 @@ export function CharacterPicker() {
                         {t("workflows.shareFolder")}
                       </AnimatedButton>
                     </div>
-                  </button>
+                  </div>
                 </CardHeader>
 
                 {isExpanded && (
