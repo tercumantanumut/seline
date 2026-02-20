@@ -4,6 +4,7 @@ import { VectorSyncProvider } from "./vector-sync-provider";
 import { GlobalSyncIndicator } from "./global-sync-indicator";
 import { MCPReloadProvider } from "@/components/mcp-reload-provider";
 import { MCPReloadIndicator } from "@/components/mcp-reload-indicator";
+import { VectorWarningListener } from "./vector-warning-listener";
 import type { ReactNode } from "react";
 
 interface GlobalSyncWrapperProps {
@@ -23,6 +24,7 @@ export function GlobalSyncWrapper({ children }: GlobalSyncWrapperProps) {
         {children}
         <GlobalSyncIndicator />
         <MCPReloadIndicator />
+        <VectorWarningListener />
       </MCPReloadProvider>
     </VectorSyncProvider>
   );
