@@ -274,7 +274,17 @@
       "statusArchived": "Arşivlendi",
       "sharedFolders": "{count, plural, one {# paylaşılan klasör} other {# paylaşılan klasör}}",
       "sharedPlugins": "{count, plural, one {# paylaşılan eklenti} other {# paylaşılan eklenti}}",
-      "noSubagents": "Bu iş akışında alt ajan yok"
+      "noSubagents": "Bu iş akışında alt ajan yok",
+      "duplicateSuccess": "Ajan kopyalandı",
+      "duplicateFailed": "Ajan kopyalanamadı",
+      "addToWorkflow": "İş Akışına Ekle...",
+      "addToWorkflowDialogTitle": "{name} ajanını iş akışına ekle",
+      "addToWorkflowDialogDescription": "Ajan alt ajan olarak eklenecek. Rolü değiştirmek için iş akışı ayarlarını kullanın.",
+      "addToWorkflowSelectLabel": "İş akışı seçin",
+      "addToWorkflowSuccess": "Ajan iş akışına eklendi",
+      "addToWorkflowNoAvailable": "Bu ajan için uygun iş akışı yok",
+      "addToWorkflowCta": "İş Akışına Ekle",
+      "addToWorkflowAdding": "Ekleniyor..."
     },
     "activeSession": {
       "label": "Aktif",
