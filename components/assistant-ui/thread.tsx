@@ -15,7 +15,6 @@ import {
   useThreadRuntime,
   useThreadComposer,
   useMessage,
-  useComposer,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
@@ -90,6 +89,7 @@ import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilie
 import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 import type { SkillRecord } from "@/lib/skills/types";
+import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
 import {
   detectSlashSkillTrigger,
   getRequiredSkillInputs,
@@ -1019,7 +1019,7 @@ const Composer: FC<{
 
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
+  const { draft: inputValue, setDraft: setInputValue } = useSessionComposerDraft(sessionId);
 
   // Pasted text state — large pastes are shown as placeholders in the textarea,
   // full content is sent to the AI for the current request only (not persisted)
