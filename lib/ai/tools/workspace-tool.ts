@@ -92,11 +92,29 @@ function gitExecOptions(cwd: string) {
 }
 
 async function runGitCommand(cwd: string, args: string[], input?: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync("git", args, {
-      ...gitExecOptions(cwd),
+  if (typeof input === "string") {
+    const fb = await spawnWithFileCapture(
+      "git",
+      args,
+      cwd,
+      process.env as NodeJS.ProcessEnv,
+      GIT_TIMEOUT_MS,
+      GIT_MAX_OUTPUT_BYTES,
       input,
-    });
+    );
+    const exitCode = fb.exitCode ?? 1;
+    if (fb.timedOut) {
+      throw new Error(`Git command timed out after ${GIT_TIMEOUT_MS}ms`);
+    }
+    if (exitCode !== 0) {
+      const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+      throw new Error(`Git command failed: ${detail}`);
+    }
+    return fb.stdout;
+  }
+
+  try {
+    const { stdout } = await execFileAsync("git", args, gitExecOptions(cwd));
     return stdout;
   } catch (error) {
     if (isEBADFError(error) && process.platform === "darwin") {
@@ -108,7 +126,6 @@ async function runGitCommand(cwd: string, args: string[], input?: string): Promi
         process.env as NodeJS.ProcessEnv,
         GIT_TIMEOUT_MS,
         GIT_MAX_OUTPUT_BYTES,
-        input,
       );
       const exitCode = fb.exitCode ?? 1;
       if (fb.timedOut) {
