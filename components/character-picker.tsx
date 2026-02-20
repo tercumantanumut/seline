@@ -336,7 +336,7 @@ function AgentCardInWorkflow({
         <button
           onClick={() => onEditFolders(character)}
           className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
-          title={t("vectorTitle")}
+          title={t("syncedFoldersTitle")}
         >
           <Database className="w-2.5 h-2.5" />
         </button>
@@ -1748,10 +1748,10 @@ export function CharacterPicker() {
                 <button
                   onClick={() => openFolderManager(character)}
                   className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                  title={t("vectorTitle")}
+                  title={t("syncedFoldersTitle")}
                 >
                   <DatabaseIcon className="w-3 h-3" />
-                  <span>{t("folders")}</span>
+                  <span>{t("syncedFolders")}</span>
                 </button>
                 <button
                   onClick={() => openMcpToolEditor(character)}
@@ -2211,10 +2211,12 @@ export function CharacterPicker() {
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
               <DatabaseIcon className="w-5 h-5 text-terminal-green" />
-              {t("vectorTitle")}
+              {t("syncedFoldersTitle")}
             </DialogTitle>
             <DialogDescription className="font-mono text-terminal-muted">
-              {folderManagerCharacter?.displayName || folderManagerCharacter?.name}
+              {t("syncedFoldersSubtitle", {
+                name: folderManagerCharacter?.displayName || folderManagerCharacter?.name || "",
+              })}
             </DialogDescription>
           </DialogHeader>
           {folderManagerCharacter && (
