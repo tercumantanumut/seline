@@ -89,6 +89,12 @@ import {
 import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
 import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
+import type { SkillRecord } from "@/lib/skills/types";
+import {
+  detectSlashSkillTrigger,
+  getRequiredSkillInputs,
+  insertSkillRunIntent,
+} from "@/lib/skills/skill-picker-utils";
 
 
 interface ThreadProps {
@@ -968,6 +974,18 @@ interface QueuedMessage {
   mode: "chat" | "deep-research";
 }
 
+interface ComposerSkillLite {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  inputParameters: SkillRecord["inputParameters"];
+}
+
+type SkillPickerMode = "slash" | "spotlight";
+
+const MAX_SLASH_SKILL_RESULTS = 8;
+
 const Composer: FC<{
   isBackgroundTaskRunning?: boolean;
   isProcessingInBackground?: boolean;
@@ -1024,6 +1042,14 @@ const Composer: FC<{
   const [cursorPosition, setCursorPosition] = useState(0);
   const mentionRef = useRef<HTMLDivElement>(null);
 
+  // Slash skill picker state
+  const [showSkillPicker, setShowSkillPicker] = useState(false);
+  const [skillPickerQuery, setSkillPickerQuery] = useState("");
+  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
+  const [skills, setSkills] = useState<ComposerSkillLite[]>([]);
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false);
+  const [skillPickerMode, setSkillPickerMode] = useState<SkillPickerMode>("slash");
+
   // Prompt enhancement state
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhancementInfo, setEnhancementInfo] = useState<{
@@ -1058,6 +1084,100 @@ const Composer: FC<{
   // Track if we're currently processing a queued message
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
+  const skillPickerRef = useRef<HTMLDivElement>(null);
+  const skillSearchInputRef = useRef<HTMLInputElement>(null);
+
+  const isApplePlatform = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  const spotlightShortcutHint = isApplePlatform ? "⌘⇧K" : "Ctrl+K";
+
+  const filteredSkills = useMemo(() => {
+    const query = skillPickerQuery.trim().toLowerCase();
+    if (!query) {
+      return skills.slice(0, MAX_SLASH_SKILL_RESULTS);
+    }
+
+    return skills
+      .filter((skill) => (
+        skill.name.toLowerCase().includes(query)
+        || skill.description?.toLowerCase().includes(query)
+        || skill.category.toLowerCase().includes(query)
+      ))
+      .slice(0, MAX_SLASH_SKILL_RESULTS);
+  }, [skills, skillPickerQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSkills = async () => {
+      if (!character?.id || character.id === "default") {
+        setSkills([]);
+        setIsLoadingSkills(false);
+        return;
+      }
+
+      setIsLoadingSkills(true);
+      const query = new URLSearchParams({
+        characterId: character.id,
+        status: "active",
+      });
+      const { data, error } = await resilientFetch<{ skills?: SkillRecord[] }>(`/api/skills?${query.toString()}`, {
+        retries: 0,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error || !Array.isArray(data?.skills)) {
+        setSkills([]);
+        setIsLoadingSkills(false);
+        return;
+      }
+
+      setSkills(data.skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        category: skill.category || "general",
+        inputParameters: skill.inputParameters,
+      })));
+      setIsLoadingSkills(false);
+    };
+
+    void loadSkills();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [character?.id]);
+
+  useEffect(() => {
+    if (skillPickerMode === "spotlight") {
+      return;
+    }
+
+    const slashTrigger = detectSlashSkillTrigger(inputValue, cursorPosition);
+    if (slashTrigger) {
+      setShowSkillPicker(true);
+      setSkillPickerMode("slash");
+      setSkillPickerQuery(slashTrigger.query);
+      setSelectedSkillIndex(0);
+      return;
+    }
+
+    setShowSkillPicker(false);
+    setSkillPickerQuery("");
+    setSelectedSkillIndex(0);
+  }, [inputValue, cursorPosition, skillPickerMode]);
+
+  useEffect(() => {
+    setSelectedSkillIndex((current) => {
+      if (filteredSkills.length === 0) {
+        return 0;
+      }
+      return Math.min(current, filteredSkills.length - 1);
+    });
+  }, [filteredSkills.length]);
 
   // Process queue when AI finishes responding
   useEffect(() => {
@@ -1170,6 +1290,101 @@ const Composer: FC<{
     });
   }, [inputValue]);
 
+  const selectSkill = useCallback((skill: ComposerSkillLite) => {
+    const requiredInputs = getRequiredSkillInputs(skill.inputParameters);
+    const insertion = insertSkillRunIntent(inputValue, cursorPosition, skill.name, requiredInputs);
+    setInputValue(insertion.value);
+    setCursorPosition(insertion.nextCursor);
+    setShowSkillPicker(false);
+    setSkillPickerMode("slash");
+
+    requestAnimationFrame(() => {
+      const textarea = inputRef.current;
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      textarea.setSelectionRange(insertion.nextCursor, insertion.nextCursor);
+    });
+  }, [inputValue, cursorPosition]);
+
+  useEffect(() => {
+    if (!showSkillPicker) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      const textarea = inputRef.current;
+      const picker = skillPickerRef.current;
+      if (!target) {
+        return;
+      }
+
+      if (textarea?.contains(target) || picker?.contains(target)) {
+        return;
+      }
+
+      setShowSkillPicker(false);
+      setSkillPickerMode("slash");
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [showSkillPicker]);
+
+  const openSpotlightSkillPicker = useCallback(() => {
+    setSkillPickerMode("spotlight");
+    setShowSkillPicker(true);
+    setSkillPickerQuery("");
+    setSelectedSkillIndex(0);
+  }, []);
+
+  useEffect(() => {
+    const handleSpotlightShortcut = (event: KeyboardEvent) => {
+      const textarea = inputRef.current;
+      if (!textarea || document.activeElement !== textarea) {
+        return;
+      }
+
+      const normalizedKey = event.key.toLowerCase();
+      const isShortcut = isApplePlatform
+        ? (event.metaKey && event.shiftKey && normalizedKey === "k")
+        : (event.ctrlKey && normalizedKey === "k");
+
+      if (!isShortcut) {
+        return;
+      }
+
+      event.preventDefault();
+      openSpotlightSkillPicker();
+    };
+
+    window.addEventListener("keydown", handleSpotlightShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleSpotlightShortcut);
+    };
+  }, [isApplePlatform, openSpotlightSkillPicker]);
+
+  useEffect(() => {
+    if (!showSkillPicker) {
+      return;
+    }
+
+    if (skillPickerMode === "spotlight") {
+      requestAnimationFrame(() => {
+        skillSearchInputRef.current?.focus();
+      });
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [showSkillPicker, skillPickerMode]);
+
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Let the mention autocomplete handle navigation keys first
@@ -1177,11 +1392,45 @@ const Composer: FC<{
       const handler = (mentionRef.current as unknown as { handleKeyDown?: (e: React.KeyboardEvent) => boolean }).handleKeyDown;
       if (handler && handler(e)) return;
     }
+
+    if (showSkillPicker) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (filteredSkills.length > 0) {
+          setSelectedSkillIndex((index) => Math.min(index + 1, filteredSkills.length - 1));
+        }
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (filteredSkills.length > 0) {
+          setSelectedSkillIndex((index) => Math.max(index - 1, 0));
+        }
+        return;
+      }
+
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (filteredSkills[selectedSkillIndex]) {
+          selectSkill(filteredSkills[selectedSkillIndex]);
+        }
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowSkillPicker(false);
+        setSkillPickerMode("slash");
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  }, [handleSubmit]);
+  }, [filteredSkills, handleSubmit, selectSkill, selectedSkillIndex, showSkillPicker]);
 
   // Handle clipboard paste (Ctrl+V / Cmd+V)
   const handlePaste = useCallback(
@@ -1678,6 +1927,147 @@ const Composer: FC<{
         onInsertMention={handleInsertMention}
       />
 
+      {showSkillPicker && (
+        <div
+          ref={skillPickerRef}
+          className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-terminal-border/70 bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(245,240,226,0.96))] shadow-[0_20px_50px_-20px_rgba(28,30,26,0.55)] backdrop-blur"
+        >
+          <div className="border-b border-terminal-border/50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md border border-terminal-green/30 bg-terminal-green/10 px-1.5 py-0.5 text-[11px] font-mono uppercase tracking-wider text-terminal-green">
+                  {skillPickerMode === "spotlight" ? "Spotlight" : "Skills"}
+                </div>
+                <span className="text-xs font-mono text-terminal-muted">
+                  {skillPickerMode === "spotlight" ? `${spotlightShortcutHint} open` : "Type / to search"}
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-terminal-muted/80">
+                {isLoadingSkills ? "Loading skills..." : `${filteredSkills.length} result${filteredSkills.length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            <div className="relative mt-2">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3 -translate-y-1/2 text-terminal-muted/70" />
+              <input
+                ref={skillSearchInputRef}
+                type="text"
+                value={skillPickerQuery}
+                onChange={(event) => {
+                  setSkillPickerQuery(event.target.value);
+                  setSelectedSkillIndex(0);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    if (filteredSkills.length > 0) {
+                      setSelectedSkillIndex((index) => Math.min(index + 1, filteredSkills.length - 1));
+                    }
+                    return;
+                  }
+
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    if (filteredSkills.length > 0) {
+                      setSelectedSkillIndex((index) => Math.max(index - 1, 0));
+                    }
+                    return;
+                  }
+
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    if (filteredSkills[selectedSkillIndex]) {
+                      selectSkill(filteredSkills[selectedSkillIndex]);
+                    }
+                    return;
+                  }
+
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setShowSkillPicker(false);
+                    setSkillPickerMode("slash");
+                    requestAnimationFrame(() => inputRef.current?.focus());
+                  }
+                }}
+                className="w-full rounded-md border border-terminal-border/60 bg-white/85 py-1.5 pl-8 pr-3 text-sm font-mono text-terminal-dark outline-none transition-colors placeholder:text-terminal-muted/70 focus:border-terminal-green/50"
+                placeholder="Search skills, categories, and descriptions"
+                aria-label="Search skills"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto px-2 py-2">
+            {skills.length === 0 && !isLoadingSkills ? (
+              <div className="px-2 py-8 text-center">
+                <p className="text-xs font-mono text-terminal-muted">
+                  No skills available yet - drop a .md skill file or visit Settings {'->'} Plugins.
+                </p>
+              </div>
+            ) : filteredSkills.length === 0 ? (
+              <div className="px-2 py-8 text-center">
+                <p className="text-xs font-mono text-terminal-muted">
+                  No skills match "{skillPickerQuery}"
+                </p>
+              </div>
+            ) : (
+              filteredSkills.map((skill, index) => {
+                const requiredInputs = getRequiredSkillInputs(skill.inputParameters);
+                return (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    className={cn(
+                      "group flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+                      index === selectedSkillIndex
+                        ? "bg-terminal-green/15 text-terminal-dark"
+                        : "text-terminal-dark/90 hover:bg-terminal-dark/5"
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectSkill(skill);
+                    }}
+                    onMouseEnter={() => setSelectedSkillIndex(index)}
+                    aria-selected={index === selectedSkillIndex}
+                  >
+                    <div className="mt-0.5 rounded-md border border-terminal-green/30 bg-terminal-green/10 px-1.5 py-0.5 text-[10px] font-mono text-terminal-green">
+                      /
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold font-mono text-terminal-dark">
+                          {skill.name}
+                        </span>
+                        {skill.category && (
+                          <span className="shrink-0 rounded border border-terminal-border/60 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide text-terminal-muted">
+                            {skill.category}
+                          </span>
+                        )}
+                      </div>
+                      {skill.description && (
+                        <p className="mt-0.5 line-clamp-1 text-xs font-mono text-terminal-muted">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                    {requiredInputs.length > 0 && (
+                      <span className="mt-0.5 shrink-0 rounded border border-amber-300/80 bg-amber-50 px-1.5 py-0.5 text-[10px] font-mono text-amber-700">
+                        needs input
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex items-center gap-4 border-t border-terminal-border/50 px-4 py-2 text-[10px] font-mono text-terminal-muted/80">
+            <span>↑↓ navigate</span>
+            <span>Tab/Enter select</span>
+            <span>Esc close</span>
+            <span>Command Space open</span>
+          </div>
+        </div>
+      )}
+
       <ComposerPrimitive.Root
         ref={composerRef}
         className={cn(
@@ -1790,6 +2180,25 @@ const Composer: FC<{
                 </TooltipContent>
               </Tooltip>
             )}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={openSpotlightSkillPicker}
+                  disabled={isLoadingSkills || skills.length === 0 || mcpStatus.isReloading}
+                  className="size-8 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+                  aria-label={`Open skill picker (${spotlightShortcutHint})`}
+                >
+                  <SearchIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
+                {`Open skills (${spotlightShortcutHint})`}
+              </TooltipContent>
+            </Tooltip>
 
             {/* Model Bag - Session Model Override */}
             {sessionId && (
