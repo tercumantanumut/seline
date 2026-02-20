@@ -274,7 +274,17 @@
       "statusArchived": "Archived",
       "sharedFolders": "{count, plural, one {# shared folder} other {# shared folders}}",
       "sharedPlugins": "{count, plural, one {# shared plugin} other {# shared plugins}}",
-      "noSubagents": "No sub-agents in this workflow"
+      "noSubagents": "No sub-agents in this workflow",
+      "duplicateSuccess": "Agent duplicated",
+      "duplicateFailed": "Failed to duplicate agent",
+      "addToWorkflow": "Add to Workflow...",
+      "addToWorkflowDialogTitle": "Add {name} to Workflow",
+      "addToWorkflowDialogDescription": "Agent will be added as sub-agent. Use workflow settings to change role.",
+      "addToWorkflowSelectLabel": "Select workflow",
+      "addToWorkflowSuccess": "Agent added to workflow",
+      "addToWorkflowNoAvailable": "No available workflows for this agent",
+      "addToWorkflowCta": "Add to Workflow",
+      "addToWorkflowAdding": "Adding..."
     },
     "activeSession": {
       "label": "Active",
