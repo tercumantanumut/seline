@@ -1644,12 +1644,18 @@ export function CharacterPicker() {
                                 workflowMutationBusy === wf.id ||
                                 !workflowDrafts[wf.id]?.addAgentId
                               }
-                              onClick={() =>
-                                addSubagentToWorkflow(
-                                  wf.id,
-                                  workflowDrafts[wf.id]?.addAgentId || ""
-                                )
-                              }
+                              onClick={async () => {
+                                try {
+                                  await addSubagentToWorkflow(
+                                    wf.id,
+                                    workflowDrafts[wf.id]?.addAgentId || ""
+                                  );
+                                } catch (error) {
+                                  toast.error(
+                                    error instanceof Error ? error.message : t("workflows.updateFailed")
+                                  );
+                                }
+                              }}
                             >
                               <UserPlus className="mr-1 h-3.5 w-3.5" />
                               {t("workflows.addSubagent")}
