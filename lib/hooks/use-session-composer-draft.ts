@@ -144,16 +144,14 @@ export function useSessionComposerDraft(sessionId?: string | null) {
   }, [storageKey]);
 
   const setDraft = useCallback((value: string | ((previous: string) => string)) => {
-    setDraftState((previous) => {
-      const nextValue = typeof value === "function" ? value(previous) : value;
-      draftRef.current = nextValue;
-      persistDraft(storageKeyRef.current, {
-        text: nextValue,
-        selectionStart: selectionRef.current.selectionStart,
-        selectionEnd: selectionRef.current.selectionEnd,
-      });
-      return nextValue;
+    const nextValue = typeof value === "function" ? value(draftRef.current) : value;
+    draftRef.current = nextValue;
+    persistDraft(storageKeyRef.current, {
+      text: nextValue,
+      selectionStart: selectionRef.current.selectionStart,
+      selectionEnd: selectionRef.current.selectionEnd,
     });
+    setDraftState(nextValue);
   }, []);
 
   const setSelection = useCallback((selectionStart: number | null, selectionEnd: number | null) => {
