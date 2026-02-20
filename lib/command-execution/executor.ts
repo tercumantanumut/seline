@@ -233,10 +233,15 @@ export async function startBackgroundProcess(
         const child = spawn(finalCommand, finalArgs, {
             cwd: resolvedCwd,
             shell: needsWindowsShell(finalCommand),
-            stdio: ["ignore", "pipe", "pipe"],
+            // Use "pipe" for stdin instead of "ignore" to prevent spawn EBADF in
+            // Electron's utilityProcess environment (where "ignore" opens /dev/null
+            // in a way that fails with EBADF). We close stdin immediately to send
+            // EOF — functionally identical to "ignore" for our use case.
+            stdio: ["pipe", "pipe", "pipe"],
             windowsHide: true,
             env: finalEnv,
         });
+        child.stdin?.end(); // Signal EOF immediately so child doesn't block on input
 
         const info: BackgroundProcessInfo = {
             id,
@@ -446,11 +451,14 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 cwd,
                 timeout, // Built-in timeout
                 shell: needsWindowsShell(finalCommand),
-                stdio: ["ignore", "pipe", "pipe"], // No stdin – prevents hangs on Windows .cmd shims
+                // Use "pipe" for stdin instead of "ignore" to prevent spawn EBADF in
+                // Electron's utilityProcess environment. We close stdin immediately to
+                // send EOF — functionally identical to "ignore" for our use case.
+                stdio: ["pipe", "pipe", "pipe"],
                 windowsHide: true, // Hide console window on Windows
                 env: finalEnv,
             });
-
+            child.stdin?.end(); // Signal EOF immediately so child doesn't block on input
 
 
             // Set up manual timeout as backup
