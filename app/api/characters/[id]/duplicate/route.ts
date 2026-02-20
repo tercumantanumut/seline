@@ -107,6 +107,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         .where(eq(characterImages.characterId, id));
 
       if (sourceImages.length > 0) {
+        // Keep original localPath/url references: image row deletion currently does not delete files.
         await tx.insert(characterImages).values(
           sourceImages.map((image) => ({
             characterId: newCharacter.id,
@@ -133,6 +134,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ character: duplicated }, { status: 201 });
   } catch (error) {
     console.error("[Duplicate Agent] Error:", error);
+    if (
+      error instanceof Error &&
+      (error.message === "Unauthorized" || error.message === "Invalid session")
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     return NextResponse.json({ error: "Failed to duplicate agent" }, { status: 500 });
   }
 }
