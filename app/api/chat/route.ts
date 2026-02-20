@@ -26,7 +26,6 @@ import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import {
   ContextWindowManager,
-  getContextWindowLimit,
   type ContextWindowStatus as ManagedContextWindowStatus,
 } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
@@ -247,6 +246,10 @@ registerAllTools();
 // Check if Styly AI API is configured (for tool discovery instructions)
 const hasStylyApiKey = () => !!process.env.STYLY_AI_API_KEY;
 
+// Feature-flagged safety projection for task progress SSE payloads.
+// Default is OFF to preserve full progressive tool results.
+const ENABLE_PROGRESS_CONTENT_LIMITER = process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
+
 // Helper to convert relative image URLs to base64 data URIs for AI providers
 async function imageUrlToBase64(imageUrl: string): Promise<string> {
   // If already a data URI or absolute URL, return as-is
@@ -297,6 +300,47 @@ const MAX_TEXT_CONTENT_LENGTH = 10000;
 
 // Limit how many missing tool results we attempt to re-fetch per request
 const MAX_TOOL_REFETCH = 6;
+
+const WEB_SEARCH_NO_RESULT_GUARD = {
+  maxConsecutiveZeroResultCalls: 3,
+  maxZeroResultRepeatsPerQuery: 2,
+} as const;
+
+function normalizeWebSearchQuery(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getWebSearchSourceCount(value: unknown): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as { sources?: unknown };
+  return Array.isArray(candidate.sources) ? candidate.sources.length : null;
+}
+
+function buildWebSearchLoopGuardResult(query: string | null, reason: string) {
+  const normalizedQuery = query ?? "unknown query";
+  const message =
+    `Web search returned no results repeatedly (${reason}). ` +
+    "To prevent loops, do not call webSearch again in this response. " +
+    "Continue with a best-effort answer and clearly note uncertainty.";
+
+  return {
+    status: "success" as const,
+    query: normalizedQuery,
+    sources: [],
+    iterationPerformed: false,
+    provider: "loop-guard",
+    message,
+    formattedResults: message,
+  };
+}
 
 // Import the truncated content store for smart truncation
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
@@ -2311,15 +2355,14 @@ export async function POST(req: Request) {
           });
 
           if (progressRunId && progressType) {
-            // Limit progressContent before emitting to prevent oversized payloads
-            // from being serialized into SSE events. The full partsSnapshot is
-            // already persisted to the database above — this only affects the
-            // real-time progress display sent to clients.
-            const progressLimit = limitProgressContent(partsSnapshot);
-            if (progressLimit.wasTruncated) {
+            const progressLimit = ENABLE_PROGRESS_CONTENT_LIMITER
+              ? limitProgressContent(partsSnapshot)
+              : null;
+
+            if (progressLimit?.wasTruncated) {
               console.log(
                 `[CHAT API] Progress content truncated: ` +
-                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens` +
+                `~${progressLimit.originalTokens.toLocaleString()} -> ~${progressLimit.finalTokens.toLocaleString()} tokens` +
                 (progressLimit.hardCapped ? " (hard cap summary applied)" : "")
               );
             }
@@ -2336,12 +2379,12 @@ export async function POST(req: Request) {
                 characterId: eventCharacterId,
                 sessionId,
                 assistantMessageId: streamingState.messageId,
-                progressContent: progressLimit.content as DBContentPart[],
-                progressContentLimited: progressLimit.wasTruncated,
-                progressContentOriginalTokens: progressLimit.originalTokens,
-                progressContentFinalTokens: progressLimit.finalTokens,
-                progressContentTruncatedParts: progressLimit.truncatedParts,
-                progressContentProjectionOnly: true,
+                progressContent: (progressLimit?.content ?? partsSnapshot) as DBContentPart[],
+                progressContentLimited: progressLimit?.wasTruncated,
+                progressContentOriginalTokens: progressLimit?.originalTokens,
+                progressContentFinalTokens: progressLimit?.finalTokens,
+                progressContentTruncatedParts: progressLimit?.truncatedParts,
+                progressContentProjectionOnly: progressLimit ? true : undefined,
                 startedAt: nowISO(),
               }
             );
@@ -2409,18 +2452,10 @@ export async function POST(req: Request) {
       `${contextCheck.status.formatted.percentage})`
     );
 
-    const modelContextWindowLimit = getContextWindowLimit(currentModelId, currentProvider);
-    const dynamicStreamBudgetTokens = Math.max(
-      1,
-      Math.floor(modelContextWindowLimit * 0.75 - contextCheck.status.currentTokens)
-    );
-    const streamToolResultBudgetTokens = Math.min(
-      MAX_STREAM_TOOL_RESULT_TOKENS,
-      dynamicStreamBudgetTokens
-    );
+    const streamToolResultBudgetTokens = MAX_STREAM_TOOL_RESULT_TOKENS;
     console.log(
       `[CHAT API] Tool-result stream budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens ` +
-      `(model=${modelContextWindowLimit.toLocaleString()}, inUse=${contextCheck.status.currentTokens.toLocaleString()})`
+      `(fixed single-result limit)`
     );
 
     // If compaction was performed, log the result
@@ -3291,6 +3326,12 @@ export async function POST(req: Request) {
     const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
 
     const wrappedTools: Record<string, Tool> = {};
+    let consecutiveZeroResultWebSearches = 0;
+    const zeroResultWebSearchCountsByQuery = new Map<string, number>();
+    let webSearchDisabledByLoopGuard = false;
+    let webSearchDisableReason: string | null = null;
+    let webSearchDisableLogged = false;
+
     for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
       if (!originalTool.execute) {
         wrappedTools[toolId] = originalTool;
@@ -3301,6 +3342,39 @@ export async function POST(req: Request) {
         ...originalTool,
         execute: async (args: unknown, options: unknown) => {
           const normalizedArgs = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+
+          if (toolId === "webSearch") {
+            const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
+
+            if (webSearchDisabledByLoopGuard) {
+              if (!webSearchDisableLogged) {
+                console.warn(
+                  `[CHAT API] webSearch disabled for remaining response after loop guard trigger (${webSearchDisableReason ?? "unknown reason"})`
+                );
+                webSearchDisableLogged = true;
+              }
+              return buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active");
+            }
+
+            if (normalizedQuery) {
+              const queryZeroResultCount = zeroResultWebSearchCountsByQuery.get(normalizedQuery) ?? 0;
+              if (queryZeroResultCount >= WEB_SEARCH_NO_RESULT_GUARD.maxZeroResultRepeatsPerQuery) {
+                const reason = `same query repeated ${queryZeroResultCount} times`;
+                webSearchDisabledByLoopGuard = true;
+                webSearchDisableReason = reason;
+                console.warn(`[CHAT API] webSearch loop guard triggered (${reason}) for query: ${normalizedQuery}`);
+                return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+              }
+            }
+
+            if (consecutiveZeroResultWebSearches >= WEB_SEARCH_NO_RESULT_GUARD.maxConsecutiveZeroResultCalls) {
+              const reason = `consecutive zero-result calls: ${consecutiveZeroResultWebSearches}`;
+              webSearchDisabledByLoopGuard = true;
+              webSearchDisableReason = reason;
+              console.warn(`[CHAT API] webSearch loop guard triggered (${reason})`);
+              return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+            }
+          }
 
           // PreToolUse: can block tool execution
           if (hasPreHooks) {
@@ -3331,6 +3405,26 @@ export async function POST(req: Request) {
                 `(~${guardedResult.estimatedTokens.toLocaleString()} tokens, ` +
                 `budget=${streamToolResultBudgetTokens.toLocaleString()})`
               );
+            }
+
+            if (toolId === "webSearch") {
+              const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
+              const sourceCount = getWebSearchSourceCount(guardedResult.result);
+
+              if (sourceCount === 0) {
+                consecutiveZeroResultWebSearches += 1;
+                if (normalizedQuery) {
+                  const previousCount = zeroResultWebSearchCountsByQuery.get(normalizedQuery) ?? 0;
+                  zeroResultWebSearchCountsByQuery.set(normalizedQuery, previousCount + 1);
+                }
+              } else if (sourceCount !== null) {
+                consecutiveZeroResultWebSearches = 0;
+                if (normalizedQuery) {
+                  zeroResultWebSearchCountsByQuery.delete(normalizedQuery);
+                }
+              }
+            } else {
+              consecutiveZeroResultWebSearches = 0;
             }
 
             // PostToolUse: fire-and-forget
@@ -3566,6 +3660,10 @@ export async function POST(req: Request) {
           // This prevents agent from misusing the tool when no truncation has occurred
           if (sessionHasTruncatedContent(sessionId) && !activeToolSet.has("retrieveFullContent")) {
             activeToolSet.add("retrieveFullContent");
+          }
+
+          if (webSearchDisabledByLoopGuard) {
+            activeToolSet.delete("webSearch");
           }
 
           const currentActiveTools = [...activeToolSet];

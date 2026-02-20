@@ -43,7 +43,9 @@ describe("guardToolResultForStreaming", () => {
     expect(blocked.tokenLimit).toBe(3_000);
     expect(blocked.logId).toBe("log_huge");
     expect(blocked.truncatedContentId).toBe("trunc_abc123");
+    expect(String(blocked.error)).toContain("single-tool streaming limit");
     expect(String(blocked.error)).toContain("Streaming continued");
+    expect(String(blocked.error)).toContain("Narrow the command scope");
     expect(String(blocked.error)).toContain("readLog");
     expect(String(blocked.error)).toContain("retrieveFullContent");
   });
@@ -58,6 +60,7 @@ describe("guardToolResultForStreaming", () => {
     expect(guarded.blocked).toBe(true);
     const blocked = guarded.result as Record<string, unknown>;
     expect(blocked.tokenLimit).toBe(MIN_STREAM_TOOL_RESULT_TOKENS);
+    expect(String(blocked.error)).toContain("Refine the request and retry with a smaller result scope");
   });
 
   it("caps explicit maxTokens to the hard stream limit", () => {

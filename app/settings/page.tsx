@@ -752,6 +752,12 @@ export default function SettingsPage() {
         throw new Error(t("errors.save"));
       }
       const result = await response.json();
+      if (result.folderResyncRecommended) {
+        toast.warning(
+          result.folderResyncMessage || "Search index settings changed. If results look outdated, refresh synced folders in Agent Settings.",
+          { duration: 9000 }
+        );
+      }
       // Show validation warnings as toasts
       if (result.warnings?.length) {
         for (const warning of result.warnings) {
@@ -2292,6 +2298,9 @@ function SettingsPanel({
           <div className="rounded border border-amber-200 bg-amber-50 p-4">
             <p className="font-mono text-xs text-amber-800">
               <strong>{t("vector.reindexRequired.title")}</strong> {t("vector.reindexRequired.body")}
+            </p>
+            <p className="mt-2 font-mono text-xs text-amber-800">
+              {t("vector.reindexRequired.folderHint")}
             </p>
           </div>
         )}

@@ -77,6 +77,7 @@ export function OnboardingWizard() {
         try {
             // Save configured settings from onboarding
             await resilientPost("/api/onboarding", {
+                llmProvider: state.llmProvider,
                 tavilyApiKey: state.tavilyApiKey || undefined,
                 webScraperProvider: state.webScraperProvider || "local",
                 firecrawlApiKey: state.firecrawlApiKey || undefined,

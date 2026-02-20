@@ -35,10 +35,9 @@ const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
 // Canonical history persistence remains lossless where possible.
 
 /**
- * Get the bundled Node.js binaries directory
- * Returns the path to standalone/node_modules/.bin if it exists in the packaged app
+ * Get bundled binary directories available in a packaged app.
  */
-function getBundledBinariesPath(): string | null {
+function getBundledBinariesPaths(): string[] {
     // In packaged Electron apps:
     // - Main process: process.resourcesPath is available
     // - Renderer/Next.js server: ELECTRON_RESOURCES_PATH env var is set
@@ -46,20 +45,20 @@ function getBundledBinariesPath(): string | null {
         || process.env.ELECTRON_RESOURCES_PATH;
 
     if (!resourcesPath) {
-        return null;
+        return [];
     }
 
-    const binPath = join(resourcesPath, "standalone", "node_modules", ".bin");
+    const bundledCandidates = [
+        join(resourcesPath, "standalone", "node_modules", ".bin"),
+        join(resourcesPath, "standalone", "tools", "bin"),
+    ];
 
     try {
-        if (existsSync(binPath)) {
-            return binPath;
-        }
+        return bundledCandidates.filter((candidate) => existsSync(candidate));
     } catch {
         // Ignore filesystem errors
+        return [];
     }
-
-    return null;
 }
 
 /**
@@ -70,12 +69,12 @@ function buildSafeEnvironment(): Record<string, string | undefined> {
     // Start with system PATH
     let pathValue = process.env.PATH || "";
 
-    // Prepend bundled binaries directory if available
-    const bundledBinPath = getBundledBinariesPath();
-    if (bundledBinPath) {
+    // Prepend bundled binary directories if available.
+    const bundledBinPaths = getBundledBinariesPaths();
+    if (bundledBinPaths.length > 0) {
         const pathSeparator = process.platform === "win32" ? ";" : ":";
-        pathValue = bundledBinPath + pathSeparator + pathValue;
-        console.log(`[Command Executor] Prepending bundled binaries to PATH: ${bundledBinPath}`);
+        pathValue = `${bundledBinPaths.join(pathSeparator)}${pathSeparator}${pathValue}`;
+        console.log(`[Command Executor] Prepending bundled binaries to PATH: ${bundledBinPaths.join(", ")}`);
     }
 
     return {
@@ -145,7 +144,7 @@ function needsWindowsShell(command: string): boolean {
         "npm", "npx", "yarn", "pnpm", "pnpx",
         "tsc", "eslint", "prettier", "jest", "vitest",
         "next", "nuxt", "vite", "webpack",
-        "ts-node", "tsx",
+        "ts-node", "tsx", "apply_patch",
     ]);
     if (cmdShimCommands.has(normalized)) return true;
     // cmd.exe built-ins
@@ -684,9 +683,9 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
 
                 // Check if it's a "command not found" error
                 if (error.message.includes("ENOENT") || error.message.includes("spawn") && error.message.includes("not found")) {
-                    const bundledBinPath = getBundledBinariesPath();
-                    const pathInfo = bundledBinPath
-                        ? `\n\nBundled binaries path: ${bundledBinPath}\nCurrent PATH: ${process.env.PATH?.split(process.platform === "win32" ? ";" : ":").slice(0, 3).join("\n  ")}`
+                    const bundledBinPaths = getBundledBinariesPaths();
+                    const pathInfo = bundledBinPaths.length > 0
+                        ? `\n\nBundled binaries paths: ${bundledBinPaths.join(", ")}\nCurrent PATH: ${process.env.PATH?.split(process.platform === "win32" ? ";" : ":").slice(0, 3).join("\n  ")}`
                         : "\n\nNo bundled binaries found. Running in development mode or binaries not packaged.";
 
                     errorMessage = `Command '${command}' not found. ${errorMessage}${pathInfo}\n\nTip: For Node.js commands (npm, npx, node), ensure the app is properly packaged with bundled binaries.`;
