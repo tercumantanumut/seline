@@ -210,7 +210,7 @@
     "empty": "No agents yet. Configure your first agent to get started.",
     "emptyTitle": "Create Your First Agent",
     "emptyDescription": "Agents are AI assistants tailored to specific tasks. Create one to get started with personalized help.",
-    "searchPlaceholder": "Search agents by name, purpose, or tools...",
+    "searchPlaceholder": "Search agents and workflows...",
     "noResults": "No agents match your search",
     "clearSearch": "Clear search",
     "vectorTitle": "Synced Folders",
@@ -240,8 +240,12 @@
       "minCharsHint": "Minimum 10 characters",
       "descriptionQualityHint": "Tip: include goals, audience, and tone for better results."
     },
+    "agents": {
+      "sectionTitle": "Agents"
+    },
     "workflows": {
       "sectionTitle": "Workflows",
+      "newWorkflow": "+ New Workflow",
       "create": "Create Workflow",
       "createDescription": "Create a workflow from existing agents in your character picker.",
       "nameLabel": "Workflow Name",
@@ -259,6 +263,21 @@
       "updated": "Workflow updated",
       "deleted": "Workflow deleted",
       "updateFailed": "Failed to update workflow",
+      "empty": "No workflows yet. Create your first workflow.",
+      "emptySearch": "No workflows match your search.",
+      "createFirstAgentHint": "Create a standalone agent first",
+      "agentDeleted": "Agent deleted",
+      "missingInitiatorActionsDisabled": "Run and Share Folder are unavailable because the initiator was deleted.",
+      "confirmRemoveSubagentTitle": "Remove sub-agent?",
+      "confirmRemoveSubagentDescription": "This removes the agent from the workflow but keeps the agent.",
+      "confirmDeleteTitle": "Delete workflow?",
+      "confirmDeleteDescription": "Members will remain as standalone agents.",
+      "confirmAction": "Confirm",
+      "errors": {
+        "agentAlreadyActiveWorkflow": "Agent already belongs to an active workflow.",
+        "agentAlreadyInWorkflow": "Agent is already in this workflow.",
+        "archivedWorkflowReadOnly": "Cannot modify archived workflow."
+      },
       "agentCount": "{count, plural, one {# agent} other {# agents}}",
       "expand": "Show agents",
       "collapse": "Hide agents",
