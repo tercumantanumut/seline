@@ -1087,6 +1087,9 @@ const Composer: FC<{
   const skillPickerRef = useRef<HTMLDivElement>(null);
   const skillSearchInputRef = useRef<HTMLInputElement>(null);
 
+  const isApplePlatform = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  const spotlightShortcutHint = isApplePlatform ? "⌘⇧K" : "Ctrl+K";
+
   const filteredSkills = useMemo(() => {
     const query = skillPickerQuery.trim().toLowerCase();
     if (!query) {
@@ -1339,7 +1342,12 @@ const Composer: FC<{
         return;
       }
 
-      if (!(event.metaKey && event.key === " ")) {
+      const normalizedKey = event.key.toLowerCase();
+      const isShortcut = isApplePlatform
+        ? (event.metaKey && event.shiftKey && normalizedKey === "k")
+        : (event.ctrlKey && normalizedKey === "k");
+
+      if (!isShortcut) {
         return;
       }
 
@@ -1354,7 +1362,7 @@ const Composer: FC<{
     return () => {
       window.removeEventListener("keydown", handleSpotlightShortcut);
     };
-  }, []);
+  }, [isApplePlatform]);
 
   useEffect(() => {
     if (!showSkillPicker) {
@@ -1927,7 +1935,7 @@ const Composer: FC<{
                   {skillPickerMode === "spotlight" ? "Spotlight" : "Skills"}
                 </div>
                 <span className="text-xs font-mono text-terminal-muted">
-                  {skillPickerMode === "spotlight" ? "Command+Space" : "Type / to search"}
+                  {skillPickerMode === "spotlight" ? `${spotlightShortcutHint} open` : "Type / to search"}
                 </span>
               </div>
               <span className="text-[11px] font-mono text-terminal-muted/80">
