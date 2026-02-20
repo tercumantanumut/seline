@@ -1002,6 +1002,17 @@ const Composer: FC<{
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+
+  // Pasted text state — large pastes are shown as placeholders in the textarea,
+  // full content is sent to the AI for the current request only (not persisted)
+  interface PastedTextItem {
+    index: number;
+    text: string;
+    lineCount: number;
+    placeholder: string; // "[Pasted text #1 +313 lines]"
+  }
+  const [pastedTexts, setPastedTexts] = useState<PastedTextItem[]>([]);
+  const pasteCounterRef = useRef(0);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
@@ -1098,18 +1109,31 @@ const Composer: FC<{
     // Determine what to send: enhanced context if available, otherwise original input
     const messageToSend = enhancedContext || inputValue.trim();
 
+    // Expand paste placeholders with full content using delimiters.
+    // The backend will use the full content for the AI request but store
+    // only the compact placeholder in the DB (ephemeral paste — not persisted in history).
+    let expandedMessage = messageToSend;
+    for (const paste of pastedTexts) {
+      expandedMessage = expandedMessage.replace(
+        paste.placeholder,
+        `[PASTE_CONTENT:${paste.index}:${paste.lineCount}]\n${paste.text}\n[/PASTE_CONTENT:${paste.index}]`
+      );
+    }
+
     if (isQueueBlocked) {
       // Queue the message when AI is busy (text only, no attachments for queued)
       if (hasText) {
         setQueuedMessages(prev => [...prev, {
           id: `queued-${Date.now()}`,
-          content: messageToSend,
+          content: expandedMessage,
           mode: isDeepResearchMode ? "deep-research" : "chat",
         }]);
       }
       setInputValue("");
       setEnhancedContext(null);
       setEnhancementInfo(null);
+      setPastedTexts([]);
+      pasteCounterRef.current = 0;
       // Clear attachments since we can't queue them
       if (hasAttachments) {
         threadRuntime.composer.clearAttachments();
@@ -1117,13 +1141,15 @@ const Composer: FC<{
     } else {
       // Send immediately using composer runtime (includes attachments)
       // Use enhanced context if available, otherwise use original input
-      threadRuntime.composer.setText(messageToSend);
+      threadRuntime.composer.setText(expandedMessage);
       threadRuntime.composer.send();
       setInputValue("");
       setEnhancedContext(null);
       setEnhancementInfo(null);
+      setPastedTexts([]);
+      pasteCounterRef.current = 0;
     }
-  }, [inputValue, isQueueBlocked, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext]);
+  }, [inputValue, isQueueBlocked, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext, pastedTexts]);
 
   // Insert a file mention from the autocomplete dropdown
   const handleInsertMention = useCallback((mention: string, atIndex: number, queryLength: number) => {
@@ -1193,15 +1219,44 @@ const Composer: FC<{
           return; // Only process first image
         }
       }
-      // Let text paste through normally (no preventDefault)
+
+      // Large text paste handling — show placeholder instead of flooding the textarea
+      const LARGE_PASTE_LINE_THRESHOLD = 5;
+      const LARGE_PASTE_CHAR_THRESHOLD = 300;
+      const pastedText = e.clipboardData.getData("text/plain");
+      if (pastedText) {
+        const lines = pastedText.split("\n");
+        if (lines.length >= LARGE_PASTE_LINE_THRESHOLD || pastedText.length >= LARGE_PASTE_CHAR_THRESHOLD) {
+          e.preventDefault();
+          pasteCounterRef.current += 1;
+          const index = pasteCounterRef.current;
+          const lineCount = lines.length;
+          const placeholder = `[Pasted text #${index} +${lineCount} lines]`;
+          // Insert placeholder at current cursor position in the controlled textarea
+          const start = inputRef.current?.selectionStart ?? inputValue.length;
+          const end = inputRef.current?.selectionEnd ?? start;
+          setInputValue(v => v.slice(0, start) + placeholder + v.slice(end));
+          setPastedTexts(prev => [...prev, { index, text: pastedText, lineCount, placeholder }]);
+          return;
+        }
+      }
+      // Let small text paste through normally (no preventDefault)
     },
-    [threadRuntime, t]
+    [threadRuntime, t, inputValue]
   );
 
   // Remove a message from the queue
   const removeFromQueue = useCallback((id: string) => {
     setQueuedMessages(prev => prev.filter(msg => msg.id !== id));
   }, []);
+
+  // Remove a pasted text item (chip) and its placeholder from the textarea
+  const removePastedText = useCallback((index: number) => {
+    const item = pastedTexts.find(p => p.index === index);
+    if (!item) return;
+    setInputValue(v => v.replace(item.placeholder, ""));
+    setPastedTexts(prev => prev.filter(p => p.index !== index));
+  }, [pastedTexts]);
 
   // Get recent messages for enhancement context
   const messages = useThread((t) => t.messages);
@@ -1659,6 +1714,30 @@ const Composer: FC<{
             components={{ Attachment: ComposerAttachment }}
           />
         </div>
+
+        {/* Pasted text chips — each large paste shows as a removable chip */}
+        {pastedTexts.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-2 pb-1">
+            {pastedTexts.map((item) => (
+              <div
+                key={item.index}
+                className="flex items-center gap-1.5 rounded-md border border-terminal-border bg-terminal-dark/5 px-2 py-1 text-xs font-mono text-terminal-muted"
+              >
+                <span className="text-terminal-dark/50 select-none">📋</span>
+                <span>{t("composer.pastedTextChip", { n: item.index, lines: item.lineCount })}</span>
+                <button
+                  type="button"
+                  onClick={() => removePastedText(item.index)}
+                  className="ml-0.5 leading-none hover:text-red-500 transition-colors"
+                  aria-label={t("composer.removePastedText")}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-end">
           <textarea
             ref={inputRef}

@@ -404,6 +404,76 @@ function stripFakeToolCallJson(text: string): string {
   return cleaned.trim();
 }
 
+// ─── Paste content helpers ───────────────────────────────────────────────────
+// Large pasted text is sent from the frontend as:
+//   [PASTE_CONTENT:N:M]\n{full content}\n[/PASTE_CONTENT:N]
+// where N = paste index, M = line count.
+//
+// For DB storage: strip back to compact placeholder "[Pasted text #N +M lines]"
+// For AI: extract blocks before sanitization, re-insert after to bypass truncation
+
+function stripPasteContentForStorage(text: string): string {
+  return text.replace(
+    /\[PASTE_CONTENT:(\d+):(\d+)\]\n[\s\S]*?\n\[\/PASTE_CONTENT:\1\]/g,
+    (_match, n, m) => `[Pasted text #${n} +${m} lines]`
+  );
+}
+
+interface PasteBlock {
+  placeholder: string; // e.g. "<<<PASTE_BLOCK_0>>>"
+  expanded: string;    // e.g. "[Pasted text #1]:\n{content}"
+}
+
+// Extract paste delimiter blocks from text, replacing them with lightweight placeholders.
+// The returned cleanedText is safe to pass through sanitizeTextContent without triggering
+// truncation on the (large) paste content. Call reinsertPasteBlocks afterwards.
+function extractPasteBlocks(text: string): { cleanedText: string; pasteBlocks: PasteBlock[] } {
+  const pasteBlocks: PasteBlock[] = [];
+  let blockIndex = 0;
+  const cleanedText = text.replace(
+    /\[PASTE_CONTENT:(\d+):\d+\]\n([\s\S]*?)\n\[\/PASTE_CONTENT:\1\]/g,
+    (_match, n, content) => {
+      const placeholder = `<<<PASTE_BLOCK_${blockIndex}>>>`;
+      pasteBlocks.push({
+        placeholder,
+        expanded: `[Pasted text #${n}]:\n${content}`,
+      });
+      blockIndex++;
+      return placeholder;
+    }
+  );
+  return { cleanedText, pasteBlocks };
+}
+
+// Re-insert previously extracted paste blocks into sanitized text.
+function reinsertPasteBlocks(text: string, pasteBlocks: PasteBlock[]): string {
+  let result = text;
+  for (const block of pasteBlocks) {
+    result = result.replace(block.placeholder, block.expanded);
+  }
+  return result;
+}
+
+// Strip paste content from a message's text fields before saving to DB.
+// Produces a shallow copy of the message with paste delimiters collapsed back to placeholders.
+function stripPasteFromMessageForDB<T extends { content?: unknown; parts?: Array<{ type: string; text?: string; [key: string]: unknown }> }>(msg: T): T {
+  if (typeof msg.content === "string") {
+    return { ...msg, content: stripPasteContentForStorage(msg.content) };
+  }
+  if (msg.parts) {
+    return {
+      ...msg,
+      parts: msg.parts.map(part =>
+        part.type === "text" && typeof part.text === "string"
+          ? { ...part, text: stripPasteContentForStorage(part.text) }
+          : part
+      ),
+    };
+  }
+  return msg;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Helper to extract content from assistant-ui message format
 // assistant-ui sends messages with `parts` array, but AI SDK expects `content`
 // Also handles `experimental_attachments` from AI SDK format
@@ -450,10 +520,14 @@ async function extractContent(
 }>> {
   // If content exists and is a string, use it directly (with sanitization)
   if (typeof msg.content === "string" && msg.content) {
+    // Extract paste blocks before sanitization so they bypass the truncation limit.
+    // sanitizeTextContent only sees the user's short query; paste content is reinserted after.
+    const { cleanedText, pasteBlocks } = extractPasteBlocks(msg.content);
     // Strip fake tool call JSON that may have been saved from previous model outputs
-    const stripped = stripFakeToolCallJson(msg.content);
-    if (!stripped.trim()) return "";
-    return sanitizeTextContent(stripped, "string content", sessionId);
+    const stripped = stripFakeToolCallJson(cleanedText);
+    if (!stripped.trim() && pasteBlocks.length === 0) return "";
+    const sanitized = sanitizeTextContent(stripped, "string content", sessionId);
+    return reinsertPasteBlocks(sanitized, pasteBlocks);
   }
 
   // Determine if this is a user message (only user images should be converted to base64)
@@ -486,12 +560,16 @@ async function extractContent(
 
     for (const part of msg.parts) {
       if (part.type === "text" && part.text?.trim()) {
+        // Extract paste blocks before sanitization — paste content must not be truncated.
+        // sanitizeTextContent only sees the user's short query text; blocks are reinserted after.
+        const { cleanedText, pasteBlocks } = extractPasteBlocks(part.text);
         // Strip fake tool call JSON that the model may have output as text in previous turns
-        const strippedText = stripFakeToolCallJson(part.text);
-        if (!strippedText.trim()) continue; // Skip entirely empty parts after stripping
+        const strippedText = stripFakeToolCallJson(cleanedText);
+        if (!strippedText.trim() && pasteBlocks.length === 0) continue; // Skip entirely empty parts
         // Sanitize text to prevent base64 leakage (with smart truncation if sessionId provided)
         const sanitizedText = sanitizeTextContent(strippedText, `text part in ${msg.role} message`, sessionId);
-        contentParts.push({ type: "text", text: sanitizedText });
+        const finalText = reinsertPasteBlocks(sanitizedText, pasteBlocks);
+        if (finalText.trim()) contentParts.push({ type: "text", text: finalText });
       } else if (part.type === "image" && (part.image || part.url)) {
         const imageUrl = (part.image || part.url) as string;
         // ONLY convert to base64 for USER-uploaded images
@@ -2418,8 +2496,11 @@ export async function POST(req: Request) {
 
     if (!isScheduledRun && lastMessage && lastMessage.role === 'user') {
       // Extract content using the helper (handles parts array from assistant-ui)
-      // Don't convert to base64 for DB storage (keeps URLs compact)
-      const extractedContent = await extractContent(lastMessage);
+      // Don't convert to base64 for DB storage (keeps URLs compact).
+      // Strip paste content delimiters first so only the compact placeholder is stored —
+      // pasted text is ephemeral (sent to AI for this request only, not persisted in history).
+      const messageForDB = stripPasteFromMessageForDB(lastMessage);
+      const extractedContent = await extractContent(messageForDB);
 
       // Normalize content to array format for JSONB storage
       let normalizedContent: unknown[];

@@ -652,7 +652,10 @@
       "onlyImagesSupported": "Only image files are supported",
       "fileTooLarge": "File is too large ({size}MB). Maximum: {max}MB",
       "someFilesTooLarge": "{count, plural, one {# file is} other {# files are}} too large. Maximum: {max}MB",
-      "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode"
+      "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode",
+      "pastedTextChip": "Pasted text #{n} · {lines} lines",
+      "removePastedText": "Remove pasted text",
+      "textPasted": "Large text captured ({lines} lines)"
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
