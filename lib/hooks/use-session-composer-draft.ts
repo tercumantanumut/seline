@@ -144,16 +144,17 @@ export function useSessionComposerDraft(sessionId?: string | null) {
   }, [storageKey]);
 
   const setDraft = useCallback((value: string | ((previous: string) => string)) => {
-    setDraftState((previous) => {
-      const nextValue = typeof value === "function" ? value(previous) : value;
-      draftRef.current = nextValue;
-      persistDraft(storageKeyRef.current, {
-        text: nextValue,
-        selectionStart: selectionRef.current.selectionStart,
-        selectionEnd: selectionRef.current.selectionEnd,
-      });
-      return nextValue;
+    // Compute next value eagerly using the ref so the cache is written synchronously
+    // before React schedules the state update. This prevents polling-triggered remounts
+    // from reading stale cache when the user is typing fast.
+    const nextValue = typeof value === "function" ? value(draftRef.current) : value;
+    draftRef.current = nextValue;
+    persistDraft(storageKeyRef.current, {
+      text: nextValue,
+      selectionStart: selectionRef.current.selectionStart,
+      selectionEnd: selectionRef.current.selectionEnd,
     });
+    setDraftState(nextValue);
   }, []);
 
   const setSelection = useCallback((selectionStart: number | null, selectionEnd: number | null) => {

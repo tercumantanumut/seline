@@ -724,7 +724,7 @@ export const Thread: FC<ThreadProps> = ({
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(
-            "flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto]",
+            "flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto] animate-in fade-in duration-200",
             !isRunning && "scroll-smooth"
           )}>
             <ThreadWelcome />
