@@ -1,5 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 // Mock fs so bundled-binaries path resolution doesn't touch the real filesystem
 vi.mock("fs", () => ({
@@ -16,6 +18,8 @@ const {
     killBackgroundProcess,
     listBackgroundProcesses,
     cleanupBackgroundProcesses,
+    isEBADFError,
+    spawnWithFileCapture,
 } = await import("@/lib/command-execution/executor");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -334,5 +338,154 @@ describe("Command validation in executor", () => {
 
         expect(result.success).toBe(true);
         expect(result.stdout).toBe("safe");
+    });
+});
+
+// ── isEBADFError helper ───────────────────────────────────────────────────────
+
+describe("isEBADFError", () => {
+    it("returns true for an error with code EBADF", () => {
+        const err = Object.assign(new Error("spawn EBADF"), { code: "EBADF" });
+        expect(isEBADFError(err)).toBe(true);
+    });
+
+    it("returns true for an error whose message contains EBADF", () => {
+        expect(isEBADFError(new Error("spawn EBADF"))).toBe(true);
+    });
+
+    it("returns false for ENOENT", () => {
+        const err = Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+        expect(isEBADFError(err)).toBe(false);
+    });
+
+    it("returns false for a generic error", () => {
+        expect(isEBADFError(new Error("something went wrong"))).toBe(false);
+    });
+});
+
+// ── spawnWithFileCapture (unit) ───────────────────────────────────────────────
+
+describe("spawnWithFileCapture", () => {
+    const env = process.env as NodeJS.ProcessEnv;
+
+    it("captures stdout and returns exitCode 0 for a successful command", async () => {
+        const result = await spawnWithFileCapture(
+            "echo", ["hello from file capture"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout.trim()).toBe("hello from file capture");
+        expect(result.timedOut).toBe(false);
+    });
+
+    it("captures stderr for a command that writes to stderr", async () => {
+        const result = await spawnWithFileCapture(
+            "/bin/sh", ["-c", "echo err-output >&2; exit 1"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr.trim()).toBe("err-output");
+    });
+
+    it("handles arguments with spaces correctly", async () => {
+        const result = await spawnWithFileCapture(
+            "echo", ["hello world", "foo bar"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("hello world");
+        expect(result.stdout).toContain("foo bar");
+    });
+
+    it("handles arguments with single quotes correctly", async () => {
+        const result = await spawnWithFileCapture(
+            "echo", ["it's a test"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("it's a test");
+    });
+
+    it("respects the timeout and sets timedOut=true", async () => {
+        const result = await spawnWithFileCapture(
+            "sleep", ["10"],
+            process.cwd(), env, 300 /* 300 ms */, 1048576,
+        );
+        expect(result.timedOut).toBe(true);
+    });
+
+    it("truncates output that exceeds maxOutputSize", async () => {
+        // Write 100 bytes but limit to 50
+        const result = await spawnWithFileCapture(
+            "/bin/sh", ["-c", "printf '%0.s-' {1..100}"],
+            process.cwd(), env, 10_000, 50,
+        );
+        expect(result.stdout.length).toBeLessThanOrEqual(50);
+    });
+
+    it("cleans up temp files after execution", async () => {
+        // fs/promises is not mocked, so readdir works fine here.
+        const { readdir } = await import("fs/promises");
+        const beforeFiles = (await readdir(tmpdir())).filter(f => f.startsWith("seline-exec-"));
+
+        await spawnWithFileCapture(
+            "echo", ["cleanup-test"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+
+        // Allow async cleanup to settle
+        await new Promise(r => setTimeout(r, 200));
+
+        const afterFiles = (await readdir(tmpdir())).filter(f => f.startsWith("seline-exec-"));
+        // No new seline-exec- dirs should remain
+        expect(afterFiles.length).toBeLessThanOrEqual(beforeFiles.length);
+    });
+});
+
+// ── EBADF fallback integration ────────────────────────────────────────────────
+
+describe("executeCommand EBADF fallback", () => {
+    // ESM modules don't allow spying on child_process.spawn directly, so we
+    // test the fallback path by calling spawnWithFileCapture (the exact function
+    // executeCommand's error handler delegates to) and confirming it recovers
+    // correctly — the same code that runs on a real EBADF in production.
+
+    it("spawnWithFileCapture produces the same output as a direct spawn", async () => {
+        if (process.platform === "win32") return; // fallback is darwin/linux only
+
+        const env = process.env as NodeJS.ProcessEnv;
+
+        // Run the same command both ways and compare outputs.
+        const direct = await executeCommand({
+            command: "echo",
+            args: ["ebadf-fallback-works"],
+            cwd: process.cwd(),
+            characterId: "test",
+        });
+
+        const fallback = await spawnWithFileCapture(
+            "echo", ["ebadf-fallback-works"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+
+        expect(direct.success).toBe(true);
+        expect(fallback.exitCode).toBe(0);
+        // Both approaches should produce identical stdout.
+        expect(fallback.stdout.trim()).toBe(direct.stdout.trim());
+    });
+
+    it("spawnWithFileCapture handles a failing command and returns non-zero exitCode", async () => {
+        if (process.platform === "win32") return;
+
+        const env = process.env as NodeJS.ProcessEnv;
+
+        const result = await spawnWithFileCapture(
+            "/bin/sh", ["-c", "echo fail-output; exit 42"],
+            process.cwd(), env, 10_000, 1048576,
+        );
+
+        expect(result.exitCode).toBe(42);
+        expect(result.stdout.trim()).toBe("fail-output");
+        expect(result.timedOut).toBe(false);
     });
 });
