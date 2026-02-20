@@ -1456,8 +1456,9 @@
       "enabled": "Vector search is enabled. You can configure which folders to index for each agent in the agent's settings or during agent creation.",
       "path": "Data is stored locally at:",
       "reindexRequired": {
-        "title": "Reindex.",
-        "body": "Choose if you wanna force reindexing of all folders. Embedding settings changes. Reindex all synced folders to rebuild vectors with a new model.",
+        "title": "Search index update needed.",
+        "body": "You changed search model settings. Existing folder indexes might not match anymore.",
+        "folderHint": "If search results look incomplete or outdated, open each agent's Synced Folders and run a folder refresh.",
         "cta": "Reindex All Now",
         "running": "Reindexing..."
       },
