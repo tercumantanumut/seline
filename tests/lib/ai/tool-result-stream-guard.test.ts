@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_STREAM_TOOL_RESULT_TOKENS,
   MIN_STREAM_TOOL_RESULT_TOKENS,
   guardToolResultForStreaming,
 } from "@/lib/ai/tool-result-stream-guard";
@@ -57,5 +58,27 @@ describe("guardToolResultForStreaming", () => {
     expect(guarded.blocked).toBe(true);
     const blocked = guarded.result as Record<string, unknown>;
     expect(blocked.tokenLimit).toBe(MIN_STREAM_TOOL_RESULT_TOKENS);
+  });
+
+  it("caps explicit maxTokens to the hard stream limit", () => {
+    const huge = { status: "success", content: "x".repeat(200_000) };
+
+    const guarded = guardToolResultForStreaming("localGrep", huge, {
+      maxTokens: 120_000,
+    });
+
+    expect(guarded.blocked).toBe(true);
+    const blocked = guarded.result as Record<string, unknown>;
+    expect(blocked.tokenLimit).toBe(MAX_STREAM_TOOL_RESULT_TOKENS);
+  });
+
+  it("uses hard stream limit when maxTokens is missing", () => {
+    const huge = { status: "success", content: "x".repeat(200_000) };
+
+    const guarded = guardToolResultForStreaming("executeCommand", huge);
+
+    expect(guarded.blocked).toBe(true);
+    const blocked = guarded.result as Record<string, unknown>;
+    expect(blocked.tokenLimit).toBe(MAX_STREAM_TOOL_RESULT_TOKENS);
   });
 });

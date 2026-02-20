@@ -1,6 +1,7 @@
 import { estimateTokens } from "@/lib/ai/output-limiter";
 
 export const MIN_STREAM_TOOL_RESULT_TOKENS = 1;
+export const MAX_STREAM_TOOL_RESULT_TOKENS = 25_000;
 
 interface OversizedToolResult {
   status: "error";
@@ -45,10 +46,11 @@ function estimateTokensSafely(content: unknown): number {
 
 function normalizeTokenLimit(maxTokens?: number): number {
   if (typeof maxTokens !== "number" || !Number.isFinite(maxTokens)) {
-    return Number.MAX_SAFE_INTEGER;
+    return MAX_STREAM_TOOL_RESULT_TOKENS;
   }
 
-  return Math.max(MIN_STREAM_TOOL_RESULT_TOKENS, Math.floor(maxTokens));
+  const normalized = Math.max(MIN_STREAM_TOOL_RESULT_TOKENS, Math.floor(maxTokens));
+  return Math.min(normalized, MAX_STREAM_TOOL_RESULT_TOKENS);
 }
 
 function extractRetrievalIds(result: unknown): {

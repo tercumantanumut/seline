@@ -58,7 +58,10 @@ import {
   type FrontendMessage,
 } from "@/lib/messages/tool-enhancement";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
-import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
+import {
+  guardToolResultForStreaming,
+  MAX_STREAM_TOOL_RESULT_TOKENS,
+} from "@/lib/ai/tool-result-stream-guard";
 import {
   withRunContext,
   createAgentRun,
@@ -2407,9 +2410,13 @@ export async function POST(req: Request) {
     );
 
     const modelContextWindowLimit = getContextWindowLimit(currentModelId, currentProvider);
-    const streamToolResultBudgetTokens = Math.max(
+    const dynamicStreamBudgetTokens = Math.max(
       1,
       Math.floor(modelContextWindowLimit * 0.75 - contextCheck.status.currentTokens)
+    );
+    const streamToolResultBudgetTokens = Math.min(
+      MAX_STREAM_TOOL_RESULT_TOKENS,
+      dynamicStreamBudgetTokens
     );
     console.log(
       `[CHAT API] Tool-result stream budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens ` +
