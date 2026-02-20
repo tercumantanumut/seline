@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
 import { PluginSettings } from "@/components/settings/plugin-settings";
+import { SettingsField, SettingsPanelCard, SettingsRadioCard, SettingsToggleRow } from "@/components/settings/settings-form-layout";
 import {
   LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
   formatDimensionLabel,
@@ -2522,6 +2523,23 @@ function SettingsPanel({
   }
 
   if (section === "voice") {
+    const ttsAutoModeOptions = [
+      { value: "off" as const, label: "Off", description: "Only when explicitly requested with the speakAloud tool." },
+      { value: "channels-only" as const, label: "Channels Only", description: "Automatically attach voice notes to channel replies." },
+      { value: "always" as const, label: "Always", description: "Generate audio for every agent reply." },
+    ];
+
+    const ttsProviderOptions = [
+      { value: "edge" as const, label: "Edge TTS", description: "Microsoft Edge neural voices. No API key required.", badge: "Free" },
+      { value: "openai" as const, label: "OpenAI TTS", description: "Uses your OpenAI/OpenRouter API key. High quality and fast.", badge: "API Key" },
+      { value: "elevenlabs" as const, label: "ElevenLabs", description: "Premium voice cloning and synthesis.", badge: "API Key" },
+    ];
+
+    const sttProviderOptions = [
+      { value: "openai" as const, label: "OpenAI Whisper", description: "Uses your OpenAI/OpenRouter API key. Fast and accurate." },
+      { value: "local" as const, label: "Local (whisper.cpp)", description: "On-device transcription using whisper.cpp. No API key needed." },
+    ];
+
     return (
       <div className="space-y-6">
         <div>
@@ -2531,217 +2549,177 @@ function SettingsPanel({
           </p>
         </div>
 
-        {/* ── Text-to-Speech ─────────────────────────────── */}
-        <div className="space-y-4">
-          <h3 className="font-mono text-base font-semibold text-terminal-dark">Text-to-Speech (TTS)</h3>
+        <SettingsPanelCard
+          title="Text-to-Speech (TTS)"
+          description="Generate spoken responses in chat and channels with clear defaults for when audio should be created."
+        >
+          <SettingsToggleRow
+            id="ttsEnabled"
+            label="Enable TTS"
+            description="Generate audio from agent replies. Voice notes are sent to channels automatically."
+            checked={formState.ttsEnabled}
+            onChange={(checked) => updateField("ttsEnabled", checked)}
+          />
 
-          {/* Enable toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="font-mono text-sm text-terminal-dark">Enable TTS</label>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Generate audio from agent replies. Voice notes are sent to channels automatically.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={formState.ttsEnabled}
-              onChange={(e) => updateField("ttsEnabled", e.target.checked)}
-              className="size-5 accent-terminal-green"
-            />
-          </div>
-
-          {formState.ttsEnabled && (
-            <>
-              {/* Auto-mode */}
+          {formState.ttsEnabled ? (
+            <div className="space-y-5">
               <div>
-                <label className="mb-2 block font-mono text-sm text-terminal-muted">Auto-speak Mode</label>
-                <div className="space-y-3">
-                  {([
-                    { value: "off" as const, label: "Off", desc: "Only when explicitly requested (speakAloud tool)" },
-                    { value: "channels-only" as const, label: "Channels Only", desc: "Auto-attach voice notes to channel replies" },
-                    { value: "always" as const, label: "Always", desc: "Generate audio for every agent reply" },
-                  ] as const).map((opt) => (
-                    <label key={opt.value} className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="ttsAutoMode"
-                        value={opt.value}
-                        checked={formState.ttsAutoMode === opt.value}
-                        onChange={() => updateField("ttsAutoMode", opt.value)}
-                        className="mt-1 size-4 accent-terminal-green"
-                      />
-                      <div>
-                        <span className="font-mono text-terminal-dark">{opt.label}</span>
-                        <p className="font-mono text-xs text-terminal-muted">{opt.desc}</p>
-                      </div>
-                    </label>
+                <p className="mb-2 font-mono text-sm text-terminal-dark">Auto-speak Mode</p>
+                <div className="grid gap-3">
+                  {ttsAutoModeOptions.map((option) => (
+                    <SettingsRadioCard
+                      key={option.value}
+                      id={`tts-auto-mode-${option.value}`}
+                      name="ttsAutoMode"
+                      value={option.value}
+                      label={option.label}
+                      description={option.description}
+                      checked={formState.ttsAutoMode === option.value}
+                      onChange={() => updateField("ttsAutoMode", option.value)}
+                    />
                   ))}
                 </div>
               </div>
 
-              {/* Provider selection */}
               <div>
-                <label className="mb-2 block font-mono text-sm text-terminal-muted">TTS Provider</label>
-                <div className="space-y-3">
-                  {([
-                    { value: "edge" as const, label: "Edge TTS (Free)", desc: "Microsoft Edge neural voices. No API key required." },
-                    { value: "openai" as const, label: "OpenAI TTS", desc: "Uses your OpenAI/OpenRouter API key. High quality, fast." },
-                    { value: "elevenlabs" as const, label: "ElevenLabs", desc: "Premium voice cloning and synthesis. Requires API key." },
-                  ] as const).map((opt) => (
-                    <label key={opt.value} className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        name="ttsProvider"
-                        value={opt.value}
-                        checked={formState.ttsProvider === opt.value}
-                        onChange={() => updateField("ttsProvider", opt.value)}
-                        className="mt-1 size-4 accent-terminal-green"
-                      />
-                      <div>
-                        <span className="font-mono text-terminal-dark">{opt.label}</span>
-                        <p className="font-mono text-xs text-terminal-muted">{opt.desc}</p>
-                      </div>
-                    </label>
+                <p className="mb-2 font-mono text-sm text-terminal-dark">TTS Provider</p>
+                <div className="grid gap-3">
+                  {ttsProviderOptions.map((option) => (
+                    <SettingsRadioCard
+                      key={option.value}
+                      id={`tts-provider-${option.value}`}
+                      name="ttsProvider"
+                      value={option.value}
+                      label={option.label}
+                      description={option.description}
+                      badge={option.badge}
+                      checked={formState.ttsProvider === option.value}
+                      onChange={() => updateField("ttsProvider", option.value)}
+                    />
                   ))}
                 </div>
               </div>
 
-              {/* OpenAI voice selector */}
               {formState.ttsProvider === "openai" && (
-                <div>
-                  <label className="mb-2 block font-mono text-sm text-terminal-muted">OpenAI Voice</label>
+                <SettingsField
+                  label="OpenAI Voice"
+                  htmlFor="openaiTtsVoice"
+                  helperText="Choose the default OpenAI voice used when no voice override is passed."
+                >
                   <select
+                    id="openaiTtsVoice"
                     value={formState.openaiTtsVoice}
                     onChange={(e) => updateField("openaiTtsVoice", e.target.value)}
+                    aria-describedby="openaiTtsVoice-help"
                     className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                   >
-                    {["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((v) => (
-                      <option key={v} value={v}>{v}</option>
+                    {["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((voice) => (
+                      <option key={voice} value={voice}>
+                        {voice}
+                      </option>
                     ))}
                   </select>
-                </div>
+                </SettingsField>
               )}
 
-              {/* ElevenLabs settings */}
               {formState.ttsProvider === "elevenlabs" && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block font-mono text-sm text-terminal-muted">ElevenLabs API Key</label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SettingsField label="ElevenLabs API Key" htmlFor="elevenLabsApiKey">
                     <input
+                      id="elevenLabsApiKey"
                       type="password"
                       value={formState.elevenLabsApiKey}
                       onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
                       placeholder="xi_..."
                       className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                     />
-                  </div>
-                  <div>
-                    <label className="mb-1 block font-mono text-sm text-terminal-muted">Voice ID</label>
+                  </SettingsField>
+                  <SettingsField
+                    label="Voice ID"
+                    htmlFor="elevenLabsVoiceId"
+                    helperText="Find voice IDs in the ElevenLabs voice library."
+                  >
                     <input
+                      id="elevenLabsVoiceId"
                       type="text"
                       value={formState.elevenLabsVoiceId}
                       onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
                       placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                      aria-describedby="elevenLabsVoiceId-help"
                       className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                     />
-                    <p className="mt-1 font-mono text-xs text-terminal-muted">
-                      Find voice IDs at elevenlabs.io/voice-library
-                    </p>
-                  </div>
+                  </SettingsField>
                 </div>
               )}
 
-              {/* Summarize threshold */}
-              <div>
-                <label className="mb-1 block font-mono text-sm text-terminal-muted">
-                  Summarize Threshold (characters)
-                </label>
+              <SettingsField
+                label="Summarize Threshold (characters)"
+                htmlFor="ttsSummarizeThreshold"
+                helperText="Replies longer than this are summarized before TTS to reduce audio length."
+                className="max-w-xs"
+              >
                 <input
+                  id="ttsSummarizeThreshold"
                   type="number"
                   min={100}
                   max={5000}
                   step={100}
                   value={formState.ttsSummarizeThreshold}
                   onChange={(e) => updateField("ttsSummarizeThreshold", parseInt(e.target.value, 10) || 500)}
-                  className="w-32 rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                  aria-describedby="ttsSummarizeThreshold-help"
+                  className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 />
-                <p className="mt-1 font-mono text-xs text-terminal-muted">
-                  Replies longer than this are summarized before TTS to reduce audio length.
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* ── Speech-to-Text ─────────────────────────────── */}
-        <div className="space-y-4 border-t border-terminal-border/60 pt-6">
-          <h3 className="font-mono text-base font-semibold text-terminal-dark">Speech-to-Text (STT)</h3>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="font-mono text-sm text-terminal-dark">Enable STT</label>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Automatically transcribe audio attachments from channels (WhatsApp voice notes, etc.).
-              </p>
+              </SettingsField>
             </div>
-            <input
-              type="checkbox"
-              checked={formState.sttEnabled}
-              onChange={(e) => updateField("sttEnabled", e.target.checked)}
-              className="size-5 accent-terminal-green"
-            />
-          </div>
+          ) : (
+            <p className="font-mono text-xs text-terminal-muted">
+              Enable TTS to configure auto-speak behavior, provider selection, and voice details.
+            </p>
+          )}
+        </SettingsPanelCard>
 
-          {formState.sttEnabled && (
-            <>
+        <SettingsPanelCard
+          title="Speech-to-Text (STT)"
+          description="Transcribe incoming audio attachments so voice notes become searchable text in conversations."
+        >
+          <SettingsToggleRow
+            id="sttEnabled"
+            label="Enable STT"
+            description="Automatically transcribe audio attachments from channels, including WhatsApp and Telegram voice notes."
+            checked={formState.sttEnabled}
+            onChange={(checked) => updateField("sttEnabled", checked)}
+          />
+
+          {formState.sttEnabled ? (
+            <div className="space-y-5">
               <div>
-                <label className="mb-2 block font-mono text-sm text-terminal-muted">STT Provider</label>
-                <div className="space-y-3">
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
+                <p className="mb-2 font-mono text-sm text-terminal-dark">STT Provider</p>
+                <div className="grid gap-3">
+                  {sttProviderOptions.map((option) => (
+                    <SettingsRadioCard
+                      key={option.value}
+                      id={`stt-provider-${option.value}`}
                       name="sttProvider"
-                      value="openai"
-                      checked={formState.sttProvider === "openai"}
-                      onChange={() => updateField("sttProvider", "openai")}
-                      className="mt-1 size-4 accent-terminal-green"
+                      value={option.value}
+                      label={option.label}
+                      description={option.description}
+                      checked={formState.sttProvider === option.value}
+                      onChange={() => updateField("sttProvider", option.value)}
                     />
-                    <div>
-                      <span className="font-mono text-terminal-dark">OpenAI Whisper</span>
-                      <p className="font-mono text-xs text-terminal-muted">
-                        Uses your OpenAI/OpenRouter API key. Fast and accurate.
-                      </p>
-                    </div>
-                  </label>
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="sttProvider"
-                      value="local"
-                      checked={formState.sttProvider === "local"}
-                      onChange={() => updateField("sttProvider", "local")}
-                      className="mt-1 size-4 accent-terminal-green"
-                    />
-                    <div>
-                      <span className="font-mono text-terminal-dark">
-                        Local (whisper.cpp)
-                      </span>
-                      <p className="font-mono text-xs text-terminal-muted">
-                        On-device transcription using whisper.cpp. No API key needed. whisper-cli and ffmpeg are bundled.
-                      </p>
-                    </div>
-                  </label>
+                  ))}
                 </div>
               </div>
 
-              {/* Whisper model selector — shown when local provider is selected */}
               {formState.sttProvider === "local" && (
                 <WhisperModelSelector formState={formState} updateField={updateField} />
               )}
-            </>
+            </div>
+          ) : (
+            <p className="font-mono text-xs text-terminal-muted">
+              Enable STT to choose a transcription provider and local Whisper model options.
+            </p>
           )}
-        </div>
+        </SettingsPanelCard>
       </div>
     );
   }
