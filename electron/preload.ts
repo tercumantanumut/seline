@@ -52,6 +52,13 @@ const electronAPI = {
     },
   },
 
+  // Dialog operations
+  dialog: {
+    selectFolder: (): Promise<string | null> => {
+      return ipcRenderer.invoke("dialog:selectFolder");
+    },
+  },
+
   // Settings operations
   settings: {
     get: (): Promise<Record<string, unknown> | null> => {
@@ -297,6 +304,7 @@ const electronAPI = {
         "app:getDataPath",
         "app:getMediaPath",
         "shell:openExternal",
+        "dialog:selectFolder",
         "settings:get",
         "settings:save",
         "file:read",

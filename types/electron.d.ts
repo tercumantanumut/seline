@@ -35,6 +35,10 @@ interface ElectronAPI {
         openExternal: (url: string) => Promise<void>;
     };
 
+    dialog: {
+        selectFolder: () => Promise<string | null>;
+    };
+
     settings: {
         get: () => Promise<Record<string, unknown> | null>;
         save: (settings: Record<string, unknown>) => Promise<boolean>;
