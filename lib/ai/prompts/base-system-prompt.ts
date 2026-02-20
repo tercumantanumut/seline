@@ -35,7 +35,7 @@ export interface BaseSystemPromptOptions {
   toolLoadingMode?: "deferred" | "always";
   /** Additional context to append (e.g., character memories, custom instructions) */
   additionalContext?: string;
-  /** Enable prompt caching for system blocks (Anthropic only) */
+  /** Enable prompt caching for system blocks (Anthropic-compatible providers) */
   enableCaching?: boolean;
   /** Cache TTL (5m or 1h) */
   cacheTtl?: "5m" | "1h";

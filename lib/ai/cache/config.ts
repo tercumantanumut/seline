@@ -2,7 +2,8 @@
  * Prompt Caching Configuration
  *
  * Manages cache settings and determines when caching should be used.
- * Supports Anthropic (direct), OpenRouter (multiple providers), and Kimi.
+ * Supports Anthropic-compatible caching providers (Anthropic, Claude Code OAuth),
+ * OpenRouter (multiple providers), and Kimi.
  */
 
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -46,6 +47,7 @@ export function getCacheConfig(): CacheConfig {
  *
  * Supported providers:
  * - Anthropic: Requires cache_control breakpoints
+ * - Claude Code (OAuth): Anthropic-compatible endpoint with cache_control support
  * - OpenRouter: Supports cache_control for Anthropic & Gemini models,
  *               automatic caching for OpenAI, Grok, Moonshot, Groq, DeepSeek
  * - Kimi: Automatic context caching for kimi-k2.5
@@ -55,13 +57,17 @@ export function shouldUseCache(providerOverride?: LLMProvider): boolean {
     const provider = providerOverride ?? getConfiguredProvider();
     const config = getCacheConfig();
 
-    const supportsCaching = provider === "anthropic" || provider === "openrouter" || provider === "kimi";
+    const supportsCaching =
+      provider === "anthropic" ||
+      provider === "claudecode" ||
+      provider === "openrouter" ||
+      provider === "kimi";
     const isCachingEnabled = config.enabled;
 
     if (isCachingEnabled && !supportsCaching) {
       console.log(
         `[CACHE CONFIG] Caching is enabled but current provider is ${provider}. ` +
-        "Prompt caching works with Anthropic, OpenRouter, and Kimi."
+        "Prompt caching works with Anthropic, Claude Code, OpenRouter, and Kimi."
       );
     }
 

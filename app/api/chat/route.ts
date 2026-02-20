@@ -2777,7 +2777,7 @@ export async function POST(req: Request) {
     // NOTE: Tool instructions are now embedded in tool descriptions (fullInstructions)
     // and discovered via searchTools. No need to concatenate them to system prompt.
     //
-    // Prompt caching: If enabled (Anthropic only), system prompt is built as cacheable blocks
+    // Prompt caching: If enabled (Anthropic-compatible providers), system prompt uses cacheable blocks
     // with cache_control markers to reduce costs by 70-85% on multi-turn conversations.
     const useCaching = shouldUseCache(currentProvider);
     const cacheConfig = getCacheConfig();
@@ -3516,7 +3516,7 @@ export async function POST(req: Request) {
         model: resolveSessionLanguageModel(sessionMetadata),
         // Conditionally include system prompt to reduce token usage
         // It's sent on first message, then periodically based on token/message thresholds
-        // Use cacheable blocks if caching is enabled (Anthropic only)
+        // Use cacheable blocks if caching is enabled (Anthropic-compatible providers)
         ...(injectContext && { system: systemPromptValue }),
         messages: cachedMessages,
         // Tools MUST always be passed - they are function definitions required for actual invocation
