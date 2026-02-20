@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles, Crown, UserPlus, GitBranchPlus, Unlink } from "lucide-react";
+import { Plus, Loader2, User, MessageCircle, PlusCircle, Check, X, ChevronDown, ChevronRight, Search as LucideSearch, Sparkles as LucideSparkles, Crown, UserPlus, GitBranchPlus, Unlink, MoreHorizontal, Copy, Puzzle } from "lucide-react";
 import { 
   Wrench,
   Database,
@@ -54,6 +54,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -208,6 +215,89 @@ interface WorkflowGroup {
   agents: CharacterSummary[];
 }
 
+type AgentOverflowMenuProps = {
+  character: CharacterSummary;
+  onEditIdentity: (c: CharacterSummary) => void;
+  onEditTools: (c: CharacterSummary) => void;
+  onEditFolders: (c: CharacterSummary) => void;
+  onEditMcp: (c: CharacterSummary) => void;
+  onEditPlugins: (c: CharacterSummary) => void;
+  onNavigateDashboard: () => void;
+  onDuplicate: (characterId: string) => void;
+  onDelete: (c: CharacterSummary) => void;
+};
+
+function AgentOverflowMenu({
+  character,
+  onEditIdentity,
+  onEditTools,
+  onEditFolders,
+  onEditMcp,
+  onEditPlugins,
+  onNavigateDashboard,
+  onDuplicate,
+  onDelete,
+}: AgentOverflowMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="absolute top-2 right-2 rounded-md p-1 opacity-40 transition-opacity hover:bg-terminal-dark/10 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-1 focus-visible:ring-offset-terminal-cream group-hover:opacity-100"
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`Agent options for ${character.displayName || character.name}`}
+        >
+          <MoreHorizontal className="w-4 h-4 text-terminal-muted" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-48 font-mono text-sm"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <DropdownMenuItem onSelect={() => onEditIdentity(character)}>
+          <Pencil className="w-3.5 h-3.5 mr-2" />
+          Edit Info
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEditTools(character)}>
+          <Wrench className="w-3.5 h-3.5 mr-2" />
+          Manage Tools
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEditFolders(character)}>
+          <DatabaseIcon className="w-3.5 h-3.5 mr-2" />
+          Sync Folders
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEditMcp(character)}>
+          <Plug className="w-3.5 h-3.5 mr-2" />
+          MCP Tools
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEditPlugins(character)}>
+          <Puzzle className="w-3.5 h-3.5 mr-2" />
+          Plugins
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onNavigateDashboard}>
+          <BarChart2 className="w-3.5 h-3.5 mr-2" />
+          Dashboard
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => onDuplicate(character.id)}>
+          <Copy className="w-3.5 h-3.5 mr-2" />
+          Duplicate
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => onDelete(character)}
+          className="text-red-600 focus:text-red-600"
+        >
+          <Trash2 className="w-3.5 h-3.5 mr-2" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function AgentCardInWorkflow({
   character,
   role,
@@ -221,6 +311,7 @@ function AgentCardInWorkflow({
   onEditFolders,
   onEditMcp,
   onEditPlugins,
+  onDuplicate,
   onDelete,
   router,
 }: {
@@ -236,12 +327,12 @@ function AgentCardInWorkflow({
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
+  onDuplicate: (characterId: string) => void;
   onDelete: (c: CharacterSummary) => void;
   router: ReturnType<typeof useRouter>;
 }) {
   const initials = getCharacterInitials(character.name);
   const enabledTools = character.metadata?.enabledTools || [];
-  const enabledMcpTools = character.metadata?.enabledMcpTools || [];
   const topTools = getTopTools(enabledTools, 3);
   const purpose = character.metadata?.purpose;
   const primaryImage = character.images?.find((img) => img.isPrimary);
@@ -251,9 +342,21 @@ function AgentCardInWorkflow({
   return (
     <AnimatedCard
       hoverLift
-      className={`bg-terminal-cream ${role === "initiator" ? "border-l-4 border-l-terminal-green" : ""}`}
+      className={`bg-terminal-cream relative group ${role === "initiator" ? "border-l-4 border-l-terminal-green" : ""}`}
     >
       <div className="p-4 pb-2">
+        <AgentOverflowMenu
+          character={character}
+          onEditIdentity={onEditIdentity}
+          onEditTools={onEditTools}
+          onEditFolders={onEditFolders}
+          onEditMcp={onEditMcp}
+          onEditPlugins={onEditPlugins}
+          onNavigateDashboard={() => router.push("/dashboard")}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+        />
+
         <div className="flex items-center gap-3">
           <div className="relative">
             <Avatar className="w-10 h-10 shadow-sm">
@@ -273,7 +376,7 @@ function AgentCardInWorkflow({
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pr-6">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium font-mono text-terminal-dark truncate">
                 {character.displayName || character.name}
@@ -317,44 +420,6 @@ function AgentCardInWorkflow({
         )}
       </div>
 
-      {/* Compact action row */}
-      <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => onEditIdentity(character)}
-          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
-        >
-          <Pencil className="w-2.5 h-2.5" />
-          <span>{t("edit")}</span>
-        </button>
-        <button
-          onClick={() => onEditTools(character)}
-          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
-        >
-          <Wrench className="w-2.5 h-2.5" />
-          <span>{enabledTools.length > 0 ? `${enabledTools.length}` : t("configureTools")}</span>
-        </button>
-        <button
-          onClick={() => onEditFolders(character)}
-          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-green transition-colors"
-          title={t("syncedFoldersTitle")}
-        >
-          <Database className="w-2.5 h-2.5" />
-        </button>
-        <button
-          onClick={() => onEditMcp(character)}
-          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-purple-500 transition-colors"
-          title={t("mcpToolsTitle")}
-        >
-          <Plug className="w-2.5 h-2.5" />
-          <span>{enabledMcpTools.length > 0 ? `${enabledMcpTools.length}` : "MCP"}</span>
-        </button>
-        <button
-          onClick={() => onDelete(character)}
-          className="flex items-center gap-1 text-[10px] font-mono text-terminal-muted hover:text-red-500 transition-colors ml-auto"
-        >
-          <Trash className="w-2.5 h-2.5" />
-        </button>
-      </div>
 
       <div className="px-4 pb-3 pt-0 flex gap-1.5">
         <AnimatedButton
@@ -1111,6 +1176,10 @@ export function CharacterPicker() {
     setDeleteDialogOpen(true);
   };
 
+  const handleDuplicate = (_characterId: string) => {
+    toast("Duplicate feature coming soon");
+  };
+
   // Delete character
   const deleteCharacter = async () => {
     if (!characterToDelete) return;
@@ -1549,6 +1618,7 @@ export function CharacterPicker() {
                           onEditFolders={openFolderManager}
                           onEditMcp={openMcpToolEditor}
                           onEditPlugins={openPluginEditor}
+                          onDuplicate={handleDuplicate}
                           onDelete={openDeleteDialog}
                           router={router}
                         />
@@ -1586,6 +1656,7 @@ export function CharacterPicker() {
                                   onEditFolders={openFolderManager}
                                   onEditMcp={openMcpToolEditor}
                                   onEditPlugins={openPluginEditor}
+                                  onDuplicate={handleDuplicate}
                                   onDelete={openDeleteDialog}
                                   router={router}
                                 />
@@ -1653,9 +1724,21 @@ export function CharacterPicker() {
               key={character.id}
               data-animate-card
               hoverLift
-              className="bg-terminal-cream"
+              className="bg-terminal-cream relative group"
             >
               <div className="p-4 pb-2">
+                <AgentOverflowMenu
+                  character={character}
+                  onEditIdentity={openIdentityEditor}
+                  onEditTools={openToolEditor}
+                  onEditFolders={openFolderManager}
+                  onEditMcp={openMcpToolEditor}
+                  onEditPlugins={openPluginEditor}
+                  onNavigateDashboard={() => router.push("/dashboard")}
+                  onDuplicate={handleDuplicate}
+                  onDelete={openDeleteDialog}
+                />
+
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <Avatar className="w-12 h-12 shadow-sm">
@@ -1681,7 +1764,7 @@ export function CharacterPicker() {
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-6">
                     <p className="text-base font-medium font-mono text-terminal-dark truncate">
                       {character.displayName || character.name}
                     </p>
@@ -1724,72 +1807,6 @@ export function CharacterPicker() {
                 ) : null}
               </div>
 
-              {/* Enabled Tools Indicator - Clickable to edit */}
-              <div className="px-4 pb-2 flex items-center gap-3 flex-wrap">
-                <button
-                  onClick={() => openIdentityEditor(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                  title={t("editIdentity")}
-                >
-                  <User className="w-3 h-3" />
-                  <span>{t("edit")}</span>
-                </button>
-                <button
-                  onClick={() => openToolEditor(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                >
-                  <Wrench className="w-3 h-3" />
-                  <span>
-                    {enabledTools.length > 0
-                      ? t("toolsEnabled", { count: enabledTools.length })
-                      : t("configureTools")}
-                  </span>
-                </button>
-                <button
-                  onClick={() => openFolderManager(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                  title={t("syncedFoldersTitle")}
-                >
-                  <DatabaseIcon className="w-3 h-3" />
-                  <span>{t("syncedFolders")}</span>
-                </button>
-                <button
-                  onClick={() => openMcpToolEditor(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-purple-500 transition-colors cursor-pointer"
-                  title={t("mcpToolsTitle")}
-                >
-                  <Plug className="w-3 h-3" />
-                  <span>{t("mcpTools")}</span>
-                </button>
-                <button
-                  onClick={() => openPluginEditor(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                  title={t("plugins.title")}
-                >
-                  <Plug className="w-3 h-3" />
-                  <span>
-                    {character.metadata?.enabledPlugins?.length
-                      ? t("plugins.enabledCount", { count: character.metadata.enabledPlugins.length })
-                      : t("plugins.configure")}
-                  </span>
-                </button>
-                <button
-                  onClick={() => router.push("/dashboard")}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-green transition-colors cursor-pointer"
-                  title="Dashboard"
-                >
-                  <BarChart2 className="w-3 h-3" />
-                  <span>Dashboard</span>
-                </button>
-                <button
-                  onClick={() => openDeleteDialog(character)}
-                  className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted hover:text-red-500 transition-colors cursor-pointer ml-auto"
-                  title={t("deleteAgent")}
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>{t("delete")}</span>
-                </button>
-              </div>
 
               <div className="px-4 pb-4 pt-0 flex gap-2">
                 <AnimatedButton
