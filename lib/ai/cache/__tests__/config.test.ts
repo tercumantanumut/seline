@@ -68,12 +68,12 @@ describe("getMinTokensForModel", () => {
 describe("shouldUseCache", () => {
   it("returns true for providers with prompt caching support", () => {
     expect(shouldUseCache("anthropic")).toBe(true);
+    expect(shouldUseCache("claudecode")).toBe(true);
     expect(shouldUseCache("openrouter")).toBe(true);
     expect(shouldUseCache("kimi")).toBe(true);
   });
 
   it("returns false for providers without prompt caching support", () => {
-    expect(shouldUseCache("claudecode")).toBe(false);
     expect(shouldUseCache("codex")).toBe(false);
     expect(shouldUseCache("antigravity")).toBe(false);
     expect(shouldUseCache("ollama")).toBe(false);
