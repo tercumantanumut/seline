@@ -302,7 +302,7 @@ export function PluginSettings() {
             Plugins
           </h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Extend your agent with skills, hooks, MCP servers, and more.
+            Add new capabilities to your agent with installable plugins.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ export function PluginSettings() {
             onClick={() => setShowMarketplace(!showMarketplace)}
           >
             <Globe className="mr-1.5 size-3.5" />
-            {showMarketplace ? "Hide Marketplace" : "Browse Marketplace"}
+            {showMarketplace ? "Hide marketplace" : "Browse marketplace"}
           </Button>
           <label
             className={cn(
@@ -327,7 +327,7 @@ export function PluginSettings() {
             ) : (
               <Upload className="size-4" />
             )}
-            {uploading ? "Installing..." : "Install Plugin"}
+            {uploading ? "Installing..." : "Install plugin"}
             <input
               type="file"
               accept=".zip,.md,.mds"
@@ -359,15 +359,15 @@ export function PluginSettings() {
         <DialogContent className="bg-terminal-cream sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark">
-              Confirm Plugin Install
+              Confirm plugin install
             </DialogTitle>
             <DialogDescription className="font-mono text-terminal-muted">
-              Choose the existing main agent. Imported plugin sub-agents, tools, and shared folders will be attached to this workflow.
+              Choose the main agent for this plugin. Imported sub-agents, tools, and shared folders will be linked to that workflow.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded border border-terminal-border/50 bg-terminal-bg/10 p-3">
+            <div className="rounded border border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3">
               <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
                 Files
               </p>
@@ -382,12 +382,12 @@ export function PluginSettings() {
 
             <div className="space-y-1">
               <label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                Main Agent
+                Main agent
               </label>
               <select
                 value={selectedTargetCharacterId}
                 onChange={(event) => setSelectedTargetCharacterId(event.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 disabled={uploading}
               >
                 {characters.map((character) => (
@@ -422,7 +422,7 @@ export function PluginSettings() {
                   Installing...
                 </>
               ) : (
-                "Install & Assign"
+                "Install and assign"
               )}
             </Button>
           </DialogFooter>
@@ -435,10 +435,10 @@ export function PluginSettings() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="size-12 text-terminal-muted/40" />
             <p className="mt-4 font-mono text-sm text-terminal-muted">
-              No plugins installed
+              No plugins yet
             </p>
             <p className="mt-1 font-mono text-xs text-terminal-muted/70">
-              Upload a plugin .zip package or browse the marketplace
+              Upload a plugin package or install one from the marketplace
             </p>
           </CardContent>
         </Card>
@@ -585,7 +585,7 @@ export function PluginSettings() {
               {plugin.status === "error" && plugin.lastError && (
                 <Alert variant="destructive" className="mt-3">
                   <AlertCircle className="size-4" />
-                  <AlertTitle className="font-mono text-xs">Error</AlertTitle>
+                  <AlertTitle className="font-mono text-xs">Issue</AlertTitle>
                   <AlertDescription className="font-mono text-xs">
                     {plugin.lastError}
                   </AlertDescription>
@@ -726,7 +726,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Webhook className="size-3.5" />
-                        Hooks
+                        Automation hooks
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.entries(plugin.components.hooks.hooks || {}).map(
@@ -754,7 +754,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        MCP Servers ({Object.keys(plugin.components.mcpServers).length})
+                        Tool servers ({Object.keys(plugin.components.mcpServers).length})
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.mcpServers).map((name) => (
@@ -779,7 +779,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        LSP Servers ({Object.keys(plugin.components.lspServers).length})
+                        Language servers ({Object.keys(plugin.components.lspServers).length})
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.lspServers).map((name) => (

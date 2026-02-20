@@ -275,7 +275,7 @@ export function MCPServerForm({
                 </div>
                 <div className="space-y-2">
                     <Label>Transport Type</Label>
-                    <div className="flex bg-white rounded-md border border-terminal-border p-1">
+                    <div className="flex bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 rounded-md border border-terminal-border p-1">
                         <button
                             onClick={() => setServerType("stdio")}
                             className={cn(
@@ -623,7 +623,7 @@ export function MCPServerForm({
                                 <Plus className="h-3 w-3 mr-2" /> Add Header
                             </Button>
                         ) : (
-                            <div className="space-y-2 p-3 bg-white rounded border border-terminal-border">
+                            <div className="space-y-2 p-3 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 rounded border border-terminal-border">
                                 <div className="flex items-center gap-2">
                                     <Input
                                         value={newHeaderKey}

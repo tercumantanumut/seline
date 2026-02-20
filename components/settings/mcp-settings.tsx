@@ -51,8 +51,8 @@ interface MCPTemplate {
 const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "filesystem",
-        name: "Filesystem",
-        description: "Read/write files safely",
+        name: "Files (single folder)",
+        description: "Read and write files in one synced folder",
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDER}"]
@@ -61,8 +61,8 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     },
     {
         id: "filesystem-multi",
-        name: "Filesystem (All Folders)",
-        description: "Access all synced folders",
+        name: "Files (all folders)",
+        description: "Access every synced folder",
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "${SYNCED_FOLDERS_ARRAY}"]
@@ -72,7 +72,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "github",
         name: "GitHub",
-        description: "Repo management & search",
+        description: "Manage repositories and search code",
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-github"],
@@ -83,7 +83,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "chrome-devtools",
         name: "Chrome DevTools",
-        description: "Browser debugging & inspection",
+        description: "Inspect and debug pages in Chrome",
         config: {
             command: "npx",
             args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
@@ -93,7 +93,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "postgres",
         name: "PostgreSQL",
-        description: "Database access",
+        description: "Connect to a PostgreSQL database",
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:password@localhost/db"]
@@ -103,7 +103,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "composio",
         name: "Composio",
-        description: "100+ tool integrations (V3/Router)",
+        description: "Connect many apps through Composio",
         config: {
             type: "sse" as const,
             // Supports V3: https://backend.composio.dev/v3/mcp/{connection_id}/mcp
@@ -121,7 +121,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "linear",
         name: "Linear",
-        description: "Issue tracking & project management",
+        description: "Track issues and manage projects",
         config: {
             command: "npx",
             args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
@@ -132,7 +132,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "supabase",
         name: "Supabase",
-        description: "Database & API management",
+        description: "Manage Supabase project data and APIs",
         config: {
             command: "npx",
             args: ["-y", "mcp-remote", "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}"],
@@ -148,7 +148,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "assistant-ui",
         name: "Assistant UI Docs",
-        description: "Documentation for Assistant UI",
+        description: "Search Assistant UI documentation",
         config: {
             command: "npx",
             args: ["-y", "@assistant-ui/mcp-docs-server"]
@@ -158,7 +158,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
     {
         id: "everything",
         name: "Everything",
-        description: "Reference implementation",
+        description: "Sample server with many example tools",
         config: {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-everything"]
@@ -193,7 +193,7 @@ function ConfigPreview({
     const flatArgs = resolvedArgs.flatMap(arg => Array.isArray(arg) ? arg : [arg]);
 
     return (
-        <div className="mt-2 p-3 rounded bg-terminal-bg/50 border border-terminal-border font-mono text-[10px] space-y-1">
+        <div className="mt-2 space-y-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3 font-mono text-[10px]">
             <div className="text-terminal-muted flex items-center gap-1.5 mb-1">
                 <Info className="h-3 w-3" />
                 {t("variablePreview")}
@@ -309,10 +309,10 @@ export function MCPSettings() {
             setMcpServers(updatedServers);
             setRawJson(JSON.stringify({ mcpServers: updatedServers }, null, 2));
             setEnvironment(updatedEnv);
-            toast.success("Configuration saved");
+            toast.success("Settings saved");
         } else {
             console.error("Failed to save MCP config:", error);
-            toast.error("Failed to save configuration");
+            toast.error("Could not save settings");
         }
         setIsSaving(false);
     };
@@ -334,12 +334,12 @@ export function MCPSettings() {
             if (result?.success) {
                 toast.success(`Connected to ${serverName}`);
             } else {
-                toast.error(`Failed to connect to ${serverName}: ${result?.error}`);
+                toast.error(`Could not connect to ${serverName}: ${result?.error}`);
             }
             await loadConfig();
         } else {
             console.error(`Failed to connect to ${serverName}:`, error);
-            toast.error(`Connection failed: ${error || "Unknown error"}`);
+            toast.error(`Connection failed: ${error || "Unknown issue"}`);
         }
         setConnectingState(prev => ({ ...prev, [serverName]: false }));
     };
@@ -350,7 +350,7 @@ export function MCPSettings() {
         await saveAll(updatedServers);
         setIsAddingServer(false);
         setEditingServer(null);
-        toast.success(`Server ${name} ${editingServer ? 'updated' : 'added'} successfully`);
+        toast.success(`Server ${name} ${editingServer ? 'updated' : 'added'}`);
     };
 
     const handleFormCancel = () => {
@@ -372,18 +372,18 @@ export function MCPSettings() {
             if (changed) {
                 setEnvironment(newEnv);
                 await saveAll(mcpServers, newEnv);
-                toast.info(`Added ${template.requiredEnv.length} environment variable(s). Please set values below.`);
+                toast.info(`Added ${template.requiredEnv.length} environment variable(s). Fill in the values below.`);
             }
         }
 
         // Add server directly from template
         const updatedServers = { ...mcpServers, [template.id]: template.config };
         await saveAll(updatedServers);
-        toast.success(`${template.name} server added successfully`);
+        toast.success(`${template.name} server added`);
     };
 
     const handleDeleteServer = async (serverName: string) => {
-        if (!confirm(`Are you sure you want to delete ${serverName}?`)) return;
+        if (!confirm(`Delete ${serverName}?`)) return;
 
         const updatedServers = { ...mcpServers };
         delete updatedServers[serverName];
@@ -419,7 +419,7 @@ export function MCPSettings() {
 
     const getStatusDisplay = (serverName: string) => {
         const s = status.find(st => st.serverName === serverName);
-        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: "Not Connected" };
+        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: "Not connected" };
         if (s.connected) return { badge: "bg-terminal-green/20 text-terminal-green", icon: Check, text: "Connected" };
         return { badge: "bg-red-100 text-red-600", icon: X, text: "Error" };
     };
@@ -438,14 +438,14 @@ export function MCPSettings() {
             {/* 1. Quick Start Templates */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Recommended Servers
+                    Recommended servers
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {PREBUILT_TEMPLATES.map(template => (
                         <button
                             key={template.id}
                             onClick={() => handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-white hover:border-terminal-green hover:shadow-sm transition-all text-left"
+                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left"
                         >
                             <div className="flex items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2">
@@ -486,13 +486,13 @@ export function MCPSettings() {
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <Info className="h-3 w-3 mr-1" />
-                                                Setup
+                                                Help
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-72 text-xs">
                                             <div className="space-y-2">
                                                 <p className="font-semibold">{template.name}</p>
-                                                <p>Required env: {template.requiredEnv.join(", ")}</p>
+                                                <p>Required variables: {template.requiredEnv.join(", ")}</p>
                                                 {template.setupInstructions && (
                                                     <p className="text-terminal-muted">{template.setupInstructions}</p>
                                                 )}
@@ -510,11 +510,11 @@ export function MCPSettings() {
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-terminal-border pb-2">
                     <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                        Configured Servers
+                        Added servers
                     </h3>
                     <Button size="sm" onClick={() => setIsAddingServer(!isAddingServer)} variant={isAddingServer ? "secondary" : "default"}>
                         <Plus className="h-4 w-4 mr-2" />
-                        {isAddingServer ? "Cancel" : "Add Custom Server"}
+                        {isAddingServer ? "Cancel" : "Add custom server"}
                     </Button>
                 </div>
 
@@ -531,9 +531,9 @@ export function MCPSettings() {
 
                 {/* Server Cards */}
                 {Object.keys(mcpServers).length === 0 && !isAddingServer ? (
-                    <div className="text-center py-10 border border-dashed border-terminal-border rounded-lg bg-terminal-bg/50">
+                    <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 py-10 text-center">
                         <Plug className="h-8 w-8 text-terminal-muted mx-auto mb-2" />
-                        <p className="font-mono text-sm text-terminal-muted">No servers configured. Add one to get started.</p>
+                        <p className="font-mono text-sm text-terminal-muted">No servers added yet. Add one to get started.</p>
                     </div>
                 ) : (
                     <div className="grid gap-3">
@@ -563,7 +563,7 @@ export function MCPSettings() {
                                 <div
                                     key={name}
                                     className={cn(
-                                        "flex items-center justify-between p-4 rounded-lg border bg-white shadow-sm hover:shadow-md transition-all",
+                                        "flex items-center justify-between p-4 rounded-lg border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 shadow-sm hover:shadow-md transition-all",
                                         config.enabled === false
                                             ? "border-terminal-border/50 opacity-60"
                                             : "border-terminal-border"
@@ -599,7 +599,7 @@ export function MCPSettings() {
                                             {currentStatus?.lastError ? (
                                                 <Alert variant="destructive" className="mt-2">
                                                     <AlertCircle className="h-4 w-4" />
-                                                    <AlertTitle>Connection Failed</AlertTitle>
+                                                    <AlertTitle>Connection failed</AlertTitle>
                                                     <AlertDescription className="text-xs whitespace-pre-wrap font-mono">
                                                         {currentStatus.lastError}
                                                     </AlertDescription>
@@ -611,7 +611,7 @@ export function MCPSettings() {
                                                     </span>
                                                     {currentStatus?.connected && (
                                                         <span className="font-mono text-xs text-terminal-green">
-                                                            {currentStatus.toolCount} tools active
+                                                            {currentStatus.toolCount} active tools
                                                         </span>
                                                     )}
                                                 </div>
@@ -665,7 +665,7 @@ export function MCPSettings() {
             {/* 3. Environment Variables */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Environment Variables
+                    Environment variables
                 </h3>
 
                 {/* 📁 Available Variables Section */}
@@ -673,7 +673,7 @@ export function MCPSettings() {
 
                 <div className="space-y-2">
                     {Object.keys(environment).length === 0 && (
-                        <p className="font-mono text-xs text-terminal-muted italic">No environment variables set.</p>
+                        <p className="font-mono text-xs text-terminal-muted italic">No environment variables yet.</p>
                     )}
 
                     {Object.entries(environment).map(([key, value]) => (
@@ -700,7 +700,7 @@ export function MCPSettings() {
 
                     {!showNewEnvInput ? (
                         <Button size="sm" variant="outline" onClick={() => setShowNewEnvInput(true)} className="mt-2">
-                            <Plus className="h-3 w-3 mr-2" /> Add Variable
+                            <Plus className="h-3 w-3 mr-2" /> Add variable
                         </Button>
                     ) : (
                         <div className="flex gap-2 mt-2 items-center animate-in fade-in">
@@ -719,7 +719,7 @@ export function MCPSettings() {
                                 }}
                             />
                             <span className="text-xs text-terminal-muted">=</span>
-                            <span className="text-xs text-terminal-muted italic">Value (enter later)</span>
+                            <span className="text-xs text-terminal-muted italic">Value (you can add it later)</span>
                             <div className="flex gap-1 ml-auto">
                                 <Button size="sm" onClick={() => {
                                     if (newEnvKey) {
@@ -743,12 +743,12 @@ export function MCPSettings() {
                     onClick={() => setShowJsonMode(!showJsonMode)}
                     className="text-xs text-terminal-muted hover:text-terminal-dark p-0"
                 >
-                    {showJsonMode ? "Hide Advanced JSON Config" : "Show Advanced JSON Config"}
+                    {showJsonMode ? "Hide advanced JSON" : "Show advanced JSON"}
                 </Button>
 
                 {showJsonMode && (
                     <div className="mt-4 space-y-2 animate-in fade-in slide-in-from-top-2">
-                        <Label>Raw JSON Configuration</Label>
+                        <Label>Raw JSON settings</Label>
                         <Textarea
                             value={rawJson}
                             onChange={(e) => setRawJson(e.target.value)}
@@ -767,9 +767,9 @@ export function MCPSettings() {
                                 } catch (e) {
                                     toast.error("Invalid JSON syntax");
                                 }
-                            }}>Update from JSON</Button>
+                            }}>Apply JSON</Button>
                         </div>
-                        <p className="text-xs text-terminal-muted">First key must be &quot;mcpServers&quot;.</p>
+                        <p className="text-xs text-terminal-muted">Top-level key must be &quot;mcpServers&quot;.</p>
                     </div>
                 )}
             </div>

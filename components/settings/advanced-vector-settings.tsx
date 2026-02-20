@@ -96,7 +96,7 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
             {/* Accordion Header */}
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between p-4 bg-terminal-bg/20 hover:bg-terminal-bg/30 transition-colors"
+                className="w-full flex items-center justify-between bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4 transition-colors hover:bg-terminal-cream dark:hover:bg-terminal-cream-dark/70"
             >
                 <div className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4 text-terminal-muted" />
@@ -113,7 +113,7 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
 
             {/* Accordion Content */}
             {isExpanded && (
-                <div className="p-4 space-y-6 border-t border-terminal-border/50 bg-white">
+                <div className="p-4 space-y-6 border-t border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50">
                     {/* Description */}
                     <p className="font-mono text-xs text-terminal-muted">
                         {t("description")}
@@ -399,7 +399,7 @@ function RerankerModelField({
                             if (e.target.value === "__custom__") return;
                             onModelIdChange(e.target.value);
                         }}
-                        className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                        className="flex-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                     >
                         {LOCAL_RERANK_MODELS.map((model) => (
                             <option key={model.id} value={model.id}>
@@ -447,7 +447,7 @@ function RerankerModelField({
                     value={modelId}
                     onChange={(e) => onModelIdChange(e.target.value)}
                     placeholder="cross-encoder/ms-marco-MiniLM-L-6-v2"
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 />
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
                     Pick a preset or enter any Hugging Face cross-encoder reranker model ID.
@@ -541,7 +541,7 @@ function NumberInput({
                 step={step}
                 value={value}
                 onChange={(e) => onChange(Number(e.target.value) || 0)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
         </div>
     );

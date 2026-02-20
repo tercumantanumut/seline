@@ -1283,89 +1283,89 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Configure your application",
+    "subtitle": "Manage how Seline works for you",
     "save": {
       "cta": "Save Changes",
       "saving": "Saving...",
       "saved": "Saved!"
     },
     "nav": {
-      "apiKeys": "API Keys",
-      "models": "Models",
-      "vectorSearch": "Vector Search",
-      "preferences": "Preferences",
-      "memory": "Memory"
+      "apiKeys": "AI Providers",
+      "models": "Model Choices",
+      "vectorSearch": "File Search",
+      "preferences": "App Preferences",
+      "memory": "Memory Defaults"
     },
     "onboarding": {
       "title": "Onboarding",
-      "description": "Re-run the setup wizard to reconfigure your settings",
+      "description": "Run setup again if you want to update your initial choices",
       "cta": "Re-run Setup Wizard"
     },
     "memoryDefaults": {
-      "title": "Global Memory Defaults",
-      "description": "Set default preferences that will be applied to all agents. These memories help your agents understand your preferences.",
-      "addNew": "Add a new preference",
-      "placeholder": "e.g., \"Always use TypeScript for code examples\"",
+      "title": "Default memory for new agents",
+      "description": "Add preferences that should be included automatically when new agents are created.",
+      "addNew": "Add a default memory",
+      "placeholder": "e.g. Keep answers short and practical",
       "add": "Add",
-      "empty": "No global memory defaults set. Add preferences to personalize your agents."
+      "empty": "No default memory yet. Add one to personalize future agents."
     },
     "errors": {
       "load": "Failed to load settings",
       "save": "Failed to save settings"
     },
     "api": {
-      "title": "LLM Provider",
+      "title": "Choose your AI provider",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
-      "keysTitle": "API Keys",
+      "keysTitle": "Provider keys",
       "fields": {
         "anthropic": {
           "label": "Anthropic API Key",
           "placeholder": "sk-ant-...",
-          "helper": "Required for Claude models"
+          "helper": "Needed to use Anthropic models."
         },
         "openrouter": {
           "label": "OpenRouter API Key",
           "placeholder": "sk-or-...",
-          "helper": "Alternative LLM provider & embeddings"
+          "helper": "Use OpenRouter models and cloud embeddings."
         },
         "kimi": {
           "label": "Moonshot API Key",
           "placeholder": "sk-...",
-          "helper": "Get your API key from platform.moonshot.cn"
+          "helper": "Create a key in your Moonshot account."
         },
         "webSearchProvider": {
-          "label": "Web Search Provider",
-          "helper": "Auto uses Tavily when API key is set, otherwise falls back to DuckDuckGo (free)",
+          "label": "Web search source",
+          "helper": "Auto uses Tavily when a key is saved, otherwise falls back to DuckDuckGo.",
           "options": {
-            "auto": "Auto (Tavily if key set, else DuckDuckGo)",
-            "tavily": "Tavily (requires API key)",
-            "duckduckgo": "DuckDuckGo (free, no key needed)"
+            "auto": "Auto (best available)",
+            "tavily": "Tavily (needs API key)",
+            "duckduckgo": "DuckDuckGo (free)"
           }
         },
         "tavily": {
           "label": "Tavily API Key",
           "placeholder": "tvly-...",
-          "helper": "Optional when using DuckDuckGo. Required for Tavily provider and Deep Research advanced mode"
+          "helper": "Needed only for Tavily and Deep Research advanced mode."
         },
         "webScraperProvider": {
-          "label": "Web Scraping Provider",
-          "helper": "Choose local scraping (bundled with the app) or Firecrawl cloud API",
+          "label": "Web page reader",
+          "helper": "Use the built-in local reader or Firecrawl cloud API.",
           "options": {
-            "firecrawl": "Firecrawl (Cloud API)",
-            "local": "Local (Puppeteer)"
+            "firecrawl": "Firecrawl cloud",
+            "local": "Local (on this device)"
           }
         },
         "firecrawl": {
           "label": "Firecrawl API Key",
           "placeholder": "fc-...",
-          "helper": "Required for web scraping with Firecrawl"
+          "helper": "Needed only if you choose Firecrawl."
         },
         "seline": {
-          "label": "Seline AI API Key",
+          "label": "Seline media key",
           "placeholder": "Enter your Seline AI key",
-          "helper": "Required for image/video generation"
+          "helper": "Needed for image and video generation."
         }
       }
     },
@@ -1387,32 +1387,32 @@
       "configWarning": "Configuration Warning"
     },
     "models": {
-      "title": "Model Selection",
-      "subtitle": "Configure different models for different tasks. Leave empty to use provider defaults.",
+      "title": "Model choices",
+      "subtitle": "Choose which model to use for each task. Leave blank to use provider defaults.",
       "defaults": {
         "label": "Defaults:",
-        "value": "Anthropic: claude-sonnet-4-5-20250929 | OpenRouter: x-ai/grok-4.1-fast"
+        "value": "If left empty, Seline chooses sensible defaults for your selected provider."
       },
       "fields": {
         "chat": {
-          "label": "Chat Model",
-          "helper": "Primary model for conversations. Examples: claude-sonnet-4-5-20250929, anthropic/claude-3.5-sonnet, openai/gpt-4o"
+          "label": "Main chat model",
+          "helper": "Used for everyday conversations."
         },
         "research": {
           "label": "Research Model",
-          "helper": "Model for Deep Research mode. Use a powerful model for best results."
+          "helper": "Used when Deep Research is enabled."
         },
         "vision": {
-          "label": "Vision Model",
-          "helper": "Model for image analysis (must support vision). Examples: claude-sonnet-4-5-20250929, google/gemini-2.0-flash-001"
+          "label": "Image understanding model",
+          "helper": "Used for analyzing images and screenshots."
         },
         "utility": {
-          "label": "Utility Model",
-          "helper": "Fast/cheap model used for background tasks (e.g., prompt enhancement). Example: google/gemini-2.0-flash-lite-001"
+          "label": "Background task model",
+          "helper": "Used for quick helper tasks behind the scenes."
         },
         "embeddingProvider": {
-          "label": "Embedding Provider",
-          "helper": "Choose between OpenRouter (cloud) or local models bundled with the app.",
+          "label": "Embedding source",
+          "helper": "Choose cloud embeddings or run them locally on this device.",
           "options": {
             "openrouter": "OpenRouter (cloud)",
             "local": "Local (offline)"
@@ -1420,8 +1420,8 @@
         },
         "embedding": {
           "label": "Embedding Model",
-          "helper": "Model for document embeddings (via OpenRouter). Examples: text-embedding-3-small, text-embedding-3-large",
-          "helperLocal": "Select a Transformers.js model for local embeddings. Download required for first use.",
+          "helper": "Turns your files into searchable vectors.",
+          "helperLocal": "Pick a local embedding model. It will download on first use.",
           "placeholderOpenRouter": "text-embedding-3-small",
           "placeholderLocal": "Xenova/bge-large-en-v1.5",
           "download": "Download",
@@ -1433,8 +1433,8 @@
           "helper": "Directory containing model folders (e.g., C:\\models with Xenova/bge-large-en-v1.5 inside). Leave empty to allow cached downloads."
         },
         "openrouterArgs": {
-          "label": "OpenRouter Advanced Options (JSON)",
-          "helper": "Custom OpenRouter provider options. Common: quant (q4_0, q8_0, auto), thinkingBudget (for reasoning models), includeThoughts (true/false).",
+          "label": "OpenRouter extra options (JSON)",
+          "helper": "Optional advanced settings passed directly to OpenRouter.",
           "presets": {
             "q4": "4-bit Quantization",
             "q8": "8-bit Quantization",
@@ -1445,19 +1445,19 @@
       },
       "tip": {
         "title": "Tip:",
-        "body": "Use cheaper/faster models for embeddings and more powerful models for research. OpenRouter model IDs use the format: provider/model-name (e.g., anthropic/claude-3.5-sonnet)."
+        "body": "Use a faster model for background tasks and a stronger model for research-heavy work."
       }
     },
     "vector": {
-      "title": "Vector Search (LanceDB)",
-      "subtitle": "Enable vector search to allow agents to search through indexed folders using semantic similarity. This uses LanceDB, an embedded vector database that runs locally.",
-      "enable": "Enable Vector Search",
-      "enableLlmSynthesis": "Enable LLM synthesis",
-      "enabled": "Vector search is enabled. You can configure which folders to index for each agent in the agent's settings or during agent creation.",
-      "path": "Data is stored locally at:",
+      "title": "Search your synced files",
+      "subtitle": "Turn on semantic file search so your agents can find relevant content in synced folders. Search data stays local in LanceDB.",
+      "enable": "Turn on vector search",
+      "enableLlmSynthesis": "Use AI-written final answers",
+      "enabled": "Vector search is on. You can choose indexed folders per agent in agent settings.",
+      "path": "Stored locally at:",
       "reindexRequired": {
-        "title": "Search index update needed.",
-        "body": "You changed search model settings. Existing folder indexes might not match anymore.",
+        "title": "Reindex needed.",
+        "body": "Embedding settings changed. Reindex synced folders to rebuild search data.",
         "folderHint": "If search results look incomplete or outdated, open each agent's Synced Folders and run a folder refresh.",
         "cta": "Reindex All Now",
         "running": "Reindexing..."
@@ -1525,7 +1525,7 @@
       }
     },
     "preferences": {
-      "title": "Preferences",
+      "title": "App preferences",
       "theme": {
         "label": "Theme",
         "dark": "Dark",
@@ -1538,11 +1538,11 @@
         "tr": "Türkçe"
       },
       "toolLoading": {
-        "label": "Tool Loading Mode",
-        "deferred": "Deferred Loading (Recommended)",
-        "deferredHelper": "Saves tokens. Agent discovers tools via searchTools when needed.",
-        "always": "Always Include",
-        "alwaysHelper": "All tools available immediately. Uses more tokens per request."
+        "label": "How tools are loaded",
+        "deferred": "Load tools only when needed (recommended)",
+        "deferredHelper": "Uses fewer tokens by loading tools only when needed.",
+        "always": "Load all tools up front",
+        "alwaysHelper": "Makes every tool immediately available, but each request uses more tokens."
       }
     }
   },
