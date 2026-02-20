@@ -1412,7 +1412,10 @@ function SettingsPanel({
     return (
       <div className={settingsSectionShellClassName}>
         <div>
-          <h2 className="mb-4 font-mono text-lg font-semibold text-terminal-dark">{t("api.title")}</h2>
+          <h2 className="mb-1 font-mono text-lg font-semibold text-terminal-dark">{t("api.title")}</h2>
+          <p className="mb-4 font-mono text-sm text-terminal-muted">
+            Choose where your assistant models run, then add only the keys you need.
+          </p>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
               <input
@@ -1504,7 +1507,7 @@ function SettingsPanel({
               )}>
                 Codex
                 {codexAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Connected</span>
+                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
                 )}
               </span>
             </label>
@@ -1530,7 +1533,7 @@ function SettingsPanel({
               )}>
                 Claude Code
                 {claudecodeAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Connected</span>
+                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
                 )}
               </span>
             </label>
@@ -1556,7 +1559,7 @@ function SettingsPanel({
               )}>
                 Antigravity
                 {antigravityAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">✓ Connected</span>
+                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
                 )}
               </span>
             </label>
@@ -1568,14 +1571,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Antigravity - AI Models
+                Antigravity models
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Access Claude Sonnet 4.5, Gemini 3 Pro, and more via your Antigravity subscription.
+                Use your Antigravity subscription to access supported premium models.
               </p>
               {antigravityAuth?.isAuthenticated && antigravityAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in as {antigravityAuth.email}
+                  Signed in: {antigravityAuth.email}
                 </p>
               )}
             </div>
@@ -1586,7 +1589,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "..." : "Disconnect"}
+                  {antigravityLoading ? "..." : "Sign out"}
                 </button>
               ) : (
                 <button
@@ -1594,7 +1597,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "Connecting..." : "Connect with Google"}
+                  {antigravityLoading ? "Connecting..." : "Sign in with Google"}
                 </button>
               )}
             </div>
@@ -1609,11 +1612,11 @@ function SettingsPanel({
                 OpenAI Codex
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect ChatGPT Plus or Pro to use GPT-5.x Codex models.
+                Connect your OpenAI account to use Codex models.
               </p>
               {codexAuth?.isAuthenticated && (codexAuth.email || codexAuth.accountId) && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in as {codexAuth.email || codexAuth.accountId}
+                  Signed in: {codexAuth.email || codexAuth.accountId}
                 </p>
               )}
             </div>
@@ -1624,7 +1627,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {codexLoading ? "..." : "Disconnect"}
+                  {codexLoading ? "..." : "Sign out"}
                 </button>
               ) : (
                 <button
@@ -1632,7 +1635,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {codexLoading ? "Connecting..." : "Connect with OpenAI"}
+                  {codexLoading ? "Connecting..." : "Sign in with OpenAI"}
                 </button>
               )}
             </div>
@@ -1644,14 +1647,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Claude Code (Pro / MAX)
+                Claude Code
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect your Claude Pro or MAX subscription for Opus 4.6, Sonnet 4.5, and Haiku 4.5.
+                Connect your Anthropic account to use Claude Code models.
               </p>
               {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in as {claudecodeAuth.email}
+                  Signed in: {claudecodeAuth.email}
                 </p>
               )}
             </div>
@@ -1662,7 +1665,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "..." : "Disconnect"}
+                  {claudecodeLoading ? "..." : "Sign out"}
                 </button>
               ) : !claudeCodePasteMode ? (
                 <button
@@ -1670,7 +1673,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "Connecting..." : "Connect with Anthropic"}
+                  {claudecodeLoading ? "Connecting..." : "Sign in with Anthropic"}
                 </button>
               ) : null}
             </div>
@@ -1689,7 +1692,7 @@ function SettingsPanel({
 
           {formState.llmProvider === "ollama" && (
             <div>
-              <label className="mb-1 block font-mono text-sm text-terminal-muted">Ollama Base URL</label>
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">Ollama URL</label>
               <input
                 type="text"
                 value={formState.ollamaBaseUrl}
@@ -1698,7 +1701,7 @@ function SettingsPanel({
                 className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Point this to your local Ollama OpenAI-compatible endpoint.
+                Use the URL of your local Ollama OpenAI-compatible endpoint.
               </p>
             </div>
           )}
@@ -1749,7 +1752,7 @@ function SettingsPanel({
               className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Required for OpenAI Whisper (speech-to-text) and OpenAI TTS. Get yours at{" "}
+              Needed for OpenAI speech-to-text and text-to-speech. Get a key at{" "}
               <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-terminal-green underline hover:text-terminal-green/80">
                 platform.openai.com
               </a>
@@ -1890,6 +1893,9 @@ function SettingsPanel({
           <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("models.title")}</h2>
           <p className="font-mono text-sm text-terminal-muted">
             {t("models.subtitle")}
+          </p>
+          <p className="font-mono text-xs text-terminal-muted">
+            Choose which model handles each job, like chat, research, and image understanding.
           </p>
         </div>
 
@@ -2362,8 +2368,8 @@ function SettingsPanel({
 
             {/* Local Grep Settings */}
             <div className="mt-6 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
-              <h3 className="font-mono text-sm font-semibold text-terminal-dark">Local Grep (ripgrep)</h3>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">Fast exact and regex pattern search using ripgrep.</p>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">Local grep search</h3>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">Configure fast text search in synced folders.</p>
 
               <div className="mt-4 space-y-3">
                 <label className="flex items-center gap-3">
@@ -2373,7 +2379,7 @@ function SettingsPanel({
                     onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
                     className="size-4 accent-terminal-green"
                   />
-                  <span className="font-mono text-sm text-terminal-dark">Enable Local Grep Tool</span>
+                  <span className="font-mono text-sm text-terminal-dark">Enable local grep tool</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input
@@ -2382,13 +2388,13 @@ function SettingsPanel({
                     onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
                     className="size-4 accent-terminal-green"
                   />
-                  <span className="font-mono text-sm text-terminal-dark">Respect .gitignore</span>
+                  <span className="font-mono text-sm text-terminal-dark">Ignore files listed in .gitignore</span>
                 </label>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Max Results</label>
+                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Maximum results</label>
                   <input
                     type="number"
                     min={1}
@@ -2399,7 +2405,7 @@ function SettingsPanel({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Context Lines</label>
+                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Context lines</label>
                   <input
                     type="number"
                     min={0}
@@ -2429,9 +2435,9 @@ function SettingsPanel({
     return (
       <div className={settingsSectionShellClassName}>
         <div>
-          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local Image Generation</h2>
+          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local image generation</h2>
           <p className="text-sm text-terminal-muted">
-            Generate images locally using Docker-based backends. Requires Docker Desktop and an NVIDIA GPU.
+            Run image generation on this device using local backends.
           </p>
         </div>
 
@@ -2442,9 +2448,9 @@ function SettingsPanel({
                 <KeyIcon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-terminal-text">Hugging Face Token</p>
+                <p className="text-sm font-semibold text-terminal-text">Hugging Face token</p>
                 <p className="text-xs text-terminal-muted">
-                  Required for downloading gated models like FLUX.2 Klein.
+                  Needed to download gated models such as FLUX.2 Klein.
                 </p>
               </div>
             </div>
@@ -2454,7 +2460,7 @@ function SettingsPanel({
               rel="noopener noreferrer"
               className="text-xs text-terminal-green underline hover:text-terminal-green/80"
             >
-              Get your token here
+              Open token settings
             </a>
           </div>
           <input
@@ -2486,9 +2492,9 @@ function SettingsPanel({
 
         <div className="border-t border-terminal-border/60 pt-6 space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI Workflows</h3>
+            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI workflows</h3>
             <p className="text-xs text-terminal-muted">
-              Upload or paste workflow JSON, then review inputs and outputs before saving.
+              Paste or upload a workflow JSON file, then review inputs and outputs before saving.
             </p>
           </div>
           <CustomWorkflowsManager
@@ -2521,10 +2527,10 @@ function SettingsPanel({
       <div className={settingsSectionShellClassName}>
         <div>
           <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">
-            MCP Servers
+            Tool servers (MCP)
           </h2>
           <p className="mb-4 font-mono text-sm text-terminal-muted">
-            Connect to external MCP (Model Context Protocol) servers to extend your agent&apos;s capabilities.
+            Connect external tool servers so your agent can use more tools.
           </p>
         </div>
         <MCPSettings />
@@ -2769,7 +2775,12 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
   return (
     <div className="space-y-6">
-      <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("preferences.title")}</h2>
+      <div>
+        <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("preferences.title")}</h2>
+        <p className="mt-1 font-mono text-sm text-terminal-muted">
+          Personalize appearance, language, and how background checks run.
+        </p>
+      </div>
 
       <div>
         <label className="mb-2 block font-mono text-sm text-terminal-muted">{t("preferences.theme.label")}</label>
@@ -2849,14 +2860,14 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       {/* Post-Edit Hooks */}
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
-          <h3 className="font-mono text-base font-semibold text-terminal-dark">Post-Edit Hooks</h3>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">After-edit checks</h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Configure checks that run automatically after AI edits and writes.
+            Choose which checks run automatically after AI changes.
           </p>
         </div>
 
         <div>
-          <label className="mb-2 block font-mono text-sm text-terminal-dark">Preset</label>
+          <label className="mb-2 block font-mono text-sm text-terminal-dark">Check profile</label>
           <div className="space-y-2">
             <label className="flex items-start gap-3">
               <input
@@ -2874,7 +2885,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               />
               <div>
                 <span className="font-mono text-terminal-dark">Off</span>
-                <p className="font-mono text-xs text-terminal-muted">Skip all post-edit checks.</p>
+                <p className="font-mono text-xs text-terminal-muted">Do not run automatic checks.</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2894,8 +2905,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Fast (Recommended)</span>
-                <p className="font-mono text-xs text-terminal-muted">Typecheck only, scope inferred from edited file.</p>
+                <span className="font-mono text-terminal-dark">Fast (recommended)</span>
+                <p className="font-mono text-xs text-terminal-muted">Run typecheck only, and only for related areas.</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2916,7 +2927,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               />
               <div>
                 <span className="font-mono text-terminal-dark">Strict</span>
-                <p className="font-mono text-xs text-terminal-muted">Typecheck all scopes + ESLint + include patch operations.</p>
+                <p className="font-mono text-xs text-terminal-muted">Run typecheck and lint across the full project.</p>
               </div>
             </label>
           </div>
@@ -2933,7 +2944,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Run in patch tool</span>
+            <span className="font-mono text-sm text-terminal-dark">Include patch edits</span>
             <input
               type="checkbox"
               checked={formState.postEditRunInPatchTool}
@@ -2963,17 +2974,20 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
         <div>
           <label className="mb-1 block font-mono text-sm text-terminal-dark">Typecheck scope</label>
+          <p className="mb-2 font-mono text-xs text-terminal-muted">
+            Pick how widely typecheck should run after edits.
+          </p>
           <select
             value={formState.postEditTypecheckScope}
             onChange={(e) => updateField("postEditTypecheckScope", e.target.value as FormState["postEditTypecheckScope"])}
             className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
-            <option value="auto">Auto (infer from file path)</option>
-            <option value="app">App only</option>
-            <option value="lib">Lib only</option>
-            <option value="electron">Electron only</option>
+            <option value="auto">Auto (based on changed files)</option>
+            <option value="app">App code only</option>
+            <option value="lib">Library code only</option>
+            <option value="electron">Electron code only</option>
             <option value="tooling">Tooling only</option>
-            <option value="all">All scopes</option>
+            <option value="all">Entire project</option>
           </select>
         </div>
       </div>
@@ -2981,20 +2995,20 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       {/* Prompt Caching */}
       <div className="space-y-4">
         <h3 className="font-mono text-base font-semibold text-terminal-dark">
-          Prompt Caching
+          Prompt caching
         </h3>
         <p className="font-mono text-xs text-terminal-muted">
-          Cache system prompts and conversation history to reduce costs by 70-85%. Works with Anthropic (direct) and OpenRouter (Anthropic, OpenAI, Gemini, and more).
+          Reuse repeated prompt content to lower token usage and cost.
         </p>
 
         {/* Enable/Disable Toggle */}
         <div className="flex items-center justify-between">
           <div>
             <label className="font-mono text-sm text-terminal-dark">
-              Enable Prompt Caching
+              Enable prompt caching
             </label>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Save up to 90% on input tokens for multi-turn conversations
+              Helpful for longer conversations with repeated context.
             </p>
           </div>
           <input
@@ -3009,7 +3023,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
         {formState.promptCachingEnabled !== false && (
           <div>
             <label className="mb-2 block font-mono text-sm text-terminal-dark">
-              Cache Duration
+              Cache duration
             </label>
             <div className="space-y-3">
               <label className="flex items-start gap-3">
@@ -3022,9 +3036,9 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                   className="mt-1 size-4 accent-terminal-green"
                 />
                 <div>
-                  <span className="font-mono text-terminal-dark">5 minutes (Recommended)</span>
+                  <span className="font-mono text-terminal-dark">5 minutes (recommended)</span>
                   <p className="font-mono text-xs text-terminal-muted">
-                    Standard cache duration. 1.25x write cost, auto-refreshes on use. Best for frequent conversations.
+                    Balanced for active chats.
                   </p>
                 </div>
               </label>
@@ -3038,9 +3052,9 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                   className="mt-1 size-4 accent-terminal-green"
                 />
                 <div>
-                  <span className="font-mono text-terminal-dark">1 hour (Premium)</span>
+                  <span className="font-mono text-terminal-dark">1 hour</span>
                   <p className="font-mono text-xs text-terminal-muted">
-                    Extended cache duration. 2x write cost. Best for infrequent or long-running sessions.
+                    Keeps cache longer, useful for slower sessions.
                   </p>
                 </div>
               </label>
@@ -3053,10 +3067,10 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            RTK (Experimental)
+            RTK (experimental)
           </h3>
           <p className="font-mono text-xs text-terminal-muted">
-            Bundle-powered command output compaction for token savings on supported tools.
+            Compacts command output to save tokens on supported tools.
           </p>
         </div>
 
@@ -3064,7 +3078,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           <div>
             <span className="font-mono text-sm text-terminal-dark">Enable RTK</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Applies only when RTK binary is installed and the command is supported.
+              Works only when RTK is installed and the command supports it.
             </p>
           </div>
           <input
@@ -3097,7 +3111,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               onChange={(e) => updateField("rtkUltraCompact", e.target.checked)}
               className="size-4 accent-terminal-green"
             />
-            <span className="font-mono text-sm text-terminal-dark">Ultra Compact (-u)</span>
+            <span className="font-mono text-sm text-terminal-dark">Ultra compact mode (-u)</span>
           </label>
         </div>
       </div>
@@ -3106,19 +3120,18 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            Developer Workspace
+            Developer workspace
           </h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Enable workspace indicators, diff views, and parallel workspace management for git-based coding workflows.
-            Your agent can work in isolated git worktrees and submit changes as pull requests.
+            Show workspace indicators, diff views, and tools for git-based coding workflows.
           </p>
         </div>
 
         <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="font-mono text-sm text-terminal-dark">Enable Developer Workspace</span>
+            <span className="font-mono text-sm text-terminal-dark">Enable developer workspace tools</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Shows branch indicators in chat, diff review panels, and a workspace dashboard on the home page.
+              Adds branch info, diff review panels, and a workspace dashboard.
             </p>
           </div>
           <input
@@ -3133,9 +3146,9 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           <div className="space-y-4 border-t border-terminal-border pt-4">
             <label className="flex items-center justify-between gap-3">
               <div>
-                <span className="font-mono text-sm text-terminal-dark">Auto-cleanup old worktrees</span>
+                <span className="font-mono text-sm text-terminal-dark">Auto-clean old worktrees</span>
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
-                  Automatically remove worktrees after their PR is merged or after a set number of days.
+                  Remove old worktrees automatically after merge or after a set number of days.
                 </p>
               </div>
               <input
@@ -3149,7 +3162,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             {formState.devWorkspaceAutoCleanup && (
               <div>
                 <label className="mb-1 block font-mono text-xs text-terminal-muted">
-                  Cleanup after (days)
+                  Clean up after (days)
                 </label>
                 <input
                   type="number"
@@ -3164,10 +3177,10 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
             <div className="rounded border border-dashed border-terminal-border bg-terminal-cream/50 p-3">
               <p className="font-mono text-xs text-terminal-muted">
-                <strong className="text-terminal-dark">Recommended MCP servers:</strong>{" "}
+                <strong className="text-terminal-dark">Recommended tool servers:</strong>{" "}
                 Install <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code> for
                 worktree management or <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code> for
-                PR workflows. Configure them in the MCP Servers section.
+                pull request workflows. Configure them in Tool servers (MCP).
               </p>
             </div>
           </div>
@@ -3268,9 +3281,9 @@ function MemorySection() {
   };
 
   const categoryLabels = {
-    visual_preferences: "Visual Preferences",
-    communication_style: "Communication Style",
-    workflow_patterns: "Workflow Patterns",
+    visual_preferences: "Visual style",
+    communication_style: "Communication style",
+    workflow_patterns: "Workflow habits",
   };
 
   if (loading) {
@@ -3292,12 +3305,12 @@ function MemorySection() {
             <BrainIcon className="size-5 text-terminal-green" />
             {t("memoryDefaults.title")}
           </h2>
-          <p className="font-mono text-sm text-terminal-muted mt-1">
+          <p className="mt-1 font-mono text-sm text-terminal-muted">
             {t("memoryDefaults.description")}
           </p>
         </div>
 
-        {/* Add new memory */}
+        {/* Add new default memory */}
         <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <h3 className="font-mono text-sm font-medium text-terminal-dark mb-3">
             {t("memoryDefaults.addNew")}
@@ -3332,7 +3345,7 @@ function MemorySection() {
           </div>
         </div>
 
-        {/* Display existing memories */}
+        {/* Existing default memory */}
         {totalMemories === 0 ? (
           <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/30 p-6 text-center">
             <p className="font-mono text-sm text-terminal-muted">
@@ -3372,7 +3385,7 @@ function MemorySection() {
         )}
       </div>
 
-      {/* Re-run Onboarding */}
+      {/* Run onboarding again */}
       <div className="border-t border-terminal-border pt-6">
         <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex items-center justify-between">
