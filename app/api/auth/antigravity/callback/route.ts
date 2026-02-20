@@ -14,7 +14,7 @@ import {
   ANTIGRAVITY_OAUTH,
   ANTIGRAVITY_CONFIG,
 } from "@/lib/auth/antigravity-auth";
-import { invalidateProviderCache } from "@/lib/ai/providers";
+import { invalidateProviderCacheFor } from "@/lib/ai/providers";
 
 const OAUTH_FETCH_TIMEOUT_MS = 510 * 1000;
 
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
         if (tokenResponse.access_token) {
           const token = parseOAuthCallbackToken(tokenResponse);
           saveAntigravityToken(token, tokenResponse.email, true);
-          invalidateProviderCache();
+          invalidateProviderCacheFor("antigravity");
 
           return new NextResponse(
             generateCallbackHTML(true, "Authentication successful! You can close this window."),

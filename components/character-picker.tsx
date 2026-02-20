@@ -52,7 +52,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
@@ -61,6 +60,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -79,6 +84,14 @@ import {
   resilientDelete,
   resilientPost,
 } from "@/lib/utils/resilient-fetch";
+import {
+  getWorkflowSectionState,
+  hasMissingInitiator,
+  shouldDisableInitiatorActions,
+  shouldDisableWorkflowCreate,
+  shouldRenderAgentsHeader,
+  shouldRenderWorkflowSection,
+} from "@/lib/characters/picker-sections";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -229,6 +242,8 @@ type AgentOverflowMenuProps = {
   showAddToWorkflow?: boolean;
   canAddToWorkflow?: boolean;
   onDelete: (c: CharacterSummary) => void;
+  onRemoveFromWorkflow?: () => void;
+  removeFromWorkflowLabel?: string;
 };
 
 function AgentOverflowMenu({
@@ -245,6 +260,8 @@ function AgentOverflowMenu({
   showAddToWorkflow = true,
   canAddToWorkflow = true,
   onDelete,
+  onRemoveFromWorkflow,
+  removeFromWorkflowLabel,
 }: AgentOverflowMenuProps) {
   return (
     <DropdownMenu>
@@ -299,6 +316,18 @@ function AgentOverflowMenu({
             {addToWorkflowLabel || "Add to Workflow..."}
           </DropdownMenuItem>
         )}
+        {onRemoveFromWorkflow && removeFromWorkflowLabel && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={onRemoveFromWorkflow}
+              className="text-red-600 focus:text-red-600"
+            >
+              <Unlink className="w-3.5 h-3.5 mr-2" />
+              {removeFromWorkflowLabel}
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => onDelete(character)}
@@ -315,7 +344,6 @@ function AgentOverflowMenu({
 function AgentCardInWorkflow({
   character,
   role,
-  isLast,
   t,
   hasActiveSession,
   onContinueChat,
@@ -326,12 +354,17 @@ function AgentCardInWorkflow({
   onEditMcp,
   onEditPlugins,
   onDuplicate,
+  addToWorkflowLabel,
+  onAddToWorkflow,
+  canAddToWorkflow,
   onDelete,
+  onRemoveFromWorkflow,
+  removeFromWorkflowLabel,
   router,
+  dataAnimateCard,
 }: {
   character: CharacterSummary;
-  role: "initiator" | "subagent";
-  isLast: boolean;
+  role?: "initiator" | "subagent";
   t: ReturnType<typeof useTranslations>;
   hasActiveSession: (charId: string, initialStatus?: boolean) => boolean;
   onContinueChat: (id: string) => void;
@@ -342,8 +375,14 @@ function AgentCardInWorkflow({
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
   onDuplicate: (characterId: string) => void;
+  addToWorkflowLabel?: string;
+  onAddToWorkflow?: (c: CharacterSummary) => void;
+  canAddToWorkflow?: boolean;
   onDelete: (c: CharacterSummary) => void;
+  onRemoveFromWorkflow?: () => void;
+  removeFromWorkflowLabel?: string;
   router: ReturnType<typeof useRouter>;
+  dataAnimateCard?: boolean;
 }) {
   const initials = getCharacterInitials(character.name);
   const enabledTools = character.metadata?.enabledTools || [];
@@ -355,8 +394,9 @@ function AgentCardInWorkflow({
 
   return (
     <AnimatedCard
+      data-animate-card={dataAnimateCard ? true : undefined}
       hoverLift
-      className={`bg-terminal-cream relative group ${role === "initiator" ? "border-l-4 border-l-terminal-green" : ""}`}
+      className="group relative w-full border-0 bg-terminal-cream/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
     >
       <div className="p-4 pb-2">
         <AgentOverflowMenu
@@ -368,90 +408,92 @@ function AgentCardInWorkflow({
           onEditPlugins={onEditPlugins}
           onNavigateDashboard={() => router.push("/dashboard")}
           onDuplicate={onDuplicate}
-          showAddToWorkflow={false}
+          addToWorkflowLabel={addToWorkflowLabel}
+          onAddToWorkflow={onAddToWorkflow}
+          showAddToWorkflow={Boolean(onAddToWorkflow)}
+          canAddToWorkflow={canAddToWorkflow}
           onDelete={onDelete}
+          onRemoveFromWorkflow={onRemoveFromWorkflow}
+          removeFromWorkflowLabel={removeFromWorkflowLabel}
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex min-h-9 items-center gap-3">
           <div className="relative">
-            <Avatar className="w-10 h-10 shadow-sm">
+            <Avatar className="h-10 w-10 shadow-sm">
               {imageUrl ? <AvatarImage src={imageUrl} alt={character.name} /> : null}
-              <AvatarFallback className="bg-terminal-green/10 text-terminal-green font-mono text-xs">
+              <AvatarFallback className="bg-terminal-green/10 font-mono text-xs text-terminal-green">
                 {initials}
               </AvatarFallback>
             </Avatar>
             {hasActiveSession(character.id, character.hasActiveSession) && (
-              <div className="absolute -top-1 -right-1 z-10">
-                <div className="flex items-center justify-center bg-green-500 rounded-full w-4 h-4 shadow-md">
+              <div className="absolute -right-1 -top-1 z-10">
+                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-green-500 shadow-md">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
                   </span>
                 </div>
               </div>
             )}
           </div>
-          <div className="flex-1 min-w-0 pr-6">
+          <div className="min-w-0 flex-1 pr-6">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium font-mono text-terminal-dark truncate">
+              <p className="truncate font-mono text-sm font-medium text-terminal-dark">
                 {character.displayName || character.name}
               </p>
-              <Badge
-                variant="outline"
-                className={`text-[10px] font-mono shrink-0 ${
-                  role === "initiator"
-                    ? "bg-terminal-green/10 text-terminal-green border-terminal-green/30"
-                    : "bg-terminal-muted/10 text-terminal-muted border-terminal-border"
-                }`}
-              >
-                {role === "initiator" ? t("workflows.initiator") : t("workflows.subagent")}
-              </Badge>
+              {role && (
+                <Badge
+                  variant="outline"
+                  className={`shrink-0 text-[10px] font-mono ${
+                    role === "initiator"
+                      ? "border-terminal-green/30 bg-terminal-green/10 text-terminal-green"
+                      : "border-terminal-border bg-terminal-muted/10 text-terminal-muted"
+                  }`}
+                >
+                  {role === "initiator" ? t("workflows.initiator") : t("workflows.subagent")}
+                </Badge>
+              )}
             </div>
             {character.tagline && (
-              <p className="text-xs text-terminal-muted font-mono line-clamp-1">
-                {character.tagline}
-              </p>
+              <p className="line-clamp-1 font-mono text-xs text-terminal-muted">{character.tagline}</p>
             )}
           </div>
         </div>
 
         {purpose && (
-          <p className="text-[11px] text-terminal-muted/80 font-mono line-clamp-1 mt-1.5 pl-0.5">
+          <p className="mt-1.5 line-clamp-1 pl-0.5 font-mono text-[11px] text-terminal-muted/80">
             {purpose}
           </p>
         )}
 
         {topTools.length > 0 && (
-          <div className="flex items-center gap-1 mt-1.5">
+          <div className="mt-1.5 flex items-center gap-1">
             {topTools.map((toolId) => (
               <ToolBadge key={toolId} toolId={toolId} size="xs" />
             ))}
             {enabledTools.length > 3 && (
-              <span className="text-[10px] font-mono text-terminal-muted">
-                +{enabledTools.length - 3}
-              </span>
+              <span className="font-mono text-[10px] text-terminal-muted">+{enabledTools.length - 3}</span>
             )}
           </div>
         )}
       </div>
 
-
-      <div className="px-4 pb-3 pt-0 flex gap-1.5">
+      <div className="flex justify-start gap-1.5 px-4 pb-3 pt-0">
         <AnimatedButton
           size="sm"
-          className="flex-1 gap-1.5 bg-terminal-dark hover:bg-terminal-dark/90 text-terminal-cream font-mono text-xs h-7"
+          className="inline-flex h-7 gap-1.5 bg-terminal-dark px-3 font-mono text-xs text-terminal-cream hover:bg-terminal-dark/90"
           onClick={() => onContinueChat(character.id)}
         >
-          <MessageCircle className="w-3 h-3" />
+          <MessageCircle className="h-3 w-3" />
           {t("continue")}
         </AnimatedButton>
         <AnimatedButton
           size="sm"
           variant="outline"
-          className="gap-1 text-terminal-dark hover:bg-terminal-dark/5 font-mono text-xs h-7"
+          className="h-7 w-7 px-0 font-mono text-xs text-terminal-dark hover:bg-terminal-dark/5"
           onClick={() => onNewChat(character.id)}
         >
-          <PlusCircle className="w-3 h-3" />
+          <PlusCircle className="h-3 w-3" />
         </AnimatedButton>
       </div>
     </AnimatedCard>
@@ -508,6 +550,15 @@ export function CharacterPicker() {
   const [addToWorkflowCharacter, setAddToWorkflowCharacter] = useState<CharacterSummary | null>(null);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [isAddingToWorkflow, setIsAddingToWorkflow] = useState(false);
+  const [pendingWorkflowMemberRemoval, setPendingWorkflowMemberRemoval] = useState<{
+    workflowId: string;
+    agentId: string;
+  } | null>(null);
+  const [pendingWorkflowDeletion, setPendingWorkflowDeletion] = useState<{
+    workflowId: string;
+    workflowName: string;
+  } | null>(null);
+  const [workflowActionTrigger, setWorkflowActionTrigger] = useState<HTMLElement | null>(null);
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -727,7 +778,7 @@ export function CharacterPicker() {
   const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
 
   // Search/filter state
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery] = useState("");
 
   // Fetch settings to check if Vector Search and Developer Workspace are enabled
   useEffect(() => {
@@ -858,6 +909,15 @@ export function CharacterPicker() {
       });
     });
   }, [workflowGroups, searchQuery]);
+
+  const workflowSectionState = getWorkflowSectionState({
+    workflowCount: workflowGroups.length,
+    filteredWorkflowCount: filteredWorkflowGroups.length,
+    searchQuery,
+  });
+  const showWorkflowSection = shouldRenderWorkflowSection(characters.length, workflowGroups.length);
+  const showAgentsHeader = shouldRenderAgentsHeader(showWorkflowSection);
+  const disableWorkflowCreate = shouldDisableWorkflowCreate(allStandaloneCharacters.length);
 
   const toggleWorkflow = useCallback((workflowId: string) => {
     setExpandedWorkflows((prev) => {
@@ -1026,6 +1086,21 @@ export function CharacterPicker() {
     []
   );
 
+  const getWorkflowErrorMessage = useCallback((error: unknown) => {
+    const rawMessage = error instanceof Error ? error.message : "";
+
+    switch (rawMessage) {
+      case "Agent already belongs to an active workflow":
+        return t("workflows.errors.agentAlreadyActiveWorkflow");
+      case "Agent is already in this workflow":
+        return t("workflows.errors.agentAlreadyInWorkflow");
+      case "Cannot modify archived workflow":
+        return t("workflows.errors.archivedWorkflowReadOnly");
+      default:
+        return rawMessage || t("workflows.updateFailed");
+    }
+  }, [t]);
+
   const mutateWorkflow = useCallback(
     async (workflowId: string, payload: Record<string, unknown>) => {
       setWorkflowMutationBusy(workflowId);
@@ -1036,12 +1111,12 @@ export function CharacterPicker() {
         toast.success(t("workflows.updated"));
       } catch (error) {
         console.error("Workflow mutation failed:", error);
-        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+        toast.error(getWorkflowErrorMessage(error));
       } finally {
         setWorkflowMutationBusy(null);
       }
     },
-    [loadCharacters, t]
+    [getWorkflowErrorMessage, loadCharacters, t]
   );
 
   const addSubagentToWorkflow = useCallback(
@@ -1083,7 +1158,6 @@ export function CharacterPicker() {
 
   const removeSubagentFromWorkflow = useCallback(
     async (workflowId: string, agentId: string) => {
-      if (!confirm("Remove this sub-agent from the workflow?")) return;
       await mutateWorkflow(workflowId, {
         action: "removeMember",
         agentId,
@@ -1094,7 +1168,6 @@ export function CharacterPicker() {
 
   const deleteWorkflowGroup = useCallback(
     async (workflowId: string) => {
-      if (!confirm("Delete this workflow group? Members will stay as standalone agents.")) return;
       setWorkflowMutationBusy(workflowId);
       try {
         const { error } = await resilientDelete(`/api/workflows/${workflowId}`);
@@ -1103,12 +1176,12 @@ export function CharacterPicker() {
         toast.success(t("workflows.deleted"));
       } catch (error) {
         console.error("Workflow deletion failed:", error);
-        toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+        toast.error(getWorkflowErrorMessage(error));
       } finally {
         setWorkflowMutationBusy(null);
       }
     },
-    [loadCharacters, t]
+    [getWorkflowErrorMessage, loadCharacters, t]
   );
 
   const createWorkflowGroup = useCallback(async () => {
@@ -1130,11 +1203,11 @@ export function CharacterPicker() {
       toast.success(t("workflows.created"));
     } catch (error) {
       console.error("Create workflow failed:", error);
-      toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+      toast.error(getWorkflowErrorMessage(error));
     } finally {
       setCreatingWorkflow(false);
     }
-  }, [loadCharacters, newWorkflowInitiatorId, newWorkflowName, newWorkflowSubagentIds, t]);
+  }, [getWorkflowErrorMessage, loadCharacters, newWorkflowInitiatorId, newWorkflowName, newWorkflowSubagentIds, t]);
 
   // Open tool editor for a character
   const openToolEditor = (character: CharacterSummary) => {
@@ -1464,6 +1537,29 @@ export function CharacterPicker() {
     router.push(`/chat/${characterId}?new=true`);
   };
 
+  const closeWorkflowActionDialog = useCallback(() => {
+    setPendingWorkflowDeletion(null);
+    setPendingWorkflowMemberRemoval(null);
+    workflowActionTrigger?.focus();
+    setWorkflowActionTrigger(null);
+  }, [workflowActionTrigger]);
+
+  const handleWorkflowActionDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      closeWorkflowActionDialog();
+    }
+  }, [closeWorkflowActionDialog]);
+
+  const removeSubagentConfirmDisabled =
+    !pendingWorkflowMemberRemoval || workflowMutationBusy === pendingWorkflowMemberRemoval.workflowId;
+
+  const deleteWorkflowConfirmDisabled =
+    !pendingWorkflowDeletion || workflowMutationBusy === pendingWorkflowDeletion.workflowId;
+
+  const workflowActionDialogOpen = Boolean(
+    pendingWorkflowMemberRemoval || pendingWorkflowDeletion
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8 bg-terminal-cream min-h-full">
@@ -1473,35 +1569,14 @@ export function CharacterPicker() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto bg-terminal-cream min-h-full">
+    <TooltipProvider>
+      <div className="flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
       <AnimatedContainer direction="down" distance={15} className="text-center">
         <h1 className="text-2xl font-bold font-mono text-terminal-dark">{t("title")}</h1>
         <p className="text-terminal-muted mt-2 font-mono text-sm">
           {t("subtitle")}
         </p>
       </AnimatedContainer>
-
-      {/* Search Input - shown when there are agents */}
-      {characters.length > 0 && (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-terminal-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="w-full pl-10 pr-10 py-2 bg-terminal-cream border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-terminal-muted hover:text-terminal-dark transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Active Workspaces Dashboard */}
       {devWorkspaceEnabled && (
@@ -1514,284 +1589,365 @@ export function CharacterPicker() {
         />
       )}
 
-      {allStandaloneCharacters.length > 0 && (
-        <div className="flex justify-end">
-          <AnimatedButton
-            size="sm"
-            variant="outline"
-            className="font-mono text-xs"
-            onClick={() => setWorkflowCreatorOpen(true)}
-          >
-            <GitBranchPlus className="mr-1.5 h-3.5 w-3.5" />
-            {t("workflows.create")}
-          </AnimatedButton>
-        </div>
-      )}
-
       {/* Workflow Groups */}
-      {filteredWorkflowGroups.length > 0 && (
-        <div className="space-y-4 mb-6">
-          <h3 className="font-mono text-sm font-medium text-terminal-muted uppercase tracking-wider">
-            {t("workflows.sectionTitle")}
-          </h3>
-          {filteredWorkflowGroups.map((wf) => {
-            const isExpanded = expandedWorkflows.has(wf.id);
-            const initiator = wf.agents.find((a) => a.id === wf.initiatorId);
-            const subAgents = wf.agents.filter((a) => a.id !== wf.initiatorId);
-            const sharedResources = wf.metadata?.sharedResources;
-            const statusColor =
-              wf.status === "active"
-                ? "bg-green-100 text-green-700 border-green-200"
-                : wf.status === "paused"
-                ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                : "bg-gray-100 text-gray-500 border-gray-200";
-
-            return (
-              <Card key={wf.id} className="transition-all bg-terminal-cream border-terminal-border">
-                <CardHeader className="pb-3">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => toggleWorkflow(wf.id)}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleWorkflow(wf.id)}
-                    className="flex items-center gap-3 text-left w-full cursor-pointer"
+      {showWorkflowSection && (
+        <div className="mb-2 space-y-4">
+          <div className="flex min-h-9 items-center gap-3">
+            <h2 className="font-mono text-sm font-medium text-terminal-muted uppercase tracking-wider">
+              {t("workflows.sectionTitle")}
+            </h2>
+            <div className="h-px flex-1 bg-terminal-border/60" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={disableWorkflowCreate ? 0 : -1}>
+                  <AnimatedButton
+                    size="sm"
+                    variant="outline"
+                    className="h-8 font-mono text-xs"
+                    disabled={disableWorkflowCreate}
+                    onClick={() => setWorkflowCreatorOpen(true)}
                   >
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-terminal-muted shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-terminal-muted shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="font-mono text-base truncate">
-                        {wf.name}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className={`text-[10px] font-mono ${statusColor}`}>
-                          {wf.status === "active"
-                            ? t("workflows.statusActive")
-                            : wf.status === "paused"
-                            ? t("workflows.statusPaused")
-                            : t("workflows.statusArchived")}
-                        </Badge>
-                        <span className="text-xs font-mono text-terminal-muted">
-                          {t("workflows.agentCount", { count: wf.agents.length })}
-                        </span>
-                        {sharedResources?.syncFolderIds && sharedResources.syncFolderIds.length > 0 && (
-                          <span className="text-[10px] font-mono text-terminal-muted">
-                            {t("workflows.sharedFolders", { count: sharedResources.syncFolderIds.length })}
-                          </span>
-                        )}
-                        {sharedResources?.pluginIds && sharedResources.pluginIds.length > 0 && (
-                          <span className="text-[10px] font-mono text-terminal-muted">
-                            {t("workflows.sharedPlugins", { count: sharedResources.pluginIds.length })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <AnimatedButton
-                        size="sm"
-                        variant="outline"
-                        className="text-xs font-mono h-7 px-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (initiator) handleContinueChat(initiator.id);
-                        }}
-                      >
-                        {t("workflows.run")}
-                      </AnimatedButton>
-                      <AnimatedButton
-                        size="sm"
-                        variant="outline"
-                        className="text-xs font-mono h-7 px-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (initiator) openFolderManager(initiator);
-                        }}
-                      >
-                        {t("workflows.shareFolder")}
-                      </AnimatedButton>
-                    </div>
-                  </div>
-                </CardHeader>
+                    <GitBranchPlus className="mr-1.5 h-3.5 w-3.5" />
+                    {t("workflows.newWorkflow")}
+                  </AnimatedButton>
+                </span>
+              </TooltipTrigger>
+              {disableWorkflowCreate && (
+                <TooltipContent className="font-mono text-xs">
+                  {t("workflows.createFirstAgentHint")}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
 
-                {isExpanded && (
-                  <CardContent className="pt-0">
-                    <div className="border-t border-terminal-border/20 pt-4 space-y-3">
-                      <div className="rounded border border-terminal-border/40 bg-terminal-bg/10 p-3">
-                        <div className="grid gap-2 md:grid-cols-2">
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={workflowDrafts[wf.id]?.addAgentId || ""}
-                              onChange={(event) =>
-                                updateWorkflowDraft(wf.id, { addAgentId: event.target.value })
-                              }
-                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
-                              disabled={workflowMutationBusy === wf.id}
-                            >
-                              <option value="">{t("workflows.addSubagentPlaceholder")}</option>
-                              {allStandaloneCharacters.map((agent) => (
-                                <option key={agent.id} value={agent.id}>
-                                  {agent.displayName || agent.name}
-                                </option>
-                              ))}
-                            </select>
-                            <AnimatedButton
-                              size="sm"
+          {workflowSectionState === "list" && (
+            <div className="grid gap-4 2xl:grid-cols-2">
+              {filteredWorkflowGroups.map((wf) => {
+              const isExpanded = expandedWorkflows.has(wf.id);
+              const agentIds = wf.agents.map((a) => a.id);
+              const missingInitiator = hasMissingInitiator(wf.initiatorId, agentIds);
+              const disableInitiatorActions = shouldDisableInitiatorActions(missingInitiator);
+              const initiator = wf.agents.find((a) => a.id === wf.initiatorId);
+              const subAgents = wf.agents.filter((a) => a.id !== wf.initiatorId);
+              const sharedResources = wf.metadata?.sharedResources;
+              const statusColor =
+                wf.status === "active"
+                  ? "bg-green-100 text-green-700 border-green-200"
+                  : wf.status === "paused"
+                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                  : "bg-gray-100 text-gray-500 border-gray-200";
+              return (
+                <Card
+                  key={wf.id}
+                  className="transition-all bg-terminal-cream border-terminal-border"
+                >
+                  <CardHeader className="pb-3">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleWorkflow(wf.id)}
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleWorkflow(wf.id)}
+                      className="flex items-center gap-3 text-left w-full cursor-pointer"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-terminal-muted shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-terminal-muted shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="font-mono text-base truncate">{wf.name}</CardTitle>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <Badge variant="outline" className={`text-[10px] font-mono ${statusColor}`}>
+                            {wf.status === "active"
+                              ? t("workflows.statusActive")
+                              : wf.status === "paused"
+                              ? t("workflows.statusPaused")
+                              : t("workflows.statusArchived")}
+                          </Badge>
+                          <span className="text-xs font-mono text-terminal-muted">
+                            {t("workflows.agentCount", { count: wf.agents.length })}
+                          </span>
+                          {disableInitiatorActions && (
+                            <Badge
                               variant="outline"
-                              className="h-8 px-2 font-mono text-xs"
-                              disabled={
-                                workflowMutationBusy === wf.id ||
-                                !workflowDrafts[wf.id]?.addAgentId
-                              }
-                              onClick={async () => {
-                                try {
-                                  await addSubagentToWorkflow(
-                                    wf.id,
-                                    workflowDrafts[wf.id]?.addAgentId || ""
-                                  );
-                                } catch (error) {
-                                  toast.error(
-                                    error instanceof Error ? error.message : t("workflows.updateFailed")
-                                  );
-                                }
+                              className="text-[10px] font-mono bg-red-50 text-red-700 border-red-200"
+                            >
+                              {t("workflows.agentDeleted")}
+                            </Badge>
+                          )}
+                          {sharedResources?.syncFolderIds && sharedResources.syncFolderIds.length > 0 && (
+                            <span className="text-[10px] font-mono text-terminal-muted">
+                              {t("workflows.sharedFolders", { count: sharedResources.syncFolderIds.length })}
+                            </span>
+                          )}
+                          {sharedResources?.pluginIds && sharedResources.pluginIds.length > 0 && (
+                            <span className="text-[10px] font-mono text-terminal-muted">
+                              {t("workflows.sharedPlugins", { count: sharedResources.pluginIds.length })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded border border-terminal-border text-terminal-muted transition-colors hover:bg-terminal-bg/20 hover:text-terminal-dark"
+                              onClick={(event) => event.stopPropagation()}
+                              aria-label={t("workflows.settings")}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-40 font-mono text-xs"
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            <DropdownMenuItem
+                              disabled={disableInitiatorActions}
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                if (!initiator || disableInitiatorActions) return;
+                                handleContinueChat(initiator.id);
                               }}
                             >
-                              <UserPlus className="mr-1 h-3.5 w-3.5" />
-                              {t("workflows.addSubagent")}
-                            </AnimatedButton>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={workflowDrafts[wf.id]?.initiatorId || wf.initiatorId}
-                              onChange={(event) =>
-                                updateWorkflowDraft(wf.id, { initiatorId: event.target.value })
-                              }
-                              className="h-8 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
-                              disabled={workflowMutationBusy === wf.id}
+                              <MessageCircle className="mr-2 h-3.5 w-3.5" />
+                              {t("workflows.run")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={disableInitiatorActions}
+                              onSelect={(event) => {
+                                event.preventDefault();
+                                if (!initiator || disableInitiatorActions) return;
+                                openFolderManager(initiator);
+                              }}
                             >
-                              {wf.agents.map((agent) => (
-                                <option key={agent.id} value={agent.id}>
-                                  {agent.displayName || agent.name}
-                                </option>
-                              ))}
-                            </select>
-                            <AnimatedButton
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 font-mono text-xs"
-                              disabled={workflowMutationBusy === wf.id}
-                              onClick={() =>
-                                setWorkflowMainAgent(
-                                  wf.id,
-                                  workflowDrafts[wf.id]?.initiatorId || wf.initiatorId
-                                )
-                              }
-                            >
-                              <Crown className="mr-1 h-3.5 w-3.5" />
-                              {t("workflows.makeMain")}
-                            </AnimatedButton>
-                          </div>
-                        </div>
-
-                        <div className="mt-2 flex justify-end">
-                          <AnimatedButton
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 font-mono text-xs text-red-600 border-red-200 hover:bg-red-50"
-                            disabled={workflowMutationBusy === wf.id}
-                            onClick={() => deleteWorkflowGroup(wf.id)}
-                          >
-                            <Unlink className="mr-1 h-3.5 w-3.5" />
-                            {t("workflows.deleteWorkflow")}
-                          </AnimatedButton>
-                        </div>
+                              <DatabaseIcon className="mr-2 h-3.5 w-3.5" />
+                              {t("workflows.shareFolder")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
+                    </div>
+                  </CardHeader>
 
-                      {/* Initiator agent card */}
-                      {initiator && (
-                        <AgentCardInWorkflow
-                          character={initiator}
-                          role="initiator"
-                          isLast={subAgents.length === 0}
-                          t={t}
-                          hasActiveSession={hasActiveSession}
-                          onContinueChat={handleContinueChat}
-                          onNewChat={handleNewChat}
-                          onEditIdentity={openIdentityEditor}
-                          onEditTools={openToolEditor}
-                          onEditFolders={openFolderManager}
-                          onEditMcp={openMcpToolEditor}
-                          onEditPlugins={openPluginEditor}
-                          onDuplicate={handleDuplicate}
-                          onDelete={openDeleteDialog}
-                          router={router}
-                        />
-                      )}
+                  {isExpanded && (
+                    <CardContent className="pt-0">
+                      <div className="space-y-4 border-t border-terminal-border/20 pt-4">
+                        <div className="rounded-lg bg-terminal-bg/5 p-3">
+                          <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <select
+                                value={workflowDrafts[wf.id]?.addAgentId || ""}
+                                onChange={(event) =>
+                                  updateWorkflowDraft(wf.id, { addAgentId: event.target.value })
+                                }
+                                className="h-8 min-w-0 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                                disabled={workflowMutationBusy === wf.id}
+                              >
+                                <option value="">{t("workflows.addSubagentPlaceholder")}</option>
+                                {allStandaloneCharacters.map((agent) => (
+                                  <option key={agent.id} value={agent.id}>
+                                    {agent.displayName || agent.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <AnimatedButton
+                                size="sm"
+                                variant="outline"
+                                className="h-8 shrink-0 px-2 font-mono text-xs"
+                                disabled={
+                                  workflowMutationBusy === wf.id || !workflowDrafts[wf.id]?.addAgentId
+                                }
+                                onClick={() =>
+                                  addSubagentToWorkflow(
+                                    wf.id,
+                                    workflowDrafts[wf.id]?.addAgentId || ""
+                                  )
+                                }
+                              >
+                                <UserPlus className="mr-1 h-3.5 w-3.5" />
+                                {t("workflows.addSubagent")}
+                              </AnimatedButton>
+                            </div>
 
-                      {/* Sub-agents with connecting line */}
-                      {subAgents.length === 0 && (
-                        <p className="text-xs font-mono text-terminal-muted/60 ml-6 py-2">
-                          {t("workflows.noSubagents")}
-                        </p>
-                      )}
-                      {subAgents.length > 0 && (
-                        <div className="relative ml-6">
-                          {/* Vertical connecting line */}
-                          <div className="absolute left-0 top-0 bottom-4 w-px border-l-2 border-terminal-green/30" />
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <select
+                                value={workflowDrafts[wf.id]?.initiatorId || wf.initiatorId}
+                                onChange={(event) =>
+                                  updateWorkflowDraft(wf.id, { initiatorId: event.target.value })
+                                }
+                                className="h-8 min-w-0 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+                                disabled={workflowMutationBusy === wf.id}
+                              >
+                                {wf.agents.map((agent) => (
+                                  <option key={agent.id} value={agent.id}>
+                                    {agent.displayName || agent.name}
+                                  </option>
+                                ))}
+                              </select>
 
-                          <div className="space-y-3">
-                            {subAgents.map((agent, idx) => (
-                              <div key={agent.id} className="relative pl-6">
-                                {/* Horizontal branch line */}
-                                <div className="absolute left-0 top-6 w-5 h-px border-t-2 border-terminal-green/30" />
-                                {/* Dot at junction */}
-                                <div className="absolute left-[-3px] top-[21px] w-[8px] h-[8px] rounded-full bg-terminal-green/40" />
-
-                                <AgentCardInWorkflow
-                                  character={agent}
-                                  role="subagent"
-                                  isLast={idx === subAgents.length - 1}
-                                  t={t}
-                                  hasActiveSession={hasActiveSession}
-                                  onContinueChat={handleContinueChat}
-                                  onNewChat={handleNewChat}
-                                  onEditIdentity={openIdentityEditor}
-                                  onEditTools={openToolEditor}
-                                  onEditFolders={openFolderManager}
-                                  onEditMcp={openMcpToolEditor}
-                                  onEditPlugins={openPluginEditor}
-                                  onDuplicate={handleDuplicate}
-                                  onDelete={openDeleteDialog}
-                                  router={router}
-                                />
-
-                                <div className="mt-1 flex justify-end">
-                                  <button
-                                    onClick={() => removeSubagentFromWorkflow(wf.id, agent.id)}
-                                    className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[10px] font-mono text-red-600 hover:bg-red-50 transition-colors"
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <AnimatedButton
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 w-8 shrink-0 px-0 font-mono text-xs"
                                     disabled={workflowMutationBusy === wf.id}
                                   >
-                                    <Unlink className="h-3 w-3" />
-                                    {t("workflows.removeSubagent")}
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                    <span className="sr-only">{t("workflows.settings")}</span>
+                                  </AnimatedButton>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44 font-mono text-xs">
+                                  <DropdownMenuItem
+                                    disabled={workflowMutationBusy === wf.id}
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      setWorkflowMainAgent(
+                                        wf.id,
+                                        workflowDrafts[wf.id]?.initiatorId || wf.initiatorId
+                                      );
+                                    }}
+                                  >
+                                    <Crown className="mr-2 h-3.5 w-3.5" />
+                                    {t("workflows.makeMain")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    disabled={workflowMutationBusy === wf.id}
+                                    className="text-red-600 focus:text-red-600"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      setWorkflowActionTrigger(event.currentTarget as HTMLElement);
+                                      setPendingWorkflowMemberRemoval(null);
+                                      setPendingWorkflowDeletion({ workflowId: wf.id, workflowName: wf.name });
+                                    }}
+                                  >
+                                    <Unlink className="mr-2 h-3.5 w-3.5" />
+                                    {t("workflows.deleteWorkflow")}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
+
+                        <div className="relative pl-6">
+                          {initiator && subAgents.length > 0 && (
+                            <div className="pointer-events-none absolute bottom-8 left-[10px] top-8 w-px bg-gradient-to-b from-terminal-green/30 via-terminal-border/70 to-terminal-green/10" />
+                          )}
+
+                          {initiator && (
+                            <div className="relative">
+                              {subAgents.length > 0 && (
+                                <>
+                                  <div className="pointer-events-none absolute -left-[14px] top-8 h-px w-4 bg-terminal-green/25" />
+                                  <div className="pointer-events-none absolute -left-[18px] top-[27px] h-2.5 w-2.5 rounded-full border border-terminal-green/35 bg-terminal-cream shadow-[0_0_0_4px_rgba(82,176,117,0.16)]" />
+                                </>
+                              )}
+                              <AgentCardInWorkflow
+                                character={initiator}
+                                role="initiator"
+                                t={t}
+                                hasActiveSession={hasActiveSession}
+                                onContinueChat={handleContinueChat}
+                                onNewChat={handleNewChat}
+                                onEditIdentity={openIdentityEditor}
+                                onEditTools={openToolEditor}
+                                onEditFolders={openFolderManager}
+                                onEditMcp={openMcpToolEditor}
+                                onEditPlugins={openPluginEditor}
+                                onDuplicate={handleDuplicate}
+                                onDelete={openDeleteDialog}
+                                router={router}
+                              />
+                            </div>
+                          )}
+
+                          {disableInitiatorActions && (
+                            <p className="mt-2 text-xs font-mono text-red-600/80">
+                              {t("workflows.missingInitiatorActionsDisabled")}
+                            </p>
+                          )}
+
+                          {subAgents.length === 0 && (
+                            <p className="py-3 text-xs font-mono text-terminal-muted/60">
+                              {t("workflows.noSubagents")}
+                            </p>
+                          )}
+
+                          {subAgents.length > 0 && (
+                            <div className="mt-3 space-y-3">
+                              {subAgents.map((agent) => (
+                                <div key={agent.id} className="relative">
+                                  <div className="pointer-events-none absolute -left-[14px] top-8 h-px w-4 bg-terminal-green/20" />
+                                  <div className="pointer-events-none absolute -left-[18px] top-[27px] h-2.5 w-2.5 rounded-full border border-terminal-green/30 bg-terminal-cream shadow-[0_0_0_3px_rgba(82,176,117,0.1)]" />
+
+                                  <AgentCardInWorkflow
+                                    character={agent}
+                                    role="subagent"
+                                    t={t}
+                                    hasActiveSession={hasActiveSession}
+                                    onContinueChat={handleContinueChat}
+                                    onNewChat={handleNewChat}
+                                    onEditIdentity={openIdentityEditor}
+                                    onEditTools={openToolEditor}
+                                    onEditFolders={openFolderManager}
+                                    onEditMcp={openMcpToolEditor}
+                                    onEditPlugins={openPluginEditor}
+                                    onDuplicate={handleDuplicate}
+                                    onDelete={openDeleteDialog}
+                                    onRemoveFromWorkflow={() => {
+                                      setPendingWorkflowDeletion(null);
+                                      setPendingWorkflowMemberRemoval({
+                                        workflowId: wf.id,
+                                        agentId: agent.id,
+                                      });
+                                    }}
+                                    removeFromWorkflowLabel={t("workflows.removeSubagent")}
+                                    router={router}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+              })}
+            </div>
+          )}
+
+          {workflowSectionState === "empty" && (
+            <div className="rounded border border-dashed border-terminal-border/70 px-4 py-5 font-mono text-sm text-terminal-muted">
+              {t("workflows.empty")}
+            </div>
+          )}
+
+          {workflowSectionState === "emptySearch" && (
+            <div className="rounded border border-dashed border-terminal-border/70 px-4 py-5 font-mono text-sm text-terminal-muted">
+              {t("workflows.emptySearch")}
+            </div>
+          )}
         </div>
       )}
 
-      <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {showAgentsHeader && (
+        <div className="flex min-h-9 items-center gap-3">
+          <h2 className="font-mono text-sm font-medium text-terminal-muted uppercase tracking-wider">
+            {t("agents.sectionTitle")}
+          </h2>
+          <div className="h-px flex-1 bg-terminal-border/60" />
+        </div>
+      )}
+
+      <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {/* Create New Agent Card */}
         <AnimatedCard
           data-animate-card
@@ -1815,143 +1971,29 @@ export function CharacterPicker() {
         </AnimatedCard>
 
         {/* Character Cards */}
-        {standaloneCharacters.map((character) => {
-          const primaryImage = character.images?.find(img => img.isPrimary);
-          const avatarImage = character.images?.find(img => img.imageType === "avatar");
-          const imageUrl = avatarImage?.url || primaryImage?.url;
-          const initials = getCharacterInitials(character.name);
-          const enabledTools = character.metadata?.enabledTools || [];
-          const topTools = getTopTools(enabledTools, 3);
-          const purpose = character.metadata?.purpose;
-          const stats = character.stats;
-
-          return (
-            <AnimatedCard
-              key={character.id}
-              data-animate-card
-              hoverLift
-              className="bg-terminal-cream relative group"
-            >
-              <div className="p-4 pb-2">
-                <AgentOverflowMenu
-                  character={character}
-                  onEditIdentity={openIdentityEditor}
-                  onEditTools={openToolEditor}
-                  onEditFolders={openFolderManager}
-                  onEditMcp={openMcpToolEditor}
-                  onEditPlugins={openPluginEditor}
-                  onNavigateDashboard={() => router.push("/dashboard")}
-                  onDuplicate={handleDuplicate}
-                  addToWorkflowLabel={t("workflows.addToWorkflow")}
-                  onAddToWorkflow={openAddToWorkflowDialog}
-                  canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
-                  onDelete={openDeleteDialog}
-                />
-
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar className="w-12 h-12 shadow-sm">
-                      {imageUrl ? (
-                        <AvatarImage src={imageUrl} alt={character.name} />
-                      ) : null}
-                      <AvatarFallback className="bg-terminal-green/10 text-terminal-green font-mono">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    {/* Active session indicator */}
-                    {hasActiveSession(character.id, character.hasActiveSession) && (
-                      <div
-                        className="absolute -top-1 -right-1 z-10"
-                        title={t("activeSession.tooltip")}
-                      >
-                        <div className="flex items-center justify-center bg-green-500 rounded-full w-5 h-5 shadow-md">
-                          <span className="relative flex h-2.5 w-2.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 pr-6">
-                    <p className="text-base font-medium font-mono text-terminal-dark truncate">
-                      {character.displayName || character.name}
-                    </p>
-                    {character.tagline && (
-                      <p className="text-sm text-terminal-muted font-mono line-clamp-1">
-                        {character.tagline}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Purpose snippet */}
-                {purpose && (
-                  <p className="text-xs text-terminal-muted/80 font-mono line-clamp-2 mt-2 pl-0.5">
-                    {purpose}
-                  </p>
-                )}
-
-                {/* Tool badges */}
-                {topTools.length > 0 && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    {topTools.map((toolId) => (
-                      <ToolBadge key={toolId} toolId={toolId} size="xs" />
-                    ))}
-                    {enabledTools.length > 3 && (
-                      <span className="text-xs font-mono text-terminal-muted">
-                        +{enabledTools.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {stats ? (
-                  <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-mono text-terminal-muted">
-                    <span>{stats.skillCount} skills</span>
-                    <span>{stats.runCount} runs</span>
-                    <span>{stats.successRate == null ? "N/A" : `${stats.successRate}%`} success</span>
-                    <span>{stats.lastActive ? new Date(stats.lastActive).toLocaleDateString() : "No activity"}</span>
-                  </div>
-                ) : null}
-              </div>
-
-
-              <div className="px-4 pb-4 pt-0 flex gap-2">
-                <AnimatedButton
-                  className="flex-1 gap-2 bg-terminal-dark hover:bg-terminal-dark/90 text-terminal-cream font-mono"
-                  onClick={() => handleContinueChat(character.id)}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  {t("continue")}
-                </AnimatedButton>
-                <AnimatedButton
-                  variant="outline"
-                  className="gap-1.5 text-terminal-dark hover:bg-terminal-dark/5 font-mono"
-                  onClick={() => handleNewChat(character.id)}
-                  title={t("startNew")}
-                >
-                  <PlusCircle className="w-4 h-4" />
-                </AnimatedButton>
-              </div>
-            </AnimatedCard>
-          );
-        })}
+        {standaloneCharacters.map((character) => (
+          <AgentCardInWorkflow
+            key={character.id}
+            dataAnimateCard
+            character={character}
+            t={t}
+            hasActiveSession={hasActiveSession}
+            onContinueChat={handleContinueChat}
+            onNewChat={handleNewChat}
+            onEditIdentity={openIdentityEditor}
+            onEditTools={openToolEditor}
+            onEditFolders={openFolderManager}
+            onEditMcp={openMcpToolEditor}
+            onEditPlugins={openPluginEditor}
+            onDuplicate={handleDuplicate}
+            addToWorkflowLabel={t("workflows.addToWorkflow")}
+            onAddToWorkflow={openAddToWorkflowDialog}
+            canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
+            onDelete={openDeleteDialog}
+            router={router}
+          />
+        ))}
       </div>
-
-      {/* No search results */}
-      {characters.length > 0 && standaloneCharacters.length === 0 && filteredWorkflowGroups.length === 0 && searchQuery && (
-        <AnimatedContainer delay={100} className="text-center py-8">
-          <Search className="w-12 h-12 mx-auto mb-4 text-terminal-muted opacity-50" />
-          <p className="font-mono text-terminal-muted">{t("noResults")}</p>
-          <button
-            onClick={() => setSearchQuery("")}
-            className="mt-2 text-sm font-mono text-terminal-green hover:underline"
-          >
-            {t("clearSearch")}
-          </button>
-        </AnimatedContainer>
-      )}
 
       {/* Empty state - no agents created yet */}
       {characters.length === 0 && (
@@ -2762,11 +2804,80 @@ export function CharacterPicker() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={workflowActionDialogOpen}
+        onOpenChange={handleWorkflowActionDialogOpenChange}
+      >
+        <AlertDialogContent className="bg-terminal-cream">
+          {pendingWorkflowMemberRemoval && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-mono text-terminal-dark">
+                  {t("workflows.confirmRemoveSubagentTitle")}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="font-mono text-terminal-muted">
+                  {t("workflows.confirmRemoveSubagentDescription")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="font-mono" disabled={removeSubagentConfirmDisabled}>
+                  {tc("cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700 text-white font-mono"
+                  disabled={removeSubagentConfirmDisabled}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (!pendingWorkflowMemberRemoval) return;
+                    removeSubagentFromWorkflow(
+                      pendingWorkflowMemberRemoval.workflowId,
+                      pendingWorkflowMemberRemoval.agentId
+                    ).finally(closeWorkflowActionDialog);
+                  }}
+                >
+                  {t("workflows.confirmAction")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+
+          {pendingWorkflowDeletion && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-mono text-terminal-dark">
+                  {t("workflows.confirmDeleteTitle")}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="font-mono text-terminal-muted">
+                  {t("workflows.confirmDeleteDescription")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="font-mono" disabled={deleteWorkflowConfirmDisabled}>
+                  {tc("cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700 text-white font-mono"
+                  disabled={deleteWorkflowConfirmDisabled}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    if (!pendingWorkflowDeletion) return;
+                    deleteWorkflowGroup(pendingWorkflowDeletion.workflowId).finally(closeWorkflowActionDialog);
+                  }}
+                >
+                  {t("workflows.confirmAction")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Workspace Onboarding Tour */}
       <WorkspaceOnboarding
         open={showWorkspaceOnboarding}
         onComplete={() => setShowWorkspaceOnboarding(false)}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

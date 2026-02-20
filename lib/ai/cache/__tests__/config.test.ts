@@ -2,8 +2,8 @@
  * Tests for cache configuration
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getMinTokensForModel } from "../config";
+import { describe, it, expect } from "vitest";
+import { getMinTokensForModel, shouldUseCache } from "../config";
 
 describe("getMinTokensForModel", () => {
   describe("Anthropic models", () => {
@@ -65,7 +65,17 @@ describe("getMinTokensForModel", () => {
   });
 });
 
-// Note: shouldUseCache() tests are skipped because they require complex mocking
-// of dynamic require() calls. The function is integration-tested in the actual
-// application. The model detection (getMinTokensForModel) is the critical logic
-// that needs unit testing.
+describe("shouldUseCache", () => {
+  it("returns true for providers with prompt caching support", () => {
+    expect(shouldUseCache("anthropic")).toBe(true);
+    expect(shouldUseCache("claudecode")).toBe(true);
+    expect(shouldUseCache("openrouter")).toBe(true);
+    expect(shouldUseCache("kimi")).toBe(true);
+  });
+
+  it("returns false for providers without prompt caching support", () => {
+    expect(shouldUseCache("codex")).toBe(false);
+    expect(shouldUseCache("antigravity")).toBe(false);
+    expect(shouldUseCache("ollama")).toBe(false);
+  });
+});

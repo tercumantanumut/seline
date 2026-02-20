@@ -16,7 +16,7 @@ import {
   ANTIGRAVITY_CONFIG,
   type AntigravityOAuthToken,
 } from "@/lib/auth/antigravity-auth";
-import { invalidateProviderCache } from "@/lib/ai/providers";
+import { invalidateProviderCacheFor } from "@/lib/ai/providers";
 import { invalidateSettingsCache } from "@/lib/settings/settings-manager";
 
 /**
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       });
       
       saveAntigravityToken(token, body.email, true);
-      invalidateProviderCache(); // Refresh provider clients
+      invalidateProviderCacheFor("antigravity");
       
       return NextResponse.json({
         success: true,
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       };
       
       saveAntigravityToken(token, body.email, true);
-      invalidateProviderCache();
+      invalidateProviderCacheFor("antigravity");
       
       return NextResponse.json({
         success: true,
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     clearAntigravityAuth();
-    invalidateProviderCache();
+    invalidateProviderCacheFor("antigravity");
     
     return NextResponse.json({
       success: true,
