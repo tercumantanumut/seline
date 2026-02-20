@@ -354,6 +354,9 @@ function AgentCardInWorkflow({
   onEditMcp,
   onEditPlugins,
   onDuplicate,
+  addToWorkflowLabel,
+  onAddToWorkflow,
+  canAddToWorkflow,
   onDelete,
   onRemoveFromWorkflow,
   removeFromWorkflowLabel,
@@ -372,6 +375,9 @@ function AgentCardInWorkflow({
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
   onDuplicate: (characterId: string) => void;
+  addToWorkflowLabel?: string;
+  onAddToWorkflow?: (c: CharacterSummary) => void;
+  canAddToWorkflow?: boolean;
   onDelete: (c: CharacterSummary) => void;
   onRemoveFromWorkflow?: () => void;
   removeFromWorkflowLabel?: string;
@@ -402,7 +408,10 @@ function AgentCardInWorkflow({
           onEditPlugins={onEditPlugins}
           onNavigateDashboard={() => router.push("/dashboard")}
           onDuplicate={onDuplicate}
-          showAddToWorkflow={false}
+          addToWorkflowLabel={addToWorkflowLabel}
+          onAddToWorkflow={onAddToWorkflow}
+          showAddToWorkflow={Boolean(onAddToWorkflow)}
+          canAddToWorkflow={canAddToWorkflow}
           onDelete={onDelete}
           onRemoveFromWorkflow={onRemoveFromWorkflow}
           removeFromWorkflowLabel={removeFromWorkflowLabel}
