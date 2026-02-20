@@ -2,30 +2,84 @@ import { NextResponse } from "next/server";
 import {
     loadSettings,
     saveSettings,
-    hasRequiredApiKeys
+    hasRequiredApiKeys,
 } from "@/lib/settings/settings-manager";
+import { invalidateProviderCache } from "@/lib/ai/providers";
+
+const VALID_LLM_PROVIDERS = new Set([
+    "anthropic",
+    "openrouter",
+    "antigravity",
+    "codex",
+    "kimi",
+    "ollama",
+    "claudecode",
+] as const);
+
+function isValidLlmProvider(provider: unknown): provider is "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode" {
+    return typeof provider === "string" && VALID_LLM_PROVIDERS.has(provider as never);
+}
+
+function clearProviderBoundModels(settings: ReturnType<typeof loadSettings>) {
+    settings.chatModel = "";
+    settings.researchModel = "";
+    settings.visionModel = "";
+    settings.utilityModel = "";
+}
+
+function detectMissingProvider(settings: ReturnType<typeof loadSettings>): "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "claudecode" | null {
+    if (!hasRequiredApiKeys()) {
+        if (settings.llmProvider === "anthropic") return "anthropic";
+        if (settings.llmProvider === "openrouter") return "openrouter";
+        if (settings.llmProvider === "antigravity") return "antigravity";
+        if (settings.llmProvider === "codex") return "codex";
+        if (settings.llmProvider === "kimi") return "kimi";
+        if (settings.llmProvider === "claudecode") return "claudecode";
+    }
+
+    return null;
+}
+
+function applyOnboardingProviderSelection(settings: ReturnType<typeof loadSettings>, provider: unknown) {
+    if (!isValidLlmProvider(provider)) {
+        return false;
+    }
+
+    const providerIsChanging = settings.llmProvider !== provider;
+    if (!providerIsChanging) {
+        return false;
+    }
+
+    settings.llmProvider = provider;
+    clearProviderBoundModels(settings);
+    invalidateProviderCache();
+    return true;
+}
+
+function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, body: Record<string, unknown>) {
+    if (body.globalMemoryDefaults) {
+        settings.globalMemoryDefaults = body.globalMemoryDefaults as typeof settings.globalMemoryDefaults;
+    }
+
+    if (body.tavilyApiKey && typeof body.tavilyApiKey === "string") {
+        settings.tavilyApiKey = body.tavilyApiKey.trim();
+    }
+
+    if (body.webScraperProvider === "firecrawl" || body.webScraperProvider === "local") {
+        settings.webScraperProvider = body.webScraperProvider;
+    }
+
+    if (body.firecrawlApiKey && typeof body.firecrawlApiKey === "string") {
+        settings.firecrawlApiKey = body.firecrawlApiKey.trim();
+    }
+}
 
 /**
  * GET /api/onboarding - Check onboarding state
  */
 export async function GET() {
     const settings = loadSettings();
-
-    let missingProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | null = null;
-
-    if (settings.llmProvider === "anthropic" && !settings.anthropicApiKey) {
-        missingProvider = "anthropic";
-    } else if (settings.llmProvider === "openrouter" && !settings.openrouterApiKey) {
-        missingProvider = "openrouter";
-    } else if (settings.llmProvider === "antigravity" && !settings.antigravityAuth?.isAuthenticated) {
-        missingProvider = "antigravity";
-    } else if (settings.llmProvider === "codex" && !settings.codexAuth?.isAuthenticated) {
-        missingProvider = "codex";
-    } else if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
-        missingProvider = "kimi";
-    } else if (settings.llmProvider === "ollama") {
-        missingProvider = null;
-    }
+    const missingProvider = detectMissingProvider(settings);
 
     return NextResponse.json({
         isComplete: settings.onboardingComplete === true,
@@ -40,28 +94,11 @@ export async function GET() {
  */
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
+        const body = await request.json() as Record<string, unknown>;
         const settings = loadSettings();
 
-        // Apply any initial preferences from onboarding
-        if (body.globalMemoryDefaults) {
-            settings.globalMemoryDefaults = body.globalMemoryDefaults;
-        }
-
-        // Apply Tavily API key if provided
-        if (body.tavilyApiKey && typeof body.tavilyApiKey === "string") {
-            settings.tavilyApiKey = body.tavilyApiKey.trim();
-        }
-
-        // Apply web scraping provider settings
-        if (body.webScraperProvider === "firecrawl" || body.webScraperProvider === "local") {
-            settings.webScraperProvider = body.webScraperProvider;
-        }
-
-        // Apply Firecrawl API key if provided
-        if (body.firecrawlApiKey && typeof body.firecrawlApiKey === "string") {
-            settings.firecrawlApiKey = body.firecrawlApiKey.trim();
-        }
+        applyOnboardingProviderSelection(settings, body.llmProvider);
+        applyOnboardingPreferences(settings, body);
 
         settings.onboardingComplete = true;
         settings.onboardingCompletedAt = new Date().toISOString();

@@ -1458,6 +1458,7 @@
       "reindexRequired": {
         "title": "Reindex needed.",
         "body": "Embedding settings changed. Reindex synced folders to rebuild search data.",
+        "folderHint": "If search results look incomplete or outdated, open each agent's Synced Folders and run a folder refresh.",
         "cta": "Reindex All Now",
         "running": "Reindexing..."
       },

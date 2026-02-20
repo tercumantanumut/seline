@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
@@ -174,6 +175,7 @@ export default function ChatInterface({
     const [processingRunId, setProcessingRunId] = useState<string | null>(null);
     const [isZombieRun, setIsZombieRun] = useState(false);
     const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
+    const [isChatFading, setIsChatFading] = useState(false);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
         [sessions, sessionId]
@@ -400,22 +402,30 @@ export default function ChatInterface({
         console.log("[Background Processing] Received messages:", data.messages?.length || 0);
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
 
-        setSessionState(prev => ({
-            ...prev,
-            messages: uiMessages
-        }));
-
         lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
         refreshSessionTimestamp(sessionId);
-
-        // Increment counter to force ChatProvider remount with new messages
-        setBackgroundRefreshCounter(prev => prev + 1);
 
         // Update global store with new message count and timestamp
         notifySessionUpdate(sessionId, {
             updatedAt: new Date().toISOString(),
             messageCount: data.messages?.length || 0
         });
+
+        // Fade out → update messages → remount ChatProvider → fade in.
+        // flushSync ensures the opacity-0 class is committed and painted before
+        // we start the timer, giving the CSS transition time to complete.
+        flushSync(() => setIsChatFading(true));
+        await new Promise<void>(resolve => setTimeout(resolve, 150));
+
+        // Swap messages and remount in a single flush so the new ChatProvider
+        // renders immediately at opacity-0 (isChatFading still true).
+        flushSync(() => {
+            setSessionState(prev => ({ ...prev, messages: uiMessages }));
+            setBackgroundRefreshCounter(prev => prev + 1);
+        });
+
+        // Let the new tree paint one frame, then fade in.
+        requestAnimationFrame(() => setIsChatFading(false));
 
         console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
     }, [sessionId, refreshSessionTimestamp]);
@@ -454,9 +464,9 @@ export default function ChatInterface({
                         }
                         return;
                     }
-                    if (sessionId && document.visibilityState === "visible") {
-                        await reloadSessionMessages(sessionId, { remount: true });
-                    }
+                    // Don't remount ChatProvider every poll tick — it causes a full
+                    // DOM teardown every 2 s while the user may be typing.
+                    // The completion path handles the final message refresh.
                     return;
                 }
 
@@ -1123,6 +1133,15 @@ export default function ChatInterface({
             }
         >
             <CharacterProvider character={characterDisplay}>
+                <div
+                    style={{
+                        opacity: isChatFading ? 0 : 1,
+                        transition: "opacity 150ms ease-in-out",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                    }}
+                >
                 <ChatProvider
                     key={chatProviderKey}
                     sessionId={sessionId}
@@ -1161,6 +1180,7 @@ export default function ChatInterface({
                         />
                     </div>
                 </ChatProvider>
+                </div>
             </CharacterProvider>
             {currentWorkspaceInfo && (
                 <DiffReviewPanel
