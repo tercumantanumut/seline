@@ -8,6 +8,7 @@ import * as os from "os";
 import type { Transport, TransportSendOptions } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { ReadBuffer, serializeMessage } from "@modelcontextprotocol/sdk/shared/stdio.js";
+import { isEBADFError } from "@/lib/spawn-utils";
 
 export type StdioServerParameters = {
     command: string;
@@ -433,6 +434,17 @@ export class StdioClientTransport implements Transport {
             const child = spawn(resolvedSpawn.command, resolvedSpawn.args ?? [], spawnOptions);
             this._process = child;
             child.on("error", (error: Error) => {
+                if (isEBADFError(error) && process.platform === "darwin") {
+                    const ebadfError = new Error(
+                        `MCP server "${resolvedSpawn.command}" failed to start: pipe creation failed with EBADF ` +
+                        `in Electron utilityProcess on macOS. The stdio transport requires live pipes which are ` +
+                        `not available in this environment. Consider using an SSE/streamable-HTTP transport instead.`
+                    );
+                    console.error("[MCP]", ebadfError.message);
+                    reject(ebadfError);
+                    this.onerror?.(ebadfError);
+                    return;
+                }
                 reject(error);
                 this.onerror?.(error);
             });
