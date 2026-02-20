@@ -475,21 +475,52 @@ export function getProviderTemperature(requestedTemp: number): number {
   return requestedTemp;
 }
 
+function invalidateProviderClient(provider: LLMProvider): void {
+  switch (provider) {
+    case "openrouter":
+      _openrouterClient = null;
+      _openrouterClientApiKey = undefined;
+      break;
+    case "antigravity":
+      _antigravityProvider = null;
+      _antigravityProviderToken = undefined;
+      break;
+    case "codex":
+      _codexProvider = null;
+      break;
+    case "claudecode":
+      _claudecodeProvider = null;
+      _claudecodeProviderToken = undefined;
+      break;
+    case "kimi":
+      _kimiClient = null;
+      _kimiClientApiKey = undefined;
+      break;
+    case "ollama":
+      _ollamaClient = null;
+      _ollamaClientBaseUrl = undefined;
+      break;
+    case "anthropic":
+      // Anthropic is stateless in this module (no cached client instance).
+      break;
+  }
+}
+
 /**
- * Invalidate cached provider clients (call when settings change)
+ * Invalidate cached provider clients for one or more providers.
+ */
+export function invalidateProviderCacheFor(providers: LLMProvider | LLMProvider[]): void {
+  const providerList = Array.isArray(providers) ? providers : [providers];
+  for (const provider of providerList) {
+    invalidateProviderClient(provider);
+  }
+}
+
+/**
+ * Invalidate all cached provider clients (call when settings change globally).
  */
 export function invalidateProviderCache(): void {
-  _openrouterClient = null;
-  _openrouterClientApiKey = undefined;
-  _antigravityProvider = null;
-  _antigravityProviderToken = undefined;
-  _codexProvider = null;
-  _claudecodeProvider = null;
-  _claudecodeProviderToken = undefined;
-  _kimiClient = null;
-  _kimiClientApiKey = undefined;
-  _ollamaClient = null;
-  _ollamaClientBaseUrl = undefined;
+  invalidateProviderCacheFor(["openrouter", "antigravity", "codex", "claudecode", "kimi", "ollama"]);
 }
 
 /**

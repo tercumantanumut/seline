@@ -5,7 +5,7 @@ import {
   type ClaudeCodeOAuthToken,
 } from "@/lib/auth/claudecode-auth";
 import { loadSettings, saveSettings, invalidateSettingsCache } from "@/lib/settings/settings-manager";
-import { invalidateProviderCache } from "@/lib/ai/providers";
+import { invalidateProviderCacheFor } from "@/lib/ai/providers";
 
 /**
  * Register a pending OAuth state + PKCE verifier for later code exchange.
@@ -99,7 +99,7 @@ export async function exchangeClaudeCodeManualCode(
     };
 
     saveClaudeCodeToken(token, undefined, true);
-    invalidateProviderCache();
+    invalidateProviderCacheFor("claudecode");
 
     return { success: true };
   } catch (error) {

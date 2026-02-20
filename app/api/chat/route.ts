@@ -2779,7 +2779,7 @@ export async function POST(req: Request) {
     //
     // Prompt caching: If enabled (Anthropic only), system prompt is built as cacheable blocks
     // with cache_control markers to reduce costs by 70-85% on multi-turn conversations.
-    const useCaching = shouldUseCache();
+    const useCaching = shouldUseCache(currentProvider);
     const cacheConfig = getCacheConfig();
 
     let systemPromptValue: string | CacheableSystemBlock[];

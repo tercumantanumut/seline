@@ -8,7 +8,7 @@ import {
   type ClaudeCodeOAuthToken,
 } from "@/lib/auth/claudecode-auth";
 import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
-import { invalidateProviderCache } from "@/lib/ai/providers";
+import { invalidateProviderCacheFor } from "@/lib/ai/providers";
 import { invalidateSettingsCache } from "@/lib/settings/settings-manager";
 
 export async function GET() {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       };
 
       saveClaudeCodeToken(token, body.email, true);
-      invalidateProviderCache();
+      invalidateProviderCacheFor("claudecode");
 
       return NextResponse.json({
         success: true,
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       };
 
       saveClaudeCodeToken(token, body.email, true);
-      invalidateProviderCache();
+      invalidateProviderCacheFor("claudecode");
 
       return NextResponse.json({
         success: true,
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     clearClaudeCodeAuth();
-    invalidateProviderCache();
+    invalidateProviderCacheFor("claudecode");
     return NextResponse.json({
       success: true,
       message: "Claude Code authentication cleared",

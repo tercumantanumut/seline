@@ -6,7 +6,7 @@
  */
 
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { getConfiguredProvider } from "@/lib/ai/providers";
+import { getConfiguredProvider, type LLMProvider } from "@/lib/ai/providers";
 import type { CacheConfig } from "./types";
 
 /**
@@ -41,7 +41,8 @@ export function getCacheConfig(): CacheConfig {
 }
 
 /**
- * Check if caching should be used for current provider
+ * Check if caching should be used for the resolved provider.
+ * Optionally accepts a provider override (useful for session-level model routing).
  *
  * Supported providers:
  * - Anthropic: Requires cache_control breakpoints
@@ -49,9 +50,9 @@ export function getCacheConfig(): CacheConfig {
  *               automatic caching for OpenAI, Grok, Moonshot, Groq, DeepSeek
  * - Kimi: Automatic context caching for kimi-k2.5
  */
-export function shouldUseCache(): boolean {
+export function shouldUseCache(providerOverride?: LLMProvider): boolean {
   try {
-    const provider = getConfiguredProvider();
+    const provider = providerOverride ?? getConfiguredProvider();
     const config = getCacheConfig();
 
     const supportsCaching = provider === "anthropic" || provider === "openrouter" || provider === "kimi";

@@ -179,7 +179,7 @@ export interface AppSettings {
     postEditRunInPatchTool?: boolean;            // Also run post-edit checks for patch-file operations
     dataPath?: string;
 
-    // Prompt Caching (Anthropic only)
+    // Prompt Caching (provider-gated at runtime; currently Anthropic/OpenRouter/Kimi)
     promptCachingEnabled?: boolean;           // Enable/disable prompt caching (default: true)
     promptCachingTtl?: "5m" | "1h";          // Cache TTL: 5m (standard) or 1h (premium) (default: 5m)
 
