@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execFile, execFileSync } from "child_process";
+import { execFile } from "child_process";
 import * as fs from "fs";
 import { promisify } from "util";
 import {
@@ -10,6 +10,7 @@ import {
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 import type {
   WorkspaceInfo,
   WorkspaceStatus,
@@ -104,26 +105,50 @@ function sanitizeWorkspacePatch(payload: unknown): Partial<WorkspaceInfo> {
   return safePayload;
 }
 
+const GIT_TIMEOUT_MS = 30_000;
+const GIT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
 // Default git options for child process git commands
 function gitExecOptions(cwd: string) {
   return {
     cwd,
     encoding: "utf-8" as const,
-    timeout: 30000,
-    maxBuffer: 10 * 1024 * 1024,
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_OUTPUT_BYTES,
   };
 }
 
-async function runGitCommand(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync("git", args, gitExecOptions(cwd));
-  return stdout;
-}
-
-function runGitCommandSync(cwd: string, args: string[], input?: string): string {
-  return execFileSync("git", args, {
-    ...gitExecOptions(cwd),
-    input,
-  });
+async function runGitCommand(cwd: string, args: string[], input?: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      ...gitExecOptions(cwd),
+      input,
+    });
+    return stdout;
+  } catch (error) {
+    if (isEBADFError(error) && process.platform === "darwin") {
+      console.warn("[workspace route] git execFile EBADF - retrying with file-capture fallback");
+      const fb = await spawnWithFileCapture(
+        "git",
+        args,
+        cwd,
+        process.env as NodeJS.ProcessEnv,
+        GIT_TIMEOUT_MS,
+        GIT_MAX_OUTPUT_BYTES,
+        input,
+      );
+      const exitCode = fb.exitCode ?? 1;
+      if (fb.timedOut) {
+        throw new Error(`Git command timed out after ${GIT_TIMEOUT_MS}ms`);
+      }
+      if (exitCode !== 0) {
+        const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+        throw new Error(`Git command failed: ${detail}`);
+      }
+      return fb.stdout;
+    }
+    throw error;
+  }
 }
 
 // Parse `git status --porcelain` output into changed file list
@@ -472,7 +497,7 @@ async function handleCleanup(
     if (fs.existsSync(worktreePath)) {
       try {
         // Find the main repo directory by resolving the git common dir
-        const commonDir = runGitCommandSync(worktreePath, ["rev-parse", "--git-common-dir"]).trim();
+        const commonDir = (await runGitCommand(worktreePath, ["rev-parse", "--git-common-dir"])).trim();
         // The main repo is the parent of the .git directory
         const mainRepoDir = fs.realpathSync(
           commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
@@ -480,7 +505,7 @@ async function handleCleanup(
             : commonDir + "/.."
         );
 
-        runGitCommandSync(mainRepoDir, ["worktree", "remove", worktreePath, "--force"]);
+        await runGitCommand(mainRepoDir, ["worktree", "remove", worktreePath, "--force"]);
       } catch (err) {
         console.error("Failed to remove git worktree:", err);
         // Continue anyway to clean up metadata
@@ -532,7 +557,7 @@ async function handleSyncToLocal(
 
   try {
     // Find the main repository directory
-    const commonDir = runGitCommandSync(worktreePath, ["rev-parse", "--git-common-dir"]).trim();
+    const commonDir = (await runGitCommand(worktreePath, ["rev-parse", "--git-common-dir"])).trim();
     const mainRepoDir = fs.realpathSync(
       commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
         ? commonDir.replace(/[/\\]\.git$/, "")
@@ -542,7 +567,7 @@ async function handleSyncToLocal(
     // Generate patch from the diff between base branch and feature branch
     let patch: string;
     try {
-      patch = runGitCommandSync(worktreePath, ["diff", `${baseBranch}...${branch}`]);
+      patch = await runGitCommand(worktreePath, ["diff", `${baseBranch}...${branch}`]);
     } catch (err) {
       return NextResponse.json(
         {
@@ -563,8 +588,8 @@ async function handleSyncToLocal(
 
     // Apply the patch to the main repo
     try {
-      runGitCommandSync(mainRepoDir, ["apply", "--check", "--3way", "-"], patch);
-      runGitCommandSync(mainRepoDir, ["apply", "--3way", "-"], patch);
+      await runGitCommand(mainRepoDir, ["apply", "--check", "--3way", "-"], patch);
+      await runGitCommand(mainRepoDir, ["apply", "--3way", "-"], patch);
     } catch (err) {
       return NextResponse.json(
         {
