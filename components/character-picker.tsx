@@ -2228,10 +2228,12 @@ export function CharacterPicker() {
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
               <DatabaseIcon className="w-5 h-5 text-terminal-green" />
-              {t("vectorTitle")}
+              {t("syncedFoldersTitle")}
             </DialogTitle>
             <DialogDescription className="font-mono text-terminal-muted">
-              {folderManagerCharacter?.displayName || folderManagerCharacter?.name}
+              {t("syncedFoldersSubtitle", {
+                name: folderManagerCharacter?.displayName || folderManagerCharacter?.name || "",
+              })}
             </DialogDescription>
           </DialogHeader>
           {folderManagerCharacter && (

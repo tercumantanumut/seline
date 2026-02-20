@@ -213,7 +213,7 @@ class MCPClientManager {
                 if (!hasValidPath) {
                     throw new Error(
                         `Filesystem MCP server requires synced folder paths. ` +
-                        `Please sync a folder in Settings → Vector Search before enabling this server.`
+                        `Please sync a folder in Settings → Synced Folders before enabling this server.`
                     );
                 }
             }
@@ -723,7 +723,7 @@ export async function resolveMCPConfig(
             if (!primaryPath) {
                 throw new Error(
                     "Cannot resolve ${SYNCED_FOLDER}: No synced folders found. " +
-                    `Please sync a folder in Settings → Vector Search.`
+                    `Please sync a folder in Settings → Synced Folders.`
                 );
             }
 
