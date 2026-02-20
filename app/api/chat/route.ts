@@ -298,6 +298,47 @@ const MAX_TEXT_CONTENT_LENGTH = 10000;
 // Limit how many missing tool results we attempt to re-fetch per request
 const MAX_TOOL_REFETCH = 6;
 
+const WEB_SEARCH_NO_RESULT_GUARD = {
+  maxConsecutiveZeroResultCalls: 3,
+  maxZeroResultRepeatsPerQuery: 2,
+} as const;
+
+function normalizeWebSearchQuery(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getWebSearchSourceCount(value: unknown): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as { sources?: unknown };
+  return Array.isArray(candidate.sources) ? candidate.sources.length : null;
+}
+
+function buildWebSearchLoopGuardResult(query: string | null, reason: string) {
+  const normalizedQuery = query ?? "unknown query";
+  const message =
+    `Web search returned no results repeatedly (${reason}). ` +
+    "To prevent loops, do not call webSearch again in this response. " +
+    "Continue with a best-effort answer and clearly note uncertainty.";
+
+  return {
+    status: "success" as const,
+    query: normalizedQuery,
+    sources: [],
+    iterationPerformed: false,
+    provider: "loop-guard",
+    message,
+    formattedResults: message,
+  };
+}
+
 // Import the truncated content store for smart truncation
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
 
@@ -3291,6 +3332,12 @@ export async function POST(req: Request) {
     const allowedPluginNames = new Set(scopedPlugins.map((plugin) => plugin.name));
 
     const wrappedTools: Record<string, Tool> = {};
+    let consecutiveZeroResultWebSearches = 0;
+    const zeroResultWebSearchCountsByQuery = new Map<string, number>();
+    let webSearchDisabledByLoopGuard = false;
+    let webSearchDisableReason: string | null = null;
+    let webSearchDisableLogged = false;
+
     for (const [toolId, originalTool] of Object.entries(allToolsWithMCP)) {
       if (!originalTool.execute) {
         wrappedTools[toolId] = originalTool;
@@ -3301,6 +3348,39 @@ export async function POST(req: Request) {
         ...originalTool,
         execute: async (args: unknown, options: unknown) => {
           const normalizedArgs = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+
+          if (toolId === "webSearch") {
+            const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
+
+            if (webSearchDisabledByLoopGuard) {
+              if (!webSearchDisableLogged) {
+                console.warn(
+                  `[CHAT API] webSearch disabled for remaining response after loop guard trigger (${webSearchDisableReason ?? "unknown reason"})`
+                );
+                webSearchDisableLogged = true;
+              }
+              return buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active");
+            }
+
+            if (normalizedQuery) {
+              const queryZeroResultCount = zeroResultWebSearchCountsByQuery.get(normalizedQuery) ?? 0;
+              if (queryZeroResultCount >= WEB_SEARCH_NO_RESULT_GUARD.maxZeroResultRepeatsPerQuery) {
+                const reason = `same query repeated ${queryZeroResultCount} times`;
+                webSearchDisabledByLoopGuard = true;
+                webSearchDisableReason = reason;
+                console.warn(`[CHAT API] webSearch loop guard triggered (${reason}) for query: ${normalizedQuery}`);
+                return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+              }
+            }
+
+            if (consecutiveZeroResultWebSearches >= WEB_SEARCH_NO_RESULT_GUARD.maxConsecutiveZeroResultCalls) {
+              const reason = `consecutive zero-result calls: ${consecutiveZeroResultWebSearches}`;
+              webSearchDisabledByLoopGuard = true;
+              webSearchDisableReason = reason;
+              console.warn(`[CHAT API] webSearch loop guard triggered (${reason})`);
+              return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+            }
+          }
 
           // PreToolUse: can block tool execution
           if (hasPreHooks) {
@@ -3331,6 +3411,26 @@ export async function POST(req: Request) {
                 `(~${guardedResult.estimatedTokens.toLocaleString()} tokens, ` +
                 `budget=${streamToolResultBudgetTokens.toLocaleString()})`
               );
+            }
+
+            if (toolId === "webSearch") {
+              const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
+              const sourceCount = getWebSearchSourceCount(guardedResult.result);
+
+              if (sourceCount === 0) {
+                consecutiveZeroResultWebSearches += 1;
+                if (normalizedQuery) {
+                  const previousCount = zeroResultWebSearchCountsByQuery.get(normalizedQuery) ?? 0;
+                  zeroResultWebSearchCountsByQuery.set(normalizedQuery, previousCount + 1);
+                }
+              } else if (sourceCount !== null) {
+                consecutiveZeroResultWebSearches = 0;
+                if (normalizedQuery) {
+                  zeroResultWebSearchCountsByQuery.delete(normalizedQuery);
+                }
+              }
+            } else {
+              consecutiveZeroResultWebSearches = 0;
             }
 
             // PostToolUse: fire-and-forget
@@ -3566,6 +3666,10 @@ export async function POST(req: Request) {
           // This prevents agent from misusing the tool when no truncation has occurred
           if (sessionHasTruncatedContent(sessionId) && !activeToolSet.has("retrieveFullContent")) {
             activeToolSet.add("retrieveFullContent");
+          }
+
+          if (webSearchDisabledByLoopGuard) {
+            activeToolSet.delete("webSearch");
           }
 
           const currentActiveTools = [...activeToolSet];
