@@ -620,7 +620,10 @@
       "someFilesTooLarge": "{count, plural, one {# dosya} other {# dosya}} çok büyük. Maksimum: {max}MB",
       "attachmentsDisabledResearch": "Derin Araştırma modunda ekler kullanılamaz",
       "initializing": "Başlatılıyor...",
-      "placeholderInitializing": "Araçlar başlatılıyor..."
+      "placeholderInitializing": "Araçlar başlatılıyor...",
+      "pastedTextChip": "Yapıştırılan metin #{n} · {lines} satır",
+      "removePastedText": "Yapıştırılan metni kaldır",
+      "textPasted": "Büyük metin alındı ({lines} satır)"
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada",
