@@ -90,6 +90,10 @@ const requiredPaths = [
   'standalone/.next/static',
   'standalone/node_modules',
   'standalone/lib',
+  'standalone/tools/bin/apply_patch.js',
+  (platform === 'win32' || platform === 'win')
+    ? 'standalone/tools/bin/apply_patch.cmd'
+    : 'standalone/tools/bin/apply_patch',
 ];
 
 // RTK bundle is optional at runtime (experimental), but warn if absent in package.
