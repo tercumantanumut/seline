@@ -25,6 +25,7 @@ import {
   SettingsRadioCard,
   SettingsToggleRow,
   settingsInputClassName,
+  settingsSectionShellClassName,
 } from "@/components/settings/settings-form-layout";
 import {
   LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
@@ -1063,7 +1064,7 @@ function LocalEmbeddingModelSelector({ formState, updateField, t }: LocalEmbeddi
           <select
             value={formState.embeddingModel || LOCAL_EMBEDDING_MODELS[0].id}
             onChange={(e) => updateField("embeddingModel", e.target.value)}
-            className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="flex-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
             {LOCAL_EMBEDDING_MODELS.map((model) => (
               <option key={model.id} value={model.id}>
@@ -1118,7 +1119,7 @@ function LocalEmbeddingModelSelector({ formState, updateField, t }: LocalEmbeddi
         value={formState.embeddingModel ?? ""}
         onChange={(e) => updateField("embeddingModel", e.target.value)}
         placeholder={t("models.fields.embedding.placeholderOpenRouter")}
-        className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+        className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
       />
       <p className="mt-1 font-mono text-xs text-terminal-muted">
         {t("models.fields.embedding.helper")}
@@ -1255,7 +1256,7 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
           <select
             value={selectedModel}
             onChange={(e) => updateField("sttLocalModel", e.target.value)}
-            className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="flex-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
             {WHISPER_MODELS.map((model) => (
               <option key={model.id} value={model.id}>
@@ -1353,7 +1354,7 @@ function ClaudeCodePasteInput({
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="Paste the authorization code here..."
-        className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+        className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
         autoFocus
         onKeyDown={(e) => {
           if (e.key === "Enter" && code.trim()) {
@@ -1409,7 +1410,7 @@ function SettingsPanel({
 
   if (section === "api-keys") {
     return (
-      <div className="space-y-6">
+      <div className={settingsSectionShellClassName}>
         <div>
           <h2 className="mb-4 font-mono text-lg font-semibold text-terminal-dark">{t("api.title")}</h2>
           <div className="space-y-3">
@@ -1563,7 +1564,7 @@ function SettingsPanel({
         </div>
 
         {/* Antigravity OAuth Section */}
-        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+        <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
@@ -1601,7 +1602,7 @@ function SettingsPanel({
         </div>
 
         {/* Codex OAuth Section */}
-        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+        <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
@@ -1639,7 +1640,7 @@ function SettingsPanel({
         </div>
 
         {/* Claude Code OAuth Section */}
-        <div className="rounded-lg border border-terminal-border bg-terminal-bg/50 p-4">
+        <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
@@ -1694,7 +1695,7 @@ function SettingsPanel({
                 value={formState.ollamaBaseUrl}
                 onChange={(e) => updateField("ollamaBaseUrl", e.target.value)}
                 placeholder="http://localhost:11434/v1"
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
               <p className="mt-1 font-mono text-xs text-terminal-muted">
                 Point this to your local Ollama OpenAI-compatible endpoint.
@@ -1709,7 +1710,7 @@ function SettingsPanel({
               value={formState.anthropicApiKey}
               onChange={(e) => updateField("anthropicApiKey", e.target.value)}
               placeholder={t("api.fields.anthropic.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.anthropic.helper")}</p>
           </div>
@@ -1721,7 +1722,7 @@ function SettingsPanel({
               value={formState.openrouterApiKey}
               onChange={(e) => updateField("openrouterApiKey", e.target.value)}
               placeholder={t("api.fields.openrouter.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.openrouter.helper")}</p>
           </div>
@@ -1733,7 +1734,7 @@ function SettingsPanel({
               value={formState.kimiApiKey}
               onChange={(e) => updateField("kimiApiKey", e.target.value)}
               placeholder={t("api.fields.kimi.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.kimi.helper")}</p>
           </div>
@@ -1745,7 +1746,7 @@ function SettingsPanel({
               value={formState.openaiApiKey}
               onChange={(e) => updateField("openaiApiKey", e.target.value)}
               placeholder="sk-..."
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               Required for OpenAI Whisper (speech-to-text) and OpenAI TTS. Get yours at{" "}
@@ -1812,7 +1813,7 @@ function SettingsPanel({
               value={formState.tavilyApiKey}
               onChange={(e) => updateField("tavilyApiKey", e.target.value)}
               placeholder={t("api.fields.tavily.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.tavily.helper")}</p>
           </div>
@@ -1861,7 +1862,7 @@ function SettingsPanel({
               value={formState.firecrawlApiKey}
               onChange={(e) => updateField("firecrawlApiKey", e.target.value)}
               placeholder={t("api.fields.firecrawl.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.firecrawl.helper")}</p>
           </div>
@@ -1873,7 +1874,7 @@ function SettingsPanel({
               value={formState.stylyAiApiKey}
               onChange={(e) => updateField("stylyAiApiKey", e.target.value)}
               placeholder={t("api.fields.seline.placeholder")}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.seline.helper")}</p>
           </div>
@@ -1884,7 +1885,7 @@ function SettingsPanel({
 
   if (section === "models") {
     return (
-      <div className="space-y-6">
+      <div className={settingsSectionShellClassName}>
         <div>
           <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("models.title")}</h2>
           <p className="font-mono text-sm text-terminal-muted">
@@ -1905,7 +1906,7 @@ function SettingsPanel({
               <select
                 value={formState.chatModel || "claude-sonnet-4-5"}
                 onChange={(e) => updateField("chatModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1917,7 +1918,7 @@ function SettingsPanel({
               <select
                 value={formState.chatModel || "gpt-5.1-codex"}
                 onChange={(e) => updateField("chatModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1929,7 +1930,7 @@ function SettingsPanel({
               <select
                 value={formState.chatModel || "claude-sonnet-4-5-20250929"}
                 onChange={(e) => updateField("chatModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1941,7 +1942,7 @@ function SettingsPanel({
               <select
                 value={formState.chatModel || "kimi-k2.5"}
                 onChange={(e) => updateField("chatModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1961,7 +1962,7 @@ function SettingsPanel({
                       ? "llama3.1:8b"
                       : "x-ai/grok-4.1-fast"
                 }
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
             )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
@@ -1975,7 +1976,7 @@ function SettingsPanel({
               <select
                 value={formState.researchModel || "gemini-3-pro-high"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1987,7 +1988,7 @@ function SettingsPanel({
               <select
                 value={formState.researchModel || "gpt-5.1-codex"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -1999,7 +2000,7 @@ function SettingsPanel({
               <select
                 value={formState.researchModel || "claude-opus-4-6"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2011,7 +2012,7 @@ function SettingsPanel({
               <select
                 value={formState.researchModel || "kimi-k2-thinking"}
                 onChange={(e) => updateField("researchModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2031,7 +2032,7 @@ function SettingsPanel({
                       ? "llama3.1:8b"
                       : "x-ai/grok-4.1-fast"
                 }
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
             )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
@@ -2045,7 +2046,7 @@ function SettingsPanel({
               <select
                 value={formState.visionModel || "gemini-3-pro-low"}
                 onChange={(e) => updateField("visionModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2057,7 +2058,7 @@ function SettingsPanel({
               <select
                 value={formState.visionModel || "gpt-5.1-codex"}
                 onChange={(e) => updateField("visionModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2069,7 +2070,7 @@ function SettingsPanel({
               <select
                 value={formState.visionModel || "claude-sonnet-4-5-20250929"}
                 onChange={(e) => updateField("visionModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2081,7 +2082,7 @@ function SettingsPanel({
               <select
                 value={formState.visionModel || "kimi-k2.5"}
                 onChange={(e) => updateField("visionModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2101,7 +2102,7 @@ function SettingsPanel({
                       ? "llama3.1:8b"
                       : "google/gemini-2.0-flash-001"
                 }
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
             )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
@@ -2115,7 +2116,7 @@ function SettingsPanel({
               <select
                 value={formState.utilityModel || "gemini-3-flash"}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {ANTIGRAVITY_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2127,7 +2128,7 @@ function SettingsPanel({
               <select
                 value={formState.utilityModel || "gpt-5.1-codex-mini"}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CODEX_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2139,7 +2140,7 @@ function SettingsPanel({
               <select
                 value={formState.utilityModel || "claude-haiku-4-5-20251001"}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {CLAUDECODE_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2151,7 +2152,7 @@ function SettingsPanel({
               <select
                 value={formState.utilityModel || "kimi-k2-turbo-preview"}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               >
                 {KIMI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -2165,7 +2166,7 @@ function SettingsPanel({
                 value={formState.utilityModel ?? ""}
                 onChange={(e) => updateField("utilityModel", e.target.value)}
                 placeholder={formState.llmProvider === "ollama" ? "llama3.1:8b" : "google/gemini-2.0-flash-lite-001"}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
             )}
             <p className="mt-1 font-mono text-xs text-terminal-muted">
@@ -2224,7 +2225,7 @@ function SettingsPanel({
                 value={formState.openrouterArgs}
                 onChange={(e) => updateField("openrouterArgs", e.target.value)}
                 placeholder='{ "quant": "q4_0", "thinkingBudget": 512, "includeThoughts": false }'
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green resize-none"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green resize-none"
                 rows={4}
               />
               <div className="mt-2 flex flex-wrap gap-2">
@@ -2275,7 +2276,7 @@ function SettingsPanel({
 
   if (section === "vector-search") {
     return (
-      <div className="space-y-6">
+      <div className={settingsSectionShellClassName}>
         <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("vector.title")}</h2>
         <p className="font-mono text-sm text-terminal-muted">
           {t("vector.subtitle")}
@@ -2360,7 +2361,7 @@ function SettingsPanel({
             />
 
             {/* Local Grep Settings */}
-            <div className="mt-6 rounded border border-terminal-border bg-white p-4">
+            <div className="mt-6 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">Local Grep (ripgrep)</h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">Fast exact and regex pattern search using ripgrep.</p>
 
@@ -2394,7 +2395,7 @@ function SettingsPanel({
                     max={500}
                     value={formState.localGrepMaxResults}
                     onChange={(e) => updateField("localGrepMaxResults", Number(e.target.value) || 100)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                   />
                 </div>
                 <div>
@@ -2405,7 +2406,7 @@ function SettingsPanel({
                     max={10}
                     value={formState.localGrepContextLines}
                     onChange={(e) => updateField("localGrepContextLines", Number(e.target.value) || 2)}
-                    className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                   />
                 </div>
               </div>
@@ -2418,13 +2419,15 @@ function SettingsPanel({
 
   if (section === "preferences") {
     return (
-      <PreferencesSection formState={formState} updateField={updateField} />
+      <div className={settingsSectionShellClassName}>
+        <PreferencesSection formState={formState} updateField={updateField} />
+      </div>
     );
   }
 
   if (section === "comfyui") {
     return (
-      <div className="space-y-6">
+      <div className={settingsSectionShellClassName}>
         <div>
           <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local Image Generation</h2>
           <p className="text-sm text-terminal-muted">
@@ -2432,7 +2435,7 @@ function SettingsPanel({
           </p>
         </div>
 
-        <div className="rounded-xl border border-terminal-border bg-terminal-bg/60 p-4">
+        <div className="rounded-xl border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-terminal-border bg-terminal-green/15 text-terminal-green">
@@ -2459,7 +2462,7 @@ function SettingsPanel({
             value={formState.huggingFaceToken}
             onChange={(e) => updateField("huggingFaceToken", e.target.value)}
             placeholder="hf_..."
-            className="mt-3 w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="mt-3 w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>
 
@@ -2506,12 +2509,16 @@ function SettingsPanel({
   }
 
   if (section === "memory") {
-    return <MemorySection />;
+    return (
+      <div className={settingsSectionShellClassName}>
+        <MemorySection />
+      </div>
+    );
   }
 
   if (section === "mcp") {
     return (
-      <div className="space-y-6">
+      <div className={settingsSectionShellClassName}>
         <div>
           <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">
             MCP Servers
@@ -2526,7 +2533,11 @@ function SettingsPanel({
   }
 
   if (section === "plugins") {
-    return <PluginSettings />;
+    return (
+      <div className={settingsSectionShellClassName}>
+        <PluginSettings />
+      </div>
+    );
   }
 
   if (section === "voice") {
@@ -2548,7 +2559,7 @@ function SettingsPanel({
     ];
 
     return (
-      <div className="space-y-5">
+      <div className={settingsSectionShellClassName}>
         <div className="space-y-1.5">
           <h2 className="font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
           <p className="font-mono text-sm text-terminal-muted">
@@ -2556,7 +2567,7 @@ function SettingsPanel({
           </p>
         </div>
 
-        <div className="space-y-5 rounded-2xl border border-terminal-border/50 bg-terminal-bg/5 p-3 dark:border-terminal-border/85 dark:bg-terminal-cream/5 sm:p-4">
+        <div className="space-y-5">
           <SettingsPanelCard
             title="Text-to-Speech (TTS)"
             description="Let the assistant speak replies in a way that matches how you chat."
@@ -2912,7 +2923,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
             <span className="font-mono text-sm text-terminal-dark">Enable hooks</span>
             <input
               type="checkbox"
@@ -2921,7 +2932,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               className="size-4 accent-terminal-green"
             />
           </label>
-          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
             <span className="font-mono text-sm text-terminal-dark">Run in patch tool</span>
             <input
               type="checkbox"
@@ -2930,7 +2941,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               className="size-4 accent-terminal-green"
             />
           </label>
-          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
             <span className="font-mono text-sm text-terminal-dark">Typecheck</span>
             <input
               type="checkbox"
@@ -2939,7 +2950,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               className="size-4 accent-terminal-green"
             />
           </label>
-          <label className="flex items-center justify-between rounded border border-terminal-border bg-white px-3 py-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
             <span className="font-mono text-sm text-terminal-dark">ESLint</span>
             <input
               type="checkbox"
@@ -2955,7 +2966,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           <select
             value={formState.postEditTypecheckScope}
             onChange={(e) => updateField("postEditTypecheckScope", e.target.value as FormState["postEditTypecheckScope"])}
-            className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
             <option value="auto">Auto (infer from file path)</option>
             <option value="app">App only</option>
@@ -3070,7 +3081,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             <select
               value={String(formState.rtkVerbosity)}
               onChange={(e) => updateField("rtkVerbosity", Number(e.target.value) as 0 | 1 | 2 | 3)}
-              className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             >
               <option value="0">0 (quiet)</option>
               <option value="1">1 (-v)</option>
@@ -3146,7 +3157,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                   max={30}
                   value={formState.devWorkspaceAutoCleanupDays}
                   onChange={(e) => updateField("devWorkspaceAutoCleanupDays", Math.max(1, Math.min(30, Number(e.target.value))))}
-                  className="w-24 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                  className="w-24 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 />
               </div>
             )}
@@ -3287,7 +3298,7 @@ function MemorySection() {
         </div>
 
         {/* Add new memory */}
-        <div className="rounded-lg border border-terminal-border bg-white p-4">
+        <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <h3 className="font-mono text-sm font-medium text-terminal-dark mb-3">
             {t("memoryDefaults.addNew")}
           </h3>
@@ -3295,7 +3306,7 @@ function MemorySection() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value as typeof selectedCategory)}
-              className="rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
+              className="rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm"
             >
               {Object.entries(categoryLabels).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -3308,7 +3319,7 @@ function MemorySection() {
               value={newMemory}
               onChange={(e) => setNewMemory(e.target.value)}
               placeholder={t("memoryDefaults.placeholder")}
-              className="flex-1 rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
+              className="flex-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm"
               onKeyDown={(e) => e.key === "Enter" && handleAddMemory()}
             />
             <Button
@@ -3342,7 +3353,7 @@ function MemorySection() {
                     {memories.map((memory, index) => (
                       <li
                         key={index}
-                        className="flex items-center gap-2 bg-white rounded px-3 py-2 border border-terminal-border"
+                        className="flex items-center gap-2 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 rounded px-3 py-2 border border-terminal-border"
                       >
                         <span className="flex-1 font-mono text-sm text-terminal-dark">{memory}</span>
                         <button
@@ -3363,7 +3374,7 @@ function MemorySection() {
 
       {/* Re-run Onboarding */}
       <div className="border-t border-terminal-border pt-6">
-        <div className="rounded-lg border border-terminal-border bg-white p-4">
+        <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">

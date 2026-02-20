@@ -193,7 +193,7 @@ function ConfigPreview({
     const flatArgs = resolvedArgs.flatMap(arg => Array.isArray(arg) ? arg : [arg]);
 
     return (
-        <div className="mt-2 p-3 rounded bg-terminal-bg/50 border border-terminal-border font-mono text-[10px] space-y-1">
+        <div className="mt-2 space-y-1 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3 font-mono text-[10px]">
             <div className="text-terminal-muted flex items-center gap-1.5 mb-1">
                 <Info className="h-3 w-3" />
                 {t("variablePreview")}
@@ -445,7 +445,7 @@ export function MCPSettings() {
                         <button
                             key={template.id}
                             onClick={() => handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-white hover:border-terminal-green hover:shadow-sm transition-all text-left"
+                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left"
                         >
                             <div className="flex items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2">
@@ -531,7 +531,7 @@ export function MCPSettings() {
 
                 {/* Server Cards */}
                 {Object.keys(mcpServers).length === 0 && !isAddingServer ? (
-                    <div className="text-center py-10 border border-dashed border-terminal-border rounded-lg bg-terminal-bg/50">
+                    <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 py-10 text-center">
                         <Plug className="h-8 w-8 text-terminal-muted mx-auto mb-2" />
                         <p className="font-mono text-sm text-terminal-muted">No servers configured. Add one to get started.</p>
                     </div>
@@ -563,7 +563,7 @@ export function MCPSettings() {
                                 <div
                                     key={name}
                                     className={cn(
-                                        "flex items-center justify-between p-4 rounded-lg border bg-white shadow-sm hover:shadow-md transition-all",
+                                        "flex items-center justify-between p-4 rounded-lg border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 shadow-sm hover:shadow-md transition-all",
                                         config.enabled === false
                                             ? "border-terminal-border/50 opacity-60"
                                             : "border-terminal-border"

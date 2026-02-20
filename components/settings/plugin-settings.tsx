@@ -367,7 +367,7 @@ export function PluginSettings() {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded border border-terminal-border/50 bg-terminal-bg/10 p-3">
+            <div className="rounded border border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3">
               <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
                 Files
               </p>
@@ -387,7 +387,7 @@ export function PluginSettings() {
               <select
                 value={selectedTargetCharacterId}
                 onChange={(event) => setSelectedTargetCharacterId(event.target.value)}
-                className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 disabled={uploading}
               >
                 {characters.map((character) => (
