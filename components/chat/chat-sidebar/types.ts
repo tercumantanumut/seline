@@ -17,6 +17,7 @@ export interface SessionInfo {
     channelType?: SessionChannelType;
     channelPeerName?: string | null;
     channelPeerId?: string | null;
+    pinned?: boolean;
     // Per-session model overrides (Bag of Models feature)
     sessionProvider?: string;
     sessionChatModel?: string;

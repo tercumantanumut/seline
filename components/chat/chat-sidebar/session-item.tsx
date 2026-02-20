@@ -14,6 +14,8 @@ import {
   RotateCcw,
   GitBranch,
   ExternalLink,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,8 @@ interface SessionItemProps {
   onDelete: () => void;
   onExport: (format: "markdown" | "json" | "text") => void;
   onResetChannel: () => void;
+  isPinned?: boolean;
+  onPin?: () => void;
 }
 
 function parseAsUTC(dateStr: string): Date {
@@ -66,6 +70,8 @@ export function SessionItem({
   onDelete,
   onExport,
   onResetChannel,
+  isPinned = false,
+  onPin,
 }: SessionItemProps) {
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
@@ -183,6 +189,8 @@ export function SessionItem({
             "h-4 w-4 flex-shrink-0 animate-spin text-terminal-green transition-colors duration-200"
           )}
         />
+      ) : isPinned ? (
+        <Pin className="h-4 w-4 flex-shrink-0 text-terminal-amber" />
       ) : (
         <MessageCircle
           className={cn(
@@ -295,6 +303,16 @@ export function SessionItem({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+            {onPin ? (
+              <DropdownMenuItem onSelect={onPin}>
+                {isPinned ? (
+                  <PinOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Pin className="h-3.5 w-3.5" />
+                )}
+                {isPinned ? t("sidebar.unpin") : t("sidebar.pin")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onSelect={onStartEdit}>
               <Pencil className="h-3.5 w-3.5" />
               {t("sidebar.rename")}

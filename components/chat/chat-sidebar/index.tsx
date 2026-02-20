@@ -18,6 +18,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Phone,
+  Pin,
   Plug,
   PlusCircle,
   RotateCcw,
@@ -101,6 +102,7 @@ interface CharacterSidebarProps {
     sessionId: string,
     format: "markdown" | "json" | "text",
   ) => Promise<void>;
+  onPinSession: (sessionId: string) => Promise<void>;
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
 
@@ -142,6 +144,7 @@ export function CharacterSidebar({
   onResetChannelSession,
   onRenameSession,
   onExportSession,
+  onPinSession,
   onAvatarChange,
 }: CharacterSidebarProps) {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -229,6 +232,11 @@ export function CharacterSidebar({
     closeDeleteDialog();
   }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
 
+  const pinnedSessions = useMemo(
+    () => sessions.filter((s) => s.metadata?.pinned === true),
+    [sessions],
+  );
+
   const groupedSessions = useMemo(() => {
     const groups: Record<"today" | "week" | "older", SessionInfo[]> = {
       today: [],
@@ -236,6 +244,7 @@ export function CharacterSidebar({
       older: [],
     };
     for (const session of sessions) {
+      if (session.metadata?.pinned) continue; // pinned shown separately at top
       const date = parseAsUTC(session.updatedAt);
       if (isNaN(date.getTime())) {
         groups.older.push(session);
@@ -310,6 +319,8 @@ export function CharacterSidebar({
               onDelete={() => handleDeleteRequest(session)}
               onExport={(format) => void onExportSession(session.id, format)}
               onResetChannel={() => void onResetChannelSession(session.id)}
+              isPinned={session.metadata?.pinned === true}
+              onPin={() => void onPinSession(session.id)}
             />
           );
         })}
@@ -564,23 +575,59 @@ export function CharacterSidebar({
                   {t("sidebar.startNew")}
                 </Button>
               </div>
-            ) : shouldGroupSessions ? (
+            ) : (
               <>
-                {renderSessionList(
-                  groupedSessions.today,
-                  t("sidebar.groups.today"),
-                )}
-                {renderSessionList(
-                  groupedSessions.week,
-                  t("sidebar.groups.week"),
-                )}
-                {renderSessionList(
-                  groupedSessions.older,
-                  t("sidebar.groups.older"),
+                {pinnedSessions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-amber/80 flex items-center gap-1">
+                      <Pin className="h-2.5 w-2.5" />
+                      {t("sidebar.pinnedSection")}
+                    </p>
+                    {pinnedSessions.map((session) => {
+                      const isCurrent = session.id === currentSessionId;
+                      const isEditing = editingSessionId === session.id;
+                      return (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          isCurrent={isCurrent}
+                          isEditing={isEditing}
+                          editTitle={editTitle}
+                          setEditTitle={setEditTitle}
+                          onSwitch={() => onSwitchSession(session.id)}
+                          onSaveEdit={() => void handleRename()}
+                          onCancelEdit={stopEditing}
+                          onStartEdit={() => startEditingSession(session)}
+                          onDelete={() => handleDeleteRequest(session)}
+                          onExport={(format) => void onExportSession(session.id, format)}
+                          onResetChannel={() => void onResetChannelSession(session.id)}
+                          isPinned={true}
+                          onPin={() => void onPinSession(session.id)}
+                        />
+                      );
+                    })}
+                    <div className="border-t border-terminal-border/40 pt-1" />
+                  </div>
+                ) : null}
+                {shouldGroupSessions ? (
+                  <>
+                    {renderSessionList(
+                      groupedSessions.today,
+                      t("sidebar.groups.today"),
+                    )}
+                    {renderSessionList(
+                      groupedSessions.week,
+                      t("sidebar.groups.week"),
+                    )}
+                    {renderSessionList(
+                      groupedSessions.older,
+                      t("sidebar.groups.older"),
+                    )}
+                  </>
+                ) : (
+                  renderSessionList(orderedSessions)
                 )}
               </>
-            ) : (
-              renderSessionList(orderedSessions)
             )}
             {hasMore && !hasNoResults ? (
               <Button

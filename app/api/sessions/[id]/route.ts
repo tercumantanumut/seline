@@ -87,10 +87,19 @@ export async function PATCH(
       metadata?: Record<string, unknown>;
     };
 
+    // Deep-merge metadata so partial updates don't lose existing fields
+    const mergedMetadata =
+      metadata !== undefined
+        ? {
+            ...((ownershipResult.session.metadata as Record<string, unknown>) ?? {}),
+            ...metadata,
+          }
+        : undefined;
+
     const updated = await updateSession(id, {
       ...(title !== undefined && { title }),
       ...(status !== undefined && { status }),
-      ...(metadata !== undefined && { metadata }),
+      ...(mergedMetadata !== undefined && { metadata: mergedMetadata }),
     });
 
     return NextResponse.json({ session: updated });

@@ -1082,6 +1082,19 @@ export default function ChatInterface({
         }
     }, [t]);
 
+    const pinSession = useCallback(async (sessionToPinId: string) => {
+        const currentSession = sessions.find((s) => s.id === sessionToPinId);
+        const isPinned = currentSession?.metadata?.pinned === true;
+        try {
+            await resilientPatch(`/api/sessions/${sessionToPinId}`, {
+                metadata: { pinned: !isPinned },
+            });
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+        } catch (error) {
+            console.error("Failed to pin session:", error);
+        }
+    }, [sessions, loadSessions]);
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -1146,6 +1159,7 @@ export default function ChatInterface({
                     onResetChannelSession={resetChannelSession}
                     onRenameSession={renameSession}
                     onExportSession={exportSession}
+                    onPinSession={pinSession}
                     onAvatarChange={handleAvatarChange}
                 />
             }
