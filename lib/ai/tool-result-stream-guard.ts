@@ -85,7 +85,7 @@ function buildOversizedToolResult(
     metadata && typeof metadata.sourceFileName === "string" ? metadata.sourceFileName : undefined;
 
   let error =
-    `Tool output from ${safeToolName} exceeded the remaining context budget ` +
+    `Tool output from ${safeToolName} exceeded the single-tool streaming limit ` +
     `(~${estimatedTokens.toLocaleString()} tokens, allowed: ${tokenLimit.toLocaleString()}). ` +
     `Streaming continued, but this tool result was replaced with a validation error. `;
 
