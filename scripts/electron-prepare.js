@@ -37,6 +37,11 @@ function removePath(targetPath) {
     }
 }
 
+function ensureExecutable(filePath) {
+    if (!fs.existsSync(filePath) || process.platform === "win32") return;
+    fs.chmodSync(filePath, 0o755);
+}
+
 function pruneOnnxRuntime(baseDir, napiDirName, keepOs, keepArch) {
     const napiDir = path.join(baseDir, "bin", napiDirName);
     if (!fs.existsSync(napiDir)) return;
@@ -298,7 +303,33 @@ for (const mod of nativeModuleBinaries) {
 console.log('Pruning standalone dependencies for current platform...');
 pruneStandaloneForPlatform(standaloneDir);
 
-// 12. Bundle ffmpeg static binary for audio conversion (whisper.cpp preprocessing)
+// 12. Bundle apply_patch shim so Codex-style patches work in packaged builds.
+console.log('Bundling apply_patch compatibility shim...');
+const bundledToolsSrcDir = path.join(rootDir, 'scripts', 'bundled-tools');
+const bundledToolsDestDir = path.join(standaloneDir, 'tools', 'bin');
+const applyPatchLauncherSrc = path.join(bundledToolsSrcDir, 'apply_patch');
+const applyPatchRuntimeSrc = path.join(bundledToolsSrcDir, 'apply_patch.js');
+const applyPatchLauncherDest = path.join(bundledToolsDestDir, 'apply_patch');
+const applyPatchRuntimeDest = path.join(bundledToolsDestDir, 'apply_patch.js');
+
+const applyPatchCmdSrc = path.join(bundledToolsSrcDir, 'apply_patch.cmd');
+const applyPatchCmdDest = path.join(bundledToolsDestDir, 'apply_patch.cmd');
+
+if (fs.existsSync(applyPatchLauncherSrc) && fs.existsSync(applyPatchRuntimeSrc)) {
+    ensureDir(bundledToolsDestDir);
+    fs.copyFileSync(applyPatchLauncherSrc, applyPatchLauncherDest);
+    fs.copyFileSync(applyPatchRuntimeSrc, applyPatchRuntimeDest);
+    if (fs.existsSync(applyPatchCmdSrc)) {
+        fs.copyFileSync(applyPatchCmdSrc, applyPatchCmdDest);
+    }
+    ensureExecutable(applyPatchLauncherDest);
+    ensureExecutable(applyPatchRuntimeDest);
+    console.log('  Bundled apply_patch shim into standalone/tools/bin');
+} else {
+    console.warn('  Warning: apply_patch shim sources missing, skipping apply_patch bundling');
+}
+
+// 13. Bundle ffmpeg static binary for audio conversion (whisper.cpp preprocessing)
 console.log('Bundling ffmpeg static binary...');
 try {
     const ffmpegStaticPath = require.resolve('ffmpeg-static');
@@ -308,9 +339,7 @@ try {
         const ffmpegBinaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
         const ffmpegDest = path.join(ffmpegDestDir, ffmpegBinaryName);
         fs.copyFileSync(ffmpegStaticPath, ffmpegDest);
-        if (process.platform !== 'win32') {
-            fs.chmodSync(ffmpegDest, 0o755);
-        }
+        ensureExecutable(ffmpegDest);
         const stats = fs.statSync(ffmpegDest);
         console.log(`  Bundled ffmpeg: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
     } else {
@@ -337,9 +366,7 @@ if (fs.existsSync(whisperBundleDir)) {
     ];
     const whisperBin = whisperBinCandidates.find((p) => fs.existsSync(p));
     if (whisperBin) {
-        if (process.platform !== 'win32') {
-            fs.chmodSync(whisperBin, 0o755);
-        }
+        ensureExecutable(whisperBin);
         console.log(`  Bundled whisper-cli binary`);
     }
     // Calculate total size
@@ -383,7 +410,7 @@ if (process.platform === 'win32' || process.platform === 'darwin') {
         fs.copyFileSync(nodeExeSrc, nodeExeDest);
         // Ensure the binary is executable on macOS
         if (process.platform === 'darwin') {
-            fs.chmodSync(nodeExeDest, 0o755);
+            ensureExecutable(nodeExeDest);
         }
         const stats = fs.statSync(nodeExeDest);
         console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);

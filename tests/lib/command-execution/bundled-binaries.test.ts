@@ -31,10 +31,13 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
     describe("getBundledBinariesPath", () => {
         it("should find bundled binaries using process.resourcesPath", () => {
             const mockResourcesPath = "/app/Contents/Resources";
-            const expectedBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedNodeBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedToolsBinPath = join(mockResourcesPath, "standalone", "tools", "bin");
 
             (process as any).resourcesPath = mockResourcesPath;
-            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(existsSync).mockImplementation((candidatePath) => {
+                return candidatePath === expectedNodeBinPath || candidatePath === expectedToolsBinPath;
+            });
 
             // We can't directly test the private function, but we can verify
             // the PATH is modified by checking console output or spawn env
@@ -51,9 +54,12 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
                 // Ignore execution errors
             });
 
-            // Check that the bundled bin path was logged (single string argument with prefix)
+            // Check that both bundled directories are included in the PATH log
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining(`[Command Executor] Prepending bundled binaries to PATH: ${expectedBinPath}`)
+                expect.stringContaining(expectedNodeBinPath)
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining(expectedToolsBinPath)
             );
 
             consoleLogSpy.mockRestore();
@@ -61,10 +67,13 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
 
         it("should find bundled binaries using ELECTRON_RESOURCES_PATH env var", () => {
             const mockResourcesPath = "C:\\\\app\\\\resources";
-            const expectedBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedNodeBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedToolsBinPath = join(mockResourcesPath, "standalone", "tools", "bin");
 
             process.env.ELECTRON_RESOURCES_PATH = mockResourcesPath;
-            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(existsSync).mockImplementation((candidatePath) => {
+                return candidatePath === expectedNodeBinPath || candidatePath === expectedToolsBinPath;
+            });
 
             const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -78,7 +87,10 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining("Prepending bundled binaries to PATH:")
+                expect.stringContaining(expectedNodeBinPath)
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining(expectedToolsBinPath)
             );
 
             consoleLogSpy.mockRestore();
@@ -107,7 +119,7 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
             consoleLogSpy.mockRestore();
         });
 
-        it("should return null when binaries directory does not exist", () => {
+        it("should return null when bundled directories do not exist", () => {
             const mockResourcesPath = "/app/Contents/Resources";
             (process as any).resourcesPath = mockResourcesPath;
             vi.mocked(existsSync).mockReturnValue(false);
@@ -135,11 +147,14 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
         it("should prepend bundled binaries to PATH on Windows", () => {
             const mockResourcesPath = "C:\\\\app\\\\resources";
             const mockSystemPath = "C:\\\\Windows\\\\System32;C:\\\\Program Files";
-            const expectedBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedNodeBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedToolsBinPath = join(mockResourcesPath, "standalone", "tools", "bin");
 
             process.env.ELECTRON_RESOURCES_PATH = mockResourcesPath;
             process.env.PATH = mockSystemPath;
-            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(existsSync).mockImplementation((candidatePath) => {
+                return candidatePath === expectedNodeBinPath || candidatePath === expectedToolsBinPath;
+            });
 
             const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -152,9 +167,12 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
                 // Ignore execution errors
             });
 
-            // Verify the log message contains the bundled bin path
+            // Verify the log message contains both bundled directories.
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining(expectedBinPath)
+                expect.stringContaining(expectedNodeBinPath)
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining(expectedToolsBinPath)
             );
 
             consoleLogSpy.mockRestore();
@@ -163,11 +181,14 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
         it("should prepend bundled binaries to PATH on Unix", () => {
             const mockResourcesPath = "/Applications/Seline.app/Contents/Resources";
             const mockSystemPath = "/usr/local/bin:/usr/bin:/bin";
-            const expectedBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedNodeBinPath = join(mockResourcesPath, "standalone", "node_modules", ".bin");
+            const expectedToolsBinPath = join(mockResourcesPath, "standalone", "tools", "bin");
 
             (process as any).resourcesPath = mockResourcesPath;
             process.env.PATH = mockSystemPath;
-            vi.mocked(existsSync).mockReturnValue(true);
+            vi.mocked(existsSync).mockImplementation((candidatePath) => {
+                return candidatePath === expectedNodeBinPath || candidatePath === expectedToolsBinPath;
+            });
 
             const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -181,7 +202,10 @@ describe("Command Executor - Bundled Binaries PATH Resolution", () => {
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining(expectedBinPath)
+                expect.stringContaining(expectedNodeBinPath)
+            );
+            expect(consoleLogSpy).toHaveBeenCalledWith(
+                expect.stringContaining(expectedToolsBinPath)
             );
 
             consoleLogSpy.mockRestore();
