@@ -122,7 +122,6 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
   const [updatingFolderId, setUpdatingFolderId] = useState<string | null>(null);
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
-  const [reindexing, setReindexing] = useState(false);
 
   // Comprehensive default file extensions for vector search
   const DEFAULT_EXTENSIONS = [
@@ -497,26 +496,6 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     await handleUpdateFolder(folder.id, { syncMode: nextSyncMode });
   };
 
-  const handleReindexAll = async () => {
-    if (!window.confirm(t("reindexConfirm"))) {
-      return;
-    }
-
-    setReindexing(true);
-    try {
-      const { error } = await resilientPost<{ error?: string }>("/api/vector-sync", {
-        action: "reindex", characterId,
-      }, { timeout: 30_000 });
-      if (error) throw new Error(error);
-
-      await loadFolders();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reindex folders");
-    } finally {
-      setReindexing(false);
-    }
-  };
-
   const getStatusIcon = (status: SyncFolder["status"]) => {
     switch (status) {
       case "synced": return <CheckCircleIcon className="w-4 h-4 text-terminal-green" />;
@@ -559,18 +538,6 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
       {!compact && folders.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded border border-terminal-border bg-terminal-cream/30 p-3">
-          <Button
-            variant="outline"
-            onClick={handleReindexAll}
-            disabled={reindexing}
-            className="gap-2 font-mono"
-          >
-            {reindexing ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <RefreshCwIcon className="w-4 h-4" />}
-            {reindexing ? t("reindexing") : t("reindexAll")}
-          </Button>
-          <span className="font-mono text-xs text-terminal-muted">
-            {t("reindexHint")}
-          </span>
           <span className="font-mono text-xs text-terminal-muted">
             {t("transparencyHint")}
           </span>

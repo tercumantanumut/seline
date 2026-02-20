@@ -224,10 +224,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const shouldRecommendFolderResync =
+      Boolean(validation.reindexRequired) || validation.warnings.some(warningSuggestsFolderResync);
+    const normalizedWarnings = validation.warnings.map((warning) => {
+      if (!warningSuggestsFolderResync(warning)) {
+        return warning;
+      }
+      return "Search index settings changed. Some synced folders may need a refresh.";
+    });
+
     // Include warnings in successful response so the UI can display them
     const responsePayload: Record<string, unknown> = { success: true };
-    if (validation.warnings.length > 0) {
-      responsePayload.warnings = validation.warnings;
+    if (normalizedWarnings.length > 0) {
+      responsePayload.warnings = [...new Set(normalizedWarnings)];
     }
     if (validation.embeddingDimensions) {
       responsePayload.embeddingDimensions = validation.embeddingDimensions;
@@ -235,12 +244,21 @@ export async function PUT(request: NextRequest) {
     if (validation.reindexRequired) {
       responsePayload.reindexRequired = true;
     }
+    if (shouldRecommendFolderResync) {
+      responsePayload.folderResyncRecommended = true;
+      responsePayload.folderResyncMessage = "Search index settings changed. If results look outdated, refresh synced folders in Agent Settings.";
+    }
 
     return NextResponse.json(responsePayload);
   } catch (error) {
     console.error("[Settings API] Error saving settings:", error);
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
+}
+
+function warningSuggestsFolderResync(warning: string): boolean {
+  const normalized = warning.toLowerCase();
+  return normalized.includes("reindex") || normalized.includes("embedding model changed") || normalized.includes("vectors");
 }
 
 // PATCH is an alias for PUT — both support partial updates via deep merge with current settings.

@@ -6,13 +6,12 @@ import {
   syncFolder,
   syncAllFolders,
   reindexAllFolders,
-  reindexAllCharacters,
   forceCleanupStuckFolders,
   setPrimaryFolder,
   cancelSyncById,
   updateSyncFolderSettings,
 } from "@/lib/vectordb/sync-service";
-import { getSetting, updateSetting } from "@/lib/settings/settings-manager";
+import { getSetting } from "@/lib/settings/settings-manager";
 import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
 
 const VALID_SYNC_MODES = ["auto", "manual", "scheduled", "triggered"] as const;
@@ -243,12 +242,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (action === "reindex-all") {
-      const results = await reindexAllCharacters();
-      updateSetting("embeddingReindexRequired", false);
-      return NextResponse.json({ results, success: true });
-    }
-
     if (action === "cleanup") {
       // Force cleanup of all stuck syncing/pending folders
       const result = await forceCleanupStuckFolders();
@@ -380,7 +373,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Invalid action. Use 'add', 'sync', 'reindex', 'reindex-all', or 'cleanup'" },
+      { error: "Invalid action. Use 'add', 'sync', 'reindex', or 'cleanup'" },
       { status: 400 }
     );
   } catch (error) {
