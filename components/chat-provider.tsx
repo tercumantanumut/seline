@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== "production") {
   };
 }
 
-import { Component, type ErrorInfo, type FC, type ReactNode, useMemo } from "react";
+import { Component, type ErrorInfo, type FC, type ReactNode, useEffect, useMemo, useRef } from "react";
 import {
   AssistantRuntimeProvider,
   type AttachmentAdapter,
@@ -25,6 +25,8 @@ import {
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage, UIMessageChunk } from "ai";
+import { convertToThreadMessageLike } from "@/lib/messages/converter";
+import { getMessagesSignature } from "@/lib/chat/message-signature";
 import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
 import { VoiceProvider } from "./assistant-ui/voice-context";
 import { Loader2 } from "lucide-react";
@@ -390,6 +392,17 @@ export const ChatProvider: FC<ChatProviderProps> = ({
       attachments: attachmentAdapter,
     },
   });
+
+  const hydratedSignatureRef = useRef("");
+  useEffect(() => {
+    const nextSignature = getMessagesSignature(initialMessages || []);
+    if (nextSignature === hydratedSignatureRef.current) {
+      return;
+    }
+
+    runtime.thread.reset(convertToThreadMessageLike(initialMessages || []));
+    hydratedSignatureRef.current = nextSignature;
+  }, [initialMessages, runtime]);
 
   return (
     <ChatErrorBoundary

@@ -13,12 +13,11 @@ import { useTranslations } from "next-intl";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 import { toast } from "sonner";
 import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
-import type { TaskEvent, TaskStatus, UnifiedTask } from "@/lib/background-tasks/types";
+import type { TaskEvent, TaskProgressEvent, TaskStatus, UnifiedTask } from "@/lib/background-tasks/types";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
 import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import type { SessionInfo, SessionChannelType } from "@/components/chat/chat-sidebar/types";
-import { useSessionSyncNotifier } from "@/lib/hooks/use-session-sync";
 import {
     useSessionSyncStore,
     sessionInfoArrayToSyncData,
@@ -26,6 +25,8 @@ import {
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import { BackgroundRefreshCoordinator } from "@/lib/chat/background-refresh-coordinator";
+import { getMessagesSignature } from "@/lib/chat/message-signature";
 
 interface CharacterFullData {
     id: string;
@@ -83,35 +84,6 @@ const areSessionsEquivalent = (prev: SessionInfo[], next: SessionInfo[]) => {
         }
     }
     return true;
-};
-
-const isTextPart = (part: UIMessage["parts"][number] | undefined | null): part is { type: "text"; text: string } => {
-    return Boolean(
-        part &&
-        part.type === "text" &&
-        typeof (part as { text?: unknown }).text === "string"
-    );
-};
-
-const getMessageSignature = (message: UIMessage) => {
-    const parts = Array.isArray(message.parts) ? message.parts : [];
-    const partTypes = parts.map((part) => (part?.type ? String(part.type) : "text")).join(",");
-    const textDigest = parts
-        .filter(isTextPart)
-        .map((part) => {
-            const text = part.text || "";
-            return `${text.length}:${text.slice(0, 80)}`;
-        })
-        .join("|");
-    return `${message.id || ""}:${message.role}:${partTypes}:${textDigest}`;
-};
-
-const getMessagesSignature = (messages: UIMessage[]) => {
-    if (!messages.length) {
-        return "0";
-    }
-    const lastMessage = messages[messages.length - 1];
-    return `${messages.length}:${getMessageSignature(lastMessage)}`;
 };
 
 // Combined state to ensure sessionId and messages always update atomically
@@ -185,22 +157,19 @@ export default function ChatInterface({
     }, [sessions, sessionId]);
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
 
-    // Refs for debouncing and memoization to prevent UI flashing
-    const reloadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    // Refs for polling and memoization
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const adaptivePollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const adaptivePollBackoffRef = useRef(5000);
     const nextCursorRef = useRef<string | null>(initialNextCursor);
     const filterKeyRef = useRef(`${searchQuery}|${channelFilter}|${dateRange}`);
     const isPollingRef = useRef(false);
-    const lastProgressTimeRef = useRef<number>(0);
-    const lastBackgroundMessageReloadRef = useRef<number>(0);
     const latestSessionIdRef = useRef(sessionId);
-    const isReloadingMessagesRef = useRef(false);
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const sessionListSignatureRef = useRef<string>(sessions.map(getSessionSignature).join("||"));
-    const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
-    const BACKGROUND_MESSAGE_REFRESH_MS = 4000;
+    const currentProcessingRunIdRef = useRef<string | null>(null);
+
+    const refreshCoordinatorRef = useRef<BackgroundRefreshCoordinator | null>(null);
 
     // Keep refs of filters to prevent loadSessions from changing when filters change
     // This prevents the filter change useEffect from running unnecessarily
@@ -211,8 +180,6 @@ export default function ChatInterface({
         latestSessionIdRef.current = sessionId;
     }, [sessionId]);
 
-    // Session sync for cross-component synchronization
-    const sessionSyncNotifier = useSessionSyncNotifier();
     const setSyncSessions = useSessionSyncStore((state) => state.setSessions);
 
     // Sync sessions to global store whenever local sessions change
@@ -329,14 +296,15 @@ export default function ChatInterface({
         }
     }, [character.id]);
 
-    const fetchSessionMessages = useCallback(async (targetSessionId: string) => {
-        const { data, error } = await resilientFetch<{ messages: DBMessage[] }>(
-            `/api/sessions/${targetSessionId}`,
-            { retries: 0 }
-        );
+    const fetchSessionMessages = useCallback(async (targetSessionId: string, mode: "incremental" | "full" = "incremental") => {
+        const endpoint =
+            mode === "full"
+                ? `/api/sessions/${targetSessionId}/messages`
+                : `/api/sessions/${targetSessionId}`;
+        const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(endpoint, { retries: 0 });
         if (error || !data) {
             if (error) {
-                console.error("Failed to fetch session messages:", error);
+                console.error("Failed to fetch session messages:", status, error);
             }
             return null;
         }
@@ -366,57 +334,14 @@ export default function ChatInterface({
         return () => clearTimeout(timeout);
     }, [searchQuery, channelFilter, dateRange, loadSessions]);
 
-    const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
-        if (!targetSessionId || latestSessionIdRef.current !== targetSessionId || isReloadingMessagesRef.current) {
-            return;
-        }
-
-        isReloadingMessagesRef.current = true;
-        try {
-            const uiMessages = await fetchSessionMessages(targetSessionId);
-            if (!uiMessages || latestSessionIdRef.current !== targetSessionId) {
-                return;
-            }
-
-            const nextSignature = getMessagesSignature(uiMessages);
-            if (nextSignature === lastSessionSignatureRef.current) {
-                return;
-            }
-
-            setSessionState((prev) => {
-                if (prev.sessionId !== targetSessionId) {
-                    return prev;
-                }
-                return { sessionId: targetSessionId, messages: uiMessages };
-            });
-            lastSessionSignatureRef.current = nextSignature;
-            refreshSessionTimestamp(targetSessionId);
-        } finally {
-            isReloadingMessagesRef.current = false;
-        }
-    }, [fetchSessionMessages, refreshSessionTimestamp]);
-
-    // Refresh messages when background processing completes
-    const refreshMessages = useCallback(async (targetSessionId: string) => {
+    const applyFetchedMessages = useCallback((targetSessionId: string, uiMessages: UIMessage[]) => {
         if (!targetSessionId || latestSessionIdRef.current !== targetSessionId) {
-            return;
+            return false;
         }
 
-        const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
-            `/api/sessions/${targetSessionId}/messages`,
-            { retries: 0 }
-        );
-        if (error || !data || latestSessionIdRef.current !== targetSessionId) {
-            if (error) {
-                console.error("[Background Processing] Failed to fetch messages:", status, error);
-            }
-            return;
-        }
-
-        const uiMessages = convertDBMessagesToUIMessages(data.messages);
         const nextSignature = getMessagesSignature(uiMessages);
         if (nextSignature === lastSessionSignatureRef.current) {
-            return;
+            return false;
         }
 
         setSessionState((prev) => {
@@ -431,37 +356,62 @@ export default function ChatInterface({
 
         lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
-
-        // Update global store with new message count and timestamp
         notifySessionUpdate(targetSessionId, {
             updatedAt: new Date().toISOString(),
-            messageCount: data.messages?.length || 0,
+            messageCount: uiMessages.length,
         });
+        return true;
     }, [notifySessionUpdate, refreshSessionTimestamp]);
 
-    const maybeReloadBackgroundMessages = useCallback((targetSessionId: string) => {
+    const applyBackgroundRefresh = useCallback(async (
+        targetSessionId: string,
+        mode: "incremental" | "full"
+    ) => {
         if (!targetSessionId || latestSessionIdRef.current !== targetSessionId) {
             return;
         }
 
-        const now = Date.now();
-        if (now - lastBackgroundMessageReloadRef.current < BACKGROUND_MESSAGE_REFRESH_MS) {
+        const uiMessages = await fetchSessionMessages(targetSessionId, mode);
+        if (!uiMessages || latestSessionIdRef.current !== targetSessionId) {
             return;
         }
 
-        if (isReloadingMessagesRef.current) {
+        applyFetchedMessages(targetSessionId, uiMessages);
+    }, [applyFetchedMessages, fetchSessionMessages]);
+
+    useEffect(() => {
+        if (!refreshCoordinatorRef.current) {
+            refreshCoordinatorRef.current = new BackgroundRefreshCoordinator({
+                getActiveSessionId: () => latestSessionIdRef.current,
+                applyRefresh: applyBackgroundRefresh,
+            });
             return;
         }
 
-        lastBackgroundMessageReloadRef.current = now;
-        void reloadSessionMessages(targetSessionId);
-    }, [reloadSessionMessages]);
+        refreshCoordinatorRef.current.dispose();
+        refreshCoordinatorRef.current = new BackgroundRefreshCoordinator({
+            getActiveSessionId: () => latestSessionIdRef.current,
+            applyRefresh: applyBackgroundRefresh,
+        });
+    }, [applyBackgroundRefresh]);
 
-    // Poll for completion of background processing
-    // No hard timeout — uses zombie detection instead to handle truly stuck runs.
-    // SSE task:completed is the authoritative termination signal.
+    const enqueueBackgroundRefresh = useCallback((request: {
+        sessionId: string;
+        mode: "incremental" | "full";
+        reason: "progress" | "started" | "completed" | "resume" | "visibility" | "poll" | "hydrate";
+        runId?: string;
+        eventTimestamp?: string;
+        immediate?: boolean;
+    }) => {
+        refreshCoordinatorRef.current?.enqueue(request);
+    }, []);
+
+
+    // Poll for completion of background processing.
+    // task:completed remains authoritative, but polling recovers missed events.
     const startPollingForCompletion = useCallback((runId: string) => {
-        // Clear any existing polling interval
+        currentProcessingRunIdRef.current = runId;
+
         if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
         }
@@ -477,43 +427,59 @@ export default function ChatInterface({
                 );
                 if (error || !data) {
                     console.error("[Background Processing] Polling error:", error);
-                    return; // Continue polling on error (network might recover)
+                    return;
                 }
 
                 if (data.status === "running") {
                     setIsZombieRun(Boolean(data.isZombie));
-                    // If zombie detected, stop polling — SSE or user action will handle cleanup
                     if (data.isZombie) {
-                        console.warn("[Background Processing] Zombie run detected, stopping polling");
                         if (pollingIntervalRef.current) {
                             clearInterval(pollingIntervalRef.current);
                             pollingIntervalRef.current = null;
                         }
                         return;
                     }
+
                     if (sessionId && document.visibilityState === "visible") {
-                        maybeReloadBackgroundMessages(sessionId);
+                        enqueueBackgroundRefresh({
+                            sessionId,
+                            mode: "incremental",
+                            reason: "poll",
+                            runId,
+                        });
                     }
                     return;
                 }
 
-                // Run completed - fetch updated messages
                 if (pollingIntervalRef.current) {
                     clearInterval(pollingIntervalRef.current);
                     pollingIntervalRef.current = null;
                 }
+
                 setIsProcessingInBackground(false);
-                setProcessingRunId(null);
+                setProcessingRunId((current) => {
+                    if (current !== runId) {
+                        return current;
+                    }
+                    currentProcessingRunIdRef.current = null;
+                    return null;
+                });
                 setIsZombieRun(false);
+
                 if (sessionId) {
-                    await refreshMessages(sessionId);
+                    enqueueBackgroundRefresh({
+                        sessionId,
+                        mode: "full",
+                        reason: "completed",
+                        runId,
+                        immediate: true,
+                    });
                 }
             } catch (error) {
                 console.error("[Background Processing] Polling error:", error);
-                // Continue polling on error (network might recover)
             }
         }, pollIntervalMs);
-    }, [maybeReloadBackgroundMessages, refreshMessages, sessionId]);
+    }, [enqueueBackgroundRefresh, sessionId]);
 
     // Check for active run on mount and when sessionId changes
     useEffect(() => {
@@ -531,26 +497,32 @@ export default function ChatInterface({
                 }
                 return;
             }
-            if (cancelled) return;
-            if (data.hasActiveRun) {
-                setIsProcessingInBackground(true);
-                setProcessingRunId(data.runId!);
-                lastBackgroundMessageReloadRef.current = 0;
-                startPollingForCompletion(data.runId!);
-                maybeReloadBackgroundMessages(sessionId);
-            } else {
-                // No active run on this session — clear any stale state
+
+            if (!data.hasActiveRun || !data.runId) {
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
+                currentProcessingRunIdRef.current = null;
                 setIsZombieRun(false);
+                return;
             }
+
+            setIsProcessingInBackground(true);
+            setProcessingRunId(data.runId);
+            currentProcessingRunIdRef.current = data.runId;
+            startPollingForCompletion(data.runId);
+            enqueueBackgroundRefresh({
+                sessionId,
+                mode: "full",
+                reason: "hydrate",
+                runId: data.runId,
+                immediate: true,
+            });
         }
 
         if (sessionId) {
             checkActiveRun();
         }
 
-        // Cleanup polling on unmount or session change
         return () => {
             cancelled = true;
             if (pollingIntervalRef.current) {
@@ -558,17 +530,25 @@ export default function ChatInterface({
                 pollingIntervalRef.current = null;
             }
         };
-    }, [sessionId, startPollingForCompletion]);
+    }, [enqueueBackgroundRefresh, sessionId, startPollingForCompletion]);
 
     useEffect(() => {
         if (!processingRunId || !sessionId) {
             return;
         }
 
+        currentProcessingRunIdRef.current = processingRunId;
         if (!pollingIntervalRef.current) {
             startPollingForCompletion(processingRunId);
         }
     }, [processingRunId, sessionId, startPollingForCompletion]);
+
+    useEffect(() => {
+        return () => {
+            refreshCoordinatorRef.current?.dispose();
+            refreshCoordinatorRef.current = null;
+        };
+    }, []);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -580,9 +560,15 @@ export default function ChatInterface({
                 return;
             }
             if (processingRunId && sessionId) {
-                lastBackgroundMessageReloadRef.current = 0;
+                currentProcessingRunIdRef.current = processingRunId;
                 startPollingForCompletion(processingRunId);
-                maybeReloadBackgroundMessages(sessionId);
+                enqueueBackgroundRefresh({
+                    sessionId,
+                    mode: "full",
+                    reason: "visibility",
+                    runId: processingRunId,
+                    immediate: true,
+                });
             }
         };
 
@@ -590,7 +576,7 @@ export default function ChatInterface({
         return () => {
             document.removeEventListener("visibilitychange", handleVisibility);
         };
-    }, [maybeReloadBackgroundMessages, processingRunId, sessionId, startPollingForCompletion]);
+    }, [enqueueBackgroundRefresh, processingRunId, sessionId, startPollingForCompletion]);
 
     useEffect(() => {
         if (activeTaskForSession?.type === "scheduled") {
@@ -685,7 +671,7 @@ export default function ChatInterface({
                 setIsLoading(false);
             }
         },
-        [character.id, router, fetchSessionMessages, refreshSessionTimestamp, sessionId, processingRunId, sessionSyncNotifier]
+        [character.id, router, fetchSessionMessages]
     );
 
     const createNewSession = useCallback(
@@ -705,6 +691,8 @@ export default function ChatInterface({
                         pollingIntervalRef.current = null;
                     }
                     
+                    currentProcessingRunIdRef.current = null;
+
                     // Only clear LOCAL state — the old session's run may still be active.
                     // The SSE task:completed event will clear session-sync-store when it truly completes.
                     setIsProcessingInBackground(false);
@@ -828,9 +816,16 @@ export default function ChatInterface({
             }
             setIsProcessingInBackground(false);
             setProcessingRunId(null);
+            currentProcessingRunIdRef.current = null;
             setIsZombieRun(false);
             if (sessionId) {
-                await refreshMessages(sessionId);
+                enqueueBackgroundRefresh({
+                    sessionId,
+                    mode: "full",
+                    reason: "completed",
+                    runId,
+                    immediate: true,
+                });
             }
         } catch (err) {
             console.error("Failed to cancel background run:", err);
@@ -838,7 +833,7 @@ export default function ChatInterface({
         } finally {
             setIsCancellingBackgroundRun(false);
         }
-    }, [processingRunId, refreshMessages, t]);
+    }, [enqueueBackgroundRefresh, processingRunId, sessionId, t]);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -851,48 +846,64 @@ export default function ChatInterface({
 
         const handleTaskCompleted = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
-            if (!detail) return;
+            if (!detail || detail.eventType !== "task:completed") {
+                return;
+            }
 
-            if (detail.eventType === "task:completed" && isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
-                // Debounce the reload to allow final progress update to settle
-                if (reloadDebounceRef.current) {
-                    clearTimeout(reloadDebounceRef.current);
-                }
-
-                reloadDebounceRef.current = setTimeout(() => {
-                    if (sessionId) {
-                        void refreshMessages(sessionId);
-                    }
-                    reloadDebounceRef.current = null;
-                }, 150); // Small delay to let final state settle
-
+            if (isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
                 setActiveRun((current) => {
                     if (current?.runId === detail.task.runId) {
                         return null;
                     }
                     return current;
                 });
+
+                if (processingRunId === detail.task.runId) {
+                    setIsProcessingInBackground(false);
+                    setProcessingRunId(null);
+                    currentProcessingRunIdRef.current = null;
+                }
+
+                enqueueBackgroundRefresh({
+                    sessionId,
+                    mode: "full",
+                    reason: "completed",
+                    runId: detail.task.runId,
+                    immediate: true,
+                });
             }
 
-            if (detail.eventType === "task:completed" && detail.task.characterId === character.id) {
+            if (detail.task.characterId === character.id) {
                 void loadSessions();
             }
         };
 
         const handleTaskStarted = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
-            if (!detail) return;
+            if (!detail || detail.eventType !== "task:started") {
+                return;
+            }
 
-            if (detail.eventType === "task:started" && isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
+            if (isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
                 setActiveRun({
                     runId: detail.task.runId,
                     taskName: "taskName" in detail.task ? detail.task.taskName : undefined,
                     startedAt: detail.task.startedAt,
                 });
-                maybeReloadBackgroundMessages(sessionId);
+                setIsProcessingInBackground(true);
+                setProcessingRunId(detail.task.runId);
+                currentProcessingRunIdRef.current = detail.task.runId;
+                startPollingForCompletion(detail.task.runId);
+                enqueueBackgroundRefresh({
+                    sessionId,
+                    mode: "incremental",
+                    reason: "started",
+                    runId: detail.task.runId,
+                    immediate: true,
+                });
             }
 
-            if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
+            if (detail.task.characterId === character.id) {
                 void loadSessions();
             }
         };
@@ -904,7 +915,14 @@ export default function ChatInterface({
             window.removeEventListener("background-task-completed", handleTaskCompleted);
             window.removeEventListener("background-task-started", handleTaskStarted);
         };
-    }, [character.id, loadSessions, maybeReloadBackgroundMessages, refreshMessages, sessionId]);
+    }, [
+        character.id,
+        enqueueBackgroundRefresh,
+        loadSessions,
+        processingRunId,
+        sessionId,
+        startPollingForCompletion,
+    ]);
 
     useEffect(() => {
         if (!sessionId) {
@@ -922,8 +940,13 @@ export default function ChatInterface({
                     return;
                 }
                 void loadSessions({ silent: true, overrideCursor: null });
-                maybeReloadBackgroundMessages(sessionId);
-            }, 4000);
+                enqueueBackgroundRefresh({
+                    sessionId,
+                    mode: "incremental",
+                    reason: "poll",
+                    runId: currentProcessingRunIdRef.current ?? undefined,
+                });
+            }, 3500);
 
             return () => clearInterval(interval);
         }
@@ -970,15 +993,7 @@ export default function ChatInterface({
                 adaptivePollTimeoutRef.current = null;
             }
         };
-    }, [isChannelSession, isProcessingInBackground, loadSessions, maybeReloadBackgroundMessages, sessionId]);
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (reloadDebounceRef.current) {
-                clearTimeout(reloadDebounceRef.current);
-            }
-        };
-    }, []);
+    }, [enqueueBackgroundRefresh, isChannelSession, isProcessingInBackground, loadSessions, sessionId]);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -990,15 +1005,29 @@ export default function ChatInterface({
             if (!detail || detail.eventType !== "task:progress" || detail.sessionId !== sessionId) {
                 return;
             }
+
+            const progressDetail = detail as TaskProgressEvent;
+            const runId = progressDetail.runId;
+
             if (!isChannelSession && !isProcessingInBackground) {
-                return;
+                setIsProcessingInBackground(true);
             }
-            const now = Date.now();
-            if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) {
-                return;
+
+            if (runId && runId !== processingRunId) {
+                // Adopt the active run from progress to avoid stalling when start events are missed.
+                setProcessingRunId(runId);
+                currentProcessingRunIdRef.current = runId;
+                startPollingForCompletion(runId);
             }
-            lastProgressTimeRef.current = now;
-            maybeReloadBackgroundMessages(sessionId);
+
+            enqueueBackgroundRefresh({
+                sessionId,
+                mode: "incremental",
+                reason: "progress",
+                runId,
+                eventTimestamp: progressDetail.timestamp,
+            });
+
             if (detail.sessionId) {
                 refreshSessionTimestamp(detail.sessionId);
             }
@@ -1008,7 +1037,15 @@ export default function ChatInterface({
         return () => {
             window.removeEventListener("background-task-progress", handleTaskProgress);
         };
-    }, [isChannelSession, isProcessingInBackground, maybeReloadBackgroundMessages, refreshSessionTimestamp, sessionId]);
+    }, [
+        enqueueBackgroundRefresh,
+        isChannelSession,
+        isProcessingInBackground,
+        processingRunId,
+        refreshSessionTimestamp,
+        sessionId,
+        startPollingForCompletion,
+    ]);
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
             const trimmed = newTitle.trim();
