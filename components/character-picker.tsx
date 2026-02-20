@@ -224,6 +224,10 @@ type AgentOverflowMenuProps = {
   onEditPlugins: (c: CharacterSummary) => void;
   onNavigateDashboard: () => void;
   onDuplicate: (characterId: string) => void;
+  addToWorkflowLabel?: string;
+  onAddToWorkflow?: (c: CharacterSummary) => void;
+  showAddToWorkflow?: boolean;
+  canAddToWorkflow?: boolean;
   onDelete: (c: CharacterSummary) => void;
 };
 
@@ -236,6 +240,10 @@ function AgentOverflowMenu({
   onEditPlugins,
   onNavigateDashboard,
   onDuplicate,
+  addToWorkflowLabel,
+  onAddToWorkflow,
+  showAddToWorkflow = true,
+  canAddToWorkflow = true,
   onDelete,
 }: AgentOverflowMenuProps) {
   return (
@@ -285,6 +293,12 @@ function AgentOverflowMenu({
           <Copy className="w-3.5 h-3.5 mr-2" />
           Duplicate
         </DropdownMenuItem>
+        {showAddToWorkflow && (
+          <DropdownMenuItem onSelect={() => onAddToWorkflow?.(character)} disabled={!canAddToWorkflow}>
+            <GitBranchPlus className="w-3.5 h-3.5 mr-2" />
+            {addToWorkflowLabel || "Add to Workflow..."}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => onDelete(character)}
@@ -354,6 +368,7 @@ function AgentCardInWorkflow({
           onEditPlugins={onEditPlugins}
           onNavigateDashboard={() => router.push("/dashboard")}
           onDuplicate={onDuplicate}
+          showAddToWorkflow={false}
           onDelete={onDelete}
         />
 
@@ -489,6 +504,10 @@ export function CharacterPicker() {
   const [newWorkflowInitiatorId, setNewWorkflowInitiatorId] = useState("");
   const [newWorkflowSubagentIds, setNewWorkflowSubagentIds] = useState<Set<string>>(new Set());
   const [workflowMutationBusy, setWorkflowMutationBusy] = useState<string | null>(null);
+  const [addToWorkflowDialogOpen, setAddToWorkflowDialogOpen] = useState(false);
+  const [addToWorkflowCharacter, setAddToWorkflowCharacter] = useState<CharacterSummary | null>(null);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [isAddingToWorkflow, setIsAddingToWorkflow] = useState(false);
 
   // Session sync
   useSessionSync({ enablePolling: true, pollingInterval: 10000 });
@@ -807,6 +826,24 @@ export function CharacterPicker() {
     return filteredCharacters.filter((c) => !workflowAgentIds.has(c.id));
   }, [filteredCharacters, workflowAgentIds]);
 
+  const availableWorkflowsByAgentId = useMemo(() => {
+    const map = new Map<string, WorkflowGroup[]>();
+    for (const character of characters) {
+      map.set(character.id, []);
+    }
+
+    for (const workflow of workflowGroups) {
+      const memberIds = new Set(workflow.members.map((member) => member.agentId));
+      for (const character of characters) {
+        if (!memberIds.has(character.id)) {
+          map.set(character.id, [...(map.get(character.id) || []), workflow]);
+        }
+      }
+    }
+
+    return map;
+  }, [characters, workflowGroups]);
+
   // Filtered workflow groups (matching search)
   const filteredWorkflowGroups = useMemo(() => {
     if (!searchQuery.trim()) return workflowGroups;
@@ -1008,15 +1045,29 @@ export function CharacterPicker() {
   );
 
   const addSubagentToWorkflow = useCallback(
-    async (workflowId: string, agentId: string) => {
+    async (workflowId: string, agentId: string, options?: { silentSuccess?: boolean }) => {
       if (!agentId) return;
-      await mutateWorkflow(workflowId, {
-        action: "addSubagent",
-        agentId,
-      });
-      updateWorkflowDraft(workflowId, { addAgentId: "" });
+      setWorkflowMutationBusy(workflowId);
+      try {
+        const { error } = await resilientPatch(`/api/workflows/${workflowId}`, {
+          action: "addSubagent",
+          agentId,
+        });
+        if (error) throw new Error(error);
+
+        await loadCharacters();
+        if (!options?.silentSuccess) {
+          toast.success(t("workflows.updated"));
+        }
+        updateWorkflowDraft(workflowId, { addAgentId: "" });
+      } catch (error) {
+        console.error("Add sub-agent failed:", error);
+        throw error instanceof Error ? error : new Error(t("workflows.updateFailed"));
+      } finally {
+        setWorkflowMutationBusy(null);
+      }
     },
-    [mutateWorkflow, updateWorkflowDraft]
+    [loadCharacters, t, updateWorkflowDraft]
   );
 
   const setWorkflowMainAgent = useCallback(
@@ -1176,8 +1227,57 @@ export function CharacterPicker() {
     setDeleteDialogOpen(true);
   };
 
-  const handleDuplicate = (_characterId: string) => {
-    toast("Duplicate feature coming soon");
+  const openAddToWorkflowDialog = useCallback(
+    (character: CharacterSummary) => {
+      const available = availableWorkflowsByAgentId.get(character.id) || [];
+      if (available.length === 0) {
+        toast.error(t("workflows.addToWorkflowNoAvailable"));
+        return;
+      }
+      setAddToWorkflowCharacter(character);
+      setSelectedWorkflowId(available[0].id);
+      setAddToWorkflowDialogOpen(true);
+    },
+    [availableWorkflowsByAgentId]
+  );
+
+  const closeAddToWorkflowDialog = useCallback(() => {
+    setAddToWorkflowDialogOpen(false);
+    setAddToWorkflowCharacter(null);
+    setSelectedWorkflowId("");
+  }, []);
+
+  const confirmAddToWorkflow = useCallback(async () => {
+    if (!addToWorkflowCharacter || !selectedWorkflowId) return;
+    setIsAddingToWorkflow(true);
+    try {
+      await addSubagentToWorkflow(selectedWorkflowId, addToWorkflowCharacter.id, {
+        silentSuccess: true,
+      });
+      toast.success(t("workflows.addToWorkflowSuccess"));
+      closeAddToWorkflowDialog();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("workflows.updateFailed"));
+    } finally {
+      setIsAddingToWorkflow(false);
+    }
+  }, [addSubagentToWorkflow, addToWorkflowCharacter, closeAddToWorkflowDialog, selectedWorkflowId, t]);
+
+  const handleDuplicate = async (characterId: string) => {
+    try {
+      const { data, error } = await resilientPost<{ character: { id: string } }>(
+        `/api/characters/${characterId}/duplicate`,
+        {},
+        { retries: 0 }
+      );
+      if (error || !data?.character) throw new Error(error || "Unknown error");
+
+      await loadCharacters();
+      toast.success(t("workflows.duplicateSuccess"));
+    } catch (error) {
+      console.error("Failed to duplicate agent:", error);
+      toast.error(t("workflows.duplicateFailed"));
+    }
   };
 
   // Delete character
@@ -1544,12 +1644,18 @@ export function CharacterPicker() {
                                 workflowMutationBusy === wf.id ||
                                 !workflowDrafts[wf.id]?.addAgentId
                               }
-                              onClick={() =>
-                                addSubagentToWorkflow(
-                                  wf.id,
-                                  workflowDrafts[wf.id]?.addAgentId || ""
-                                )
-                              }
+                              onClick={async () => {
+                                try {
+                                  await addSubagentToWorkflow(
+                                    wf.id,
+                                    workflowDrafts[wf.id]?.addAgentId || ""
+                                  );
+                                } catch (error) {
+                                  toast.error(
+                                    error instanceof Error ? error.message : t("workflows.updateFailed")
+                                  );
+                                }
+                              }}
                             >
                               <UserPlus className="mr-1 h-3.5 w-3.5" />
                               {t("workflows.addSubagent")}
@@ -1736,6 +1842,9 @@ export function CharacterPicker() {
                   onEditPlugins={openPluginEditor}
                   onNavigateDashboard={() => router.push("/dashboard")}
                   onDuplicate={handleDuplicate}
+                  addToWorkflowLabel={t("workflows.addToWorkflow")}
+                  onAddToWorkflow={openAddToWorkflowDialog}
+                  canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
                   onDelete={openDeleteDialog}
                 />
 
@@ -2290,6 +2399,74 @@ export function CharacterPicker() {
                 onComplete={saveMcpTools}
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addToWorkflowDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          closeAddToWorkflowDialog();
+          return;
+        }
+        setAddToWorkflowDialogOpen(true);
+      }}>
+        <DialogContent className="sm:max-w-md bg-terminal-cream border border-terminal-border/60 shadow-[0_18px_48px_rgba(23,33,17,0.14)]">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-terminal-dark flex items-center gap-2">
+              <GitBranchPlus className="w-5 h-5 text-terminal-green" />
+              {t("workflows.addToWorkflowDialogTitle", {
+                name: addToWorkflowCharacter?.displayName || addToWorkflowCharacter?.name || "Agent",
+              })}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-terminal-muted">
+              {t("workflows.addToWorkflowDialogDescription")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2 rounded-lg border border-terminal-border/50 bg-[linear-gradient(160deg,rgba(255,255,255,0.82),rgba(236,242,226,0.62))] p-3">
+            <Label className="font-mono text-xs text-terminal-dark mb-1.5 block">
+              {t("workflows.addToWorkflowSelectLabel")}
+            </Label>
+            <select
+              value={selectedWorkflowId}
+              onChange={(event) => setSelectedWorkflowId(event.target.value)}
+              className="h-9 w-full rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
+              disabled={isAddingToWorkflow}
+            >
+              {(availableWorkflowsByAgentId.get(addToWorkflowCharacter?.id || "") || []).map((workflow) => (
+                <option key={workflow.id} value={workflow.id}>
+                  {workflow.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <AnimatedButton
+              variant="outline"
+              className="font-mono"
+              onClick={closeAddToWorkflowDialog}
+              disabled={isAddingToWorkflow}
+            >
+              {tc("cancel")}
+            </AnimatedButton>
+            <AnimatedButton
+              className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono"
+              onClick={confirmAddToWorkflow}
+              disabled={isAddingToWorkflow || !selectedWorkflowId}
+            >
+              {isAddingToWorkflow ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t("workflows.addToWorkflowAdding")}
+                </>
+              ) : (
+                <>
+                  <GitBranchPlus className="w-4 h-4" />
+                  {t("workflows.addToWorkflowCta")}
+                </>
+              )}
+            </AnimatedButton>
           </div>
         </DialogContent>
       </Dialog>
