@@ -354,4 +354,5 @@ describe("foreground execution", () => {
 
         expect(result.status).toBe("no_folders");
     });
+
 });
