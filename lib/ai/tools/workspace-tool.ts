@@ -11,13 +11,15 @@
  */
 
 import { tool, jsonSchema } from "ai";
-import { execSync } from "child_process";
+import { execFile } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { promisify } from "util";
 import { getSession, updateSession } from "@/lib/db/queries";
 import type { WorkspaceInfo } from "@/lib/workspace/types";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { addSyncFolder, removeSyncFolder, setSyncFolderStatus } from "@/lib/vectordb/sync-service";
+import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,8 +78,67 @@ function isValidBranchName(name: string): boolean {
   );
 }
 
+const execFileAsync = promisify(execFile);
+const GIT_TIMEOUT_MS = 30_000;
+const GIT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
 function gitExecOptions(cwd: string) {
-  return { cwd, encoding: "utf-8" as const, timeout: 30000 };
+  return {
+    cwd,
+    encoding: "utf-8" as const,
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_OUTPUT_BYTES,
+  };
+}
+
+async function runGitCommand(cwd: string, args: string[], input?: string): Promise<string> {
+  if (typeof input === "string") {
+    const fb = await spawnWithFileCapture(
+      "git",
+      args,
+      cwd,
+      process.env as NodeJS.ProcessEnv,
+      GIT_TIMEOUT_MS,
+      GIT_MAX_OUTPUT_BYTES,
+      input,
+    );
+    const exitCode = fb.exitCode ?? 1;
+    if (fb.timedOut) {
+      throw new Error(`Git command timed out after ${GIT_TIMEOUT_MS}ms`);
+    }
+    if (exitCode !== 0) {
+      const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+      throw new Error(`Git command failed: ${detail}`);
+    }
+    return fb.stdout;
+  }
+
+  try {
+    const { stdout } = await execFileAsync("git", args, gitExecOptions(cwd));
+    return stdout;
+  } catch (error) {
+    if (isEBADFError(error) && process.platform === "darwin") {
+      console.warn("[workspace tool] git execFile EBADF - retrying with file-capture fallback");
+      const fb = await spawnWithFileCapture(
+        "git",
+        args,
+        cwd,
+        process.env as NodeJS.ProcessEnv,
+        GIT_TIMEOUT_MS,
+        GIT_MAX_OUTPUT_BYTES,
+      );
+      const exitCode = fb.exitCode ?? 1;
+      if (fb.timedOut) {
+        throw new Error(`Git command timed out after ${GIT_TIMEOUT_MS}ms`);
+      }
+      if (exitCode !== 0) {
+        const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+        throw new Error(`Git command failed: ${detail}`);
+      }
+      return fb.stdout;
+    }
+    throw error;
+  }
 }
 
 /** Slugify a branch name for use as a directory name */
@@ -244,10 +305,7 @@ async function handleCreate(
   let resolvedBaseBranch = baseBranch;
   if (!resolvedBaseBranch) {
     try {
-      resolvedBaseBranch = execSync(
-        "git branch --show-current",
-        gitExecOptions(repoPath)
-      ).trim();
+      resolvedBaseBranch = (await runGitCommand(repoPath, ["branch", "--show-current"])).trim();
     } catch {
       resolvedBaseBranch = "main";
     }
@@ -277,19 +335,13 @@ async function handleCreate(
 
   // Create the git worktree
   try {
-    execSync(
-      `git worktree add -b "${branch}" "${worktreePath}" "${resolvedBaseBranch}"`,
-      gitExecOptions(repoPath)
-    );
+    await runGitCommand(repoPath, ["worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch]);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     // If branch already exists, try without -b
     if (errMsg.includes("already exists")) {
       try {
-        execSync(
-          `git worktree add "${worktreePath}" "${branch}"`,
-          gitExecOptions(repoPath)
-        );
+        await runGitCommand(repoPath, ["worktree", "add", worktreePath, branch]);
       } catch (err2) {
         return {
           status: "error" as const,
@@ -388,10 +440,7 @@ async function handleStatus(sessionId: string) {
     worktreeExists = true;
     try {
       // Check uncommitted changes first
-      const porcelain = execSync(
-        "git status --porcelain",
-        gitExecOptions(workspaceInfo.worktreePath)
-      );
+      const porcelain = await runGitCommand(workspaceInfo.worktreePath, ["status", "--porcelain"]);
       if (porcelain.trim()) {
         changedFileList = porcelain.trim().split("\n").filter(Boolean).map((line) => {
           const statusCode = line.substring(0, 2).trim();
@@ -406,9 +455,12 @@ async function handleStatus(sessionId: string) {
       } else if (workspaceInfo.baseBranch && isValidBranchName(workspaceInfo.baseBranch)) {
         // No uncommitted changes — check committed changes ahead of baseBranch
         try {
-          const branchDiff = execSync(
-            `git diff --name-status ${workspaceInfo.baseBranch}...HEAD`,
-            gitExecOptions(workspaceInfo.worktreePath)
+          const branchDiff = (
+            await runGitCommand(workspaceInfo.worktreePath, [
+              "diff",
+              "--name-status",
+              `${workspaceInfo.baseBranch}...HEAD`,
+            ])
           ).trim();
           if (branchDiff) {
             changedFileList = branchDiff.split("\n").filter(Boolean).map((line) => {
@@ -519,19 +571,15 @@ async function handleDelete(sessionId: string) {
   // 2. Remove git worktree
   if (workspaceInfo.worktreePath && isValidPath(workspaceInfo.worktreePath) && fs.existsSync(workspaceInfo.worktreePath)) {
     try {
-      const commonDir = execSync(
-        "git rev-parse --git-common-dir",
-        gitExecOptions(workspaceInfo.worktreePath)
+      const commonDir = (
+        await runGitCommand(workspaceInfo.worktreePath, ["rev-parse", "--git-common-dir"])
       ).trim();
       const mainRepoDir = fs.realpathSync(
         commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
           ? commonDir.replace(/[/\\]\.git$/, "")
           : commonDir + "/.."
       );
-      execSync(
-        `git worktree remove "${workspaceInfo.worktreePath}" --force`,
-        gitExecOptions(mainRepoDir)
-      );
+      await runGitCommand(mainRepoDir, ["worktree", "remove", workspaceInfo.worktreePath, "--force"]);
     } catch (err) {
       console.error("[workspace] Failed to remove git worktree (continuing):", err);
     }

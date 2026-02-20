@@ -26,7 +26,6 @@ import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
 import { compactIfNeeded } from "@/lib/sessions/compaction";
 import {
   ContextWindowManager,
-  getContextWindowLimit,
   type ContextWindowStatus as ManagedContextWindowStatus,
 } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
@@ -246,6 +245,10 @@ registerAllTools();
 
 // Check if Styly AI API is configured (for tool discovery instructions)
 const hasStylyApiKey = () => !!process.env.STYLY_AI_API_KEY;
+
+// Feature-flagged safety projection for task progress SSE payloads.
+// Default is OFF to preserve full progressive tool results.
+const ENABLE_PROGRESS_CONTENT_LIMITER = process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
 
 // Helper to convert relative image URLs to base64 data URIs for AI providers
 async function imageUrlToBase64(imageUrl: string): Promise<string> {
@@ -2352,15 +2355,14 @@ export async function POST(req: Request) {
           });
 
           if (progressRunId && progressType) {
-            // Limit progressContent before emitting to prevent oversized payloads
-            // from being serialized into SSE events. The full partsSnapshot is
-            // already persisted to the database above — this only affects the
-            // real-time progress display sent to clients.
-            const progressLimit = limitProgressContent(partsSnapshot);
-            if (progressLimit.wasTruncated) {
+            const progressLimit = ENABLE_PROGRESS_CONTENT_LIMITER
+              ? limitProgressContent(partsSnapshot)
+              : null;
+
+            if (progressLimit?.wasTruncated) {
               console.log(
                 `[CHAT API] Progress content truncated: ` +
-                `~${progressLimit.originalTokens.toLocaleString()} → ~${progressLimit.finalTokens.toLocaleString()} tokens` +
+                `~${progressLimit.originalTokens.toLocaleString()} -> ~${progressLimit.finalTokens.toLocaleString()} tokens` +
                 (progressLimit.hardCapped ? " (hard cap summary applied)" : "")
               );
             }
@@ -2377,12 +2379,12 @@ export async function POST(req: Request) {
                 characterId: eventCharacterId,
                 sessionId,
                 assistantMessageId: streamingState.messageId,
-                progressContent: progressLimit.content as DBContentPart[],
-                progressContentLimited: progressLimit.wasTruncated,
-                progressContentOriginalTokens: progressLimit.originalTokens,
-                progressContentFinalTokens: progressLimit.finalTokens,
-                progressContentTruncatedParts: progressLimit.truncatedParts,
-                progressContentProjectionOnly: true,
+                progressContent: (progressLimit?.content ?? partsSnapshot) as DBContentPart[],
+                progressContentLimited: progressLimit?.wasTruncated,
+                progressContentOriginalTokens: progressLimit?.originalTokens,
+                progressContentFinalTokens: progressLimit?.finalTokens,
+                progressContentTruncatedParts: progressLimit?.truncatedParts,
+                progressContentProjectionOnly: progressLimit ? true : undefined,
                 startedAt: nowISO(),
               }
             );
@@ -2450,18 +2452,10 @@ export async function POST(req: Request) {
       `${contextCheck.status.formatted.percentage})`
     );
 
-    const modelContextWindowLimit = getContextWindowLimit(currentModelId, currentProvider);
-    const dynamicStreamBudgetTokens = Math.max(
-      1,
-      Math.floor(modelContextWindowLimit * 0.75 - contextCheck.status.currentTokens)
-    );
-    const streamToolResultBudgetTokens = Math.min(
-      MAX_STREAM_TOOL_RESULT_TOKENS,
-      dynamicStreamBudgetTokens
-    );
+    const streamToolResultBudgetTokens = MAX_STREAM_TOOL_RESULT_TOKENS;
     console.log(
       `[CHAT API] Tool-result stream budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens ` +
-      `(model=${modelContextWindowLimit.toLocaleString()}, inUse=${contextCheck.status.currentTokens.toLocaleString()})`
+      `(fixed single-result limit)`
     );
 
     // If compaction was performed, log the result
