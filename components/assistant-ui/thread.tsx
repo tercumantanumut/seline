@@ -1335,6 +1335,13 @@ const Composer: FC<{
     };
   }, [showSkillPicker]);
 
+  const openSpotlightSkillPicker = useCallback(() => {
+    setSkillPickerMode("spotlight");
+    setShowSkillPicker(true);
+    setSkillPickerQuery("");
+    setSelectedSkillIndex(0);
+  }, []);
+
   useEffect(() => {
     const handleSpotlightShortcut = (event: KeyboardEvent) => {
       const textarea = inputRef.current;
@@ -1352,17 +1359,14 @@ const Composer: FC<{
       }
 
       event.preventDefault();
-      setSkillPickerMode("spotlight");
-      setShowSkillPicker(true);
-      setSkillPickerQuery("");
-      setSelectedSkillIndex(0);
+      openSpotlightSkillPicker();
     };
 
     window.addEventListener("keydown", handleSpotlightShortcut);
     return () => {
       window.removeEventListener("keydown", handleSpotlightShortcut);
     };
-  }, [isApplePlatform]);
+  }, [isApplePlatform, openSpotlightSkillPicker]);
 
   useEffect(() => {
     if (!showSkillPicker) {
@@ -2176,6 +2180,25 @@ const Composer: FC<{
                 </TooltipContent>
               </Tooltip>
             )}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={openSpotlightSkillPicker}
+                  disabled={isLoadingSkills || skills.length === 0 || mcpStatus.isReloading}
+                  className="size-8 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+                  aria-label={`Open skill picker (${spotlightShortcutHint})`}
+                >
+                  <SearchIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
+                {`Open skills (${spotlightShortcutHint})`}
+              </TooltipContent>
+            </Tooltip>
 
             {/* Model Bag - Session Model Override */}
             {sessionId && (
