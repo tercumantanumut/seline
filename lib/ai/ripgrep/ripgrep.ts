@@ -8,6 +8,7 @@
 
 import { spawn } from "child_process";
 import { rgPath } from "@vscode/ripgrep";
+import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 
 export interface RipgrepMatch {
     file: string;
@@ -171,92 +172,96 @@ export async function searchWithRipgrep(options: RipgrepOptions): Promise<Ripgre
 
     console.log(`[ripgrep] Searching with: rg ${args.join(" ")}`);
 
-    return new Promise((resolve, reject) => {
+    // Parse ripgrep JSON output into matches
+    const parseRgOutput = (stdout: string, stderr: string, exitCode: number | null): RipgrepSearchResult => {
+        if (exitCode === 2) {
+            throw new Error(`ripgrep error: ${stderr}`);
+        }
+
         const results: RipgrepMatch[] = [];
         const contextBuffer: Map<string, { before: string[]; after: string[] }> = new Map();
         let currentFile = "";
+        const lines = stdout.split("\n").filter((line) => line.trim());
+
+        for (const line of lines) {
+            try {
+                const json = JSON.parse(line) as RipgrepJsonLine;
+
+                if (json.type === "begin") {
+                    currentFile = json.data.path.text;
+                    contextBuffer.set(currentFile, { before: [], after: [] });
+                } else if (json.type === "context") {
+                    const ctx = contextBuffer.get(currentFile);
+                    if (ctx) {
+                        ctx.before.push(json.data.lines.text.trimEnd());
+                        if (ctx.before.length > contextLines) {
+                            ctx.before.shift();
+                        }
+                    }
+                } else if (json.type === "match") {
+                    const ctx = contextBuffer.get(currentFile);
+                    const match: RipgrepMatch = {
+                        file: json.data.path.text,
+                        line: json.data.line_number,
+                        column: json.data.submatches[0]?.start ?? 0,
+                        text: json.data.lines.text.trimEnd(),
+                        beforeContext: ctx?.before.slice() || [],
+                        afterContext: [],
+                    };
+                    results.push(match);
+                    if (ctx) { ctx.before = []; }
+                }
+            } catch {
+                // Skip invalid JSON lines
+            }
+        }
+
+        const limitedResults = results.slice(0, maxResults);
+        const wasTruncated = results.length > maxResults;
+
+        console.log(`[ripgrep] Found ${results.length} matches, returning ${limitedResults.length}`);
+        return { matches: limitedResults, totalMatches: results.length, wasTruncated };
+    };
+
+    // Try normal spawn; fall back to file-capture on EBADF (macOS Electron utilityProcess)
+    return new Promise((resolve, reject) => {
+        let rg: ReturnType<typeof spawn>;
+        try {
+            rg = spawn(rgPath, args);
+        } catch (spawnErr) {
+            if (isEBADFError(spawnErr) && process.platform === "darwin") {
+                console.warn("[ripgrep] spawn() threw EBADF – retrying with file-capture fallback");
+                spawnWithFileCapture(rgPath, args, paths[0] || process.cwd(), process.env as NodeJS.ProcessEnv, 30_000, 10 * 1024 * 1024)
+                    .then((fb) => resolve(parseRgOutput(fb.stdout, fb.stderr, fb.exitCode)))
+                    .catch(reject);
+                return;
+            }
+            reject(spawnErr);
+            return;
+        }
+
         let stdout = "";
         let stderr = "";
 
-        const rg = spawn(rgPath, args);
-
-        rg.stdout.on("data", (data: Buffer) => {
-            stdout += data.toString();
-        });
-
-        rg.stderr.on("data", (data: Buffer) => {
-            stderr += data.toString();
-        });
+        rg.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
+        rg.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
 
         rg.on("close", (code) => {
-            // ripgrep returns:
-            // 0 = matches found
-            // 1 = no matches (not an error)
-            // 2 = error
-            if (code === 2) {
-                console.error("[ripgrep] Error:", stderr);
-                reject(new Error(`ripgrep error: ${stderr}`));
-                return;
+            try {
+                resolve(parseRgOutput(stdout, stderr, code));
+            } catch (err) {
+                reject(err);
             }
-
-            // Parse JSON output
-            const lines = stdout.split("\n").filter((line) => line.trim());
-
-            for (const line of lines) {
-                try {
-                    const json = JSON.parse(line) as RipgrepJsonLine;
-
-                    if (json.type === "begin") {
-                        currentFile = json.data.path.text;
-                        contextBuffer.set(currentFile, { before: [], after: [] });
-                    } else if (json.type === "context") {
-                        // Context lines before/after matches
-                        const ctx = contextBuffer.get(currentFile);
-                        if (ctx) {
-                            // We'll associate context with the nearest match later
-                            // For now, just collect them as before context for next match
-                            ctx.before.push(json.data.lines.text.trimEnd());
-                            // Keep only last N context lines
-                            if (ctx.before.length > contextLines) {
-                                ctx.before.shift();
-                            }
-                        }
-                    } else if (json.type === "match") {
-                        const ctx = contextBuffer.get(currentFile);
-                        const match: RipgrepMatch = {
-                            file: json.data.path.text,
-                            line: json.data.line_number,
-                            column: json.data.submatches[0]?.start ?? 0,
-                            text: json.data.lines.text.trimEnd(),
-                            beforeContext: ctx?.before.slice() || [],
-                            afterContext: [], // Will be filled by subsequent context lines
-                        };
-
-                        results.push(match);
-
-                        // Clear before context for next match
-                        if (ctx) {
-                            ctx.before = [];
-                        }
-                    }
-                } catch {
-                    // Skip invalid JSON lines
-                }
-            }
-
-            // Limit results
-            const limitedResults = results.slice(0, maxResults);
-            const wasTruncated = results.length > maxResults;
-
-            console.log(`[ripgrep] Found ${results.length} matches, returning ${limitedResults.length}`);
-            resolve({
-                matches: limitedResults,
-                totalMatches: results.length,
-                wasTruncated,
-            });
         });
 
         rg.on("error", (err) => {
+            if (isEBADFError(err) && process.platform === "darwin") {
+                console.warn("[ripgrep] spawn EBADF on error event – retrying with file-capture fallback");
+                spawnWithFileCapture(rgPath, args, paths[0] || process.cwd(), process.env as NodeJS.ProcessEnv, 30_000, 10 * 1024 * 1024)
+                    .then((fb) => resolve(parseRgOutput(fb.stdout, fb.stderr, fb.exitCode)))
+                    .catch(reject);
+                return;
+            }
             console.error("[ripgrep] Spawn error:", err);
             reject(err);
         });

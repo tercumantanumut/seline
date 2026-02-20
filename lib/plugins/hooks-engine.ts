@@ -14,6 +14,7 @@
  */
 
 import { exec } from "child_process";
+import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 import type {
   HookEventType,
   HookEntry,
@@ -232,15 +233,69 @@ async function executeCommandHook(
   const startTime = Date.now();
   const inputJson = JSON.stringify(input);
 
+  const hookEnv = {
+    ...process.env,
+    CLAUDE_PLUGIN_ROOT: pluginRoot,
+  };
+
+  // EBADF fallback helper for hooks
+  const runWithFileCapture = async (): Promise<HookExecutionResult> => {
+    console.warn("[Hooks] exec() EBADF – retrying with file-capture fallback");
+    try {
+      // exec() uses a shell, so pass the whole command as a single shell arg.
+      // stdinData provides the JSON input that would normally go to stdin.
+      const fb = await spawnWithFileCapture(
+        "/bin/sh", ["-c", resolvedCommand],
+        pluginRoot || process.cwd(),
+        hookEnv as NodeJS.ProcessEnv,
+        timeoutMs,
+        1024 * 1024,
+        inputJson,
+      );
+      const exitCode = fb.exitCode ?? 1;
+      const durationMs = Date.now() - startTime;
+      return {
+        success: exitCode === 0,
+        exitCode,
+        stdout: fb.stdout.slice(0, 10000),
+        stderr: fb.stderr.slice(0, 10000),
+        durationMs,
+        blocked: exitCode === 2,
+        blockReason: exitCode === 2 ? fb.stderr.trim() : undefined,
+      };
+    } catch (fbErr) {
+      return {
+        success: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: `Hook EBADF fallback failed: ${fbErr instanceof Error ? fbErr.message : fbErr}`,
+        durationMs: Date.now() - startTime,
+      };
+    }
+  };
+
   return new Promise<HookExecutionResult>((resolve) => {
-    const child = exec(resolvedCommand, {
-      timeout: timeoutMs,
-      maxBuffer: 1024 * 1024, // 1MB
-      env: {
-        ...process.env,
-        CLAUDE_PLUGIN_ROOT: pluginRoot,
-      },
-    });
+    let child;
+    try {
+      child = exec(resolvedCommand, {
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024, // 1MB
+        env: hookEnv,
+      });
+    } catch (err) {
+      if (isEBADFError(err) && process.platform === "darwin") {
+        runWithFileCapture().then(resolve);
+        return;
+      }
+      resolve({
+        success: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: `Hook execution error: ${err instanceof Error ? err.message : "Unknown error"}`,
+        durationMs: Date.now() - startTime,
+      });
+      return;
+    }
 
     let stdout = "";
     let stderr = "";
@@ -275,6 +330,10 @@ async function executeCommandHook(
     });
 
     child.on("error", (err) => {
+      if (isEBADFError(err) && process.platform === "darwin") {
+        runWithFileCapture().then(resolve);
+        return;
+      }
       resolve({
         success: false,
         exitCode: 1,
