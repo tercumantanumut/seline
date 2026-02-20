@@ -210,7 +210,7 @@
     "empty": "Henüz ajan yok. Başlamak için ilk ajanınızı yapılandırın.",
     "emptyTitle": "İlk Ajanınızı Oluşturun",
     "emptyDescription": "Ajanlar, belirli görevlere özelleştirilmiş AI asistanlarıdır. Kişiselleştirilmiş yardım almak için bir tane oluşturun.",
-    "searchPlaceholder": "Ajanları ada, amaca veya araçlara göre arayın...",
+    "searchPlaceholder": "Ajanlar ve is akislarinda ara...",
     "noResults": "Aramanızla eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Senkronize Klasörler",
@@ -240,8 +240,12 @@
       "minCharsHint": "En az 10 karakter",
       "descriptionQualityHint": "İpucu: daha iyi sonuçlar için hedef, kitle ve tonu ekleyin."
     },
+    "agents": {
+      "sectionTitle": "Ajanlar"
+    },
     "workflows": {
       "sectionTitle": "İş Akışları",
+      "newWorkflow": "+ Yeni Is Akisi",
       "create": "İş Akışı Oluştur",
       "createDescription": "Karakter seçicideki mevcut ajanlardan bir iş akışı oluşturun.",
       "nameLabel": "İş Akışı Adı",
@@ -259,6 +263,21 @@
       "updated": "İş akışı güncellendi",
       "deleted": "İş akışı silindi",
       "updateFailed": "İş akışı güncellenemedi",
+      "empty": "Henuz is akisi yok. Ilk is akisinizi olusturun.",
+      "emptySearch": "Aramanizla eslesen is akisi bulunamadi.",
+      "createFirstAgentHint": "Once bagimsiz bir ajan olusturun",
+      "agentDeleted": "Ajan silinmis",
+      "missingInitiatorActionsDisabled": "Baslatan ajan silindigi icin Calistir ve Klasor Paylas kullanilamaz.",
+      "confirmRemoveSubagentTitle": "Alt ajan kaldirilsin mi?",
+      "confirmRemoveSubagentDescription": "Bu islem ajani is akisindan cikarir, ajani silmez.",
+      "confirmDeleteTitle": "Is akisi silinsin mi?",
+      "confirmDeleteDescription": "Uyeler bagimsiz ajan olarak kalir.",
+      "confirmAction": "Onayla",
+      "errors": {
+        "agentAlreadyActiveWorkflow": "Ajan zaten etkin bir is akisina ait.",
+        "agentAlreadyInWorkflow": "Ajan zaten bu is akisinda.",
+        "archivedWorkflowReadOnly": "Arsivlenmis is akisinda degisiklik yapilamaz."
+      },
       "agentCount": "{count, plural, one {# ajan} other {# ajan}}",
       "expand": "Ajanları göster",
       "collapse": "Ajanları gizle",
