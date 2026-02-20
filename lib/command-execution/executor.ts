@@ -1,17 +1,25 @@
 /**
  * Command Executor
- * 
+ *
  * Safe command execution using child_process.spawn.
  * Implements security measures:
  * - Shell execution (shell: true) - Required for Windows cmd.exe compatibility
  * - Sandboxed environment variables
  * - Timeout and output size limits
  * - Integration with validation and logging
+ *
+ * EBADF note: On macOS inside Electron's utilityProcess, creating stdio pipes
+ * can fail with EBADF (bad file descriptor).  When that happens we fall back to
+ * spawnWithFileCapture(), which runs the command via /bin/sh with stdio set to
+ * ["ignore","ignore","ignore"] and redirects output to private temp files.
+ * Pattern from openclaw/openclaw#4932 (Oceanswave:fix/async-file-capture-ebadf-fallback).
  */
 
 import { spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
+import { mkdtemp, readFile, rm } from "fs/promises";
 import { join } from "path";
+import { tmpdir } from "os";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
 import { saveTerminalLog } from "./log-manager";
@@ -89,6 +97,114 @@ function buildSafeEnvironment(): Record<string, string | undefined> {
         // Explicitly unset dangerous vars by not including them
         // NODE_OPTIONS, LD_PRELOAD, etc. are NOT passed
     };
+}
+
+// ── EBADF fallback helpers ────────────────────────────────────────────────────
+
+/**
+ * Returns true when the error is an EBADF (bad file descriptor) failure.
+ * On macOS in Electron's utilityProcess, creating stdio pipes triggers EBADF.
+ */
+export function isEBADFError(error: Error): boolean {
+    return (error as NodeJS.ErrnoException).code === "EBADF"
+        || error.message.includes("EBADF");
+}
+
+/**
+ * Shell-escape a single token for embedding inside single quotes.
+ * e.g.  hello'world  →  'hello'\''world'
+ */
+function shQuote(s: string): string {
+    return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * Spawn a command with stdout/stderr captured to temp files instead of pipes.
+ *
+ * On macOS in Electron's utilityProcess, creating stdio pipes fails with EBADF.
+ * This fallback avoids all pipe creation by using stdio:["ignore","ignore","ignore"]
+ * and redirecting command output to private temp files via /bin/sh, then reading
+ * those files once the process exits.
+ *
+ * The temp directory is cleaned up asynchronously after results are read.
+ */
+export async function spawnWithFileCapture(
+    command: string,
+    args: string[],
+    cwd: string,
+    env: NodeJS.ProcessEnv,
+    timeout: number,
+    maxOutputSize: number,
+): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+    timedOut: boolean;
+}> {
+    const tmpDir = await mkdtemp(join(tmpdir(), "seline-exec-"));
+    const outFile = join(tmpDir, "out");
+    const errFile = join(tmpDir, "err");
+
+    try {
+        // Build a shell command that redirects output to the temp files.
+        // Every token is single-quote escaped so arguments with spaces or
+        // special characters are handled safely.
+        const shellCmd = [command, ...args].map(shQuote).join(" ")
+            + ` >${shQuote(outFile)} 2>${shQuote(errFile)}`;
+
+        let timedOut = false;
+
+        const { exitCode, signal } = await new Promise<{
+            exitCode: number | null;
+            signal: NodeJS.Signals | null;
+        }>((resolve, reject) => {
+            const child = spawn("/bin/sh", ["-c", shellCmd], {
+                cwd,
+                env,
+                // No pipes at all — this is the whole point of the fallback.
+                stdio: ["ignore", "ignore", "ignore"],
+                windowsHide: true,
+            });
+
+            let settled = false;
+            const settle = (v: { exitCode: number | null; signal: NodeJS.Signals | null }) => {
+                if (!settled) { settled = true; resolve(v); }
+            };
+
+            const timer = setTimeout(() => {
+                timedOut = true;
+                try { child.kill("SIGTERM"); } catch { /* already dead */ }
+                setTimeout(() => { try { child.kill("SIGKILL"); } catch { /* ok */ } }, 5000);
+            }, timeout);
+
+            child.on("error", (err) => {
+                clearTimeout(timer);
+                if (!settled) { settled = true; reject(err); }
+            });
+
+            child.on("close", (code, sig) => {
+                clearTimeout(timer);
+                settle({ exitCode: code, signal: sig as NodeJS.Signals | null });
+            });
+        });
+
+        const [rawOut, rawErr] = await Promise.all([
+            readFile(outFile, "utf-8").catch(() => ""),
+            readFile(errFile, "utf-8").catch(() => ""),
+        ]);
+
+        return {
+            stdout: rawOut.slice(0, maxOutputSize),
+            stderr: rawErr.slice(0, maxOutputSize),
+            exitCode,
+            signal,
+            timedOut,
+        };
+    } finally {
+        // Non-blocking cleanup; errors are silently ignored.
+        rm(tmpDir, { recursive: true, force: true }).catch(() => { /* noop */ });
+    }
 }
 
 // ── Background Process Registry ──────────────────────────────────────────────
@@ -233,15 +349,14 @@ export async function startBackgroundProcess(
         const child = spawn(finalCommand, finalArgs, {
             cwd: resolvedCwd,
             shell: needsWindowsShell(finalCommand),
-            // Use "pipe" for stdin instead of "ignore" to prevent spawn EBADF in
-            // Electron's utilityProcess environment (where "ignore" opens /dev/null
-            // in a way that fails with EBADF). We close stdin immediately to send
-            // EOF — functionally identical to "ignore" for our use case.
+            // Use "pipe" for stdin rather than "ignore".  On macOS inside
+            // Electron's utilityProcess "ignore" can itself trigger EBADF; we
+            // close stdin immediately below to give the child EOF instead.
             stdio: ["pipe", "pipe", "pipe"],
             windowsHide: true,
             env: finalEnv,
         });
-        child.stdin?.end(); // Signal EOF immediately so child doesn't block on input
+        child.stdin?.end(); // Send EOF — functionally identical to "ignore"
 
         const info: BackgroundProcessInfo = {
             id,
@@ -284,10 +399,10 @@ export async function startBackgroundProcess(
             info.running = false;
             info.exitCode = code;
             info.signal = signal;
-            
+
             // Save full log for background process too
             info.logId = saveTerminalLog(info.stdout, info.stderr);
-            
+
             commandLogger.logExecutionComplete(
                 command, code, Date.now() - info.startedAt,
                 { stdout: info.stdout.length, stderr: info.stderr.length },
@@ -295,8 +410,39 @@ export async function startBackgroundProcess(
             );
         });
 
-        // Handle spawn errors
-        child.on("error", (error) => {
+        // Handle spawn errors — including EBADF fallback
+        child.on("error", async (error) => {
+            // macOS Electron utilityProcess: pipe creation can fail with EBADF.
+            // Re-run via file-capture (no pipes; output written to temp files).
+            if (isEBADFError(error) && process.platform === "darwin") {
+                console.warn("[Command Executor] spawn EBADF on background process – retrying with file-capture fallback");
+                if (info.timeoutId) { clearTimeout(info.timeoutId); info.timeoutId = null; }
+
+                try {
+                    const fb = await spawnWithFileCapture(
+                        finalCommand, finalArgs, resolvedCwd, finalEnv, timeout, maxOutputSize,
+                    );
+                    info.running = false;
+                    info.exitCode = fb.exitCode;
+                    info.signal = fb.signal;
+                    info.stdout = fb.stdout;
+                    info.stderr = fb.timedOut
+                        ? fb.stderr + "\n[Background process timed out]"
+                        : fb.stderr;
+                    info.logId = saveTerminalLog(info.stdout, info.stderr);
+                    commandLogger.logExecutionComplete(
+                        command, fb.exitCode, Date.now() - info.startedAt,
+                        { stdout: info.stdout.length, stderr: info.stderr.length },
+                        { characterId },
+                    );
+                } catch (fbErr) {
+                    info.running = false;
+                    info.stderr += `\n[EBADF file-capture fallback failed] ${fbErr instanceof Error ? fbErr.message : fbErr}`;
+                    commandLogger.logExecutionError(command, info.stderr, { characterId });
+                }
+                return;
+            }
+
             if (info.timeoutId) clearTimeout(info.timeoutId);
             info.running = false;
             info.stderr += `\n[Spawn error] ${error.message}`;
@@ -451,15 +597,14 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 cwd,
                 timeout, // Built-in timeout
                 shell: needsWindowsShell(finalCommand),
-                // Use "pipe" for stdin instead of "ignore" to prevent spawn EBADF in
-                // Electron's utilityProcess environment. We close stdin immediately to
-                // send EOF — functionally identical to "ignore" for our use case.
+                // Use "pipe" for stdin rather than "ignore".  On macOS inside
+                // Electron's utilityProcess "ignore" can itself trigger EBADF; we
+                // close stdin immediately below to give the child EOF instead.
                 stdio: ["pipe", "pipe", "pipe"],
                 windowsHide: true, // Hide console window on Windows
                 env: finalEnv,
             });
-            child.stdin?.end(); // Signal EOF immediately so child doesn't block on input
-
+            child.stdin?.end(); // Send EOF — functionally identical to "ignore"
 
             // Set up manual timeout as backup
             timeoutId = setTimeout(() => {
@@ -543,25 +688,68 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 });
             });
 
-            // Handle spawn errors
-            child.on("error", (error) => {
+            // Handle spawn errors — including EBADF fallback
+            child.on("error", async (error) => {
                 if (timeoutId) clearTimeout(timeoutId);
 
+                // macOS Electron utilityProcess: pipe creation can fail with EBADF.
+                // Fall back to file-capture (no pipes; stdout/stderr written to temp files).
+                if (isEBADFError(error) && process.platform === "darwin") {
+                    console.warn("[Command Executor] spawn EBADF – retrying with file-capture fallback");
+                    try {
+                        const fb = await spawnWithFileCapture(
+                            finalCommand, finalArgs, cwd, finalEnv, timeout, maxOutputSize,
+                        );
+                        const executionTime = Date.now() - startTime;
+                        commandLogger.logExecutionComplete(
+                            command, fb.exitCode, executionTime,
+                            { stdout: fb.stdout.length, stderr: fb.stderr.length },
+                            context,
+                        );
+                        const logId = saveTerminalLog(fb.stdout, fb.stderr);
+                        resolve({
+                            success: fb.exitCode === 0 && !fb.timedOut,
+                            stdout: fb.stdout.trim(),
+                            stderr: fb.stderr.trim(),
+                            exitCode: fb.exitCode,
+                            signal: fb.signal,
+                            error: fb.timedOut ? "Process terminated due to timeout" : undefined,
+                            executionTime,
+                            logId,
+                            isTruncated: false,
+                        });
+                    } catch (fbErr) {
+                        const executionTime = Date.now() - startTime;
+                        const msg = fbErr instanceof Error ? fbErr.message : "File-capture fallback failed";
+                        commandLogger.logExecutionError(command, msg, context);
+                        resolve({
+                            success: false,
+                            stdout: "",
+                            stderr: "",
+                            exitCode: null,
+                            signal: null,
+                            error: msg,
+                            executionTime,
+                        });
+                    }
+                    return;
+                }
+
                 const executionTime = Date.now() - startTime;
-                
+
                 // Provide more helpful error messages for common issues
                 let errorMessage = error.message;
-                
+
                 // Check if it's a "command not found" error
                 if (error.message.includes("ENOENT") || error.message.includes("spawn") && error.message.includes("not found")) {
                     const bundledBinPath = getBundledBinariesPath();
-                    const pathInfo = bundledBinPath 
+                    const pathInfo = bundledBinPath
                         ? `\n\nBundled binaries path: ${bundledBinPath}\nCurrent PATH: ${process.env.PATH?.split(process.platform === "win32" ? ";" : ":").slice(0, 3).join("\n  ")}`
                         : "\n\nNo bundled binaries found. Running in development mode or binaries not packaged.";
-                    
+
                     errorMessage = `Command '${command}' not found. ${errorMessage}${pathInfo}\n\nTip: For Node.js commands (npm, npx, node), ensure the app is properly packaged with bundled binaries.`;
                 }
-                
+
                 commandLogger.logExecutionError(command, errorMessage, context);
 
                 resolve({
