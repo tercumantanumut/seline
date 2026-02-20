@@ -1019,7 +1019,13 @@ const Composer: FC<{
 
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
-  const { draft: inputValue, setDraft: setInputValue } = useSessionComposerDraft(sessionId);
+  const {
+    draft: inputValue,
+    setDraft: setInputValue,
+    setSelection,
+    restoredSelection,
+    clearDraft,
+  } = useSessionComposerDraft(sessionId);
 
   // Pasted text state — large pastes are shown as placeholders in the textarea,
   // full content is sent to the AI for the current request only (not persisted)
@@ -1042,6 +1048,10 @@ const Composer: FC<{
   const [cursorPosition, setCursorPosition] = useState(0);
   const mentionRef = useRef<HTMLDivElement>(null);
 
+  const updateCursorPosition = useCallback((selectionStart: number, selectionEnd: number = selectionStart) => {
+    setCursorPosition(selectionStart);
+    setSelection(selectionStart, selectionEnd);
+  }, [setSelection]);
   // Slash skill picker state
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillPickerQuery, setSkillPickerQuery] = useState("");
@@ -1222,7 +1232,8 @@ const Composer: FC<{
     // If Deep Research mode is active, start research instead of regular chat
     if (isDeepResearchMode && deepResearch && hasText && !isQueueBlocked) {
       deepResearch.startResearch(inputValue.trim());
-      setInputValue("");
+      clearDraft();
+      updateCursorPosition(0);
       return;
     }
 
@@ -1249,7 +1260,8 @@ const Composer: FC<{
           mode: isDeepResearchMode ? "deep-research" : "chat",
         }]);
       }
-      setInputValue("");
+      clearDraft();
+      updateCursorPosition(0);
       setEnhancedContext(null);
       setEnhancementInfo(null);
       setPastedTexts([]);
@@ -1263,13 +1275,25 @@ const Composer: FC<{
       // Use enhanced context if available, otherwise use original input
       threadRuntime.composer.setText(expandedMessage);
       threadRuntime.composer.send();
-      setInputValue("");
+      clearDraft();
+      updateCursorPosition(0);
       setEnhancedContext(null);
       setEnhancementInfo(null);
       setPastedTexts([]);
       pasteCounterRef.current = 0;
     }
-  }, [inputValue, isQueueBlocked, threadRuntime, attachmentCount, isDeepResearchMode, deepResearch, enhancedContext, pastedTexts]);
+  }, [
+    inputValue,
+    isQueueBlocked,
+    threadRuntime,
+    attachmentCount,
+    isDeepResearchMode,
+    deepResearch,
+    enhancedContext,
+    pastedTexts,
+    clearDraft,
+    updateCursorPosition,
+  ]);
 
   // Insert a file mention from the autocomplete dropdown
   const handleInsertMention = useCallback((mention: string, atIndex: number, queryLength: number) => {
@@ -1280,7 +1304,7 @@ const Composer: FC<{
     setInputValue(newValue);
     // Move cursor to after the inserted mention + space
     const newCursor = atIndex + mention.length + 2; // @ + mention + space
-    setCursorPosition(newCursor);
+    updateCursorPosition(newCursor);
     // Focus and set cursor position in textarea
     requestAnimationFrame(() => {
       if (inputRef.current) {
@@ -1288,13 +1312,13 @@ const Composer: FC<{
         inputRef.current.setSelectionRange(newCursor, newCursor);
       }
     });
-  }, [inputValue]);
+  }, [inputValue, updateCursorPosition]);
 
   const selectSkill = useCallback((skill: ComposerSkillLite) => {
     const requiredInputs = getRequiredSkillInputs(skill.inputParameters);
     const insertion = insertSkillRunIntent(inputValue, cursorPosition, skill.name, requiredInputs);
     setInputValue(insertion.value);
-    setCursorPosition(insertion.nextCursor);
+    updateCursorPosition(insertion.nextCursor);
     setShowSkillPicker(false);
     setSkillPickerMode("slash");
 
@@ -1306,7 +1330,7 @@ const Composer: FC<{
       textarea.focus();
       textarea.setSelectionRange(insertion.nextCursor, insertion.nextCursor);
     });
-  }, [inputValue, cursorPosition]);
+  }, [inputValue, cursorPosition, updateCursorPosition]);
 
   useEffect(() => {
     if (!showSkillPicker) {
@@ -1749,7 +1773,7 @@ const Composer: FC<{
             textarea.focus();
             const cursor = textarea.value.length;
             textarea.setSelectionRange(cursor, cursor);
-            setCursorPosition(cursor);
+            updateCursorPosition(cursor);
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Transcription failed";
@@ -1770,7 +1794,7 @@ const Composer: FC<{
       recordingChunksRef.current = [];
       stopRecordingStream();
     }
-  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream]);
+  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, updateCursorPosition]);
 
   // Auto-grow textarea height based on content
   const adjustTextareaHeight = useCallback(() => {
@@ -1794,6 +1818,28 @@ const Composer: FC<{
   useEffect(() => {
     adjustTextareaHeight();
   }, [inputValue, adjustTextareaHeight]);
+
+  // Restore cursor selection once after session-scoped draft hydration.
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    const { selectionStart, selectionEnd } = restoredSelection;
+    if (selectionStart === null || selectionEnd === null) {
+      return;
+    }
+
+    const maxPosition = textarea.value.length;
+    const start = Math.max(0, Math.min(selectionStart, maxPosition));
+    const end = Math.max(start, Math.min(selectionEnd, maxPosition));
+
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(start, end);
+      updateCursorPosition(start, end);
+    });
+  }, [restoredSelection, updateCursorPosition]);
 
   // Focus animation
   const handleFocus = () => {
@@ -2134,7 +2180,7 @@ const Composer: FC<{
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value);
-              setCursorPosition(e.target.selectionStart ?? 0);
+              updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
               // Clear enhancement state when user edits (they may be modifying the enhanced text)
               if (enhancedContext || enhancementInfo) {
                 setEnhancedContext(null);
@@ -2142,7 +2188,8 @@ const Composer: FC<{
               }
             }}
             onSelect={(e) => {
-              setCursorPosition((e.target as HTMLTextAreaElement).selectionStart ?? 0);
+              const textarea = e.target as HTMLTextAreaElement;
+              updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
