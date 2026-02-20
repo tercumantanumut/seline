@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
+export const settingsInputClassName =
+  "w-full rounded-md border border-terminal-border/60 bg-terminal-cream/95 px-3 py-2 font-mono text-sm text-terminal-dark shadow-sm transition-colors placeholder:text-terminal-muted/75 focus:border-terminal-green focus:outline-none focus:ring-2 focus:ring-terminal-green/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-terminal-border/85 dark:bg-terminal-bg/70 dark:text-terminal-text dark:placeholder:text-terminal-muted";
+
 interface SettingsPanelCardProps {
   title: string;
   description?: string;
@@ -11,14 +14,36 @@ interface SettingsPanelCardProps {
 
 export function SettingsPanelCard({ title, description, children, className }: SettingsPanelCardProps) {
   return (
-    <section className={cn("space-y-5 rounded-xl border border-terminal-border bg-terminal-bg/60 p-4 sm:p-5", className)}>
-      <header>
-        <h3 className="font-mono text-base font-semibold text-terminal-dark">{title}</h3>
-        {description && (
-          <p className="mt-1 font-mono text-xs text-terminal-muted">{description}</p>
-        )}
+    <section
+      className={cn(
+        "space-y-5 rounded-2xl border border-terminal-border/60 bg-terminal-cream/95 p-4 shadow-sm dark:border-terminal-border/85 dark:bg-terminal-bg/80 sm:p-6",
+        className
+      )}
+    >
+      <header className="space-y-1">
+        <h3 className="font-mono text-base font-semibold text-terminal-dark dark:text-terminal-cream-dark">{title}</h3>
+        {description && <p className="font-mono text-xs leading-relaxed text-terminal-muted">{description}</p>}
       </header>
       {children}
+    </section>
+  );
+}
+
+interface SettingsOptionGroupProps {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  className?: string;
+}
+
+export function SettingsOptionGroup({ title, description, children, className }: SettingsOptionGroupProps) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      <header className="space-y-1">
+        <h4 className="font-mono text-sm font-semibold text-terminal-dark dark:text-terminal-cream-dark">{title}</h4>
+        {description && <p className="font-mono text-xs leading-relaxed text-terminal-muted">{description}</p>}
+      </header>
+      <div className="space-y-2.5">{children}</div>
     </section>
   );
 }
@@ -33,13 +58,13 @@ interface SettingsToggleRowProps {
 
 export function SettingsToggleRow({ id, label, description, checked, onChange }: SettingsToggleRowProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-terminal-border/70 bg-terminal-bg/50 p-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <label htmlFor={id} className="font-mono text-sm text-terminal-dark">
+    <div className="flex flex-col gap-3 rounded-xl border border-terminal-border/55 bg-terminal-bg/5 p-3.5 dark:border-terminal-border/85 dark:bg-terminal-cream/5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <label htmlFor={id} className="font-mono text-sm font-semibold text-terminal-dark dark:text-terminal-cream-dark">
           {label}
         </label>
         {description && (
-          <p id={`${id}-description`} className="mt-1 font-mono text-xs text-terminal-muted">
+          <p id={`${id}-description`} className="mt-1 font-mono text-xs leading-relaxed text-terminal-muted">
             {description}
           </p>
         )}
@@ -50,7 +75,7 @@ export function SettingsToggleRow({ id, label, description, checked, onChange }:
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
         aria-describedby={description ? `${id}-description` : undefined}
-        className="size-5 accent-terminal-green sm:mt-0.5"
+        className="mt-0.5 size-5 shrink-0 cursor-pointer accent-terminal-green focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green/50"
       />
     </div>
   );
@@ -66,13 +91,13 @@ interface SettingsFieldProps {
 
 export function SettingsField({ label, htmlFor, helperText, children, className }: SettingsFieldProps) {
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={htmlFor} className="block font-mono text-sm text-terminal-dark">
+    <div className={cn("space-y-2", className)}>
+      <label htmlFor={htmlFor} className="block font-mono text-sm font-semibold text-terminal-dark dark:text-terminal-cream-dark">
         {label}
       </label>
       {children}
       {helperText && (
-        <p id={`${htmlFor}-help`} className="font-mono text-xs text-terminal-muted">
+        <p id={`${htmlFor}-help`} className="font-mono text-xs leading-relaxed text-terminal-muted">
           {helperText}
         </p>
       )}
@@ -85,7 +110,7 @@ interface SettingsRadioCardProps {
   name: string;
   value: string;
   label: string;
-  description: string;
+  description?: string;
   checked: boolean;
   onChange: () => void;
   badge?: string;
@@ -105,10 +130,10 @@ export function SettingsRadioCard({
     <label
       htmlFor={id}
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
+        "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 shadow-sm transition-colors focus-within:ring-2 focus-within:ring-terminal-green/45",
         checked
-          ? "border-terminal-green/70 bg-terminal-green/10"
-          : "border-terminal-border bg-terminal-bg/50 hover:bg-terminal-bg/80"
+          ? "border-terminal-green/65 bg-terminal-green/10 dark:border-terminal-green/75 dark:bg-terminal-green/15"
+          : "border-terminal-border/55 bg-terminal-bg/5 hover:bg-terminal-bg/10 dark:border-terminal-border/85 dark:bg-terminal-cream/5 dark:hover:bg-terminal-cream/10"
       )}
     >
       <input
@@ -118,18 +143,18 @@ export function SettingsRadioCard({
         value={value}
         checked={checked}
         onChange={onChange}
-        className="mt-0.5 size-4 accent-terminal-green"
+        className="mt-0.5 size-4 shrink-0 cursor-pointer accent-terminal-green"
       />
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm text-terminal-dark">{label}</span>
+          <span className="font-mono text-sm font-semibold text-terminal-dark dark:text-terminal-cream-dark">{label}</span>
           {badge && (
-            <span className="rounded border border-terminal-border bg-terminal-cream/70 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-terminal-muted">
+            <span className="rounded-md border border-terminal-border/65 bg-terminal-cream-dark/70 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-terminal-muted dark:bg-terminal-bg/80">
               {badge}
             </span>
           )}
         </div>
-        <p className="mt-1 font-mono text-xs text-terminal-muted">{description}</p>
+        {description && <p className="mt-1 font-mono text-xs leading-relaxed text-terminal-muted">{description}</p>}
       </div>
     </label>
   );

@@ -18,7 +18,14 @@ import { useRouter } from "next/navigation";
 import { AdvancedVectorSettings } from "@/components/settings/advanced-vector-settings";
 import { MCPSettings } from "@/components/settings/mcp-settings";
 import { PluginSettings } from "@/components/settings/plugin-settings";
-import { SettingsField, SettingsPanelCard, SettingsRadioCard, SettingsToggleRow } from "@/components/settings/settings-form-layout";
+import {
+  SettingsField,
+  SettingsOptionGroup,
+  SettingsPanelCard,
+  SettingsRadioCard,
+  SettingsToggleRow,
+  settingsInputClassName,
+} from "@/components/settings/settings-form-layout";
 import {
   LOCAL_EMBEDDING_MODELS as SHARED_LOCAL_EMBEDDING_MODELS,
   formatDimensionLabel,
@@ -2524,48 +2531,50 @@ function SettingsPanel({
 
   if (section === "voice") {
     const ttsAutoModeOptions = [
-      { value: "off" as const, label: "Off", description: "Only when explicitly requested with the speakAloud tool." },
-      { value: "channels-only" as const, label: "Channels Only", description: "Automatically attach voice notes to channel replies." },
-      { value: "always" as const, label: "Always", description: "Generate audio for every agent reply." },
+      { value: "off" as const, label: "Only on request", description: "Audio is created only when you ask for it." },
+      { value: "channels-only" as const, label: "For channel replies", description: "Voice notes are added automatically in channels." },
+      { value: "always" as const, label: "For every reply", description: "Every assistant reply includes audio output." },
     ];
 
     const ttsProviderOptions = [
-      { value: "edge" as const, label: "Edge TTS", description: "Microsoft Edge neural voices. No API key required.", badge: "Free" },
-      { value: "openai" as const, label: "OpenAI TTS", description: "Uses your OpenAI/OpenRouter API key. High quality and fast.", badge: "API Key" },
-      { value: "elevenlabs" as const, label: "ElevenLabs", description: "Premium voice cloning and synthesis.", badge: "API Key" },
+      { value: "edge" as const, label: "Edge TTS", description: "Built-in Microsoft voices. No API key needed.", badge: "Free" },
+      { value: "openai" as const, label: "OpenAI TTS", description: "Uses your OpenAI or OpenRouter API key.", badge: "API Key" },
+      { value: "elevenlabs" as const, label: "ElevenLabs", description: "Natural premium voices and voice cloning.", badge: "API Key" },
     ];
 
     const sttProviderOptions = [
-      { value: "openai" as const, label: "OpenAI Whisper", description: "Uses your OpenAI/OpenRouter API key. Fast and accurate." },
-      { value: "local" as const, label: "Local (whisper.cpp)", description: "On-device transcription using whisper.cpp. No API key needed." },
+      { value: "openai" as const, label: "OpenAI Whisper", description: "Cloud transcription using your OpenAI or OpenRouter API key." },
+      { value: "local" as const, label: "Local (whisper.cpp)", description: "Runs on this device. No external API key needed." },
     ];
 
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="mb-2 font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
-          <p className="font-mono text-xs text-terminal-muted">
-            Configure text-to-speech and speech-to-text for conversations and channel messages.
+      <div className="space-y-5">
+        <div className="space-y-1.5">
+          <h2 className="font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
+          <p className="font-mono text-sm text-terminal-muted">
+            Set up spoken replies and audio transcription with clear, friendly defaults.
           </p>
         </div>
 
-        <SettingsPanelCard
-          title="Text-to-Speech (TTS)"
-          description="Generate spoken responses in chat and channels with clear defaults for when audio should be created."
-        >
-          <SettingsToggleRow
-            id="ttsEnabled"
-            label="Enable TTS"
-            description="Generate audio from agent replies. Voice notes are sent to channels automatically."
-            checked={formState.ttsEnabled}
-            onChange={(checked) => updateField("ttsEnabled", checked)}
-          />
+        <div className="space-y-5 rounded-2xl border border-terminal-border/50 bg-terminal-bg/5 p-3 dark:border-terminal-border/85 dark:bg-terminal-cream/5 sm:p-4">
+          <SettingsPanelCard
+            title="Text-to-Speech (TTS)"
+            description="Let the assistant speak replies in a way that matches how you chat."
+          >
+            <SettingsToggleRow
+              id="ttsEnabled"
+              label="Turn on spoken replies"
+              description="When enabled, the assistant can send voice output for replies."
+              checked={formState.ttsEnabled}
+              onChange={(checked) => updateField("ttsEnabled", checked)}
+            />
 
-          {formState.ttsEnabled ? (
-            <div className="space-y-5">
-              <div>
-                <p className="mb-2 font-mono text-sm text-terminal-dark">Auto-speak Mode</p>
-                <div className="grid gap-3">
+            {formState.ttsEnabled ? (
+              <div className="space-y-6">
+                <SettingsOptionGroup
+                  title="When should voice be created?"
+                  description="Pick how often audio should be added to assistant replies."
+                >
                   {ttsAutoModeOptions.map((option) => (
                     <SettingsRadioCard
                       key={option.value}
@@ -2578,12 +2587,12 @@ function SettingsPanel({
                       onChange={() => updateField("ttsAutoMode", option.value)}
                     />
                   ))}
-                </div>
-              </div>
+                </SettingsOptionGroup>
 
-              <div>
-                <p className="mb-2 font-mono text-sm text-terminal-dark">TTS Provider</p>
-                <div className="grid gap-3">
+                <SettingsOptionGroup
+                  title="Voice provider"
+                  description="Choose the service that generates spoken audio."
+                >
                   {ttsProviderOptions.map((option) => (
                     <SettingsRadioCard
                       key={option.value}
@@ -2597,104 +2606,110 @@ function SettingsPanel({
                       onChange={() => updateField("ttsProvider", option.value)}
                     />
                   ))}
-                </div>
-              </div>
+                </SettingsOptionGroup>
 
-              {formState.ttsProvider === "openai" && (
-                <SettingsField
-                  label="OpenAI Voice"
-                  htmlFor="openaiTtsVoice"
-                  helperText="Choose the default OpenAI voice used when no voice override is passed."
-                >
-                  <select
-                    id="openaiTtsVoice"
-                    value={formState.openaiTtsVoice}
-                    onChange={(e) => updateField("openaiTtsVoice", e.target.value)}
-                    aria-describedby="openaiTtsVoice-help"
-                    className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  >
-                    {["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((voice) => (
-                      <option key={voice} value={voice}>
-                        {voice}
-                      </option>
-                    ))}
-                  </select>
-                </SettingsField>
-              )}
-
-              {formState.ttsProvider === "elevenlabs" && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SettingsField label="ElevenLabs API Key" htmlFor="elevenLabsApiKey">
-                    <input
-                      id="elevenLabsApiKey"
-                      type="password"
-                      value={formState.elevenLabsApiKey}
-                      onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
-                      placeholder="xi_..."
-                      className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                    />
-                  </SettingsField>
+                {formState.ttsProvider === "openai" && (
                   <SettingsField
-                    label="Voice ID"
-                    htmlFor="elevenLabsVoiceId"
-                    helperText="Find voice IDs in the ElevenLabs voice library."
+                    label="Default OpenAI voice"
+                    htmlFor="openaiTtsVoice"
+                    helperText="Used when a request does not specify a different voice."
+                    className="max-w-sm"
                   >
-                    <input
-                      id="elevenLabsVoiceId"
-                      type="text"
-                      value={formState.elevenLabsVoiceId}
-                      onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
-                      placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-                      aria-describedby="elevenLabsVoiceId-help"
-                      className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                    />
+                    <select
+                      id="openaiTtsVoice"
+                      value={formState.openaiTtsVoice}
+                      onChange={(e) => updateField("openaiTtsVoice", e.target.value)}
+                      aria-describedby="openaiTtsVoice-help"
+                      className={settingsInputClassName}
+                    >
+                      {["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((voice) => (
+                        <option key={voice} value={voice}>
+                          {voice}
+                        </option>
+                      ))}
+                    </select>
                   </SettingsField>
-                </div>
-              )}
+                )}
 
-              <SettingsField
-                label="Summarize Threshold (characters)"
-                htmlFor="ttsSummarizeThreshold"
-                helperText="Replies longer than this are summarized before TTS to reduce audio length."
-                className="max-w-xs"
-              >
-                <input
-                  id="ttsSummarizeThreshold"
-                  type="number"
-                  min={100}
-                  max={5000}
-                  step={100}
-                  value={formState.ttsSummarizeThreshold}
-                  onChange={(e) => updateField("ttsSummarizeThreshold", parseInt(e.target.value, 10) || 500)}
-                  aria-describedby="ttsSummarizeThreshold-help"
-                  className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 font-mono text-sm text-terminal-text focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                />
-              </SettingsField>
-            </div>
-          ) : (
-            <p className="font-mono text-xs text-terminal-muted">
-              Enable TTS to configure auto-speak behavior, provider selection, and voice details.
-            </p>
-          )}
-        </SettingsPanelCard>
+                {formState.ttsProvider === "elevenlabs" && (
+                  <SettingsOptionGroup
+                    title="ElevenLabs account details"
+                    description="Add your key and voice so replies use the right ElevenLabs profile."
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <SettingsField label="ElevenLabs API key" htmlFor="elevenLabsApiKey">
+                        <input
+                          id="elevenLabsApiKey"
+                          type="password"
+                          value={formState.elevenLabsApiKey}
+                          onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
+                          placeholder="xi_..."
+                          className={settingsInputClassName}
+                        />
+                      </SettingsField>
+                      <SettingsField
+                        label="Voice ID"
+                        htmlFor="elevenLabsVoiceId"
+                        helperText="You can copy this from the ElevenLabs voice library."
+                      >
+                        <input
+                          id="elevenLabsVoiceId"
+                          type="text"
+                          value={formState.elevenLabsVoiceId}
+                          onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
+                          placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                          aria-describedby="elevenLabsVoiceId-help"
+                          className={settingsInputClassName}
+                        />
+                      </SettingsField>
+                    </div>
+                  </SettingsOptionGroup>
+                )}
 
-        <SettingsPanelCard
-          title="Speech-to-Text (STT)"
-          description="Transcribe incoming audio attachments so voice notes become searchable text in conversations."
-        >
-          <SettingsToggleRow
-            id="sttEnabled"
-            label="Enable STT"
-            description="Automatically transcribe audio attachments from channels, including WhatsApp and Telegram voice notes."
-            checked={formState.sttEnabled}
-            onChange={(checked) => updateField("sttEnabled", checked)}
-          />
+                <SettingsField
+                  label="Long message limit (characters)"
+                  htmlFor="ttsSummarizeThreshold"
+                  helperText="Messages above this limit are shortened before audio is generated."
+                  className="max-w-xs"
+                >
+                  <input
+                    id="ttsSummarizeThreshold"
+                    type="number"
+                    min={100}
+                    max={5000}
+                    step={100}
+                    value={formState.ttsSummarizeThreshold}
+                    onChange={(e) => updateField("ttsSummarizeThreshold", parseInt(e.target.value, 10) || 500)}
+                    aria-describedby="ttsSummarizeThreshold-help"
+                    className={settingsInputClassName}
+                  />
+                </SettingsField>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
+                Turn this on to choose when voice is generated and which provider to use.
+              </div>
+            )}
+          </SettingsPanelCard>
 
-          {formState.sttEnabled ? (
-            <div className="space-y-5">
-              <div>
-                <p className="mb-2 font-mono text-sm text-terminal-dark">STT Provider</p>
-                <div className="grid gap-3">
+          <SettingsPanelCard
+            title="Speech-to-Text (STT)"
+            description="Convert incoming voice notes into text so they are easier to read and search."
+          >
+            <SettingsToggleRow
+              id="sttEnabled"
+              label="Turn on transcription"
+              description="Automatically transcribe audio attachments from channels and voice-note apps."
+              checked={formState.sttEnabled}
+              onChange={(checked) => updateField("sttEnabled", checked)}
+            />
+
+            {formState.sttEnabled ? (
+              <div className="space-y-6">
+                <SettingsOptionGroup
+                  title="Transcription provider"
+                  description="Pick where audio is transcribed."
+                >
                   {sttProviderOptions.map((option) => (
                     <SettingsRadioCard
                       key={option.value}
@@ -2707,19 +2722,19 @@ function SettingsPanel({
                       onChange={() => updateField("sttProvider", option.value)}
                     />
                   ))}
-                </div>
-              </div>
+                </SettingsOptionGroup>
 
-              {formState.sttProvider === "local" && (
-                <WhisperModelSelector formState={formState} updateField={updateField} />
-              )}
-            </div>
-          ) : (
-            <p className="font-mono text-xs text-terminal-muted">
-              Enable STT to choose a transcription provider and local Whisper model options.
-            </p>
-          )}
-        </SettingsPanelCard>
+                {formState.sttProvider === "local" && (
+                  <WhisperModelSelector formState={formState} updateField={updateField} />
+                )}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
+                Turn this on to pick a provider and configure local Whisper model options.
+              </div>
+            )}
+          </SettingsPanelCard>
+        </div>
       </div>
     );
   }
