@@ -181,7 +181,6 @@ export interface AppSettings {
 
     // Prompt Caching (provider-gated at runtime; Anthropic/Claude Code/OpenRouter/Kimi)
     promptCachingEnabled?: boolean;           // Enable/disable prompt caching (default: true)
-    promptCachingTtl?: "5m" | "1h";          // Cache TTL: 5m (standard) or 1h (premium) (default: 5m)
 
     // Onboarding state
     onboardingComplete?: boolean;

@@ -1,8 +1,6 @@
 /**
  * Anthropic Prompt Caching Types
  *
- * Supports both 5-minute (default) and 1-hour (premium) cache durations.
- *
  * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
  */
 
@@ -20,9 +18,6 @@ export type CacheableSystemBlock = SystemModelMessage;
 export interface CacheConfig {
   /** Enable/disable caching globally */
   enabled: boolean;
-
-  /** Default TTL for cached blocks */
-  defaultTtl: "5m" | "1h";
 
   /** Minimum tokens to cache (Anthropic requires 1024+ for most models) */
   minTokensToCache: number;

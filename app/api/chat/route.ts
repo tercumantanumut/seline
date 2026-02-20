@@ -19,7 +19,7 @@ import { createWorkspaceTool } from "@/lib/ai/tools/workspace-tool";
 import { ToolRegistry, registerAllTools, createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry";
 import { getSystemPrompt, AI_CONFIG } from "@/lib/ai/config";
 import { buildCharacterSystemPrompt, buildCacheableCharacterPrompt, getCharacterAvatarUrl } from "@/lib/ai/character-prompt";
-import { shouldUseCache, getCacheConfig } from "@/lib/ai/cache/config";
+import { shouldUseCache } from "@/lib/ai/cache/config";
 import { buildDefaultCacheableSystemPrompt } from "@/lib/ai/prompts/base-system-prompt";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import type { CacheableSystemBlock } from "@/lib/ai/cache/types";
@@ -2815,7 +2815,6 @@ export async function POST(req: Request) {
     // Prompt caching: If enabled (Anthropic-compatible providers), system prompt uses cacheable blocks
     // with cache_control markers to reduce costs by 70-85% on multi-turn conversations.
     const useCaching = shouldUseCache(currentProvider);
-    const cacheConfig = getCacheConfig();
 
     let systemPromptValue: string | CacheableSystemBlock[];
     let characterAvatarUrl: string | null = null;
@@ -2854,7 +2853,6 @@ export async function POST(req: Request) {
               toolLoadingMode,
               channelType,
               enableCaching: true,
-              cacheTtl: cacheConfig.defaultTtl,
               skillSummaries: hydratedSkillSummaries,
             })
           : buildCharacterSystemPrompt(character, {
@@ -2876,7 +2874,6 @@ export async function POST(req: Request) {
               includeToolDiscovery: hasStylyApiKey(),
               toolLoadingMode,
               enableCaching: true,
-              cacheTtl: cacheConfig.defaultTtl,
             })
           : getSystemPrompt({
               stylyApiEnabled: hasStylyApiKey(),
@@ -2891,7 +2888,6 @@ export async function POST(req: Request) {
             includeToolDiscovery: hasStylyApiKey(),
             toolLoadingMode,
             enableCaching: true,
-            cacheTtl: cacheConfig.defaultTtl,
           })
         : getSystemPrompt({
           stylyApiEnabled: hasStylyApiKey(),
@@ -3496,11 +3492,7 @@ export async function POST(req: Request) {
     // Apply caching to message history
     // Strategy: Cache all messages except the last 2 (leave recent user/assistant exchange uncached)
     const cachedMessages = useCaching
-      ? applyCacheToMessages(coreMessages, {
-          uncachedRecentCount: 2,
-          minHistorySize: 5,
-          cacheTtl: cacheConfig.defaultTtl,
-        })
+      ? applyCacheToMessages(coreMessages)
       : coreMessages;
 
     // Log cache savings estimate (if caching enabled and context injected)
@@ -3528,7 +3520,7 @@ export async function POST(req: Request) {
     configuredProvider = provider;
     const sessionDisplayName = getSessionDisplayName(sessionMetadata);
     const cachingStatus = useCaching
-      ? `enabled (${cacheConfig.defaultTtl} TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
+      ? `enabled (1h TTL)${provider === "openrouter" ? " - OpenRouter multi-provider" : ""}`
       : "disabled";
 
     console.log(

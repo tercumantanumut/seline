@@ -1,72 +1,65 @@
 /**
  * Message History Caching for Anthropic Prompt Caching
  *
- * Applies cache_control to conversation history for optimal caching.
- * Strategy: Cache older stable messages, leave recent ones uncached.
+ * Applies cache_control to the last message so the entire conversation
+ * (including the current user turn) is cached. The next request reads
+ * everything up to that point from cache and only writes the new exchange.
+ *
+ * Turn-by-turn behavior:
+ *   Turn N:   [sys] [m0..mN] ← cache marker   → everything written to cache
+ *   Turn N+1: reads [sys..mN] from cache       → only [mN+1, mN+2] are new
+ *
+ * The AI SDK translates message-level providerOptions into a block-level
+ * cache_control on the last content block when constructing the API request.
+ * Top-level automatic caching (Anthropic API feature) is not exposed by the
+ * AI SDK, so this per-message approach is the only supported mechanism.
  *
  * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+ * @see https://ai-sdk.dev/cookbook/node/dynamic-prompt-caching
  */
 
 import type { ModelMessage } from "ai";
-import type { CacheableSystemBlock, CacheMetrics } from "./types";
+import type { CacheableSystemBlock } from "./types";
 
 /**
- * Apply cache control to conversation history
+ * Apply cache control to the last message in the conversation history.
  *
- * Anthropic checks backwards from cache breakpoint, so we cache
- * older stable messages and leave recent ones uncached.
- *
- * Strategy:
- * - Cache all messages except the last N (default: 2)
- * - Only cache if conversation has enough history (min 5 messages)
- * - Place cache_control on the last message before uncached block
+ * Marks the final message with an ephemeral cache breakpoint so that
+ * the full conversation prefix (system + all messages) is cached.
+ * The API silently skips caching when the token count is below the
+ * model-specific minimum, so no message-count guard is needed here.
  */
 export function applyCacheToMessages(
-  messages: ModelMessage[],
-  config: {
-    /** How many recent messages to leave uncached */
-    uncachedRecentCount?: number;
-    /** Minimum message history size to enable caching */
-    minHistorySize?: number;
-    /** Cache TTL (5m or 1h) */
-    cacheTtl?: "5m" | "1h";
-  } = {}
+  messages: ModelMessage[]
 ): ModelMessage[] {
-  const {
-    uncachedRecentCount = 2,
-    minHistorySize = 5,
-    cacheTtl = "5m",
-  } = config;
 
-  // Not enough history to benefit from caching
-  if (messages.length < minHistorySize) {
+  if (messages.length === 0) {
     return messages;
   }
 
-  // Split messages: cache older ones, leave recent ones fresh
-  const cacheBreakpointIndex = messages.length - uncachedRecentCount;
+  const lastIndex = messages.length - 1;
 
   return messages.map((msg, idx) => {
-    // Add cache_control to the last message before recent uncached block
-    if (idx === cacheBreakpointIndex - 1) {
-      return {
-        ...msg,
-        // AI SDK v6: cache control goes through providerOptions
-        providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral" as const, ttl: cacheTtl } },
-        },
-      } as unknown as ModelMessage;
-    }
-    return msg;
+    if (idx !== lastIndex) return msg;
+    // Attach cache marker to last message. The AI SDK applies this to the
+    // last content block when serialising the request to Anthropic's API.
+    // The `as unknown` cast is required because TypeScript cannot resolve
+    // which variant of the ModelMessage discriminated union the spread
+    // produces, even though providerOptions is valid on all variants.
+    return {
+      ...msg,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" as const, ttl: "1h" as const } },
+      },
+    } as unknown as ModelMessage;
   });
 }
 
 /**
- * Estimate token savings from caching
- * Used for observability/logging
+ * Estimate token savings from caching.
+ * Used for observability logging only — not used for billing or gating.
  *
- * Note: This is a rough estimation based on character count
- * Actual token usage may vary
+ * Note: rough heuristic (1 token ≈ 4 characters). Actual token counts vary.
  */
 export function estimateCacheSavings(
   systemBlocks: CacheableSystemBlock[],
@@ -75,17 +68,21 @@ export function estimateCacheSavings(
   totalCacheableTokens: number;
   estimatedSavings: number; // in dollars
 } {
-  // Rough estimation: 1 token ≈ 4 characters
+  // Count all system block tokens (blocks before cache markers are covered
+  // by the prefix cache even without their own cache_control).
   const systemTokens = systemBlocks.reduce(
     (sum, block) => sum + Math.ceil(block.content.length / 4),
     0
   );
 
-  const cacheMarkerIndex = messages.findIndex(
-    (m) => (m as any).providerOptions?.anthropic?.cacheControl
-  );
-  const cachedRange = cacheMarkerIndex > 0
-    ? messages.slice(0, cacheMarkerIndex)
+  // Find the cache marker (placed on the last message by applyCacheToMessages).
+  // Include the marker message itself in the cached range (off-by-one fix).
+  const cacheMarkerIndex = messages.findIndex((m) => {
+    const opts = m.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined;
+    return opts?.anthropic?.cacheControl !== undefined;
+  });
+  const cachedRange = cacheMarkerIndex >= 0
+    ? messages.slice(0, cacheMarkerIndex + 1)
     : [];
   const messageTokens = cachedRange.reduce(
     (sum, msg) => sum + estimateMessageTokens(msg),
@@ -94,75 +91,24 @@ export function estimateCacheSavings(
 
   const totalCacheableTokens = systemTokens + messageTokens;
 
-  // Cache hits cost 0.1x base price ($3/MTok for Sonnet 4.5)
-  // Savings = (1.0 - 0.1) * base_price * tokens
-  const basePricePerToken = 3 / 1_000_000; // $3 per million tokens
+  // Cache reads cost 0.1x base price ($3/MTok for Sonnet 4.5/4.6).
+  // Savings per cache hit = (1.0 - 0.1) * base_price * cached_tokens
+  const basePricePerToken = 3 / 1_000_000;
   const estimatedSavings = 0.9 * basePricePerToken * totalCacheableTokens;
 
   return { totalCacheableTokens, estimatedSavings };
 }
 
 /**
- * Estimate tokens in a message
- * Uses character count heuristic (1 token ≈ 4 characters)
+ * Estimate tokens in a message using a character-count heuristic (1 token ≈ 4 chars).
  */
 function estimateMessageTokens(msg: ModelMessage): number {
-  const content = Array.isArray(msg.content)
-    ? msg.content
-        .map((p) => (p.type === "text" ? p.text || "" : ""))
-        .join("")
-    : msg.content;
-
-  return Math.ceil(content.length / 4);
-}
-
-/**
- * Find optimal cache breakpoint based on conversation structure
- *
- * Advanced strategy: Cache up to the last major context shift
- * Looks for tool calls, long gaps, or topic changes
- */
-export function findOptimalCacheBreakpoint(
-  messages: ModelMessage[]
-): number {
-  // Strategy: Cache up to the last major context shift
-  // Look for tool calls, long gaps, or topic changes
-
-  for (let i = messages.length - 3; i >= 0; i--) {
-    const msg = messages[i];
-
-    // If this message has tool calls, cache everything before it
-    if (
-      msg.role === "assistant" &&
-      Array.isArray(msg.content) &&
-      msg.content.some((p: any) => p.type === "tool_use" || p.type === "tool-call")
-    ) {
-      return i;
-    }
+  if (typeof msg.content === "string") {
+    return Math.ceil(msg.content.length / 4);
   }
-
-  // Fallback: cache all but last 2 messages
-  return Math.max(0, messages.length - 2);
-}
-
-/**
- * Parse cache metrics from AI SDK usage response
- * AI SDK v6: Cache metrics are in providerMetadata.anthropic (camelCase)
- * Also supports legacy snake_case fields as fallback
- */
-export function parseCacheMetrics(
-  usage: any,
-  providerMetadata?: { anthropic?: { cacheCreationInputTokens?: number; cacheReadInputTokens?: number } }
-): CacheMetrics {
-  const anthropicMeta = providerMetadata?.anthropic || {};
-  return {
-    cacheCreationTokens: anthropicMeta.cacheCreationInputTokens ||
-      usage?.cache_creation_input_tokens || 0,
-    cacheReadTokens: anthropicMeta.cacheReadInputTokens ||
-      usage?.cache_read_input_tokens || 0,
-    inputTokens: usage?.input_tokens || usage?.inputTokens || 0,
-    estimatedSavings: 0, // Will be calculated separately
-    systemBlocksCached: 0,
-    messagesCached: 0,
-  };
+  const text = (msg.content as Array<{ type: string; text?: string }>)
+    .filter((p) => p.type === "text")
+    .map((p) => p.text ?? "")
+    .join("");
+  return Math.ceil(text.length / 4);
 }

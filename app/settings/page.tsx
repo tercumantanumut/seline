@@ -57,7 +57,6 @@ interface AppSettings {
   localUserId: string;
   localUserEmail: string;
   promptCachingEnabled?: boolean;
-  promptCachingTtl?: "5m" | "1h";
   postEditHooksPreset?: "off" | "fast" | "strict";
   postEditHooksEnabled?: boolean;
   postEditTypecheckEnabled?: boolean;
@@ -146,7 +145,6 @@ export default function SettingsPage() {
     postEditTypecheckScope: "auto" as "auto" | "app" | "lib" | "electron" | "tooling" | "all",
     postEditRunInPatchTool: false,
     promptCachingEnabled: true,
-    promptCachingTtl: "5m" as "5m" | "1h",
     rtkEnabled: false,
     rtkVerbosity: 0 as 0 | 1 | 2 | 3,
     rtkUltraCompact: false,
@@ -268,7 +266,6 @@ export default function SettingsPage() {
         postEditTypecheckScope: data.postEditTypecheckScope ?? "auto",
         postEditRunInPatchTool: data.postEditRunInPatchTool ?? false,
         promptCachingEnabled: data.promptCachingEnabled ?? true,
-        promptCachingTtl: data.promptCachingTtl ?? "5m",
         rtkEnabled: data.rtkEnabled ?? false,
         rtkVerbosity: data.rtkVerbosity ?? 0,
         rtkUltraCompact: data.rtkUltraCompact ?? false,
@@ -901,7 +898,6 @@ interface FormState {
   postEditTypecheckScope: "auto" | "app" | "lib" | "electron" | "tooling" | "all";
   postEditRunInPatchTool: boolean;
   promptCachingEnabled: boolean;
-  promptCachingTtl: "5m" | "1h";
   rtkEnabled: boolean;
   rtkVerbosity: 0 | 1 | 2 | 3;
   rtkUltraCompact: boolean;
@@ -3028,48 +3024,6 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           />
         </div>
 
-        {/* TTL Selection */}
-        {formState.promptCachingEnabled !== false && (
-          <div>
-            <label className="mb-2 block font-mono text-sm text-terminal-dark">
-              Cache duration
-            </label>
-            <div className="space-y-3">
-              <label className="flex items-start gap-3">
-                <input
-                  type="radio"
-                  name="promptCachingTtl"
-                  value="5m"
-                  checked={formState.promptCachingTtl === "5m" || !formState.promptCachingTtl}
-                  onChange={() => updateField("promptCachingTtl", "5m")}
-                  className="mt-1 size-4 accent-terminal-green"
-                />
-                <div>
-                  <span className="font-mono text-terminal-dark">5 minutes (recommended)</span>
-                  <p className="font-mono text-xs text-terminal-muted">
-                    Balanced for active chats.
-                  </p>
-                </div>
-              </label>
-              <label className="flex items-start gap-3">
-                <input
-                  type="radio"
-                  name="promptCachingTtl"
-                  value="1h"
-                  checked={formState.promptCachingTtl === "1h"}
-                  onChange={() => updateField("promptCachingTtl", "1h")}
-                  className="mt-1 size-4 accent-terminal-green"
-                />
-                <div>
-                  <span className="font-mono text-terminal-dark">1 hour</span>
-                  <p className="font-mono text-xs text-terminal-muted">
-                    Keeps cache longer, useful for slower sessions.
-                  </p>
-                </div>
-              </label>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* RTK (Rust Token Killer) */}
