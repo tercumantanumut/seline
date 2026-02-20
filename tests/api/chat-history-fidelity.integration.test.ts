@@ -156,8 +156,14 @@ async function persistExecuteCommandToolRun(params: {
 
 describe.sequential("Chat Tool History Fidelity - Real Pipeline", () => {
   const integrationUserId = "integration-history-fidelity-user";
-  const forcedProvider: LLMProvider = "claudecode";
-  const forcedModel = "claude-haiku-4-5-20251001";
+  const runHistoryFidelityIntegration =
+    process.env.RUN_CHAT_HISTORY_FIDELITY_INTEGRATION === "true" &&
+    typeof process.env.OPENROUTER_API_KEY === "string" &&
+    process.env.OPENROUTER_API_KEY.trim().length > 0;
+  const integrationIt = runHistoryFidelityIntegration ? it : it.skip;
+  const forcedProvider: LLMProvider = "openrouter";
+  const forcedModel =
+    process.env.CHAT_HISTORY_INTEGRATION_MODEL ?? "anthropic/claude-sonnet-4.5";
   let originalSettings: AppSettings;
 
   beforeAll(() => {
@@ -176,7 +182,7 @@ describe.sequential("Chat Tool History Fidelity - Real Pipeline", () => {
     }
   });
 
-  it(
+  integrationIt(
     "executes 50 real tool runs, preserves canonical outputs losslessly, and recalls via /api/chat endpoint",
     async () => {
       const settings = loadSettings();
@@ -273,7 +279,7 @@ describe.sequential("Chat Tool History Fidelity - Real Pipeline", () => {
     1_200_000
   );
 
-  it(
+  integrationIt(
     "runs compaction on a large tool-result history and keeps call/result integrity in remaining history",
     async () => {
       const settings = loadSettings();
