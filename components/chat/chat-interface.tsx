@@ -173,7 +173,6 @@ export default function ChatInterface({
     const [isProcessingInBackground, setIsProcessingInBackground] = useState(false);
     const [processingRunId, setProcessingRunId] = useState<string | null>(null);
     const [isZombieRun, setIsZombieRun] = useState(false);
-    const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
     const activeSessionMeta = useMemo(
         () => sessions.find((session) => session.id === sessionId)?.metadata,
         [sessions, sessionId]
@@ -195,14 +194,22 @@ export default function ChatInterface({
     const filterKeyRef = useRef(`${searchQuery}|${channelFilter}|${dateRange}`);
     const isPollingRef = useRef(false);
     const lastProgressTimeRef = useRef<number>(0);
+    const lastBackgroundMessageReloadRef = useRef<number>(0);
+    const latestSessionIdRef = useRef(sessionId);
+    const isReloadingMessagesRef = useRef(false);
     const lastSessionSignatureRef = useRef<string>(getMessagesSignature(initialMessages));
     const sessionListSignatureRef = useRef<string>(sessions.map(getSessionSignature).join("||"));
     const PROGRESS_THROTTLE_MS = 2500; // Background/live refresh cadence target
+    const BACKGROUND_MESSAGE_REFRESH_MS = 4000;
 
     // Keep refs of filters to prevent loadSessions from changing when filters change
     // This prevents the filter change useEffect from running unnecessarily
     const filtersRef = useRef({ searchQuery, channelFilter, dateRange });
     filtersRef.current = { searchQuery, channelFilter, dateRange };
+
+    useEffect(() => {
+        latestSessionIdRef.current = sessionId;
+    }, [sessionId]);
 
     // Session sync for cross-component synchronization
     const sessionSyncNotifier = useSessionSyncNotifier();
@@ -359,15 +366,54 @@ export default function ChatInterface({
         return () => clearTimeout(timeout);
     }, [searchQuery, channelFilter, dateRange, loadSessions]);
 
-    const reloadSessionMessages = useCallback(async (
-        targetSessionId: string,
-        options?: { remount?: boolean }
-    ) => {
-        const uiMessages = await fetchSessionMessages(targetSessionId);
-        if (!uiMessages) return;
-        if (sessionId && sessionId !== targetSessionId) {
+    const reloadSessionMessages = useCallback(async (targetSessionId: string) => {
+        if (!targetSessionId || latestSessionIdRef.current !== targetSessionId || isReloadingMessagesRef.current) {
             return;
         }
+
+        isReloadingMessagesRef.current = true;
+        try {
+            const uiMessages = await fetchSessionMessages(targetSessionId);
+            if (!uiMessages || latestSessionIdRef.current !== targetSessionId) {
+                return;
+            }
+
+            const nextSignature = getMessagesSignature(uiMessages);
+            if (nextSignature === lastSessionSignatureRef.current) {
+                return;
+            }
+
+            setSessionState((prev) => {
+                if (prev.sessionId !== targetSessionId) {
+                    return prev;
+                }
+                return { sessionId: targetSessionId, messages: uiMessages };
+            });
+            lastSessionSignatureRef.current = nextSignature;
+            refreshSessionTimestamp(targetSessionId);
+        } finally {
+            isReloadingMessagesRef.current = false;
+        }
+    }, [fetchSessionMessages, refreshSessionTimestamp]);
+
+    // Refresh messages when background processing completes
+    const refreshMessages = useCallback(async (targetSessionId: string) => {
+        if (!targetSessionId || latestSessionIdRef.current !== targetSessionId) {
+            return;
+        }
+
+        const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
+            `/api/sessions/${targetSessionId}/messages`,
+            { retries: 0 }
+        );
+        if (error || !data || latestSessionIdRef.current !== targetSessionId) {
+            if (error) {
+                console.error("[Background Processing] Failed to fetch messages:", status, error);
+            }
+            return;
+        }
+
+        const uiMessages = convertDBMessagesToUIMessages(data.messages);
         const nextSignature = getMessagesSignature(uiMessages);
         if (nextSignature === lastSessionSignatureRef.current) {
             return;
@@ -377,48 +423,39 @@ export default function ChatInterface({
             if (prev.sessionId !== targetSessionId) {
                 return prev;
             }
-            return { sessionId: targetSessionId, messages: uiMessages };
+            return {
+                sessionId: targetSessionId,
+                messages: uiMessages,
+            };
         });
-        if (options?.remount) {
-            setBackgroundRefreshCounter((prev) => prev + 1);
-        }
+
         lastSessionSignatureRef.current = nextSignature;
         refreshSessionTimestamp(targetSessionId);
-    }, [fetchSessionMessages, refreshSessionTimestamp, sessionId]);
-
-    // Refresh messages when background processing completes
-    const refreshMessages = useCallback(async () => {
-        console.log("[Background Processing] Fetching updated messages for session:", sessionId);
-        const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
-            `/api/sessions/${sessionId}/messages`,
-            { retries: 0 }
-        );
-        if (error || !data) {
-            console.error("[Background Processing] Failed to fetch messages:", status, error);
-            return;
-        }
-        console.log("[Background Processing] Received messages:", data.messages?.length || 0);
-        const uiMessages = convertDBMessagesToUIMessages(data.messages);
-
-        setSessionState(prev => ({
-            ...prev,
-            messages: uiMessages
-        }));
-
-        lastSessionSignatureRef.current = getMessagesSignature(uiMessages);
-        refreshSessionTimestamp(sessionId);
-
-        // Increment counter to force ChatProvider remount with new messages
-        setBackgroundRefreshCounter(prev => prev + 1);
 
         // Update global store with new message count and timestamp
-        notifySessionUpdate(sessionId, {
+        notifySessionUpdate(targetSessionId, {
             updatedAt: new Date().toISOString(),
-            messageCount: data.messages?.length || 0
+            messageCount: data.messages?.length || 0,
         });
+    }, [notifySessionUpdate, refreshSessionTimestamp]);
 
-        console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
-    }, [sessionId, refreshSessionTimestamp]);
+    const maybeReloadBackgroundMessages = useCallback((targetSessionId: string) => {
+        if (!targetSessionId || latestSessionIdRef.current !== targetSessionId) {
+            return;
+        }
+
+        const now = Date.now();
+        if (now - lastBackgroundMessageReloadRef.current < BACKGROUND_MESSAGE_REFRESH_MS) {
+            return;
+        }
+
+        if (isReloadingMessagesRef.current) {
+            return;
+        }
+
+        lastBackgroundMessageReloadRef.current = now;
+        void reloadSessionMessages(targetSessionId);
+    }, [reloadSessionMessages]);
 
     // Poll for completion of background processing
     // No hard timeout — uses zombie detection instead to handle truly stuck runs.
@@ -430,7 +467,7 @@ export default function ChatInterface({
         }
 
         setIsZombieRun(false);
-        const pollIntervalMs = 2000;
+        const pollIntervalMs = 3000;
 
         pollingIntervalRef.current = setInterval(async () => {
             try {
@@ -455,13 +492,12 @@ export default function ChatInterface({
                         return;
                     }
                     if (sessionId && document.visibilityState === "visible") {
-                        await reloadSessionMessages(sessionId, { remount: true });
+                        maybeReloadBackgroundMessages(sessionId);
                     }
                     return;
                 }
 
                 // Run completed - fetch updated messages
-                console.log("[Background Processing] Run completed with status:", data.status);
                 if (pollingIntervalRef.current) {
                     clearInterval(pollingIntervalRef.current);
                     pollingIntervalRef.current = null;
@@ -469,13 +505,15 @@ export default function ChatInterface({
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
                 setIsZombieRun(false);
-                await refreshMessages();
+                if (sessionId) {
+                    await refreshMessages(sessionId);
+                }
             } catch (error) {
                 console.error("[Background Processing] Polling error:", error);
                 // Continue polling on error (network might recover)
             }
         }, pollIntervalMs);
-    }, [refreshMessages, reloadSessionMessages, sessionId]);
+    }, [maybeReloadBackgroundMessages, refreshMessages, sessionId]);
 
     // Check for active run on mount and when sessionId changes
     useEffect(() => {
@@ -495,11 +533,11 @@ export default function ChatInterface({
             }
             if (cancelled) return;
             if (data.hasActiveRun) {
-                console.log("[Background Processing] Detected active run:", data.runId);
                 setIsProcessingInBackground(true);
                 setProcessingRunId(data.runId!);
+                lastBackgroundMessageReloadRef.current = 0;
                 startPollingForCompletion(data.runId!);
-                void reloadSessionMessages(sessionId, { remount: true });
+                maybeReloadBackgroundMessages(sessionId);
             } else {
                 // No active run on this session — clear any stale state
                 setIsProcessingInBackground(false);
@@ -542,8 +580,9 @@ export default function ChatInterface({
                 return;
             }
             if (processingRunId && sessionId) {
+                lastBackgroundMessageReloadRef.current = 0;
                 startPollingForCompletion(processingRunId);
-                void reloadSessionMessages(sessionId, { remount: true });
+                maybeReloadBackgroundMessages(sessionId);
             }
         };
 
@@ -551,7 +590,7 @@ export default function ChatInterface({
         return () => {
             document.removeEventListener("visibilitychange", handleVisibility);
         };
-    }, [processingRunId, reloadSessionMessages, sessionId, startPollingForCompletion]);
+    }, [maybeReloadBackgroundMessages, processingRunId, sessionId, startPollingForCompletion]);
 
     useEffect(() => {
         if (activeTaskForSession?.type === "scheduled") {
@@ -790,7 +829,9 @@ export default function ChatInterface({
             setIsProcessingInBackground(false);
             setProcessingRunId(null);
             setIsZombieRun(false);
-            await refreshMessages();
+            if (sessionId) {
+                await refreshMessages(sessionId);
+            }
         } catch (err) {
             console.error("Failed to cancel background run:", err);
             toast.error(t("backgroundRun.cancelError"));
@@ -819,7 +860,9 @@ export default function ChatInterface({
                 }
 
                 reloadDebounceRef.current = setTimeout(() => {
-                    void reloadSessionMessages(sessionId, { remount: true });
+                    if (sessionId) {
+                        void refreshMessages(sessionId);
+                    }
                     reloadDebounceRef.current = null;
                 }, 150); // Small delay to let final state settle
 
@@ -846,7 +889,7 @@ export default function ChatInterface({
                     taskName: "taskName" in detail.task ? detail.task.taskName : undefined,
                     startedAt: detail.task.startedAt,
                 });
-                void reloadSessionMessages(sessionId, { remount: true });
+                maybeReloadBackgroundMessages(sessionId);
             }
 
             if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
@@ -861,7 +904,7 @@ export default function ChatInterface({
             window.removeEventListener("background-task-completed", handleTaskCompleted);
             window.removeEventListener("background-task-started", handleTaskStarted);
         };
-    }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
+    }, [character.id, loadSessions, maybeReloadBackgroundMessages, refreshMessages, sessionId]);
 
     useEffect(() => {
         if (!sessionId) {
@@ -879,8 +922,8 @@ export default function ChatInterface({
                     return;
                 }
                 void loadSessions({ silent: true, overrideCursor: null });
-                void reloadSessionMessages(sessionId, { remount: true });
-            }, 2500);
+                maybeReloadBackgroundMessages(sessionId);
+            }, 4000);
 
             return () => clearInterval(interval);
         }
@@ -927,8 +970,7 @@ export default function ChatInterface({
                 adaptivePollTimeoutRef.current = null;
             }
         };
-    }, [isChannelSession, isProcessingInBackground, loadSessions, reloadSessionMessages, sessionId]);
-
+    }, [isChannelSession, isProcessingInBackground, loadSessions, maybeReloadBackgroundMessages, sessionId]);
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -956,7 +998,7 @@ export default function ChatInterface({
                 return;
             }
             lastProgressTimeRef.current = now;
-            void reloadSessionMessages(sessionId, { remount: true });
+            maybeReloadBackgroundMessages(sessionId);
             if (detail.sessionId) {
                 refreshSessionTimestamp(detail.sessionId);
             }
@@ -966,8 +1008,7 @@ export default function ChatInterface({
         return () => {
             window.removeEventListener("background-task-progress", handleTaskProgress);
         };
-    }, [isChannelSession, isProcessingInBackground, refreshSessionTimestamp, reloadSessionMessages, sessionId]);
-
+    }, [isChannelSession, isProcessingInBackground, maybeReloadBackgroundMessages, refreshSessionTimestamp, sessionId]);
     const renameSession = useCallback(
         async (sessionToRenameId: string, newTitle: string): Promise<boolean> => {
             const trimmed = newTitle.trim();
@@ -1062,11 +1103,6 @@ export default function ChatInterface({
         }));
     }, []);
 
-    // Use sessionId + refresh counter for key
-    // Stable during normal chat, but remounts when background processing completes
-    // This keeps the ChatProvider alive during streaming but refreshes when returning to completed background run
-    const chatProviderKey = `${sessionId || "no-session"}-${backgroundRefreshCounter}`;
-
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
     }, [messages]);
@@ -1124,7 +1160,6 @@ export default function ChatInterface({
         >
             <CharacterProvider character={characterDisplay}>
                 <ChatProvider
-                    key={chatProviderKey}
                     sessionId={sessionId}
                     characterId={character.id}
                     initialMessages={messages}
