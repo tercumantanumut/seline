@@ -78,8 +78,10 @@ export function CronBuilder({ value, onChange }: CronBuilderProps) {
         return t("readable.dailyAt", { hour });
       }
       if (minute === "0" && dayOfMonth === "*" && month === "*" && dayOfWeek !== "*") {
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        return t("readable.weeklyAt", { day: days[parseInt(dayOfWeek)] || dayOfWeek, hour });
+        const dayKeys = ["days.sun", "days.mon", "days.tue", "days.wed", "days.thu", "days.fri", "days.sat"] as const;
+        const dayKey = dayKeys[parseInt(dayOfWeek)];
+        const day = dayKey ? t(dayKey) : dayOfWeek;
+        return t("readable.weeklyAt", { day, hour });
       }
       if (minute === "0" && dayOfMonth !== "*" && month === "*" && dayOfWeek === "*") {
         return t("readable.monthlyAt", { day: dayOfMonth, hour });

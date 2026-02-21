@@ -2503,7 +2503,8 @@
       "stopping": "Stopping...",
       "cancelled": "Scheduled run cancelled",
       "cancelError": "Failed to cancel run",
-      "startedAt": "Started at {time}"
+      "startedAt": "Started at {time}",
+      "backgroundTask": "Background task"
     },
     "backgroundRun": {
       "stop": "Stop Run",
@@ -3261,6 +3262,15 @@
         "weeklyAt": "Runs every {day} at {hour}:00",
         "monthlyAt": "Runs on day {day} of each month at {hour}:00",
         "custom": "Custom schedule"
+      },
+      "days": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
       }
     },
     "presets": {
@@ -3370,7 +3380,9 @@
       "viewTask": "View Task",
       "viewDetails": "View Details",
       "activeTasks": "{count} active task(s)",
-      "startedAgo": "Started {time}"
+      "startedAgo": "Started {time}",
+      "chatRun": "Chat run",
+      "channelTask": "Channel {channelType}"
     }
   },
   "plugins": {

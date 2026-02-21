@@ -2488,7 +2488,8 @@
       "stopping": "Durduruluyor...",
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
-      "startedAt": "{time} itibarıyla başladı"
+      "startedAt": "{time} itibarıyla başladı",
+      "backgroundTask": "Arka plan görevi"
     },
     "processingInBackground": "Ajan arka planda işliyor",
     "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
@@ -3258,6 +3259,15 @@
         "weeklyAt": "Her {day} saat {hour}:00'da çalışır",
         "monthlyAt": "Her ayın {day}. günü saat {hour}:00'da çalışır",
         "custom": "Özel zamanlama"
+      },
+      "days": {
+        "sun": "Paz",
+        "mon": "Pzt",
+        "tue": "Sal",
+        "wed": "Çar",
+        "thu": "Per",
+        "fri": "Cum",
+        "sat": "Cmt"
       }
     },
     "presets": {
@@ -3367,7 +3377,9 @@
       "viewTask": "Görevi Görüntüle",
       "viewDetails": "Detayları Görüntüle",
       "activeTasks": "{count} aktif görev",
-      "startedAgo": "{time} önce başladı"
+      "startedAgo": "{time} önce başladı",
+      "chatRun": "Sohbet çalışması",
+      "channelTask": "Kanal {channelType}"
     }
   },
   "plugins": {
