@@ -216,6 +216,9 @@
     "brandShort": "S",
     "brand": "Seline",
     "homeAria": "Seline Home",
+    "minimizeWindow": "Minimize window",
+    "maximizeWindow": "Maximize window",
+    "closeWindow": "Close window",
     "sidebar": {
       "usage": "Usage & Analytics",
       "dashboard": "Dashboard",
@@ -1887,7 +1890,8 @@
       "requiredVariables": "Required variables: {vars}",
       "recommendedServers": "Recommended servers",
       "authBadge": "Auth",
-      "helpButton": "Help"
+      "helpButton": "Help",
+      "preview": "Preview:"
     },
     "models": {
       "title": "Model choices",

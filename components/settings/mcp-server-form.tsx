@@ -475,7 +475,7 @@ export function MCPServerForm({
                         />
                         {url && url.includes("${") && (
                             <div className="text-[10px] text-terminal-muted font-mono bg-terminal-bg/50 p-2 rounded">
-                                <span className="font-semibold">Preview: </span>
+                                <span className="font-semibold">{t("preview")} </span>
                                 {resolveVariablePreview(url)}
                             </div>
                         )}
@@ -610,7 +610,7 @@ export function MCPServerForm({
                                 </div>
                                 {value.includes("${") && (
                                     <div className="text-[10px] text-terminal-muted font-mono bg-terminal-bg/50 p-1.5 rounded">
-                                        <span className="font-semibold">Preview: </span>
+                                        <span className="font-semibold">{t("preview")} </span>
                                         {resolveVariablePreview(value)}
                                     </div>
                                 )}
