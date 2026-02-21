@@ -132,7 +132,7 @@ export function buildCharacterSystemPrompt(
       sections.push(
         [
           "## Skill Matching Guidance",
-          "- Prefer `runSkill` action=\"inspect\" for known skills; `action=\"list\"` is feature-gated and may be unavailable.",
+          "- Use `runSkill` action=\"list\" to discover available skills when needed.",
           "- Use `runSkill` action=\"run\" when a user request clearly matches a skill trigger example.",
           "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",
           "- If multiple skills match, ask a brief clarification before running.",
@@ -296,7 +296,7 @@ export function buildCacheableCharacterPrompt(
         role: "system",
         content: [
           "## Skill Matching Guidance",
-          "- Prefer `runSkill` action=\"inspect\" for known skills; `action=\"list\"` is feature-gated and may be unavailable.",
+          "- Use `runSkill` action=\"list\" to discover available skills when needed.",
           "- Use `runSkill` action=\"run\" when a user request clearly matches a skill trigger example.",
           "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",
           "- If multiple skills match, ask a brief clarification before running.",
