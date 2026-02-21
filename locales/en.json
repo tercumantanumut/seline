@@ -1697,7 +1697,9 @@
       "loginFailed": "Login failed. Please try again.",
       "authStartFailed": "Failed to start authentication",
       "codeExchangeFailed": "Code exchange failed",
-      "memorySaveFailed": "Failed to save memory defaults"
+      "memorySaveFailed": "Failed to save memory defaults",
+      "connectingToGoogle": "Connecting to Google...",
+      "authUrlFailed": "Failed to get authorization URL"
     },
     "api": {
       "title": "Choose your AI provider",
@@ -2222,8 +2224,11 @@
       "clearAllOverrides": "Clear all overrides",
       "helpText": "Empty = use global setting. Enter a model ID to override for this session only.",
       "globalLabel": "global:",
-      "providerDefault": "(provider default)"
+      "providerDefault": "(provider default)",
+      "modelLabel": "Model",
+      "globalStatus": "Global"
     },
+    "providerLabel": "Provider:",
     "currentlyActive": "Currently active",
     "connectProviders": "Connect providers in Settings",
     "footerHint": "Click to switch model · Manage providers in <settings>Settings</settings>",
@@ -3185,6 +3190,7 @@
         "label": "Variables",
         "helpTitle": "How to use variables",
         "helpDescription": "Variables are replaced with actual values when your schedule runs.",
+        "exampleOutput": "Example output:",
         "categories": {
           "time": "Time Variables",
           "context": "Context Variables"

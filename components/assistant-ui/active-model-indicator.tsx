@@ -3,6 +3,7 @@
 import type { FC } from "react";
 import { cn } from "@/lib/utils";
 import { CpuIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Tooltip,
   TooltipContent,
@@ -92,6 +93,7 @@ interface ActiveModelIndicatorProps {
  * resolves session overrides via session-model-resolver.ts.
  */
 export const ActiveModelIndicator: FC<ActiveModelIndicatorProps> = ({ status }) => {
+  const t = useTranslations("modelBag");
   if (!status?.model) return null;
 
   const { id: modelId, provider } = status.model;
@@ -122,7 +124,7 @@ export const ActiveModelIndicator: FC<ActiveModelIndicatorProps> = ({ status }) 
         className="bg-terminal-dark text-terminal-cream font-mono text-xs max-w-xs"
       >
         <p className="font-bold">{modelName}</p>
-        <p className="text-terminal-cream/70 mt-0.5">Provider: {providerName}</p>
+        <p className="text-terminal-cream/70 mt-0.5">{t("providerLabel")} {providerName}</p>
         <p className="text-terminal-cream/50 mt-0.5 text-[10px] break-all">ID: {modelId}</p>
       </TooltipContent>
     </Tooltip>

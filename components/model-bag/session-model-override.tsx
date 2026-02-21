@@ -146,13 +146,13 @@ export function SessionModelOverride({
         className="flex w-full items-center gap-2 font-mono text-[10px]"
       >
         <CpuIcon className="size-3 text-terminal-green" />
-        <span className="font-bold text-terminal-dark">Model</span>
+        <span className="font-bold text-terminal-dark">{t("modelLabel")}</span>
         {state.hasOverrides ? (
           <span className="rounded bg-terminal-green/15 px-1 text-[9px] font-bold text-terminal-green">
             OVERRIDE
           </span>
         ) : (
-          <span className="text-terminal-muted">Global</span>
+          <span className="text-terminal-muted">{t("globalStatus")}</span>
         )}
         <span className="ml-auto truncate text-terminal-muted">
           {chatModel}

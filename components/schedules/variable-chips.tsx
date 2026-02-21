@@ -41,7 +41,7 @@ export function VariableChips({
                                 <p className="font-semibold text-terminal-green">{v.label}</p>
                                 <p className="text-xs text-muted-foreground">{v.description}</p>
                                 <div className="mt-2 pt-2 border-t border-muted">
-                                    <p className="text-[10px] uppercase text-muted-foreground mb-1">Example output:</p>
+                                    <p className="text-[10px] uppercase text-muted-foreground mb-1">{t("exampleOutput")}</p>
                                     <p className="text-[10px] font-mono bg-terminal-green/5 p-1 rounded border border-terminal-green/10">
                                         {v.example}
                                     </p>

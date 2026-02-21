@@ -430,7 +430,7 @@ export default function SettingsPage() {
         );
 
         if (popup) {
-          popup.document.write("<p style='font-family:sans-serif'>Connecting to Google...</p>");
+          popup.document.write(`<p style='font-family:sans-serif'>${t("errors.connectingToGoogle")}</p>`);
         }
       }
 
@@ -440,7 +440,7 @@ export default function SettingsPage() {
 
       if (!authData.success || !authData.url) {
         popup?.close();
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -568,7 +568,7 @@ export default function SettingsPage() {
 
       if (!authData.success || !authData.url) {
         popup?.close();
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -667,7 +667,7 @@ export default function SettingsPage() {
       const authData = await authResponse.json();
 
       if (!authData.success || !authData.url) {
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -1025,7 +1025,7 @@ function LocalEmbeddingModelSelector({ formState, updateField, t }: LocalEmbeddi
 
     // Safety check - API might not be fully exposed
     if (!electronAPI?.model?.download) {
-      setDownloadError("Model download API not available. Please restart the app.");
+      setDownloadError(t("vector.advanced.reranking.downloadApiUnavailable"));
       setDownloading(null);
       return;
     }
@@ -1213,7 +1213,7 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
 
     // Safety check - API might not be fully exposed
     if (!electronAPI?.model?.downloadFile) {
-      setDownloadError("Model download API not available. Please restart the app.");
+      setDownloadError(t("vector.advanced.reranking.downloadApiUnavailable"));
       setDownloading(null);
       return;
     }

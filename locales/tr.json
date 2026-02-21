@@ -1669,7 +1669,9 @@
       "loginFailed": "Giriş başarısız. Lütfen tekrar deneyin.",
       "authStartFailed": "Kimlik doğrulama başlatılamadı",
       "codeExchangeFailed": "Kod değişimi başarısız",
-      "memorySaveFailed": "Bellek varsayılanları kaydedilemedi"
+      "memorySaveFailed": "Bellek varsayılanları kaydedilemedi",
+      "connectingToGoogle": "Google'a bağlanıyor...",
+      "authUrlFailed": "Yetkilendirme URL'si alınamadı"
     },
     "api": {
       "title": "LLM Sağlayıcısı",
@@ -2207,8 +2209,11 @@
       "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
       "helpText": "Boş = global ayarı kullan. Yalnızca bu oturum için geçersiz kılmak üzere model kimliği girin.",
       "globalLabel": "global:",
-      "providerDefault": "(sağlayıcı varsayılanı)"
+      "providerDefault": "(sağlayıcı varsayılanı)",
+      "modelLabel": "Model",
+      "globalStatus": "Global"
     },
+    "providerLabel": "Sağlayıcı:",
     "currentlyActive": "Şu anda aktif",
     "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",
     "footerHint": "Modeli değiştirmek için tıklayın · Sağlayıcıları <settings>Ayarlar</settings>'dan yönetin",
@@ -3118,6 +3123,7 @@
         },
         "helpDescription": "Değişkenler, zamanlamanız çalıştığında gerçek değerlerle değiştirilir.",
         "helpTitle": "Değişkenler nasıl kullanılır",
+        "exampleOutput": "Örnek çıktı:",
         "label": "Değişkenler"
       }
     },
