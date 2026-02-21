@@ -177,7 +177,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
       // For now, marketplace install shows guidance since actual download
       // from source requires additional infrastructure (GitHub ZIP download, etc.)
       toast.info(
-        `To install "${plugin.name}", download the .zip from the source and upload it via the Install Plugin button.`,
+        t("installGuidance", { name: plugin.name }),
         { duration: 6000 }
       );
     } finally {
@@ -201,10 +201,10 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="flex items-center gap-2">
             <Globe className="size-4 text-terminal-green" />
             <h3 className="font-mono text-sm font-bold text-terminal-dark">
-              Plugin Marketplace
+              {t("title")}
             </h3>
             <Badge variant="secondary" className="font-mono text-[9px]">
-              {allPlugins.length} available
+              {t("available", { count: allPlugins.length })}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="my-marketplace"
+                placeholder={t("namePlaceholder")}
                 className="w-full rounded border border-terminal-border/30 bg-white px-2 py-1 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none"
               />
             </div>
@@ -247,7 +247,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                 type="text"
                 value={newSource}
                 onChange={(e) => setNewSource(e.target.value)}
-                placeholder="https://github.com/user/marketplace"
+                placeholder={t("sourcePlaceholder")}
                 className="w-full rounded border border-terminal-border/30 bg-white px-2 py-1 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none"
               />
             </div>
@@ -421,7 +421,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                   ) : (
                     <Download className="size-3 mr-1" />
                   )}
-                  Install
+                  {t("install")}
                 </Button>
               </div>
             ))}

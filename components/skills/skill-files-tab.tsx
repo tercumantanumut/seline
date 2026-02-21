@@ -116,7 +116,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64 text-red-500">
-        Error: {error}
+        {t("errorPrefix")}: {error}
       </div>
     );
   }
@@ -136,7 +136,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileCode className="h-4 w-4" />
-            Scripts ({categorizedFiles.scripts.length})
+            {t("scripts", { count: categorizedFiles.scripts.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.scripts.map((file) => (
@@ -179,7 +179,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            References ({categorizedFiles.references.length})
+            {t("references", { count: categorizedFiles.references.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.references.map((file) => (
@@ -217,7 +217,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileArchive className="h-4 w-4" />
-            Assets ({categorizedFiles.assets.length})
+            {t("assets", { count: categorizedFiles.assets.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.assets.map((file) => (
@@ -254,7 +254,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
       {categorizedFiles.other.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3">
-            Other Files ({categorizedFiles.other.length})
+            {t("otherFiles", { count: categorizedFiles.other.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.other.map((file) => (

@@ -2895,7 +2895,12 @@
       "download": "Download file",
       "downloadSuccess": "File downloaded",
       "downloadFailed": "Download failed",
-      "executable": "Executable"
+      "executable": "Executable",
+      "errorPrefix": "Error",
+      "scripts": "Scripts ({count})",
+      "references": "References ({count})",
+      "assets": "Assets ({count})",
+      "otherFiles": "Other Files ({count})"
     },
     "new": {
       "backToSkills": "Back to Skills",
@@ -3343,11 +3348,13 @@
     "author": "Author",
     "installedLabel": "Installed",
     "marketplace": {
+      "title": "Plugin Marketplace",
       "browse": "Browse Marketplace",
-      "add": "Add Marketplace",
+      "addMarketplace": "Add Marketplace",
       "refresh": "Refresh",
       "install": "Install",
       "installed": "Installed",
+      "available": "{count} available",
       "nameAndSourceRequired": "Name and source are required",
       "added": "Marketplace \"{name}\" added",
       "addFailed": "Failed to add marketplace",
@@ -3358,12 +3365,15 @@
       "cancel": "Cancel",
       "nameLabel": "Name",
       "sourceUrlLabel": "Source URL",
+      "namePlaceholder": "my-marketplace",
+      "sourcePlaceholder": "https://github.com/user/marketplace",
       "add": "Add",
       "searchPlaceholder": "Search plugins...",
       "allCategories": "All",
       "noSources": "No marketplace sources configured",
       "noSourcesHint": "Add a marketplace source to browse available plugins",
-      "noResults": "No plugins match your search"
+      "noResults": "No plugins match your search",
+      "installGuidance": "To install \"{name}\", download the .zip from the source and upload it via the Install Plugin button."
     },
     "status": {
       "active": "Active",
@@ -3394,24 +3404,6 @@
       "skillCount": "{count, plural, one {# skill} other {# skills}}",
       "hooksLabel": "hooks",
       "mcpLabel": "MCP"
-    },
-    "marketplace": {
-      "browse": "Browse Marketplace",
-      "add": "Add Marketplace",
-      "addSource": "Add Source",
-      "refresh": "Refresh",
-      "install": "Install",
-      "installed": "Installed",
-      "available": "{count} available",
-      "noSources": "No marketplace sources configured",
-      "noSourcesHint": "Add a marketplace source to browse available plugins",
-      "noResults": "No plugins match your search",
-      "name": "Name",
-      "sourceUrl": "Source URL",
-      "removeConfirm": "Remove marketplace \"{name}\"?",
-      "removed": "Marketplace \"{name}\" removed",
-      "added": "Marketplace \"{name}\" added",
-      "installHint": "Download the .zip from the source and upload via Install Plugin"
     },
     "import": {
       "pluginInstalled": "Plugin installed",

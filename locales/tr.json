@@ -2880,7 +2880,12 @@
       "download": "Dosyayı indir",
       "downloadSuccess": "Dosya indirildi",
       "downloadFailed": "İndirme başarısız",
-      "executable": "Çalıştırılabilir"
+      "executable": "Çalıştırılabilir",
+      "errorPrefix": "Hata",
+      "scripts": "Betikler ({count})",
+      "references": "Referanslar ({count})",
+      "assets": "Varlıklar ({count})",
+      "otherFiles": "Diğer Dosyalar ({count})"
     },
     "new": {
       "backToSkills": "Becerilere Dön",
@@ -3332,11 +3337,13 @@
       "mcpLabel": "MCP"
     },
     "marketplace": {
+      "title": "Eklenti Pazaryeri",
       "browse": "Pazaryerini Gözat",
-      "add": "Pazaryeri Ekle",
+      "addMarketplace": "Pazaryeri Ekle",
       "refresh": "Yenile",
       "install": "Yükle",
       "installed": "Yüklendi",
+      "available": "{count} mevcut",
       "nameAndSourceRequired": "Ad ve kaynak gereklidir",
       "added": "\"{name}\" pazaryeri eklendi",
       "addFailed": "Pazaryeri eklenemedi",
@@ -3347,12 +3354,15 @@
       "cancel": "İptal",
       "nameLabel": "Ad",
       "sourceUrlLabel": "Kaynak URL",
+      "namePlaceholder": "benim-pazaryerim",
+      "sourcePlaceholder": "https://github.com/kullanici/pazaryeri",
       "add": "Ekle",
       "searchPlaceholder": "Eklenti ara...",
       "allCategories": "Tümü",
       "noSources": "Pazaryeri kaynağı yapılandırılmadı",
       "noSourcesHint": "Mevcut eklentilere göz atmak için bir pazaryeri kaynağı ekleyin",
-      "noResults": "Aramanızla eşleşen eklenti yok"
+      "noResults": "Aramanızla eşleşen eklenti yok",
+      "installGuidance": "\"{name}\" yüklemek için kaynaktan .zip dosyasını indirin ve Eklenti Yükle düğmesiyle yükleyin."
     },
     "mainAgentLabel": "Ana ajan",
     "noPluginsYet": "Henüz eklenti yok",
