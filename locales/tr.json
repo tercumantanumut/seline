@@ -2275,6 +2275,24 @@
       "invalidFileTypeDesc": "Yalnızca .zip paketleri veya .md dosyaları desteklenir",
       "fileTooLarge": "Dosya çok büyük",
       "fileTooLargeDesc": "Dosya boyutu 50MB sınırını aşıyor"
+    },
+    "library": {
+      "title": "Çapraz Ajan Beceri Kütüphanesi",
+      "searchPlaceholder": "Beceri ara",
+      "allCategories": "Tüm kategoriler",
+      "applyFilters": "Filtreleri Uygula",
+      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
+      "noDescription": "Açıklama yok",
+      "category": "Kategori",
+      "categoryGeneral": "genel",
+      "runs": "Çalışma",
+      "success": "Başarı",
+      "updated": "Güncellendi",
+      "selectAgent": "Hedef ajan seçin",
+      "copy": "Kopyala",
+      "open": "Aç",
+      "copySuccess": "Beceri başarıyla kopyalandı.",
+      "copyFailed": "Beceri kopyalanamadı"
     }
   },
   "schedules": {
