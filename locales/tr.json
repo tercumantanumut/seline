@@ -216,6 +216,9 @@
     "brandShort": "S",
     "brand": "Selin",
     "homeAria": "Selin Ana Sayfa",
+    "minimizeWindow": "Pencereyi küçült",
+    "maximizeWindow": "Pencereyi büyüt",
+    "closeWindow": "Pencereyi kapat",
     "sidebar": {
       "usage": "Kullanım ve Analitik",
       "dashboard": "Kontrol Paneli",
@@ -2178,7 +2181,8 @@
       "requiredVariables": "Gerekli değişkenler: {vars}",
       "recommendedServers": "Önerilen sunucular",
       "authBadge": "Doğrulama",
-      "helpButton": "Yardım"
+      "helpButton": "Yardım",
+      "preview": "Önizleme:"
     }
   },
   "modelBag": {
