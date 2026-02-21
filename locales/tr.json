@@ -859,7 +859,11 @@
       "navigate": "↑↓ gezin",
       "select": "Tab/Enter seç",
       "close": "Esc kapat",
-      "open": "Command Space aç"
+      "open": "Command Space aç",
+      "searchPlaceholder": "Beceri, kategori ve açıklamalarda ara",
+      "searchAriaLabel": "Becerilerde ara",
+      "noSkillsYet": "Henüz beceri yok - bir .md beceri dosyası bırakın veya Ayarlar → Eklentiler bölümünü ziyaret edin.",
+      "noMatch": "\"{query}\" ile eşleşen beceri yok"
     }
   },
   "workspace": {
@@ -1777,7 +1781,12 @@
     "modelCount": "{count, plural, one {# model} other {# model}}",
     "inventory": "ENVANTER",
     "searchPlaceholder": "Model ara...",
+    "bagSearchPlaceholder": "Ara...",
     "noMatch": "Filtrelere uyan model yok",
+    "noModels": "Model bulunamadı",
+    "capabilityThinking": "Genişletilmiş düşünme",
+    "capabilityFast": "Hızlı",
+    "capabilityVision": "Görüntü",
     "close": "Kapat",
     "enterToAssign": "Enter + ↵",
     "sessionOverride": {

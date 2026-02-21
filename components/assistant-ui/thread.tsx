@@ -2036,8 +2036,8 @@ const Composer: FC<{
                   }
                 }}
                 className="w-full rounded-md border border-terminal-border/60 bg-white/85 py-1.5 pl-8 pr-3 text-sm font-mono text-terminal-dark outline-none transition-colors placeholder:text-terminal-muted/70 focus:border-terminal-green/50"
-                placeholder="Search skills, categories, and descriptions"
-                aria-label="Search skills"
+                placeholder={t("skillPicker.searchPlaceholder")}
+                aria-label={t("skillPicker.searchAriaLabel")}
               />
             </div>
           </div>
@@ -2046,13 +2046,13 @@ const Composer: FC<{
             {skills.length === 0 && !isLoadingSkills ? (
               <div className="px-2 py-8 text-center">
                 <p className="text-xs font-mono text-terminal-muted">
-                  No skills available yet - drop a .md skill file or visit Settings {'->'} Plugins.
+                  {t("skillPicker.noSkillsYet")}
                 </p>
               </div>
             ) : filteredSkills.length === 0 ? (
               <div className="px-2 py-8 text-center">
                 <p className="text-xs font-mono text-terminal-muted">
-                  No skills match "{skillPickerQuery}"
+                  {t("skillPicker.noMatch", { query: skillPickerQuery })}
                 </p>
               </div>
             ) : (
@@ -2637,7 +2637,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search..."
+                placeholder={tBag("bagSearchPlaceholder")}
                 className="w-full rounded-lg border border-terminal-border/30 bg-white py-1 pl-7 pr-2 font-mono text-[11px] text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green/30"
               />
             </div>
@@ -2651,7 +2651,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           ) : visibleModels.length === 0 ? (
             <div className="py-12 text-center">
               <PackageIcon className="mx-auto size-8 text-terminal-muted/30 mb-2" />
-              <p className="font-mono text-xs text-terminal-muted">No models found</p>
+              <p className="font-mono text-xs text-terminal-muted">{tBag("noModels")}</p>
               <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">Connect providers in Settings</p>
             </div>
           ) : (
@@ -2725,17 +2725,17 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                               </span>
                             )}
                             {model.capabilities.thinking && (
-                              <span className="rounded px-1 py-0.5 bg-purple-100 font-mono text-[9px] text-purple-600" title="Extended thinking">
+                              <span className="rounded px-1 py-0.5 bg-purple-100 font-mono text-[9px] text-purple-600" title={tBag("capabilityThinking")} aria-label={tBag("capabilityThinking")}>
                                 🧠
                               </span>
                             )}
                             {model.capabilities.speed === "fast" && (
-                              <span className="rounded px-1 py-0.5 bg-amber-50 font-mono text-[9px] text-amber-600" title="Fast">
+                              <span className="rounded px-1 py-0.5 bg-amber-50 font-mono text-[9px] text-amber-600" title={tBag("capabilityFast")} aria-label={tBag("capabilityFast")}>
                                 ⚡
                               </span>
                             )}
                             {model.capabilities.vision && (
-                              <span className="rounded px-1 py-0.5 bg-blue-50 font-mono text-[9px] text-blue-500" title="Vision">
+                              <span className="rounded px-1 py-0.5 bg-blue-50 font-mono text-[9px] text-blue-500" title={tBag("capabilityVision")} aria-label={tBag("capabilityVision")}>
                                 👁
                               </span>
                             )}
