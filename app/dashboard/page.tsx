@@ -154,9 +154,12 @@ function SessionCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick()}
       className={cn(
-        "group flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all duration-150",
+        "group flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-1",
         pinned
           ? "border-terminal-amber/30 bg-terminal-amber/5 hover:bg-terminal-amber/10"
           : "border-terminal-border/40 bg-terminal-cream/40 hover:bg-terminal-cream/70",
@@ -200,8 +203,11 @@ function AgentRow({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group flex items-center gap-3 rounded-lg px-2 py-2.5 cursor-pointer hover:bg-terminal-cream/60 transition-colors"
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick()}
+      className="group flex items-center gap-3 rounded-lg px-2 py-2.5 cursor-pointer hover:bg-terminal-cream/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-1"
     >
       <Avatar className="h-7 w-7 shrink-0">
         {agent.avatarUrl ? <AvatarImage src={agent.avatarUrl} alt={agent.name} /> : null}

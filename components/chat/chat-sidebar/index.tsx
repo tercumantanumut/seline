@@ -507,6 +507,7 @@ export function CharacterSidebar({
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder={t("sidebar.searchPlaceholder")}
+                aria-label={t("sidebar.searchPlaceholder")}
               />
               {searchQuery ? (
                 <button
