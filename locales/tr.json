@@ -2831,7 +2831,9 @@
       "runs": "Calistirma",
       "success": "Basarili",
       "lastRun": "Son Calistirma",
-      "never": "Hic"
+      "never": "Hic",
+      "category": "Kategori",
+      "version": "Sürüm"
     },
     "delete": {
       "action": "Kalıcı Olarak Sil",
@@ -2934,6 +2936,9 @@
     "scheduleNotFound": "Zamanlama bulunamadı",
     "loadScheduleFailed": "Zamanlama yüklenemedi",
     "updateScheduleFailed": "Zamanlama güncellenemedi",
+    "loadSchedulesFailed": "Zamanlamalar yüklenemedi",
+    "deleteScheduleFailed": "Zamanlama silinemedi",
+    "triggerScheduleFailed": "Zamanlama tetiklenemedi",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Yeniden Dene",

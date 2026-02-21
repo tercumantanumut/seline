@@ -2846,7 +2846,9 @@
       "runs": "Runs",
       "success": "Success",
       "lastRun": "Last Run",
-      "never": "Never"
+      "never": "Never",
+      "category": "Category",
+      "version": "Version"
     },
     "delete": {
       "action": "Delete Permanently",
@@ -2949,6 +2951,9 @@
     "scheduleNotFound": "Schedule not found",
     "loadScheduleFailed": "Failed to load schedule",
     "updateScheduleFailed": "Failed to update schedule",
+    "loadSchedulesFailed": "Failed to load schedules",
+    "deleteScheduleFailed": "Failed to delete schedule",
+    "triggerScheduleFailed": "Failed to trigger schedule",
     "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",

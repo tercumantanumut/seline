@@ -208,8 +208,8 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                     <span>{t("stats.runs")}: {skill.runCount}</span>
                     <span>{t("stats.success")}: {skill.successCount}</span>
                     <span>{t("stats.lastRun")}: {skill.lastRunAt ? new Date(skill.lastRunAt).toLocaleString() : t("stats.never")}</span>
-                    <span>Category: {skill.category || "general"}</span>
-                    <span>Version: {skill.version}</span>
+                    <span>{t("stats.category")}: {skill.category || t("library.categoryGeneral")}</span>
+                    <span>{t("stats.version")}: {skill.version}</span>
                   </div>
                   <div className="mt-3 flex justify-end gap-2">
                     <DropdownMenu>
@@ -230,7 +230,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                     </DropdownMenu>
                     <Button asChild variant="outline" size="sm" className="font-mono">
                       <Link href={`/agents/${characterId}/skills/${skill.id}`}>
-                        Open <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                        {t("library.open")} <ExternalLink className="ml-1 h-3.5 w-3.5" />
                       </Link>
                     </Button>
                   </div>

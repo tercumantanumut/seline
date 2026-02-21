@@ -63,11 +63,11 @@ export function ScheduleList({
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/schedules?characterId=${characterId}`);
-      if (!res.ok) throw new Error("Failed to load schedules");
+      if (!res.ok) throw new Error(t("loadSchedulesFailed"));
       const data = await res.json();
       setSchedules(data.schedules || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schedules");
+      setError(err instanceof Error ? err.message : t("loadSchedulesFailed"));
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export function ScheduleList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to update schedule");
+      if (!res.ok) throw new Error(t("updateScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to update schedule:", err);
@@ -136,7 +136,7 @@ export function ScheduleList({
     if (!deleteConfirmId) return;
     try {
       const res = await fetch(`/api/schedules/${deleteConfirmId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete schedule");
+      if (!res.ok) throw new Error(t("deleteScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to delete schedule:", err);
@@ -148,7 +148,7 @@ export function ScheduleList({
   const handleTrigger = async (id: string) => {
     try {
       const res = await fetch(`/api/schedules/${id}/trigger`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to trigger schedule");
+      if (!res.ok) throw new Error(t("triggerScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to trigger schedule:", err);
