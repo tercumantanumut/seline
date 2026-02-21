@@ -139,6 +139,11 @@ async function executeVectorSearch(
   args: { query: string; maxResults?: number; minScore?: number; folderIds?: string[] }
 ): Promise<VectorSearchResult> {
   const { sessionId, characterId, sessionMetadata } = options;
+
+  if (!sessionId) {
+    throw new Error("Vector search tool requires a sessionId");
+  }
+
   const vectorSessionKey = `vector:${sessionId}`;
 
   // Input normalization: Handle common AI parameter mistakes
@@ -473,6 +478,11 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
  */
 export function createVectorQueryTool(options: VectorSearchOptions) {
   const { sessionId, characterId } = options;
+
+  if (!sessionId) {
+    throw new Error("Vector query tool requires a sessionId");
+  }
+
   const vectorSessionKey = `vector:${sessionId}`;
 
   return tool({

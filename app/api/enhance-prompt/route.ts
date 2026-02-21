@@ -18,7 +18,11 @@ import {
   completeAgentRun,
   withRunContext,
 } from "@/lib/observability";
-import { getOrCreateCharacterSession, createSession } from "@/lib/db/queries";
+import {
+  getOrCreateCharacterSession,
+  createSession,
+  getSessionByMetadataKey,
+} from "@/lib/db/queries";
 
 interface EnhancePromptRequestBody {
   input?: string;
@@ -58,11 +62,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const { session } = await getOrCreateCharacterSession(userId, validCharacterId, "Prompt Enhancement");
       sessionRecord = session;
     } else {
-      sessionRecord = await createSession({
-        title: "Prompt Enhancement",
+      const metadataKey = `prompt-enhancement:${userId}`;
+      const existingSession = await getSessionByMetadataKey(
         userId,
-        metadata: { type: "prompt-enhancement" },
-      });
+        "prompt-enhancement",
+        metadataKey
+      );
+
+      sessionRecord =
+        existingSession ??
+        (await createSession({
+          title: "Prompt Enhancement",
+          userId,
+          metadata: { type: "prompt-enhancement", key: metadataKey },
+        }));
     }
 
     const sessionId = sessionRecord.id;

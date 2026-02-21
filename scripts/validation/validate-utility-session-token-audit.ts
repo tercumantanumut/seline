@@ -7,6 +7,9 @@
  *
  * Usage:
  *   npx tsx scripts/validation/validate-utility-session-token-audit.ts [--dry-run]
+ *
+ * Accepts --dry-run for compatibility/log labeling only; the script is always
+ * read-only (no DB writes, no network calls) in both modes.
  */
 
 import { decideMemoryInjection } from "../../lib/ai/prompt-enhancement-memory";
@@ -86,7 +89,7 @@ function main() {
   const dryRun = process.argv.includes("--dry-run");
 
   console.log("\n=== Utility Session Token Audit Validation ===");
-  console.log(`Mode: ${dryRun ? "dry-run" : "validate"}`);
+  console.log(`Mode label: ${dryRun ? "dry-run" : "validate"} (behavior is identical/read-only)`);
   console.log("Read-only simulation. No DB writes, no network calls.\n");
 
   const results = WORKFLOWS.map(runSample);
