@@ -132,6 +132,75 @@
         "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
       },
       "cta": "Seline'i kullanmaya başla"
+    },
+    "webSearch": {
+      "title": "Web Aramasını Etkinleştir",
+      "subtitle": "Web araması DuckDuckGo ile kutudan çıkar (ücretsiz). Daha zengin sonuçlar ve Derin Araştırma için Tavily API anahtarı ekleyin.",
+      "featuresTitle": "Neler kazanacaksınız:",
+      "features": {
+        "deepResearch": {
+          "title": "Derin Araştırma",
+          "desc": "Çok kaynaklı sentezle kapsamlı web araştırması"
+        },
+        "realtime": {
+          "title": "Gerçek Zamanlı Bilgi",
+          "desc": "Güncel olaylar, haberler ve güncel bilgilere erişim"
+        },
+        "factVerification": {
+          "title": "Gerçek Doğrulama",
+          "desc": "İddiaları doğrulayın ve birden fazla kaynaktan bilgileri çapraz referanslayın"
+        }
+      },
+      "apiKeyTitle": "Tavily API Anahtarı",
+      "getApiKey": "API anahtarınızı alın",
+      "validationEmpty": "Lütfen bir API anahtarı girin",
+      "validationValid": "API anahtarı geçerli!",
+      "validationInvalid": "Geçersiz API anahtarı",
+      "validationFailed": "API anahtarı doğrulanamadı",
+      "validating": "Doğrulanıyor...",
+      "testKey": "API Anahtarını Test Et",
+      "gettingStarted": "Başlarken:",
+      "step1": "tavily.com'a kaydolun (ücretsiz plan mevcut)",
+      "step2": "API anahtarınızı panodan kopyalayın",
+      "step3": "Yukarıya yapıştırın ve \"API Anahtarını Test Et\" düğmesine tıklayın",
+      "noKeyHint": "API anahtarınız yok mu? Bu adımı atlayın — DuckDuckGo ücretsiz web aramasını otomatik olarak sağlar.",
+      "back": "Geri",
+      "skip": "Şimdilik atla",
+      "continue": "Devam"
+    },
+    "webScraping": {
+      "title": "Web Kazıma Sağlayıcısı",
+      "subtitle": "Ajanlarınızın web sayfalarına nasıl göz atıp içerik çıkaracağını seçin",
+      "localTitle": "Yerel (Puppeteer)",
+      "recommended": "Önerilen",
+      "localDesc": "Puppeteer kullanan yerleşik web kazıma. API anahtarı gerekmez, makinenizde çalışır.",
+      "localFeatures": {
+        "free": "Ücretsiz ve sınırsız",
+        "offline": "Çevrimdışı çalışır",
+        "js": "Tam JavaScript desteği"
+      },
+      "firecrawlTitle": "Firecrawl (Bulut API)",
+      "firecrawlDesc": "Gelişmiş özellikler ve güvenilirlikle profesyonel bulut tabanlı kazıma.",
+      "firecrawlFeatures": {
+        "antibot": "Gelişmiş bot engeli aşma",
+        "structured": "Yapılandırılmış veri çıkarma",
+        "managed": "Yönetilen altyapı"
+      },
+      "apiKeyTitle": "Firecrawl API Anahtarı",
+      "getApiKey": "API anahtarınızı alın",
+      "validationEmpty": "Lütfen bir API anahtarı girin",
+      "validationValid": "API anahtarı geçerli!",
+      "validationInvalid": "Geçersiz API anahtarı",
+      "validationFailed": "API anahtarı doğrulanamadı",
+      "validating": "Doğrulanıyor...",
+      "testKey": "API Anahtarını Test Et",
+      "gettingStarted": "Başlarken:",
+      "step1": "firecrawl.dev'e kaydolun",
+      "step2": "API anahtarınızı panodan kopyalayın",
+      "step3": "Yukarıya yapıştırın ve \"API Anahtarını Test Et\" düğmesine tıklayın",
+      "back": "Geri",
+      "skip": "Şimdilik atla",
+      "continue": "Devam"
     }
   },
   "layout": {
@@ -2084,6 +2153,35 @@
       "save": "İş akışını kaydet",
       "saving": "Kaydediliyor...",
       "delete": "Sil"
+    },
+    "localModels": {
+      "title": "Yerel Görsel Üretimi",
+      "webOnlyNote": "Yerel görsel üretim modelleri yalnızca masaüstü uygulamasında kullanılabilir.",
+      "vramLabel": "VRAM",
+      "diskLabel": "Disk",
+      "checkingStatus": "Durum kontrol ediliyor...",
+      "statusChecking": "Kontrol Ediliyor",
+      "statusUnknown": "Bilinmiyor",
+      "statusDockerMissing": "Docker Eksik",
+      "statusSetupNeeded": "Kurulum Gerekli",
+      "statusStopped": "Durduruldu",
+      "statusApiDown": "API Kapalı",
+      "statusReady": "Hazır",
+      "dockerLabel": "Docker",
+      "imageBuiltLabel": "İmaj Oluşturuldu",
+      "modelsLabel": "Modeller",
+      "runningLabel": "Çalışıyor",
+      "apiReadyLabel": "API Hazır",
+      "ipcNotImplemented": "Backend IPC işleyicileri henüz uygulanmadı. Electron ana süreci {apiKey} işlemlerini yönetmeli.",
+      "setupButton": "Kur ({modelSize})",
+      "dockerRequired": "Docker gerekli. Docker Desktop yükleyin.",
+      "stop": "Durdur",
+      "start": "Başlat",
+      "enabledForToolUsage": "Araç kullanımı için etkin",
+      "setupWillTitle": "Kurulum yapacaklar:",
+      "advanced": "Gelişmiş",
+      "backendPathLabel": "Backend Yolu",
+      "backendPathPlaceholder": "Otomatik algılanan yol"
     },
     "installer": {
       "title": "Yerel Görsel Üretimi (Z-Image Turbo FP8)",

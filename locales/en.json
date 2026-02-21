@@ -132,6 +132,75 @@
         "settings": "Fine-tune your experience in Settings"
       },
       "cta": "Start Using Seline"
+    },
+    "webSearch": {
+      "title": "Enable Web Search",
+      "subtitle": "Web search works out of the box with DuckDuckGo (free). Add a Tavily API key for richer results and Deep Research.",
+      "featuresTitle": "What you'll get:",
+      "features": {
+        "deepResearch": {
+          "title": "Deep Research",
+          "desc": "Comprehensive web research with multi-source synthesis"
+        },
+        "realtime": {
+          "title": "Real-time Information",
+          "desc": "Access current events, news, and up-to-date information"
+        },
+        "factVerification": {
+          "title": "Fact Verification",
+          "desc": "Verify claims and cross-reference information from multiple sources"
+        }
+      },
+      "apiKeyTitle": "Tavily API Key",
+      "getApiKey": "Get your API key",
+      "validationEmpty": "Please enter an API key",
+      "validationValid": "API key is valid!",
+      "validationInvalid": "Invalid API key",
+      "validationFailed": "Failed to validate API key",
+      "validating": "Validating...",
+      "testKey": "Test API Key",
+      "gettingStarted": "Getting started:",
+      "step1": "Sign up at tavily.com (free tier available)",
+      "step2": "Copy your API key from the dashboard",
+      "step3": "Paste it above and click \"Test API Key\"",
+      "noKeyHint": "No API key? Skip this step — DuckDuckGo provides free web search automatically.",
+      "back": "Back",
+      "skip": "Skip for now",
+      "continue": "Continue"
+    },
+    "webScraping": {
+      "title": "Web Scraping Provider",
+      "subtitle": "Choose how your agents will browse and extract content from web pages",
+      "localTitle": "Local (Puppeteer)",
+      "recommended": "Recommended",
+      "localDesc": "Built-in web scraping using Puppeteer. No API key required, runs on your machine.",
+      "localFeatures": {
+        "free": "Free and unlimited",
+        "offline": "Works offline",
+        "js": "Full JavaScript support"
+      },
+      "firecrawlTitle": "Firecrawl (Cloud API)",
+      "firecrawlDesc": "Professional cloud-based scraping with advanced features and reliability.",
+      "firecrawlFeatures": {
+        "antibot": "Advanced anti-bot bypass",
+        "structured": "Structured data extraction",
+        "managed": "Managed infrastructure"
+      },
+      "apiKeyTitle": "Firecrawl API Key",
+      "getApiKey": "Get your API key",
+      "validationEmpty": "Please enter an API key",
+      "validationValid": "API key is valid!",
+      "validationInvalid": "Invalid API key",
+      "validationFailed": "Failed to validate API key",
+      "validating": "Validating...",
+      "testKey": "Test API Key",
+      "gettingStarted": "Getting started:",
+      "step1": "Sign up at firecrawl.dev",
+      "step2": "Copy your API key from the dashboard",
+      "step3": "Paste it above and click \"Test API Key\"",
+      "back": "Back",
+      "skip": "Skip for now",
+      "continue": "Continue"
     }
   },
   "layout": {
@@ -2099,6 +2168,35 @@
       "save": "Save workflow",
       "saving": "Saving...",
       "delete": "Delete"
+    },
+    "localModels": {
+      "title": "Local Image Generation",
+      "webOnlyNote": "Local image generation models are only available in the desktop app.",
+      "vramLabel": "VRAM",
+      "diskLabel": "Disk",
+      "checkingStatus": "Checking status...",
+      "statusChecking": "Checking",
+      "statusUnknown": "Unknown",
+      "statusDockerMissing": "Docker Missing",
+      "statusSetupNeeded": "Setup Needed",
+      "statusStopped": "Stopped",
+      "statusApiDown": "API Down",
+      "statusReady": "Ready",
+      "dockerLabel": "Docker",
+      "imageBuiltLabel": "Image Built",
+      "modelsLabel": "Models",
+      "runningLabel": "Running",
+      "apiReadyLabel": "API Ready",
+      "ipcNotImplemented": "Backend IPC handlers not yet implemented. The Electron main process needs to handle {apiKey} operations.",
+      "setupButton": "Setup ({modelSize})",
+      "dockerRequired": "Docker required. Install Docker Desktop.",
+      "stop": "Stop",
+      "start": "Start",
+      "enabledForToolUsage": "Enabled for tool usage",
+      "setupWillTitle": "Setup will:",
+      "advanced": "Advanced",
+      "backendPathLabel": "Backend Path",
+      "backendPathPlaceholder": "Auto-detected path"
     },
     "installer": {
       "title": "Local Image Generation (Z-Image Turbo FP8)",

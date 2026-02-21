@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Globe, ExternalLink, ChevronRight, ChevronLeft, Loader2, CheckCircle2, AlertCircle, Zap, Server } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface WebScrapingStepProps {
     onContinue: (provider: "firecrawl" | "local", firecrawlApiKey?: string) => void;
@@ -11,6 +12,7 @@ interface WebScrapingStepProps {
 }
 
 export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepProps) {
+    const t = useTranslations("onboarding.webScraping");
     const [provider, setProvider] = useState<"firecrawl" | "local">("local");
     const [firecrawlApiKey, setFirecrawlApiKey] = useState("");
     const [isValidating, setIsValidating] = useState(false);
@@ -20,7 +22,7 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
     const handleValidateFirecrawl = async () => {
         if (!firecrawlApiKey.trim()) {
             setValidationStatus("invalid");
-            setValidationMessage("Please enter an API key");
+            setValidationMessage(t("validationEmpty"));
             return;
         }
 
@@ -38,14 +40,14 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
 
             if (data.valid) {
                 setValidationStatus("valid");
-                setValidationMessage("API key is valid!");
+                setValidationMessage(t("validationValid"));
             } else {
                 setValidationStatus("invalid");
-                setValidationMessage(data.error || "Invalid API key");
+                setValidationMessage(data.error || t("validationInvalid"));
             }
         } catch (error) {
             setValidationStatus("invalid");
-            setValidationMessage("Failed to validate API key");
+            setValidationMessage(t("validationFailed"));
         } finally {
             setIsValidating(false);
         }
@@ -59,8 +61,8 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
         }
     };
 
-    const canContinue = 
-        provider === "local" || 
+    const canContinue =
+        provider === "local" ||
         (provider === "firecrawl" && validationStatus === "valid");
 
     return (
@@ -72,10 +74,10 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                         <Globe className="w-8 h-8 text-terminal-green" />
                     </div>
                     <h1 className="font-mono text-3xl font-bold text-terminal-dark">
-                        Web Scraping Provider
+                        {t("title")}
                     </h1>
                     <p className="font-mono text-terminal-muted max-w-lg mx-auto">
-                        Choose how your agents will browse and extract content from web pages
+                        {t("subtitle")}
                     </p>
                 </div>
 
@@ -105,27 +107,27 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                             <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-mono text-lg font-semibold text-terminal-dark">
-                                        Local (Puppeteer)
+                                        {t("localTitle")}
                                     </h3>
                                     <span className="px-2 py-0.5 rounded-full bg-terminal-green/10 font-mono text-xs text-terminal-green font-medium">
-                                        Recommended
+                                        {t("recommended")}
                                     </span>
                                 </div>
                                 <p className="font-mono text-sm text-terminal-muted">
-                                    Built-in web scraping using Puppeteer. No API key required, runs on your machine.
+                                    {t("localDesc")}
                                 </p>
                                 <ul className="space-y-1.5 mt-3">
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Free and unlimited
+                                        {t("localFeatures.free")}
                                     </li>
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Works offline
+                                        {t("localFeatures.offline")}
                                     </li>
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Full JavaScript support
+                                        {t("localFeatures.js")}
                                     </li>
                                 </ul>
                             </div>
@@ -155,23 +157,23 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                             </div>
                             <div className="flex-1 space-y-2">
                                 <h3 className="font-mono text-lg font-semibold text-terminal-dark">
-                                    Firecrawl (Cloud API)
+                                    {t("firecrawlTitle")}
                                 </h3>
                                 <p className="font-mono text-sm text-terminal-muted">
-                                    Professional cloud-based scraping with advanced features and reliability.
+                                    {t("firecrawlDesc")}
                                 </p>
                                 <ul className="space-y-1.5 mt-3">
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Advanced anti-bot bypass
+                                        {t("firecrawlFeatures.antibot")}
                                     </li>
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Structured data extraction
+                                        {t("firecrawlFeatures.structured")}
                                     </li>
                                     <li className="flex items-center gap-2 font-mono text-xs text-terminal-muted">
                                         <CheckCircle2 className="w-4 h-4 text-terminal-green flex-shrink-0" />
-                                        Managed infrastructure
+                                        {t("firecrawlFeatures.managed")}
                                     </li>
                                 </ul>
                             </div>
@@ -184,7 +186,7 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                     <div className="rounded-lg border-2 border-terminal-border bg-white p-6 space-y-4">
                         <div className="flex items-center justify-between">
                             <h3 className="font-mono text-base font-semibold text-terminal-dark">
-                                Firecrawl API Key
+                                {t("apiKeyTitle")}
                             </h3>
                             <a
                                 href="https://www.firecrawl.dev"
@@ -192,7 +194,7 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1.5 font-mono text-xs text-terminal-green hover:text-terminal-green/80 transition-colors"
                             >
-                                Get your API key
+                                {t("getApiKey")}
                                 <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                         </div>
@@ -248,12 +250,12 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                                 {isValidating ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        Validating...
+                                        {t("validating")}
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Test API Key
+                                        {t("testKey")}
                                     </>
                                 )}
                             </Button>
@@ -261,12 +263,12 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
 
                         <div className="rounded bg-terminal-cream/50 p-3 space-y-2">
                             <p className="font-mono text-xs font-medium text-terminal-dark">
-                                Getting started:
+                                {t("gettingStarted")}
                             </p>
                             <ol className="font-mono text-xs text-terminal-muted space-y-1 list-decimal list-inside">
-                                <li>Sign up at firecrawl.dev</li>
-                                <li>Copy your API key from the dashboard</li>
-                                <li>Paste it above and click "Test API Key"</li>
+                                <li>{t("step1")}</li>
+                                <li>{t("step2")}</li>
+                                <li>{t("step3")}</li>
                             </ol>
                         </div>
                     </div>
@@ -280,7 +282,7 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                         className="gap-2 font-mono"
                     >
                         <ChevronLeft className="w-4 h-4" />
-                        Back
+                        {t("back")}
                     </Button>
 
                     <div className="flex items-center gap-3">
@@ -289,14 +291,14 @@ export function WebScrapingStep({ onContinue, onBack, onSkip }: WebScrapingStepP
                             variant="ghost"
                             className="font-mono text-terminal-muted hover:text-terminal-dark"
                         >
-                            Skip for now
+                            {t("skip")}
                         </Button>
                         <Button
                             onClick={handleContinue}
                             disabled={!canContinue}
                             className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90"
                         >
-                            Continue
+                            {t("continue")}
                             <ChevronRight className="w-4 h-4" />
                         </Button>
                     </div>
