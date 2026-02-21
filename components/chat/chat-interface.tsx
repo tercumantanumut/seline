@@ -1105,15 +1105,17 @@ export default function ChatInterface({
                 metadata: { pinned: !isPinned },
             });
             await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+            toast.success(t(isPinned ? "sidebar.unpin" : "sidebar.pin"));
         } catch (error) {
             console.error("Failed to pin session:", error);
         }
-    }, [sessions, loadSessions]);
+    }, [sessions, loadSessions, t]);
 
     const archiveSession = useCallback(async (sessionToArchiveId: string) => {
         try {
             await resilientPatch(`/api/sessions/${sessionToArchiveId}`, { status: "archived" });
-            // If archiving the current session, clear it
+            toast.success(t("sidebar.archiveSuccess"));
+            // If archiving the current session, navigate away
             if (sessionToArchiveId === sessionId) {
                 const remaining = sessions.filter((s) => s.id !== sessionToArchiveId);
                 if (remaining.length > 0) {
@@ -1125,17 +1127,20 @@ export default function ChatInterface({
             await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
         } catch (error) {
             console.error("Failed to archive session:", error);
+            toast.error(t("sidebar.archiveError"));
         }
-    }, [sessionId, sessions, switchSession, loadSessions, router, character.id]);
+    }, [sessionId, sessions, switchSession, loadSessions, router, character.id, t]);
 
     const restoreSession = useCallback(async (sessionToRestoreId: string) => {
         try {
             await resilientPatch(`/api/sessions/${sessionToRestoreId}`, { status: "active" });
+            toast.success(t("sidebar.restore"));
             await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
         } catch (error) {
             console.error("Failed to restore session:", error);
+            toast.error(t("sidebar.archiveError"));
         }
-    }, [loadSessions]);
+    }, [loadSessions, t]);
 
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
