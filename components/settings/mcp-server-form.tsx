@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,6 +184,7 @@ export function MCPServerForm({
             await onSave(serverName, config);
         } catch (error) {
             console.error("Failed to save server:", error);
+            toast.error(t("saveFailed"));
         } finally {
             setIsSaving(false);
         }

@@ -730,8 +730,8 @@ export function MCPSettings() {
                                         setNewEnvKey("");
                                         setShowNewEnvInput(false);
                                     }
-                                }}>Add</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setShowNewEnvInput(false)}>Cancel</Button>
+                                }}>{t("addEnvVar")}</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setShowNewEnvInput(false)}>{t("cancelEnvVar")}</Button>
                             </div>
                         </div>
                     )}

@@ -1240,6 +1240,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save tools:", error);
+      toast.error(t("saveToolsFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -1290,6 +1291,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save identity:", error);
+      toast.error(t("saveIdentityFailed"));
     } finally {
       setIsSaving(false);
     }

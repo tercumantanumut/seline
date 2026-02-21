@@ -193,6 +193,8 @@
     "delete": "Delete",
     "editIdentity": "Edit agent details",
     "deleteAgent": "Delete agent",
+    "saveToolsFailed": "Failed to save tool selection",
+    "saveIdentityFailed": "Failed to save agent details",
     "folders": "Folders",
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
@@ -905,7 +907,17 @@
       "refreshFailed": "Failed to refresh workspace status",
       "refreshSuccess": "Workspace status refreshed",
       "cleanupFailed": "Failed to cleanup workspace",
-      "cleanupSuccess": "Workspace cleaned up"
+      "cleanupSuccess": "Workspace cleaned up",
+      "viewChanges": "View Changes",
+      "openPR": "Open PR",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing...",
+      "cleanupWorkspace": "Cleanup Workspace",
+      "cleanupTitle": "Cleanup Workspace",
+      "cleanupDescription": "This will remove the git worktree for branch <strong>{branch}</strong> and discard any uncommitted changes. This action cannot be undone.",
+      "cancel": "Cancel",
+      "cleaningUp": "Cleaning up...",
+      "cleanup": "Cleanup"
     }
   },
   "folderSync": {
@@ -1536,7 +1548,9 @@
       "removeArg": "Remove argument",
       "reconnectServer": "Reconnect server",
       "editServer": "Edit server",
-      "deleteServer": "Delete server"
+      "deleteServer": "Delete server",
+      "addEnvVar": "Add",
+      "cancelEnvVar": "Cancel"
     },
     "models": {
       "title": "Model choices",
@@ -2242,7 +2256,8 @@
       "noFiles": "No files found. This skill doesn't have any attached files.",
       "download": "Download file",
       "downloadSuccess": "File downloaded",
-      "downloadFailed": "Download failed"
+      "downloadFailed": "Download failed",
+      "executable": "Executable"
     },
     "import": {
       "uploading": "Uploading...",

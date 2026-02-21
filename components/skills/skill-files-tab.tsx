@@ -156,7 +156,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                   </div>
                   {file.isExecutable && (
                     <Badge variant="outline" className="text-terminal-green border-terminal-green">
-                      Executable
+                      {t("executable")}
                     </Badge>
                   )}
                 </div>

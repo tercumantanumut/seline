@@ -193,6 +193,8 @@
     "delete": "Sil",
     "editIdentity": "Ajan detaylarını düzenle",
     "deleteAgent": "Ajanı sil",
+    "saveToolsFailed": "Araç seçimi kaydedilemedi",
+    "saveIdentityFailed": "Ajan bilgileri kaydedilemedi",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
@@ -895,7 +897,17 @@
       "refreshFailed": "Çalışma alanı durumu yenilenemedi",
       "refreshSuccess": "Çalışma alanı durumu yenilendi",
       "cleanupFailed": "Çalışma alanı temizlenemedi",
-      "cleanupSuccess": "Çalışma alanı temizlendi"
+      "cleanupSuccess": "Çalışma alanı temizlendi",
+      "viewChanges": "Değişiklikleri Görüntüle",
+      "openPR": "PR'ı Aç",
+      "refresh": "Yenile",
+      "refreshing": "Yenileniyor...",
+      "cleanupWorkspace": "Çalışma Alanını Temizle",
+      "cleanupTitle": "Çalışma Alanını Temizle",
+      "cleanupDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri atacaktır. Bu işlem geri alınamaz.",
+      "cancel": "İptal",
+      "cleaningUp": "Temizleniyor...",
+      "cleanup": "Temizle"
     }
   },
   "folderSync": {
@@ -1682,7 +1694,9 @@
       "removeArg": "Argümanı kaldır",
       "reconnectServer": "Sunucuya yeniden bağlan",
       "editServer": "Sunucuyu düzenle",
-      "deleteServer": "Sunucuyu sil"
+      "deleteServer": "Sunucuyu sil",
+      "addEnvVar": "Ekle",
+      "cancelEnvVar": "İptal"
     }
   },
   "modelBag": {
@@ -2227,7 +2241,8 @@
       "noFiles": "Dosya bulunamadı. Bu beceriye ait herhangi bir dosya yok.",
       "download": "Dosyayı indir",
       "downloadSuccess": "Dosya indirildi",
-      "downloadFailed": "İndirme başarısız"
+      "downloadFailed": "İndirme başarısız",
+      "executable": "Çalıştırılabilir"
     },
     "import": {
       "uploading": "Yükleniyor...",
