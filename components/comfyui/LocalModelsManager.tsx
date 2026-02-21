@@ -14,6 +14,7 @@ import {
     Cpu, Rocket, FolderOpen, ChevronDown, ChevronUp,
     Download, HardDrive
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // ============================================================================
 // Types and Interfaces
@@ -148,6 +149,7 @@ function ModelCard({
     onBackendPathChange,
     isElectron,
 }: ModelCardProps) {
+    const t = useTranslations("comfyui.localModels");
     const [status, setStatus] = useState<ModelStatus | null>(null);
     const [loading, setLoading] = useState(false);
     const [checking, setChecking] = useState(true); // Track initial status check
@@ -321,13 +323,13 @@ function ModelCard({
     const isSetupComplete = status?.imageBuilt && status?.modelsDownloaded;
     const needsSetup = status && (!status.imageBuilt || !status.modelsDownloaded);
     const statusBadge = (() => {
-        if (checking) return { label: "Checking", tone: "muted" as const };
-        if (!status) return { label: "Unknown", tone: "muted" as const };
-        if (!status.dockerInstalled) return { label: "Docker Missing", tone: "danger" as const };
-        if (!status.imageBuilt || !status.modelsDownloaded) return { label: "Setup Needed", tone: "warning" as const };
-        if (!status.containerRunning) return { label: "Stopped", tone: "muted" as const };
-        if (!status.apiHealthy) return { label: "API Down", tone: "warning" as const };
-        return { label: "Ready", tone: "success" as const };
+        if (checking) return { label: t("statusChecking"), tone: "muted" as const };
+        if (!status) return { label: t("statusUnknown"), tone: "muted" as const };
+        if (!status.dockerInstalled) return { label: t("statusDockerMissing"), tone: "danger" as const };
+        if (!status.imageBuilt || !status.modelsDownloaded) return { label: t("statusSetupNeeded"), tone: "warning" as const };
+        if (!status.containerRunning) return { label: t("statusStopped"), tone: "muted" as const };
+        if (!status.apiHealthy) return { label: t("statusApiDown"), tone: "warning" as const };
+        return { label: t("statusReady"), tone: "success" as const };
     })();
 
     // Status indicator component
@@ -365,11 +367,11 @@ function ModelCard({
                 </div>
                 <div className="ml-auto flex flex-wrap items-center gap-5 text-xs text-terminal-muted">
                     <div className="flex flex-col">
-                        <span>VRAM</span>
+                        <span>{t("vramLabel")}</span>
                         <span className="text-terminal-text">{config.vramRequired}</span>
                     </div>
                     <div className="flex flex-col">
-                        <span>Disk</span>
+                        <span>{t("diskLabel")}</span>
                         <span className="text-terminal-text">{config.modelSize}</span>
                     </div>
                     <div
@@ -406,18 +408,18 @@ function ModelCard({
                 {checking && (
                     <div className="flex items-center justify-center p-4">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                        <span className="text-sm text-terminal-muted">Checking status...</span>
+                        <span className="text-sm text-terminal-muted">{t("checkingStatus")}</span>
                     </div>
                 )}
 
                 {/* Status Display - always show after checking */}
                 {!checking && status && (
                     <div className="grid grid-cols-2 gap-2 rounded-lg border border-terminal-border/60 bg-terminal-bg/40 p-3 text-sm">
-                        <StatusIndicator ok={status.dockerInstalled} label="Docker" />
-                        <StatusIndicator ok={status.imageBuilt} label="Image Built" />
-                        <StatusIndicator ok={status.modelsDownloaded} label="Models" />
-                        <StatusIndicator ok={status.containerRunning} label="Running" />
-                        <StatusIndicator ok={status.apiHealthy} label="API Ready" />
+                        <StatusIndicator ok={status.dockerInstalled} label={t("dockerLabel")} />
+                        <StatusIndicator ok={status.imageBuilt} label={t("imageBuiltLabel")} />
+                        <StatusIndicator ok={status.modelsDownloaded} label={t("modelsLabel")} />
+                        <StatusIndicator ok={status.containerRunning} label={t("runningLabel")} />
+                        <StatusIndicator ok={status.apiHealthy} label={t("apiReadyLabel")} />
                         <Button variant="ghost" size="sm" onClick={checkStatus} disabled={loading || checking} className="h-6 px-2">
                             <RefreshCw className={`h-3 w-3 ${loading || checking ? "animate-spin" : ""}`} />
                         </Button>
@@ -428,7 +430,7 @@ function ModelCard({
                 {!checking && apiAvailable === false && (
                     <Alert>
                         <AlertDescription className="text-sm">
-                            Backend IPC handlers not yet implemented. The Electron main process needs to handle <code className="bg-muted px-1 rounded">{config.apiKey}</code> operations.
+                            {t("ipcNotImplemented", { apiKey: config.apiKey })}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -463,7 +465,7 @@ function ModelCard({
                                 ) : (
                                     <Rocket className="h-4 w-4 mr-2" />
                                 )}
-                                Setup ({config.modelSize})
+                                {t("setupButton", { modelSize: config.modelSize })}
                             </Button>
                         )}
 
@@ -471,7 +473,7 @@ function ModelCard({
                         {status && !status.dockerInstalled && (
                             <Alert className="w-full">
                                 <AlertDescription className="text-sm">
-                                    Docker required. Install <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">Docker Desktop</a>.
+                                    {t("dockerRequired")}
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -482,12 +484,12 @@ function ModelCard({
                                 {status?.containerRunning ? (
                                     <Button onClick={handleStop} disabled={loading} variant="destructive" size="sm">
                                         {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <StopCircle className="h-4 w-4 mr-2" />}
-                                        Stop
+                                        {t("stop")}
                                     </Button>
                                 ) : (
                                     <Button onClick={handleStart} disabled={loading} size="sm">
                                         {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                                        Start
+                                        {t("start")}
                                     </Button>
                                 )}
                             </>
@@ -503,14 +505,14 @@ function ModelCard({
                             disabled={!status?.apiHealthy}
                             className="data-[state=checked]:bg-terminal-green"
                         />
-                        <span>Enabled for tool usage</span>
+                        <span>{t("enabledForToolUsage")}</span>
                     </div>
                 )}
 
                 {/* Setup Steps - show when not yet set up */}
                 {!checking && needsSetup && (
                     <div className="text-xs text-terminal-muted space-y-1">
-                        <p><strong>Setup will:</strong></p>
+                        <p><strong>{t("setupWillTitle")}</strong></p>
                         <ul className="list-disc list-inside ml-2 space-y-0.5">
                             {config.setupSteps.map((step, i) => (
                                 <li key={i}>{step}</li>
@@ -528,17 +530,17 @@ function ModelCard({
                         className="text-terminal-muted hover:text-terminal-text h-7 px-2"
                     >
                         {showAdvanced ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
-                        <span className="text-xs">Advanced</span>
+                        <span className="text-xs">{t("advanced")}</span>
                     </Button>
 
                     {showAdvanced && (
                         <div className="mt-3 space-y-2">
-                            <Label className="text-xs text-terminal-muted">Backend Path</Label>
+                            <Label className="text-xs text-terminal-muted">{t("backendPathLabel")}</Label>
                             <div className="flex gap-2">
                                 <Input
                                     value={backendPath}
                                     onChange={(e) => onBackendPathChange(e.target.value)}
-                                    placeholder="Auto-detected path"
+                                    placeholder={t("backendPathPlaceholder")}
                                     className="flex-1 text-xs h-8 bg-terminal-bg/60 border-terminal-border text-terminal-text placeholder:text-terminal-muted/60"
                                 />
                                 <Button variant="outline" size="sm" onClick={checkStatus} disabled={loading} className="h-8 px-2">
@@ -572,6 +574,7 @@ export function LocalModelsManager({
     onFlux9bEnabledChange,
     onFlux9bBackendPathChange,
 }: LocalModelsManagerProps) {
+    const t = useTranslations("comfyui.localModels");
     const [isElectron, setIsElectron] = useState(false);
 
     // Check if running in Electron
@@ -587,10 +590,10 @@ export function LocalModelsManager({
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Cpu className="h-5 w-5" />
-                        Local Image Generation
+                        {t("title")}
                     </CardTitle>
                     <CardDescription>
-                        Local image generation models are only available in the desktop app.
+                        {t("webOnlyNote")}
                     </CardDescription>
                 </CardHeader>
             </Card>
