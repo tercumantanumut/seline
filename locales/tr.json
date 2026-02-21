@@ -795,6 +795,19 @@
       "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Düzenle (FLUX.2 Klein 9B)",
       "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)"
+    },
+    "skillImportOverlay": {
+      "uploading": "Yükleniyor…",
+      "parsing": "Paket ayrıştırılıyor…",
+      "importing": "Beceri içe aktarılıyor…",
+      "success": "İçe aktarma tamamlandı!",
+      "error": "İçe aktarma başarısız",
+      "readyToUse": "{name} kullanıma hazır",
+      "loadingSkills": "Beceriler yükleniyor...",
+      "skillResults": "{count, plural, one {# sonuç} other {# sonuç}}"
+    },
+    "audio": {
+      "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin."
     }
   },
   "folderSync": {
