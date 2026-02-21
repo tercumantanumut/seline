@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   InfoIcon,
   BarChart2Icon,
+  LayoutDashboardIcon,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -286,8 +287,8 @@ export const Shell: FC<ShellProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="font-mono">
                       <Link href="/dashboard">
-                        <BarChart2Icon className="mr-2 size-4" />
-                        Dashboard
+                        <LayoutDashboardIcon className="mr-2 size-4" />
+                        {t("sidebar.dashboard")}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem

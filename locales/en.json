@@ -137,6 +137,7 @@
     "homeAria": "Seline Home",
     "sidebar": {
       "usage": "Usage & Analytics",
+      "dashboard": "Dashboard",
       "settings": "Settings",
       "about": "About",
       "signOut": "Sign out",
