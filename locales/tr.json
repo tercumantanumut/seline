@@ -1572,6 +1572,7 @@
       "channels": "Kanallar",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
+      "newTitle": "Yeni Sohbet (⌘N)",
       "empty": "Henüz sohbet geçmişi yok",
       "resetChannel": "Kanal oturumunu sıfırla",
       "delete": "Sohbeti sil",

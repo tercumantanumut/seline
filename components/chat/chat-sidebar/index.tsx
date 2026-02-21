@@ -522,6 +522,7 @@ export function CharacterSidebar({
               variant="ghost"
               size="sm"
               onClick={onNewSession}
+              title={t("sidebar.newTitle")}
               className="h-9 px-2.5 text-terminal-green hover:bg-terminal-green/10"
             >
               <PlusCircle className="h-4 w-4 mr-1" />
