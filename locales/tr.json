@@ -888,6 +888,12 @@
       "skip": "Atla",
       "gotIt": "Anladım",
       "next": "İleri"
+    },
+    "indicator": {
+      "refreshFailed": "Çalışma alanı durumu yenilenemedi",
+      "refreshSuccess": "Çalışma alanı durumu yenilendi",
+      "cleanupFailed": "Çalışma alanı temizlenemedi",
+      "cleanupSuccess": "Çalışma alanı temizlendi"
     }
   },
   "folderSync": {
@@ -1685,10 +1691,27 @@
     "sessionOverride": {
       "loadingConfig": "Model yapılandırması yükleniyor...",
       "updateFailed": "Oturum modeli güncellenemedi",
-      "updateSuccess": "Oturum modeli güncellendi"
+      "updateSuccess": "Oturum modeli güncellendi",
+      "clearFailed": "Geçersiz kılmalar temizlenemedi",
+      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi"
     },
     "switched": "Bu oturum için {name} modeline geçildi",
-    "switchFailed": "Model değiştirilemedi"
+    "switchFailed": "Model değiştirilemedi",
+    "loadFailed": "Model ayarları yüklenemedi",
+    "updateFailed": "Model güncellenemedi",
+    "roleUpdated": "{role} modeli güncellendi",
+    "switchProviderFailed": "Sağlayıcı değiştirilemedi",
+    "providerSwitched": "{name} sağlayıcısına geçildi"
+  },
+  "comfyui": {
+    "workflows": {
+      "analyzed": "İş akışı analiz edildi",
+      "saved": "İş akışı kaydedildi",
+      "deleted": "İş akışı silindi"
+    }
+  },
+  "vectorSearch": {
+    "indexMismatch": "Arama dizini uyumsuzluğu tespit edildi. Sonuçlar hatalı görünüyorsa Agent Ayarları'ndan senkronize klasörleri yenileyin."
   },
   "about": {
     "title": "Hakkında",

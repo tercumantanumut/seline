@@ -898,6 +898,12 @@
       "skip": "Skip",
       "gotIt": "Got it",
       "next": "Next"
+    },
+    "indicator": {
+      "refreshFailed": "Failed to refresh workspace status",
+      "refreshSuccess": "Workspace status refreshed",
+      "cleanupFailed": "Failed to cleanup workspace",
+      "cleanupSuccess": "Workspace cleaned up"
     }
   },
   "folderSync": {
@@ -1700,10 +1706,27 @@
     "sessionOverride": {
       "loadingConfig": "Loading model config...",
       "updateFailed": "Failed to update session model",
-      "updateSuccess": "Session model updated"
+      "updateSuccess": "Session model updated",
+      "clearFailed": "Failed to clear overrides",
+      "clearSuccess": "Session model overrides cleared"
     },
     "switched": "Switched to {name} for this session",
-    "switchFailed": "Failed to switch model"
+    "switchFailed": "Failed to switch model",
+    "loadFailed": "Failed to load model settings",
+    "updateFailed": "Failed to update model",
+    "roleUpdated": "{role} model updated",
+    "switchProviderFailed": "Failed to switch provider",
+    "providerSwitched": "Switched to {name}"
+  },
+  "comfyui": {
+    "workflows": {
+      "analyzed": "Workflow analyzed",
+      "saved": "Workflow saved",
+      "deleted": "Workflow deleted"
+    }
+  },
+  "vectorSearch": {
+    "indexMismatch": "Search index mismatch detected. If results seem off, refresh synced folders in Agent Settings."
   },
   "about": {
     "title": "About",

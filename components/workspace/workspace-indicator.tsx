@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   GitBranchIcon,
@@ -79,6 +80,7 @@ export function WorkspaceIndicator({
   workspaceInfo,
   onOpenDiffPanel,
 }: WorkspaceIndicatorProps) {
+  const t = useTranslations("workspace.indicator");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -96,13 +98,13 @@ export function WorkspaceIndicator({
         { action: "refresh-status" }
       );
       if (error) {
-        toast.error("Failed to refresh workspace status");
+        toast.error(t("refreshFailed"));
       } else {
-        toast.success("Workspace status refreshed");
+        toast.success(t("refreshSuccess"));
         window.dispatchEvent(new CustomEvent("workspace-status-changed", { detail: { sessionId } }));
       }
     } catch {
-      toast.error("Failed to refresh workspace status");
+      toast.error(t("refreshFailed"));
     } finally {
       setIsRefreshing(false);
     }
@@ -116,13 +118,13 @@ export function WorkspaceIndicator({
         { action: "cleanup" }
       );
       if (error) {
-        toast.error("Failed to cleanup workspace");
+        toast.error(t("cleanupFailed"));
       } else {
-        toast.success("Workspace cleaned up");
+        toast.success(t("cleanupSuccess"));
         window.dispatchEvent(new CustomEvent("workspace-status-changed", { detail: { sessionId } }));
       }
     } catch {
-      toast.error("Failed to cleanup workspace");
+      toast.error(t("cleanupFailed"));
     } finally {
       setIsCleaning(false);
       setShowCleanupDialog(false);

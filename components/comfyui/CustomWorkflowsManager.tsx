@@ -16,6 +16,7 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientPut, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type { CustomComfyUIInput, CustomComfyUIOutput, CustomComfyUIWorkflow } from "@/lib/comfyui/custom/types";
 
@@ -107,6 +108,7 @@ export function CustomWorkflowsManager({
   onConnectionUseHttpsChange,
   onConnectionAutoDetectChange,
 }: CustomWorkflowsManagerProps) {
+  const t = useTranslations("comfyui.workflows");
   const [workflows, setWorkflows] = useState<CustomComfyUIWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState<string>("new");
   const [loading, setLoading] = useState(false);
@@ -229,7 +231,7 @@ export function CustomWorkflowsManager({
         });
       });
       setOutputs(data.outputs || []);
-      toast.success("Workflow analyzed");
+      toast.success(t("analyzed"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Workflow analysis failed");
     } finally {
@@ -293,7 +295,7 @@ export function CustomWorkflowsManager({
       if (saveError || !data) {
         throw new Error(data?.error || saveError || "Failed to save workflow");
       }
-      toast.success("Workflow saved");
+      toast.success(t("saved"));
       setSelectedId(data.workflow?.id || "new");
       await loadWorkflows();
     } catch (error) {
@@ -311,7 +313,7 @@ export function CustomWorkflowsManager({
       if (deleteError) {
         throw new Error(deleteError);
       }
-      toast.success("Workflow deleted");
+      toast.success(t("deleted"));
       setSelectedId("new");
       resetForm();
       await loadWorkflows();
