@@ -2060,6 +2060,22 @@
       "error": "Failed to delete skill",
       "success": "Skill deleted permanently",
       "title": "Are you sure?"
+    },
+    "import": {
+      "uploading": "Uploading...",
+      "parsing": "Parsing package...",
+      "importing": "Importing skill...",
+      "success": "Import complete!",
+      "error": "Import failed",
+      "idle": "Drag & drop a skill package",
+      "browseHint": "or click to browse (.zip packages or .md files)",
+      "browse": "Browse Files",
+      "tryAgain": "Try Again",
+      "importedSuccess": "Skill imported successfully",
+      "invalidFileType": "Invalid file type",
+      "invalidFileTypeDesc": "Only .zip packages or .md files are supported",
+      "fileTooLarge": "File too large",
+      "fileTooLargeDesc": "File size exceeds 50MB limit"
     }
   },
   "schedules": {

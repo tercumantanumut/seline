@@ -2045,6 +2045,22 @@
       "error": "Beceri silinemedi",
       "success": "Beceri kalıcı olarak silindi",
       "title": "Emin misiniz?"
+    },
+    "import": {
+      "uploading": "Yükleniyor...",
+      "parsing": "Paket ayrıştırılıyor...",
+      "importing": "Beceri içe aktarılıyor...",
+      "success": "İçe aktarma tamamlandı!",
+      "error": "İçe aktarma başarısız",
+      "idle": "Bir beceri paketini sürükleyip bırakın",
+      "browseHint": "veya göz atmak için tıklayın (.zip paketleri veya .md dosyaları)",
+      "browse": "Dosyalara Gözat",
+      "tryAgain": "Tekrar Dene",
+      "importedSuccess": "Beceri başarıyla içe aktarıldı",
+      "invalidFileType": "Geçersiz dosya türü",
+      "invalidFileTypeDesc": "Yalnızca .zip paketleri veya .md dosyaları desteklenir",
+      "fileTooLarge": "Dosya çok büyük",
+      "fileTooLargeDesc": "Dosya boyutu 50MB sınırını aşıyor"
     }
   },
   "schedules": {
