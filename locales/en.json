@@ -898,7 +898,9 @@
     "behaviorScheduled": "Syncs on schedule",
     "behaviorManual": "Manual sync only",
     "autoModeWarning": "Auto mode combines file-change and scheduled sync. Use with care for large folders.",
-    "transparencyHint": "Tip: Expand a folder to see what triggered the last sync and whether it was a full re-scan."
+    "transparencyHint": "Tip: Expand a folder to see what triggered the last sync and whether it was a full re-scan.",
+    "reviewSetup": "Review Folder Setup",
+    "changeFolder": "Change folder"
   },
   "vectorSearchPhase": {
     "idle": "Ready",

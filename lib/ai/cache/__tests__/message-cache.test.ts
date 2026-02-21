@@ -7,67 +7,65 @@ import { applyCacheToMessages, estimateCacheSavings } from "../message-cache";
 import type { ModelMessage } from "ai";
 import type { CacheableSystemBlock } from "../types";
 
+function getCacheControl(msg: ModelMessage) {
+  const opts = msg.providerOptions as { anthropic?: { cacheControl?: { type: string; ttl?: string } } } | undefined;
+  return opts?.anthropic?.cacheControl;
+}
+
 describe("applyCacheToMessages", () => {
-  it("should not cache when history is too short", () => {
+  it("should return original messages when the array is empty", () => {
+    const result = applyCacheToMessages([]);
+    expect(result).toEqual([]);
+  });
+
+  it("should cache the last message in a single-message conversation", () => {
     const messages: ModelMessage[] = [
       { role: "user", content: "Hello" },
-      { role: "assistant", content: "Hi there!" },
     ];
 
-    const result = applyCacheToMessages(messages, { minHistorySize: 5 });
+    const result = applyCacheToMessages(messages);
 
-    // No messages should have cache_control
-    expect(result.every((m) => !(m as any).experimental_cache_control)).toBe(true);
+    expect(getCacheControl(result[0])).toBeDefined();
+    expect(getCacheControl(result[0])?.type).toBe("ephemeral");
   });
 
-  it("should cache older messages and leave recent ones uncached", () => {
+  it("should put the cache marker on the last message only", () => {
     const messages: ModelMessage[] = Array.from({ length: 10 }, (_, i) => ({
       role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
       content: `Message ${i}`,
     }));
 
-    const result = applyCacheToMessages(messages, {
-      uncachedRecentCount: 2,
-      minHistorySize: 5,
-    });
+    const result = applyCacheToMessages(messages);
 
-    // Message at index 7 (10 - 2 - 1) should have provider cache control.
-    expect((result[7] as any).providerOptions?.anthropic?.cacheControl).toBeDefined();
-    expect((result[7] as any).providerOptions?.anthropic?.cacheControl?.type).toBe("ephemeral");
+    // Only the last message should have cache control
+    expect(getCacheControl(result[9])).toBeDefined();
+    expect(getCacheControl(result[9])?.type).toBe("ephemeral");
 
-    // Last 2 messages should not have cache control.
-    expect((result[8] as any).providerOptions?.anthropic?.cacheControl).toBeUndefined();
-    expect((result[9] as any).providerOptions?.anthropic?.cacheControl).toBeUndefined();
+    // All other messages should be untouched
+    for (let i = 0; i < 9; i++) {
+      expect(getCacheControl(result[i])).toBeUndefined();
+    }
   });
 
-  it("should use correct TTL", () => {
-    const messages: ModelMessage[] = Array.from({ length: 10 }, (_, i) => ({
-      role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
-      content: `Message ${i}`,
-    }));
-
-    const result = applyCacheToMessages(messages, {
-      uncachedRecentCount: 2,
-      minHistorySize: 5,
-      cacheTtl: "1h",
-    });
-
-    // Message at index 7 should have 1h TTL
-    expect((result[7] as any).providerOptions?.anthropic?.cacheControl?.ttl).toBe("1h");
-  });
-
-  it("should return original messages when caching disabled", () => {
+  it("should not mutate the original messages array", () => {
     const messages: ModelMessage[] = [
       { role: "user", content: "Hello" },
       { role: "assistant", content: "Hi!" },
-      { role: "user", content: "How are you?" },
     ];
 
-    const result = applyCacheToMessages(messages, {
-      minHistorySize: 10, // High threshold to disable caching
-    });
+    applyCacheToMessages(messages);
 
-    expect(result).toEqual(messages);
+    expect(getCacheControl(messages[1])).toBeUndefined();
+  });
+
+  it("should use 1h TTL", () => {
+    const messages: ModelMessage[] = [
+      { role: "user", content: "Hello" },
+    ];
+
+    const result = applyCacheToMessages(messages);
+
+    expect(getCacheControl(result[0])?.ttl).toBe("1h");
   });
 });
 
@@ -78,64 +76,64 @@ describe("estimateCacheSavings", () => {
         role: "system",
         content: "You are a helpful assistant. " + "x".repeat(1000),
         providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: "5m" } },
-        },
-      },
-    ];
-
-    const messages: ModelMessage[] = [];
-
-    const result = estimateCacheSavings(systemBlocks, messages);
-
-    expect(result.totalCacheableTokens).toBeGreaterThan(0);
-    expect(result.estimatedSavings).toBeGreaterThan(0);
-  });
-
-  it("should calculate savings for cached messages", () => {
-    const systemBlocks: CacheableSystemBlock[] = [];
-
-    const messages: ModelMessage[] = [
-      { role: "user", content: "Hello " + "x".repeat(1000) },
-      {
-        role: "assistant",
-        content: "Hi " + "x".repeat(1000),
-        providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral" as const, ttl: "5m" as const } },
-        },
-      } as unknown as ModelMessage,
-    ];
-
-    const result = estimateCacheSavings(systemBlocks, messages);
-
-    expect(result.totalCacheableTokens).toBeGreaterThan(0);
-    expect(result.estimatedSavings).toBeGreaterThan(0);
-  });
-
-  it("should return zero savings when no cacheable content", () => {
-    const systemBlocks: CacheableSystemBlock[] = [];
-    const messages: ModelMessage[] = [];
-
-    const result = estimateCacheSavings(systemBlocks, messages);
-
-    expect(result.totalCacheableTokens).toBe(0);
-    expect(result.estimatedSavings).toBe(0);
-  });
-
-  it("should estimate reasonable token counts", () => {
-    // 1000 characters ≈ 250 tokens (1 token ≈ 4 chars)
-    const systemBlocks: CacheableSystemBlock[] = [
-      {
-        role: "system",
-        content: "x".repeat(1000),
-        providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: "5m" } },
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
         },
       },
     ];
 
     const result = estimateCacheSavings(systemBlocks, []);
 
-    // Should be approximately 250 tokens (1000 / 4)
+    expect(result.totalCacheableTokens).toBeGreaterThan(0);
+    expect(result.estimatedSavings).toBeGreaterThan(0);
+  });
+
+  it("should include the marker message itself in the cached range", () => {
+    const systemBlocks: CacheableSystemBlock[] = [];
+
+    // With the new strategy the marker is on the last message.
+    // estimateCacheSavings should count that message's tokens too.
+    const markedMessage = {
+      role: "user" as const,
+      content: "x".repeat(1000),
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" as const, ttl: "1h" as const } },
+      },
+    } as unknown as ModelMessage;
+
+    const messages: ModelMessage[] = [
+      { role: "user", content: "x".repeat(1000) },
+      markedMessage,
+    ];
+
+    const result = estimateCacheSavings(systemBlocks, messages);
+
+    // Both messages should be counted (marker message included via off-by-one fix)
+    const expectedTokens = Math.ceil((1000 + 1000) / 4);
+    expect(result.totalCacheableTokens).toBeCloseTo(expectedTokens, -1);
+    expect(result.estimatedSavings).toBeGreaterThan(0);
+  });
+
+  it("should return zero savings when no cacheable content", () => {
+    const result = estimateCacheSavings([], []);
+
+    expect(result.totalCacheableTokens).toBe(0);
+    expect(result.estimatedSavings).toBe(0);
+  });
+
+  it("should estimate reasonable token counts for system blocks", () => {
+    // 1000 characters ≈ 250 tokens (1 token ≈ 4 chars)
+    const systemBlocks: CacheableSystemBlock[] = [
+      {
+        role: "system",
+        content: "x".repeat(1000),
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
+        },
+      },
+    ];
+
+    const result = estimateCacheSavings(systemBlocks, []);
+
     expect(result.totalCacheableTokens).toBeGreaterThanOrEqual(200);
     expect(result.totalCacheableTokens).toBeLessThanOrEqual(300);
   });

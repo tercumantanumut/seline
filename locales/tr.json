@@ -888,7 +888,9 @@
     "behaviorScheduled": "Zamanlı olarak senkronlanır",
     "behaviorManual": "Sadece manuel senkron",
     "autoModeWarning": "Otomatik mod dosya-değişimi ve zamanlı senkronu birlikte çalıştırır. Büyük klasörlerde dikkatli kullanın.",
-    "transparencyHint": "İpucu: Son senkronu neyin tetiklediğini ve tam yeniden tarama olup olmadığını görmek için klasörü genişletin."
+    "transparencyHint": "İpucu: Son senkronu neyin tetiklediğini ve tam yeniden tarama olup olmadığını görmek için klasörü genişletin.",
+    "reviewSetup": "Klasör Kurulumunu İncele",
+    "changeFolder": "Klasörü değiştir"
   },
   "vectorSearchPhase": {
     "idle": "Hazır",

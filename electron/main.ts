@@ -965,6 +965,13 @@ function setupIpcHandlers(): void {
     await shell.openExternal(url);
   });
 
+  ipcMain.handle("dialog:selectFolder", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory"],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
   // Settings handlers
   ipcMain.handle("settings:get", () => {
     const settingsPath = path.join(dataDir, "settings.json");
