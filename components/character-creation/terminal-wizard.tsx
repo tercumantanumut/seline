@@ -87,6 +87,7 @@ export function TerminalWizard() {
   const prefersReducedMotion = useReducedMotion();
   const t = useTranslations("characterCreation.progress");
   const tLoading = useTranslations("characterCreation.loading");
+  const tErr = useTranslations("characterCreation.errors");
   const router = useRouter();
 
   // Fetch settings to check if Vector Search is enabled
@@ -158,13 +159,13 @@ export function TerminalWizard() {
       });
 
       if (postError || !data) {
-        throw new Error(data?.error || postError || "Failed to create draft agent");
+        throw new Error(data?.error || postError || tErr("createDraftFailed"));
       }
 
       setDraftAgentId(data.character.id);
       navigateTo("knowledge");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
+      setError(err instanceof Error ? err.message : tErr("createFailed"));
       navigateTo("identity", -1);
     }
   };
@@ -271,7 +272,7 @@ export function TerminalWizard() {
         {}
       );
       if (response.error || !response.data || !response.data.characterId) {
-        throw new Error((response.data && response.data.error) || response.error || "Failed to create from template");
+        throw new Error((response.data && response.data.error) || response.error || tErr("createFromTemplateFailed"));
       }
       const createdId = response.data.characterId;
 
@@ -282,7 +283,7 @@ export function TerminalWizard() {
       }));
       navigateTo("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create from template");
+      setError(err instanceof Error ? err.message : tErr("createFromTemplateFailed"));
       navigateTo("intro", -1);
     }
   };
@@ -312,13 +313,13 @@ export function TerminalWizard() {
       });
 
       if (patchError) {
-        throw new Error(data?.error || patchError || "Failed to create agent");
+        throw new Error(data?.error || patchError || tErr("createFailed"));
       }
 
       setState((prev) => ({ ...prev, createdCharacterId: draftAgentId }));
       navigateTo("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Creation failed");
+      setError(err instanceof Error ? err.message : tErr("creationFailed"));
     } finally {
       setIsSubmitting(false);
     }

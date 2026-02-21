@@ -1585,6 +1585,12 @@
       },
       "back": "Back",
       "continueWithAvatar": "Continue with this Avatar"
+    },
+    "errors": {
+      "createDraftFailed": "Failed to create draft agent",
+      "createFailed": "Failed to create agent",
+      "createFromTemplateFailed": "Failed to create from template",
+      "creationFailed": "Creation failed"
     }
   },
   "errors": {

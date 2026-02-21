@@ -1570,6 +1570,12 @@
         "alwaysTooltip": "Araç her istekte hemen yüklenir (daha fazla token kullanır)",
         "deferredTooltip": "Araç gerektiğinde searchTools ile keşfedilir (token tasarrufu)"
       }
+    },
+    "errors": {
+      "createDraftFailed": "Taslak ajan oluşturulamadı",
+      "createFailed": "Ajan oluşturulamadı",
+      "createFromTemplateFailed": "Şablondan oluşturma başarısız",
+      "creationFailed": "Oluşturma başarısız"
     }
   },
   "errors": {
