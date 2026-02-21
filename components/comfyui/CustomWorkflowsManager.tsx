@@ -186,7 +186,7 @@ export function CustomWorkflowsManager({
       if (error) throw new Error(error);
       setWorkflows(data?.workflows || []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load workflows");
+      toast.error(error instanceof Error ? error.message : t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -233,7 +233,7 @@ export function CustomWorkflowsManager({
       setOutputs(data.outputs || []);
       toast.success(t("analyzed"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow analysis failed");
+      toast.error(error instanceof Error ? error.message : t("analysisFailed"));
     } finally {
       setAnalyzing(false);
     }
@@ -245,7 +245,7 @@ export function CustomWorkflowsManager({
       const parsed = parseWorkflowJson();
       setWorkflowText(JSON.stringify(parsed, null, 2));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to format JSON");
+      toast.error(error instanceof Error ? error.message : t("formatFailed"));
     }
   };
 
@@ -299,7 +299,7 @@ export function CustomWorkflowsManager({
       setSelectedId(data.workflow?.id || "new");
       await loadWorkflows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow save failed");
+      toast.error(error instanceof Error ? error.message : t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -318,7 +318,7 @@ export function CustomWorkflowsManager({
       resetForm();
       await loadWorkflows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow delete failed");
+      toast.error(error instanceof Error ? error.message : t("deleteFailed"));
     } finally {
       setSaving(false);
     }
