@@ -1128,6 +1128,15 @@ export default function ChatInterface({
         }
     }, [sessionId, sessions, switchSession, loadSessions, router, character.id]);
 
+    const restoreSession = useCallback(async (sessionToRestoreId: string) => {
+        try {
+            await resilientPatch(`/api/sessions/${sessionToRestoreId}`, { status: "active" });
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+        } catch (error) {
+            console.error("Failed to restore session:", error);
+        }
+    }, [loadSessions]);
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -1194,6 +1203,8 @@ export default function ChatInterface({
                     onExportSession={exportSession}
                     onPinSession={pinSession}
                     onArchiveSession={archiveSession}
+                    onRestoreSession={restoreSession}
+                    characterId={character.id}
                     onAvatarChange={handleAvatarChange}
                 />
             }

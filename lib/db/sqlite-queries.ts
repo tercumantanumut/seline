@@ -47,6 +47,7 @@ export interface ListSessionsPaginatedParams {
   search?: string;
   channelType?: "whatsapp" | "telegram" | "slack";
   dateRange?: "today" | "week" | "month" | "all";
+  status?: "active" | "archived";
 }
 
 export interface ListSessionsPaginatedResult {
@@ -237,7 +238,8 @@ export async function listSessionsPaginated(
   params: ListSessionsPaginatedParams
 ): Promise<ListSessionsPaginatedResult> {
   const pageSize = Math.min(Math.max(params.limit ?? 20, 1), 100);
-  const baseConditions = [eq(sessions.userId, params.userId), eq(sessions.status, "active")];
+  const statusFilter = params.status ?? "active";
+  const baseConditions = [eq(sessions.userId, params.userId), eq(sessions.status, statusFilter)];
 
   if (params.characterId) {
     baseConditions.push(eq(sessions.characterId, params.characterId));
