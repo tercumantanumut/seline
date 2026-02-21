@@ -2465,11 +2465,10 @@
   },
   "about": {
     "title": "About",
-    "subtitle": "Credits, support, and links",
-    "releasedBadge": "Released",
-    "headline": "Released and developed with the support of Styly",
-    "byline": "Created and maintained by Umut Tan",
-    "linkStyly": "https://styly.io",
+    "subtitle": "Credits and links",
+    "releasedBadge": "Open Source",
+    "headline": "Created and maintained by Umut Tan",
+    "byline": "An open-source AI agent interface.",
     "linkLinkedIn": "My LinkedIn",
     "linkGitHub": "App GitHub"
   },

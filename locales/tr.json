@@ -2465,11 +2465,10 @@
   },
   "about": {
     "title": "Hakkında",
-    "subtitle": "Destek, bilgi ve bağlantılar",
-    "releasedBadge": "Yayında",
-    "headline": "Styly.io desteğiyle yayımlandı ve geliştirildi.",
-    "byline": "Umut Tan, MLe tarafından oluşturuldu ve sürdürülüyor.",
-    "linkStyly": "Styly.io",
+    "subtitle": "Bilgi ve bağlantılar",
+    "releasedBadge": "Açık Kaynak",
+    "headline": "Umut Tan tarafından oluşturuldu ve sürdürülüyor.",
+    "byline": "Açık kaynaklı bir yapay zeka ajan arayüzü.",
     "linkLinkedIn": "LinkedIn",
     "linkGitHub": "GitHub"
   },
