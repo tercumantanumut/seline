@@ -1691,6 +1691,7 @@
       "codeExchangeFailed": "Kod değişimi başarısız",
       "memorySaveFailed": "Bellek varsayılanları kaydedilemedi",
       "connectingToGoogle": "Google'a bağlanıyor...",
+      "connectingToOpenAI": "OpenAI'ya bağlanıyor...",
       "authUrlFailed": "Yetkilendirme URL'si alınamadı"
     },
     "api": {

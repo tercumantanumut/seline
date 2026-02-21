@@ -559,7 +559,7 @@ export default function SettingsPage() {
         );
 
         if (popup) {
-          popup.document.write("<p style='font-family:sans-serif'>Connecting to OpenAI...</p>");
+          popup.document.write(`<p style='font-family:sans-serif'>${t("errors.connectingToOpenAI")}</p>`);
         }
       }
 

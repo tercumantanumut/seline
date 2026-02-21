@@ -1719,6 +1719,7 @@
       "codeExchangeFailed": "Code exchange failed",
       "memorySaveFailed": "Failed to save memory defaults",
       "connectingToGoogle": "Connecting to Google...",
+      "connectingToOpenAI": "Connecting to OpenAI...",
       "authUrlFailed": "Failed to get authorization URL"
     },
     "api": {
