@@ -941,7 +941,9 @@
       "synthesizing": "Synthesizing speech\u2026",
       "ttsFailed": "TTS failed",
       "checkingTranscription": "Checking transcription\u2026",
-      "transcriptionFailed": "Transcription check failed"
+      "transcriptionFailed": "Transcription check failed",
+      "playFailed": "Failed to play audio",
+      "playbackBlocked": "Audio playback blocked by browser"
     },
     "planTool": {
       "updating": "Updating plan\u2026",
@@ -2129,7 +2131,11 @@
       "updateFailed": "Failed to update session model",
       "updateSuccess": "Session model updated",
       "clearFailed": "Failed to clear overrides",
-      "clearSuccess": "Session model overrides cleared"
+      "clearSuccess": "Session model overrides cleared",
+      "chatModel": "Chat Model",
+      "researchModel": "Research Model",
+      "visionModel": "Vision Model",
+      "utilityModel": "Utility Model"
     },
     "switched": "Switched to {name} for this session",
     "switchFailed": "Failed to switch model",

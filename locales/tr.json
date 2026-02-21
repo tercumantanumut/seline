@@ -931,7 +931,9 @@
       "synthesizing": "Ses sentezleniyor\u2026",
       "ttsFailed": "TTS başarısız",
       "checkingTranscription": "Transkripsiyon kontrol ediliyor\u2026",
-      "transcriptionFailed": "Transkripsiyon kontrolü başarısız"
+      "transcriptionFailed": "Transkripsiyon kontrolü başarısız",
+      "playFailed": "Ses çalınamadı",
+      "playbackBlocked": "Ses oynatma tarayıcı tarafından engellendi"
     },
     "planTool": {
       "updating": "Plan güncelleniyor\u2026",
@@ -2114,7 +2116,11 @@
       "updateFailed": "Oturum modeli güncellenemedi",
       "updateSuccess": "Oturum modeli güncellendi",
       "clearFailed": "Geçersiz kılmalar temizlenemedi",
-      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi"
+      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi",
+      "chatModel": "Sohbet Modeli",
+      "researchModel": "Araştırma Modeli",
+      "visionModel": "Görüntü Modeli",
+      "utilityModel": "Yardımcı Model"
     },
     "switched": "Bu oturum için {name} modeline geçildi",
     "switchFailed": "Model değiştirilemedi",
