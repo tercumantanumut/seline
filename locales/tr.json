@@ -868,6 +868,26 @@
       "showLess": "Daha az göster",
       "showAll": "Tümünü göster ({count})",
       "continue": "Devam Et"
+    },
+    "onboarding": {
+      "step1": {
+        "title": "Çalışma alanları ajanınızın izole çalışmasını sağlar",
+        "description": "Ajanınız, git worktrees kullanarak kodunuzun ayrı bir kopyasını oluşturabilir, değişiklikler yapabilir ve çalışma dosyalarınıza dokunmadan inceleme için gönderebilir.",
+        "hint": "Bu rozet, bir çalışma alanı etkin olduğunda sohbet başlığınızda görünür."
+      },
+      "step2": {
+        "title": "Değişiklikleri uygulanmadan önce inceleyin",
+        "description": "Sözdizimi renklendirilmiş diff'lerle yan panelde tam olarak nelerin değiştiğini görün. Değişiklikleri onaylayın, yerel deponuza aktarın veya ajandan revize etmesini isteyin.",
+        "hint": "Diff panelini açmak için çalışma alanı rozetindeki \"Değişiklikleri Görüntüle\"ye tıklayın."
+      },
+      "step3": {
+        "title": "Tüm çalışma alanlarını tek bakışta takip edin",
+        "description": "Ana sayfada tüm ajanlarınızın aktif çalışma alanlarını, durumlarını, dal adlarını, PR bağlantılarını ve devam etme, temizleme veya PR görüntüleme gibi hızlı işlemleri görün.",
+        "hint": "Aktif çalışma alanları, ana sayfada ajan kartlarınızın üzerinde görünür."
+      },
+      "skip": "Atla",
+      "gotIt": "Anladım",
+      "next": "İleri"
     }
   },
   "folderSync": {
