@@ -167,10 +167,14 @@ export function AvatarSelectionDialog({
           ) : images.length > 0 ? (
             <div className="grid grid-cols-3 gap-3">
               {images.map((image) => (
-                <div
+                <button
                   key={image.id}
+                  type="button"
+                  disabled={image.isPrimary || settingPrimary === image.id}
+                  aria-label={t("setAsPrimary", { name: characterName })}
+                  aria-pressed={image.isPrimary}
                   className={cn(
-                    "relative group aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all",
+                    "relative group aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all text-left",
                     image.isPrimary
                       ? "border-terminal-green ring-2 ring-terminal-green/20"
                       : "border-terminal-border hover:border-terminal-green/50"
@@ -199,10 +203,11 @@ export function AvatarSelectionDialog({
                     }}
                     className="absolute bottom-1 right-1 bg-red-500/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                     title={t("delete")}
+                    aria-label={t("delete")}
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
-                </div>
+                </button>
               ))}
             </div>
           ) : (

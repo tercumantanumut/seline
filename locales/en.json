@@ -641,6 +641,7 @@
       "uploading": "Uploading..."
     },
     "delete": "Delete",
+    "setAsPrimary": "Set {name} as primary avatar",
     "note": "PNG, JPEG, or WebP · Max 10MB"
   },
   "documents": {
