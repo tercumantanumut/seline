@@ -1822,6 +1822,7 @@
     "topAgents": "Öne Çıkan Ajanlar",
     "noAgents": "Henüz ajan kullanılmadı.",
     "agentChats": "{count} sohbet",
+    "sessionMessages": "{count, plural, one {# mesaj} other {# mesaj}}",
     "untitledChat": "Başlıksız sohbet",
     "skillAutomation": "Beceri Otomasyonu",
     "skill": {

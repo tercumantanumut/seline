@@ -1837,6 +1837,7 @@
     "topAgents": "Top Agents",
     "noAgents": "No agents used yet.",
     "agentChats": "{count} chats",
+    "sessionMessages": "{count, plural, one {# msg} other {# msgs}}",
     "untitledChat": "Untitled chat",
     "skillAutomation": "Skill Automation",
     "skill": {
