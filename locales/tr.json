@@ -954,6 +954,25 @@
       "vectorSearch": "Vektör Arama",
       "preview": "Önizleme"
     },
+    "loading": {
+      "enhancingTitle": "Ajan Konsepti Geliştiriliyor...",
+      "configuringTitle": "Ajan Yapılandırılıyor...",
+      "errorPrefix": "Hata: ",
+      "dismiss": "Kapat",
+      "enhancingMessages": [
+        "İsteğiniz analiz ediliyor...",
+        "Ajan kimliği taslağı hazırlanıyor...",
+        "Temel amaç belirleniyor...",
+        "Talimatlar optimize ediliyor...",
+        "Profil tamamlanıyor..."
+      ],
+      "configuringMessages": [
+        "Ajan profili başlatılıyor...",
+        "Yetenekler yapılandırılıyor...",
+        "Bilgi tabanı hazırlanıyor...",
+        "Yapılandırma tamamlanıyor..."
+      ]
+    },
     "intro": {
       "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
       "guidedCreation": "ADIM ADIM OLUŞTUR",

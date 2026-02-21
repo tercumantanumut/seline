@@ -86,6 +86,7 @@ export function TerminalWizard() {
   const [hasMcpServers, setHasMcpServers] = useState<boolean | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const t = useTranslations("characterCreation.progress");
+  const tLoading = useTranslations("characterCreation.loading");
   const router = useRouter();
 
   // Fetch settings to check if Vector Search is enabled
@@ -338,12 +339,12 @@ export function TerminalWizard() {
             animate={{ y: 0, opacity: 1 }}
             className="absolute top-0 left-0 right-0 z-50 bg-red-500 text-white px-4 py-2 text-center font-mono text-sm"
           >
-            Error: {error}
+            {tLoading("errorPrefix")}{error}
             <button
               onClick={() => setError(null)}
               className="ml-4 underline hover:no-underline"
             >
-              Dismiss
+              {tLoading("dismiss")}
             </button>
           </motion.div>
         )}
@@ -433,19 +434,11 @@ export function TerminalWizard() {
               <LoadingPage
                 characterName={state.identity.name || "Agent"}
                 onComplete={() => { }}
-                loadingTitle={isExpandingConcept ? "Enhancing Agent Concept..." : "Configuring Agent..."}
-                customMessages={isExpandingConcept ? [
-                  "Analyzing your request...",
-                  "Drafting agent identity...",
-                  "Defining core purpose...",
-                  "Optimizing instructions...",
-                  "Finalizing profile...",
-                ] : [
-                  "Initializing agent profile...",
-                  "Setting up capabilities...",
-                  "Preparing knowledge base...",
-                  "Finalizing configuration...",
-                ]}
+                loadingTitle={isExpandingConcept ? tLoading("enhancingTitle") : tLoading("configuringTitle")}
+                customMessages={isExpandingConcept
+                  ? tLoading.raw("enhancingMessages") as string[]
+                  : tLoading.raw("configuringMessages") as string[]
+                }
               />
             )}
             {currentPage === "preview" && (

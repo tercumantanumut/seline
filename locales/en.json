@@ -964,6 +964,25 @@
       "vectorSearch": "Vector Search",
       "preview": "Preview"
     },
+    "loading": {
+      "enhancingTitle": "Enhancing Agent Concept...",
+      "configuringTitle": "Configuring Agent...",
+      "errorPrefix": "Error: ",
+      "dismiss": "Dismiss",
+      "enhancingMessages": [
+        "Analyzing your request...",
+        "Drafting agent identity...",
+        "Defining core purpose...",
+        "Optimizing instructions...",
+        "Finalizing profile..."
+      ],
+      "configuringMessages": [
+        "Initializing agent profile...",
+        "Setting up capabilities...",
+        "Preparing knowledge base...",
+        "Finalizing configuration..."
+      ]
+    },
     "intro": {
       "subtitle": "Configure a focused AI agent for your work or projects",
       "guidedCreation": "GUIDED CREATION",
