@@ -1167,7 +1167,14 @@
     "workflowBadge": "İş Akışı",
     "sharedFromWorkflow": "Bu klasör bir iş akışından paylaşılıyor",
     "setPrimaryFolder": "Birincil klasör olarak ayarla",
-    "cancelSync": "Senkronizasyonu iptal et"
+    "cancelSync": "Senkronizasyonu iptal et",
+    "errorLoadFolders": "Klasörler yüklenemedi",
+    "errorCancelSync": "Senkronizasyon iptal edilemedi",
+    "errorAddFolder": "Klasör eklenemedi",
+    "errorRemoveFolder": "Klasör kaldırılamadı",
+    "errorSyncFolder": "Klasör senkronize edilemedi",
+    "errorSetPrimary": "Birincil klasör ayarlanamadı",
+    "errorUpdateSettings": "Klasör ayarları güncellenemedi"
   },
   "vectorSearchPhase": {
     "idle": "Hazır",

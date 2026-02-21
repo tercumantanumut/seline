@@ -1177,7 +1177,14 @@
     "workflowBadge": "Workflow",
     "sharedFromWorkflow": "This folder is shared from a workflow",
     "setPrimaryFolder": "Set as primary folder",
-    "cancelSync": "Cancel sync"
+    "cancelSync": "Cancel sync",
+    "errorLoadFolders": "Failed to load folders",
+    "errorCancelSync": "Failed to cancel sync",
+    "errorAddFolder": "Failed to add folder",
+    "errorRemoveFolder": "Failed to remove folder",
+    "errorSyncFolder": "Failed to sync folder",
+    "errorSetPrimary": "Failed to set primary folder",
+    "errorUpdateSettings": "Failed to update folder settings"
   },
   "vectorSearchPhase": {
     "idle": "Ready",
