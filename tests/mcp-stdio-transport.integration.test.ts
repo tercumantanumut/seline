@@ -15,6 +15,8 @@ type ChildPayload = {
   };
 };
 
+const ORIGINAL_EXEC_PATH = process.execPath;
+
 type CmdProcessInfo = {
   ProcessId: number;
   ParentProcessId: number;
@@ -66,6 +68,10 @@ function getCmdProcessInfos(): CmdProcessInfo[] {
 }
 
 describe("StdioClientTransport (integration)", () => {
+  afterEach(() => {
+    process.execPath = ORIGINAL_EXEC_PATH;
+  });
+
   it("spawns a long-running MCP child without immediate exit", async () => {
     const scriptPath = path.join(process.cwd(), "tests", "fixtures", "mcp-idle-server.js");
     const outputPath = path.join(os.tmpdir(), `mcp-stdio-${process.pid}-${Date.now()}.json`);
@@ -266,6 +272,69 @@ describe("StdioClientTransport (integration)", () => {
       if (fs.existsSync(outputPath)) {
         fs.unlinkSync(outputPath);
       }
+      fs.rmSync(resourcesRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("uses system node runtime when Helper path is detected for bundled npx", async () => {
+    if (process.platform !== "darwin") {
+      return;
+    }
+
+    const fixturePath = path.join(process.cwd(), "tests", "fixtures", "mcp-idle-server.js");
+    const resourcesRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-helper-runtime-"));
+    const npmBinDir = path.join(resourcesRoot, "standalone", "node_modules", "npm", "bin");
+    const bundledNodeDir = path.join(resourcesRoot, "standalone", "node_modules", ".bin");
+    fs.mkdirSync(npmBinDir, { recursive: true });
+    fs.mkdirSync(bundledNodeDir, { recursive: true });
+
+    const npxCliPath = path.join(npmBinDir, "npx-cli.js");
+    fs.copyFileSync(fixturePath, npxCliPath);
+
+    const unusableBundledNodePath = path.join(bundledNodeDir, "node");
+    fs.writeFileSync(unusableBundledNodePath, "not-a-real-node-binary\n", "utf8");
+    fs.chmodSync(unusableBundledNodePath, 0o755);
+
+    const fallbackNodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-system-node-"));
+    const fallbackNodePath = path.join(fallbackNodeDir, "node");
+    fs.symlinkSync(ORIGINAL_EXEC_PATH, fallbackNodePath);
+
+    const outputPath = path.join(os.tmpdir(), `mcp-stdio-helper-runtime-${Date.now()}.json`);
+    const originalResourcesPath = process.env.ELECTRON_RESOURCES_PATH;
+
+    process.execPath = "/Applications/Seline.app/Contents/Frameworks/Seline Helper.app/Contents/MacOS/Seline Helper";
+
+    const transport = new StdioClientTransport({
+      command: "npx",
+      args: [outputPath],
+      env: {
+        PATH: `${bundledNodeDir}${path.delimiter}${fallbackNodeDir}`,
+      },
+      stderr: "pipe",
+    });
+
+    try {
+      process.env.ELECTRON_RESOURCES_PATH = resourcesRoot;
+
+      await transport.start();
+      await waitForFile(outputPath, 2000);
+      const payload = JSON.parse(fs.readFileSync(outputPath, "utf8")) as ChildPayload;
+
+      const resolvedPayloadExecPath = fs.realpathSync(payload.execPath);
+      const resolvedSystemNodePath = fs.realpathSync(fallbackNodePath);
+      expect(resolvedPayloadExecPath).toBe(resolvedSystemNodePath);
+      expect(payload.env.ELECTRON_RUN_AS_NODE).toBeNull();
+    } finally {
+      await transport.close();
+      if (originalResourcesPath === undefined) {
+        delete process.env.ELECTRON_RESOURCES_PATH;
+      } else {
+        process.env.ELECTRON_RESOURCES_PATH = originalResourcesPath;
+      }
+      if (fs.existsSync(outputPath)) {
+        fs.unlinkSync(outputPath);
+      }
+      fs.rmSync(fallbackNodeDir, { recursive: true, force: true });
       fs.rmSync(resourcesRoot, { recursive: true, force: true });
     }
   });

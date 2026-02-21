@@ -66,6 +66,14 @@ function isExecutable(filePath: string): boolean {
     }
 }
 
+function normalizeResolvedPath(filePath: string): string {
+    try {
+        return fs.realpathSync(filePath);
+    } catch {
+        return path.resolve(filePath);
+    }
+}
+
 
 /**
  * Attempt to resolve a command to its absolute path
@@ -254,6 +262,75 @@ function prependPath(existingPath: string | undefined, extraDir: string): string
     return [extraDir, trimmed].filter(Boolean).join(delimiter);
 }
 
+function prependPaths(existingPath: string | undefined, extraDirs: string[]): string {
+    return extraDirs.reduce((acc, dir) => prependPath(acc, dir), existingPath ?? "");
+}
+
+function buildPathWithoutBlockedDirs(
+    existingPath: string | undefined,
+    blockedPaths: string[],
+): string | undefined {
+    if (!existingPath) {
+        return existingPath;
+    }
+
+    const blockedDirs = new Set(
+        blockedPaths
+            .map((blockedPath) => path.dirname(blockedPath))
+            .map((blockedDir) => normalizeResolvedPath(blockedDir)),
+    );
+
+    const filtered = existingPath
+        .split(path.delimiter)
+        .filter(Boolean)
+        .filter((segment) => !blockedDirs.has(normalizeResolvedPath(segment)));
+
+    return filtered.join(path.delimiter);
+}
+
+function resolveExecutableFromPath(
+    command: string,
+    pathValue: string | undefined,
+    blockedPaths: string[] = [],
+): string | null {
+    if (!pathValue) {
+        return null;
+    }
+
+    for (const dir of pathValue.split(path.delimiter).filter(Boolean)) {
+        const candidate = path.join(dir, command);
+        if (!isExecutable(candidate)) {
+            continue;
+        }
+        if (isBlockedRuntimePath(candidate, blockedPaths)) {
+            continue;
+        }
+        return candidate;
+    }
+
+    return null;
+}
+
+function isBlockedRuntimePath(candidate: string, blockedPaths: string[]): boolean {
+    if (blockedPaths.length === 0) {
+        return false;
+    }
+
+    const normalizedCandidate = normalizeResolvedPath(candidate);
+    const normalizedCandidateDir = normalizeResolvedPath(path.dirname(candidate));
+    return blockedPaths.some((blockedPath) => {
+        const normalizedBlockedPath = normalizeResolvedPath(blockedPath);
+        if (normalizedBlockedPath === normalizedCandidate) {
+            return true;
+        }
+
+        // Block sibling launchers from the same bundled bin directory
+        // (e.g. npx/npm shims beside a broken bundled node runtime).
+        const normalizedBlockedDir = normalizeResolvedPath(path.dirname(blockedPath));
+        return normalizedBlockedDir === normalizedCandidateDir;
+    });
+}
+
 function getBundledNpmCliPath(cliName: "npx-cli.js" | "npm-cli.js"): string | null {
     // In packaged Electron apps, process.resourcesPath is only available in the main process.
     // For the Next.js server (child process), we use ELECTRON_RESOURCES_PATH env var.
@@ -282,6 +359,77 @@ function getBundledNpmCliPath(cliName: "npx-cli.js" | "npm-cli.js"): string | nu
     return null;
 }
 
+function shouldAvoidElectronHelperRuntimeForNpmCli(): boolean {
+    if (process.platform !== "darwin") {
+        return false;
+    }
+
+    // In packaged macOS builds we often run inside "<App> Helper".
+    // Running npm/npx CLI scripts through Helper + ELECTRON_RUN_AS_NODE can
+    // fail immediately on some machines (MCP then reports connection closed).
+    return process.execPath.toLowerCase().includes("helper");
+}
+
+function resolveCommandPathViaLoginShell(command: string, blockedPaths: string[] = []): string | null {
+    if (process.platform === "win32") {
+        return null;
+    }
+
+    const shells = [process.env.SHELL, "/bin/zsh", "/bin/bash"]
+        .filter((shellPath): shellPath is string => Boolean(shellPath));
+
+    for (const shellPath of shells) {
+        try {
+            const probe = spawnSync(shellPath, ["-lc", `command -v ${command}`], {
+                encoding: "utf-8",
+                timeout: 3000,
+                stdio: ["ignore", "pipe", "ignore"],
+                windowsHide: true,
+            });
+
+            const resolved = (probe.stdout ?? "").trim().split("\n")[0]?.trim();
+            if (resolved && path.isAbsolute(resolved) && isExecutable(resolved)) {
+                if (isBlockedRuntimePath(resolved, blockedPaths)) {
+                    continue;
+                }
+                console.log(`[MCP] Resolved ${command} via login shell (${shellPath}): ${resolved}`);
+                return resolved;
+            }
+        } catch {
+            // Ignore login shell lookup failures.
+        }
+    }
+
+    return null;
+}
+
+function resolveNpmLikeFallbackCommand(originalCommand: string, blockedPaths: string[] = []): string | null {
+    const resolved = resolveCommandPath(originalCommand);
+    if (
+        path.isAbsolute(resolved)
+        && isExecutable(resolved)
+        && !isBlockedRuntimePath(resolved, blockedPaths)
+    ) {
+        return resolved;
+    }
+
+    const normalizedCommand = normalizeExecutableName(originalCommand);
+    return resolveCommandPathViaLoginShell(normalizedCommand, blockedPaths);
+}
+
+function resolveSystemNodeRuntime(blockedPaths: string[] = []): string | null {
+    const resolved = resolveCommandPath("node");
+    if (
+        path.isAbsolute(resolved)
+        && isExecutable(resolved)
+        && !isBlockedRuntimePath(resolved, blockedPaths)
+    ) {
+        return resolved;
+    }
+
+    return resolveCommandPathViaLoginShell("node", blockedPaths);
+}
+
 function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawnCommand {
     const originalCommand = serverParams.command;
     const normalizedCommand = normalizeExecutableName(originalCommand);
@@ -300,6 +448,70 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
         const cliName = normalizedCommand === "npx" ? "npx-cli.js" : "npm-cli.js";
         const bundledCli = getBundledNpmCliPath(cliName);
         if (bundledCli) {
+            const shouldAvoidHelperRuntime = !bundledNodeExe && shouldAvoidElectronHelperRuntimeForNpmCli();
+            if (shouldAvoidHelperRuntime) {
+                const blockedPaths = [process.execPath];
+                const resourcesPath = process.env.ELECTRON_RESOURCES_PATH
+                    || (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+                if (resourcesPath) {
+                    const bundledNodeName = process.platform === "win32" ? "node.exe" : "node";
+                    blockedPaths.push(path.join(resourcesPath, "standalone", "node_modules", ".bin", bundledNodeName));
+                }
+
+                const filteredBasePath = buildPathWithoutBlockedDirs(basePath, blockedPaths);
+
+                const nodeFromFilteredPath = resolveExecutableFromPath("node", filteredBasePath, blockedPaths);
+                if (nodeFromFilteredPath) {
+                    const fallbackPath = prependPaths(filteredBasePath, [
+                        path.dirname(nodeFromFilteredPath),
+                        ...MACOS_NODE_PATHS,
+                    ]);
+                    console.warn(
+                        `[MCP] Electron Helper runtime detected for bundled ${originalCommand}; ` +
+                        `using PATH node runtime: ${nodeFromFilteredPath}`,
+                    );
+                    return {
+                        command: nodeFromFilteredPath,
+                        args: [bundledCli, ...baseArgs],
+                        env: { PATH: fallbackPath },
+                    };
+                }
+
+                const systemNodeRuntime = resolveSystemNodeRuntime(blockedPaths);
+                if (systemNodeRuntime) {
+                    const fallbackPath = prependPaths(filteredBasePath, [
+                        path.dirname(systemNodeRuntime),
+                        ...MACOS_NODE_PATHS,
+                    ]);
+                    console.warn(
+                        `[MCP] Electron Helper runtime detected for bundled ${originalCommand}; ` +
+                        `using system node runtime: ${systemNodeRuntime}`,
+                    );
+                    return {
+                        command: systemNodeRuntime,
+                        args: [bundledCli, ...baseArgs],
+                        env: { PATH: fallbackPath },
+                    };
+                }
+
+                const fallbackCommand = resolveNpmLikeFallbackCommand(originalCommand, blockedPaths);
+                if (fallbackCommand) {
+                    const fallbackPath = prependPaths(filteredBasePath, [
+                        path.dirname(fallbackCommand),
+                        ...MACOS_NODE_PATHS,
+                    ]);
+                    console.warn(
+                        `[MCP] Electron Helper runtime detected for bundled ${originalCommand}; ` +
+                        `falling back to resolved command: ${fallbackCommand}`,
+                    );
+                    return {
+                        command: fallbackCommand,
+                        args: baseArgs,
+                        env: { PATH: fallbackPath },
+                    };
+                }
+            }
+
             // Use bundled node.exe on Windows if available, otherwise fall back to Electron
             const nodeRuntime = bundledNodeExe ?? process.execPath;
             const useElectronRunAsNode = !bundledNodeExe;
