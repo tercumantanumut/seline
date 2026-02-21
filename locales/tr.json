@@ -1043,7 +1043,12 @@
     "autoModeWarning": "Otomatik mod dosya-değişimi ve zamanlı senkronu birlikte çalıştırır. Büyük klasörlerde dikkatli kullanın.",
     "transparencyHint": "İpucu: Son senkronu neyin tetiklediğini ve tam yeniden tarama olup olmadığını görmek için klasörü genişletin.",
     "reviewSetup": "Klasör Kurulumunu İncele",
-    "changeFolder": "Klasörü değiştir"
+    "changeFolder": "Klasörü değiştir",
+    "primaryBadge": "Birincil",
+    "workflowBadge": "İş Akışı",
+    "sharedFromWorkflow": "Bu klasör bir iş akışından paylaşılıyor",
+    "setPrimaryFolder": "Birincil klasör olarak ayarla",
+    "cancelSync": "Senkronizasyonu iptal et"
   },
   "vectorSearchPhase": {
     "idle": "Hazır",
