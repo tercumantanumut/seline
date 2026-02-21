@@ -869,7 +869,11 @@
       "navigate": "↑↓ navigate",
       "select": "Tab/Enter select",
       "close": "Esc close",
-      "open": "Command Space open"
+      "open": "Command Space open",
+      "searchPlaceholder": "Search skills, categories, and descriptions",
+      "searchAriaLabel": "Search skills",
+      "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings → Plugins.",
+      "noMatch": "No skills match \"{query}\""
     }
   },
   "workspace": {
@@ -1792,7 +1796,12 @@
     "modelCount": "{count, plural, one {# model} other {# models}}",
     "inventory": "INVENTORY",
     "searchPlaceholder": "Search models...",
+    "bagSearchPlaceholder": "Search...",
     "noMatch": "No models match your filters",
+    "noModels": "No models found",
+    "capabilityThinking": "Extended thinking",
+    "capabilityFast": "Fast",
+    "capabilityVision": "Vision",
     "close": "Close",
     "enterToAssign": "Enter + ↵",
     "sessionOverride": {
