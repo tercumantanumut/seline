@@ -219,7 +219,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
               ) : (
                 <Plus className="mr-1 size-3" />
               )}
-              {showAddForm ? "Cancel" : "Add Source"}
+              {showAddForm ? t("cancel") : t("addSource")}
             </Button>
           </div>
         </div>
@@ -229,7 +229,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="flex items-end gap-2 p-3 rounded-lg bg-terminal-cream/50 border border-terminal-border/20">
             <div className="flex-1 space-y-1">
               <label className="font-mono text-[10px] text-terminal-muted">
-                Name
+                {t("nameLabel")}
               </label>
               <input
                 type="text"
@@ -241,7 +241,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
             </div>
             <div className="flex-[2] space-y-1">
               <label className="font-mono text-[10px] text-terminal-muted">
-                Source URL
+                {t("sourceUrlLabel")}
               </label>
               <input
                 type="text"
@@ -257,7 +257,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
               onClick={addMarketplace}
               disabled={adding}
             >
-              {adding ? <Loader2 className="size-3 animate-spin" /> : "Add"}
+              {adding ? <Loader2 className="size-3 animate-spin" /> : t("add")}
             </Button>
           </div>
         )}
@@ -300,7 +300,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search plugins..."
+                placeholder={t("searchPlaceholder")}
                 className="w-full rounded-lg border border-terminal-border/30 bg-white py-1.5 pl-8 pr-3 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green/30"
               />
             </div>
@@ -315,7 +315,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                       : "text-terminal-muted hover:bg-terminal-dark/5"
                   )}
                 >
-                  All
+                  {t("allCategories")}
                 </button>
                 {categories.map((cat) => (
                   <button
@@ -343,10 +343,10 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="py-8 text-center">
             <Package className="mx-auto size-8 text-terminal-muted/30 mb-2" />
             <p className="font-mono text-xs text-terminal-muted">
-              No marketplace sources configured
+              {t("noSources")}
             </p>
             <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">
-              Add a marketplace source to browse available plugins
+              {t("noSourcesHint")}
             </p>
           </div>
         )}
@@ -355,7 +355,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="py-6 text-center">
             <Search className="mx-auto size-6 text-terminal-muted/30 mb-2" />
             <p className="font-mono text-xs text-terminal-muted">
-              No plugins match your search
+              {t("noResults")}
             </p>
           </div>
         )}

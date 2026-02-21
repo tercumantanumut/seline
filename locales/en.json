@@ -3200,6 +3200,10 @@
       "hooks": "hooks",
       "mcpServers": "{count} MCP server(s)"
     },
+    "mainAgentLabel": "Main agent",
+    "noPluginsYet": "No plugins yet",
+    "noPluginsYetHint": "Upload a plugin package or install one from the marketplace",
+    "automationHooks": "Automation hooks",
     "browseMarketplace": "Browse marketplace",
     "hideMarketplace": "Hide marketplace",
     "errorTitle": "Issue",
@@ -3216,7 +3220,17 @@
       "addFailed": "Failed to add marketplace",
       "removeConfirm": "Remove marketplace \"{name}\"?",
       "removed": "Marketplace \"{name}\" removed",
-      "removeFailed": "Failed to remove marketplace"
+      "removeFailed": "Failed to remove marketplace",
+      "addSource": "Add Source",
+      "cancel": "Cancel",
+      "nameLabel": "Name",
+      "sourceUrlLabel": "Source URL",
+      "add": "Add",
+      "searchPlaceholder": "Search plugins...",
+      "allCategories": "All",
+      "noSources": "No marketplace sources configured",
+      "noSourcesHint": "Add a marketplace source to browse available plugins",
+      "noResults": "No plugins match your search"
     },
     "status": {
       "active": "Active",
