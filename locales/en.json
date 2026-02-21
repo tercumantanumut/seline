@@ -1717,12 +1717,12 @@
     "nav": {
       "apiKeys": "AI Providers",
       "models": "Model Choices",
-      "vectorSearch": "File Search",
+      "vectorSearch": "Semantic Search",
       "comfyui": "Local Image AI",
       "mcp": "MCP Servers",
       "plugins": "Plugins",
       "voice": "Voice & Audio",
-      "preferences": "App Preferences",
+      "preferences": "App & Tool Preferences",
       "memory": "Memory Defaults"
     },
     "onboarding": {
@@ -2243,12 +2243,13 @@
       }
     },
     "localGrep": {
-      "heading": "Local grep search",
-      "description": "Configure fast text search in synced folders.",
+      "heading": "Local grep (exact code search)",
+      "description": "Controls for exact/regex ripgrep searches. Start with tight filters and a low result limit, then widen only when needed.",
       "enableLabel": "Enable local grep tool",
       "gitignoreLabel": "Ignore files listed in .gitignore",
-      "maxResultsLabel": "Maximum results",
-      "contextLinesLabel": "Context lines"
+      "maxResultsLabel": "Maximum results (default: 20)",
+      "contextLinesLabel": "Context lines",
+      "tip": "Use small max results and narrow file types first for cleaner output."
     },
     "localImage": {
       "heading": "Local image generation",

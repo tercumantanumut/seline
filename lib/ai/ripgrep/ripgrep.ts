@@ -37,7 +37,7 @@ export interface RipgrepOptions {
     regex?: boolean;
     /** Case-insensitive search (default: true) */
     caseInsensitive?: boolean;
-    /** Maximum number of results (default: 100) */
+    /** Maximum number of results (default: 20) */
     maxResults?: number;
     /** File extensions to include, e.g., ["ts", "js", "py"] */
     fileTypes?: string[];
@@ -101,7 +101,7 @@ export async function searchWithRipgrep(options: RipgrepOptions): Promise<Ripgre
         paths,
         regex = false,
         caseInsensitive = true,
-        maxResults = 100,
+        maxResults = 20,
         fileTypes,
         globs,
         contextLines = 2,

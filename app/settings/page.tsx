@@ -171,7 +171,7 @@ export default function SettingsPage() {
     vectorSearchMaxLineLength: 1000,
     // Local Grep settings
     localGrepEnabled: true,
-    localGrepMaxResults: 100,
+    localGrepMaxResults: 20,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
     // Local image generation settings
@@ -296,7 +296,7 @@ export default function SettingsPage() {
         vectorSearchMaxLineLength: data.vectorSearchMaxLineLength ?? 1000,
         // Local Grep settings
         localGrepEnabled: data.localGrepEnabled ?? true,
-        localGrepMaxResults: data.localGrepMaxResults ?? 100,
+        localGrepMaxResults: data.localGrepMaxResults ?? 20,
         localGrepContextLines: data.localGrepContextLines ?? 2,
         localGrepRespectGitignore: data.localGrepRespectGitignore ?? true,
         // Local image generation settings
@@ -2379,57 +2379,7 @@ function SettingsPanel({
               embeddingProvider={formState.embeddingProvider}
             />
 
-            {/* Local Grep Settings */}
-            <div className="mt-6 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
-              <h3 className="font-mono text-sm font-semibold text-terminal-dark">{t("localGrep.heading")}</h3>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">{t("localGrep.description")}</p>
 
-              <div className="mt-4 space-y-3">
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.localGrepEnabled}
-                    onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("localGrep.enableLabel")}</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.localGrepRespectGitignore}
-                    onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">{t("localGrep.gitignoreLabel")}</span>
-                </label>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.maxResultsLabel")}</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={formState.localGrepMaxResults}
-                    onChange={(e) => updateField("localGrepMaxResults", Number(e.target.value) || 100)}
-                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.contextLinesLabel")}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={formState.localGrepContextLines}
-                    onChange={(e) => updateField("localGrepContextLines", Number(e.target.value) || 2)}
-                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -2867,6 +2817,60 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.alwaysHelper")}</p>
             </div>
           </label>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("localGrep.heading")}</h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">{t("localGrep.description")}</p>
+          <p className="mt-2 font-mono text-xs text-terminal-muted">{t("localGrep.tip")}</p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">{t("localGrep.enableLabel")}</span>
+            <input
+              type="checkbox"
+              checked={formState.localGrepEnabled}
+              onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">{t("localGrep.gitignoreLabel")}</span>
+            <input
+              type="checkbox"
+              checked={formState.localGrepRespectGitignore}
+              onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.maxResultsLabel")}</label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={formState.localGrepMaxResults}
+              onChange={(e) => updateField("localGrepMaxResults", Number(e.target.value) || 20)}
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.contextLinesLabel")}</label>
+            <input
+              type="number"
+              min={0}
+              max={10}
+              value={formState.localGrepContextLines}
+              onChange={(e) => updateField("localGrepContextLines", Number(e.target.value) || 2)}
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+          </div>
         </div>
       </div>
 

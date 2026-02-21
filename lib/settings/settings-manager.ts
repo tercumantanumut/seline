@@ -160,7 +160,7 @@ export interface AppSettings {
 
     // Local Grep (ripgrep) settings
     localGrepEnabled?: boolean;           // Enable/disable local grep tool (default: true)
-    localGrepMaxResults?: number;         // Maximum results (default: 100)
+    localGrepMaxResults?: number;         // Maximum results (default: 20)
     localGrepContextLines?: number;       // Context lines before/after match (default: 2)
     localGrepRespectGitignore?: boolean;  // Respect .gitignore files (default: true)
 
@@ -262,7 +262,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     vectorSearchMaxLineLength: 1000,
     // Local Grep defaults
     localGrepEnabled: true,
-    localGrepMaxResults: 100,
+    localGrepMaxResults: 20,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
     // ComfyUI defaults (Z-Image)

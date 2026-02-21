@@ -13,8 +13,10 @@
  * @see https://code.claude.com/docs/en/hooks
  */
 
-import { exec } from "child_process";
-import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
+import { spawnSync } from "child_process";
+import { existsSync } from "fs";
+import { join } from "path";
+import { spawnWithFileCapture } from "@/lib/spawn-utils";
 import type {
   HookEventType,
   HookEntry,
@@ -197,6 +199,116 @@ export async function dispatchHook(
 // Command Hook Execution
 // =============================================================================
 
+let cachedWindowsBashPath: string | null | undefined;
+
+function getWindowsBashPath(): string | null {
+  if (process.platform !== "win32") return null;
+  if (cachedWindowsBashPath !== undefined) return cachedWindowsBashPath;
+
+  const envPath = process.env.GIT_BASH_PATH || process.env.BASH_PATH;
+  const candidates = [
+    envPath,
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      cachedWindowsBashPath = candidate;
+      return candidate;
+    }
+  }
+
+  // Derive common Git Bash locations from git.exe installation path.
+  const gitLookup = spawnSync("where", ["git"], {
+    encoding: "utf-8",
+    windowsHide: true,
+  });
+
+  if (gitLookup.status === 0) {
+    const gitPath = gitLookup.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => /git\.exe$/i.test(line));
+
+    if (gitPath) {
+      const gitBinDir = gitPath.replace(/git\.exe$/i, "");
+      const gitRoot = join(gitBinDir, "..");
+      const derivedCandidates = [
+        join(gitRoot, "bin", "bash.exe"),
+        join(gitRoot, "usr", "bin", "bash.exe"),
+      ];
+
+      for (const candidate of derivedCandidates) {
+        if (existsSync(candidate)) {
+          cachedWindowsBashPath = candidate;
+          return cachedWindowsBashPath;
+        }
+      }
+    }
+  }
+
+  // Last resort: accept bash.exe from PATH when it's not the WSL bridge.
+  const bashLookup = spawnSync("where", ["bash"], {
+    encoding: "utf-8",
+    windowsHide: true,
+  });
+
+  if (bashLookup.status === 0) {
+    const bashPath = bashLookup.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(
+        (line) => line.length > 0
+          && !/\\Windows\\(System32|SysWOW64)\\bash\.exe$/i.test(line)
+          && !/\\WindowsApps\\bash\.exe$/i.test(line)
+      );
+
+    if (bashPath && existsSync(bashPath)) {
+      cachedWindowsBashPath = bashPath;
+      return cachedWindowsBashPath;
+    }
+  }
+
+  cachedWindowsBashPath = null;
+  return cachedWindowsBashPath;
+}
+
+function prefersPosixShell(command: string): boolean {
+  return command.includes("'")
+    || command.includes(";")
+    || command.includes(">&2")
+    || command.includes("$(")
+    || /\b(exit|set -e|if|then|fi)\b/.test(command);
+}
+
+function normalizePosixCommandForCmd(command: string): string {
+  return command
+    .replace(/'([^']*)'/g, "$1")
+    .replace(/\s*&>\s*2/g, " 1>&2")
+    .replace(/\s*>\s*&2/g, " 1>&2")
+    .replace(/\s*;\s*/g, " & ");
+}
+
+function resolveHookShell(command: string): { shellCommand: string; shellArgs: string[] } {
+  if (process.platform !== "win32") {
+    return { shellCommand: "/bin/sh", shellArgs: ["-c", command] };
+  }
+
+  const needsPosixShell = prefersPosixShell(command);
+  const bashPath = getWindowsBashPath();
+  if (bashPath && needsPosixShell) {
+    return { shellCommand: bashPath, shellArgs: ["-lc", command] };
+  }
+
+  const cmdCommand = needsPosixShell ? normalizePosixCommandForCmd(command) : command;
+  return {
+    shellCommand: process.env.ComSpec || "cmd.exe",
+    shellArgs: ["/d", "/s", "/c", cmdCommand],
+  };
+}
+
 /**
  * Execute a command hook handler.
  *
@@ -238,109 +350,38 @@ async function executeCommandHook(
     CLAUDE_PLUGIN_ROOT: pluginRoot,
   };
 
-  // EBADF fallback helper for hooks
-  const runWithFileCapture = async (): Promise<HookExecutionResult> => {
-    console.warn("[Hooks] exec() EBADF – retrying with file-capture fallback");
-    try {
-      // exec() uses a shell, so pass the whole command as a single shell arg.
-      // stdinData provides the JSON input that would normally go to stdin.
-      const fb = await spawnWithFileCapture(
-        "/bin/sh", ["-c", resolvedCommand],
-        pluginRoot || process.cwd(),
-        hookEnv as NodeJS.ProcessEnv,
-        timeoutMs,
-        1024 * 1024,
-        inputJson,
-      );
-      const exitCode = fb.exitCode ?? 1;
-      const durationMs = Date.now() - startTime;
-      return {
-        success: exitCode === 0,
-        exitCode,
-        stdout: fb.stdout.slice(0, 10000),
-        stderr: fb.stderr.slice(0, 10000),
-        durationMs,
-        blocked: exitCode === 2,
-        blockReason: exitCode === 2 ? fb.stderr.trim() : undefined,
-      };
-    } catch (fbErr) {
-      return {
-        success: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: `Hook EBADF fallback failed: ${fbErr instanceof Error ? fbErr.message : fbErr}`,
-        durationMs: Date.now() - startTime,
-      };
-    }
-  };
+  const { shellCommand, shellArgs } = resolveHookShell(resolvedCommand);
 
-  return new Promise<HookExecutionResult>((resolve) => {
-    let child;
-    try {
-      child = exec(resolvedCommand, {
-        timeout: timeoutMs,
-        maxBuffer: 1024 * 1024, // 1MB
-        env: hookEnv,
-      });
-    } catch (err) {
-      if (isEBADFError(err) && process.platform === "darwin") {
-        runWithFileCapture().then(resolve);
-        return;
-      }
-      resolve({
-        success: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: `Hook execution error: ${err instanceof Error ? err.message : "Unknown error"}`,
-        durationMs: Date.now() - startTime,
-      });
-      return;
-    }
+  try {
+    const fb = await spawnWithFileCapture(
+      shellCommand,
+      shellArgs,
+      pluginRoot || process.cwd(),
+      hookEnv as NodeJS.ProcessEnv,
+      timeoutMs,
+      1024 * 1024,
+      inputJson,
+    );
 
-    let stdout = "";
-    let stderr = "";
+    const exitCode = fb.exitCode ?? 1;
+    const durationMs = Date.now() - startTime;
 
-    child.stdout?.on("data", (data: string) => {
-      stdout += data;
-    });
-
-    child.stderr?.on("data", (data: string) => {
-      stderr += data;
-    });
-
-    // Write input JSON to stdin
-    if (child.stdin) {
-      child.stdin.write(inputJson);
-      child.stdin.end();
-    }
-
-    child.on("close", (code) => {
-      const exitCode = code ?? 1;
-      const durationMs = Date.now() - startTime;
-
-      resolve({
-        success: exitCode === 0,
-        exitCode,
-        stdout: stdout.slice(0, 10000), // Limit output size
-        stderr: stderr.slice(0, 10000),
-        durationMs,
-        blocked: exitCode === 2,
-        blockReason: exitCode === 2 ? stderr.trim() : undefined,
-      });
-    });
-
-    child.on("error", (err) => {
-      if (isEBADFError(err) && process.platform === "darwin") {
-        runWithFileCapture().then(resolve);
-        return;
-      }
-      resolve({
-        success: false,
-        exitCode: 1,
-        stdout: "",
-        stderr: `Hook execution error: ${err.message}`,
-        durationMs: Date.now() - startTime,
-      });
-    });
-  });
+    return {
+      success: exitCode === 0,
+      exitCode,
+      stdout: fb.stdout.slice(0, 10000),
+      stderr: fb.stderr.slice(0, 10000),
+      durationMs,
+      blocked: exitCode === 2,
+      blockReason: exitCode === 2 ? fb.stderr.trim() : undefined,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: `Hook execution error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      durationMs: Date.now() - startTime,
+    };
+  }
 }

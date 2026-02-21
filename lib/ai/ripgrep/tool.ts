@@ -149,8 +149,8 @@ const localGrepSchema = jsonSchema<LocalGrepInput>({
         },
         maxResults: {
             type: "number",
-            default: 50,
-            description: "Maximum results to return (default: 50)",
+            default: 20,
+            description: "Maximum results to return (default: 20)",
         },
         fileTypes: {
             type: "array",
@@ -174,15 +174,11 @@ export function createLocalGrepTool(options: LocalGrepToolOptions) {
     const { characterId } = options;
 
     return tool({
-        description: `Search for exact text or regex patterns in files using ripgrep. 
-This tool is optimized for:
-- Finding exact string matches (function names, variable names, imports)
-- Regex pattern matching (async.*await, TODO.*, etc.)
-- Tracing symbol usage across files
-- Finding all occurrences of specific code patterns
+        description: `Search for exact text or regex patterns in files using ripgrep.
+Use tight queries first to avoid noisy output: specific pattern, narrow paths/fileTypes,
+and small maxResults/contextLines before expanding.
 
 Unlike vectorSearch (semantic/conceptual), localGrep finds EXACT matches with line numbers.
-
 If no paths specified, searches the agent's synced folders.
 Respects .gitignore and skips binary files by default.`,
 
@@ -252,7 +248,7 @@ Respects .gitignore and skips binary files by default.`,
             const {
                 regex = false,
                 caseInsensitive = true,
-                maxResults = 50,
+                maxResults = 20,
                 contextLines = 2,
             } = input;
 
@@ -321,7 +317,7 @@ Respects .gitignore and skips binary files by default.`,
                     paths: searchPaths,
                     regex: isRegex,
                     caseInsensitive,
-                    maxResults: maxResults ?? settings.localGrepMaxResults ?? 50,
+                    maxResults: maxResults ?? settings.localGrepMaxResults ?? 20,
                     fileTypes,
                     contextLines: contextLines ?? settings.localGrepContextLines ?? 2,
                     respectGitignore: settings.localGrepRespectGitignore ?? true,

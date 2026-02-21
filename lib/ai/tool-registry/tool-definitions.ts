@@ -362,7 +362,9 @@ Read full file content or line ranges from Knowledge Base docs or synced folders
 Fast EXACT text/regex search. Use for function names, imports, symbol tracing, specific patterns.
 Use vectorSearch instead for conceptual/intent-based queries where you don't know exact wording.
 
-**Examples:** \`localGrep({ pattern: "getUserById" })\` / \`localGrep({ pattern: "async.*await", regex: true, fileTypes: ["ts", "tsx"] })\``,
+Start narrow to avoid noisy output: set specific \`paths\`/\`fileTypes\`, keep \`maxResults\` near 20, then expand only if needed.
+
+**Examples:** \`localGrep({ pattern: "getUserById", maxResults: 20 })\` / \`localGrep({ pattern: "async.*await", regex: true, fileTypes: ["ts", "tsx"], maxResults: 20 })\``,
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,

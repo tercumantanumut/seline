@@ -1717,12 +1717,12 @@
     "nav": {
       "apiKeys": "API Anahtarları",
       "models": "Modeller",
-      "vectorSearch": "Vektör Arama",
+      "vectorSearch": "Anlamsal Arama",
       "comfyui": "Yerel Görsel AI",
       "mcp": "MCP Sunucuları",
       "plugins": "Eklentiler",
       "voice": "Ses & Audio",
-      "preferences": "Tercihler",
+      "preferences": "Uygulama ve Araç Tercihleri",
       "memory": "Hafıza"
     },
     "errors": {
@@ -2113,12 +2113,13 @@
       }
     },
     "localGrep": {
-      "heading": "Yerel grep araması",
-      "description": "Senkronize klasörlerde hızlı metin aramasını yapılandırın.",
+      "heading": "Yerel grep (tam kod araması)",
+      "description": "Tam/regex ripgrep aramalarının ayarları. Önce dar filtre ve düşük sonuç limitiyle başlayın, yalnızca gerekirse genişletin.",
       "enableLabel": "Yerel grep aracını etkinleştir",
       "gitignoreLabel": ".gitignore dosyasında listelenen dosyaları yoksay",
-      "maxResultsLabel": "Maksimum sonuç",
-      "contextLinesLabel": "Bağlam satırları"
+      "maxResultsLabel": "Maksimum sonuç (varsayılan: 20)",
+      "contextLinesLabel": "Bağlam satırları",
+      "tip": "Daha temiz çıktı için önce düşük sonuç limiti ve dar dosya türleri kullanın."
     },
     "localImage": {
       "heading": "Yerel görsel üretimi",

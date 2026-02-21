@@ -4,11 +4,11 @@
  * On macOS inside Electron's utilityProcess, creating stdio pipes for child
  * processes can fail with EBADF (bad file descriptor).  These helpers detect
  * the error and provide a file-capture fallback that avoids pipes entirely by
- * redirecting output to temp files via /bin/sh.
+ * redirecting output to temp files on disk.
  */
 
 import { spawn } from "child_process";
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { mkdtemp, open, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -22,21 +22,14 @@ export function isEBADFError(error: unknown): boolean {
         || error.message.includes("EBADF");
 }
 
-/**
- * Shell-escape a single token for embedding inside single quotes.
- * e.g.  hello'world  →  'hello'\''world'
- */
-export function shQuote(s: string): string {
-    return `'${s.replace(/'/g, "'\\''")}'`;
-}
 
 /**
  * Spawn a command with stdout/stderr captured to temp files instead of pipes.
  *
  * On macOS in Electron's utilityProcess, creating stdio pipes fails with EBADF.
- * This fallback avoids all pipe creation by using stdio:["ignore","ignore","ignore"]
- * and redirecting command output to private temp files via /bin/sh, then reading
- * those files once the process exits.
+ * This fallback avoids all stdio pipes by binding child stdio to file descriptors.
+ * and writing command output directly to temp files, then reading those files
+ * once the process exits.
  *
  * @param stdinData - Optional data to write to a temp file and pipe via `< file`
  */
@@ -66,64 +59,66 @@ export async function spawnWithFileCapture(
             await writeFile(inFile, stdinData, "utf-8");
         }
 
-        // Build a shell command that redirects output to the temp files.
-        // Every token is single-quote escaped so arguments with spaces or
-        // special characters are handled safely.
-        let shellCmd = [command, ...args].map(shQuote).join(" ")
-            + ` >${shQuote(outFile)} 2>${shQuote(errFile)}`;
-
-        if (stdinData != null) {
-            shellCmd += ` <${shQuote(inFile)}`;
-        }
+        const outHandle = await open(outFile, "w");
+        const errHandle = await open(errFile, "w");
+        const inHandle = stdinData != null ? await open(inFile, "r") : null;
 
         let timedOut = false;
 
-        const { exitCode, signal } = await new Promise<{
-            exitCode: number | null;
-            signal: NodeJS.Signals | null;
-        }>((resolve, reject) => {
-            const child = spawn("/bin/sh", ["-c", shellCmd], {
-                cwd,
-                env,
-                // No pipes at all — this is the whole point of the fallback.
-                stdio: ["ignore", "ignore", "ignore"],
-                windowsHide: true,
+        try {
+            const { exitCode, signal } = await new Promise<{
+                exitCode: number | null;
+                signal: NodeJS.Signals | null;
+            }>((resolve, reject) => {
+                const child = spawn(command, args, {
+                    cwd,
+                    env,
+                    // Avoid stdio pipes entirely; child writes directly to temp files.
+                    stdio: [inHandle ? inHandle.fd : "ignore", outHandle.fd, errHandle.fd],
+                    windowsHide: true,
+                });
+
+                let settled = false;
+                const settle = (v: { exitCode: number | null; signal: NodeJS.Signals | null }) => {
+                    if (!settled) { settled = true; resolve(v); }
+                };
+
+                const timer = setTimeout(() => {
+                    timedOut = true;
+                    try { child.kill("SIGTERM"); } catch { /* already dead */ }
+                    setTimeout(() => { try { child.kill("SIGKILL"); } catch { /* ok */ } }, 5000);
+                }, timeout);
+
+                child.on("error", (err) => {
+                    clearTimeout(timer);
+                    if (!settled) { settled = true; reject(err); }
+                });
+
+                child.on("close", (code, sig) => {
+                    clearTimeout(timer);
+                    settle({ exitCode: code, signal: sig as NodeJS.Signals | null });
+                });
             });
 
-            let settled = false;
-            const settle = (v: { exitCode: number | null; signal: NodeJS.Signals | null }) => {
-                if (!settled) { settled = true; resolve(v); }
+            const [rawOut, rawErr] = await Promise.all([
+                readFile(outFile, "utf-8").catch(() => ""),
+                readFile(errFile, "utf-8").catch(() => ""),
+            ]);
+
+            return {
+                stdout: rawOut.slice(0, maxOutputSize),
+                stderr: rawErr.slice(0, maxOutputSize),
+                exitCode,
+                signal,
+                timedOut,
             };
-
-            const timer = setTimeout(() => {
-                timedOut = true;
-                try { child.kill("SIGTERM"); } catch { /* already dead */ }
-                setTimeout(() => { try { child.kill("SIGKILL"); } catch { /* ok */ } }, 5000);
-            }, timeout);
-
-            child.on("error", (err) => {
-                clearTimeout(timer);
-                if (!settled) { settled = true; reject(err); }
-            });
-
-            child.on("close", (code, sig) => {
-                clearTimeout(timer);
-                settle({ exitCode: code, signal: sig as NodeJS.Signals | null });
-            });
-        });
-
-        const [rawOut, rawErr] = await Promise.all([
-            readFile(outFile, "utf-8").catch(() => ""),
-            readFile(errFile, "utf-8").catch(() => ""),
-        ]);
-
-        return {
-            stdout: rawOut.slice(0, maxOutputSize),
-            stderr: rawErr.slice(0, maxOutputSize),
-            exitCode,
-            signal,
-            timedOut,
-        };
+        } finally {
+            await Promise.all([
+                outHandle.close().catch(() => { /* noop */ }),
+                errHandle.close().catch(() => { /* noop */ }),
+                inHandle?.close().catch(() => { /* noop */ }),
+            ]);
+        }
     } finally {
         // Non-blocking cleanup; errors are silently ignored.
         rm(tmpDir, { recursive: true, force: true }).catch(() => { /* noop */ });
