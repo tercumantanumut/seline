@@ -1590,6 +1590,7 @@
       "loadingMore": "Y?kleniyor...",
       "exportMarkdown": "Markdown olarak d??a aktar",
       "exportJson": "JSON olarak d??a aktar",
+      "viewAnalytics": "Analitikleri görüntüle",
       "exportSuccess": "Sohbet d??a aktar?ld?",
       "exportError": "Sohbet d??a aktar?lamad?",
       "noActiveChannels": "Aktif kanal yok",

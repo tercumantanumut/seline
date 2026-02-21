@@ -1609,6 +1609,7 @@
       "pinnedSection": "Pinned",
       "exportMarkdown": "Export as Markdown",
       "exportJson": "Export as JSON",
+      "viewAnalytics": "View analytics",
       "exportSuccess": "Chat exported",
       "exportError": "Failed to export chat",
       "edit": "Edit title",
