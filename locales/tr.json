@@ -2679,6 +2679,8 @@
         "cancelled": "İptal Edildi"
       },
       "runs": {
+        "pageTitle": "Ajan Çalıştırmaları",
+        "pageSubtitle": "Ajan çalıştırma geçmişini görüntüle ve incele",
         "filters": "Filtreler",
         "refresh": "Yenile",
         "searchPlaceholder": "Oturum veya kullanıcı ID'si ara...",
@@ -2939,7 +2941,8 @@
         "copy": "Kopyala",
         "lines": "satır",
         "prompt": "Komut",
-        "validSyntax": "Geçerli"
+        "validSyntax": "Geçerli",
+        "markdown": "Markdown"
       },
       "fields": {
         "atTime": "Saat",
