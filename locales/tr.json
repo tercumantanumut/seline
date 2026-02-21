@@ -2367,5 +2367,19 @@
       "activeTasks": "{count} aktif görev",
       "startedAgo": "{time} önce başladı"
     }
+  },
+  "plugins": {
+    "title": "Eklentiler",
+    "noPlugins": "Eklenti yüklü değil",
+    "chatBadge": {
+      "loading": "Eklentiler yükleniyor...",
+      "active": "{count, plural, one {# eklenti aktif} other {# eklenti aktif}}",
+      "noActive": "Aktif eklenti yok",
+      "managePlugins": "Eklentileri Yönet",
+      "noPlugins": "Eklenti yüklü değil",
+      "skillCount": "{count, plural, one {# beceri} other {# beceri}}",
+      "hooksLabel": "hooks",
+      "mcpLabel": "MCP"
+    }
   }
 }

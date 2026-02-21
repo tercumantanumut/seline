@@ -2437,9 +2437,13 @@
     },
     "chatBadge": {
       "loading": "Loading plugins...",
-      "active": "{count} plugin(s) active",
+      "active": "{count, plural, one {# plugin active} other {# plugins active}}",
       "noActive": "No active plugins",
-      "managePlugins": "Manage Plugins"
+      "managePlugins": "Manage Plugins",
+      "noPlugins": "No plugins installed",
+      "skillCount": "{count, plural, one {# skill} other {# skills}}",
+      "hooksLabel": "hooks",
+      "mcpLabel": "MCP"
     },
     "marketplace": {
       "browse": "Browse Marketplace",
