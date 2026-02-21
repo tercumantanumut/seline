@@ -2694,6 +2694,8 @@
         "cancelled": "Cancelled"
       },
       "runs": {
+        "pageTitle": "Agent Runs",
+        "pageSubtitle": "View and inspect agent run history",
         "filters": "Filters",
         "refresh": "Refresh",
         "searchPlaceholder": "Search session or user ID...",
@@ -3066,7 +3068,8 @@
         "prompt": "Prompt",
         "copy": "Copy",
         "lines": "lines",
-        "validSyntax": "Valid"
+        "validSyntax": "Valid",
+        "markdown": "Markdown"
       },
       "validation": {
         "required": "Name and prompt are required",
