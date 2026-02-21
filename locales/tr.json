@@ -816,7 +816,12 @@
     "prevBranch": "Önceki dal",
     "nextBranch": "Sonraki dal",
     "toast": {
-      "copied": "Mesaj panoya kopyalandı"
+      "copied": "Mesaj panoya kopyalandı",
+      "transcriptionFailed": "Transkripsiyon başarısız",
+      "noSpeechDetected": "Ses tespit edilmedi",
+      "micAccessFailed": "Mikrofona erişilemedi",
+      "synthesizeFailed": "Ses sentezlenemedi",
+      "connectProviders": "Ayarlar'dan sağlayıcı bağlayın"
     },
     "deepResearchPanel": {
       "title": "Derin Araştırma",
@@ -2122,6 +2127,8 @@
       "visionModel": "Görüntü Modeli",
       "utilityModel": "Yardımcı Model"
     },
+    "currentlyActive": "Şu anda aktif",
+    "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",
     "switched": "Bu oturum için {name} modeline geçildi",
     "switchFailed": "Model değiştirilemedi",
     "loadFailed": "Model ayarları yüklenemedi",

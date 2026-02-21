@@ -1751,12 +1751,12 @@ const Composer: FC<{
 
           const payload = await response.json().catch(() => null);
           if (!response.ok) {
-            throw new Error(payload?.error || "Transcription failed");
+            throw new Error(payload?.error || t("toast.transcriptionFailed"));
           }
 
           const transcript = typeof payload?.text === "string" ? payload.text.trim() : "";
           if (!transcript) {
-            throw new Error("No speech detected");
+            throw new Error(t("toast.noSpeechDetected"));
           }
 
           setInputValue((prev) => {
@@ -1777,7 +1777,7 @@ const Composer: FC<{
             updateCursorPosition(cursor);
           });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Transcription failed";
+          const errorMessage = error instanceof Error ? error.message : t("toast.transcriptionFailed");
           toast.error(errorMessage);
         } finally {
           setIsTranscribingVoice(false);
@@ -1787,7 +1787,7 @@ const Composer: FC<{
       recorder.start(250);
       setIsRecordingVoice(true);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Could not access microphone";
+      const errorMessage = error instanceof Error ? error.message : t("toast.micAccessFailed");
       toast.error(errorMessage);
       setIsRecordingVoice(false);
       setIsTranscribingVoice(false);
@@ -2579,7 +2579,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 {getModelIcon(activeModel)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Currently active</p>
+                <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{tBag("currentlyActive")}</p>
                 <p className="font-mono text-xs font-semibold text-terminal-dark truncate">{activeModel.name}</p>
               </div>
               <span className={cn(
@@ -2652,7 +2652,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
             <div className="py-12 text-center">
               <PackageIcon className="mx-auto size-8 text-terminal-muted/30 mb-2" />
               <p className="font-mono text-xs text-terminal-muted">{tBag("noModels")}</p>
-              <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">Connect providers in Settings</p>
+              <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">{tBag("connectProviders")}</p>
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto overscroll-contain">
@@ -3142,7 +3142,7 @@ const AssistantActionBar: FC<{ ttsEnabled?: boolean; messageText?: string }> = (
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || "Failed to synthesize speech");
+        throw new Error(payload?.error || t("toast.synthesizeFailed"));
       }
 
       const audioBlob = await response.blob();
@@ -3163,7 +3163,7 @@ const AssistantActionBar: FC<{ ttsEnabled?: boolean; messageText?: string }> = (
         void audio.play();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to synthesize speech";
+      const errorMessage = error instanceof Error ? error.message : t("toast.synthesizeFailed");
       toast.error(errorMessage);
     } finally {
       setIsSpeaking(false);
