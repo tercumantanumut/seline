@@ -1630,7 +1630,12 @@
     "searchPlaceholder": "Search models...",
     "noMatch": "No models match your filters",
     "close": "Close",
-    "enterToAssign": "Enter + ↵"
+    "enterToAssign": "Enter + ↵",
+    "sessionOverride": {
+      "loadingConfig": "Loading model config...",
+      "updateFailed": "Failed to update session model",
+      "updateSuccess": "Session model updated"
+    }
   },
   "about": {
     "title": "About",
@@ -2505,7 +2510,13 @@
       "add": "Add Marketplace",
       "refresh": "Refresh",
       "install": "Install",
-      "installed": "Installed"
+      "installed": "Installed",
+      "nameAndSourceRequired": "Name and source are required",
+      "added": "Marketplace \"{name}\" added",
+      "addFailed": "Failed to add marketplace",
+      "removeConfirm": "Remove marketplace \"{name}\"?",
+      "removed": "Marketplace \"{name}\" removed",
+      "removeFailed": "Failed to remove marketplace"
     },
     "status": {
       "active": "Active",

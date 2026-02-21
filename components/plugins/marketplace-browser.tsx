@@ -10,6 +10,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import {
   Loader2,
   Search,
@@ -58,6 +59,7 @@ interface MarketplaceBrowserProps {
 }
 
 export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProps) {
+  const t = useTranslations("plugins.marketplace");
   const [marketplaces, setMarketplaces] = useState<MarketplaceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -127,7 +129,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
 
   const addMarketplace = async () => {
     if (!newName.trim() || !newSource.trim()) {
-      toast.error("Name and source are required");
+      toast.error(t("nameAndSourceRequired"));
       return;
     }
     setAdding(true);
@@ -139,31 +141,31 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to add marketplace");
+        throw new Error(data.error || t("addFailed"));
       }
-      toast.success(`Marketplace "${newName}" added`);
+      toast.success(t("added", { name: newName }));
       setNewName("");
       setNewSource("");
       setShowAddForm(false);
       loadMarketplaces();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add marketplace");
+      toast.error(error instanceof Error ? error.message : t("addFailed"));
     } finally {
       setAdding(false);
     }
   };
 
   const removeMarketplace = async (id: string, name: string) => {
-    if (!confirm(`Remove marketplace "${name}"?`)) return;
+    if (!confirm(t("removeConfirm", { name }))) return;
     try {
       const res = await fetch(`/api/plugins/marketplaces?id=${id}`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Failed to remove");
-      toast.success(`Marketplace "${name}" removed`);
+      if (!res.ok) throw new Error(t("removeFailed"));
+      toast.success(t("removed", { name }));
       loadMarketplaces();
     } catch {
-      toast.error("Failed to remove marketplace");
+      toast.error(t("removeFailed"));
     }
   };
 

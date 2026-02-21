@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 import { PROVIDER_THEME, PROVIDER_DISPLAY_NAMES, ROLE_THEME } from "./model-bag.constants";
@@ -39,6 +40,7 @@ export function SessionModelOverride({
   sessionId,
   className,
 }: SessionModelOverrideProps) {
+  const t = useTranslations("modelBag.sessionOverride");
   const [state, setState] = useState<SessionModelState>({
     hasOverrides: false,
     config: {},
@@ -87,7 +89,7 @@ export function SessionModelOverride({
         { ...state.config, ...update },
       );
       if (error || !data) {
-        toast.error("Failed to update session model");
+        toast.error(t("updateFailed"));
         setState((prev) => ({ ...prev, isSaving: false }));
         return;
       }
@@ -97,7 +99,7 @@ export function SessionModelOverride({
         config: data.config,
         isSaving: false,
       }));
-      toast.success("Session model updated");
+      toast.success(t("updateSuccess"));
     },
     [sessionId, state.config],
   );
@@ -127,7 +129,7 @@ export function SessionModelOverride({
     return (
       <div className={cn("flex items-center gap-2 p-2", className)}>
         <Loader2Icon className="size-3 animate-spin text-terminal-muted" />
-        <span className="font-mono text-[10px] text-terminal-muted">Loading model config...</span>
+        <span className="font-mono text-[10px] text-terminal-muted">{t("loadingConfig")}</span>
       </div>
     );
   }

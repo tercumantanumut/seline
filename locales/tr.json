@@ -1615,7 +1615,12 @@
     "searchPlaceholder": "Model ara...",
     "noMatch": "Filtrelere uyan model yok",
     "close": "Kapat",
-    "enterToAssign": "Enter + ↵"
+    "enterToAssign": "Enter + ↵",
+    "sessionOverride": {
+      "loadingConfig": "Model yapılandırması yükleniyor...",
+      "updateFailed": "Oturum modeli güncellenemedi",
+      "updateSuccess": "Oturum modeli güncellendi"
+    }
   },
   "about": {
     "title": "Hakkında",
@@ -2493,6 +2498,19 @@
       "skillCount": "{count, plural, one {# beceri} other {# beceri}}",
       "hooksLabel": "hooks",
       "mcpLabel": "MCP"
+    },
+    "marketplace": {
+      "browse": "Pazaryerini Gözat",
+      "add": "Pazaryeri Ekle",
+      "refresh": "Yenile",
+      "install": "Yükle",
+      "installed": "Yüklendi",
+      "nameAndSourceRequired": "Ad ve kaynak gereklidir",
+      "added": "\"{name}\" pazaryeri eklendi",
+      "addFailed": "Pazaryeri eklenemedi",
+      "removeConfirm": "\"{name}\" pazaryerini kaldır?",
+      "removed": "\"{name}\" pazaryeri kaldırıldı",
+      "removeFailed": "Pazaryeri kaldırılamadı"
     }
   }
 }
