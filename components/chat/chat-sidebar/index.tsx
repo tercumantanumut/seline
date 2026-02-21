@@ -180,6 +180,20 @@ export function CharacterSidebar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Press '/' to focus the session search field
+  useEffect(() => {
+    const handleSlash = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement as HTMLElement)?.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleSlash);
+    return () => window.removeEventListener("keydown", handleSlash);
+  }, []);
 
   const stopEditing = useCallback(() => {
     setEditingSessionId(null);
@@ -503,6 +517,7 @@ export function CharacterSidebar({
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-terminal-muted" />
               <Input
+                ref={searchInputRef}
                 className={cn("pl-8 h-9 font-mono text-sm", searchQuery ? "pr-8" : "")}
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
