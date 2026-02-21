@@ -510,11 +510,11 @@ export function MCPSettings() {
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-terminal-border pb-2">
                     <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                        Added servers
+                        {t("addedServers")}
                     </h3>
                     <Button size="sm" onClick={() => setIsAddingServer(!isAddingServer)} variant={isAddingServer ? "secondary" : "default"}>
                         <Plus className="h-4 w-4 mr-2" />
-                        {isAddingServer ? "Cancel" : "Add custom server"}
+                        {isAddingServer ? t("cancelAdd") : t("addCustomServer")}
                     </Button>
                 </div>
 
@@ -533,7 +533,7 @@ export function MCPSettings() {
                 {Object.keys(mcpServers).length === 0 && !isAddingServer ? (
                     <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 py-10 text-center">
                         <Plug className="h-8 w-8 text-terminal-muted mx-auto mb-2" />
-                        <p className="font-mono text-sm text-terminal-muted">No servers added yet. Add one to get started.</p>
+                        <p className="font-mono text-sm text-terminal-muted">{t("noServersYet")}</p>
                     </div>
                 ) : (
                     <div className="grid gap-3">
@@ -599,7 +599,7 @@ export function MCPSettings() {
                                             {currentStatus?.lastError ? (
                                                 <Alert variant="destructive" className="mt-2">
                                                     <AlertCircle className="h-4 w-4" />
-                                                    <AlertTitle>Connection failed</AlertTitle>
+                                                    <AlertTitle>{t("connectionFailedTitle")}</AlertTitle>
                                                     <AlertDescription className="text-xs whitespace-pre-wrap font-mono">
                                                         {currentStatus.lastError}
                                                     </AlertDescription>
@@ -611,7 +611,7 @@ export function MCPSettings() {
                                                     </span>
                                                     {currentStatus?.connected && (
                                                         <span className="font-mono text-xs text-terminal-green">
-                                                            {currentStatus.toolCount} active tools
+                                                            {t("activeTools", { count: currentStatus.toolCount })}
                                                         </span>
                                                     )}
                                                 </div>
@@ -668,7 +668,7 @@ export function MCPSettings() {
             {/* 3. Environment Variables */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Environment variables
+                    {t("environmentVariables")}
                 </h3>
 
                 {/* 📁 Available Variables Section */}
@@ -676,7 +676,7 @@ export function MCPSettings() {
 
                 <div className="space-y-2">
                     {Object.keys(environment).length === 0 && (
-                        <p className="font-mono text-xs text-terminal-muted italic">No environment variables yet.</p>
+                        <p className="font-mono text-xs text-terminal-muted italic">{t("noEnvVarsYet")}</p>
                     )}
 
                     {Object.entries(environment).map(([key, value]) => (
@@ -686,7 +686,7 @@ export function MCPSettings() {
                                 type="password"
                                 value={value}
                                 onChange={(e) => setEnvironment({ ...environment, [key]: e.target.value })}
-                                placeholder="Value..."
+                                placeholder={t("envValuePlaceholder")}
                                 className="flex-1 font-mono text-xs"
                                 onBlur={() => saveAll(mcpServers, environment)}
                             />
@@ -703,7 +703,7 @@ export function MCPSettings() {
 
                     {!showNewEnvInput ? (
                         <Button size="sm" variant="outline" onClick={() => setShowNewEnvInput(true)} className="mt-2">
-                            <Plus className="h-3 w-3 mr-2" /> Add variable
+                            <Plus className="h-3 w-3 mr-2" /> {t("addVariable")}
                         </Button>
                     ) : (
                         <div className="flex gap-2 mt-2 items-center animate-in fade-in">
@@ -722,7 +722,7 @@ export function MCPSettings() {
                                 }}
                             />
                             <span className="text-xs text-terminal-muted">=</span>
-                            <span className="text-xs text-terminal-muted italic">Value (you can add it later)</span>
+                            <span className="text-xs text-terminal-muted italic">{t("envValueHint")}</span>
                             <div className="flex gap-1 ml-auto">
                                 <Button size="sm" onClick={() => {
                                     if (newEnvKey) {
@@ -746,12 +746,12 @@ export function MCPSettings() {
                     onClick={() => setShowJsonMode(!showJsonMode)}
                     className="text-xs text-terminal-muted hover:text-terminal-dark p-0"
                 >
-                    {showJsonMode ? "Hide advanced JSON" : "Show advanced JSON"}
+                    {showJsonMode ? t("hideAdvancedJson") : t("showAdvancedJson")}
                 </Button>
 
                 {showJsonMode && (
                     <div className="mt-4 space-y-2 animate-in fade-in slide-in-from-top-2">
-                        <Label>Raw JSON settings</Label>
+                        <Label>{t("rawJsonSettings")}</Label>
                         <Textarea
                             value={rawJson}
                             onChange={(e) => setRawJson(e.target.value)}
@@ -770,7 +770,7 @@ export function MCPSettings() {
                                 } catch (e) {
                                     toast.error(t("invalidJsonSyntax"));
                                 }
-                            }}>Apply JSON</Button>
+                            }}>{t("applyJson")}</Button>
                         </div>
                         <p className="text-xs text-terminal-muted">Top-level key must be &quot;mcpServers&quot;.</p>
                     </div>
