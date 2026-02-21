@@ -496,7 +496,7 @@ export const Thread: FC<ThreadProps> = ({
           const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
           toast.success(isLegacy ? t("skillImportOverlay.skillImported") : t("skillImportOverlay.pluginInstalled"), {
             description: isLegacy
-              ? `${pluginResult.plugin?.name} is ready to use`
+              ? t("skillImportOverlay.readyToUse", { name: pluginResult.plugin?.name ?? "" })
               : `${pluginResult.plugin?.name}${summary}`,
             action: isLegacy
               ? {
