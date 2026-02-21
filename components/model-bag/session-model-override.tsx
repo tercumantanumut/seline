@@ -112,7 +112,7 @@ export function SessionModelOverride({
       { clear: true },
     );
     if (error) {
-      toast.error("Failed to clear overrides");
+      toast.error(t("clearFailed"));
       setState((prev) => ({ ...prev, isSaving: false }));
       return;
     }
@@ -122,7 +122,7 @@ export function SessionModelOverride({
       config: {},
       isSaving: false,
     }));
-    toast.success("Session model overrides cleared");
+    toast.success(t("clearSuccess"));
   }, [sessionId]);
 
   if (state.isLoading) {

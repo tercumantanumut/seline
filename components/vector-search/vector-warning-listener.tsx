@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 const VECTOR_DIMENSION_PATTERNS = [
   /No vector column found.*dimension/i,
@@ -15,6 +16,7 @@ const VECTOR_DIMENSION_PATTERNS = [
  * Listens for runtime vector issues and nudges users with plain-language recovery guidance.
  */
 export function VectorWarningListener() {
+  const t = useTranslations("vectorSearch");
   const lastToastAtRef = useRef(0);
 
   useEffect(() => {
@@ -30,10 +32,7 @@ export function VectorWarningListener() {
             return;
           }
           lastToastAtRef.current = Date.now();
-          toast.warning(
-            "Search index mismatch detected. If results seem off, refresh synced folders in Agent Settings.",
-            { duration: 9000 }
-          );
+          toast.warning(t("indexMismatch"), { duration: 9000 });
         }
       });
 
