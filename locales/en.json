@@ -105,7 +105,23 @@
       "skipHint": "You can configure this later in Settings",
       "connectingGoogle": "Connecting to Google...",
       "connectingOpenAI": "Connecting to OpenAI...",
-      "popupBlocked": "Popup blocked. Please allow popups for this site and try again."
+      "popupBlocked": "Popup blocked. Please allow popups for this site and try again.",
+      "pasteCodeRequired": "Please paste the authorization code",
+      "connectedTo": "Connected to {name}!",
+      "pasteInstruction": "A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.",
+      "authCodeLabel": "Authorization Code",
+      "authCodePlaceholder": "Paste the code here...",
+      "cancel": "Cancel",
+      "verifying": "Verifying...",
+      "submitCode": "Submit Code",
+      "connecting": "Connecting...",
+      "signInOpenAI": "Sign in with OpenAI",
+      "signInAnthropic": "Sign in with Anthropic",
+      "apiKeySaved": "API Key saved!",
+      "saving": "Saving...",
+      "saveApiKey": "Save API Key",
+      "back": "Back",
+      "continue": "Continue"
     },
     "personalization": {
       "title": "Personalize Your Experience",
@@ -121,7 +137,13 @@
           "title": "Workflow Patterns"
         }
       },
-      "skip": "Skip personalization"
+      "skip": "Skip personalization",
+      "addPlaceholder": "Add a {category}...",
+      "add": "Add",
+      "exampleHint": "Or click to add an example:",
+      "preferencesCount": "Your preferences ({count}):",
+      "back": "Back",
+      "continue": "Continue"
     },
     "complete": {
       "title": "You're All Set!",
