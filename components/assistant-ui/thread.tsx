@@ -3072,19 +3072,20 @@ const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = false }) 
 };
 
 const BranchPicker: FC = () => {
+  const t = useTranslations("assistantUi");
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
       className="inline-flex items-center gap-1 text-xs text-terminal-muted font-mono"
     >
       <BranchPickerPrimitive.Previous asChild>
-        <Button variant="ghost" size="icon" className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
+        <Button variant="ghost" size="icon" aria-label={t("prevBranch")} className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
           ←
         </Button>
       </BranchPickerPrimitive.Previous>
       <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       <BranchPickerPrimitive.Next asChild>
-        <Button variant="ghost" size="icon" className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
+        <Button variant="ghost" size="icon" aria-label={t("nextBranch")} className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
           →
         </Button>
       </BranchPickerPrimitive.Next>

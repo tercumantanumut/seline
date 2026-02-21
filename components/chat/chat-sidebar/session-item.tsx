@@ -193,8 +193,16 @@ export function SessionItem({
           ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
           : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
       )}
+      role="button"
+      tabIndex={0}
       onClick={() => {
         if (!isEditing) {
+          onSwitch();
+        }
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !isEditing) {
+          e.preventDefault();
           onSwitch();
         }
       }}

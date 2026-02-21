@@ -634,6 +634,7 @@ export function MCPSettings() {
                                             className={cn("h-8 px-2", isConnecting && "animate-pulse")}
                                             onClick={() => connectServer(name)}
                                             disabled={isConnecting || config.enabled === false}
+                                            aria-label={t("reconnectServer")}
                                         >
                                             {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />}
                                         </Button>
@@ -643,6 +644,7 @@ export function MCPSettings() {
                                             className="h-8 px-2"
                                             onClick={() => setEditingServer(name)}
                                             disabled={config.enabled === false}
+                                            aria-label={t("editServer")}
                                         >
                                             <Edit2 className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />
                                         </Button>
@@ -651,6 +653,7 @@ export function MCPSettings() {
                                             variant="ghost"
                                             className="h-8 px-2 hover:bg-red-50"
                                             onClick={() => handleDeleteServer(name)}
+                                            aria-label={t("deleteServer")}
                                         >
                                             <Trash2 className="h-4 w-4 text-terminal-muted hover:text-red-500" />
                                         </Button>

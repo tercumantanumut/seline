@@ -729,6 +729,8 @@
       "stopVoiceInput": "Kaydı durdur",
       "transcribingAudio": "Ses yazıya dönüştürülüyor..."
     },
+    "prevBranch": "Önceki dal",
+    "nextBranch": "Sonraki dal",
     "toast": {
       "copied": "Mesaj panoya kopyalandı"
     },
@@ -1677,7 +1679,10 @@
       "invalidJsonMissingRoot": "Geçersiz JSON: 'mcpServers' kök anahtarı eksik",
       "invalidJsonSyntax": "Geçersiz JSON sözdizimi",
       "removeEnvVar": "Ortam değişkenini kaldır",
-      "removeArg": "Argümanı kaldır"
+      "removeArg": "Argümanı kaldır",
+      "reconnectServer": "Sunucuya yeniden bağlan",
+      "editServer": "Sunucuyu düzenle",
+      "deleteServer": "Sunucuyu sil"
     }
   },
   "modelBag": {

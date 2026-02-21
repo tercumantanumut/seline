@@ -738,6 +738,8 @@
       "stopVoiceInput": "Stop recording",
       "transcribingAudio": "Transcribing audio..."
     },
+    "prevBranch": "Previous branch",
+    "nextBranch": "Next branch",
     "toast": {
       "copied": "Message copied to clipboard"
     },
@@ -1531,7 +1533,10 @@
       "invalidJsonMissingRoot": "Invalid JSON: missing 'mcpServers' root key",
       "invalidJsonSyntax": "Invalid JSON syntax",
       "removeEnvVar": "Remove environment variable",
-      "removeArg": "Remove argument"
+      "removeArg": "Remove argument",
+      "reconnectServer": "Reconnect server",
+      "editServer": "Edit server",
+      "deleteServer": "Delete server"
     },
     "models": {
       "title": "Model choices",
