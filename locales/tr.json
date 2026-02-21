@@ -2254,7 +2254,7 @@
         "github": { "name": "GitHub", "description": "Depoları yönet ve kod ara" },
         "chrome-devtools": { "name": "Chrome DevTools", "description": "Chrome'da sayfalarda inceleme ve hata ayıkla" },
         "postgres": { "name": "PostgreSQL", "description": "PostgreSQL veritabanına bağlan" },
-        "composio": { "name": "Composio", "description": "Composio ile birçok uygulamayı bağla", "setup": "Composio'dan Bağlantı Kimliği alın. Tool Router için URL'yi şununla değiştirin: https://backend.composio.dev/tool_router/{router_id}/mcp" },
+        "composio": { "name": "Composio", "description": "Composio ile birçok uygulamayı bağla", "setup": "Composio'dan Bağlantı Kimliği alın. Tool Router için URL'yi şununla değiştirin: https://backend.composio.dev/tool_router/'{router_id}'/mcp" },
         "linear": { "name": "Linear", "description": "Sorunları takip et ve projeleri yönet" },
         "supabase": { "name": "Supabase", "description": "Supabase proje verilerini ve API'lerini yönet" },
         "assistant-ui": { "name": "Assistant UI Belgeleri", "description": "Assistant UI belgelerinde ara" },

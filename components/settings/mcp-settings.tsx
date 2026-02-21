@@ -442,10 +442,13 @@ export function MCPSettings() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {PREBUILT_TEMPLATES.map(template => (
-                        <button
+                        <div
                             key={template.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left"
+                            onKeyDown={(e) => e.key === "Enter" && handleApplyTemplate(template)}
+                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left cursor-pointer"
                         >
                             <div className="flex items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2">
@@ -501,7 +504,7 @@ export function MCPSettings() {
                                     </Popover>
                                 )}
                             </div>
-                        </button>
+                        </div>
                     ))}
                 </div>
             </div>

@@ -1948,7 +1948,7 @@
         "github": { "name": "GitHub", "description": "Manage repositories and search code" },
         "chrome-devtools": { "name": "Chrome DevTools", "description": "Inspect and debug pages in Chrome" },
         "postgres": { "name": "PostgreSQL", "description": "Connect to a PostgreSQL database" },
-        "composio": { "name": "Composio", "description": "Connect many apps through Composio", "setup": "Get Connection ID from Composio. For Tool Router, replace URL with: https://backend.composio.dev/tool_router/{router_id}/mcp" },
+        "composio": { "name": "Composio", "description": "Connect many apps through Composio", "setup": "Get Connection ID from Composio. For Tool Router, replace URL with: https://backend.composio.dev/tool_router/'{router_id}'/mcp" },
         "linear": { "name": "Linear", "description": "Track issues and manage projects" },
         "supabase": { "name": "Supabase", "description": "Manage Supabase project data and APIs" },
         "assistant-ui": { "name": "Assistant UI Docs", "description": "Search Assistant UI documentation" },
