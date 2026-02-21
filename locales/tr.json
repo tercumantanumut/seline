@@ -632,6 +632,7 @@
       "uploading": "Yükleniyor..."
     },
     "delete": "Sil",
+    "setAsPrimary": "{name} için birincil avatar olarak ayarla",
     "note": "PNG, JPEG veya WebP · En fazla 10MB"
   },
   "documents": {
