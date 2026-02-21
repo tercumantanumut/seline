@@ -3,12 +3,13 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Shell } from "@/components/layout/shell";
-import { ActivityIcon, BarChart2Icon, ClockIcon, ExternalLinkIcon, Loader2Icon } from "lucide-react";
+import { ActivityIcon, BarChart2Icon, ClockIcon, ExternalLinkIcon, Loader2Icon, MessageSquareIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useSessionAnalytics } from "@/lib/analytics/use-session-analytics";
 import { formatUsd } from "@/lib/analytics/cost";
 import { useTranslations, useFormatter } from "next-intl";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SessionInfo {
   id: string;
@@ -142,6 +143,16 @@ function UsagePageContent() {
                   {sessionsError}
                 </div>
               )}
+              {loadingSessions && sessions.length === 0 && (
+                <div className="space-y-0.5 p-1">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex flex-col gap-1.5 border-l-2 border-transparent px-3 py-2">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-2.5 w-2/3" />
+                    </div>
+                  ))}
+                </div>
+              )}
               {!sessionsError && sessions.length === 0 && !loadingSessions && (
                 <div className="p-3 text-xs font-mono text-terminal-muted">
                   {t("sessions.empty")}
@@ -185,18 +196,29 @@ function UsagePageContent() {
 
             {selectedSession && (
               <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <h2 className="font-mono text-sm font-semibold text-terminal-dark">
-                    {selectedSession.title || selectedSession.metadata?.characterName || t("sessions.untitled")}
-                  </h2>
-                  <p className="font-mono text-xs text-terminal-muted">
-                    {t("sessions.started", {
-                      date: formatter.dateTime(new Date(selectedSession.createdAt), {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }),
-                    })}
-                  </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <h2 className="font-mono text-sm font-semibold text-terminal-dark truncate">
+                      {selectedSession.title || selectedSession.metadata?.characterName || t("sessions.untitled")}
+                    </h2>
+                    <p className="font-mono text-xs text-terminal-muted">
+                      {t("sessions.started", {
+                        date: formatter.dateTime(new Date(selectedSession.createdAt), {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }),
+                      })}
+                    </p>
+                  </div>
+                  {selectedSession.metadata?.characterId ? (
+                    <Link
+                      href={`/chat/${selectedSession.metadata.characterId}?sessionId=${selectedSession.id}`}
+                      className="flex shrink-0 items-center gap-1.5 rounded-md border border-terminal-border bg-white px-2.5 py-1.5 font-mono text-xs text-terminal-dark transition-colors hover:bg-terminal-cream hover:border-terminal-green"
+                    >
+                      <MessageSquareIcon className="size-3 text-terminal-green" />
+                      Open in chat
+                    </Link>
+                  ) : null}
                 </div>
 
                 {loadingAnalytics && (
