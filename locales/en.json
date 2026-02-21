@@ -825,7 +825,12 @@
     "prevBranch": "Previous branch",
     "nextBranch": "Next branch",
     "toast": {
-      "copied": "Message copied to clipboard"
+      "copied": "Message copied to clipboard",
+      "transcriptionFailed": "Transcription failed",
+      "noSpeechDetected": "No speech detected",
+      "micAccessFailed": "Could not access microphone",
+      "synthesizeFailed": "Failed to synthesize speech",
+      "connectProviders": "Connect providers in Settings"
     },
     "deepResearchPanel": {
       "title": "Deep Research",
@@ -2137,6 +2142,8 @@
       "visionModel": "Vision Model",
       "utilityModel": "Utility Model"
     },
+    "currentlyActive": "Currently active",
+    "connectProviders": "Connect providers in Settings",
     "switched": "Switched to {name} for this session",
     "switchFailed": "Failed to switch model",
     "loadFailed": "Failed to load model settings",
