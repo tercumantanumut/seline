@@ -2871,6 +2871,29 @@
       "open": "Open",
       "copySuccess": "Skill copied successfully.",
       "copyFailed": "Failed to copy skill"
+    },
+    "detail": {
+      "backToSkills": "Back to Skills",
+      "title": "Skill Detail & Editor",
+      "statusLabel": "Status",
+      "version": "Version {version}",
+      "save": "Save",
+      "runNow": "Run Now",
+      "copySkill": "Copy Skill",
+      "copyToAgent": "Copy to Agent",
+      "runHistory": "Run History",
+      "versionHistory": "Version History",
+      "noRuns": "No runs yet.",
+      "noPriorVersions": "No prior versions captured yet.",
+      "notFound": "Skill not found.",
+      "updatedSuccess": "Skill updated successfully.",
+      "runTriggered": "Skill run triggered.",
+      "copiedSuccess": "Skill copied successfully.",
+      "loadFailed": "Failed to load skill",
+      "selectAgent": "Select target agent",
+      "saveFailed": "Failed to save skill",
+      "runFailed": "Failed to run skill",
+      "copyFailed": "Failed to copy skill"
     }
   },
   "schedules": {
