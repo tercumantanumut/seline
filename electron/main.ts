@@ -190,6 +190,29 @@ const CRITICAL_ERROR_PATTERNS = [
   { pattern: /embedding.*mismatch/i, type: "dimension_mismatch" as const },
 ];
 
+function sendToMainWindow(channel: string, payload: unknown): boolean {
+  const windowRef = mainWindow;
+  if (!windowRef || windowRef.isDestroyed()) {
+    return false;
+  }
+
+  const { webContents } = windowRef;
+  if (!webContents || webContents.isDestroyed()) {
+    return false;
+  }
+
+  try {
+    webContents.send(channel, payload);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("Object has been destroyed")) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 /**
  * Send log entry to renderer if subscribed
  */
@@ -207,16 +230,14 @@ function sendLogToRenderer(level: string, message: string): void {
   }
 
   // Send to renderer if window exists and has subscribers
-  if (mainWindow && logSubscribers > 0) {
-    mainWindow.webContents.send("logs:entry", entry);
+  if (logSubscribers > 0) {
+    sendToMainWindow("logs:entry", entry);
   }
 
   // Check for critical errors and send toast notification
   for (const { pattern, type } of CRITICAL_ERROR_PATTERNS) {
     if (pattern.test(message)) {
-      if (mainWindow) {
-        mainWindow.webContents.send("logs:critical", { type, message: entry.message });
-      }
+      sendToMainWindow("logs:critical", { type, message: entry.message });
       break;
     }
   }
