@@ -137,12 +137,14 @@ function SessionCard({
   onClick,
   pinned,
   untitledLabel,
+  msgLabel,
 }: {
   session: SessionInfo;
   agentName?: string;
   onClick: () => void;
   pinned?: boolean;
   untitledLabel: string;
+  msgLabel: (count: number) => string;
 }) {
   const formatter = useFormatter();
   const dateStr = session.lastMessageAt ?? session.updatedAt;
@@ -174,7 +176,7 @@ function SessionCard({
             {formattedTime}
           </span>
           {session.messageCount > 0 ? (
-            <span>{session.messageCount} msg{session.messageCount !== 1 ? "s" : ""}</span>
+            <span>{msgLabel(session.messageCount)}</span>
           ) : null}
         </div>
       </div>
@@ -435,6 +437,7 @@ export default function DashboardPage() {
                         onClick={() => goToSession(session)}
                         pinned
                         untitledLabel={t("untitledChat")}
+                        msgLabel={(c) => t("sessionMessages", { count: c })}
                       />
                     );
                   })}
@@ -467,6 +470,7 @@ export default function DashboardPage() {
                           agentName={agent?.name}
                           onClick={() => goToSession(session)}
                           untitledLabel={t("untitledChat")}
+                          msgLabel={(c) => t("sessionMessages", { count: c })}
                         />
                       );
                     })
