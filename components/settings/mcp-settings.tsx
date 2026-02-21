@@ -438,7 +438,7 @@ export function MCPSettings() {
             {/* 1. Quick Start Templates */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Recommended servers
+                    {t("recommendedServers")}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {PREBUILT_TEMPLATES.map(template => (
@@ -461,7 +461,7 @@ export function MCPSettings() {
                                 {template.requiredEnv.length > 0 && (
                                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
                                         <Key className="h-3 w-3 mr-1" />
-                                        Auth
+                                        {t("authBadge")}
                                     </Badge>
                                 )}
                             </div>
@@ -486,7 +486,7 @@ export function MCPSettings() {
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <Info className="h-3 w-3 mr-1" />
-                                                Help
+                                                {t("helpButton")}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-72 text-xs">

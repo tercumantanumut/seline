@@ -1815,7 +1815,10 @@
       "cancel": "Cancel",
       "save": "Save Server",
       "saving": "Saving...",
-      "requiredVariables": "Required variables: {vars}"
+      "requiredVariables": "Required variables: {vars}",
+      "recommendedServers": "Recommended servers",
+      "authBadge": "Auth",
+      "helpButton": "Help"
     },
     "models": {
       "title": "Model choices",

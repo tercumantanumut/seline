@@ -2104,7 +2104,10 @@
       "cancel": "İptal",
       "save": "Sunucuyu Kaydet",
       "saving": "Kaydediliyor...",
-      "requiredVariables": "Gerekli değişkenler: {vars}"
+      "requiredVariables": "Gerekli değişkenler: {vars}",
+      "recommendedServers": "Önerilen sunucular",
+      "authBadge": "Doğrulama",
+      "helpButton": "Yardım"
     }
   },
   "modelBag": {
