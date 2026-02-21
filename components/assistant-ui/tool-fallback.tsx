@@ -139,10 +139,11 @@ ToolStatus.displayName = "ToolStatus";
 
 // Memoized Result Display Component
 const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ toolName, result }) => {
+  const tResults = useTranslations("assistantUi.toolResults");
   if (result.status === "error") {
     return (
       <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
-        {result.error || "An error occurred"}
+        {result.error || tResults("errorOccurred")}
       </div>
     );
   }
@@ -150,7 +151,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   if (result.status === "processing") {
     return (
       <div className={cn("transition-all duration-150", TOOL_RESULT_TEXT_CLASS)}>
-        Generation has been queued. Job ID: {result.jobId}
+        {tResults("generationQueued", { jobId: result.jobId ?? "" })}
       </div>
     );
   }
@@ -180,7 +181,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (result.status === "no_results" || !searchResults || searchResults.length === 0) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          No tools found matching &quot;{result.query}&quot;
+          {tResults("noToolsFound", { query: result.query ?? "" })}
         </div>
       );
     }
@@ -189,7 +190,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     return (
       <div className="text-sm font-mono transition-opacity duration-150">
         <p className="text-terminal-dark mb-2">
-          Found {searchResults.length} tool{searchResults.length !== 1 ? "s" : ""}: {toolNames.join(", ")}
+          {tResults("toolsFound", { count: searchResults.length, names: toolNames.join(", ") })}
         </p>
         <div className="space-y-1">
           {searchResults.map((tool, idx) => (
@@ -223,7 +224,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (result.status === "no_api_key" || result.message) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {result.message || "Web search unavailable"}
+          {result.message || tResults("webSearchUnavailable")}
         </div>
       );
     }
@@ -233,7 +234,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (sources.length === 0) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          No results found for &quot;{result.query}&quot;
+          {tResults("noWebResults", { query: result.query ?? "" })}
         </div>
       );
     }

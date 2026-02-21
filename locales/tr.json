@@ -814,6 +814,14 @@
       "voiceNotSupported": "Bu ortamda ses girişi desteklenmiyor.",
       "voiceRecordingFailed": "Ses kaydı başarısız oldu.",
       "skillFileTooLarge": "Beceri dosyası 50MB sınırını aşıyor"
+    },
+    "toolResults": {
+      "errorOccurred": "Bir hata oluştu",
+      "generationQueued": "Oluşturma kuyruğa alındı. İş kimliği: {jobId}",
+      "noToolsFound": "\"{query}\" ile eşleşen araç bulunamadı",
+      "toolsFound": "{count, plural, one {# araç bulundu} other {# araç bulundu}}: {names}",
+      "webSearchUnavailable": "Web araması kullanılamıyor",
+      "noWebResults": "\"{query}\" için sonuç bulunamadı"
     }
   },
   "workspace": {

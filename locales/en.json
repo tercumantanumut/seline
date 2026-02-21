@@ -824,6 +824,14 @@
       "voiceNotSupported": "Voice input is not supported in this environment.",
       "voiceRecordingFailed": "Voice recording failed.",
       "skillFileTooLarge": "Skill file exceeds 50MB limit"
+    },
+    "toolResults": {
+      "errorOccurred": "An error occurred",
+      "generationQueued": "Generation has been queued. Job ID: {jobId}",
+      "noToolsFound": "No tools found matching \"{query}\"",
+      "toolsFound": "{count, plural, one {Found # tool} other {Found # tools}}: {names}",
+      "webSearchUnavailable": "Web search unavailable",
+      "noWebResults": "No results found for \"{query}\""
     }
   },
   "workspace": {
