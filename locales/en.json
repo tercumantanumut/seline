@@ -864,6 +864,13 @@
     "vectorSearch": {
       "tryRefinements": "Try these refinements"
     },
+    "calculator": {
+      "calculating": "Calculating",
+      "calcError": "Error",
+      "showMore": "Show more",
+      "showLess": "Show less",
+      "copyResult": "Copy result"
+    },
     "skillPicker": {
       "needsInput": "needs input",
       "navigate": "↑↓ navigate",
@@ -1802,6 +1809,8 @@
     "capabilityThinking": "Extended thinking",
     "capabilityFast": "Fast",
     "capabilityVision": "Vision",
+    "clearOverride": "Clear override (use default)",
+    "usingDefault": "Using default",
     "close": "Close",
     "enterToAssign": "Enter + ↵",
     "sessionOverride": {

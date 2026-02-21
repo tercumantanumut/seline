@@ -854,6 +854,13 @@
     "vectorSearch": {
       "tryRefinements": "Bu iyileştirmeleri deneyin"
     },
+    "calculator": {
+      "calculating": "Hesaplanıyor",
+      "calcError": "Hata",
+      "showMore": "Daha fazla göster",
+      "showLess": "Daha az göster",
+      "copyResult": "Sonucu kopyala"
+    },
     "skillPicker": {
       "needsInput": "girdi gerekli",
       "navigate": "↑↓ gezin",
@@ -1787,6 +1794,8 @@
     "capabilityThinking": "Genişletilmiş düşünme",
     "capabilityFast": "Hızlı",
     "capabilityVision": "Görüntü",
+    "clearOverride": "Geçersiz kılmayı temizle (varsayılanı kullan)",
+    "usingDefault": "Varsayılan kullanılıyor",
     "close": "Kapat",
     "enterToAssign": "Enter + ↵",
     "sessionOverride": {
