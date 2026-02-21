@@ -2180,7 +2180,9 @@
         "maxRetries": "Maks Deneme",
         "name": "Zamanlama Adı",
         "priority": "Öncelik",
-        "timezone": "Saat Dilimi"
+        "timezone": "Saat Dilimi",
+        "localTime": "Yerel Saat ({tz})",
+        "detectedFromDevice": "Cihazınızdan algılandı"
       },
       "frequency": {
         "advanced": "Gelişmiş",

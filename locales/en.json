@@ -2238,7 +2238,9 @@
         "atTime": "At Time",
         "timezone": "Timezone",
         "priority": "Priority",
-        "maxRetries": "Max Retries"
+        "maxRetries": "Max Retries",
+        "localTime": "Local Time ({tz})",
+        "detectedFromDevice": "Detected from your device"
       },
       "delivery": {
         "label": "Delivery",
