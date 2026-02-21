@@ -105,7 +105,23 @@
       "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz",
       "connectingGoogle": "Google'a bağlanılıyor...",
       "connectingOpenAI": "OpenAI'ye bağlanılıyor...",
-      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin."
+      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin.",
+      "pasteCodeRequired": "Lütfen yetkilendirme kodunu yapıştırın",
+      "connectedTo": "{name}'e bağlandı!",
+      "pasteInstruction": "Bir tarayıcı sekmesi açıldı. Yetkilendirdikten sonra sayfada gösterilen kodu kopyalayıp aşağıya yapıştırın.",
+      "authCodeLabel": "Yetkilendirme Kodu",
+      "authCodePlaceholder": "Kodu buraya yapıştırın...",
+      "cancel": "İptal",
+      "verifying": "Doğrulanıyor...",
+      "submitCode": "Kodu Gönder",
+      "connecting": "Bağlanılıyor...",
+      "signInOpenAI": "OpenAI ile giriş yap",
+      "signInAnthropic": "Anthropic ile giriş yap",
+      "apiKeySaved": "API Anahtarı kaydedildi!",
+      "saving": "Kaydediliyor...",
+      "saveApiKey": "API Anahtarını Kaydet",
+      "back": "Geri",
+      "continue": "Devam"
     },
     "personalization": {
       "title": "Deneyiminizi Kişiselleştirin",
@@ -121,7 +137,13 @@
           "title": "İş Akışı Kalıpları"
         }
       },
-      "skip": "Kişiselleştirmeyi geç"
+      "skip": "Kişiselleştirmeyi geç",
+      "addPlaceholder": "{category} ekle...",
+      "add": "Ekle",
+      "exampleHint": "Veya bir örnek eklemek için tıklayın:",
+      "preferencesCount": "Tercihleriniz ({count}):",
+      "back": "Geri",
+      "continue": "Devam"
     },
     "complete": {
       "title": "Her şey hazır!",
