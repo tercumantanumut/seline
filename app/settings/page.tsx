@@ -783,10 +783,10 @@ export default function SettingsPage() {
     { id: "api-keys" as const, label: t("nav.apiKeys"), icon: KeyIcon },
     { id: "models" as const, label: t("nav.models"), icon: CpuIcon },
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
-    { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
-    { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
-    { id: "plugins" as const, label: "Plugins", icon: PackageIcon },
-    { id: "voice" as const, label: "Voice & Audio", icon: Volume2Icon },
+    { id: "comfyui" as const, label: t("nav.comfyui"), icon: ImageIcon },
+    { id: "mcp" as const, label: t("nav.mcp"), icon: PlugIcon },
+    { id: "plugins" as const, label: t("nav.plugins"), icon: PackageIcon },
+    { id: "voice" as const, label: t("nav.voice"), icon: Volume2Icon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];
@@ -1152,6 +1152,7 @@ interface WhisperModelSelectorProps {
 }
 
 function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorProps) {
+  const t = useTranslations("settings.voice.stt");
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
@@ -1259,7 +1260,7 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
     <div className="rounded border border-terminal-border bg-terminal-cream/30 p-4 space-y-3">
       <div>
         <label className="mb-1 block font-mono text-sm text-terminal-muted">
-          Whisper Model
+          {t("whisperModelLabel")}
         </label>
         <div className="flex gap-2">
           <select
@@ -1289,10 +1290,10 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
               ) : modelStatus[selectedModel] ? (
                 <>
                   <CheckIcon className="size-4" />
-                  Downloaded
+                  {t("whisperDownloaded")}
                 </>
               ) : (
-                "Download"
+                t("whisperDownload")
               )}
             </Button>
           )}
@@ -1303,18 +1304,17 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
         )}
 
         <p className="mt-2 font-mono text-xs text-terminal-muted">
-          {WHISPER_MODELS.find((m) => m.id === selectedModel)?.description || "Select a model"}
+          {WHISPER_MODELS.find((m) => m.id === selectedModel)?.description || t("whisperSelectModel")}
           {WHISPER_MODELS.find((m) => m.id === selectedModel)?.language === "multilingual"
-            ? " · Supports ~99 languages"
-            : " · English only"}
+            ? t("whisperMultilingual")
+            : t("whisperEnglishOnly")}
         </p>
       </div>
 
       {/* Install hint */}
       <div className="rounded border border-terminal-border bg-terminal-cream/30 p-3">
         <p className="font-mono text-xs text-terminal-muted">
-          <strong>Setup:</strong> Download a model above — whisper-cli and ffmpeg are bundled with the app.
-          Transcription runs entirely on your device — no API key or internet needed.
+          {t("whisperSetupHint")}
         </p>
       </div>
     </div>
@@ -2873,14 +2873,14 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       {/* Post-Edit Hooks */}
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
-          <h3 className="font-mono text-base font-semibold text-terminal-dark">After-edit checks</h3>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("preferences.postEditHooks.heading")}</h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Choose which checks run automatically after AI changes.
+            {t("preferences.postEditHooks.description")}
           </p>
         </div>
 
         <div>
-          <label className="mb-2 block font-mono text-sm text-terminal-dark">Check profile</label>
+          <label className="mb-2 block font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.profileLabel")}</label>
           <div className="space-y-2">
             <label className="flex items-start gap-3">
               <input
@@ -2897,8 +2897,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Off</span>
-                <p className="font-mono text-xs text-terminal-muted">Do not run automatic checks.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.off")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.offDesc")}</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2918,8 +2918,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Fast (recommended)</span>
-                <p className="font-mono text-xs text-terminal-muted">Run typecheck only, and only for related areas.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.fast")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.fastDesc")}</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2939,8 +2939,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Strict</span>
-                <p className="font-mono text-xs text-terminal-muted">Run typecheck and lint across the full project.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.strict")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.strictDesc")}</p>
               </div>
             </label>
           </div>
@@ -2948,7 +2948,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Enable hooks</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.enableHooks")}</span>
             <input
               type="checkbox"
               checked={formState.postEditHooksEnabled}
@@ -2957,7 +2957,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Include patch edits</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.includePatches")}</span>
             <input
               type="checkbox"
               checked={formState.postEditRunInPatchTool}
@@ -2966,7 +2966,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Typecheck</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.typecheck")}</span>
             <input
               type="checkbox"
               checked={formState.postEditTypecheckEnabled}
@@ -2975,7 +2975,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">ESLint</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.eslint")}</span>
             <input
               type="checkbox"
               checked={formState.postEditLintEnabled}
@@ -2986,21 +2986,21 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
         </div>
 
         <div>
-          <label className="mb-1 block font-mono text-sm text-terminal-dark">Typecheck scope</label>
+          <label className="mb-1 block font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.typecheckScopeLabel")}</label>
           <p className="mb-2 font-mono text-xs text-terminal-muted">
-            Pick how widely typecheck should run after edits.
+            {t("preferences.postEditHooks.typecheckScopeDesc")}
           </p>
           <select
             value={formState.postEditTypecheckScope}
             onChange={(e) => updateField("postEditTypecheckScope", e.target.value as FormState["postEditTypecheckScope"])}
             className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
-            <option value="auto">Auto (based on changed files)</option>
-            <option value="app">App code only</option>
-            <option value="lib">Library code only</option>
-            <option value="electron">Electron code only</option>
-            <option value="tooling">Tooling only</option>
-            <option value="all">Entire project</option>
+            <option value="auto">{t("preferences.postEditHooks.scopeAuto")}</option>
+            <option value="app">{t("preferences.postEditHooks.scopeApp")}</option>
+            <option value="lib">{t("preferences.postEditHooks.scopeLib")}</option>
+            <option value="electron">{t("preferences.postEditHooks.scopeElectron")}</option>
+            <option value="tooling">{t("preferences.postEditHooks.scopeTooling")}</option>
+            <option value="all">{t("preferences.postEditHooks.scopeAll")}</option>
           </select>
         </div>
       </div>
@@ -3008,20 +3008,20 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       {/* Prompt Caching */}
       <div className="space-y-4">
         <h3 className="font-mono text-base font-semibold text-terminal-dark">
-          Prompt caching
+          {t("preferences.promptCaching.heading")}
         </h3>
         <p className="font-mono text-xs text-terminal-muted">
-          Reuse repeated prompt content to lower token usage and cost.
+          {t("preferences.promptCaching.description")}
         </p>
 
         {/* Enable/Disable Toggle */}
         <div className="flex items-center justify-between">
           <div>
             <label className="font-mono text-sm text-terminal-dark">
-              Enable prompt caching
+              {t("preferences.promptCaching.enableLabel")}
             </label>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Helpful for longer conversations with repeated context.
+              {t("preferences.promptCaching.enableDesc")}
             </p>
           </div>
           <input
@@ -3038,18 +3038,18 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            RTK (experimental)
+            {t("preferences.rtk.heading")}
           </h3>
           <p className="font-mono text-xs text-terminal-muted">
-            Compacts command output to save tokens on supported tools.
+            {t("preferences.rtk.description")}
           </p>
         </div>
 
         <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="font-mono text-sm text-terminal-dark">Enable RTK</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.rtk.enableLabel")}</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Works only when RTK is installed and the command supports it.
+              {t("preferences.rtk.enableDesc")}
             </p>
           </div>
           <input
@@ -3062,7 +3062,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block font-mono text-xs text-terminal-muted">Verbosity</label>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("preferences.rtk.verbosityLabel")}</label>
             <select
               value={String(formState.rtkVerbosity)}
               onChange={(e) => updateField("rtkVerbosity", Number(e.target.value) as 0 | 1 | 2 | 3)}
@@ -3082,7 +3082,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               onChange={(e) => updateField("rtkUltraCompact", e.target.checked)}
               className="size-4 accent-terminal-green"
             />
-            <span className="font-mono text-sm text-terminal-dark">Ultra compact mode (-u)</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.rtk.ultraCompact")}</span>
           </label>
         </div>
       </div>
@@ -3091,18 +3091,18 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            Developer workspace
+            {t("preferences.devWorkspace.heading")}
           </h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Show workspace indicators, diff views, and tools for git-based coding workflows.
+            {t("preferences.devWorkspace.description")}
           </p>
         </div>
 
         <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="font-mono text-sm text-terminal-dark">Enable developer workspace tools</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.devWorkspace.enableLabel")}</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Adds branch info, diff review panels, and a workspace dashboard.
+              {t("preferences.devWorkspace.enableDesc")}
             </p>
           </div>
           <input
@@ -3117,9 +3117,9 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           <div className="space-y-4 border-t border-terminal-border pt-4">
             <label className="flex items-center justify-between gap-3">
               <div>
-                <span className="font-mono text-sm text-terminal-dark">Auto-clean old worktrees</span>
+                <span className="font-mono text-sm text-terminal-dark">{t("preferences.devWorkspace.autoCleanLabel")}</span>
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
-                  Remove old worktrees automatically after merge or after a set number of days.
+                  {t("preferences.devWorkspace.autoCleanDesc")}
                 </p>
               </div>
               <input
@@ -3133,7 +3133,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             {formState.devWorkspaceAutoCleanup && (
               <div>
                 <label className="mb-1 block font-mono text-xs text-terminal-muted">
-                  Clean up after (days)
+                  {t("preferences.devWorkspace.cleanupDaysLabel")}
                 </label>
                 <input
                   type="number"
@@ -3148,10 +3148,11 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
             <div className="rounded border border-dashed border-terminal-border bg-terminal-cream/50 p-3">
               <p className="font-mono text-xs text-terminal-muted">
-                <strong className="text-terminal-dark">Recommended tool servers:</strong>{" "}
-                Install <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code> for
-                worktree management or <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code> for
-                pull request workflows. Configure them in Tool servers (MCP).
+                <strong className="text-terminal-dark">{t("preferences.devWorkspace.recommendedServers")}</strong>{" "}
+                {t.rich("preferences.devWorkspace.recommendedServersDesc", {
+                  worktreeTools: () => <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code>,
+                  githubMcp: () => <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code>,
+                })}
               </p>
             </div>
           </div>
@@ -3253,9 +3254,9 @@ function MemorySection() {
   };
 
   const categoryLabels = {
-    visual_preferences: "Visual style",
-    communication_style: "Communication style",
-    workflow_patterns: "Workflow habits",
+    visual_preferences: t("memory.categoryLabels.visual_preferences"),
+    communication_style: t("memory.categoryLabels.communication_style"),
+    workflow_patterns: t("memory.categoryLabels.workflow_patterns"),
   };
 
   if (loading) {

@@ -1457,6 +1457,10 @@
       "apiKeys": "API Anahtarları",
       "models": "Modeller",
       "vectorSearch": "Vektör Arama",
+      "comfyui": "Yerel Görsel AI",
+      "mcp": "MCP Sunucuları",
+      "plugins": "Eklentiler",
+      "voice": "Ses & Audio",
       "preferences": "Tercihler",
       "memory": "Hafıza"
     },
@@ -1717,6 +1721,61 @@
         "deferredHelper": "~2000 token tasarrufu. Araçlar gerektiğinde searchTools ile keşfedilir.",
         "always": "Her Zaman Dahil Et",
         "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
+      },
+      "postEditHooks": {
+        "heading": "Düzenleme sonrası kontroller",
+        "description": "AI değişikliklerinden sonra hangi kontrollerin otomatik çalışacağını seçin.",
+        "profileLabel": "Kontrol profili",
+        "off": "Kapalı",
+        "offDesc": "Otomatik kontrol çalıştırma.",
+        "fast": "Hızlı (önerilen)",
+        "fastDesc": "Yalnızca tür denetimi ve yalnızca ilgili alanlar için.",
+        "strict": "Katı",
+        "strictDesc": "Tüm projede tür denetimi ve lint çalıştır.",
+        "enableHooks": "Hook'ları etkinleştir",
+        "includePatches": "Yama düzenlemelerini dahil et",
+        "typecheck": "Tür Denetimi",
+        "eslint": "ESLint",
+        "typecheckScopeLabel": "Tür denetimi kapsamı",
+        "typecheckScopeDesc": "Düzenlemelerden sonra tür denetiminin ne kadar geniş çalışacağını seçin.",
+        "scopeAuto": "Otomatik (değiştirilen dosyalara göre)",
+        "scopeApp": "Yalnızca uygulama kodu",
+        "scopeLib": "Yalnızca kütüphane kodu",
+        "scopeElectron": "Yalnızca Electron kodu",
+        "scopeTooling": "Yalnızca araçlar",
+        "scopeAll": "Tüm proje"
+      },
+      "promptCaching": {
+        "heading": "Prompt önbelleğe alma",
+        "description": "Token kullanımını ve maliyeti azaltmak için tekrarlanan prompt içeriğini yeniden kullan.",
+        "enableLabel": "Prompt önbelleğe almayı etkinleştir",
+        "enableDesc": "Tekrarlanan bağlam içeren uzun konuşmalar için yararlı."
+      },
+      "rtk": {
+        "heading": "RTK (deneysel)",
+        "description": "Desteklenen araçlarda token tasarrufu için komut çıktısını sıkıştırır.",
+        "enableLabel": "RTK'yı etkinleştir",
+        "enableDesc": "Yalnızca RTK kuruluysa ve komut destekliyorsa çalışır.",
+        "verbosityLabel": "Ayrıntı düzeyi",
+        "ultraCompact": "Ultra kompakt mod (-u)"
+      },
+      "devWorkspace": {
+        "heading": "Geliştirici çalışma alanı",
+        "description": "Git tabanlı kodlama iş akışları için çalışma alanı göstergeleri, fark görünümleri ve araçları göster.",
+        "enableLabel": "Geliştirici çalışma alanı araçlarını etkinleştir",
+        "enableDesc": "Dal bilgisi, fark inceleme panelleri ve bir çalışma alanı panosu ekler.",
+        "autoCleanLabel": "Eski çalışma ağaçlarını otomatik temizle",
+        "autoCleanDesc": "Birleştirmeden sonra veya belirli gün sayısından sonra eski çalışma ağaçlarını otomatik kaldır.",
+        "cleanupDaysLabel": "Sonra temizle (gün)",
+        "recommendedServers": "Önerilen araç sunucuları:",
+        "recommendedServersDesc": "Çalışma ağacı yönetimi için {worktreeTools} veya pull request iş akışları için {githubMcp} yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
+      }
+    },
+    "memory": {
+      "categoryLabels": {
+        "visual_preferences": "Görsel stil",
+        "communication_style": "İletişim tarzı",
+        "workflow_patterns": "Çalışma alışkanlıkları"
       }
     },
     "voice": {
@@ -1769,7 +1828,14 @@
         "providerOpenAI": "OpenAI Whisper",
         "providerOpenAIDesc": "OpenAI veya OpenRouter API anahtarınızı kullanan bulut dönüştürme.",
         "providerLocal": "Yerel (whisper.cpp)",
-        "providerLocalDesc": "Bu cihazda çalışır. Harici API anahtarı gerekmez."
+        "providerLocalDesc": "Bu cihazda çalışır. Harici API anahtarı gerekmez.",
+        "whisperModelLabel": "Whisper Modeli",
+        "whisperDownloaded": "İndirildi",
+        "whisperDownload": "İndir",
+        "whisperSelectModel": "Bir model seçin",
+        "whisperMultilingual": " · ~99 dili destekler",
+        "whisperEnglishOnly": " · Yalnızca İngilizce",
+        "whisperSetupHint": "Yukarıdan bir model indirin — whisper-cli ve ffmpeg uygulama ile birlikte gelir. Dönüştürme tamamen cihazınızda gerçekleşir — API anahtarı veya internet gerekmez."
       }
     },
     "localGrep": {

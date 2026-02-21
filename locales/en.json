@@ -1472,6 +1472,10 @@
       "apiKeys": "AI Providers",
       "models": "Model Choices",
       "vectorSearch": "File Search",
+      "comfyui": "Local Image AI",
+      "mcp": "MCP Servers",
+      "plugins": "Plugins",
+      "voice": "Voice & Audio",
       "preferences": "App Preferences",
       "memory": "Memory Defaults"
     },
@@ -1833,6 +1837,61 @@
         "deferredHelper": "Uses fewer tokens by loading tools only when needed.",
         "always": "Load all tools up front",
         "alwaysHelper": "Makes every tool immediately available, but each request uses more tokens."
+      },
+      "postEditHooks": {
+        "heading": "After-edit checks",
+        "description": "Choose which checks run automatically after AI changes.",
+        "profileLabel": "Check profile",
+        "off": "Off",
+        "offDesc": "Do not run automatic checks.",
+        "fast": "Fast (recommended)",
+        "fastDesc": "Run typecheck only, and only for related areas.",
+        "strict": "Strict",
+        "strictDesc": "Run typecheck and lint across the full project.",
+        "enableHooks": "Enable hooks",
+        "includePatches": "Include patch edits",
+        "typecheck": "Typecheck",
+        "eslint": "ESLint",
+        "typecheckScopeLabel": "Typecheck scope",
+        "typecheckScopeDesc": "Pick how widely typecheck should run after edits.",
+        "scopeAuto": "Auto (based on changed files)",
+        "scopeApp": "App code only",
+        "scopeLib": "Library code only",
+        "scopeElectron": "Electron code only",
+        "scopeTooling": "Tooling only",
+        "scopeAll": "Entire project"
+      },
+      "promptCaching": {
+        "heading": "Prompt caching",
+        "description": "Reuse repeated prompt content to lower token usage and cost.",
+        "enableLabel": "Enable prompt caching",
+        "enableDesc": "Helpful for longer conversations with repeated context."
+      },
+      "rtk": {
+        "heading": "RTK (experimental)",
+        "description": "Compacts command output to save tokens on supported tools.",
+        "enableLabel": "Enable RTK",
+        "enableDesc": "Works only when RTK is installed and the command supports it.",
+        "verbosityLabel": "Verbosity",
+        "ultraCompact": "Ultra compact mode (-u)"
+      },
+      "devWorkspace": {
+        "heading": "Developer workspace",
+        "description": "Show workspace indicators, diff views, and tools for git-based coding workflows.",
+        "enableLabel": "Enable developer workspace tools",
+        "enableDesc": "Adds branch info, diff review panels, and a workspace dashboard.",
+        "autoCleanLabel": "Auto-clean old worktrees",
+        "autoCleanDesc": "Remove old worktrees automatically after merge or after a set number of days.",
+        "cleanupDaysLabel": "Clean up after (days)",
+        "recommendedServers": "Recommended tool servers:",
+        "recommendedServersDesc": "Install {worktreeTools} for worktree management or {githubMcp} for pull request workflows. Configure them in Tool servers (MCP)."
+      }
+    },
+    "memory": {
+      "categoryLabels": {
+        "visual_preferences": "Visual style",
+        "communication_style": "Communication style",
+        "workflow_patterns": "Workflow habits"
       }
     },
     "voice": {
@@ -1885,7 +1944,14 @@
         "providerOpenAI": "OpenAI Whisper",
         "providerOpenAIDesc": "Cloud transcription using your OpenAI or OpenRouter API key.",
         "providerLocal": "Local (whisper.cpp)",
-        "providerLocalDesc": "Runs on this device. No external API key needed."
+        "providerLocalDesc": "Runs on this device. No external API key needed.",
+        "whisperModelLabel": "Whisper Model",
+        "whisperDownloaded": "Downloaded",
+        "whisperDownload": "Download",
+        "whisperSelectModel": "Select a model",
+        "whisperMultilingual": " · Supports ~99 languages",
+        "whisperEnglishOnly": " · English only",
+        "whisperSetupHint": "Download a model above — whisper-cli and ffmpeg are bundled with the app. Transcription runs entirely on your device — no API key or internet needed."
       }
     },
     "localGrep": {
