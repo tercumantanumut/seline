@@ -1041,7 +1041,8 @@
       "discardDescription": "This will remove the git worktree for branch <strong>{branch}</strong> and permanently discard all uncommitted changes. This action cannot be undone.",
       "cancel": "Cancel",
       "discarding": "Discarding...",
-      "discardChanges": "Discard Changes"
+      "discardChanges": "Discard Changes",
+      "fetchFailed": "Failed to fetch workspace status"
     },
     "dashboard": {
       "activeWorkspaces": "Active Workspaces",
@@ -1788,6 +1789,11 @@
       "statusNotConnected": "Not connected",
       "statusConnected": "Connected",
       "statusError": "Error",
+      "validationServerNameRequired": "Server name is required",
+      "validationServerNameExists": "Server name already exists",
+      "validationCommandRequired": "Command is required for stdio transport",
+      "validationUrlRequired": "URL is required for SSE transport",
+      "validationInvalidUrl": "Invalid URL format",
       "reconnectServer": "Reconnect server",
       "editServer": "Edit server",
       "deleteServer": "Delete server",
@@ -1979,7 +1985,9 @@
           "ready": "Ready",
           "download": "Download",
           "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs — they don\u2019t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
-          "unrecognizedModel": "Unrecognized model: Ensure this is a cross-encoder model (not an embedding model). Cross-encoders output relevance scores, not vectors."
+          "unrecognizedModel": "Unrecognized model: Ensure this is a cross-encoder model (not an embedding model). Cross-encoders output relevance scores, not vectors.",
+          "downloadFailed": "Download failed",
+          "downloadApiUnavailable": "Model download API not available. Please restart the app."
         },
         "queryProcessing": {
           "title": "Query Processing",
@@ -2185,6 +2193,7 @@
     },
     "currentlyActive": "Currently active",
     "connectProviders": "Connect providers in Settings",
+    "footerHint": "Click to switch model · Manage providers in <settings>Settings</settings>",
     "switched": "Switched to {name} for this session",
     "switchFailed": "Failed to switch model",
     "loadFailed": "Failed to load model settings",
@@ -3294,6 +3303,7 @@
     "subtitle": "Extend your agent with skills, hooks, MCP servers, and more.",
     "install": "Install Plugin",
     "installing": "Installing...",
+    "installAndAssign": "Install and assign",
     "uninstall": "Uninstall",
     "uninstallConfirm": "Uninstall plugin \"{name}\"? This cannot be undone.",
     "enable": "Enable",

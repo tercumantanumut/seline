@@ -1031,7 +1031,8 @@
       "discardDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri kalıcı olarak silecektir. Bu işlem geri alınamaz.",
       "cancel": "İptal",
       "discarding": "İptal ediliyor...",
-      "discardChanges": "Değişiklikleri İptal Et"
+      "discardChanges": "Değişiklikleri İptal Et",
+      "fetchFailed": "Çalışma alanı durumu alınamadı"
     },
     "dashboard": {
       "activeWorkspaces": "Aktif Çalışma Alanları",
@@ -1856,7 +1857,9 @@
           "ready": "Hazır",
           "download": "İndir",
           "wrongModelType": "Yanlış model türü: Bu bir gömme modeli gibi görünüyor, çapraz kodlayıcı yeniden sıralayıcı değil. Yeniden sıralayıcılar (sorgu, metin) çiftlerini puanlar — vektör üretmez. Lütfen \"cross-encoder/ms-marco-MiniLM-L-6-v2\" gibi bir çapraz kodlayıcı model seçin.",
-          "unrecognizedModel": "Tanınmayan model: Bunun bir çapraz kodlayıcı model olduğundan emin olun (gömme modeli değil). Çapraz kodlayıcılar ilgi puanları çıktılar, vektör değil."
+          "unrecognizedModel": "Tanınmayan model: Bunun bir çapraz kodlayıcı model olduğundan emin olun (gömme modeli değil). Çapraz kodlayıcılar ilgi puanları çıktılar, vektör değil.",
+          "downloadFailed": "İndirme başarısız",
+          "downloadApiUnavailable": "Model indirme API'si kullanılamıyor. Lütfen uygulamayı yeniden başlatın."
         },
         "queryProcessing": {
           "title": "Sorgu İşleme",
@@ -2077,6 +2080,11 @@
       "statusNotConnected": "Bağlı değil",
       "statusConnected": "Bağlı",
       "statusError": "Hata",
+      "validationServerNameRequired": "Sunucu adı gerekli",
+      "validationServerNameExists": "Sunucu adı zaten mevcut",
+      "validationCommandRequired": "Stdio taşıması için komut gerekli",
+      "validationUrlRequired": "SSE taşıması için URL gerekli",
+      "validationInvalidUrl": "Geçersiz URL biçimi",
       "reconnectServer": "Sunucuya yeniden bağlan",
       "editServer": "Sunucuyu düzenle",
       "deleteServer": "Sunucuyu sil",
@@ -2170,6 +2178,7 @@
     },
     "currentlyActive": "Şu anda aktif",
     "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",
+    "footerHint": "Modeli değiştirmek için tıklayın · Sağlayıcıları <settings>Ayarlar</settings>'dan yönetin",
     "switched": "Bu oturum için {name} modeline geçildi",
     "switchFailed": "Model değiştirilemedi",
     "loadFailed": "Model ayarları yüklenemedi",
@@ -3348,6 +3357,35 @@
     "mainAgentLabel": "Ana ajan",
     "noPluginsYet": "Henüz eklenti yok",
     "noPluginsYetHint": "Bir eklenti paketi yükleyin veya pazaryerinden birini yükleyin",
-    "automationHooks": "Otomasyon kancaları"
+    "automationHooks": "Otomasyon kancaları",
+    "installing": "Yükleniyor...",
+    "installAndAssign": "Yükle ve ata",
+    "install": "Eklenti Yükle",
+    "detail": {
+      "viewSource": "Kaynağı Görüntüle",
+      "installedOn": "{date} tarihinde yüklendi",
+      "author": "Yazar",
+      "homepage": "Ana Sayfa",
+      "source": "Kaynak",
+      "skills": "Beceriler",
+      "agents": "Ajanlar",
+      "hooks": "Kancalar",
+      "mcpServers": "MCP Sunucuları",
+      "lspServers": "LSP Sunucuları",
+      "noDescription": "Açıklama yok",
+      "handlers": "{count} işleyici",
+      "connected": "bağlı"
+    },
+    "status": {
+      "active": "Aktif",
+      "disabled": "Devre Dışı",
+      "error": "Hata"
+    },
+    "components": {
+      "skills": "{count} beceri",
+      "agents": "{count} ajan",
+      "hooks": "kancalar",
+      "mcpServers": "{count} MCP sunucusu"
+    }
   }
 }

@@ -422,10 +422,10 @@ export function PluginSettings() {
               {uploading ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Installing...
+                  {t("installing")}
                 </>
               ) : (
-                "Install and assign"
+                t("installAndAssign")
               )}
             </Button>
           </DialogFooter>
@@ -645,7 +645,7 @@ export function PluginSettings() {
                           className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
                         >
                           <Globe className="size-3" />
-                          Homepage
+                          {t("detail.homepage")}
                           <ExternalLink className="size-2.5" />
                         </a>
                       )}
@@ -657,7 +657,7 @@ export function PluginSettings() {
                           className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
                         >
                           <FileCode className="size-3" />
-                          Source
+                          {t("detail.source")}
                           <ExternalLink className="size-2.5" />
                         </a>
                       )}
@@ -684,7 +684,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <FileCode className="size-3.5" />
-                        Skills ({plugin.components.skills.length})
+                        {t("detail.skills")} ({plugin.components.skills.length})
                       </h4>
                       <div className="space-y-1.5 pl-5">
                         {plugin.components.skills.map((skill) => (
@@ -708,7 +708,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Bot className="size-3.5" />
-                        Agents ({plugin.components.agents.length})
+                        {t("detail.agents")} ({plugin.components.agents.length})
                       </h4>
                       <div className="space-y-1.5 pl-5">
                         {plugin.components.agents.map((agent) => (
@@ -772,7 +772,7 @@ export function PluginSettings() {
                               variant="outline"
                               className="font-mono text-[9px] px-1.5 py-0 text-terminal-green"
                             >
-                              connected
+                              {t("detail.connected")}
                             </Badge>
                           </div>
                         ))}
@@ -785,7 +785,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        Language servers ({Object.keys(plugin.components.lspServers).length})
+                        {t("detail.lspServers")} ({Object.keys(plugin.components.lspServers).length})
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.lspServers).map((name) => (
@@ -802,7 +802,7 @@ export function PluginSettings() {
               {/* Install date (compact, when not expanded) */}
               {!isExpanded && (
                 <p className="mt-3 font-mono text-[10px] text-terminal-muted/50">
-                  Installed{" "}
+                  {t("installedLabel")}{" "}
                   {new Date(plugin.installedAt).toLocaleDateString()}
                 </p>
               )}

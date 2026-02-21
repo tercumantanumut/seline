@@ -2760,7 +2760,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           {/* ── Footer ── */}
           <div className="shrink-0 border-t border-terminal-border/20 px-4 py-2 bg-terminal-cream/60">
             <p className="font-mono text-[10px] text-terminal-muted text-center">
-              Click to switch model · Manage providers in <span className="text-terminal-green font-semibold">Settings</span>
+              {tBag.rich("footerHint", { settings: (chunks) => <span className="text-terminal-green font-semibold">{chunks}</span> })}
             </p>
           </div>
         </div>

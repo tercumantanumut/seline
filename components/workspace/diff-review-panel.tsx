@@ -113,7 +113,7 @@ export function DiffReviewPanel({
         }
       }
     } catch {
-      setError("Failed to fetch workspace status");
+      setError(t("fetchFailed"));
     } finally {
       setIsLoading(false);
     }
