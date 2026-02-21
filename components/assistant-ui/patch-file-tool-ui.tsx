@@ -2,6 +2,7 @@
 
 import { FC, useState } from "react";
 import { FileIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface DiagnosticResult {
@@ -50,6 +51,7 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.patchFile");
   const [expanded, setExpanded] = useState(false);
   const [showFullDiagnostics, setShowFullDiagnostics] = useState<{[key: number]: boolean}>({});
   const [showFullDiff, setShowFullDiff] = useState<{[key: number]: boolean}>({});
@@ -80,14 +82,14 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent/30 transition-colors text-left"
       >
         <StatusIcon className={cn("h-3.5 w-3.5 shrink-0", statusColor)} />
-        <span className="text-terminal-muted">Patch</span>
+        <span className="text-terminal-muted">{t("patchLabel")}</span>
         <span className="font-medium text-terminal-dark">
-          {opCount} file{opCount !== 1 ? "s" : ""}
+          {t("fileCount", { count: opCount })}
         </span>
 
         {result && (
           <span className={cn("ml-auto shrink-0", statusColor)}>
-            {result.filesChanged} changed
+            {t("changed", { count: result.filesChanged })}
           </span>
         )}
 
@@ -154,8 +156,8 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
                         className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
                       >
                         {isDiffExpanded
-                          ? "▲ Show less"
-                          : `▼ Show all (${diffLines.length} lines)`}
+                          ? t("showLess")
+                          : t("showAll", { count: diffLines.length })}
                       </button>
                     )}
                   </div>
@@ -207,18 +209,18 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
               <div key={i} className="rounded bg-terminal-dark/5 p-2 mt-1 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-[11px] text-terminal-muted">
-                    Diagnostics ({tool})
+                    {t("diagnostics", { tool })}
                   </div>
                   {hasMultipleIssues && (
                     <div className="text-[11px] flex gap-2">
                       {errors > 0 && (
                         <span className="text-red-600 font-medium">
-                          {errors} error{errors !== 1 ? 's' : ''}
+                          {t("errors", { count: errors })}
                         </span>
                       )}
                       {warnings > 0 && (
                         <span className="text-amber-600 font-medium">
-                          {warnings} warning{warnings !== 1 ? 's' : ''}
+                          {t("warnings", { count: warnings })}
                         </span>
                       )}
                     </div>
@@ -241,7 +243,7 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
                       onClick={() => setShowFullDiagnostics(prev => ({ ...prev, [i]: !prev[i] }))}
                       className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
                     >
-                      {isExpanded ? '▲ Show less' : `▼ Show all (${outputLines.length} lines)`}
+                      {isExpanded ? t("showLess") : t("showAll", { count: outputLines.length })}
                     </button>
                   )}
                 </div>
@@ -252,7 +254,7 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
           {/* Loading state */}
           {!result && (
             <div className="text-terminal-muted animate-pulse mt-1">
-              Processing...
+              {t("processing")}
             </div>
           )}
         </div>

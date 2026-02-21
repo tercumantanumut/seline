@@ -892,7 +892,24 @@
       "referenceImageFlux2Klein4B": "Referans (FLUX.2 Klein 4B)",
       "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Düzenle (FLUX.2 Klein 9B)",
-      "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)"
+      "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)",
+      "toolOutputPreview": "Araç çıktı önizlemesi {index}",
+      "hide": "Gizle",
+      "details": "Detaylar"
+    },
+    "patchFile": {
+      "patchLabel": "Yama",
+      "fileCount": "{count, plural, one {# dosya} other {# dosya}}",
+      "changed": "{count} değişti",
+      "showLess": "▲ Daha az göster",
+      "showAll": "▼ Tümünü göster ({count} satır)",
+      "diagnostics": "Tanılamalar ({tool})",
+      "errors": "{count, plural, one {# hata} other {# hata}}",
+      "warnings": "{count, plural, one {# uyarı} other {# uyarı}}",
+      "processing": "İşleniyor..."
+    },
+    "delegations": {
+      "activeDelegations": "{count, plural, one {# aktif delege} other {# aktif delege}}"
     },
     "skillImportOverlay": {
       "uploading": "Yükleniyor…",
@@ -2218,6 +2235,8 @@
       "globalStatus": "Global"
     },
     "providerLabel": "Sağlayıcı:",
+    "defaultBadge": "VAR",
+    "assignTo": "ATA:",
     "currentlyActive": "Şu anda aktif",
     "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",
     "footerHint": "Modeli değiştirmek için tıklayın · Sağlayıcıları <settings>Ayarlar</settings>'dan yönetin",
@@ -2490,7 +2509,9 @@
       "indicator": {
         "tooltip": "Bağlam: {current}/{max} ({percentage})",
         "compactNow": "Şimdi sıkıştır",
-        "newSession": "Yeni oturum başlat"
+        "newSession": "Yeni oturum başlat",
+        "thresholdsLabel": "Uya. {warn}% · Krit. {crit}% · Sınır {hard}%",
+        "thresholdsTooltip": "Eşikler (uyarı / kritik / sert sınır): {thresholds}"
       },
       "blocked": {
         "title": "Bağlam penceresi sınırı aşıldı",
