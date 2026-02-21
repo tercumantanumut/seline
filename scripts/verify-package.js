@@ -100,6 +100,9 @@ const requiredPaths = [
     : 'standalone/node_modules/.bin/node',
   'standalone/node_modules/npm/bin/npm-cli.js',
   'standalone/node_modules/npm/bin/npx-cli.js',
+  ...(platform === 'darwin' || platform === 'mac'
+    ? ['standalone/node_modules/lib']
+    : []),
 ];
 
 // RTK bundle is optional at runtime (experimental), but warn if absent in package.
@@ -118,6 +121,17 @@ for (const required of requiredPaths) {
   if (!fs.existsSync(fullPath)) {
     console.error(`   ❌ FAIL: Missing required file/folder: ${required}`);
     hasErrors = true;
+  }
+}
+
+if (platform === 'darwin' || platform === 'mac') {
+  const nodeLibDir = path.join(appResourcesPath, 'standalone', 'node_modules', 'lib');
+  if (fs.existsSync(nodeLibDir)) {
+    const libnodeFiles = fs.readdirSync(nodeLibDir).filter((name) => /^libnode\..+\.dylib$/i.test(name));
+    if (libnodeFiles.length === 0) {
+      console.error('   ❌ FAIL: Missing libnode*.dylib in standalone/node_modules/lib');
+      hasErrors = true;
+    }
   }
 }
 
