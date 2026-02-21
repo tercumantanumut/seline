@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ROLE_THEME, PROVIDER_THEME } from "./model-bag.constants";
 import type { ModelRole, ModelItem } from "./model-bag.types";
 import { XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ModelBagSlotProps {
   role: ModelRole;
@@ -20,6 +21,7 @@ export function ModelBagSlot({
   onClear,
   isSaving,
 }: ModelBagSlotProps) {
+  const t = useTranslations("modelBag");
   const roleInfo = ROLE_THEME[role];
   const assignedModel = models.find((m) => m.id === assignedModelId);
 
@@ -55,7 +57,8 @@ export function ModelBagSlot({
             onClick={onClear}
             disabled={isSaving}
             className="ml-0.5 rounded-full p-0.5 text-terminal-muted hover:bg-red-100 hover:text-red-500 disabled:opacity-50"
-            title="Clear override (use default)"
+            title={t("clearOverride")}
+            aria-label={t("clearOverride")}
           >
             <XIcon className="size-2.5" />
           </button>
@@ -76,7 +79,7 @@ export function ModelBagSlot({
         </div>
       ) : (
         <span className="font-mono text-[9px] italic text-terminal-muted">
-          Using default
+          {t("usingDefault")}
         </span>
       )}
     </div>

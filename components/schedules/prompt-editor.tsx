@@ -135,7 +135,7 @@ export const PromptEditor = forwardRef<PromptEditorRef, PromptEditorProps>(
 
                 {/* Status Bar */}
                 <div className="flex items-center justify-between px-3 py-1.5 border-t border-terminal-border bg-terminal-cream/50 text-xs font-mono text-terminal-muted">
-                    <span>Markdown</span>
+                    <span>{t("markdown")}</span>
                     <div className="flex items-center gap-4">
                         <span>{lines.length} {t("lines")}</span>
                         <span className="flex items-center gap-1.5">

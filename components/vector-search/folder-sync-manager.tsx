@@ -218,11 +218,11 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       const { data, error } = await resilientFetch<{ folders?: SyncFolder[]; error?: string }>(
         `/api/vector-sync?characterId=${characterId}`
       );
-      if (error || !data) throw new Error(error || "Failed to load folders");
+      if (error || !data) throw new Error(error || t("errorLoadFolders"));
       setFolders(data.folders || []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load folders");
+      setError(err instanceof Error ? err.message : t("errorLoadFolders"));
     } finally {
       setLoading(false);
     }
@@ -250,7 +250,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       // Give the server a moment to propagate, then reload
       setTimeout(loadFolders, 600);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to cancel sync");
+      setError(err instanceof Error ? err.message : t("errorCancelSync"));
     }
   };
 
@@ -400,7 +400,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       resetForm();
       await loadFolders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add folder");
+      setError(err instanceof Error ? err.message : t("errorAddFolder"));
     } finally {
       setIsAdding(false);
     }
@@ -450,7 +450,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
       await loadFolders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove folder");
+      setError(err instanceof Error ? err.message : t("errorRemoveFolder"));
     } finally {
       setRemovingFolderId(null);
     }
@@ -466,7 +466,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
       await loadFolders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync folder");
+      setError(err instanceof Error ? err.message : t("errorSyncFolder"));
     } finally {
       setSyncingFolderId(null);
     }
@@ -481,7 +481,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
 
       await loadFolders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to set primary folder");
+      setError(err instanceof Error ? err.message : t("errorSetPrimary"));
     }
   };
 
@@ -496,7 +496,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
       if (error) throw new Error(error);
       await loadFolders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update folder settings");
+      setError(err instanceof Error ? err.message : t("errorUpdateSettings"));
     } finally {
       setUpdatingFolderId(null);
     }
@@ -644,15 +644,16 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     </p>
                     {folder.isPrimary && (
                       <span className="text-[10px] bg-terminal-green/10 text-terminal-green border border-terminal-green/20 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider">
-                        Primary
+                        {t("primaryBadge")}
                       </span>
                     )}
                     {folder.inheritedFromWorkflowId && (
                       <span
                         className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider"
-                        title="This folder is shared from a workflow"
+                        title={t("sharedFromWorkflow")}
+                        aria-label={t("sharedFromWorkflow")}
                       >
-                        Workflow
+                        {t("workflowBadge")}
                       </span>
                     )}
                   </div>
@@ -682,7 +683,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetPrimary(folder.id)}
-                      title="Set as primary folder"
+                      title={t("setPrimaryFolder")}
+                      aria-label={t("setPrimaryFolder")}
                       className="h-8 w-8 shrink-0 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
                     >
                       <StarIcon className="w-4 h-4" />
@@ -693,7 +695,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       variant="ghost"
                       size="icon"
                       onClick={() => handleCancelSync(folder.id)}
-                      title="Cancel sync"
+                      title={t("cancelSync")}
+                      aria-label={t("cancelSync")}
                       className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                     >
                       <XCircleIcon className="w-4 h-4" />

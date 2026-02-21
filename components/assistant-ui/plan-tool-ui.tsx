@@ -3,6 +3,7 @@
 import { useState, type FC } from "react";
 import { ClipboardListIcon, AlertCircleIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { type PlanStep, type PlanState } from "./plan-context";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ const STATUS_CONFIG: Record<PlanStep["status"], { glyph: string; color: string; 
  * Expanded: full step list beneath a left border.
  */
 export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
+  const t = useTranslations("assistantUi.planTool");
   const [expanded, setExpanded] = useState(false);
 
   // --- Loading state ---
@@ -60,7 +62,7 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 font-mono text-xs text-terminal-muted">
         <ClipboardListIcon className="w-3.5 h-3.5 animate-pulse text-terminal-amber" />
-        <span>{args?.mode === "merge" ? "Updating plan…" : "Creating plan…"}</span>
+        <span>{args?.mode === "merge" ? t("updating") : t("creating")}</span>
         <div className="w-3.5 h-3.5 rounded-full border border-terminal-amber/40 border-t-terminal-amber animate-spin" />
       </div>
     );
@@ -71,7 +73,7 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-red-200 bg-red-50/60 font-mono text-xs text-red-600">
         <AlertCircleIcon className="w-3.5 h-3.5" />
-        <span>Plan error: {result.error}</span>
+        <span>{t("planError", { error: result.error ?? "" })}</span>
       </div>
     );
   }
@@ -85,11 +87,11 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
       return (
         <div className="my-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 font-mono text-xs">
           <ClipboardListIcon className="w-3.5 h-3.5 text-terminal-green" />
-          <span className="text-terminal-dark font-semibold">Plan</span>
+          <span className="text-terminal-dark font-semibold">{t("plan")}</span>
           <span className="text-terminal-muted">v{result.version}</span>
           <span className="text-terminal-border/50">&middot;</span>
           <span className="text-terminal-green">
-            {updatedCount} step{updatedCount !== 1 ? "s" : ""} updated
+            {t("stepsUpdated", { count: updatedCount })}
           </span>
         </div>
       );
@@ -115,7 +117,7 @@ export const PlanToolUI: ToolCallContentPartComponent = ({ args, result }) => {
         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 hover:bg-terminal-bg/40 transition-colors font-mono text-xs"
       >
         <ClipboardListIcon className="w-3.5 h-3.5 text-terminal-green" />
-        <span className="text-terminal-dark font-semibold">Plan</span>
+        <span className="text-terminal-dark font-semibold">{t("plan")}</span>
         <span className="text-terminal-muted">v{plan.version}</span>
         <span className="text-terminal-border/50">·</span>
         {counts.completed > 0   && <span className="text-terminal-green">✓ {counts.completed}</span>}

@@ -1,19 +1,25 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { toast } from "sonner";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import {
+  Archive,
+  BarChart2,
   Clock,
+  Download,
+  ExternalLink,
+  GitBranch,
+  Link2,
+  Loader2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
-  Loader2,
-  Trash2,
-  Download,
+  Pin,
+  PinOff,
   RotateCcw,
-  GitBranch,
-  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,8 +47,11 @@ interface SessionItemProps {
   onCancelEdit: () => void;
   onStartEdit: () => void;
   onDelete: () => void;
+  onArchive?: () => void;
   onExport: (format: "markdown" | "json" | "text") => void;
   onResetChannel: () => void;
+  isPinned?: boolean;
+  onPin?: () => void;
 }
 
 function parseAsUTC(dateStr: string): Date {
@@ -64,8 +73,11 @@ export function SessionItem({
   onCancelEdit,
   onStartEdit,
   onDelete,
+  onArchive,
   onExport,
   onResetChannel,
+  isPinned = false,
+  onPin,
 }: SessionItemProps) {
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
@@ -121,6 +133,16 @@ export function SessionItem({
     [formatter, t]
   );
 
+  const handleCopyLink = useCallback(() => {
+    const characterId = session.characterId;
+    const url = characterId
+      ? `${window.location.origin}/chat/${characterId}?sessionId=${session.id}`
+      : `${window.location.origin}/chat?sessionId=${session.id}`;
+    void navigator.clipboard.writeText(url).then(() => {
+      toast.success(t("sidebar.linkCopied"));
+    });
+  }, [session.characterId, session.id, t]);
+
   const handleInputBlur = useCallback(() => {
     if (skipBlurRef.current) {
       skipBlurRef.current = false;
@@ -171,8 +193,16 @@ export function SessionItem({
           ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
           : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
       )}
+      role="button"
+      tabIndex={0}
       onClick={() => {
         if (!isEditing) {
+          onSwitch();
+        }
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !isEditing) {
+          e.preventDefault();
           onSwitch();
         }
       }}
@@ -183,6 +213,8 @@ export function SessionItem({
             "h-4 w-4 flex-shrink-0 animate-spin text-terminal-green transition-colors duration-200"
           )}
         />
+      ) : isPinned ? (
+        <Pin className="h-4 w-4 flex-shrink-0 text-terminal-amber" />
       ) : (
         <MessageCircle
           className={cn(
@@ -288,6 +320,8 @@ export function SessionItem({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={t("sidebar.moreOptions")}
+              title={t("sidebar.moreOptions")}
               className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
               onClick={(event) => event.stopPropagation()}
             >
@@ -295,6 +329,16 @@ export function SessionItem({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+            {onPin ? (
+              <DropdownMenuItem onSelect={onPin}>
+                {isPinned ? (
+                  <PinOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Pin className="h-3.5 w-3.5" />
+                )}
+                {isPinned ? t("sidebar.unpin") : t("sidebar.pin")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onSelect={onStartEdit}>
               <Pencil className="h-3.5 w-3.5" />
               {t("sidebar.rename")}
@@ -307,6 +351,16 @@ export function SessionItem({
               <Download className="h-3.5 w-3.5" />
               {t("sidebar.exportJson")}
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={`/usage?sessionId=${session.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                <BarChart2 className="h-3.5 w-3.5" />
+                {t("sidebar.viewAnalytics")}
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleCopyLink}>
+              <Link2 className="h-3.5 w-3.5" />
+              {t("sidebar.copyLink")}
+            </DropdownMenuItem>
             {effectiveChannel ? (
               <DropdownMenuItem onSelect={onResetChannel}>
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -314,6 +368,12 @@ export function SessionItem({
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuSeparator />
+            {onArchive ? (
+              <DropdownMenuItem onSelect={onArchive}>
+                <Archive className="h-3.5 w-3.5" />
+                {t("sidebar.archive")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem
               className="text-red-600 hover:!text-red-600"
               onSelect={onDelete}

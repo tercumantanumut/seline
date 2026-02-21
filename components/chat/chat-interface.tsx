@@ -585,7 +585,7 @@ export default function ChatInterface({
         if (activeTaskForSession?.type === "scheduled") {
             setActiveRun({
                 runId: activeTaskForSession.runId,
-                taskName: activeTaskForSession.taskName || "Scheduled task",
+                taskName: activeTaskForSession.taskName || t("scheduledRun.backgroundTask"),
                 startedAt: activeTaskForSession.startedAt,
             });
         } else {
@@ -722,6 +722,21 @@ export default function ChatInterface({
         },
         [character.id, character.name, loadSessions, router]
     );
+
+    // Global keyboard shortcut: Cmd+N (Mac) / Ctrl+N (Win/Linux) → new session
+    useEffect(() => {
+        const handleNewSessionShortcut = (e: KeyboardEvent) => {
+            const isCombo = e.metaKey ? e.metaKey && e.key === "n" : e.ctrlKey && e.key === "n";
+            if (!isCombo) return;
+            // Don't intercept when an input/textarea is focused (let browser handle)
+            const tag = (document.activeElement as HTMLElement)?.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement as HTMLElement)?.isContentEditable) return;
+            e.preventDefault();
+            void createNewSession();
+        };
+        window.addEventListener("keydown", handleNewSessionShortcut);
+        return () => window.removeEventListener("keydown", handleNewSessionShortcut);
+    }, [createNewSession]);
 
     const resetChannelSession = useCallback(
         async (sessionToResetId: string, options?: { archiveOld?: boolean }) => {
@@ -1082,6 +1097,51 @@ export default function ChatInterface({
         }
     }, [t]);
 
+    const pinSession = useCallback(async (sessionToPinId: string) => {
+        const currentSession = sessions.find((s) => s.id === sessionToPinId);
+        const isPinned = currentSession?.metadata?.pinned === true;
+        try {
+            await resilientPatch(`/api/sessions/${sessionToPinId}`, {
+                metadata: { pinned: !isPinned },
+            });
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+            toast.success(t(isPinned ? "sidebar.unpin" : "sidebar.pin"));
+        } catch (error) {
+            console.error("Failed to pin session:", error);
+        }
+    }, [sessions, loadSessions, t]);
+
+    const archiveSession = useCallback(async (sessionToArchiveId: string) => {
+        try {
+            await resilientPatch(`/api/sessions/${sessionToArchiveId}`, { status: "archived" });
+            toast.success(t("sidebar.archiveSuccess"));
+            // If archiving the current session, navigate away
+            if (sessionToArchiveId === sessionId) {
+                const remaining = sessions.filter((s) => s.id !== sessionToArchiveId);
+                if (remaining.length > 0) {
+                    await switchSession(remaining[0].id);
+                } else {
+                    router.replace(`/chat/${character.id}`, { scroll: false });
+                }
+            }
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+        } catch (error) {
+            console.error("Failed to archive session:", error);
+            toast.error(t("sidebar.archiveError"));
+        }
+    }, [sessionId, sessions, switchSession, loadSessions, router, character.id, t]);
+
+    const restoreSession = useCallback(async (sessionToRestoreId: string) => {
+        try {
+            await resilientPatch(`/api/sessions/${sessionToRestoreId}`, { status: "active" });
+            toast.success(t("sidebar.restore"));
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+        } catch (error) {
+            console.error("Failed to restore session:", error);
+            toast.error(t("sidebar.archiveError"));
+        }
+    }, [loadSessions, t]);
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -1146,6 +1206,10 @@ export default function ChatInterface({
                     onResetChannelSession={resetChannelSession}
                     onRenameSession={renameSession}
                     onExportSession={exportSession}
+                    onPinSession={pinSession}
+                    onArchiveSession={archiveSession}
+                    onRestoreSession={restoreSession}
+                    characterId={character.id}
                     onAvatarChange={handleAvatarChange}
                 />
             }
@@ -1252,7 +1316,7 @@ function ScheduledRunBanner({
                     <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/60" />
                     <div className="space-y-1">
                         <p className="font-mono text-sm text-terminal-dark">
-                            {t("scheduledRun.active", { taskName: run.taskName || "Background task" })}
+                            {t("scheduledRun.active", { taskName: run.taskName || t("scheduledRun.backgroundTask") })}
                         </p>
                         <p className="text-xs text-terminal-muted">
                             {t("scheduledRun.description")}

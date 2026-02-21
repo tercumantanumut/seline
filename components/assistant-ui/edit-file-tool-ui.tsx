@@ -3,6 +3,7 @@
 import { FC, useState } from "react";
 import { FileIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, PencilIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface DiagnosticResult {
   tool: string;
@@ -43,6 +44,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.editFileTool");
   const [expanded, setExpanded] = useState(false);
   const [showFullDiff, setShowFullDiff] = useState(false);
   const [showFullDiagnostics, setShowFullDiagnostics] = useState(false);
@@ -58,17 +60,17 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   // Dynamic label based on result status
   const getActionLabel = () => {
     if (!result) {
-      return isCreating ? "Creating..." : isWrite ? "Writing..." : "Editing...";
+      return isCreating ? t("creating") : isWrite ? t("writing") : t("editing");
     }
 
     switch (result.status) {
       case "error":
-        return isCreating ? "Create failed" : isWrite ? "Write failed" : "Edit failed";
+        return isCreating ? t("createFailed") : isWrite ? t("writeFailed") : t("editFailed");
       case "warning":
-        return isCreating ? "Created with warnings" : isWrite ? "Wrote with warnings" : "Edited with warnings";
+        return isCreating ? t("createdWithWarnings") : isWrite ? t("wroteWithWarnings") : t("editedWithWarnings");
       case "success":
       default:
-        return isCreating ? "Created" : isWrite ? "Wrote" : "Edited";
+        return isCreating ? t("created") : isWrite ? t("wrote") : t("edited");
     }
   };
 
@@ -121,12 +123,12 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
 
         {result && "linesChanged" in result && result.linesChanged !== undefined && (
           <span className="text-terminal-muted ml-auto shrink-0">
-            {result.linesChanged} line{result.linesChanged !== 1 ? "s" : ""}
+            {t("lines", { count: result.linesChanged })}
           </span>
         )}
         {result && "lineCount" in result && result.lineCount !== undefined && (
           <span className="text-terminal-muted ml-auto shrink-0">
-            {result.lineCount} line{result.lineCount !== 1 ? "s" : ""}
+            {t("lines", { count: result.lineCount })}
           </span>
         )}
 
@@ -180,7 +182,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
                   onClick={() => setShowFullDiff(!showFullDiff)}
                   className="text-[11px] text-blue-600 hover:text-blue-700 underline"
                 >
-                  {showFullDiff ? "▲ Show less" : `▼ Show all (${diffLines.length} lines)`}
+                  {showFullDiff ? `▲ ${t("showLess")}` : `▼ ${t("showAll", { count: diffLines.length })}`}
                 </button>
               )}
             </div>
@@ -226,18 +228,18 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
               <div className="rounded bg-terminal-dark/5 p-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-[11px] text-terminal-muted">
-                    Diagnostics ({tool})
+                    {t("diagnosticsLabel", { tool })}
                   </div>
                   {hasMultipleIssues && (
                     <div className="text-[11px] flex gap-2">
                       {errors > 0 && (
                         <span className="text-red-600 font-medium">
-                          {errors} error{errors !== 1 ? 's' : ''}
+                          {t("errors", { count: errors })}
                         </span>
                       )}
                       {warnings > 0 && (
                         <span className="text-amber-600 font-medium">
-                          {warnings} warning{warnings !== 1 ? 's' : ''}
+                          {t("warnings", { count: warnings })}
                         </span>
                       )}
                     </div>
@@ -260,7 +262,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
                       onClick={() => setShowFullDiagnostics(!showFullDiagnostics)}
                       className="text-[11px] text-blue-600 hover:text-blue-700 underline mt-1"
                     >
-                      {showFullDiagnostics ? '▲ Show less' : `▼ Show all (${outputLines.length} lines)`}
+                      {showFullDiagnostics ? `▲ ${t("showLess")}` : `▼ ${t("showAll", { count: outputLines.length })}`}
                     </button>
                   )}
                 </div>
@@ -271,7 +273,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
           {/* Loading state */}
           {!result && (
             <div className="text-terminal-muted animate-pulse">
-              Processing...
+              {t("processing")}
             </div>
           )}
         </div>

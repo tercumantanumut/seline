@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 import { PROVIDER_THEME, PROVIDER_DISPLAY_NAMES, ROLE_THEME } from "./model-bag.constants";
@@ -39,6 +40,7 @@ export function SessionModelOverride({
   sessionId,
   className,
 }: SessionModelOverrideProps) {
+  const t = useTranslations("modelBag.sessionOverride");
   const [state, setState] = useState<SessionModelState>({
     hasOverrides: false,
     config: {},
@@ -87,7 +89,7 @@ export function SessionModelOverride({
         { ...state.config, ...update },
       );
       if (error || !data) {
-        toast.error("Failed to update session model");
+        toast.error(t("updateFailed"));
         setState((prev) => ({ ...prev, isSaving: false }));
         return;
       }
@@ -97,7 +99,7 @@ export function SessionModelOverride({
         config: data.config,
         isSaving: false,
       }));
-      toast.success("Session model updated");
+      toast.success(t("updateSuccess"));
     },
     [sessionId, state.config],
   );
@@ -110,7 +112,7 @@ export function SessionModelOverride({
       { clear: true },
     );
     if (error) {
-      toast.error("Failed to clear overrides");
+      toast.error(t("clearFailed"));
       setState((prev) => ({ ...prev, isSaving: false }));
       return;
     }
@@ -120,14 +122,14 @@ export function SessionModelOverride({
       config: {},
       isSaving: false,
     }));
-    toast.success("Session model overrides cleared");
+    toast.success(t("clearSuccess"));
   }, [sessionId]);
 
   if (state.isLoading) {
     return (
       <div className={cn("flex items-center gap-2 p-2", className)}>
         <Loader2Icon className="size-3 animate-spin text-terminal-muted" />
-        <span className="font-mono text-[10px] text-terminal-muted">Loading model config...</span>
+        <span className="font-mono text-[10px] text-terminal-muted">{t("loadingConfig")}</span>
       </div>
     );
   }
@@ -144,13 +146,13 @@ export function SessionModelOverride({
         className="flex w-full items-center gap-2 font-mono text-[10px]"
       >
         <CpuIcon className="size-3 text-terminal-green" />
-        <span className="font-bold text-terminal-dark">Model</span>
+        <span className="font-bold text-terminal-dark">{t("modelLabel")}</span>
         {state.hasOverrides ? (
           <span className="rounded bg-terminal-green/15 px-1 text-[9px] font-bold text-terminal-green">
-            OVERRIDE
+            {t("overrideBadge")}
           </span>
         ) : (
-          <span className="text-terminal-muted">Global</span>
+          <span className="text-terminal-muted">{t("globalStatus")}</span>
         )}
         <span className="ml-auto truncate text-terminal-muted">
           {chatModel}
@@ -167,7 +169,7 @@ export function SessionModelOverride({
         <div className="mt-2 space-y-2 border-t border-terminal-border/50 pt-2">
           {/* Chat model override */}
           <ModelOverrideField
-            label="Chat Model"
+            label={t("chatModel")}
             role="chat"
             value={state.config.sessionChatModel || ""}
             globalDefault={state.globalDefaults.chatModel}
@@ -177,7 +179,7 @@ export function SessionModelOverride({
 
           {/* Research model override */}
           <ModelOverrideField
-            label="Research Model"
+            label={t("researchModel")}
             role="research"
             value={state.config.sessionResearchModel || ""}
             globalDefault={state.globalDefaults.researchModel}
@@ -187,7 +189,7 @@ export function SessionModelOverride({
 
           {/* Vision model override */}
           <ModelOverrideField
-            label="Vision Model"
+            label={t("visionModel")}
             role="vision"
             value={state.config.sessionVisionModel || ""}
             globalDefault={state.globalDefaults.visionModel}
@@ -197,7 +199,7 @@ export function SessionModelOverride({
 
           {/* Utility model override */}
           <ModelOverrideField
-            label="Utility Model"
+            label={t("utilityModel")}
             role="utility"
             value={state.config.sessionUtilityModel || ""}
             globalDefault={state.globalDefaults.utilityModel}
@@ -213,12 +215,12 @@ export function SessionModelOverride({
               className="flex w-full items-center justify-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 font-mono text-[10px] text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
             >
               <XIcon className="size-3" />
-              Clear all overrides
+              {t("clearAllOverrides")}
             </button>
           )}
 
           <p className="font-mono text-[9px] text-terminal-muted">
-            Empty = use global setting. Enter a model ID to override for this session only.
+            {t("helpText")}
           </p>
         </div>
       )}
@@ -245,6 +247,7 @@ function ModelOverrideField({
   onChange: (value: string) => void;
   isSaving: boolean;
 }) {
+  const t = useTranslations("modelBag.sessionOverride");
   const [localValue, setLocalValue] = useState(value);
   const roleInfo = ROLE_THEME[role];
 
@@ -260,7 +263,7 @@ function ModelOverrideField({
         <span>{label}</span>
         {globalDefault && (
           <span className="ml-auto text-[8px] italic">
-            global: {globalDefault || "(provider default)"}
+            {t("globalLabel")} {globalDefault || t("providerDefault")}
           </span>
         )}
       </label>
@@ -279,7 +282,7 @@ function ModelOverrideField({
           }
         }}
         disabled={isSaving}
-        placeholder={globalDefault || "(provider default)"}
+        placeholder={globalDefault || t("providerDefault")}
         className="w-full rounded border border-terminal-border bg-white/80 px-2 py-1 font-mono text-[10px] text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none disabled:opacity-50"
       />
     </div>

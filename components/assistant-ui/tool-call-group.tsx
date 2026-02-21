@@ -152,7 +152,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
               >
                 <img
                   src={media.url}
-                  alt={`Tool output preview ${index + 1}`}
+                  alt={t("toolOutputPreview", { index: index + 1 })}
                   className="h-24 w-auto rounded-md border border-terminal-dark/10 object-cover shadow-sm"
                 />
               </a>
@@ -177,7 +177,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
           onClick={() => setIsExpanded((prev) => !prev)}
           className="h-7 px-2 text-xs font-mono text-terminal-muted hover:text-terminal-dark"
         >
-          {isExpanded ? "Hide" : "Details"}
+          {isExpanded ? t("hide") : t("details")}
           {isExpanded ? (
             <ChevronUpIcon className="ml-1 size-3" />
           ) : (

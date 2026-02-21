@@ -10,6 +10,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import {
   Loader2,
   Search,
@@ -58,6 +59,7 @@ interface MarketplaceBrowserProps {
 }
 
 export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProps) {
+  const t = useTranslations("plugins.marketplace");
   const [marketplaces, setMarketplaces] = useState<MarketplaceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -127,7 +129,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
 
   const addMarketplace = async () => {
     if (!newName.trim() || !newSource.trim()) {
-      toast.error("Name and source are required");
+      toast.error(t("nameAndSourceRequired"));
       return;
     }
     setAdding(true);
@@ -139,31 +141,31 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to add marketplace");
+        throw new Error(data.error || t("addFailed"));
       }
-      toast.success(`Marketplace "${newName}" added`);
+      toast.success(t("added", { name: newName }));
       setNewName("");
       setNewSource("");
       setShowAddForm(false);
       loadMarketplaces();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add marketplace");
+      toast.error(error instanceof Error ? error.message : t("addFailed"));
     } finally {
       setAdding(false);
     }
   };
 
   const removeMarketplace = async (id: string, name: string) => {
-    if (!confirm(`Remove marketplace "${name}"?`)) return;
+    if (!confirm(t("removeConfirm", { name }))) return;
     try {
       const res = await fetch(`/api/plugins/marketplaces?id=${id}`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error("Failed to remove");
-      toast.success(`Marketplace "${name}" removed`);
+      if (!res.ok) throw new Error(t("removeFailed"));
+      toast.success(t("removed", { name }));
       loadMarketplaces();
     } catch {
-      toast.error("Failed to remove marketplace");
+      toast.error(t("removeFailed"));
     }
   };
 
@@ -175,7 +177,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
       // For now, marketplace install shows guidance since actual download
       // from source requires additional infrastructure (GitHub ZIP download, etc.)
       toast.info(
-        `To install "${plugin.name}", download the .zip from the source and upload it via the Install Plugin button.`,
+        t("installGuidance", { name: plugin.name }),
         { duration: 6000 }
       );
     } finally {
@@ -199,10 +201,10 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="flex items-center gap-2">
             <Globe className="size-4 text-terminal-green" />
             <h3 className="font-mono text-sm font-bold text-terminal-dark">
-              Plugin Marketplace
+              {t("title")}
             </h3>
             <Badge variant="secondary" className="font-mono text-[9px]">
-              {allPlugins.length} available
+              {t("available", { count: allPlugins.length })}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -217,7 +219,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
               ) : (
                 <Plus className="mr-1 size-3" />
               )}
-              {showAddForm ? "Cancel" : "Add Source"}
+              {showAddForm ? t("cancel") : t("addSource")}
             </Button>
           </div>
         </div>
@@ -227,25 +229,25 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="flex items-end gap-2 p-3 rounded-lg bg-terminal-cream/50 border border-terminal-border/20">
             <div className="flex-1 space-y-1">
               <label className="font-mono text-[10px] text-terminal-muted">
-                Name
+                {t("nameLabel")}
               </label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="my-marketplace"
+                placeholder={t("namePlaceholder")}
                 className="w-full rounded border border-terminal-border/30 bg-white px-2 py-1 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none"
               />
             </div>
             <div className="flex-[2] space-y-1">
               <label className="font-mono text-[10px] text-terminal-muted">
-                Source URL
+                {t("sourceUrlLabel")}
               </label>
               <input
                 type="text"
                 value={newSource}
                 onChange={(e) => setNewSource(e.target.value)}
-                placeholder="https://github.com/user/marketplace"
+                placeholder={t("sourcePlaceholder")}
                 className="w-full rounded border border-terminal-border/30 bg-white px-2 py-1 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none"
               />
             </div>
@@ -255,7 +257,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
               onClick={addMarketplace}
               disabled={adding}
             >
-              {adding ? <Loader2 className="size-3 animate-spin" /> : "Add"}
+              {adding ? <Loader2 className="size-3 animate-spin" /> : t("add")}
             </Button>
           </div>
         )}
@@ -298,7 +300,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search plugins..."
+                placeholder={t("searchPlaceholder")}
                 className="w-full rounded-lg border border-terminal-border/30 bg-white py-1.5 pl-8 pr-3 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green/30"
               />
             </div>
@@ -313,7 +315,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                       : "text-terminal-muted hover:bg-terminal-dark/5"
                   )}
                 >
-                  All
+                  {t("allCategories")}
                 </button>
                 {categories.map((cat) => (
                   <button
@@ -341,10 +343,10 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="py-8 text-center">
             <Package className="mx-auto size-8 text-terminal-muted/30 mb-2" />
             <p className="font-mono text-xs text-terminal-muted">
-              No marketplace sources configured
+              {t("noSources")}
             </p>
             <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">
-              Add a marketplace source to browse available plugins
+              {t("noSourcesHint")}
             </p>
           </div>
         )}
@@ -353,7 +355,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
           <div className="py-6 text-center">
             <Search className="mx-auto size-6 text-terminal-muted/30 mb-2" />
             <p className="font-mono text-xs text-terminal-muted">
-              No plugins match your search
+              {t("noResults")}
             </p>
           </div>
         )}
@@ -419,7 +421,7 @@ export function MarketplaceBrowser({ onInstallComplete }: MarketplaceBrowserProp
                   ) : (
                     <Download className="size-3 mr-1" />
                   )}
-                  Install
+                  {t("install")}
                 </Button>
               </div>
             ))}

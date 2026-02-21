@@ -140,7 +140,7 @@ describe("execute-command-tool normalization", () => {
 
     expect(commandExecutionMocks.executeCommandWithValidation).toHaveBeenCalledWith(
       expect.objectContaining({
-        command: expect.stringContaining("test_plugins/ralph-loop/scripts/setup-ralph-loop.sh"),
+        command: expect.stringMatching(/test_plugins[\\/]ralph-loop[\\/]scripts[\\/]setup-ralph-loop\.sh/),
       }),
       ["C:\\workspace"]
     );

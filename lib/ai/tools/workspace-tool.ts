@@ -61,12 +61,29 @@ const WORKSPACE_EXTENSIONS = [
 // Safety helpers (reused from workspace route pattern)
 // ---------------------------------------------------------------------------
 
-function isValidPath(p: string): boolean {
+function isWindowsAbsolutePath(p: string): boolean {
   return (
-    typeof p === "string" &&
-    p.startsWith("/") &&
-    !/[;&|`$(){}!#]/.test(p)
+    /^[a-zA-Z]:[\\/]/.test(p) ||
+    /^\\\\[^\\/]+[\\/][^\\/]+/.test(p) ||
+    /^\\\\\?[\\/][a-zA-Z]:[\\/]/.test(p)
   );
+}
+
+function isValidPath(p: string): boolean {
+  if (typeof p !== "string") {
+    return false;
+  }
+
+  const candidate = p.trim();
+  if (!candidate) {
+    return false;
+  }
+
+  if (/[;&|`$(){}!#]/.test(candidate)) {
+    return false;
+  }
+
+  return path.isAbsolute(candidate) || isWindowsAbsolutePath(candidate);
 }
 
 function isValidBranchName(name: string): boolean {
@@ -138,6 +155,21 @@ async function runGitCommand(cwd: string, args: string[], input?: string): Promi
       return fb.stdout;
     }
     throw error;
+  }
+}
+
+async function verifyGitRepository(repoPath: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    const insideWorkTree = (await runGitCommand(repoPath, ["rev-parse", "--is-inside-work-tree"]))
+      .trim()
+      .toLowerCase();
+    if (insideWorkTree === "true") {
+      return { ok: true };
+    }
+    return { ok: false, reason: `git rev-parse returned "${insideWorkTree || "(empty)"}"` };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { ok: false, reason };
   }
 }
 
@@ -274,6 +306,12 @@ async function handleCreate(
     return { status: "error" as const, error: "Invalid repoPath. Must be an absolute path without shell metacharacters." };
   }
 
+  const normalizedRepoPath = path.resolve(repoPath);
+  const normalizedRepoPathForChecks = normalizedRepoPath.trim();
+  if (!isValidPath(normalizedRepoPathForChecks)) {
+    return { status: "error" as const, error: "Invalid repoPath after normalization." };
+  }
+
   // Branch name safety
   if (!isValidBranchName(branch)) {
     return { status: "error" as const, error: "Invalid branch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
@@ -282,9 +320,13 @@ async function handleCreate(
     return { status: "error" as const, error: "Invalid baseBranch name. Use only alphanumeric, dot, dash, underscore, and slash characters." };
   }
 
-  // Verify it's a git repo
-  if (!fs.existsSync(path.join(repoPath, ".git"))) {
-    return { status: "error" as const, error: `"${repoPath}" does not appear to be a git repository (no .git directory).` };
+  // Verify it's a git repo via git itself (works for linked worktrees too).
+  const repoVerification = await verifyGitRepository(normalizedRepoPathForChecks);
+  if (!repoVerification.ok) {
+    return {
+      status: "error" as const,
+      error: `"${normalizedRepoPath}" is not a valid git repository: ${repoVerification.reason}`,
+    };
   }
 
   // Check if workspace already exists for this session
@@ -305,14 +347,14 @@ async function handleCreate(
   let resolvedBaseBranch = baseBranch;
   if (!resolvedBaseBranch) {
     try {
-      resolvedBaseBranch = (await runGitCommand(repoPath, ["branch", "--show-current"])).trim();
+      resolvedBaseBranch = (await runGitCommand(normalizedRepoPath, ["branch", "--show-current"])).trim();
     } catch {
       resolvedBaseBranch = "main";
     }
   }
 
   // Compute worktree path: <repoPath>/../worktrees/<branch-slug>
-  const worktreeParent = path.join(repoPath, "..", "worktrees");
+  const worktreeParent = path.join(normalizedRepoPath, "..", "worktrees");
   const worktreePath = path.join(worktreeParent, branchSlug(branch));
 
   // Don't overwrite existing directory
@@ -335,13 +377,13 @@ async function handleCreate(
 
   // Create the git worktree
   try {
-    await runGitCommand(repoPath, ["worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch]);
+    await runGitCommand(normalizedRepoPath, ["worktree", "add", "-b", branch, worktreePath, resolvedBaseBranch]);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     // If branch already exists, try without -b
     if (errMsg.includes("already exists")) {
       try {
-        await runGitCommand(repoPath, ["worktree", "add", worktreePath, branch]);
+        await runGitCommand(normalizedRepoPath, ["worktree", "add", worktreePath, branch]);
       } catch (err2) {
         return {
           status: "error" as const,

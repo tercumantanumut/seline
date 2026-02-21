@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Upload, FileArchive, Folder, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { FileArchive, Folder, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface SkillImportDropzoneProps {
   characterId: string;
@@ -14,28 +15,26 @@ interface SkillImportDropzoneProps {
 
 type UploadPhase = "idle" | "uploading" | "parsing" | "importing" | "success" | "error";
 
-export function SkillImportDropzone({ 
-  characterId, 
+export function SkillImportDropzone({
+  characterId,
   onImportSuccess,
-  onImportError 
+  onImportError
 }: SkillImportDropzoneProps) {
+  const t = useTranslations("skills.import");
   const [phase, setPhase] = useState<UploadPhase>("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const uploadFile = useCallback(async (file: File) => {
-    console.log(`[SkillUpload] 📤 Starting upload for: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-    
     const isZip = file.name.endsWith(".zip");
     const isMd = file.name.endsWith(".md");
-    
+
     if (!isZip && !isMd) {
-      const errorMsg = "Only .zip packages or .md files are supported";
-      console.log(`[SkillUpload] ❌ Invalid file type: ${file.name}`);
+      const errorMsg = t("invalidFileTypeDesc");
       setError(errorMsg);
       setPhase("error");
-      toast.error("Invalid file type", {
+      toast.error(t("invalidFileType"), {
         description: errorMsg,
       });
       return;
@@ -43,17 +42,16 @@ export function SkillImportDropzone({
 
     const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
-      const errorMsg = "File size exceeds 50MB limit";
+      const errorMsg = t("fileTooLargeDesc");
       setError(errorMsg);
       setPhase("error");
-      toast.error("File too large", {
+      toast.error(t("fileTooLarge"), {
         description: errorMsg,
       });
       return;
     }
 
     try {
-      console.log(`[SkillUpload] 🔄 Phase: uploading`);
       setPhase("uploading");
       setProgress(10);
       setError(null);
@@ -62,37 +60,29 @@ export function SkillImportDropzone({
       formData.append("file", file);
       formData.append("characterId", characterId);
 
-      console.log(`[SkillUpload] 🔄 Phase: parsing (30%)`);
       setProgress(30);
       setPhase("parsing");
 
-      console.log(`[SkillUpload] 🌐 Sending request to /api/skills/import...`);
-      const fetchStart = Date.now();
       const response = await fetch("/api/skills/import", {
         method: "POST",
         body: formData,
       });
-      const fetchDuration = Date.now() - fetchStart;
-      console.log(`[SkillUpload] ✅ Response received after ${fetchDuration}ms - status: ${response.status}`);
 
-      console.log(`[SkillUpload] 🔄 Phase: importing (70%)`);
       setProgress(70);
       setPhase("importing");
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || "Import failed");
+        throw new Error(error.error || t("error"));
       }
 
       const result = await response.json();
-      console.log(`[SkillUpload] 📦 Result:`, result);
-      
-      console.log(`[SkillUpload] 🔄 Phase: success (100%)`);
+
       setProgress(100);
       setPhase("success");
 
-      toast.success("Skill imported successfully", {
-        description: `${result.skillName} with ${result.scriptsFound} script(s)`,
+      toast.success(t("importedSuccess"), {
+        description: t("importedDesc", { name: result.skillName, count: result.scriptsFound }),
       });
 
       onImportSuccess(result.skillId);
@@ -103,12 +93,11 @@ export function SkillImportDropzone({
         setProgress(0);
       }, 2000);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[SkillUpload] ❌ Upload failed:`, error);
+      const errorMsg = error instanceof Error ? error.message : t("error");
       setError(errorMsg);
       setPhase("error");
-      
-      toast.error("Import failed", {
+
+      toast.error(t("error"), {
         description: errorMsg,
       });
 
@@ -139,12 +128,12 @@ export function SkillImportDropzone({
 
   const getPhaseLabel = () => {
     switch (phase) {
-      case "uploading": return "Uploading...";
-      case "parsing": return "Parsing package...";
-      case "importing": return "Importing skill...";
-      case "success": return "Import complete!";
-      case "error": return "Import failed";
-      default: return "Drag & drop a skill package";
+      case "uploading": return t("uploading");
+      case "parsing": return t("parsing");
+      case "importing": return t("importing");
+      case "success": return t("success");
+      case "error": return t("error");
+      default: return t("idle");
     }
   };
 
@@ -203,7 +192,7 @@ export function SkillImportDropzone({
           
           {phase === "idle" && (
             <p className="text-sm text-terminal-muted">
-              or click to browse (.zip packages or .md files)
+              {t("browseHint")}
             </p>
           )}
 
@@ -227,18 +216,18 @@ export function SkillImportDropzone({
         )}
 
         {phase === "idle" && !isDragging && (
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="mt-2"
             onClick={() => document.getElementById("skill-file-input")?.click()}
           >
-            Browse Files
+            {t("browse")}
           </Button>
         )}
 
         {phase === "error" && (
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="mt-2"
             onClick={() => {
               setPhase("idle");
@@ -246,7 +235,7 @@ export function SkillImportDropzone({
               setProgress(0);
             }}
           >
-            Try Again
+            {t("tryAgain")}
           </Button>
         )}
       </div>

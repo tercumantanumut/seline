@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   GitBranchIcon,
@@ -79,6 +80,7 @@ export function WorkspaceIndicator({
   workspaceInfo,
   onOpenDiffPanel,
 }: WorkspaceIndicatorProps) {
+  const t = useTranslations("workspace.indicator");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -96,13 +98,13 @@ export function WorkspaceIndicator({
         { action: "refresh-status" }
       );
       if (error) {
-        toast.error("Failed to refresh workspace status");
+        toast.error(t("refreshFailed"));
       } else {
-        toast.success("Workspace status refreshed");
+        toast.success(t("refreshSuccess"));
         window.dispatchEvent(new CustomEvent("workspace-status-changed", { detail: { sessionId } }));
       }
     } catch {
-      toast.error("Failed to refresh workspace status");
+      toast.error(t("refreshFailed"));
     } finally {
       setIsRefreshing(false);
     }
@@ -116,13 +118,13 @@ export function WorkspaceIndicator({
         { action: "cleanup" }
       );
       if (error) {
-        toast.error("Failed to cleanup workspace");
+        toast.error(t("cleanupFailed"));
       } else {
-        toast.success("Workspace cleaned up");
+        toast.success(t("cleanupSuccess"));
         window.dispatchEvent(new CustomEvent("workspace-status-changed", { detail: { sessionId } }));
       }
     } catch {
-      toast.error("Failed to cleanup workspace");
+      toast.error(t("cleanupFailed"));
     } finally {
       setIsCleaning(false);
       setShowCleanupDialog(false);
@@ -196,7 +198,7 @@ export function WorkspaceIndicator({
               }}
             >
               <EyeIcon className="w-3.5 h-3.5 mr-2" />
-              View Changes
+              {t("viewChanges")}
             </DropdownMenuItem>
           )}
 
@@ -208,7 +210,7 @@ export function WorkspaceIndicator({
               }}
             >
               <ExternalLinkIcon className="w-3.5 h-3.5 mr-2" />
-              Open PR
+              {t("openPR")}
             </DropdownMenuItem>
           )}
 
@@ -220,7 +222,7 @@ export function WorkspaceIndicator({
             disabled={isRefreshing}
           >
             <RefreshCwIcon className={cn("w-3.5 h-3.5 mr-2", isRefreshing && "animate-spin")} />
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing ? t("refreshing") : t("refresh")}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -233,7 +235,7 @@ export function WorkspaceIndicator({
             className="text-destructive focus:text-destructive"
           >
             <Trash2Icon className="w-3.5 h-3.5 mr-2" />
-            Cleanup Workspace
+            {t("cleanupWorkspace")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -241,14 +243,16 @@ export function WorkspaceIndicator({
       <AlertDialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cleanup Workspace</AlertDialogTitle>
+            <AlertDialogTitle>{t("cleanupTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the git worktree for branch <strong className="font-semibold">{branch}</strong> and
-              discard any uncommitted changes. This action cannot be undone.
+              {t.rich("cleanupDescription", {
+                branch,
+                strong: (chunks) => <strong className="font-semibold">{chunks}</strong>,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isCleaning}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isCleaning}>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCleanup}
               disabled={isCleaning}
@@ -257,10 +261,10 @@ export function WorkspaceIndicator({
               {isCleaning ? (
                 <>
                   <Loader2Icon className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Cleaning up...
+                  {t("cleaningUp")}
                 </>
               ) : (
-                "Cleanup"
+                t("cleanup")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -13,6 +13,7 @@ import {
     Play, StopCircle, RefreshCw,
     Cpu, Rocket, FolderOpen, ChevronDown, ChevronUp
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ComfyUIStatus {
     dockerInstalled: boolean;
@@ -55,6 +56,7 @@ export function ComfyUIInstaller({
     enabled,
     onEnabledChange,
 }: ComfyUIInstallerProps) {
+    const t = useTranslations("comfyui.installer");
     const [status, setStatus] = useState<ComfyUIStatus | null>(null);
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState<InstallProgress | null>(null);
@@ -224,10 +226,10 @@ export function ComfyUIInstaller({
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Cpu className="h-5 w-5" />
-                        Local Image Generation (Z-Image)
+                        {t("titleSimple")}
                     </CardTitle>
                     <CardDescription>
-                        Local ComfyUI backend is only available in the desktop app.
+                        {t("webOnlyNote")}
                     </CardDescription>
                 </CardHeader>
             </Card>
@@ -239,11 +241,10 @@ export function ComfyUIInstaller({
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Cpu className="h-5 w-5" />
-                    Local Image Generation (Z-Image Turbo FP8)
+                    {t("title")}
                 </CardTitle>
                 <CardDescription>
-                    Generate images locally using ComfyUI with the Z-Image Turbo FP8 model.
-                    Requires Docker and an NVIDIA GPU with ~12GB VRAM.
+                    {t("description")}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -251,9 +252,9 @@ export function ComfyUIInstaller({
                 {isSetupComplete && (
                     <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                            <Label>Enable Local Image Generation</Label>
+                            <Label>{t("enableLabel")}</Label>
                             <p className="text-sm text-muted-foreground">
-                                Use local ComfyUI instead of cloud APIs
+                                {t("enableDesc")}
                             </p>
                         </div>
                         <Switch
@@ -267,16 +268,16 @@ export function ComfyUIInstaller({
                 {/* Status Display */}
                 {status && (
                     <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                        <StatusIndicator ok={status.dockerInstalled} label="Docker Installed" />
-                        <StatusIndicator ok={status.imageBuilt} label="Docker Image Built" />
-                        <StatusIndicator ok={status.modelsDownloaded} label="Models Downloaded" />
-                        <StatusIndicator ok={status.containerRunning} label="Container Running" />
-                        <StatusIndicator ok={status.apiHealthy} label="API Healthy" />
+                        <StatusIndicator ok={status.dockerInstalled} label={t("dockerInstalled")} />
+                        <StatusIndicator ok={status.imageBuilt} label={t("imageBuilt")} />
+                        <StatusIndicator ok={status.modelsDownloaded} label={t("modelsDownloaded")} />
+                        <StatusIndicator ok={status.containerRunning} label={t("containerRunning")} />
+                        <StatusIndicator ok={status.apiHealthy} label={t("apiHealthy")} />
                         <div className="flex items-center gap-2">
                             <Button variant="ghost" size="sm" onClick={checkStatus} disabled={loading}>
                                 <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                             </Button>
-                            <span className="text-xs text-muted-foreground">Refresh Status</span>
+                            <span className="text-xs text-muted-foreground">{t("refreshStatus")}</span>
                         </div>
                     </div>
                 )}
@@ -310,7 +311,7 @@ export function ComfyUIInstaller({
                             ) : (
                                 <Rocket className="h-4 w-4 mr-2" />
                             )}
-                            Setup ComfyUI (Build + Download ~12GB Models)
+                            {t("setupButton")}
                         </Button>
                     )}
 
@@ -318,7 +319,7 @@ export function ComfyUIInstaller({
                     {status && !status.dockerInstalled && (
                         <Alert>
                             <AlertDescription>
-                                Docker is required. Please install <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener noreferrer" className="underline text-blue-500">Docker Desktop</a> first.
+                                {t("dockerRequired")}
                             </AlertDescription>
                         </Alert>
                     )}
@@ -329,12 +330,12 @@ export function ComfyUIInstaller({
                             {status?.containerRunning ? (
                                 <Button onClick={handleStop} disabled={loading} variant="destructive">
                                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <StopCircle className="h-4 w-4 mr-2" />}
-                                    Stop ComfyUI
+                                    {t("stopComfyUI")}
                                 </Button>
                             ) : (
                                 <Button onClick={handleStart} disabled={loading}>
                                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                                    Start ComfyUI
+                                    {t("startComfyUI")}
                                 </Button>
                             )}
                         </>
@@ -344,12 +345,12 @@ export function ComfyUIInstaller({
                 {/* Setup Info - only show when not yet set up */}
                 {needsSetup && (
                     <div className="text-xs text-muted-foreground space-y-1">
-                        <p><strong>One-click setup will:</strong></p>
+                        <p><strong>{t("setupWillTitle")}</strong></p>
                         <ul className="list-disc list-inside ml-2">
-                            <li>Build Docker images (~10-20 min first time)</li>
-                            <li>Download z-image-turbo-fp8-aio.safetensors (~11GB)</li>
-                            <li>Download z-image-detailer.safetensors (~1.2GB)</li>
-                            <li>Start ComfyUI containers</li>
+                            <li>{t("setupStep1")}</li>
+                            <li>{t("setupStep2")}</li>
+                            <li>{t("setupStep3")}</li>
+                            <li>{t("setupStep4")}</li>
                         </ul>
                     </div>
                 )}
@@ -363,18 +364,18 @@ export function ComfyUIInstaller({
                         className="text-muted-foreground hover:text-foreground"
                     >
                         {showAdvanced ? <ChevronUp className="h-4 w-4 mr-2" /> : <ChevronDown className="h-4 w-4 mr-2" />}
-                        Advanced Settings
+                        {t("advancedSettings")}
                     </Button>
 
                     {showAdvanced && (
                         <div className="mt-4 space-y-4">
                             <div className="space-y-2">
-                                <Label>ComfyUI Backend Path</Label>
+                                <Label>{t("backendPath")}</Label>
                                 <div className="flex gap-2">
                                     <Input
                                         value={backendPath}
                                         onChange={(e) => onBackendPathChange(e.target.value)}
-                                        placeholder="Auto-detected path or custom location"
+                                        placeholder={t("backendPathPlaceholder")}
                                         className="flex-1 text-xs"
                                     />
                                     <Button variant="outline" size="sm" onClick={checkStatus} disabled={loading}>
@@ -382,7 +383,7 @@ export function ComfyUIInstaller({
                                     </Button>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Override the default location for ComfyUI backend files and models.
+                                    {t("backendPathDesc")}
                                 </p>
                             </div>
                         </div>

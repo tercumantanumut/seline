@@ -10,6 +10,7 @@ import {
   type FC,
   type ReactNode,
 } from "react";
+import { useTranslations } from "next-intl";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +50,7 @@ interface VoiceProviderProps {
 }
 
 export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
+  const t = useTranslations("assistantUi.voiceTool");
   const [voice, setVoice] = useState<VoiceState>({
     isPlaying: false,
     isSynthesizing: false,
@@ -114,7 +116,7 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
           isPlaying: false,
           isSynthesizing: false,
           currentAudioUrl: undefined,
-          error: "Failed to play audio",
+          error: t("playFailed"),
         }));
       };
 
@@ -124,7 +126,7 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
           ...prev,
           isPlaying: false,
           isSynthesizing: false,
-          error: "Audio playback blocked by browser",
+          error: t("playbackBlocked"),
         }));
       });
     },

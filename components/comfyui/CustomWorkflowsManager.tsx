@@ -16,6 +16,7 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientPut, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type { CustomComfyUIInput, CustomComfyUIOutput, CustomComfyUIWorkflow } from "@/lib/comfyui/custom/types";
 
@@ -107,6 +108,7 @@ export function CustomWorkflowsManager({
   onConnectionUseHttpsChange,
   onConnectionAutoDetectChange,
 }: CustomWorkflowsManagerProps) {
+  const t = useTranslations("comfyui.workflows");
   const [workflows, setWorkflows] = useState<CustomComfyUIWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState<string>("new");
   const [loading, setLoading] = useState(false);
@@ -184,7 +186,7 @@ export function CustomWorkflowsManager({
       if (error) throw new Error(error);
       setWorkflows(data?.workflows || []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load workflows");
+      toast.error(error instanceof Error ? error.message : t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -229,9 +231,9 @@ export function CustomWorkflowsManager({
         });
       });
       setOutputs(data.outputs || []);
-      toast.success("Workflow analyzed");
+      toast.success(t("analyzed"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow analysis failed");
+      toast.error(error instanceof Error ? error.message : t("analysisFailed"));
     } finally {
       setAnalyzing(false);
     }
@@ -243,7 +245,7 @@ export function CustomWorkflowsManager({
       const parsed = parseWorkflowJson();
       setWorkflowText(JSON.stringify(parsed, null, 2));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to format JSON");
+      toast.error(error instanceof Error ? error.message : t("formatFailed"));
     }
   };
 
@@ -293,11 +295,11 @@ export function CustomWorkflowsManager({
       if (saveError || !data) {
         throw new Error(data?.error || saveError || "Failed to save workflow");
       }
-      toast.success("Workflow saved");
+      toast.success(t("saved"));
       setSelectedId(data.workflow?.id || "new");
       await loadWorkflows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow save failed");
+      toast.error(error instanceof Error ? error.message : t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -311,12 +313,12 @@ export function CustomWorkflowsManager({
       if (deleteError) {
         throw new Error(deleteError);
       }
-      toast.success("Workflow deleted");
+      toast.success(t("deleted"));
       setSelectedId("new");
       resetForm();
       await loadWorkflows();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Workflow delete failed");
+      toast.error(error instanceof Error ? error.message : t("deleteFailed"));
     } finally {
       setSaving(false);
     }
@@ -333,9 +335,9 @@ export function CustomWorkflowsManager({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-terminal-text">Create Workflow</h3>
+        <h3 className="text-lg font-semibold text-terminal-text">{t("createWorkflow")}</h3>
         <p className="text-sm text-terminal-muted">
-          Configure external instances and define new custom workflows.
+          {t("createWorkflowDescription")}
         </p>
       </div>
 
@@ -346,14 +348,14 @@ export function CustomWorkflowsManager({
               <Wrench className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-terminal-text">Connection Settings</p>
-              <p className="text-xs text-terminal-muted">Target ComfyUI instance configuration</p>
+              <p className="text-sm font-semibold text-terminal-text">{t("connection.heading")}</p>
+              <p className="text-xs text-terminal-muted">{t("connection.description")}</p>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Host</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("connection.hostLabel")}</label>
               <input
                 type="text"
                 value={connectionHost}
@@ -363,7 +365,7 @@ export function CustomWorkflowsManager({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Port</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("connection.portLabel")}</label>
               <input
                 type="number"
                 value={connectionPort}
@@ -384,7 +386,7 @@ export function CustomWorkflowsManager({
                 onCheckedChange={onConnectionUseHttpsChange}
                 className="data-[state=checked]:bg-terminal-green"
               />
-              <span className="text-xs text-terminal-text">Use Secure Connection (HTTPS)</span>
+              <span className="text-xs text-terminal-text">{t("connection.useHttps")}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-md border border-terminal-border bg-terminal-bg/60 text-terminal-muted">
@@ -395,12 +397,12 @@ export function CustomWorkflowsManager({
                 onCheckedChange={onConnectionAutoDetectChange}
                 className="data-[state=checked]:bg-terminal-green"
               />
-              <span className="text-xs text-terminal-text">Auto-detect Local Port</span>
+              <span className="text-xs text-terminal-text">{t("connection.autoDetect")}</span>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-terminal-muted">Base URL Preview</label>
+            <label className="mb-1 block text-xs text-terminal-muted">{t("connection.baseUrlLabel")}</label>
             <input
               type="text"
               value={baseUrlPreview}
@@ -416,8 +418,8 @@ export function CustomWorkflowsManager({
               <Workflow className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-terminal-text">Workflow Metadata</p>
-              <p className="text-xs text-terminal-muted">Define identity and behavior</p>
+              <p className="text-sm font-semibold text-terminal-text">{t("metadata.heading")}</p>
+              <p className="text-xs text-terminal-muted">{t("metadata.description")}</p>
             </div>
           </div>
 
@@ -426,7 +428,7 @@ export function CustomWorkflowsManager({
             onChange={(event) => setSelectedId(event.target.value)}
             className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text"
           >
-            <option value="new">Create New Workflow</option>
+            <option value="new">{t("metadata.createNew")}</option>
             {workflows.map((workflow) => (
               <option key={workflow.id} value={workflow.id}>
                 {workflow.name}
@@ -436,45 +438,45 @@ export function CustomWorkflowsManager({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Name</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("metadata.nameLabel")}</label>
               <input
                 type="text"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Flux Dev Landscape"
+                placeholder={t("metadata.namePlaceholder")}
                 className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60"
               />
             </div>
             <div className="flex items-center gap-2 pt-5">
               <Switch checked={enabled} onCheckedChange={setEnabled} className="data-[state=checked]:bg-terminal-green" />
-              <span className="text-xs text-terminal-text">Enabled</span>
+              <span className="text-xs text-terminal-text">{t("metadata.enabledLabel")}</span>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-terminal-muted">Description</label>
+            <label className="mb-1 block text-xs text-terminal-muted">{t("metadata.descriptionLabel")}</label>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Briefly describe what this workflow does..."
+              placeholder={t("metadata.descriptionPlaceholder")}
               className="min-h-[80px] w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60"
             />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Loading Mode</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("metadata.loadingModeLabel")}</label>
               <select
                 value={loadingMode}
                 onChange={(event) => setLoadingMode(event.target.value as "always" | "deferred")}
                 className="w-full rounded border border-terminal-border bg-terminal-bg/50 px-3 py-2 text-sm text-terminal-text"
               >
-                <option value="deferred">Deferred</option>
-                <option value="always">Always</option>
+                <option value="deferred">{t("metadata.loadingDeferred")}</option>
+                <option value="always">{t("metadata.loadingAlways")}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Timeout (s)</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("metadata.timeoutLabel")}</label>
               <input
                 type="number"
                 value={timeoutSeconds}
@@ -486,10 +488,10 @@ export function CustomWorkflowsManager({
 
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={loadWorkflows} disabled={loading}>
-              {loading ? "Loading..." : "Refresh"}
+              {loading ? t("metadata.loading") : t("metadata.refresh")}
             </Button>
             <Button variant="outline" onClick={resetForm}>
-              Clear
+              {t("metadata.clear")}
             </Button>
           </div>
         </div>
@@ -502,18 +504,18 @@ export function CustomWorkflowsManager({
               <Braces className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-terminal-text">Workflow Definition</p>
-              <p className="text-xs text-terminal-muted">Paste ComfyUI JSON or upload a file.</p>
+              <p className="text-sm font-semibold text-terminal-text">{t("definition.heading")}</p>
+              <p className="text-xs text-terminal-muted">{t("definition.description")}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleFormatJson}>
               <Braces className="h-3.5 w-3.5 mr-2" />
-              Format JSON
+              {t("definition.formatJson")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => workflowFileRef.current?.click()}>
               <FileJson className="h-3.5 w-3.5 mr-2" />
-              Load from File
+              {t("definition.loadFromFile")}
             </Button>
             <input
               ref={workflowFileRef}
@@ -534,7 +536,7 @@ export function CustomWorkflowsManager({
         <Textarea
           value={workflowText}
           onChange={(event) => setWorkflowText(event.target.value)}
-          placeholder="Paste ComfyUI API JSON here (exported with Save (API Format))."
+          placeholder={t("definition.placeholder")}
           className="min-h-[220px] font-mono text-xs text-terminal-text"
         />
 
@@ -546,20 +548,20 @@ export function CustomWorkflowsManager({
               onChange={(event) => setValidateWithComfyUI(event.target.checked)}
               className="size-4 accent-terminal-green"
             />
-            Validate with /object_info
+            {t("definition.validateWithObjectInfo")}
           </label>
           <Button onClick={handleAnalyze} disabled={analyzing}>
-            {analyzing ? "Analyzing..." : "Analyze"}
+            {analyzing ? t("definition.analyzing") : t("definition.analyze")}
           </Button>
         </div>
 
         <details className="rounded-lg border border-terminal-border/60 bg-terminal-bg/40 p-3">
           <summary className="cursor-pointer text-xs text-terminal-muted">
-            Override ComfyUI target (optional)
+            {t("definition.overrideTarget")}
           </summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Base URL Override</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("definition.baseUrlOverride")}</label>
               <input
                 type="text"
                 value={comfyuiBaseUrl}
@@ -569,7 +571,7 @@ export function CustomWorkflowsManager({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Host Override</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("definition.hostOverride")}</label>
               <input
                 type="text"
                 value={comfyuiHost}
@@ -578,7 +580,7 @@ export function CustomWorkflowsManager({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-terminal-muted">Port Override</label>
+              <label className="mb-1 block text-xs text-terminal-muted">{t("definition.portOverride")}</label>
               <input
                 type="number"
                 value={comfyuiPort}
@@ -597,8 +599,8 @@ export function CustomWorkflowsManager({
               <SlidersHorizontal className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-terminal-text">Inputs Configuration</p>
-              <p className="text-xs text-terminal-muted">Map incoming data to workflow nodes.</p>
+              <p className="text-sm font-semibold text-terminal-text">{t("inputs.heading")}</p>
+              <p className="text-xs text-terminal-muted">{t("inputs.description")}</p>
             </div>
           </div>
           <Button
@@ -608,22 +610,22 @@ export function CustomWorkflowsManager({
             className="border-terminal-green/60 text-terminal-green hover:text-terminal-green"
           >
             <Plus className="h-3.5 w-3.5 mr-2" />
-            Add Input
+            {t("inputs.addInput")}
           </Button>
         </div>
 
         {inputs.length === 0 ? (
-          <p className="text-xs text-terminal-muted">No inputs detected yet.</p>
+          <p className="text-xs text-terminal-muted">{t("inputs.noInputs")}</p>
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 text-[11px] uppercase tracking-wide text-terminal-muted sm:grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr_0.9fr_0.5fr]">
-              <span>Input Name</span>
-              <span>Type</span>
-              <span>Node ID</span>
-              <span>Parameter</span>
-              <span>Default</span>
-              <span>Opts</span>
-              <span>Action</span>
+              <span>{t("inputs.columnName")}</span>
+              <span>{t("inputs.columnType")}</span>
+              <span>{t("inputs.columnNodeId")}</span>
+              <span>{t("inputs.columnParameter")}</span>
+              <span>{t("inputs.columnDefault")}</span>
+              <span>{t("inputs.columnOpts")}</span>
+              <span>{t("inputs.columnAction")}</span>
             </div>
             {inputs.map((input, index) => (
               <div key={input.id} className="rounded-lg border border-terminal-border/70 bg-terminal-bg/40 p-3 space-y-2">
@@ -675,7 +677,7 @@ export function CustomWorkflowsManager({
                         onChange={(event) => updateInput(index, { required: event.target.checked })}
                         className="size-3 accent-terminal-green"
                       />
-                      Required
+                      {t("inputs.required")}
                     </label>
                     <label className="flex items-center gap-2">
                       <input
@@ -684,7 +686,7 @@ export function CustomWorkflowsManager({
                         onChange={(event) => updateInput(index, { multiple: event.target.checked })}
                         className="size-3 accent-terminal-green"
                       />
-                      Multiple
+                      {t("inputs.multiple")}
                     </label>
                     <label className="flex items-center gap-2">
                       <input
@@ -693,7 +695,7 @@ export function CustomWorkflowsManager({
                         onChange={(event) => updateInput(index, { enabled: event.target.checked })}
                         className="size-3 accent-terminal-green"
                       />
-                      Expose
+                      {t("inputs.expose")}
                     </label>
                   </div>
                   <Button
@@ -701,7 +703,7 @@ export function CustomWorkflowsManager({
                     size="sm"
                     onClick={() => setInputs((prev) => prev.filter((_, idx) => idx !== index))}
                   >
-                    Remove
+                    {t("inputs.remove")}
                   </Button>
                 </div>
                 <input
@@ -715,7 +717,7 @@ export function CustomWorkflowsManager({
                         .filter(Boolean),
                     })
                   }
-                  placeholder="Enum values (comma-separated)"
+                  placeholder={t("inputs.enumPlaceholder")}
                   className="w-full rounded border border-terminal-border bg-terminal-bg/60 px-2 py-1 text-xs text-terminal-text"
                 />
               </div>
@@ -731,8 +733,8 @@ export function CustomWorkflowsManager({
               <Package className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-terminal-text">Outputs</p>
-              <p className="text-xs text-terminal-muted">Define what this workflow returns.</p>
+              <p className="text-sm font-semibold text-terminal-text">{t("outputs.heading")}</p>
+              <p className="text-xs text-terminal-muted">{t("outputs.description")}</p>
             </div>
           </div>
           <Button
@@ -742,12 +744,12 @@ export function CustomWorkflowsManager({
             className="border-terminal-green/60 text-terminal-green hover:text-terminal-green"
           >
             <Plus className="h-3.5 w-3.5 mr-2" />
-            Add Output
+            {t("outputs.addOutput")}
           </Button>
         </div>
 
         {outputs.length === 0 ? (
-          <p className="text-xs text-terminal-muted">No outputs detected yet.</p>
+          <p className="text-xs text-terminal-muted">{t("outputs.noOutputs")}</p>
         ) : (
           <div className="space-y-3">
             {outputs.map((output, index) => (
@@ -789,7 +791,7 @@ export function CustomWorkflowsManager({
                   size="sm"
                   onClick={() => setOutputs((prev) => prev.filter((_, idx) => idx !== index))}
                 >
-                  Remove
+                  {t("outputs.remove")}
                 </Button>
               </div>
             ))}
@@ -799,10 +801,10 @@ export function CustomWorkflowsManager({
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save workflow"}
+          {saving ? t("saving") : t("save")}
         </Button>
         <Button variant="outline" onClick={handleDelete} disabled={saving || selectedId === "new"}>
-          Delete
+          {t("delete")}
         </Button>
       </div>
     </div>

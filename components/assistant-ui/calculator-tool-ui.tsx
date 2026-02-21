@@ -4,6 +4,7 @@ import { FC, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Calculator, Copy, Check, AlertCircle, Hash, Pi, Sigma, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 /** Result type from calculator tool */
 interface CalculatorResult {
@@ -62,6 +63,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     args,
     result,
 }) => {
+    const t = useTranslations("assistantUi.calculator");
     const [copied, setCopied] = useState(false);
     const [expanded, setExpanded] = useState(false);
 
@@ -98,7 +100,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">Calculating</span>
+                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">{t("calculating")}</span>
                         </div>
                         <code className="block mt-1 font-mono text-sm text-terminal-dark truncate">
                             {expression}
@@ -120,7 +122,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-red-600 uppercase tracking-wider">Error</span>
+                            <span className="text-xs font-medium text-red-600 uppercase tracking-wider">{t("calcError")}</span>
                         </div>
                         <code className="block mt-1 font-mono text-sm text-terminal-dark">
                             {expression}
@@ -167,7 +169,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                                 className="mt-1 flex items-center gap-1 text-xs text-terminal-muted hover:text-terminal-dark transition-colors"
                             >
                                 {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                {expanded ? "Show less" : "Show more"}
+                                {expanded ? t("showLess") : t("showMore")}
                             </button>
                         )}
                     </div>
@@ -179,7 +181,8 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                                 ? "bg-terminal-green/20 text-terminal-green"
                                 : "hover:bg-terminal-dark/5 text-terminal-muted hover:text-terminal-dark"
                         )}
-                        title="Copy result"
+                        title={t("copyResult")}
+                        aria-label={t("copyResult")}
                     >
                         {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>

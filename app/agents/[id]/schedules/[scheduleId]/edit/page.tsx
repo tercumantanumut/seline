@@ -22,6 +22,7 @@ export default function EditSchedulePage({
 }) {
     const { id: characterId, scheduleId } = use(params);
     const tc = useTranslations("common");
+    const t = useTranslations("schedules");
 
     const [character, setCharacter] = useState<CharacterBasic | null>(null);
     const [schedule, setSchedule] = useState<ScheduledTask | null>(null);
@@ -38,11 +39,11 @@ export default function EditSchedulePage({
                     const charData = await charResponse.json();
                     setCharacter(charData.character);
                 } else if (charResponse.status === 404) {
-                    setError("Agent not found");
+                    setError(t("agentNotFound"));
                     setIsLoading(false);
                     return;
                 } else if (charResponse.status === 403) {
-                    setError("Access denied");
+                    setError(t("accessDenied"));
                     setIsLoading(false);
                     return;
                 }
@@ -53,13 +54,13 @@ export default function EditSchedulePage({
                     const scheduleData = await scheduleResponse.json();
                     setSchedule(scheduleData.schedule);
                 } else if (scheduleResponse.status === 404) {
-                    setError("Schedule not found");
+                    setError(t("scheduleNotFound"));
                 } else if (scheduleResponse.status === 403) {
-                    setError("Access denied");
+                    setError(t("accessDenied"));
                 }
             } catch (err) {
                 console.error("Failed to load data:", err);
-                setError("Failed to load schedule");
+                setError(t("loadScheduleFailed"));
             } finally {
                 setIsLoading(false);
             }
@@ -75,7 +76,7 @@ export default function EditSchedulePage({
         });
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.error || "Failed to update schedule");
+            throw new Error(errorData.error || t("updateScheduleFailed"));
         }
     };
 

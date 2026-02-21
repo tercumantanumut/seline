@@ -26,6 +26,7 @@ import { MEMORY_CATEGORIES } from "@/lib/agent-memory/types";
 import { MemoryCard } from "@/components/agent-memory/memory-card";
 import { MemoryForm } from "@/components/agent-memory/memory-form";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 type FilterType = "all" | "pending" | "approved";
 
@@ -113,6 +114,7 @@ export default function AgentMemoryPage({
       }
     } catch (err) {
       console.error("Failed to approve memory:", err);
+      toast.error(t("errors.approveFailed"));
     }
   };
 
@@ -131,6 +133,7 @@ export default function AgentMemoryPage({
       }
     } catch (err) {
       console.error("Failed to reject memory:", err);
+      toast.error(t("errors.rejectFailed"));
     }
   };
 
@@ -147,6 +150,7 @@ export default function AgentMemoryPage({
       }
     } catch (err) {
       console.error("Failed to delete memory:", err);
+      toast.error(t("errors.deleteFailed"));
     }
   };
 
@@ -163,6 +167,7 @@ export default function AgentMemoryPage({
       }
     } catch (err) {
       console.error("Failed to add memory:", err);
+      toast.error(t("errors.addFailed"));
     }
   };
 

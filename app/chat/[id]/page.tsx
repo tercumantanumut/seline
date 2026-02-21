@@ -25,6 +25,20 @@ interface Props {
   searchParams: Promise<{ sessionId?: string; new?: string }>;
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: characterId } = await params;
+    const char = await getCharacterFull(characterId);
+    const name = char?.displayName || char?.name;
+    if (name) {
+      return { title: `${name} — Seline` };
+    }
+  } catch {
+    // fall through
+  }
+  return { title: "Chat — Seline" };
+}
+
 export default async function CharacterChatPage({ params, searchParams }: Props) {
   const { id: characterId } = await params;
   const { sessionId: sessionIdFromUrl, new: forceNew } = await searchParams;

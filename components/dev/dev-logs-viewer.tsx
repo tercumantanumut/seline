@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Terminal, X, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 interface LogEntry {
     timestamp: string;
@@ -16,6 +17,7 @@ interface LogEntry {
  * Shows real-time logs from the main process with error toasts for critical issues.
  */
 export function DevLogsViewer() {
+    const t = useTranslations("dev");
     const [isElectron, setIsElectron] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -54,7 +56,7 @@ export function DevLogsViewer() {
         // Listen for critical errors
         electron.logs.onCritical((data: { type: string; message: string }) => {
             if (data.type === "dimension_mismatch") {
-                toast.error("Embedding dimension mismatch. Re-sync your folders in Settings to fix.", {
+                toast.error(t("dimensionMismatch"), {
                     duration: 10000,
                 });
             }

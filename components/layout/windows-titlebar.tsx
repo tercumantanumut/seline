@@ -37,7 +37,7 @@ export function WindowsTitleBar({ className }: WindowsTitleBarProps) {
           type="button"
           onClick={() => window.electronAPI?.window.minimize()}
           className="flex h-7 w-10 items-center justify-center rounded-md text-terminal-muted transition-colors hover:bg-terminal-dark/10 hover:text-terminal-dark"
-          aria-label="Minimize window"
+          aria-label={t("minimizeWindow")}
         >
           <MinusIcon className="h-3.5 w-3.5" />
         </button>
@@ -45,7 +45,7 @@ export function WindowsTitleBar({ className }: WindowsTitleBarProps) {
           type="button"
           onClick={() => window.electronAPI?.window.maximize()}
           className="flex h-7 w-10 items-center justify-center rounded-md text-terminal-muted transition-colors hover:bg-terminal-dark/10 hover:text-terminal-dark"
-          aria-label="Maximize window"
+          aria-label={t("maximizeWindow")}
         >
           <SquareIcon className="h-3.5 w-3.5" />
         </button>
@@ -53,7 +53,7 @@ export function WindowsTitleBar({ className }: WindowsTitleBarProps) {
           type="button"
           onClick={() => window.electronAPI?.window.close()}
           className="flex h-7 w-10 items-center justify-center rounded-md text-terminal-muted transition-colors hover:bg-red-500/90 hover:text-white"
-          aria-label="Close window"
+          aria-label={t("closeWindow")}
         >
           <XIcon className="h-3.5 w-3.5" />
         </button>

@@ -166,6 +166,7 @@ export const TOOL_DISCOVERY_MINIMAL = `## Tool Discovery & Codebase Search
 **When user says "search the codebase" or "find X in the code":**
 → Use \`localGrep\` for exact text/regex patterns
 → Default \`localGrep\` to literal mode (\`regex: false\`) unless user explicitly asks for regex
+→ Start narrow to avoid bloat: keep \`maxResults\` near 20 and low \`contextLines\`, then expand only if needed
 → If regex mode fails with parse errors, suggest escaping metacharacters or switching to literal mode
 → Use \`vectorSearch\` for conceptual/semantic search
 
@@ -200,6 +201,7 @@ Only use \`searchTools\` if you need to confirm a capability or view detailed us
 **When user says "search the codebase" or "find X in the code":**
 → Use \`localGrep\` for exact text/regex patterns
 → Default \`localGrep\` to literal mode (\`regex: false\`) unless user explicitly asks for regex
+→ Start narrow to avoid bloat: keep \`maxResults\` near 20 and low \`contextLines\`, then expand only if needed
 → If regex mode fails with parse errors, suggest escaping metacharacters or switching to literal mode
 → Use \`vectorSearch\` for conceptual/semantic search`;
 

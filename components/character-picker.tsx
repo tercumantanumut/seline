@@ -263,6 +263,7 @@ function AgentOverflowMenu({
   onRemoveFromWorkflow,
   removeFromWorkflowLabel,
 }: AgentOverflowMenuProps) {
+  const t = useTranslations("picker");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -283,37 +284,37 @@ function AgentOverflowMenu({
       >
         <DropdownMenuItem onSelect={() => onEditIdentity(character)}>
           <Pencil className="w-3.5 h-3.5 mr-2" />
-          Edit Info
+          {t("menu.editInfo")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditTools(character)}>
           <Wrench className="w-3.5 h-3.5 mr-2" />
-          Manage Tools
+          {t("menu.manageTools")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditFolders(character)}>
           <DatabaseIcon className="w-3.5 h-3.5 mr-2" />
-          Sync Folders
+          {t("menu.syncFolders")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditMcp(character)}>
           <Plug className="w-3.5 h-3.5 mr-2" />
-          MCP Tools
+          {t("menu.mcpTools")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditPlugins(character)}>
           <Puzzle className="w-3.5 h-3.5 mr-2" />
-          Plugins
+          {t("menu.plugins")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onNavigateDashboard}>
           <BarChart2 className="w-3.5 h-3.5 mr-2" />
-          Dashboard
+          {t("menu.dashboard")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onDuplicate(character.id)}>
           <Copy className="w-3.5 h-3.5 mr-2" />
-          Duplicate
+          {t("menu.duplicate")}
         </DropdownMenuItem>
         {showAddToWorkflow && (
           <DropdownMenuItem onSelect={() => onAddToWorkflow?.(character)} disabled={!canAddToWorkflow}>
             <GitBranchPlus className="w-3.5 h-3.5 mr-2" />
-            {addToWorkflowLabel || "Add to Workflow..."}
+            {addToWorkflowLabel}
           </DropdownMenuItem>
         )}
         {onRemoveFromWorkflow && removeFromWorkflowLabel && (
@@ -334,7 +335,7 @@ function AgentOverflowMenu({
           className="text-red-600 focus:text-red-600"
         >
           <Trash2 className="w-3.5 h-3.5 mr-2" />
-          Delete
+          {t("menu.delete")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -778,7 +779,7 @@ export function CharacterPicker() {
   const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
 
   // Search/filter state
-  const [searchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch settings to check if Vector Search and Developer Workspace are enabled
   useEffect(() => {
@@ -1239,6 +1240,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save tools:", error);
+      toast.error(t("saveToolsFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -1289,6 +1291,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save identity:", error);
+      toast.error(t("saveIdentityFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -1366,6 +1369,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to delete character:", error);
+      toast.error(t("deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
@@ -1410,6 +1414,7 @@ export function CharacterPicker() {
       );
     } catch (error) {
       console.error("Failed to load agent plugins:", error);
+      toast.error(t("plugins.loadFailed"));
       setAgentPlugins([]);
     } finally {
       setLoadingAgentPlugins(false);
@@ -1444,6 +1449,7 @@ export function CharacterPicker() {
       });
     } catch (error) {
       console.error("Failed to update agent plugin:", error);
+      toast.error(t("plugins.updateFailed"));
     } finally {
       setSavingPluginId(null);
     }
@@ -1496,6 +1502,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save MCP tools:", error);
+      toast.error(t("saveMcpFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -1562,8 +1569,30 @@ export function CharacterPicker() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8 bg-terminal-cream min-h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-terminal-green" />
+      <div className="flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
+        <div className="text-center space-y-2">
+          <div className="h-7 w-48 bg-muted rounded mx-auto animate-pulse" />
+          <div className="h-4 w-72 bg-muted/60 rounded mx-auto animate-pulse" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-terminal-border/40 bg-terminal-cream/60 p-4 space-y-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-muted/60 shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-4 bg-muted/60 rounded w-3/4" />
+                  <div className="h-3 bg-muted/40 rounded w-1/2" />
+                </div>
+              </div>
+              <div className="h-3 bg-muted/40 rounded w-full" />
+              <div className="h-3 bg-muted/40 rounded w-4/5" />
+              <div className="flex gap-1.5 mt-2">
+                <div className="h-5 w-14 bg-muted/40 rounded-full" />
+                <div className="h-5 w-10 bg-muted/40 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1583,7 +1612,7 @@ export function CharacterPicker() {
         <WorkspaceDashboard
           onNavigateToSession={(sessionId, agentId) => {
             if (agentId) {
-              router.push(`/chat/${agentId}?session=${sessionId}`);
+              router.push(`/chat/${agentId}?sessionId=${sessionId}`);
             }
           }}
         />
@@ -1947,6 +1976,21 @@ export function CharacterPicker() {
         </div>
       )}
 
+      {/* Agent search — only shown when there are enough agents to warrant filtering */}
+      {characters.length > 4 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-terminal-muted pointer-events-none" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setSearchQuery("")}
+            placeholder={t("searchPlaceholder")}
+            className="w-full pl-10 pr-4 py-2 bg-terminal-bg/30 border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
+          />
+        </div>
+      )}
+
       <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {/* Create New Agent Card */}
         <AnimatedCard
@@ -1994,6 +2038,20 @@ export function CharacterPicker() {
           />
         ))}
       </div>
+
+      {/* Empty state - search returned no results */}
+      {characters.length > 0 && standaloneCharacters.length === 0 && searchQuery.trim() !== "" && (
+        <div className="text-center py-8">
+          <p className="font-mono text-sm text-terminal-muted">{t("noResults", { query: searchQuery.trim() })}</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="mt-2 font-mono text-xs text-terminal-green hover:underline"
+          >
+            {t("clearSearch")}
+          </button>
+        </div>
+      )}
 
       {/* Empty state - no agents created yet */}
       {characters.length === 0 && (

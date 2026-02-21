@@ -370,7 +370,7 @@ describe("spawnWithFileCapture", () => {
 
     it("captures stdout and returns exitCode 0 for a successful command", async () => {
         const result = await spawnWithFileCapture(
-            "echo", ["hello from file capture"],
+            "node", ["-e", "console.log('hello from file capture')"],
             process.cwd(), env, 10_000, 1048576,
         );
         expect(result.exitCode).toBe(0);
@@ -380,7 +380,7 @@ describe("spawnWithFileCapture", () => {
 
     it("captures stderr for a command that writes to stderr", async () => {
         const result = await spawnWithFileCapture(
-            "/bin/sh", ["-c", "echo err-output >&2; exit 1"],
+            "node", ["-e", "console.error('err-output'); process.exit(1)"],
             process.cwd(), env, 10_000, 1048576,
         );
         expect(result.exitCode).toBe(1);
@@ -389,7 +389,7 @@ describe("spawnWithFileCapture", () => {
 
     it("handles arguments with spaces correctly", async () => {
         const result = await spawnWithFileCapture(
-            "echo", ["hello world", "foo bar"],
+            "node", ["-e", "console.log(process.argv.slice(1).join('|'))", "hello world", "foo bar"],
             process.cwd(), env, 10_000, 1048576,
         );
         expect(result.exitCode).toBe(0);
@@ -399,7 +399,7 @@ describe("spawnWithFileCapture", () => {
 
     it("handles arguments with single quotes correctly", async () => {
         const result = await spawnWithFileCapture(
-            "echo", ["it's a test"],
+            "node", ["-e", "console.log(process.argv.slice(1).join(' '))", "it's", "a", "test"],
             process.cwd(), env, 10_000, 1048576,
         );
         expect(result.exitCode).toBe(0);
@@ -408,7 +408,7 @@ describe("spawnWithFileCapture", () => {
 
     it("respects the timeout and sets timedOut=true", async () => {
         const result = await spawnWithFileCapture(
-            "sleep", ["10"],
+            "node", ["-e", "setInterval(() => {}, 10_000)"],
             process.cwd(), env, 300 /* 300 ms */, 1048576,
         );
         expect(result.timedOut).toBe(true);
@@ -417,7 +417,7 @@ describe("spawnWithFileCapture", () => {
     it("truncates output that exceeds maxOutputSize", async () => {
         // Write 100 bytes but limit to 50
         const result = await spawnWithFileCapture(
-            "/bin/sh", ["-c", "printf '%0.s-' {1..100}"],
+            "node", ["-e", "process.stdout.write('-'.repeat(100))"],
             process.cwd(), env, 10_000, 50,
         );
         expect(result.stdout.length).toBeLessThanOrEqual(50);
@@ -429,7 +429,7 @@ describe("spawnWithFileCapture", () => {
         const beforeFiles = (await readdir(tmpdir())).filter(f => f.startsWith("seline-exec-"));
 
         await spawnWithFileCapture(
-            "echo", ["cleanup-test"],
+            "node", ["-e", "console.log('cleanup-test')"],
             process.cwd(), env, 10_000, 1048576,
         );
 
@@ -475,12 +475,10 @@ describe("executeCommand EBADF fallback", () => {
     });
 
     it("spawnWithFileCapture handles a failing command and returns non-zero exitCode", async () => {
-        if (process.platform === "win32") return;
-
         const env = process.env as NodeJS.ProcessEnv;
 
         const result = await spawnWithFileCapture(
-            "/bin/sh", ["-c", "echo fail-output; exit 42"],
+            "node", ["-e", "console.log('fail-output'); process.exit(42)"],
             process.cwd(), env, 10_000, 1048576,
         );
 

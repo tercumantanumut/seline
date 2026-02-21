@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -124,8 +125,15 @@ const slideVariants = {
 };
 
 export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingProps) {
+  const t = useTranslations("workspace.onboarding");
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(0);
+
+  const stepTexts = [
+    { title: t("step1.title"), description: t("step1.description"), hint: t("step1.hint") },
+    { title: t("step2.title"), description: t("step2.description"), hint: t("step2.hint") },
+    { title: t("step3.title"), description: t("step3.description"), hint: t("step3.hint") },
+  ];
 
   const handleNext = useCallback(() => {
     if (step < STEPS.length - 1) {
@@ -144,6 +152,7 @@ export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingPro
   }, [onComplete]);
 
   const current = STEPS[step];
+  const currentText = stepTexts[step];
   const Icon = current.icon;
   const isLast = step === STEPS.length - 1;
 
@@ -183,12 +192,12 @@ export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingPro
 
               {/* Title */}
               <h3 className="mb-2 font-mono text-base font-medium text-terminal-dark">
-                {current.title}
+                {currentText.title}
               </h3>
 
               {/* Description */}
               <p className="mb-4 text-sm leading-relaxed text-terminal-muted">
-                {current.description}
+                {currentText.description}
               </p>
 
               {/* Visual mockup */}
@@ -198,7 +207,7 @@ export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingPro
 
               {/* Hint */}
               <p className="text-xs text-terminal-muted/60 italic">
-                {current.hint}
+                {currentText.hint}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -212,7 +221,7 @@ export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingPro
             className="text-xs font-mono text-terminal-muted"
             onClick={handleSkip}
           >
-            Skip
+            {t("skip")}
           </Button>
 
           <Button
@@ -223,11 +232,11 @@ export function WorkspaceOnboarding({ open, onComplete }: WorkspaceOnboardingPro
             {isLast ? (
               <>
                 <CheckIcon className="w-3.5 h-3.5" />
-                Got it
+                {t("gotIt")}
               </>
             ) : (
               <>
-                Next
+                {t("next")}
                 <ChevronRightIcon className="w-3.5 h-3.5" />
               </>
             )}

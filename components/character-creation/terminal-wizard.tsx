@@ -86,6 +86,8 @@ export function TerminalWizard() {
   const [hasMcpServers, setHasMcpServers] = useState<boolean | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const t = useTranslations("characterCreation.progress");
+  const tLoading = useTranslations("characterCreation.loading");
+  const tErr = useTranslations("characterCreation.errors");
   const router = useRouter();
 
   // Fetch settings to check if Vector Search is enabled
@@ -157,13 +159,13 @@ export function TerminalWizard() {
       });
 
       if (postError || !data) {
-        throw new Error(data?.error || postError || "Failed to create draft agent");
+        throw new Error(data?.error || postError || tErr("createDraftFailed"));
       }
 
       setDraftAgentId(data.character.id);
       navigateTo("knowledge");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
+      setError(err instanceof Error ? err.message : tErr("createFailed"));
       navigateTo("identity", -1);
     }
   };
@@ -270,7 +272,7 @@ export function TerminalWizard() {
         {}
       );
       if (response.error || !response.data || !response.data.characterId) {
-        throw new Error((response.data && response.data.error) || response.error || "Failed to create from template");
+        throw new Error((response.data && response.data.error) || response.error || tErr("createFromTemplateFailed"));
       }
       const createdId = response.data.characterId;
 
@@ -281,7 +283,7 @@ export function TerminalWizard() {
       }));
       navigateTo("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create from template");
+      setError(err instanceof Error ? err.message : tErr("createFromTemplateFailed"));
       navigateTo("intro", -1);
     }
   };
@@ -311,13 +313,13 @@ export function TerminalWizard() {
       });
 
       if (patchError) {
-        throw new Error(data?.error || patchError || "Failed to create agent");
+        throw new Error(data?.error || patchError || tErr("createFailed"));
       }
 
       setState((prev) => ({ ...prev, createdCharacterId: draftAgentId }));
       navigateTo("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Creation failed");
+      setError(err instanceof Error ? err.message : tErr("creationFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -338,12 +340,12 @@ export function TerminalWizard() {
             animate={{ y: 0, opacity: 1 }}
             className="absolute top-0 left-0 right-0 z-50 bg-red-500 text-white px-4 py-2 text-center font-mono text-sm"
           >
-            Error: {error}
+            {tLoading("errorPrefix")}{error}
             <button
               onClick={() => setError(null)}
               className="ml-4 underline hover:no-underline"
             >
-              Dismiss
+              {tLoading("dismiss")}
             </button>
           </motion.div>
         )}
@@ -433,19 +435,11 @@ export function TerminalWizard() {
               <LoadingPage
                 characterName={state.identity.name || "Agent"}
                 onComplete={() => { }}
-                loadingTitle={isExpandingConcept ? "Enhancing Agent Concept..." : "Configuring Agent..."}
-                customMessages={isExpandingConcept ? [
-                  "Analyzing your request...",
-                  "Drafting agent identity...",
-                  "Defining core purpose...",
-                  "Optimizing instructions...",
-                  "Finalizing profile...",
-                ] : [
-                  "Initializing agent profile...",
-                  "Setting up capabilities...",
-                  "Preparing knowledge base...",
-                  "Finalizing configuration...",
-                ]}
+                loadingTitle={isExpandingConcept ? tLoading("enhancingTitle") : tLoading("configuringTitle")}
+                customMessages={isExpandingConcept
+                  ? tLoading.raw("enhancingMessages") as string[]
+                  : tLoading.raw("configuringMessages") as string[]
+                }
               />
             )}
             {currentPage === "preview" && (

@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { ScheduleCard } from "./schedule-card";
 import { FilterBar, StatusFilter, PriorityFilter } from "./filter-bar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { ScheduledTask } from "@/lib/db/sqlite-schedule-schema";
 
 interface ScheduleListProps {
@@ -35,6 +45,7 @@ export function ScheduleList({
   const [schedules, setSchedules] = useState<ScheduleWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,11 +63,11 @@ export function ScheduleList({
       setLoading(true);
       setError(null);
       const res = await fetch(`/api/schedules?characterId=${characterId}`);
-      if (!res.ok) throw new Error("Failed to load schedules");
+      if (!res.ok) throw new Error(t("loadSchedulesFailed"));
       const data = await res.json();
       setSchedules(data.schedules || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schedules");
+      setError(err instanceof Error ? err.message : t("loadSchedulesFailed"));
     } finally {
       setLoading(false);
     }
@@ -109,7 +120,7 @@ export function ScheduleList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to update schedule");
+      if (!res.ok) throw new Error(t("updateScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to update schedule:", err);
@@ -117,20 +128,27 @@ export function ScheduleList({
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      const res = await fetch(`/api/schedules/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete schedule");
+      const res = await fetch(`/api/schedules/${deleteConfirmId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(t("deleteScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to delete schedule:", err);
+    } finally {
+      setDeleteConfirmId(null);
     }
   };
 
   const handleTrigger = async (id: string) => {
     try {
       const res = await fetch(`/api/schedules/${id}/trigger`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to trigger schedule");
+      if (!res.ok) throw new Error(t("triggerScheduleFailed"));
       await loadSchedules();
     } catch (err) {
       console.error("Failed to trigger schedule:", err);
@@ -203,7 +221,7 @@ export function ScheduleList({
         </AnimatedCard>
       ) : filteredSchedules.length === 0 && schedules.length > 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-          <p className="font-mono text-terminal-muted">No schedules match your filters</p>
+          <p className="font-mono text-terminal-muted">{t("filters.noMatch")}</p>
           <Button
             variant="ghost"
             onClick={() => {
@@ -213,7 +231,7 @@ export function ScheduleList({
             }}
             className="font-mono text-sm"
           >
-            Clear filters
+            {t("filters.clearFilters")}
           </Button>
         </div>
       ) : (
@@ -240,6 +258,24 @@ export function ScheduleList({
           })}
         </div>
       )}
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("deleteConfirmDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

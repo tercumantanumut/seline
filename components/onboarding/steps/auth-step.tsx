@@ -82,7 +82,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 );
 
                 if (popup) {
-                    popup.document.write("<p style='font-family:monospace;padding:20px'>Connecting to Google...</p>");
+                    popup.document.write(`<p style='font-family:monospace;padding:20px'>${t("connectingGoogle")}</p>`);
                 }
             }
 
@@ -99,7 +99,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             } else if (popup) {
                 popup.location.href = authData.url;
             } else {
-                toast.error("Popup blocked. Please allow popups for this site and try again.");
+                toast.error(t("popupBlocked"));
                 cleanup();
                 return;
             }
@@ -184,7 +184,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 );
 
                 if (popup) {
-                    popup.document.write("<p style='font-family:monospace;padding:20px'>Connecting to OpenAI...</p>");
+                    popup.document.write(`<p style='font-family:monospace;padding:20px'>${t("connectingOpenAI")}</p>`);
                 }
             }
 
@@ -201,7 +201,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             } else if (popup) {
                 popup.location.href = authData.url;
             } else {
-                toast.error("Popup blocked. Please allow popups for this site and try again.");
+                toast.error(t("popupBlocked"));
                 cleanup();
                 return;
             }
@@ -288,7 +288,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
 
     const handleClaudeCodePasteSubmit = async () => {
         if (!claudeCodePasteValue.trim()) {
-            setError("Please paste the authorization code");
+            setError(t("pasteCodeRequired"));
             return;
         }
 
@@ -405,23 +405,23 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             >
                                 <CheckCircle2 className="w-12 h-12 text-terminal-green mx-auto mb-4" />
                                 <p className="font-mono text-terminal-green font-semibold">
-                                    Connected to {provider === "antigravity" ? "Antigravity" : provider === "codex" ? "Codex" : "Claude Code"}!
+                                    {t("connectedTo", { name: provider === "antigravity" ? "Antigravity" : provider === "codex" ? "Codex" : "Claude Code" })}
                                 </p>
                             </motion.div>
                         ) : provider === "claudecode" && claudeCodePasteMode ? (
                             <>
                                 <div className="text-left space-y-3">
                                     <p className="text-sm text-terminal-muted font-mono">
-                                        A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.
+                                        {t("pasteInstruction")}
                                     </p>
                                     <label className="block font-mono text-sm text-terminal-muted">
-                                        Authorization Code
+                                        {t("authCodeLabel")}
                                     </label>
                                     <input
                                         type="text"
                                         value={claudeCodePasteValue}
                                         onChange={(e) => setClaudeCodePasteValue(e.target.value)}
-                                        placeholder="Paste the code here..."
+                                        placeholder={t("authCodePlaceholder")}
                                         className="w-full rounded-lg border border-terminal-border bg-white px-4 py-3 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-2 focus:ring-terminal-green/20"
                                         autoFocus
                                         onKeyDown={(e) => {
@@ -450,7 +450,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         disabled={loading}
                                         className="font-mono text-terminal-muted hover:text-terminal-dark"
                                     >
-                                        Cancel
+                                        {t("cancel")}
                                     </Button>
                                     <Button
                                         onClick={handleClaudeCodePasteSubmit}
@@ -460,10 +460,10 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         {loading ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                                Verifying...
+                                                {t("verifying")}
                                             </>
                                         ) : (
-                                            "Submit Code"
+                                            t("submitCode")
                                         )}
                                     </Button>
                                 </div>
@@ -478,12 +478,12 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                     {loading ? (
                                         <>
                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                            Connecting...
+                                            {t("connecting")}
                                         </>
                                     ) : provider === "codex" ? (
-                                        "Sign in with OpenAI"
+                                        t("signInOpenAI")
                                     ) : provider === "claudecode" ? (
-                                        "Sign in with Anthropic"
+                                        t("signInAnthropic")
                                     ) : (
                                         t("oauth.button")
                                     )}
@@ -504,7 +504,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             >
                                 <CheckCircle2 className="w-12 h-12 text-terminal-green mx-auto mb-4" />
                                 <p className="font-mono text-terminal-green font-semibold">
-                                    API Key saved!
+                                    {t("apiKeySaved")}
                                 </p>
                             </motion.div>
                         ) : (
@@ -540,10 +540,10 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                     {loading ? (
                                         <>
                                             <Loader2 className="w-4 h-4 animate-spin" />
-                                            Saving...
+                                            {t("saving")}
                                         </>
                                     ) : (
-                                        "Save API Key"
+                                        t("saveApiKey")
                                     )}
                                 </Button>
                             </>
@@ -558,7 +558,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                         className="gap-2 font-mono text-terminal-muted hover:text-terminal-dark"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back
+                        {t("back")}
                     </Button>
                     <div className="flex gap-2">
                         {!isAuthenticated && (
@@ -575,7 +575,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                             disabled={loading}
                             className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
                         >
-                            {loading ? "Saving..." : "Continue"}
+                            {loading ? t("saving") : t("continue")}
                             <ArrowRight className="w-4 h-4" />
                         </Button>
                     </div>

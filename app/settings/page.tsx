@@ -171,7 +171,7 @@ export default function SettingsPage() {
     vectorSearchMaxLineLength: 1000,
     // Local Grep settings
     localGrepEnabled: true,
-    localGrepMaxResults: 100,
+    localGrepMaxResults: 20,
     localGrepContextLines: 2,
     localGrepRespectGitignore: true,
     // Local image generation settings
@@ -223,6 +223,11 @@ export default function SettingsPage() {
     expiresAt?: number;
   } | null>(null);
   const [claudecodeLoading, setClaudecodeLoading] = useState(false);
+
+  useEffect(() => {
+    document.title = `${t("title")} — Seline`;
+    return () => { document.title = "Seline"; };
+  }, [t]);
 
   useEffect(() => {
     loadSettings();
@@ -291,7 +296,7 @@ export default function SettingsPage() {
         vectorSearchMaxLineLength: data.vectorSearchMaxLineLength ?? 1000,
         // Local Grep settings
         localGrepEnabled: data.localGrepEnabled ?? true,
-        localGrepMaxResults: data.localGrepMaxResults ?? 100,
+        localGrepMaxResults: data.localGrepMaxResults ?? 20,
         localGrepContextLines: data.localGrepContextLines ?? 2,
         localGrepRespectGitignore: data.localGrepRespectGitignore ?? true,
         // Local image generation settings
@@ -425,7 +430,7 @@ export default function SettingsPage() {
         );
 
         if (popup) {
-          popup.document.write("<p style='font-family:sans-serif'>Connecting to Google...</p>");
+          popup.document.write(`<p style='font-family:sans-serif'>${t("errors.connectingToGoogle")}</p>`);
         }
       }
 
@@ -435,7 +440,7 @@ export default function SettingsPage() {
 
       if (!authData.success || !authData.url) {
         popup?.close();
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -443,7 +448,7 @@ export default function SettingsPage() {
       } else if (popup) {
         popup.location.href = authData.url;
       } else {
-        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        toast.error(t("errors.popupBlocked"));
         cleanup();
         return;
       }
@@ -495,6 +500,7 @@ export default function SettingsPage() {
 
     } catch (err) {
       console.error("Antigravity login failed:", err);
+      toast.error(t("errors.loginFailed"));
       cleanup();
     }
   };
@@ -553,7 +559,7 @@ export default function SettingsPage() {
         );
 
         if (popup) {
-          popup.document.write("<p style='font-family:sans-serif'>Connecting to OpenAI...</p>");
+          popup.document.write(`<p style='font-family:sans-serif'>${t("errors.connectingToOpenAI")}</p>`);
         }
       }
 
@@ -562,7 +568,7 @@ export default function SettingsPage() {
 
       if (!authData.success || !authData.url) {
         popup?.close();
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -570,7 +576,7 @@ export default function SettingsPage() {
       } else if (popup) {
         popup.location.href = authData.url;
       } else {
-        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        toast.error(t("errors.popupBlocked"));
         cleanup();
         return;
       }
@@ -622,6 +628,7 @@ export default function SettingsPage() {
       }, 5 * 60 * 1000);
     } catch (err) {
       console.error("Codex login failed:", err);
+      toast.error(t("errors.loginFailed"));
       cleanup();
     }
   };
@@ -660,7 +667,7 @@ export default function SettingsPage() {
       const authData = await authResponse.json();
 
       if (!authData.success || !authData.url) {
-        throw new Error(authData.error || "Failed to get authorization URL");
+        throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
       if (isElectron && electronAPI?.shell?.openExternal) {
@@ -673,7 +680,7 @@ export default function SettingsPage() {
       setClaudeCodePasteMode(true);
     } catch (err) {
       console.error("Claude Code login failed:", err);
-      toast.error("Failed to start authentication");
+      toast.error(t("errors.authStartFailed"));
     } finally {
       setClaudecodeLoading(false);
     }
@@ -698,7 +705,7 @@ export default function SettingsPage() {
       setClaudeCodePasteMode(false);
     } catch (err) {
       console.error("Claude Code code exchange failed:", err);
-      toast.error(err instanceof Error ? err.message : "Code exchange failed");
+      toast.error(err instanceof Error ? err.message : t("errors.codeExchangeFailed"));
     } finally {
       setClaudecodeLoading(false);
     }
@@ -776,10 +783,10 @@ export default function SettingsPage() {
     { id: "api-keys" as const, label: t("nav.apiKeys"), icon: KeyIcon },
     { id: "models" as const, label: t("nav.models"), icon: CpuIcon },
     { id: "vector-search" as const, label: t("nav.vectorSearch"), icon: DatabaseIcon },
-    { id: "comfyui" as const, label: "Local Image AI", icon: ImageIcon },
-    { id: "mcp" as const, label: "MCP Servers", icon: PlugIcon },
-    { id: "plugins" as const, label: "Plugins", icon: PackageIcon },
-    { id: "voice" as const, label: "Voice & Audio", icon: Volume2Icon },
+    { id: "comfyui" as const, label: t("nav.comfyui"), icon: ImageIcon },
+    { id: "mcp" as const, label: t("nav.mcp"), icon: PlugIcon },
+    { id: "plugins" as const, label: t("nav.plugins"), icon: PackageIcon },
+    { id: "voice" as const, label: t("nav.voice"), icon: Volume2Icon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];
@@ -1018,7 +1025,7 @@ function LocalEmbeddingModelSelector({ formState, updateField, t }: LocalEmbeddi
 
     // Safety check - API might not be fully exposed
     if (!electronAPI?.model?.download) {
-      setDownloadError("Model download API not available. Please restart the app.");
+      setDownloadError(t("vector.advanced.reranking.downloadApiUnavailable"));
       setDownloading(null);
       return;
     }
@@ -1145,6 +1152,7 @@ interface WhisperModelSelectorProps {
 }
 
 function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorProps) {
+  const t = useTranslations("settings.voice.stt");
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
   const [downloading, setDownloading] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
@@ -1205,7 +1213,7 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
 
     // Safety check - API might not be fully exposed
     if (!electronAPI?.model?.downloadFile) {
-      setDownloadError("Model download API not available. Please restart the app.");
+      setDownloadError(t("vector.advanced.reranking.downloadApiUnavailable"));
       setDownloading(null);
       return;
     }
@@ -1252,7 +1260,7 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
     <div className="rounded border border-terminal-border bg-terminal-cream/30 p-4 space-y-3">
       <div>
         <label className="mb-1 block font-mono text-sm text-terminal-muted">
-          Whisper Model
+          {t("whisperModelLabel")}
         </label>
         <div className="flex gap-2">
           <select
@@ -1282,10 +1290,10 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
               ) : modelStatus[selectedModel] ? (
                 <>
                   <CheckIcon className="size-4" />
-                  Downloaded
+                  {t("whisperDownloaded")}
                 </>
               ) : (
-                "Download"
+                t("whisperDownload")
               )}
             </Button>
           )}
@@ -1296,18 +1304,17 @@ function WhisperModelSelector({ formState, updateField }: WhisperModelSelectorPr
         )}
 
         <p className="mt-2 font-mono text-xs text-terminal-muted">
-          {WHISPER_MODELS.find((m) => m.id === selectedModel)?.description || "Select a model"}
+          {WHISPER_MODELS.find((m) => m.id === selectedModel)?.description || t("whisperSelectModel")}
           {WHISPER_MODELS.find((m) => m.id === selectedModel)?.language === "multilingual"
-            ? " · Supports ~99 languages"
-            : " · English only"}
+            ? t("whisperMultilingual")
+            : t("whisperEnglishOnly")}
         </p>
       </div>
 
       {/* Install hint */}
       <div className="rounded border border-terminal-border bg-terminal-cream/30 p-3">
         <p className="font-mono text-xs text-terminal-muted">
-          <strong>Setup:</strong> Download a model above — whisper-cli and ffmpeg are bundled with the app.
-          Transcription runs entirely on your device — no API key or internet needed.
+          {t("whisperSetupHint")}
         </p>
       </div>
     </div>
@@ -1344,18 +1351,19 @@ function ClaudeCodePasteInput({
   onSubmit: (code: string) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings.api.auth");
   const [code, setCode] = useState("");
 
   return (
     <div className="mt-3 space-y-3 border-t border-terminal-border pt-3">
       <p className="font-mono text-xs text-terminal-muted">
-        A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.
+        {t("pasteInstructions")}
       </p>
       <input
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        placeholder="Paste the authorization code here..."
+        placeholder={t("codePlaceholder")}
         className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
         autoFocus
         onKeyDown={(e) => {
@@ -1370,14 +1378,14 @@ function ClaudeCodePasteInput({
           disabled={loading}
           className="rounded border border-terminal-border px-3 py-1.5 font-mono text-xs text-terminal-muted hover:bg-terminal-bg disabled:opacity-50"
         >
-          Cancel
+          {t("cancel")}
         </button>
         <button
           onClick={() => onSubmit(code)}
           disabled={loading || !code.trim()}
           className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
         >
-          {loading ? "Verifying..." : "Submit Code"}
+          {loading ? t("verifying") : t("submitCode")}
         </button>
       </div>
     </div>
@@ -1416,7 +1424,7 @@ function SettingsPanel({
         <div>
           <h2 className="mb-1 font-mono text-lg font-semibold text-terminal-dark">{t("api.title")}</h2>
           <p className="mb-4 font-mono text-sm text-terminal-muted">
-            Choose where your assistant models run, then add only the keys you need.
+            {t("api.description")}
           </p>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
@@ -1468,7 +1476,7 @@ function SettingsPanel({
                 }}
                 className="size-4 accent-terminal-green"
               />
-              <span className="font-mono text-terminal-dark">Ollama (local)</span>
+              <span className="font-mono text-terminal-dark">{t("api.ollama")}</span>
             </label>
             <label className="flex items-center gap-3">
               <input
@@ -1509,7 +1517,7 @@ function SettingsPanel({
               )}>
                 Codex
                 {codexAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1535,7 +1543,7 @@ function SettingsPanel({
               )}>
                 Claude Code
                 {claudecodeAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1561,7 +1569,7 @@ function SettingsPanel({
               )}>
                 Antigravity
                 {antigravityAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1573,14 +1581,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Antigravity models
+                {t("api.auth.antigravityTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Use your Antigravity subscription to access supported premium models.
+                {t("api.auth.antigravityDesc")}
               </p>
               {antigravityAuth?.isAuthenticated && antigravityAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {antigravityAuth.email}
+                  {t("api.auth.signedIn", { email: antigravityAuth.email })}
                 </p>
               )}
             </div>
@@ -1591,7 +1599,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "..." : "Sign out"}
+                  {antigravityLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : (
                 <button
@@ -1599,7 +1607,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "Connecting..." : "Sign in with Google"}
+                  {antigravityLoading ? t("api.auth.connecting") : t("api.auth.signInGoogle")}
                 </button>
               )}
             </div>
@@ -1611,14 +1619,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                OpenAI Codex
+                {t("api.auth.codexTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect your OpenAI account to use Codex models.
+                {t("api.auth.codexDesc")}
               </p>
               {codexAuth?.isAuthenticated && (codexAuth.email || codexAuth.accountId) && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {codexAuth.email || codexAuth.accountId}
+                  {t("api.auth.signedIn", { email: codexAuth.email || codexAuth.accountId || "" })}
                 </p>
               )}
             </div>
@@ -1629,7 +1637,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {codexLoading ? "..." : "Sign out"}
+                  {codexLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : (
                 <button
@@ -1637,7 +1645,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {codexLoading ? "Connecting..." : "Sign in with OpenAI"}
+                  {codexLoading ? t("api.auth.connecting") : t("api.auth.signInOpenAI")}
                 </button>
               )}
             </div>
@@ -1649,14 +1657,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Claude Code
+                {t("api.auth.claudecodeTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect your Anthropic account to use Claude Code models.
+                {t("api.auth.claudecodeDesc")}
               </p>
               {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {claudecodeAuth.email}
+                  {t("api.auth.signedIn", { email: claudecodeAuth.email })}
                 </p>
               )}
             </div>
@@ -1667,7 +1675,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "..." : "Sign out"}
+                  {claudecodeLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : !claudeCodePasteMode ? (
                 <button
@@ -1675,7 +1683,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "Connecting..." : "Sign in with Anthropic"}
+                  {claudecodeLoading ? t("api.auth.connecting") : t("api.auth.signInAnthropic")}
                 </button>
               ) : null}
             </div>
@@ -1694,16 +1702,16 @@ function SettingsPanel({
 
           {formState.llmProvider === "ollama" && (
             <div>
-              <label className="mb-1 block font-mono text-sm text-terminal-muted">Ollama URL</label>
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.ollama.label")}</label>
               <input
                 type="text"
                 value={formState.ollamaBaseUrl}
                 onChange={(e) => updateField("ollamaBaseUrl", e.target.value)}
-                placeholder="http://localhost:11434/v1"
+                placeholder={t("api.fields.ollama.placeholder")}
                 className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Use the URL of your local Ollama OpenAI-compatible endpoint.
+                {t("api.fields.ollama.helper")}
               </p>
             </div>
           )}
@@ -1745,16 +1753,16 @@ function SettingsPanel({
           </div>
 
           <div>
-            <label className="mb-1 block font-mono text-sm text-terminal-muted">OpenAI API Key</label>
+            <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.openai.label")}</label>
             <input
               type="password"
               value={formState.openaiApiKey}
               onChange={(e) => updateField("openaiApiKey", e.target.value)}
-              placeholder="sk-..."
+              placeholder={t("api.fields.openai.placeholder")}
               className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Needed for OpenAI speech-to-text and text-to-speech. Get a key at{" "}
+              {t("api.fields.openai.helper")}{" "}
               <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-terminal-green underline hover:text-terminal-green/80">
                 platform.openai.com
               </a>
@@ -2371,57 +2379,7 @@ function SettingsPanel({
               embeddingProvider={formState.embeddingProvider}
             />
 
-            {/* Local Grep Settings */}
-            <div className="mt-6 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
-              <h3 className="font-mono text-sm font-semibold text-terminal-dark">Local grep search</h3>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">Configure fast text search in synced folders.</p>
 
-              <div className="mt-4 space-y-3">
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.localGrepEnabled}
-                    onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">Enable local grep tool</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formState.localGrepRespectGitignore}
-                    onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
-                    className="size-4 accent-terminal-green"
-                  />
-                  <span className="font-mono text-sm text-terminal-dark">Ignore files listed in .gitignore</span>
-                </label>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Maximum results</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={formState.localGrepMaxResults}
-                    onChange={(e) => updateField("localGrepMaxResults", Number(e.target.value) || 100)}
-                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Context lines</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={formState.localGrepContextLines}
-                    onChange={(e) => updateField("localGrepContextLines", Number(e.target.value) || 2)}
-                    className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -2440,9 +2398,9 @@ function SettingsPanel({
     return (
       <div className={settingsSectionShellClassName}>
         <div>
-          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local image generation</h2>
+          <h2 className="mb-2 text-lg font-semibold text-terminal-text">{t("localImage.heading")}</h2>
           <p className="text-sm text-terminal-muted">
-            Run image generation on this device using local backends.
+            {t("localImage.description")}
           </p>
         </div>
 
@@ -2453,9 +2411,9 @@ function SettingsPanel({
                 <KeyIcon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-terminal-text">Hugging Face token</p>
+                <p className="text-sm font-semibold text-terminal-text">{t("localImage.hfTokenTitle")}</p>
                 <p className="text-xs text-terminal-muted">
-                  Needed to download gated models such as FLUX.2 Klein.
+                  {t("localImage.hfTokenDesc")}
                 </p>
               </div>
             </div>
@@ -2465,20 +2423,20 @@ function SettingsPanel({
               rel="noopener noreferrer"
               className="text-xs text-terminal-green underline hover:text-terminal-green/80"
             >
-              Open token settings
+              {t("localImage.hfTokenLink")}
             </a>
           </div>
           <input
             type="password"
             value={formState.huggingFaceToken}
             onChange={(e) => updateField("huggingFaceToken", e.target.value)}
-            placeholder="hf_..."
+            placeholder={t("localImage.hfTokenPlaceholder")}
             className="mt-3 w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>
 
         <div className="space-y-3">
-          <p className="text-xs uppercase tracking-wide text-terminal-muted">Backends</p>
+          <p className="text-xs uppercase tracking-wide text-terminal-muted">{t("localImage.backendsLabel")}</p>
           <LocalModelsManager
             zImageEnabled={formState.comfyuiEnabled}
             zImageBackendPath={formState.comfyuiBackendPath}
@@ -2497,9 +2455,9 @@ function SettingsPanel({
 
         <div className="border-t border-terminal-border/60 pt-6 space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI workflows</h3>
+            <h3 className="text-sm font-semibold text-terminal-text">{t("localImage.workflowsHeading")}</h3>
             <p className="text-xs text-terminal-muted">
-              Paste or upload a workflow JSON file, then review inputs and outputs before saving.
+              {t("localImage.workflowsDesc")}
             </p>
           </div>
           <CustomWorkflowsManager
@@ -2553,40 +2511,40 @@ function SettingsPanel({
 
   if (section === "voice") {
     const ttsAutoModeOptions = [
-      { value: "off" as const, label: "Only on request", description: "Audio is created only when you ask for it." },
-      { value: "channels-only" as const, label: "For channel replies", description: "Voice notes are added automatically in channels." },
-      { value: "always" as const, label: "For every reply", description: "Every assistant reply includes audio output." },
+      { value: "off" as const, label: t("voice.tts.modeOff"), description: t("voice.tts.modeOffDesc") },
+      { value: "channels-only" as const, label: t("voice.tts.modeChannels"), description: t("voice.tts.modeChannelsDesc") },
+      { value: "always" as const, label: t("voice.tts.modeAlways"), description: t("voice.tts.modeAlwaysDesc") },
     ];
 
     const ttsProviderOptions = [
-      { value: "edge" as const, label: "Edge TTS", description: "Built-in Microsoft voices. No API key needed.", badge: "Free" },
-      { value: "openai" as const, label: "OpenAI TTS", description: "Uses your OpenAI or OpenRouter API key.", badge: "API Key" },
-      { value: "elevenlabs" as const, label: "ElevenLabs", description: "Natural premium voices and voice cloning.", badge: "API Key" },
+      { value: "edge" as const, label: t("voice.tts.providerEdge"), description: t("voice.tts.providerEdgeDesc"), badge: t("voice.tts.badgeFree") },
+      { value: "openai" as const, label: t("voice.tts.providerOpenAI"), description: t("voice.tts.providerOpenAIDesc"), badge: t("voice.tts.badgeApiKey") },
+      { value: "elevenlabs" as const, label: t("voice.tts.providerElevenLabs"), description: t("voice.tts.providerElevenLabsDesc"), badge: t("voice.tts.badgeApiKey") },
     ];
 
     const sttProviderOptions = [
-      { value: "openai" as const, label: "OpenAI Whisper", description: "Cloud transcription using your OpenAI or OpenRouter API key." },
-      { value: "local" as const, label: "Local (whisper.cpp)", description: "Runs on this device. No external API key needed." },
+      { value: "openai" as const, label: t("voice.stt.providerOpenAI"), description: t("voice.stt.providerOpenAIDesc") },
+      { value: "local" as const, label: t("voice.stt.providerLocal"), description: t("voice.stt.providerLocalDesc") },
     ];
 
     return (
       <div className={settingsSectionShellClassName}>
         <div className="space-y-1.5">
-          <h2 className="font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
+          <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("voice.heading")}</h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Set up spoken replies and audio transcription with clear, friendly defaults.
+            {t("voice.description")}
           </p>
         </div>
 
         <div className="space-y-5">
           <SettingsPanelCard
-            title="Text-to-Speech (TTS)"
-            description="Let the assistant speak replies in a way that matches how you chat."
+            title={t("voice.tts.title")}
+            description={t("voice.tts.description")}
           >
             <SettingsToggleRow
               id="ttsEnabled"
-              label="Turn on spoken replies"
-              description="When enabled, the assistant can send voice output for replies."
+              label={t("voice.tts.enableLabel")}
+              description={t("voice.tts.enableDesc")}
               checked={formState.ttsEnabled}
               onChange={(checked) => updateField("ttsEnabled", checked)}
             />
@@ -2594,8 +2552,8 @@ function SettingsPanel({
             {formState.ttsEnabled ? (
               <div className="space-y-6">
                 <SettingsOptionGroup
-                  title="When should voice be created?"
-                  description="Pick how often audio should be added to assistant replies."
+                  title={t("voice.tts.whenTitle")}
+                  description={t("voice.tts.whenDesc")}
                 >
                   {ttsAutoModeOptions.map((option) => (
                     <SettingsRadioCard
@@ -2612,8 +2570,8 @@ function SettingsPanel({
                 </SettingsOptionGroup>
 
                 <SettingsOptionGroup
-                  title="Voice provider"
-                  description="Choose the service that generates spoken audio."
+                  title={t("voice.tts.providerTitle")}
+                  description={t("voice.tts.providerDesc")}
                 >
                   {ttsProviderOptions.map((option) => (
                     <SettingsRadioCard
@@ -2632,9 +2590,9 @@ function SettingsPanel({
 
                 {formState.ttsProvider === "openai" && (
                   <SettingsField
-                    label="Default OpenAI voice"
+                    label={t("voice.tts.defaultVoiceLabel")}
                     htmlFor="openaiTtsVoice"
-                    helperText="Used when a request does not specify a different voice."
+                    helperText={t("voice.tts.defaultVoiceHelper")}
                     className="max-w-sm"
                   >
                     <select
@@ -2655,31 +2613,31 @@ function SettingsPanel({
 
                 {formState.ttsProvider === "elevenlabs" && (
                   <SettingsOptionGroup
-                    title="ElevenLabs account details"
-                    description="Add your key and voice so replies use the right ElevenLabs profile."
+                    title={t("voice.tts.elevenLabsTitle")}
+                    description={t("voice.tts.elevenLabsDesc")}
                   >
                     <div className="grid gap-4 md:grid-cols-2">
-                      <SettingsField label="ElevenLabs API key" htmlFor="elevenLabsApiKey">
+                      <SettingsField label={t("voice.tts.elevenLabsKeyLabel")} htmlFor="elevenLabsApiKey">
                         <input
                           id="elevenLabsApiKey"
                           type="password"
                           value={formState.elevenLabsApiKey}
                           onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
-                          placeholder="xi_..."
+                          placeholder={t("voice.tts.elevenLabsKeyPlaceholder")}
                           className={settingsInputClassName}
                         />
                       </SettingsField>
                       <SettingsField
-                        label="Voice ID"
+                        label={t("voice.tts.voiceIdLabel")}
                         htmlFor="elevenLabsVoiceId"
-                        helperText="You can copy this from the ElevenLabs voice library."
+                        helperText={t("voice.tts.voiceIdHelper")}
                       >
                         <input
                           id="elevenLabsVoiceId"
                           type="text"
                           value={formState.elevenLabsVoiceId}
                           onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
-                          placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                          placeholder={t("voice.tts.voiceIdPlaceholder")}
                           aria-describedby="elevenLabsVoiceId-help"
                           className={settingsInputClassName}
                         />
@@ -2689,9 +2647,9 @@ function SettingsPanel({
                 )}
 
                 <SettingsField
-                  label="Long message limit (characters)"
+                  label={t("voice.tts.limitLabel")}
                   htmlFor="ttsSummarizeThreshold"
-                  helperText="Messages above this limit are shortened before audio is generated."
+                  helperText={t("voice.tts.limitHelper")}
                   className="max-w-xs"
                 >
                   <input
@@ -2709,19 +2667,19 @@ function SettingsPanel({
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
-                Turn this on to choose when voice is generated and which provider to use.
+                {t("voice.tts.disabledHint")}
               </div>
             )}
           </SettingsPanelCard>
 
           <SettingsPanelCard
-            title="Speech-to-Text (STT)"
-            description="Convert incoming voice notes into text so they are easier to read and search."
+            title={t("voice.stt.title")}
+            description={t("voice.stt.description")}
           >
             <SettingsToggleRow
               id="sttEnabled"
-              label="Turn on transcription"
-              description="Automatically transcribe audio attachments from channels and voice-note apps."
+              label={t("voice.stt.enableLabel")}
+              description={t("voice.stt.enableDesc")}
               checked={formState.sttEnabled}
               onChange={(checked) => updateField("sttEnabled", checked)}
             />
@@ -2729,8 +2687,8 @@ function SettingsPanel({
             {formState.sttEnabled ? (
               <div className="space-y-6">
                 <SettingsOptionGroup
-                  title="Transcription provider"
-                  description="Pick where audio is transcribed."
+                  title={t("voice.stt.providerTitle")}
+                  description={t("voice.stt.providerDesc")}
                 >
                   {sttProviderOptions.map((option) => (
                     <SettingsRadioCard
@@ -2752,7 +2710,7 @@ function SettingsPanel({
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
-                Turn this on to pick a provider and configure local Whisper model options.
+                {t("voice.stt.disabledHint")}
               </div>
             )}
           </SettingsPanelCard>
@@ -2783,7 +2741,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div>
         <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("preferences.title")}</h2>
         <p className="mt-1 font-mono text-sm text-terminal-muted">
-          Personalize appearance, language, and how background checks run.
+          {t("preferences.description")}
         </p>
       </div>
 
@@ -2862,17 +2820,71 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
         </div>
       </div>
 
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("localGrep.heading")}</h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">{t("localGrep.description")}</p>
+          <p className="mt-2 font-mono text-xs text-terminal-muted">{t("localGrep.tip")}</p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">{t("localGrep.enableLabel")}</span>
+            <input
+              type="checkbox"
+              checked={formState.localGrepEnabled}
+              onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+          <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
+            <span className="font-mono text-sm text-terminal-dark">{t("localGrep.gitignoreLabel")}</span>
+            <input
+              type="checkbox"
+              checked={formState.localGrepRespectGitignore}
+              onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
+              className="size-4 accent-terminal-green"
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.maxResultsLabel")}</label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={formState.localGrepMaxResults}
+              onChange={(e) => updateField("localGrepMaxResults", Number(e.target.value) || 20)}
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.contextLinesLabel")}</label>
+            <input
+              type="number"
+              min={0}
+              max={10}
+              value={formState.localGrepContextLines}
+              onChange={(e) => updateField("localGrepContextLines", Number(e.target.value) || 2)}
+              className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Post-Edit Hooks */}
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
-          <h3 className="font-mono text-base font-semibold text-terminal-dark">After-edit checks</h3>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("preferences.postEditHooks.heading")}</h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Choose which checks run automatically after AI changes.
+            {t("preferences.postEditHooks.description")}
           </p>
         </div>
 
         <div>
-          <label className="mb-2 block font-mono text-sm text-terminal-dark">Check profile</label>
+          <label className="mb-2 block font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.profileLabel")}</label>
           <div className="space-y-2">
             <label className="flex items-start gap-3">
               <input
@@ -2889,8 +2901,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Off</span>
-                <p className="font-mono text-xs text-terminal-muted">Do not run automatic checks.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.off")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.offDesc")}</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2910,8 +2922,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Fast (recommended)</span>
-                <p className="font-mono text-xs text-terminal-muted">Run typecheck only, and only for related areas.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.fast")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.fastDesc")}</p>
               </div>
             </label>
             <label className="flex items-start gap-3">
@@ -2931,8 +2943,8 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
                 className="mt-1 size-4 accent-terminal-green"
               />
               <div>
-                <span className="font-mono text-terminal-dark">Strict</span>
-                <p className="font-mono text-xs text-terminal-muted">Run typecheck and lint across the full project.</p>
+                <span className="font-mono text-terminal-dark">{t("preferences.postEditHooks.strict")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.postEditHooks.strictDesc")}</p>
               </div>
             </label>
           </div>
@@ -2940,7 +2952,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Enable hooks</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.enableHooks")}</span>
             <input
               type="checkbox"
               checked={formState.postEditHooksEnabled}
@@ -2949,7 +2961,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Include patch edits</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.includePatches")}</span>
             <input
               type="checkbox"
               checked={formState.postEditRunInPatchTool}
@@ -2958,7 +2970,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">Typecheck</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.typecheck")}</span>
             <input
               type="checkbox"
               checked={formState.postEditTypecheckEnabled}
@@ -2967,7 +2979,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             />
           </label>
           <label className="flex items-center justify-between rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2">
-            <span className="font-mono text-sm text-terminal-dark">ESLint</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.eslint")}</span>
             <input
               type="checkbox"
               checked={formState.postEditLintEnabled}
@@ -2978,21 +2990,21 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
         </div>
 
         <div>
-          <label className="mb-1 block font-mono text-sm text-terminal-dark">Typecheck scope</label>
+          <label className="mb-1 block font-mono text-sm text-terminal-dark">{t("preferences.postEditHooks.typecheckScopeLabel")}</label>
           <p className="mb-2 font-mono text-xs text-terminal-muted">
-            Pick how widely typecheck should run after edits.
+            {t("preferences.postEditHooks.typecheckScopeDesc")}
           </p>
           <select
             value={formState.postEditTypecheckScope}
             onChange={(e) => updateField("postEditTypecheckScope", e.target.value as FormState["postEditTypecheckScope"])}
             className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           >
-            <option value="auto">Auto (based on changed files)</option>
-            <option value="app">App code only</option>
-            <option value="lib">Library code only</option>
-            <option value="electron">Electron code only</option>
-            <option value="tooling">Tooling only</option>
-            <option value="all">Entire project</option>
+            <option value="auto">{t("preferences.postEditHooks.scopeAuto")}</option>
+            <option value="app">{t("preferences.postEditHooks.scopeApp")}</option>
+            <option value="lib">{t("preferences.postEditHooks.scopeLib")}</option>
+            <option value="electron">{t("preferences.postEditHooks.scopeElectron")}</option>
+            <option value="tooling">{t("preferences.postEditHooks.scopeTooling")}</option>
+            <option value="all">{t("preferences.postEditHooks.scopeAll")}</option>
           </select>
         </div>
       </div>
@@ -3000,20 +3012,20 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       {/* Prompt Caching */}
       <div className="space-y-4">
         <h3 className="font-mono text-base font-semibold text-terminal-dark">
-          Prompt caching
+          {t("preferences.promptCaching.heading")}
         </h3>
         <p className="font-mono text-xs text-terminal-muted">
-          Reuse repeated prompt content to lower token usage and cost.
+          {t("preferences.promptCaching.description")}
         </p>
 
         {/* Enable/Disable Toggle */}
         <div className="flex items-center justify-between">
           <div>
             <label className="font-mono text-sm text-terminal-dark">
-              Enable prompt caching
+              {t("preferences.promptCaching.enableLabel")}
             </label>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Helpful for longer conversations with repeated context.
+              {t("preferences.promptCaching.enableDesc")}
             </p>
           </div>
           <input
@@ -3030,18 +3042,18 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            RTK (experimental)
+            {t("preferences.rtk.heading")}
           </h3>
           <p className="font-mono text-xs text-terminal-muted">
-            Compacts command output to save tokens on supported tools.
+            {t("preferences.rtk.description")}
           </p>
         </div>
 
         <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="font-mono text-sm text-terminal-dark">Enable RTK</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.rtk.enableLabel")}</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Works only when RTK is installed and the command supports it.
+              {t("preferences.rtk.enableDesc")}
             </p>
           </div>
           <input
@@ -3054,7 +3066,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block font-mono text-xs text-terminal-muted">Verbosity</label>
+            <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("preferences.rtk.verbosityLabel")}</label>
             <select
               value={String(formState.rtkVerbosity)}
               onChange={(e) => updateField("rtkVerbosity", Number(e.target.value) as 0 | 1 | 2 | 3)}
@@ -3074,7 +3086,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
               onChange={(e) => updateField("rtkUltraCompact", e.target.checked)}
               className="size-4 accent-terminal-green"
             />
-            <span className="font-mono text-sm text-terminal-dark">Ultra compact mode (-u)</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.rtk.ultraCompact")}</span>
           </label>
         </div>
       </div>
@@ -3083,18 +3095,18 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>
           <h3 className="font-mono text-base font-semibold text-terminal-dark">
-            Developer workspace
+            {t("preferences.devWorkspace.heading")}
           </h3>
           <p className="mt-1 font-mono text-xs text-terminal-muted">
-            Show workspace indicators, diff views, and tools for git-based coding workflows.
+            {t("preferences.devWorkspace.description")}
           </p>
         </div>
 
         <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="font-mono text-sm text-terminal-dark">Enable developer workspace tools</span>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.devWorkspace.enableLabel")}</span>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Adds branch info, diff review panels, and a workspace dashboard.
+              {t("preferences.devWorkspace.enableDesc")}
             </p>
           </div>
           <input
@@ -3109,9 +3121,9 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
           <div className="space-y-4 border-t border-terminal-border pt-4">
             <label className="flex items-center justify-between gap-3">
               <div>
-                <span className="font-mono text-sm text-terminal-dark">Auto-clean old worktrees</span>
+                <span className="font-mono text-sm text-terminal-dark">{t("preferences.devWorkspace.autoCleanLabel")}</span>
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
-                  Remove old worktrees automatically after merge or after a set number of days.
+                  {t("preferences.devWorkspace.autoCleanDesc")}
                 </p>
               </div>
               <input
@@ -3125,7 +3137,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
             {formState.devWorkspaceAutoCleanup && (
               <div>
                 <label className="mb-1 block font-mono text-xs text-terminal-muted">
-                  Clean up after (days)
+                  {t("preferences.devWorkspace.cleanupDaysLabel")}
                 </label>
                 <input
                   type="number"
@@ -3140,10 +3152,11 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
 
             <div className="rounded border border-dashed border-terminal-border bg-terminal-cream/50 p-3">
               <p className="font-mono text-xs text-terminal-muted">
-                <strong className="text-terminal-dark">Recommended tool servers:</strong>{" "}
-                Install <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code> for
-                worktree management or <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code> for
-                pull request workflows. Configure them in Tool servers (MCP).
+                <strong className="text-terminal-dark">{t("preferences.devWorkspace.recommendedServers")}</strong>{" "}
+                {t.rich("preferences.devWorkspace.recommendedServersDesc", {
+                  worktreeTools: () => <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code>,
+                  githubMcp: () => <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code>,
+                })}
               </p>
             </div>
           </div>
@@ -3206,6 +3219,7 @@ function MemorySection() {
       });
     } catch (error) {
       console.error("Failed to save memory defaults:", error);
+      toast.error(t("errors.memorySaveFailed"));
     } finally {
       setSaving(false);
     }
@@ -3244,9 +3258,9 @@ function MemorySection() {
   };
 
   const categoryLabels = {
-    visual_preferences: "Visual style",
-    communication_style: "Communication style",
-    workflow_patterns: "Workflow habits",
+    visual_preferences: t("memory.categoryLabels.visual_preferences"),
+    communication_style: t("memory.categoryLabels.communication_style"),
+    workflow_patterns: t("memory.categoryLabels.workflow_patterns"),
   };
 
   if (loading) {

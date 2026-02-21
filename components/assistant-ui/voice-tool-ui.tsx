@@ -9,6 +9,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { useOptionalVoice } from "./voice-context";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.voiceTool");
   const voiceCtx = useOptionalVoice();
   const hasAutoPlayed = useRef(false);
 
@@ -67,7 +69,7 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 font-mono text-xs text-terminal-muted">
         <Volume2Icon className="w-3.5 h-3.5 animate-pulse text-terminal-amber" />
-        <span>Synthesizing speech…</span>
+        <span>{t("synthesizing")}</span>
         <div className="w-3.5 h-3.5 rounded-full border border-terminal-amber/40 border-t-terminal-amber animate-spin" />
       </div>
     );
@@ -78,7 +80,7 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-red-200 bg-red-50/60 font-mono text-xs text-red-600">
         <VolumeXIcon className="w-3.5 h-3.5" />
-        <span>{result.error || "TTS failed"}</span>
+        <span>{result.error || t("ttsFailed")}</span>
       </div>
     );
   }
@@ -113,12 +115,12 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
         {isPlaying ? (
           <>
             <SquareIcon className="w-3 h-3 fill-current" />
-            <span>Stop</span>
+            <span>{t("stop")}</span>
           </>
         ) : (
           <>
             <Volume2Icon className="w-3.5 h-3.5 text-terminal-green" />
-            <span>Play</span>
+            <span>{t("play")}</span>
           </>
         )}
         <span className="text-terminal-muted">
@@ -158,12 +160,13 @@ type TranscribeToolCallComponent = FC<{
  * Compact inline UI for the transcribe tool.
  */
 export const TranscribeToolUI: TranscribeToolCallComponent = ({ result }) => {
+  const t = useTranslations("assistantUi.voiceTool");
   // --- Loading ---
   if (!result) {
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-terminal-border/40 bg-terminal-bg/20 font-mono text-xs text-terminal-muted">
         <MicIcon className="w-3.5 h-3.5 animate-pulse text-terminal-amber" />
-        <span>Checking transcription…</span>
+        <span>{t("checkingTranscription")}</span>
       </div>
     );
   }
@@ -173,7 +176,7 @@ export const TranscribeToolUI: TranscribeToolCallComponent = ({ result }) => {
     return (
       <div className="my-1 inline-flex items-center gap-2 px-2.5 py-1 rounded border border-red-200 bg-red-50/60 font-mono text-xs text-red-600">
         <AlertCircleIcon className="w-3.5 h-3.5" />
-        <span>{result.error || "Transcription check failed"}</span>
+        <span>{result.error || t("transcriptionFailed")}</span>
       </div>
     );
   }

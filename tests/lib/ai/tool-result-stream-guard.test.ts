@@ -84,4 +84,14 @@ describe("guardToolResultForStreaming", () => {
     const blocked = guarded.result as Record<string, unknown>;
     expect(blocked.tokenLimit).toBe(MAX_STREAM_TOOL_RESULT_TOKENS);
   });
+
+  it("uses hard stream limit for localGrep when maxTokens is missing", () => {
+    const huge = { status: "success", content: "x".repeat(200_000) };
+
+    const guarded = guardToolResultForStreaming("localGrep", huge);
+
+    expect(guarded.blocked).toBe(true);
+    const blocked = guarded.result as Record<string, unknown>;
+    expect(blocked.tokenLimit).toBe(MAX_STREAM_TOOL_RESULT_TOKENS);
+  });
 });

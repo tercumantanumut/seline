@@ -308,6 +308,7 @@ export function ScheduleCard({
             variant="ghost"
             size="sm"
             onClick={onEdit}
+            aria-label={t("editSchedule")}
             className="h-8 w-8 p-0 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -316,6 +317,7 @@ export function ScheduleCard({
             variant="ghost"
             size="sm"
             onClick={onDelete}
+            aria-label={t("deleteSchedule")}
             className="h-8 w-8 p-0 text-terminal-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
           >
             <Trash2 className="h-3.5 w-3.5" />

@@ -83,8 +83,8 @@ export function ActiveTasksIndicator() {
               task.type === "scheduled"
                 ? task.taskName
                 : task.type === "chat"
-                ? "Chat run"
-                : `Channel ${task.channelType}`;
+                ? t("chatRun")
+                : t("channelTask", { channelType: task.channelType });
             const subtitle =
               task.type === "channel"
                 ? task.peerName || task.peerId

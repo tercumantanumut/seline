@@ -5,6 +5,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import {
+  Archive,
   BookText,
   Camera,
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Phone,
+  Pin,
   Plug,
   PlusCircle,
   RotateCcw,
@@ -25,6 +27,7 @@ import {
   Send,
   Trash2,
   Pencil,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +56,7 @@ import { ChannelConnectionsDialog } from "@/components/channels/channel-connecti
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { SessionItem } from "./session-item";
 import { CHANNEL_TYPE_ICONS } from "./constants";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
@@ -101,6 +105,10 @@ interface CharacterSidebarProps {
     sessionId: string,
     format: "markdown" | "json" | "text",
   ) => Promise<void>;
+  onPinSession: (sessionId: string) => Promise<void>;
+  onArchiveSession: (sessionId: string) => Promise<void>;
+  onRestoreSession: (sessionId: string) => Promise<void>;
+  characterId: string;
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
 
@@ -142,6 +150,10 @@ export function CharacterSidebar({
   onResetChannelSession,
   onRenameSession,
   onExportSession,
+  onPinSession,
+  onArchiveSession,
+  onRestoreSession,
+  characterId,
   onAvatarChange,
 }: CharacterSidebarProps) {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -154,6 +166,9 @@ export function CharacterSidebar({
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
   const formatter = useFormatter();
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [archivedSessions, setArchivedSessions] = useState<SessionInfo[]>([]);
+  const [loadingArchived, setLoadingArchived] = useState(false);
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [channelConnections, setChannelConnections] = useState<
     ChannelConnectionSummary[]
@@ -165,6 +180,20 @@ export function CharacterSidebar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Press '/' to focus the session search field
+  useEffect(() => {
+    const handleSlash = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement as HTMLElement)?.isContentEditable) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleSlash);
+    return () => window.removeEventListener("keydown", handleSlash);
+  }, []);
 
   const stopEditing = useCallback(() => {
     setEditingSessionId(null);
@@ -179,6 +208,20 @@ export function CharacterSidebar({
   useEffect(() => {
     // Refs removed, logic moved to SessionItem
   }, [editingSessionId]);
+
+  useEffect(() => {
+    if (!archivedOpen) return;
+    let cancelled = false;
+    setLoadingArchived(true);
+    fetch(`/api/sessions?characterId=${characterId}&status=archived&limit=50`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setArchivedSessions((data.sessions ?? []) as SessionInfo[]);
+      })
+      .catch(() => {/* silent */})
+      .finally(() => { if (!cancelled) setLoadingArchived(false); });
+    return () => { cancelled = true; };
+  }, [archivedOpen, characterId]);
 
   const handleRename = useCallback(async () => {
     if (!editingSessionId) {
@@ -229,6 +272,11 @@ export function CharacterSidebar({
     closeDeleteDialog();
   }, [closeDeleteDialog, onDeleteSession, pendingDeleteSession]);
 
+  const pinnedSessions = useMemo(
+    () => sessions.filter((s) => s.metadata?.pinned === true),
+    [sessions],
+  );
+
   const groupedSessions = useMemo(() => {
     const groups: Record<"today" | "week" | "older", SessionInfo[]> = {
       today: [],
@@ -236,6 +284,7 @@ export function CharacterSidebar({
       older: [],
     };
     for (const session of sessions) {
+      if (session.metadata?.pinned) continue; // pinned shown separately at top
       const date = parseAsUTC(session.updatedAt);
       if (isNaN(date.getTime())) {
         groups.older.push(session);
@@ -271,7 +320,7 @@ export function CharacterSidebar({
   ).length;
   const loadedCount = sessions.length;
   const hasNoResults = !loadingSessions && loadedCount === 0;
-  const shouldGroupSessions = sessions.length > 5;
+  const shouldGroupSessions = sessions.length > 5 && !searchQuery.trim();
   const activeFilterCount =
     Number(channelFilter !== "all") + Number(dateRange !== "all");
   const orderedSessions = useMemo(
@@ -308,8 +357,11 @@ export function CharacterSidebar({
               onCancelEdit={stopEditing}
               onStartEdit={() => startEditingSession(session)}
               onDelete={() => handleDeleteRequest(session)}
+              onArchive={() => void onArchiveSession(session.id)}
               onExport={(format) => void onExportSession(session.id, format)}
               onResetChannel={() => void onResetChannelSession(session.id)}
+              isPinned={session.metadata?.pinned === true}
+              onPin={() => void onPinSession(session.id)}
             />
           );
         })}
@@ -383,6 +435,7 @@ export function CharacterSidebar({
               onClick={() => setAvatarDialogOpen(true)}
               className="relative group cursor-pointer"
               title={t("sidebar.changeAvatar")}
+              aria-label={t("sidebar.changeAvatar")}
             >
               <Avatar className="h-10 w-10 shadow-sm">
                 {avatarUrl ? (
@@ -451,23 +504,43 @@ export function CharacterSidebar({
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="shrink-0 px-4 pb-2">
-          <h3 className="mb-2 text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
-            {t("sidebar.history")}
-          </h3>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
+              {t("sidebar.history")}
+            </h3>
+            {totalCount > 0 ? (
+              <span className="text-[10px] font-mono text-terminal-muted/70 tabular-nums">
+                {totalCount.toLocaleString()}
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-terminal-muted" />
               <Input
-                className="pl-8 h-9 font-mono text-sm"
+                ref={searchInputRef}
+                className={cn("pl-8 h-9 font-mono text-sm", searchQuery ? "pr-8" : "")}
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder={t("sidebar.searchPlaceholder")}
+                aria-label={t("sidebar.searchPlaceholder")}
+                title={t("sidebar.searchShortcutHint")}
               />
+              {searchQuery ? (
+                <button
+                  className="absolute right-2 top-2.5 text-terminal-muted hover:text-terminal-dark transition-colors"
+                  onClick={() => onSearchChange("")}
+                  aria-label={t("sidebar.clearSearch")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={onNewSession}
+              title={t("sidebar.newTitle")}
               className="h-9 px-2.5 text-terminal-green hover:bg-terminal-green/10"
             >
               <PlusCircle className="h-4 w-4 mr-1" />
@@ -544,8 +617,16 @@ export function CharacterSidebar({
         <ScrollArea className="flex-1 min-h-0 px-4">
           <div className="space-y-2 pr-2 pb-2">
             {loadingSessions && loadedCount === 0 ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-4 w-4 animate-spin text-terminal-muted" />
+              <div className="space-y-1.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                    <Skeleton className="h-6 w-6 shrink-0 rounded-sm" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-full rounded" />
+                      <Skeleton className="h-3 w-2/3 rounded" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : hasNoResults ? (
               <div className="rounded-lg border border-dashed border-terminal-border/60 bg-terminal-cream/40 p-4 text-center">
@@ -564,23 +645,61 @@ export function CharacterSidebar({
                   {t("sidebar.startNew")}
                 </Button>
               </div>
-            ) : shouldGroupSessions ? (
+            ) : (
               <>
-                {renderSessionList(
-                  groupedSessions.today,
-                  t("sidebar.groups.today"),
-                )}
-                {renderSessionList(
-                  groupedSessions.week,
-                  t("sidebar.groups.week"),
-                )}
-                {renderSessionList(
-                  groupedSessions.older,
-                  t("sidebar.groups.older"),
+                {pinnedSessions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-amber/80 flex items-center gap-1.5">
+                      <Pin className="h-2.5 w-2.5" />
+                      {t("sidebar.pinnedSection")}
+                      <span className="ml-auto tabular-nums text-terminal-amber/60 normal-case">{pinnedSessions.length}</span>
+                    </p>
+                    {pinnedSessions.map((session) => {
+                      const isCurrent = session.id === currentSessionId;
+                      const isEditing = editingSessionId === session.id;
+                      return (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          isCurrent={isCurrent}
+                          isEditing={isEditing}
+                          editTitle={editTitle}
+                          setEditTitle={setEditTitle}
+                          onSwitch={() => onSwitchSession(session.id)}
+                          onSaveEdit={() => void handleRename()}
+                          onCancelEdit={stopEditing}
+                          onStartEdit={() => startEditingSession(session)}
+                          onDelete={() => handleDeleteRequest(session)}
+                          onArchive={() => void onArchiveSession(session.id)}
+                          onExport={(format) => void onExportSession(session.id, format)}
+                          onResetChannel={() => void onResetChannelSession(session.id)}
+                          isPinned={true}
+                          onPin={() => void onPinSession(session.id)}
+                        />
+                      );
+                    })}
+                    <div className="border-t border-terminal-border/40 pt-1" />
+                  </div>
+                ) : null}
+                {shouldGroupSessions ? (
+                  <>
+                    {renderSessionList(
+                      groupedSessions.today,
+                      t("sidebar.groups.today"),
+                    )}
+                    {renderSessionList(
+                      groupedSessions.week,
+                      t("sidebar.groups.week"),
+                    )}
+                    {renderSessionList(
+                      groupedSessions.older,
+                      t("sidebar.groups.older"),
+                    )}
+                  </>
+                ) : (
+                  renderSessionList(orderedSessions)
                 )}
               </>
-            ) : (
-              renderSessionList(orderedSessions)
             )}
             {hasMore && !hasNoResults ? (
               <Button
@@ -605,6 +724,61 @@ export function CharacterSidebar({
             ) : null}
           </div>
         </ScrollArea>
+
+        {/* ── Archived sessions toggle ── */}
+        <div className="shrink-0 px-4 pb-1">
+          <button
+            className="flex w-full items-center justify-between rounded-md border border-terminal-border/40 bg-terminal-cream/40 px-2.5 py-1.5 text-left hover:bg-terminal-cream/70 transition-colors"
+            onClick={() => setArchivedOpen((prev) => !prev)}
+            aria-expanded={archivedOpen}
+          >
+            <span className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted">
+              <Archive className="h-3 w-3" />
+              {t("sidebar.archived")}
+              {archivedSessions.length > 0 && archivedOpen ? (
+                <span className="ml-1 text-[10px] text-terminal-muted/60">({archivedSessions.length})</span>
+              ) : null}
+            </span>
+            {archivedOpen ? (
+              <ChevronDown className="h-3 w-3 text-terminal-muted/60" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-terminal-muted/60" />
+            )}
+          </button>
+          {archivedOpen && (
+            <div className="mt-1 space-y-1 rounded-md border border-terminal-border/30 bg-terminal-cream/30 p-1.5">
+              {loadingArchived ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-terminal-muted" />
+                </div>
+              ) : archivedSessions.length === 0 ? (
+                <p className="py-3 text-center text-xs font-mono text-terminal-muted/60">
+                  {t("sidebar.noArchived")}
+                </p>
+              ) : (
+                archivedSessions.map((session) => (
+                  <div key={session.id} className="flex items-center justify-between rounded px-2 py-1.5 hover:bg-terminal-cream/60 transition-colors group">
+                    <span className="min-w-0 flex-1 truncate text-xs font-mono text-terminal-muted/80">
+                      {session.title || t("session.untitled")}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-1.5 h-6 shrink-0 px-2 text-[10px] font-mono text-terminal-green opacity-0 group-hover:opacity-100 hover:bg-terminal-green/10"
+                      onClick={() => {
+                        void onRestoreSession(session.id).then(() => {
+                          setArchivedSessions((prev) => prev.filter((s) => s.id !== session.id));
+                        });
+                      }}
+                    >
+                      {t("sidebar.restore")}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="shrink-0 space-y-1.5 px-4 pb-4">
           <button

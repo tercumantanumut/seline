@@ -102,7 +102,26 @@
         "hint": "Kimlik doğrulama için yönlendirileceksiniz"
       },
       "skip": "Şimdilik geç",
-      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz",
+      "connectingGoogle": "Google'a bağlanılıyor...",
+      "connectingOpenAI": "OpenAI'ye bağlanılıyor...",
+      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin.",
+      "pasteCodeRequired": "Lütfen yetkilendirme kodunu yapıştırın",
+      "connectedTo": "{name}'e bağlandı!",
+      "pasteInstruction": "Bir tarayıcı sekmesi açıldı. Yetkilendirdikten sonra sayfada gösterilen kodu kopyalayıp aşağıya yapıştırın.",
+      "authCodeLabel": "Yetkilendirme Kodu",
+      "authCodePlaceholder": "Kodu buraya yapıştırın...",
+      "cancel": "İptal",
+      "verifying": "Doğrulanıyor...",
+      "submitCode": "Kodu Gönder",
+      "connecting": "Bağlanılıyor...",
+      "signInOpenAI": "OpenAI ile giriş yap",
+      "signInAnthropic": "Anthropic ile giriş yap",
+      "apiKeySaved": "API Anahtarı kaydedildi!",
+      "saving": "Kaydediliyor...",
+      "saveApiKey": "API Anahtarını Kaydet",
+      "back": "Geri",
+      "continue": "Devam"
     },
     "personalization": {
       "title": "Deneyiminizi Kişiselleştirin",
@@ -118,7 +137,13 @@
           "title": "İş Akışı Kalıpları"
         }
       },
-      "skip": "Kişiselleştirmeyi geç"
+      "skip": "Kişiselleştirmeyi geç",
+      "addPlaceholder": "{category} ekle...",
+      "add": "Ekle",
+      "exampleHint": "Veya bir örnek eklemek için tıklayın:",
+      "preferencesCount": "Tercihleriniz ({count}):",
+      "back": "Geri",
+      "continue": "Devam"
     },
     "complete": {
       "title": "Her şey hazır!",
@@ -129,14 +154,96 @@
         "settings": "Ayarlar'da deneyiminizi ince ayarlayın"
       },
       "cta": "Seline'i kullanmaya başla"
+    },
+    "wizard": {
+      "stepWelcome": "Hoş Geldiniz",
+      "stepProvider": "Sağlayıcı",
+      "stepConnect": "Bağlan",
+      "stepSearch": "Arama",
+      "stepWebSearch": "Web Araması",
+      "stepWebScraping": "Web Kazıma",
+      "stepReady": "Hazır"
+    },
+    "webSearch": {
+      "title": "Web Aramasını Etkinleştir",
+      "subtitle": "Web araması DuckDuckGo ile kutudan çıkar (ücretsiz). Daha zengin sonuçlar ve Derin Araştırma için Tavily API anahtarı ekleyin.",
+      "featuresTitle": "Neler kazanacaksınız:",
+      "features": {
+        "deepResearch": {
+          "title": "Derin Araştırma",
+          "desc": "Çok kaynaklı sentezle kapsamlı web araştırması"
+        },
+        "realtime": {
+          "title": "Gerçek Zamanlı Bilgi",
+          "desc": "Güncel olaylar, haberler ve güncel bilgilere erişim"
+        },
+        "factVerification": {
+          "title": "Gerçek Doğrulama",
+          "desc": "İddiaları doğrulayın ve birden fazla kaynaktan bilgileri çapraz referanslayın"
+        }
+      },
+      "apiKeyTitle": "Tavily API Anahtarı",
+      "getApiKey": "API anahtarınızı alın",
+      "validationEmpty": "Lütfen bir API anahtarı girin",
+      "validationValid": "API anahtarı geçerli!",
+      "validationInvalid": "Geçersiz API anahtarı",
+      "validationFailed": "API anahtarı doğrulanamadı",
+      "validating": "Doğrulanıyor...",
+      "testKey": "API Anahtarını Test Et",
+      "gettingStarted": "Başlarken:",
+      "step1": "tavily.com'a kaydolun (ücretsiz plan mevcut)",
+      "step2": "API anahtarınızı panodan kopyalayın",
+      "step3": "Yukarıya yapıştırın ve \"API Anahtarını Test Et\" düğmesine tıklayın",
+      "noKeyHint": "API anahtarınız yok mu? Bu adımı atlayın — DuckDuckGo ücretsiz web aramasını otomatik olarak sağlar.",
+      "back": "Geri",
+      "skip": "Şimdilik atla",
+      "continue": "Devam"
+    },
+    "webScraping": {
+      "title": "Web Kazıma Sağlayıcısı",
+      "subtitle": "Ajanlarınızın web sayfalarına nasıl göz atıp içerik çıkaracağını seçin",
+      "localTitle": "Yerel (Puppeteer)",
+      "recommended": "Önerilen",
+      "localDesc": "Puppeteer kullanan yerleşik web kazıma. API anahtarı gerekmez, makinenizde çalışır.",
+      "localFeatures": {
+        "free": "Ücretsiz ve sınırsız",
+        "offline": "Çevrimdışı çalışır",
+        "js": "Tam JavaScript desteği"
+      },
+      "firecrawlTitle": "Firecrawl (Bulut API)",
+      "firecrawlDesc": "Gelişmiş özellikler ve güvenilirlikle profesyonel bulut tabanlı kazıma.",
+      "firecrawlFeatures": {
+        "antibot": "Gelişmiş bot engeli aşma",
+        "structured": "Yapılandırılmış veri çıkarma",
+        "managed": "Yönetilen altyapı"
+      },
+      "apiKeyTitle": "Firecrawl API Anahtarı",
+      "getApiKey": "API anahtarınızı alın",
+      "validationEmpty": "Lütfen bir API anahtarı girin",
+      "validationValid": "API anahtarı geçerli!",
+      "validationInvalid": "Geçersiz API anahtarı",
+      "validationFailed": "API anahtarı doğrulanamadı",
+      "validating": "Doğrulanıyor...",
+      "testKey": "API Anahtarını Test Et",
+      "gettingStarted": "Başlarken:",
+      "step1": "firecrawl.dev'e kaydolun",
+      "step2": "API anahtarınızı panodan kopyalayın",
+      "step3": "Yukarıya yapıştırın ve \"API Anahtarını Test Et\" düğmesine tıklayın",
+      "back": "Geri",
+      "skip": "Şimdilik atla",
+      "continue": "Devam"
     }
   },
   "layout": {
     "brandShort": "S",
     "brand": "Selin",
     "homeAria": "Selin Ana Sayfa",
+    "minimizeWindow": "Pencereyi küçült",
+    "maximizeWindow": "Pencereyi büyüt",
+    "closeWindow": "Pencereyi kapat",
     "sidebar": {
       "usage": "Kullanım ve Analitik",
+      "dashboard": "Kontrol Paneli",
       "settings": "Ayarlar",
       "about": "Hakkında",
       "signOut": "Çıkış yap",
@@ -189,16 +296,32 @@
     "delete": "Sil",
     "editIdentity": "Ajan detaylarını düzenle",
     "deleteAgent": "Ajanı sil",
+    "saveToolsFailed": "Araç seçimi kaydedilemedi",
+    "saveIdentityFailed": "Ajan bilgileri kaydedilemedi",
+    "deleteFailed": "Ajan silinemedi",
+    "saveMcpFailed": "MCP araç ayarları kaydedilemedi",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
+    "menu": {
+      "editInfo": "Bilgileri Düzenle",
+      "manageTools": "Araçları Yönet",
+      "syncFolders": "Klasörleri Senkronize Et",
+      "mcpTools": "MCP Araçları",
+      "plugins": "Eklentiler",
+      "dashboard": "Kontrol Paneli",
+      "duplicate": "Çoğalt",
+      "delete": "Sil"
+    },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
       "title": "Ajan Eklentileri",
       "subtitle": "{name} için eklentileri etkinleştirin veya devre dışı bırakın",
       "configure": "Eklentileri yapılandır",
       "enabledCount": "{count, plural, one {# eklenti etkin} other {# eklenti etkin}}",
-      "empty": "Atanabilir eklenti bulunamadı"
+      "empty": "Atanabilir eklenti bulunamadı",
+      "loadFailed": "Eklentiler yüklenemedi",
+      "updateFailed": "Eklenti güncellenemedi"
     },
     "mcpRemovalWarning": {
       "title": "Aktif Oturum Tespit Edildi",
@@ -211,7 +334,7 @@
     "emptyTitle": "İlk Ajanınızı Oluşturun",
     "emptyDescription": "Ajanlar, belirli görevlere özelleştirilmiş AI asistanlarıdır. Kişiselleştirilmiş yardım almak için bir tane oluşturun.",
     "searchPlaceholder": "Ajanlar ve is akislarinda ara...",
-    "noResults": "Aramanızla eşleşen ajan bulunamadı",
+    "noResults": "\"{query}\" ile eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Senkronize Klasörler",
     "syncedFolders": "Senkronize klasörler",
@@ -384,7 +507,8 @@
         "comfyuiEnabled": "ComfyUI etkin olmalı",
         "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
         "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "localGrepEnabled": "Yerel Grep etkin olmalı",
+        "devWorkspaceEnabled": "Geliştirici Çalışma Alanı etkin olmalı"
       }
     },
     "tools": {
@@ -595,6 +719,14 @@
       "localGrep": {
         "name": "Yerel Grep",
         "description": "ripgrep ile hızlı ve regex arama"
+      },
+      "workspace": {
+        "name": "Çalışma Alanı",
+        "description": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet"
+      },
+      "delegateToSubagent": {
+        "name": "Alt Ajana Devret",
+        "description": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       }
     }
   },
@@ -618,6 +750,7 @@
       "uploading": "Yükleniyor..."
     },
     "delete": "Sil",
+    "setAsPrimary": "{name} için birincil avatar olarak ayarla",
     "note": "PNG, JPEG veya WebP · En fazla 10MB"
   },
   "documents": {
@@ -714,8 +847,15 @@
       "stopVoiceInput": "Kaydı durdur",
       "transcribingAudio": "Ses yazıya dönüştürülüyor..."
     },
+    "prevBranch": "Önceki dal",
+    "nextBranch": "Sonraki dal",
     "toast": {
-      "copied": "Mesaj panoya kopyalandı"
+      "copied": "Mesaj panoya kopyalandı",
+      "transcriptionFailed": "Transkripsiyon başarısız",
+      "noSpeechDetected": "Ses tespit edilmedi",
+      "micAccessFailed": "Mikrofona erişilemedi",
+      "synthesizeFailed": "Ses sentezlenemedi",
+      "connectProviders": "Ayarlar'dan sağlayıcı bağlayın"
     },
     "deepResearchPanel": {
       "title": "Derin Araştırma",
@@ -783,7 +923,263 @@
       "referenceImageFlux2Klein4B": "Referans (FLUX.2 Klein 4B)",
       "generateImageFlux2Klein9B": "Üret (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Düzenle (FLUX.2 Klein 9B)",
-      "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)"
+      "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)",
+      "toolOutputPreview": "Araç çıktı önizlemesi {index}",
+      "hide": "Gizle",
+      "details": "Detaylar",
+      "workspace": "Çalışma Alanı"
+    },
+    "patchFile": {
+      "patchLabel": "Yama",
+      "fileCount": "{count, plural, one {# dosya} other {# dosya}}",
+      "changed": "{count} değişti",
+      "showLess": "▲ Daha az göster",
+      "showAll": "▼ Tümünü göster ({count} satır)",
+      "diagnostics": "Tanılamalar ({tool})",
+      "errors": "{count, plural, one {# hata} other {# hata}}",
+      "warnings": "{count, plural, one {# uyarı} other {# uyarı}}",
+      "processing": "İşleniyor..."
+    },
+    "delegations": {
+      "activeDelegations": "{count, plural, one {# aktif delege} other {# aktif delege}}"
+    },
+    "skillImportOverlay": {
+      "uploading": "Yükleniyor…",
+      "parsing": "Paket ayrıştırılıyor…",
+      "importing": "Beceri içe aktarılıyor…",
+      "success": "İçe aktarma tamamlandı!",
+      "error": "İçe aktarma başarısız",
+      "readyToUse": "{name} kullanıma hazır",
+      "loadingSkills": "Beceriler yükleniyor...",
+      "skillResults": "{count, plural, one {# sonuç} other {# sonuç}}",
+      "selectAgentFirst": "Becerileri içe aktarmadan önce lütfen bir ajan seçin",
+      "confirmInstall": "Bu eklenti paketini \"{name}\" için yükleyip keşfedilen alt ajanları bu iş akışına ekleyecek misiniz?",
+      "skillImported": "Beceri başarıyla içe aktarıldı",
+      "pluginInstalled": "Eklenti yüklendi",
+      "viewSkills": "Becerilere Git",
+      "viewWorkflow": "İş Akışına Git",
+      "viewPlugins": "Eklentilere Git",
+      "importTimedOut": "İçe aktarma zaman aşımına uğradı",
+      "importTimedOutDesc": "İçe aktarma 2 dakika sonra zaman aşımına uğradı. Lütfen tekrar deneyin.",
+      "importFailed": "İçe aktarma başarısız",
+      "skillCount": "{count, plural, one {# beceri} other {# beceri}}",
+      "agentCount": "{count, plural, one {# ajan} other {# ajan}}",
+      "hooksEnabled": "kancalar etkin",
+      "mcpServerCount": "{count, plural, one {# MCP sunucusu} other {# MCP sunucusu}}",
+      "agentProfilesCreated": "{count, plural, one {# ajan profili oluşturuldu} other {# ajan profili oluşturuldu}}",
+      "workflowCreated": "{count} ajanla iş akışı oluşturuldu"
+    },
+    "audio": {
+      "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin.",
+      "voiceNotSupported": "Bu ortamda ses girişi desteklenmiyor.",
+      "voiceRecordingFailed": "Ses kaydı başarısız oldu.",
+      "skillFileTooLarge": "Beceri dosyası 50MB sınırını aşıyor"
+    },
+    "toolResults": {
+      "errorOccurred": "Bir hata oluştu",
+      "generationQueued": "Oluşturma kuyruğa alındı. İş kimliği: {jobId}",
+      "noToolsFound": "\"{query}\" ile eşleşen araç bulunamadı",
+      "toolsFound": "{count, plural, one {# araç bulundu} other {# araç bulundu}}: {names}",
+      "webSearchUnavailable": "Web araması kullanılamıyor",
+      "noWebResults": "\"{query}\" için sonuç bulunamadı",
+      "unexpectedFormat": "Beklenmedik araç arama sonuçları biçimi.",
+      "toolsListedSuccessfully": "Araçlar başarıyla listelendi",
+      "readFileFailed": "Dosya okunamadı",
+      "searchFailed": "Arama başarısız",
+      "noPathsToSearch": "Aranacak yol yok",
+      "searchCompleted": "Arama tamamlandı",
+      "webSearchSummary": "Özet",
+      "sourcesFound": "{count, plural, one {# kaynak bulundu:} other {# kaynak bulundu:}}",
+      "matchesFound": "{count, plural, one {\"{pattern}\" için # eşleşme bulundu} other {\"{pattern}\" için # eşleşme bulundu}}"
+    },
+    "toolStatus": {
+      "processing": "İşleniyor...",
+      "failed": "Başarısız",
+      "queued": "Kuyruğa alındı",
+      "completed": "Tamamlandı"
+    },
+    "gallery": {
+      "noContextAvailable": "Görsel eklenemiyor - galeri bağlamı mevcut değil",
+      "attachedToChat": "\"{name}\" sohbete eklendi",
+      "attachFailed": "Görsel eklenemedi",
+      "imageUnavailable": "Görsel kullanılamıyor",
+      "loading": "Görseller yükleniyor...",
+      "loadFailed": "Görseller yüklenemedi",
+      "noImages": "Görsel bulunamadı",
+      "imagesFound": "{count, plural, one {# Görsel Bulundu} other {# Görsel Bulundu}}",
+      "attached": "{count} eklendi",
+      "attachHint": "Bir görsele tıklayarak sonraki mesajınıza ekleyin"
+    },
+    "voiceTool": {
+      "stop": "Durdur",
+      "play": "Oynat",
+      "synthesizing": "Ses sentezleniyor\u2026",
+      "ttsFailed": "TTS başarısız",
+      "checkingTranscription": "Transkripsiyon kontrol ediliyor\u2026",
+      "transcriptionFailed": "Transkripsiyon kontrolü başarısız",
+      "playFailed": "Ses çalınamadı",
+      "playbackBlocked": "Ses oynatma tarayıcı tarafından engellendi"
+    },
+    "commandOutput": {
+      "error": "Hata",
+      "success": "Başarılı",
+      "running": "Çalışıyor",
+      "expandOutput": "Çıktıyı genişlet",
+      "collapseOutput": "Çıktıyı daralt",
+      "exitCode": "Çıkış kodu:",
+      "output": "Çıktı",
+      "standardError": "Standart Hata",
+      "stdErrWarning": " (uyarılar/tanılamalar)",
+      "truncated": "Çıktı kesildi. Tam günlük mevcut (ID: {logId})",
+      "copyRetrieval": "Alma Komutunu Kopyala",
+      "clickToExpand": "Çıktıyı genişletmek için tıklayın..."
+    },
+    "planTool": {
+      "updating": "Plan güncelleniyor\u2026",
+      "creating": "Plan oluşturuluyor\u2026",
+      "planError": "Plan hatası: {error}",
+      "plan": "Plan",
+      "stepsUpdated": "{count} adım güncellendi"
+    },
+    "vectorSearch": {
+      "tryRefinements": "Bu iyileştirmeleri deneyin",
+      "searching": "Aranıyor...",
+      "searchFailed": "Arama Başarısız",
+      "searchError": "Arama sırasında bir hata oluştu",
+      "noResults": "Sonuç Bulunamadı",
+      "noResultsHint": "Sorgunuzu yeniden ifade etmeyi veya farklı anahtar kelimeler kullanmayı deneyin.",
+      "searchComplete": "Arama Tamamlandı",
+      "findingLabel": "{count, plural, one {bulgu} other {bulgu}}",
+      "fileLabel": "{count, plural, one {dosya} other {dosya}}",
+      "chunksAnalyzed": "parça analiz edildi",
+      "findingsLabel": "Bulgular",
+      "collapseAll": "Tümünü daralt",
+      "expandAll": "Tümünü genişlet"
+    },
+    "calculator": {
+      "calculating": "Hesaplanıyor",
+      "calcError": "Hata",
+      "showMore": "Daha fazla göster",
+      "showLess": "Daha az göster",
+      "copyResult": "Sonucu kopyala"
+    },
+    "skillPicker": {
+      "needsInput": "girdi gerekli",
+      "navigate": "↑↓ gezin",
+      "select": "Tab/Enter seç",
+      "close": "Esc kapat",
+      "open": "Command Space aç",
+      "searchPlaceholder": "Beceri, kategori ve açıklamalarda ara",
+      "searchAriaLabel": "Becerilerde ara",
+      "noSkillsYet": "Henüz beceri yok - bir .md beceri dosyası bırakın veya Ayarlar → Eklentiler bölümünü ziyaret edin.",
+      "noMatch": "\"{query}\" ile eşleşen beceri yok"
+    },
+    "editFileTool": {
+      "creating": "Oluşturuluyor...",
+      "writing": "Yazılıyor...",
+      "editing": "Düzenleniyor...",
+      "createFailed": "Oluşturma başarısız",
+      "writeFailed": "Yazma başarısız",
+      "editFailed": "Düzenleme başarısız",
+      "createdWithWarnings": "Uyarılarla oluşturuldu",
+      "wroteWithWarnings": "Uyarılarla yazıldı",
+      "editedWithWarnings": "Uyarılarla düzenlendi",
+      "created": "Oluşturuldu",
+      "wrote": "Yazıldı",
+      "edited": "Düzenlendi",
+      "showLess": "Daha az göster",
+      "showAll": "Tümünü göster ({count} satır)",
+      "diagnosticsLabel": "Tanılama ({tool})",
+      "errors": "{count, plural, one {# hata} other {# hata}}",
+      "warnings": "{count, plural, one {# uyarı} other {# uyarı}}",
+      "lines": "{count, plural, one {# satır} other {# satır}}",
+      "processing": "İşleniyor..."
+    },
+    "webBrowse": {
+      "phaseFetching": "Getiriliyor",
+      "phaseCaching": "Önbelleğe alınıyor",
+      "phaseAnalyzing": "Analiz ediliyor",
+      "phaseComplete": "Tamamlandı",
+      "phaseError": "Hata",
+      "pagesLoaded": "{count, plural, one {# sayfa yüklendi} other {# sayfa yüklendi}}",
+      "errorPrefix": "Hata: {message}"
+    }
+  },
+  "workspace": {
+    "diff": {
+      "syncFailed": "Değişiklikler yerel ortama aktarılamadı",
+      "syncSuccess": "Değişiklikler başarıyla yerel ortama aktarıldı",
+      "discardFailed": "Çalışma alanı değişiklikleri iptal edilemedi",
+      "discardSuccess": "Çalışma alanı değişiklikleri iptal edildi",
+      "loading": "Çalışma alanı durumu yükleniyor...",
+      "retry": "Yeniden dene",
+      "noChanges": "Değişiklik tespit edilmedi",
+      "createPR": "PR Oluştur",
+      "syncToLocal": "Yerele Aktar",
+      "syncing": "Aktarılıyor...",
+      "discard": "İptal Et",
+      "discardTitle": "Çalışma Alanı Değişikliklerini İptal Et",
+      "discardDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri kalıcı olarak silecektir. Bu işlem geri alınamaz.",
+      "cancel": "İptal",
+      "discarding": "İptal ediliyor...",
+      "discardChanges": "Değişiklikleri İptal Et",
+      "fetchFailed": "Çalışma alanı durumu alınamadı"
+    },
+    "dashboard": {
+      "activeWorkspaces": "Aktif Çalışma Alanları",
+      "cleanup": "Temizle",
+      "cleanedUp": "Çalışma alanı temizlendi",
+      "cleanupFailed": "Çalışma alanı temizlenemedi",
+      "viewPR": "PR'ı Görüntüle",
+      "showLess": "Daha az göster",
+      "showAll": "Tümünü göster ({count})",
+      "continue": "Devam Et",
+      "statusActive": "Aktif",
+      "statusChangesReady": "Değişiklikler Hazır",
+      "statusPrOpen": "PR Açık",
+      "statusMerged": "Birleştirildi",
+      "statusCleanup": "Temizle",
+      "minutesAgo": "{n} dk önce",
+      "hoursAgo": "{n} sa önce",
+      "daysAgo": "{n} gün önce",
+      "noChanges": "Değişiklik yok",
+      "filesChanged": "{count} dosya değişti"
+    },
+    "onboarding": {
+      "step1": {
+        "title": "Çalışma alanları ajanınızın izole çalışmasını sağlar",
+        "description": "Ajanınız, git worktrees kullanarak kodunuzun ayrı bir kopyasını oluşturabilir, değişiklikler yapabilir ve çalışma dosyalarınıza dokunmadan inceleme için gönderebilir.",
+        "hint": "Bu rozet, bir çalışma alanı etkin olduğunda sohbet başlığınızda görünür."
+      },
+      "step2": {
+        "title": "Değişiklikleri uygulanmadan önce inceleyin",
+        "description": "Sözdizimi renklendirilmiş diff'lerle yan panelde tam olarak nelerin değiştiğini görün. Değişiklikleri onaylayın, yerel deponuza aktarın veya ajandan revize etmesini isteyin.",
+        "hint": "Diff panelini açmak için çalışma alanı rozetindeki \"Değişiklikleri Görüntüle\"ye tıklayın."
+      },
+      "step3": {
+        "title": "Tüm çalışma alanlarını tek bakışta takip edin",
+        "description": "Ana sayfada tüm ajanlarınızın aktif çalışma alanlarını, durumlarını, dal adlarını, PR bağlantılarını ve devam etme, temizleme veya PR görüntüleme gibi hızlı işlemleri görün.",
+        "hint": "Aktif çalışma alanları, ana sayfada ajan kartlarınızın üzerinde görünür."
+      },
+      "skip": "Atla",
+      "gotIt": "Anladım",
+      "next": "İleri"
+    },
+    "indicator": {
+      "refreshFailed": "Çalışma alanı durumu yenilenemedi",
+      "refreshSuccess": "Çalışma alanı durumu yenilendi",
+      "cleanupFailed": "Çalışma alanı temizlenemedi",
+      "cleanupSuccess": "Çalışma alanı temizlendi",
+      "viewChanges": "Değişiklikleri Görüntüle",
+      "openPR": "PR'ı Aç",
+      "refresh": "Yenile",
+      "refreshing": "Yenileniyor...",
+      "cleanupWorkspace": "Çalışma Alanını Temizle",
+      "cleanupTitle": "Çalışma Alanını Temizle",
+      "cleanupDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri atacaktır. Bu işlem geri alınamaz.",
+      "cancel": "İptal",
+      "cleaningUp": "Temizleniyor...",
+      "cleanup": "Temizle"
     }
   },
   "folderSync": {
@@ -890,7 +1286,19 @@
     "autoModeWarning": "Otomatik mod dosya-değişimi ve zamanlı senkronu birlikte çalıştırır. Büyük klasörlerde dikkatli kullanın.",
     "transparencyHint": "İpucu: Son senkronu neyin tetiklediğini ve tam yeniden tarama olup olmadığını görmek için klasörü genişletin.",
     "reviewSetup": "Klasör Kurulumunu İncele",
-    "changeFolder": "Klasörü değiştir"
+    "changeFolder": "Klasörü değiştir",
+    "primaryBadge": "Birincil",
+    "workflowBadge": "İş Akışı",
+    "sharedFromWorkflow": "Bu klasör bir iş akışından paylaşılıyor",
+    "setPrimaryFolder": "Birincil klasör olarak ayarla",
+    "cancelSync": "Senkronizasyonu iptal et",
+    "errorLoadFolders": "Klasörler yüklenemedi",
+    "errorCancelSync": "Senkronizasyon iptal edilemedi",
+    "errorAddFolder": "Klasör eklenemedi",
+    "errorRemoveFolder": "Klasör kaldırılamadı",
+    "errorSyncFolder": "Klasör senkronize edilemedi",
+    "errorSetPrimary": "Birincil klasör ayarlanamadı",
+    "errorUpdateSettings": "Klasör ayarları güncellenemedi"
   },
   "vectorSearchPhase": {
     "idle": "Hazır",
@@ -929,6 +1337,25 @@
       "embeddingSetup": "Gömme Ayarları",
       "vectorSearch": "Vektör Arama",
       "preview": "Önizleme"
+    },
+    "loading": {
+      "enhancingTitle": "Ajan Konsepti Geliştiriliyor...",
+      "configuringTitle": "Ajan Yapılandırılıyor...",
+      "errorPrefix": "Hata: ",
+      "dismiss": "Kapat",
+      "enhancingMessages": [
+        "İsteğiniz analiz ediliyor...",
+        "Ajan kimliği taslağı hazırlanıyor...",
+        "Temel amaç belirleniyor...",
+        "Talimatlar optimize ediliyor...",
+        "Profil tamamlanıyor..."
+      ],
+      "configuringMessages": [
+        "Ajan profili başlatılıyor...",
+        "Yetenekler yapılandırılıyor...",
+        "Bilgi tabanı hazırlanıyor...",
+        "Yapılandırma tamamlanıyor..."
+      ]
     },
     "intro": {
       "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
@@ -1100,7 +1527,11 @@
         "localGrep": "Yerel Grep",
         "localGrepDesc": "ripgrep ile hızlı ve regex arama",
         "memorize": "Hafıza",
-        "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin"
+        "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin",
+        "workspace": "Çalışma Alanı",
+        "workspaceDesc": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet",
+        "delegateToSubagent": "Alt Ajana Devret",
+        "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       },
       "back": "← Geri",
       "continue": "Devam →",
@@ -1115,7 +1546,8 @@
         "comfyuiEnabled": "ComfyUI etkin olmalı",
         "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
         "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "localGrepEnabled": "Yerel Grep etkin olmalı",
+        "devWorkspaceEnabled": "Geliştirici Çalışma Alanı etkin olmalı"
       }
     },
     "style": {
@@ -1260,6 +1692,12 @@
         "alwaysTooltip": "Araç her istekte hemen yüklenir (daha fazla token kullanır)",
         "deferredTooltip": "Araç gerektiğinde searchTools ile keşfedilir (token tasarrufu)"
       }
+    },
+    "errors": {
+      "createDraftFailed": "Taslak ajan oluşturulamadı",
+      "createFailed": "Ajan oluşturulamadı",
+      "createFromTemplateFailed": "Şablondan oluşturma başarısız",
+      "creationFailed": "Oluşturma başarısız"
     }
   },
   "errors": {
@@ -1279,20 +1717,53 @@
     "nav": {
       "apiKeys": "API Anahtarları",
       "models": "Modeller",
-      "vectorSearch": "Vektör Arama",
-      "preferences": "Tercihler",
+      "vectorSearch": "Anlamsal Arama",
+      "comfyui": "Yerel Görsel AI",
+      "mcp": "MCP Sunucuları",
+      "plugins": "Eklentiler",
+      "voice": "Ses & Audio",
+      "preferences": "Uygulama ve Araç Tercihleri",
       "memory": "Hafıza"
     },
     "errors": {
       "load": "Ayarlar yüklenemedi",
-      "save": "Ayarlar kaydedilemedi"
+      "save": "Ayarlar kaydedilemedi",
+      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin.",
+      "loginFailed": "Giriş başarısız. Lütfen tekrar deneyin.",
+      "authStartFailed": "Kimlik doğrulama başlatılamadı",
+      "codeExchangeFailed": "Kod değişimi başarısız",
+      "memorySaveFailed": "Bellek varsayılanları kaydedilemedi",
+      "connectingToGoogle": "Google'a bağlanıyor...",
+      "connectingToOpenAI": "OpenAI'ya bağlanıyor...",
+      "authUrlFailed": "Yetkilendirme URL'si alınamadı"
     },
     "api": {
       "title": "LLM Sağlayıcısı",
+      "description": "Asistan modellerinizin nerede çalışacağını seçin, ardından yalnızca ihtiyacınız olan anahtarları ekleyin.",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
+      "ollama": "Ollama (yerel)",
       "keysTitle": "API Anahtarları",
+      "auth": {
+        "pasteInstructions": "Bir tarayıcı sekmesi açıldı. Yetkilendirdikten sonra sayfada gösterilen kodu kopyalayın ve aşağıya yapıştırın.",
+        "codePlaceholder": "Yetkilendirme kodunu buraya yapıştırın...",
+        "cancel": "İptal",
+        "submitCode": "Kodu Gönder",
+        "verifying": "Doğrulanıyor...",
+        "signOut": "Çıkış yap",
+        "connecting": "Bağlanıyor...",
+        "signedIn": "Oturum açıldı: {email}",
+        "antigravityTitle": "Antigravity modelleri",
+        "antigravityDesc": "Desteklenen premium modellere erişmek için Antigravity aboneliğinizi kullanın.",
+        "signInGoogle": "Google ile giriş yap",
+        "codexTitle": "OpenAI Codex",
+        "codexDesc": "Codex modellerini kullanmak için OpenAI hesabınızı bağlayın.",
+        "signInOpenAI": "OpenAI ile giriş yap",
+        "claudecodeTitle": "Claude Code",
+        "claudecodeDesc": "Claude Code modellerini kullanmak için Anthropic hesabınızı bağlayın.",
+        "signInAnthropic": "Anthropic ile giriş yap"
+      },
       "fields": {
         "anthropic": {
           "label": "Anthropic API Anahtarı",
@@ -1340,8 +1811,19 @@
           "label": "Seline AI API Anahtarı",
           "placeholder": "Seline AI anahtarınızı girin",
           "helper": "Görsel/video üretimi için gerekli"
+        },
+        "ollama": {
+          "label": "Ollama URL",
+          "placeholder": "http://localhost:11434/v1",
+          "helper": "Yerel Ollama OpenAI uyumlu uç nokta URL'sini kullanın."
+        },
+        "openai": {
+          "label": "OpenAI API Anahtarı",
+          "placeholder": "sk-...",
+          "helper": "OpenAI konuşmadan metne ve metinden konuşmaya için gereklidir."
         }
-      }
+      },
+      "readyStatus": "Hazır"
     },
     "models": {
       "title": "Model Seçimi",
@@ -1444,6 +1926,8 @@
         "title": "Gelişmiş Vektör Ayarları",
         "description": "Geri getirme, parçalama, yeniden sıralama ve dosya limitlerini ince ayarlayın.",
         "resetToDefaults": "Varsayılanlara sıfırla",
+        "expand": "Gelişmiş ayarları genişlet",
+        "collapse": "Gelişmiş ayarları daralt",
         "hybridSearch": {
           "title": "Hibrit Arama",
           "description": "Daha iyi kapsam için yoğun ve sözcüksel aramayı birleştirir.",
@@ -1464,7 +1948,17 @@
           "description": "En üst sonuçları ONNX modeliyle yeniden sıralar.",
           "enable": "Yeniden sıralamayı etkinleştir",
           "topK": "Yeniden sıralama üst K",
-          "modelPath": "Yeniden sıralama model yolu"
+          "modelPath": "Yeniden sıralama model yolu",
+          "customModelOption": "Özel model ID",
+          "customModelLabel": "Özel model ID",
+          "customModelPlaceholder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+          "customModelHelper": "Bir ön ayar seçin veya herhangi bir Hugging Face çapraz kodlayıcı yeniden sıralayıcı model ID'si girin.",
+          "ready": "Hazır",
+          "download": "İndir",
+          "wrongModelType": "Yanlış model türü: Bu bir gömme modeli gibi görünüyor, çapraz kodlayıcı yeniden sıralayıcı değil. Yeniden sıralayıcılar (sorgu, metin) çiftlerini puanlar — vektör üretmez. Lütfen \"cross-encoder/ms-marco-MiniLM-L-6-v2\" gibi bir çapraz kodlayıcı model seçin.",
+          "unrecognizedModel": "Tanınmayan model: Bunun bir çapraz kodlayıcı model olduğundan emin olun (gömme modeli değil). Çapraz kodlayıcılar ilgi puanları çıktılar, vektör değil.",
+          "downloadFailed": "İndirme başarısız",
+          "downloadApiUnavailable": "Model indirme API'si kullanılamıyor. Lütfen uygulamayı yeniden başlatın."
         },
         "queryProcessing": {
           "title": "Sorgu İşleme",
@@ -1483,6 +1977,7 @@
     },
     "preferences": {
       "title": "Tercihler",
+      "description": "Görünümü, dili ve arka plan kontrol davranışını kişiselleştirin.",
       "theme": {
         "label": "Tema",
         "dark": "Karanlık",
@@ -1500,7 +1995,142 @@
         "deferredHelper": "~2000 token tasarrufu. Araçlar gerektiğinde searchTools ile keşfedilir.",
         "always": "Her Zaman Dahil Et",
         "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
+      },
+      "postEditHooks": {
+        "heading": "Düzenleme sonrası kontroller",
+        "description": "AI değişikliklerinden sonra hangi kontrollerin otomatik çalışacağını seçin.",
+        "profileLabel": "Kontrol profili",
+        "off": "Kapalı",
+        "offDesc": "Otomatik kontrol çalıştırma.",
+        "fast": "Hızlı (önerilen)",
+        "fastDesc": "Yalnızca tür denetimi ve yalnızca ilgili alanlar için.",
+        "strict": "Katı",
+        "strictDesc": "Tüm projede tür denetimi ve lint çalıştır.",
+        "enableHooks": "Hook'ları etkinleştir",
+        "includePatches": "Yama düzenlemelerini dahil et",
+        "typecheck": "Tür Denetimi",
+        "eslint": "ESLint",
+        "typecheckScopeLabel": "Tür denetimi kapsamı",
+        "typecheckScopeDesc": "Düzenlemelerden sonra tür denetiminin ne kadar geniş çalışacağını seçin.",
+        "scopeAuto": "Otomatik (değiştirilen dosyalara göre)",
+        "scopeApp": "Yalnızca uygulama kodu",
+        "scopeLib": "Yalnızca kütüphane kodu",
+        "scopeElectron": "Yalnızca Electron kodu",
+        "scopeTooling": "Yalnızca araçlar",
+        "scopeAll": "Tüm proje"
+      },
+      "promptCaching": {
+        "heading": "Prompt önbelleğe alma",
+        "description": "Token kullanımını ve maliyeti azaltmak için tekrarlanan prompt içeriğini yeniden kullan.",
+        "enableLabel": "Prompt önbelleğe almayı etkinleştir",
+        "enableDesc": "Tekrarlanan bağlam içeren uzun konuşmalar için yararlı."
+      },
+      "rtk": {
+        "heading": "RTK (deneysel)",
+        "description": "Desteklenen araçlarda token tasarrufu için komut çıktısını sıkıştırır.",
+        "enableLabel": "RTK'yı etkinleştir",
+        "enableDesc": "Yalnızca RTK kuruluysa ve komut destekliyorsa çalışır.",
+        "verbosityLabel": "Ayrıntı düzeyi",
+        "ultraCompact": "Ultra kompakt mod (-u)"
+      },
+      "devWorkspace": {
+        "heading": "Geliştirici çalışma alanı",
+        "description": "Git tabanlı kodlama iş akışları için çalışma alanı göstergeleri, fark görünümleri ve araçları göster.",
+        "enableLabel": "Geliştirici çalışma alanı araçlarını etkinleştir",
+        "enableDesc": "Dal bilgisi, fark inceleme panelleri ve bir çalışma alanı panosu ekler.",
+        "autoCleanLabel": "Eski çalışma ağaçlarını otomatik temizle",
+        "autoCleanDesc": "Birleştirmeden sonra veya belirli gün sayısından sonra eski çalışma ağaçlarını otomatik kaldır.",
+        "cleanupDaysLabel": "Sonra temizle (gün)",
+        "recommendedServers": "Önerilen araç sunucuları:",
+        "recommendedServersDesc": "Çalışma ağacı yönetimi için {worktreeTools} veya pull request iş akışları için {githubMcp} yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
       }
+    },
+    "memory": {
+      "categoryLabels": {
+        "visual_preferences": "Görsel stil",
+        "communication_style": "İletişim tarzı",
+        "workflow_patterns": "Çalışma alışkanlıkları"
+      }
+    },
+    "voice": {
+      "heading": "Ses & Ses",
+      "description": "Sesli yanıtlar ve ses dönüştürmeyi kolay varsayılanlarla yapılandırın.",
+      "tts": {
+        "title": "Metinden Sese (TTS)",
+        "description": "Asistanın sohbet tarzınıza uygun sesli yanıtlar vermesini sağlayın.",
+        "enableLabel": "Sesli yanıtları etkinleştir",
+        "enableDesc": "Etkinleştirildiğinde asistan sesli çıktı gönderebilir.",
+        "disabledHint": "Sesin ne zaman oluşturulacağını ve hangi sağlayıcının kullanılacağını seçmek için bunu açın.",
+        "whenTitle": "Ses ne zaman oluşturulsun?",
+        "whenDesc": "Asistan yanıtlarına sesin ne sıklıkta ekleneceğini seçin.",
+        "modeOff": "Yalnızca istek üzerine",
+        "modeOffDesc": "Ses yalnızca siz istediğinizde oluşturulur.",
+        "modeChannels": "Kanal yanıtları için",
+        "modeChannelsDesc": "Kanallarda sesli notlar otomatik eklenir.",
+        "modeAlways": "Her yanıt için",
+        "modeAlwaysDesc": "Her asistan yanıtı sesli çıktı içerir.",
+        "providerTitle": "Ses sağlayıcısı",
+        "providerDesc": "Sesi oluşturacak servisi seçin.",
+        "providerEdge": "Edge TTS",
+        "providerEdgeDesc": "Yerleşik Microsoft sesleri. API anahtarı gerekmez.",
+        "providerOpenAI": "OpenAI TTS",
+        "providerOpenAIDesc": "OpenAI veya OpenRouter API anahtarınızı kullanır.",
+        "providerElevenLabs": "ElevenLabs",
+        "providerElevenLabsDesc": "Doğal premium sesler ve ses klonlama.",
+        "badgeFree": "Ücretsiz",
+        "badgeApiKey": "API Anahtarı",
+        "defaultVoiceLabel": "Varsayılan OpenAI sesi",
+        "defaultVoiceHelper": "İstek farklı bir ses belirtmediğinde kullanılır.",
+        "elevenLabsTitle": "ElevenLabs hesap bilgileri",
+        "elevenLabsDesc": "Yanıtların doğru ElevenLabs profilini kullanması için anahtarınızı ve sesinizi ekleyin.",
+        "elevenLabsKeyLabel": "ElevenLabs API anahtarı",
+        "elevenLabsKeyPlaceholder": "xi_...",
+        "voiceIdLabel": "Ses ID",
+        "voiceIdHelper": "ElevenLabs ses kütüphanesinden kopyalayabilirsiniz.",
+        "voiceIdPlaceholder": "örn. 21m00Tcm4TlvDq8ikWAM",
+        "limitLabel": "Uzun mesaj sınırı (karakter)",
+        "limitHelper": "Bu sınırı aşan mesajlar ses oluşturulmadan önce kısaltılır."
+      },
+      "stt": {
+        "title": "Sesten Metne (STT)",
+        "description": "Gelen sesli notları okunması ve aranması kolay metne dönüştürün.",
+        "enableLabel": "Metne dönüştürmeyi etkinleştir",
+        "enableDesc": "Kanallardan ve sesli not uygulamalarından gelen ses eklerini otomatik dönüştür.",
+        "disabledHint": "Sağlayıcı seçmek ve yerel Whisper model seçeneklerini yapılandırmak için bunu açın.",
+        "providerTitle": "Dönüştürme sağlayıcısı",
+        "providerDesc": "Sesin nerede dönüştürüleceğini seçin.",
+        "providerOpenAI": "OpenAI Whisper",
+        "providerOpenAIDesc": "OpenAI veya OpenRouter API anahtarınızı kullanan bulut dönüştürme.",
+        "providerLocal": "Yerel (whisper.cpp)",
+        "providerLocalDesc": "Bu cihazda çalışır. Harici API anahtarı gerekmez.",
+        "whisperModelLabel": "Whisper Modeli",
+        "whisperDownloaded": "İndirildi",
+        "whisperDownload": "İndir",
+        "whisperSelectModel": "Bir model seçin",
+        "whisperMultilingual": " · ~99 dili destekler",
+        "whisperEnglishOnly": " · Yalnızca İngilizce",
+        "whisperSetupHint": "Yukarıdan bir model indirin — whisper-cli ve ffmpeg uygulama ile birlikte gelir. Dönüştürme tamamen cihazınızda gerçekleşir — API anahtarı veya internet gerekmez."
+      }
+    },
+    "localGrep": {
+      "heading": "Yerel grep (tam kod araması)",
+      "description": "Tam/regex ripgrep aramalarının ayarları. Önce dar filtre ve düşük sonuç limitiyle başlayın, yalnızca gerekirse genişletin.",
+      "enableLabel": "Yerel grep aracını etkinleştir",
+      "gitignoreLabel": ".gitignore dosyasında listelenen dosyaları yoksay",
+      "maxResultsLabel": "Maksimum sonuç (varsayılan: 20)",
+      "contextLinesLabel": "Bağlam satırları",
+      "tip": "Daha temiz çıktı için önce düşük sonuç limiti ve dar dosya türleri kullanın."
+    },
+    "localImage": {
+      "heading": "Yerel görsel üretimi",
+      "description": "Yerel arka uçlar kullanarak bu cihazda görsel üretin.",
+      "hfTokenTitle": "Hugging Face jetonu",
+      "hfTokenDesc": "FLUX.2 Klein gibi kısıtlı modelleri indirmek için gereklidir.",
+      "hfTokenLink": "Jeton ayarlarını aç",
+      "hfTokenPlaceholder": "hf_...",
+      "backendsLabel": "Arka Uçlar",
+      "workflowsHeading": "Özel ComfyUI iş akışları",
+      "workflowsDesc": "Bir iş akışı JSON dosyası yapıştırın veya yükleyin, ardından kaydetmeden önce giriş ve çıkışları inceleyin."
     },
     "onboarding": {
       "title": "Kurulum",
@@ -1527,19 +2157,319 @@
       "resolvedCommand": "Çözümlenen komut:",
       "serverDisabled": "Sunucu devre dışı bırakıldı",
       "serverEnabled": "Sunucu etkinleştirildi",
+      "serverEnabledFeedback": "{name} etkinleştirildi",
+      "serverDisabledFeedback": "{name} devre dışı bırakıldı",
       "syncedFolderVariable": "Birincil senkronize klasör",
       "syncedFoldersArrayVariable": "Tüm senkronize klasörler (ayrı argümanlar)",
       "variableHelp": "Tek klasör erişimi için \\${SYNCED_FOLDER} veya çoklu klasör erişimi için \\${SYNCED_FOLDERS_ARRAY} kullanın",
-      "variablePreview": "Önizleme"
+      "variablePreview": "Önizleme",
+      "loadFailed": "MCP yapılandırması yüklenemedi",
+      "saved": "Ayarlar kaydedildi",
+      "saveFailed": "Ayarlar kaydedilemedi",
+      "connected": "{server} ile bağlantı kuruldu",
+      "connectFailed": "{server} ile bağlantı kurulamadı: {error}",
+      "connectionFailed": "Bağlantı başarısız: {error}",
+      "connectionFailedUnknown": "Bağlantı başarısız: Bilinmeyen sorun",
+      "serverAdded": "{name} sunucusu eklendi",
+      "serverUpdated": "{name} sunucusu güncellendi",
+      "templateAdded": "{name} sunucusu eklendi",
+      "envVarsAdded": "{count} ortam değişkeni eklendi. Değerleri aşağıya girin.",
+      "deleteConfirm": "{name} silinsin mi?",
+      "invalidJsonMissingRoot": "Geçersiz JSON: 'mcpServers' kök anahtarı eksik",
+      "invalidJsonSyntax": "Geçersiz JSON sözdizimi",
+      "removeEnvVar": "Ortam değişkenini kaldır",
+      "removeArg": "Argümanı kaldır",
+      "statusNotConnected": "Bağlı değil",
+      "statusConnected": "Bağlı",
+      "statusError": "Hata",
+      "validationServerNameRequired": "Sunucu adı gerekli",
+      "validationServerNameExists": "Sunucu adı zaten mevcut",
+      "validationCommandRequired": "Stdio taşıması için komut gerekli",
+      "validationUrlRequired": "SSE taşıması için URL gerekli",
+      "validationInvalidUrl": "Geçersiz URL biçimi",
+      "reconnectServer": "Sunucuya yeniden bağlan",
+      "editServer": "Sunucuyu düzenle",
+      "deleteServer": "Sunucuyu sil",
+      "addEnvVar": "Ekle",
+      "cancelEnvVar": "İptal",
+      "addedServers": "Eklenen sunucular",
+      "addCustomServer": "Özel sunucu ekle",
+      "cancelAdd": "İptal",
+      "noServersYet": "Henüz sunucu eklenmedi. Başlamak için bir tane ekleyin.",
+      "connectionFailedTitle": "Bağlantı başarısız",
+      "activeTools": "{count} aktif araç",
+      "environmentVariables": "Ortam değişkenleri",
+      "noEnvVarsYet": "Henüz ortam değişkeni yok.",
+      "envValuePlaceholder": "Değer...",
+      "addVariable": "Değişken ekle",
+      "envValueHint": "Değer (daha sonra ekleyebilirsiniz)",
+      "showAdvancedJson": "Gelişmiş JSON'u göster",
+      "hideAdvancedJson": "Gelişmiş JSON'u gizle",
+      "rawJsonSettings": "Ham JSON ayarları",
+      "applyJson": "JSON'u Uygula",
+      "editServer": "Sunucuyu Düzenle",
+      "addNewServer": "Yeni Sunucu Ekle",
+      "variablesButton": "Değişkenler",
+      "availableEnvVars": "Mevcut Ortam Değişkenleri:",
+      "noEnvVarsSet": "Ortam değişkeni ayarlanmamış. Aşağıdaki bölümden ekleyin.",
+      "pathVariables": "Yol Değişkenleri:",
+      "serverName": "Sunucu Adı",
+      "serverNamePlaceholder": "ör. sunucum",
+      "transportType": "Taşıma Türü",
+      "command": "Komut",
+      "arguments": "Argümanlar",
+      "insertVariable": "Değişken Ekle",
+      "addArgumentPlaceholder": "Argüman ekle...",
+      "primaryFolder": "Birincil senkronize klasör",
+      "allFolders": "Tüm klasörler (birden fazla argümana genişler)",
+      "envVarsSection": "Ortam Değişkenleri:",
+      "serverUrl": "Sunucu URL'si",
+      "requestHeaders": "İstek Başlıkları",
+      "optionalLabel": "İsteğe bağlı",
+      "examples": "Örnekler",
+      "bearerTokenExample": "Bearer Token:",
+      "apiKeyHeaderExample": "API Anahtar Başlığı:",
+      "useVarHint": "Ortam değişkenlerine referans vermek için ${DEĞİŞKEN} kullanın",
+      "headersHint": "Başlıklar her SSE isteğiyle gönderilir. Ortam değişkenleri için ${DEĞİŞKEN} kullanın.",
+      "addHeader": "Başlık Ekle",
+      "cancelHeader": "İptal",
+      "confirmHeader": "Ekle",
+      "headerNamePlaceholder": "Başlık adı (ör. Authorization)",
+      "headerValuePlaceholder": "Değer veya ${DEĞİŞKEN}",
+      "showHeaderValue": "Başlık değerini göster",
+      "hideHeaderValue": "Başlık değerini gizle",
+      "removeHeader": "Başlığı kaldır",
+      "cancel": "İptal",
+      "save": "Sunucuyu Kaydet",
+      "saving": "Kaydediliyor...",
+      "requiredVariables": "Gerekli değişkenler: {vars}",
+      "recommendedServers": "Önerilen sunucular",
+      "authBadge": "Doğrulama",
+      "helpButton": "Yardım",
+      "preview": "Önizleme:",
+      "headerCount": "{count, plural, one {# başlık} other {# başlık}}",
+      "jsonKeyHint": "Üst düzey anahtar \"mcpServers\" olmalıdır.",
+      "templates": {
+        "filesystem": { "name": "Dosyalar (tek klasör)", "description": "Senkronize klasörde dosya oku ve yaz" },
+        "filesystem-multi": { "name": "Dosyalar (tüm klasörler)", "description": "Tüm senkronize klasörlere eriş" },
+        "github": { "name": "GitHub", "description": "Depoları yönet ve kod ara" },
+        "chrome-devtools": { "name": "Chrome DevTools", "description": "Chrome'da sayfalarda inceleme ve hata ayıkla" },
+        "postgres": { "name": "PostgreSQL", "description": "PostgreSQL veritabanına bağlan" },
+        "composio": { "name": "Composio", "description": "Composio ile birçok uygulamayı bağla", "setup": "Composio'dan Bağlantı Kimliği alın. Tool Router için URL'yi şununla değiştirin: https://backend.composio.dev/tool_router/'{router_id}'/mcp" },
+        "linear": { "name": "Linear", "description": "Sorunları takip et ve projeleri yönet" },
+        "supabase": { "name": "Supabase", "description": "Supabase proje verilerini ve API'lerini yönet" },
+        "assistant-ui": { "name": "Assistant UI Belgeleri", "description": "Assistant UI belgelerinde ara" },
+        "everything": { "name": "Everything", "description": "Pek çok örnek aracı olan örnek sunucu" }
+      }
     }
+  },
+  "modelBag": {
+    "title": "Model Çantası",
+    "modelCount": "{count, plural, one {# model} other {# model}}",
+    "inventory": "ENVANTER",
+    "searchPlaceholder": "Model ara...",
+    "bagSearchPlaceholder": "Ara...",
+    "noMatch": "Filtrelere uyan model yok",
+    "noModels": "Model bulunamadı",
+    "capabilityThinking": "Genişletilmiş düşünme",
+    "capabilityFast": "Hızlı",
+    "capabilityVision": "Görüntü",
+    "clearOverride": "Geçersiz kılmayı temizle (varsayılanı kullan)",
+    "usingDefault": "Varsayılan kullanılıyor",
+    "close": "Kapat",
+    "enterToAssign": "Enter + ↵",
+    "sessionOverride": {
+      "loadingConfig": "Model yapılandırması yükleniyor...",
+      "updateFailed": "Oturum modeli güncellenemedi",
+      "updateSuccess": "Oturum modeli güncellendi",
+      "clearFailed": "Geçersiz kılmalar temizlenemedi",
+      "clearSuccess": "Oturum modeli geçersiz kılmaları temizlendi",
+      "chatModel": "Sohbet Modeli",
+      "researchModel": "Araştırma Modeli",
+      "visionModel": "Görüntü Modeli",
+      "utilityModel": "Yardımcı Model",
+      "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
+      "helpText": "Boş = global ayarı kullan. Yalnızca bu oturum için geçersiz kılmak üzere model kimliği girin.",
+      "globalLabel": "global:",
+      "providerDefault": "(sağlayıcı varsayılanı)",
+      "modelLabel": "Model",
+      "globalStatus": "Global",
+      "overrideBadge": "GEÇERSİZ"
+    },
+    "providerFilter": {
+      "all": "Tümü",
+      "activeProvider": "{name} (aktif sağlayıcı)",
+      "doubleClickToSwitch": "{name} — geçmek için çift tıklayın",
+      "notConfigured": "{name} — yapılandırılmamış"
+    },
+    "tooltip": {
+      "assigned": "Atanan:",
+      "vision": "Görsel",
+      "thinking": "Düşünme",
+      "tools": "Araçlar",
+      "notConfigured": "Sağlayıcı yapılandırılmamış — API anahtarı ekleyin veya Ayarlar'dan bağlayın"
+    },
+    "providerLabel": "Sağlayıcı:",
+    "defaultBadge": "VAR",
+    "assignTo": "ATA:",
+    "currentlyActive": "Şu anda aktif",
+    "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",
+    "footerHint": "Modeli değiştirmek için tıklayın · Sağlayıcıları <settings>Ayarlar</settings>'dan yönetin",
+    "switched": "Bu oturum için {name} modeline geçildi",
+    "switchFailed": "Model değiştirilemedi",
+    "loadFailed": "Model ayarları yüklenemedi",
+    "updateFailed": "Model güncellenemedi",
+    "roleUpdated": "{role} modeli güncellendi",
+    "switchProviderFailed": "Sağlayıcı değiştirilemedi",
+    "providerSwitched": "{name} sağlayıcısına geçildi"
+  },
+  "comfyui": {
+    "workflows": {
+      "analyzed": "İş akışı analiz edildi",
+      "saved": "İş akışı kaydedildi",
+      "deleted": "İş akışı silindi",
+      "createWorkflow": "İş Akışı Oluştur",
+      "createWorkflowDescription": "Harici örnekleri yapılandırın ve yeni özel iş akışları tanımlayın.",
+      "connection": {
+        "heading": "Bağlantı Ayarları",
+        "description": "Hedef ComfyUI örneği yapılandırması",
+        "hostLabel": "Host",
+        "portLabel": "Port",
+        "useHttps": "Güvenli Bağlantı Kullan (HTTPS)",
+        "autoDetect": "Yerel Port'u Otomatik Algıla",
+        "baseUrlLabel": "Temel URL Önizlemesi"
+      },
+      "metadata": {
+        "heading": "İş Akışı Meta Verisi",
+        "description": "Kimlik ve davranışı tanımla",
+        "createNew": "Yeni İş Akışı Oluştur",
+        "nameLabel": "Ad",
+        "namePlaceholder": "örn. Flux Dev Landscape",
+        "enabledLabel": "Etkin",
+        "descriptionLabel": "Açıklama",
+        "descriptionPlaceholder": "Bu iş akışının ne yaptığını kısaca açıklayın...",
+        "loadingModeLabel": "Yükleme Modu",
+        "loadingDeferred": "Ertelemeli",
+        "loadingAlways": "Her Zaman",
+        "timeoutLabel": "Zaman Aşımı (sn)",
+        "refresh": "Yenile",
+        "loading": "Yükleniyor...",
+        "clear": "Temizle"
+      },
+      "definition": {
+        "heading": "İş Akışı Tanımı",
+        "description": "ComfyUI JSON yapıştırın veya dosya yükleyin.",
+        "formatJson": "JSON Biçimlendir",
+        "loadFromFile": "Dosyadan Yükle",
+        "placeholder": "ComfyUI API JSON buraya yapıştırın (Save (API Format) ile dışa aktarılan).",
+        "validateWithObjectInfo": "/object_info ile doğrula",
+        "analyze": "Analiz Et",
+        "analyzing": "Analiz Ediliyor...",
+        "overrideTarget": "ComfyUI hedefini geçersiz kıl (isteğe bağlı)",
+        "baseUrlOverride": "Temel URL Geçersiz Kılma",
+        "hostOverride": "Host Geçersiz Kılma",
+        "portOverride": "Port Geçersiz Kılma"
+      },
+      "inputs": {
+        "heading": "Girdi Yapılandırması",
+        "description": "Gelen verileri iş akışı düğümlerine eşle.",
+        "addInput": "Girdi Ekle",
+        "noInputs": "Henüz girdi algılanmadı.",
+        "columnName": "Girdi Adı",
+        "columnType": "Tür",
+        "columnNodeId": "Düğüm ID",
+        "columnParameter": "Parametre",
+        "columnDefault": "Varsayılan",
+        "columnOpts": "Seçen.",
+        "columnAction": "İşlem",
+        "required": "Zorunlu",
+        "multiple": "Çoklu",
+        "expose": "Göster",
+        "remove": "Kaldır",
+        "enumPlaceholder": "Enum değerleri (virgülle ayrılmış)"
+      },
+      "outputs": {
+        "heading": "Çıktılar",
+        "description": "Bu iş akışının ne döndüreceğini tanımlayın.",
+        "addOutput": "Çıktı Ekle",
+        "noOutputs": "Henüz çıktı algılanmadı.",
+        "remove": "Kaldır"
+      },
+      "save": "İş akışını kaydet",
+      "saving": "Kaydediliyor...",
+      "delete": "Sil",
+      "loadFailed": "İş akışları yüklenemedi",
+      "analysisFailed": "İş akışı analizi başarısız",
+      "formatFailed": "JSON biçimlendirme başarısız",
+      "saveFailed": "İş akışı kaydedilemedi",
+      "deleteFailed": "İş akışı silinemedi"
+    },
+    "localModels": {
+      "title": "Yerel Görsel Üretimi",
+      "webOnlyNote": "Yerel görsel üretim modelleri yalnızca masaüstü uygulamasında kullanılabilir.",
+      "vramLabel": "VRAM",
+      "diskLabel": "Disk",
+      "checkingStatus": "Durum kontrol ediliyor...",
+      "statusChecking": "Kontrol Ediliyor",
+      "statusUnknown": "Bilinmiyor",
+      "statusDockerMissing": "Docker Eksik",
+      "statusSetupNeeded": "Kurulum Gerekli",
+      "statusStopped": "Durduruldu",
+      "statusApiDown": "API Kapalı",
+      "statusReady": "Hazır",
+      "dockerLabel": "Docker",
+      "imageBuiltLabel": "İmaj Oluşturuldu",
+      "modelsLabel": "Modeller",
+      "runningLabel": "Çalışıyor",
+      "apiReadyLabel": "API Hazır",
+      "ipcNotImplemented": "Backend IPC işleyicileri henüz uygulanmadı. Electron ana süreci {apiKey} işlemlerini yönetmeli.",
+      "setupButton": "Kur ({modelSize})",
+      "dockerRequired": "Docker gerekli. Docker Desktop yükleyin.",
+      "stop": "Durdur",
+      "start": "Başlat",
+      "enabledForToolUsage": "Araç kullanımı için etkin",
+      "setupWillTitle": "Kurulum yapacaklar:",
+      "advanced": "Gelişmiş",
+      "backendPathLabel": "Backend Yolu",
+      "backendPathPlaceholder": "Otomatik algılanan yol"
+    },
+    "installer": {
+      "title": "Yerel Görsel Üretimi (Z-Image Turbo FP8)",
+      "titleSimple": "Yerel Görsel Üretimi (Z-Image)",
+      "description": "Z-Image Turbo FP8 modeliyle ComfyUI kullanarak görselleri yerel olarak oluşturun. Docker ve ~12 GB VRAM'e sahip NVIDIA GPU gerektirir.",
+      "webOnlyNote": "Yerel ComfyUI arka ucu yalnızca masaüstü uygulamasında kullanılabilir.",
+      "enableLabel": "Yerel Görsel Üretimini Etkinleştir",
+      "enableDesc": "Bulut API'leri yerine yerel ComfyUI kullan",
+      "dockerInstalled": "Docker Kurulu",
+      "imageBuilt": "Docker İmajı Oluşturuldu",
+      "modelsDownloaded": "Modeller İndirildi",
+      "containerRunning": "Kapsayıcı Çalışıyor",
+      "apiHealthy": "API Sağlıklı",
+      "refreshStatus": "Durumu Yenile",
+      "setupButton": "ComfyUI Kur (Oluştur + ~12 GB Model İndir)",
+      "dockerRequired": "Docker gereklidir. Lütfen önce Docker Desktop'ı kurun.",
+      "stopComfyUI": "ComfyUI'yi Durdur",
+      "startComfyUI": "ComfyUI'yi Başlat",
+      "setupWillTitle": "Tek tıkla kurulum:",
+      "setupStep1": "Docker imajlarını oluşturur (~10-20 dk ilk seferde)",
+      "setupStep2": "z-image-turbo-fp8-aio.safetensors indirir (~11 GB)",
+      "setupStep3": "z-image-detailer.safetensors indirir (~1.2 GB)",
+      "setupStep4": "ComfyUI kapsayıcılarını başlatır",
+      "advancedSettings": "Gelişmiş Ayarlar",
+      "backendPath": "ComfyUI Arka Uç Yolu",
+      "backendPathPlaceholder": "Otomatik algılanan yol veya özel konum",
+      "backendPathDesc": "ComfyUI arka uç dosyaları ve modelleri için varsayılan konumu geçersiz kıl."
+    }
+  },
+  "vectorSearch": {
+    "indexMismatch": "Arama dizini uyumsuzluğu tespit edildi. Sonuçlar hatalı görünüyorsa Agent Ayarları'ndan senkronize klasörleri yenileyin."
   },
   "about": {
     "title": "Hakkında",
-    "subtitle": "Destek, bilgi ve bağlantılar",
-    "releasedBadge": "Yayında",
-    "headline": "Styly.io desteğiyle yayımlandı ve geliştirildi.",
-    "byline": "Umut Tan, MLe tarafından oluşturuldu ve sürdürülüyor.",
-    "linkStyly": "Styly.io",
+    "subtitle": "Bilgi ve bağlantılar",
+    "releasedBadge": "Açık Kaynak",
+    "headline": "Umut Tan tarafından oluşturuldu ve sürdürülüyor.",
+    "byline": "Açık kaynaklı bir yapay zeka ajan arayüzü.",
     "linkLinkedIn": "LinkedIn",
     "linkGitHub": "GitHub"
   },
@@ -1561,15 +2491,20 @@
       "channels": "Kanallar",
       "startNew": "Yeni sohbet başlat",
       "new": "Yeni",
+      "newTitle": "Yeni Sohbet (⌘N)",
       "empty": "Henüz sohbet geçmişi yok",
       "resetChannel": "Kanal oturumunu sıfırla",
       "delete": "Sohbeti sil",
       "rename": "Sohbeti yeniden adlandır",
+      "pin": "Sohbeti sabitle",
+      "unpin": "Sabitlemeyi kaldır",
+      "pinnedSection": "Sabitlendi",
       "edit": "Başlığı düzenle",
       "save": "Kaydet",
       "cancel": "İptal",
       "emptyHint": "Sohbetleri g?rmek i?in yeni sohbet ba?lat?n veya filtreleri de?i?tirin.",
       "searchPlaceholder": "Sohbetlerde ara...",
+      "searchShortcutHint": "Odaklanmak için / tuşuna basın",
       "channelAll": "T?m kanallar",
       "messageCount": "{count, plural, one {# mesaj} other {# mesaj}}",
       "groups": {
@@ -1587,6 +2522,17 @@
       "loadingMore": "Y?kleniyor...",
       "exportMarkdown": "Markdown olarak d??a aktar",
       "exportJson": "JSON olarak d??a aktar",
+      "viewAnalytics": "Analitikleri görüntüle",
+      "copyLink": "Bağlantıyı kopyala",
+      "linkCopied": "Bağlantı kopyalandı!",
+      "clearSearch": "Aramayı temizle",
+      "moreOptions": "Diğer seçenekler",
+      "archive": "Sohbeti arşivle",
+      "archived": "Arşivlendi",
+      "noArchived": "Arşivlenmiş sohbet yok",
+      "restore": "Geri yükle",
+      "archiveSuccess": "Sohbet arşivlendi",
+      "archiveError": "Sohbet arşivlenemedi",
       "exportSuccess": "Sohbet d??a aktar?ld?",
       "exportError": "Sohbet d??a aktar?lamad?",
       "noActiveChannels": "Aktif kanal yok",
@@ -1619,7 +2565,8 @@
       "stopping": "Durduruluyor...",
       "cancelled": "Zamanlanmış görev iptal edildi",
       "cancelError": "Görev iptal edilemedi",
-      "startedAt": "{time} itibarıyla başladı"
+      "startedAt": "{time} itibarıyla başladı",
+      "backgroundTask": "Arka plan görevi"
     },
     "processingInBackground": "Ajan arka planda işliyor",
     "processingInBackgroundHint": "Yanıt hazır olduğunda otomatik görünecek",
@@ -1642,7 +2589,9 @@
       "indicator": {
         "tooltip": "Bağlam: {current}/{max} ({percentage})",
         "compactNow": "Şimdi sıkıştır",
-        "newSession": "Yeni oturum başlat"
+        "newSession": "Yeni oturum başlat",
+        "thresholdsLabel": "Uya. {warn}% · Krit. {crit}% · Sınır {hard}%",
+        "thresholdsTooltip": "Eşikler (uyarı / kritik / sert sınır): {thresholds}"
       },
       "blocked": {
         "title": "Bağlam penceresi sınırı aşıldı",
@@ -1741,7 +2690,8 @@
       "untitled": "Başlıksız oturum",
       "invalidDate": "Geçersiz tarih",
       "select": "Detaylı kullanım ve analitik için soldan bir oturum seçin.",
-      "started": "Başlangıç {date}"
+      "started": "Başlangıç {date}",
+      "openInChat": "Sohbette aç"
     },
     "analytics": {
       "loading": "Oturum analizi hesaplanıyor...",
@@ -1778,6 +2728,48 @@
         "total": "{images} görsel • {videos} video",
         "empty": "Bu oturumda görsel veya video üretilmedi.",
         "service": "{images} görsel • {videos} video"
+      }
+    }
+  },
+  "dashboard": {
+    "title": "Kontrol Paneli",
+    "subtitle": "Yapay zeka çalışma alanınıza genel bakış",
+    "refresh": "Yenile",
+    "loadError": "İstatistikler yüklenemedi",
+    "stats": {
+      "totalChats": "Toplam sohbet",
+      "totalMessages": "Toplam mesaj",
+      "today": "Bugün",
+      "thisWeek": "Bu hafta",
+      "activeChats": "aktif sohbet"
+    },
+    "pinned": "Sabitlenmiş Sohbetler",
+    "noPinned": "Henüz sabitlenmiş sohbet yok",
+    "pinCta": "Önemli sohbetleri ··· → Sohbeti sabitle ile işaretleyin",
+    "recentChats": "Son Sohbetler",
+    "viewAllChats": "Tümünü gör",
+    "noChats": "Henüz sohbet yok. Bir konuşma başlatın!",
+    "topAgents": "Öne Çıkan Ajanlar",
+    "viewAllAgents": "Tümünü gör",
+    "noAgents": "Henüz ajan kullanılmadı.",
+    "agentChats": "{count} sohbet",
+    "sessionMessages": "{count, plural, one {# mesaj} other {# mesaj}}",
+    "untitledChat": "Başlıksız sohbet",
+    "skillAutomation": "Beceri Otomasyonu",
+    "skill": {
+      "totalRuns": "Toplam Çalıştırma",
+      "successRate": "Başarı Oranı",
+      "failures": "Başarısızlıklar",
+      "latency": "Gecikme",
+      "topSkills": "Öne Çıkan Beceriler",
+      "upcomingRuns": "Yaklaşan Çalıştırmalar",
+      "loadError": "Beceri verileri yüklenemedi",
+      "runs": "{count} çalıştırma",
+      "telemetry": {
+        "autoTriggered": "Otomatik: {auto} · Manuel: {manual}",
+        "copy": "Kopyalama: {ok} ok / {fail} başarısız",
+        "updates": "Güncellemeler: {ok} ok / {stale} eski",
+        "asOf": "İtibarıyla: {time}"
       }
     }
   },
@@ -1825,7 +2817,11 @@
       "errors": {
         "notFound": "Ajan bulunamadı",
         "forbidden": "Bu ajana erişiminiz yok",
-        "loadFailed": "Ajan yüklenemedi"
+        "loadFailed": "Ajan yüklenemedi",
+        "approveFailed": "Bellek onaylanamadı",
+        "rejectFailed": "Bellek reddedilemedi",
+        "deleteFailed": "Bellek silinemedi",
+        "addFailed": "Bellek eklenemedi"
       },
       "goHome": "Ana Sayfaya Dön"
     },
@@ -1867,6 +2863,8 @@
         "cancelled": "İptal Edildi"
       },
       "runs": {
+        "pageTitle": "Ajan Çalıştırmaları",
+        "pageSubtitle": "Ajan çalıştırma geçmişini görüntüle ve incele",
         "filters": "Filtreler",
         "refresh": "Yenile",
         "searchPlaceholder": "Oturum veya kullanıcı ID'si ara...",
@@ -1951,13 +2949,51 @@
         "toolEventsWillAppear": "Araç yürütmeleri burada görünecek",
         "viewData": "Verileri gör ({count} alan)",
         "runNotFound": "Çalıştırma bulunamadı",
-        "failedToLoad": "Çalıştırma yüklenemedi"
+        "failedToLoad": "Çalıştırma yüklenemedi",
+        "backToRuns": "Çalıştırmalara Dön",
+        "metadata": "Meta Veri",
+        "eventTimeline": "Olay Zaman Çizelgesi ({count} olay)",
+        "noEventsRecorded": "Kayıtlı olay yok",
+        "durationLabel": "Süre:"
+      }
+    },
+    "prompts": {
+      "title": "Komut Şablonları",
+      "subtitle": "Komut versiyonu performansını görüntüle ve karşılaştır",
+      "refresh": "Yenile",
+      "noTemplates": "Komut şablonu bulunamadı",
+      "loadFailed": "Komutlar yüklenemedi",
+      "created": "Oluşturuldu: {date}",
+      "detail": {
+        "backToPrompts": "Komutlara Dön",
+        "versions": "Versiyonlar",
+        "versionCount": "{count} versiyon",
+        "selectVersions": "Karşılaştırmak için versiyonları seçin",
+        "metricsComparison": "Metrik Karşılaştırması",
+        "promptContent": "Komut İçeriği",
+        "runs": "{count} çalıştırma",
+        "table": {
+          "version": "Versiyon",
+          "runs": "Çalıştırma",
+          "success": "Başarılı",
+          "failed": "Başarısız",
+          "rate": "Oran",
+          "avgDuration": "Ort. Süre"
+        },
+        "templateNotFound": "Şablon bulunamadı",
+        "loadFailed": "Şablon yüklenemedi"
       }
     }
   },
   "skills": {
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
+    "library": "Kütüphane",
+    "importPackage": "Paket İçe Aktar",
+    "hideImport": "İçe Aktarmayı Gizle",
+    "importSuccess": "Yetenek başarıyla içe aktarıldı",
+    "importSuccessDesc": "Yetenek ID: {skillId}",
+    "importFailed": "İçe aktarma başarısız",
     "emptyTitle": "Henuz yetenek yok",
     "emptyDescription": "Sohbette bir is akisini yetenek olarak kaydedin, sonra burada calistirin veya zamanlayin.",
     "status": {
@@ -1969,7 +3005,9 @@
       "runs": "Calistirma",
       "success": "Basarili",
       "lastRun": "Son Calistirma",
-      "never": "Hic"
+      "never": "Hic",
+      "category": "Kategori",
+      "version": "Sürüm"
     },
     "delete": {
       "action": "Kalıcı Olarak Sil",
@@ -1979,13 +3017,129 @@
       "error": "Beceri silinemedi",
       "success": "Beceri kalıcı olarak silindi",
       "title": "Emin misiniz?"
+    },
+    "files": {
+      "noFiles": "Dosya bulunamadı. Bu beceriye ait herhangi bir dosya yok.",
+      "download": "Dosyayı indir",
+      "downloadSuccess": "Dosya indirildi",
+      "downloadFailed": "İndirme başarısız",
+      "executable": "Çalıştırılabilir",
+      "errorPrefix": "Hata",
+      "scripts": "Betikler ({count})",
+      "references": "Referanslar ({count})",
+      "assets": "Varlıklar ({count})",
+      "otherFiles": "Diğer Dosyalar ({count})"
+    },
+    "new": {
+      "backToSkills": "Becerilere Dön",
+      "title": "Beceri Oluştur",
+      "nameLabel": "Ad",
+      "namePlaceholder": "Haftalık rakip özeti",
+      "categoryLabel": "Kategori",
+      "categoryPlaceholder": "pazarlama",
+      "descriptionLabel": "Açıklama",
+      "descriptionPlaceholder": "Haftalık rakip değişikliklerini kısa maddeler halinde özetle.",
+      "promptLabel": "Şablon Prompt",
+      "promptPlaceholder": "Son 7 günü analiz et ve en fazla 5 madde sun.",
+      "toolHintsLabel": "Araç İpuçları (her satıra bir tane)",
+      "triggerLabel": "Tetikleyici Örnekler (her satıra bir tane)",
+      "triggerPlaceholder": "Bu hafta rakiplerimizde ne değişti?",
+      "cancel": "İptal",
+      "create": "Beceri Oluştur",
+      "createFailed": "Beceri oluşturulamadı"
+    },
+    "import": {
+      "uploading": "Yükleniyor...",
+      "parsing": "Paket ayrıştırılıyor...",
+      "importing": "Beceri içe aktarılıyor...",
+      "success": "İçe aktarma tamamlandı!",
+      "error": "İçe aktarma başarısız",
+      "idle": "Bir beceri paketini sürükleyip bırakın",
+      "browseHint": "veya göz atmak için tıklayın (.zip paketleri veya .md dosyaları)",
+      "browse": "Dosyalara Gözat",
+      "tryAgain": "Tekrar Dene",
+      "importedSuccess": "Beceri başarıyla içe aktarıldı",
+      "importedDesc": "{name} ile {count, plural, one {# betik} other {# betik}}",
+      "invalidFileType": "Geçersiz dosya türü",
+      "invalidFileTypeDesc": "Yalnızca .zip paketleri veya .md dosyaları desteklenir",
+      "fileTooLarge": "Dosya çok büyük",
+      "fileTooLargeDesc": "Dosya boyutu 50MB sınırını aşıyor"
+    },
+    "library": {
+      "title": "Çapraz Ajan Beceri Kütüphanesi",
+      "searchPlaceholder": "Beceri ara",
+      "allCategories": "Tüm kategoriler",
+      "applyFilters": "Filtreleri Uygula",
+      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
+      "noDescription": "Açıklama yok",
+      "category": "Kategori",
+      "categoryGeneral": "genel",
+      "runs": "Çalışma",
+      "success": "Başarı",
+      "updated": "Güncellendi",
+      "selectAgent": "Hedef ajan seçin",
+      "copy": "Kopyala",
+      "open": "Aç",
+      "copySuccess": "Beceri başarıyla kopyalandı.",
+      "copyFailed": "Beceri kopyalanamadı"
+    },
+    "detail": {
+      "backToSkills": "Becerilere Dön",
+      "title": "Beceri Detayı ve Düzenleyici",
+      "statusLabel": "Durum",
+      "version": "Versiyon {version}",
+      "save": "Kaydet",
+      "runNow": "Şimdi Çalıştır",
+      "copySkill": "Beceriyi Kopyala",
+      "copyToAgent": "Ajana Kopyala",
+      "runHistory": "Çalıştırma Geçmişi",
+      "versionHistory": "Versiyon Geçmişi",
+      "noRuns": "Henüz çalıştırma yok.",
+      "noPriorVersions": "Henüz önceki versiyon kaydedilmedi.",
+      "notFound": "Beceri bulunamadı.",
+      "updatedSuccess": "Beceri başarıyla güncellendi.",
+      "runTriggered": "Beceri çalıştırması tetiklendi.",
+      "copiedSuccess": "Beceri başarıyla kopyalandı.",
+      "loadFailed": "Beceri yüklenemedi",
+      "selectAgent": "Hedef ajan seçin",
+      "saveFailed": "Beceri kaydedilemedi",
+      "runFailed": "Beceri çalıştırılamadı",
+      "copyFailed": "Beceri kopyalanamadı"
     }
   },
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",
+    "agentNotFound": "Ajan bulunamadı",
+    "accessDenied": "Erişim reddedildi",
+    "loadFailed": "Ajan yüklenemedi",
+    "scheduleNotFound": "Zamanlama bulunamadı",
+    "loadScheduleFailed": "Zamanlama yüklenemedi",
+    "updateScheduleFailed": "Zamanlama güncellenemedi",
+    "loadSchedulesFailed": "Zamanlamalar yüklenemedi",
+    "deleteScheduleFailed": "Zamanlama silinemedi",
+    "triggerScheduleFailed": "Zamanlama tetiklenemedi",
+    "createFailed": "Zamanlama oluşturulamadı",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
+    "retry": "Yeniden Dene",
+    "delete": "Sil",
+    "cancel": "İptal",
+    "deleteConfirmTitle": "Zamanlamayı Sil",
+    "deleteConfirmDescription": "Bu zamanlanmış görev ve tüm çalıştırma geçmişi kalıcı olarak silinecektir. Bu işlem geri alınamaz.",
+    "filters": {
+      "search": "Zamanlamaları ara...",
+      "allStatuses": "Tüm Durumlar",
+      "active": "Aktif",
+      "inactive": "Pasif",
+      "draft": "Taslak",
+      "allPriorities": "Tüm Öncelikler",
+      "high": "Yüksek",
+      "normal": "Normal",
+      "low": "Düşük",
+      "noMatch": "Filtrelere uyan zamanlama yok",
+      "clearFilters": "Filtreleri temizle"
+    },
     "newForm": {
       "delivery": {
         "label": "Teslimat",
@@ -2021,7 +3175,8 @@
         "copy": "Kopyala",
         "lines": "satır",
         "prompt": "Komut",
-        "validSyntax": "Geçerli"
+        "validSyntax": "Geçerli",
+        "markdown": "Markdown"
       },
       "fields": {
         "atTime": "Saat",
@@ -2029,7 +3184,9 @@
         "maxRetries": "Maks Deneme",
         "name": "Zamanlama Adı",
         "priority": "Öncelik",
-        "timezone": "Saat Dilimi"
+        "timezone": "Saat Dilimi",
+        "localTime": "Yerel Saat ({tz})",
+        "detectedFromDevice": "Cihazınızdan algılandı"
       },
       "frequency": {
         "advanced": "Gelişmiş",
@@ -2062,6 +3219,10 @@
       "systemActive": "SİSTEM AKTİF",
       "untitledDraft": "Başlıksız Taslak",
       "updateSchedule": "Zamanlamayı Güncelle",
+      "unsavedChanges": "Kaydedilmemiş Değişiklikler",
+      "unsavedChangesDescription": "Bu zamanlamada kaydedilmemiş değişiklikler var. Bu değişiklikleri atmak ve ayrılmak istediğinizden emin misiniz?",
+      "stayAndEdit": "Kal ve Düzenle",
+      "discardAndLeave": "Değişiklikleri At ve Çık",
       "variables": {
         "categories": {
           "context": "Bağlam Değişkenleri",
@@ -2069,20 +3230,9 @@
         },
         "helpDescription": "Değişkenler, zamanlamanız çalıştığında gerçek değerlerle değiştirilir.",
         "helpTitle": "Değişkenler nasıl kullanılır",
+        "exampleOutput": "Örnek çıktı:",
         "label": "Değişkenler"
       }
-    },
-    "retry": "Tekrar Dene",
-    "filters": {
-      "search": "Zamanlamalarda ara...",
-      "allStatuses": "Tüm Durumlar",
-      "active": "Aktif",
-      "inactive": "Pasif",
-      "allPriorities": "Tüm Öncelikler",
-      "high": "Yüksek",
-      "normal": "Normal",
-      "low": "Düşük",
-      "draft": "Taslak"
     },
     "empty": {
       "title": "Henüz zamanlanmış görev yok",
@@ -2108,7 +3258,9 @@
       "continueChat": "Devam Et",
       "noSession": "Oturum oluşturulmadı",
       "neverRun": "Hiç çalıştırılmadı",
-      "draft": "Taslak"
+      "draft": "Taslak",
+      "editSchedule": "Zamanlamayı düzenle",
+      "deleteSchedule": "Zamanlamayı sil"
     },
     "form": {
       "createTitle": "Zamanlama Oluştur",
@@ -2174,6 +3326,15 @@
         "weeklyAt": "Her {day} saat {hour}:00'da çalışır",
         "monthlyAt": "Her ayın {day}. günü saat {hour}:00'da çalışır",
         "custom": "Özel zamanlama"
+      },
+      "days": {
+        "sun": "Paz",
+        "mon": "Pzt",
+        "tue": "Sal",
+        "wed": "Çar",
+        "thu": "Per",
+        "fri": "Cum",
+        "sat": "Cmt"
       }
     },
     "presets": {
@@ -2283,7 +3444,138 @@
       "viewTask": "Görevi Görüntüle",
       "viewDetails": "Detayları Görüntüle",
       "activeTasks": "{count} aktif görev",
-      "startedAgo": "{time} önce başladı"
+      "startedAgo": "{time} önce başladı",
+      "chatRun": "Sohbet çalışması",
+      "channelTask": "Kanal {channelType}"
     }
+  },
+  "plugins": {
+    "title": "Eklentiler",
+    "description": "Yüklenebilir eklentilerle ajana yeni yetenekler ekleyin.",
+    "confirmInstallTitle": "Eklenti kurulumunu onayla",
+    "confirmInstallDesc": "Bu eklenti için ana ajanı seçin. İçe aktarılan alt ajanlar, araçlar ve paylaşılan klasörler bu iş akışına bağlanacaktır.",
+    "filesLabel": "Dosyalar",
+    "filesSelected": "{count, plural, one {# dosya seçildi} other {# dosya seçildi}}",
+    "moreFiles": " +{count} daha",
+    "cancel": "İptal",
+    "toolServersTitle": "Araç sunucuları ({count})",
+    "noPlugins": "Eklenti yüklü değil",
+    "noPluginsHint": "Başlamak için bir eklenti .zip paketi yükleyin",
+    "expandPlugin": "{name} ayrıntılarını genişlet",
+    "collapsePlugin": "{name} ayrıntılarını daralt",
+    "uninstallPluginLabel": "{name} eklentisini kaldır",
+    "pluginInstalled": "\"{name}\" eklentisi yüklendi",
+    "pluginEnabled": "Eklenti etkinleştirildi",
+    "pluginDisabled": "Eklenti devre dışı bırakıldı",
+    "pluginUninstalled": "\"{name}\" eklentisi kaldırıldı",
+    "importFailed": "Eklenti içe aktarma başarısız",
+    "updateFailed": "Eklenti durumu güncellenemedi",
+    "uninstallFailed": "Eklenti kaldırılamadı",
+    "loadFailed": "Eklentiler yüklenemedi",
+    "uninstallConfirm": "\"{name}\" eklentisini kaldır? Bu işlem geri alınamaz.",
+    "requireAgentFirst": "Ajan iş akışlarına sahip eklentiler yüklemeden önce en az bir ajan oluşturun.",
+    "selectAgentFirst": "Devam etmeden önce bir ana ajan seçin.",
+    "workspaceRegistered": "Eklenti çalışma alanı klasörü kaydedildi",
+    "workspaceRegisteredDesc": "Referans dosyaları artık ajana senkronizasyon klasörü aracılığıyla erişilebilir.",
+    "viewAgents": "Ajanları Görüntüle",
+    "browseMarketplace": "Pazaryerini gözat",
+    "hideMarketplace": "Pazaryerini gizle",
+    "import": {
+      "pluginInstalled": "Eklenti yüklendi",
+      "skillImported": "Beceri başarıyla içe aktarıldı",
+      "viewPlugins": "Eklentileri Görüntüle",
+      "viewSkills": "Becerileri Görüntüle",
+      "importFailed": "İçe aktarma başarısız",
+      "parsingPackage": "Paket ayrıştırılıyor…",
+      "importingPlugin": "Eklenti yükleniyor…",
+      "uploading": "Yükleniyor…",
+      "importComplete": "İçe aktarma tamamlandı!"
+    },
+    "errorTitle": "Sorun",
+    "author": "Yazar",
+    "installedLabel": "Yüklendi",
+    "chatBadge": {
+      "loading": "Eklentiler yükleniyor...",
+      "active": "{count, plural, one {# eklenti aktif} other {# eklenti aktif}}",
+      "noActive": "Aktif eklenti yok",
+      "managePlugins": "Eklentileri Yönet",
+      "noPlugins": "Eklenti yüklü değil",
+      "skillCount": "{count, plural, one {# beceri} other {# beceri}}",
+      "hooksLabel": "hooks",
+      "mcpLabel": "MCP"
+    },
+    "marketplace": {
+      "title": "Eklenti Pazaryeri",
+      "browse": "Pazaryerini Gözat",
+      "addMarketplace": "Pazaryeri Ekle",
+      "refresh": "Yenile",
+      "install": "Yükle",
+      "installed": "Yüklendi",
+      "available": "{count} mevcut",
+      "nameAndSourceRequired": "Ad ve kaynak gereklidir",
+      "added": "\"{name}\" pazaryeri eklendi",
+      "addFailed": "Pazaryeri eklenemedi",
+      "removeConfirm": "\"{name}\" pazaryerini kaldır?",
+      "removed": "\"{name}\" pazaryeri kaldırıldı",
+      "removeFailed": "Pazaryeri kaldırılamadı",
+      "addSource": "Kaynak Ekle",
+      "cancel": "İptal",
+      "nameLabel": "Ad",
+      "sourceUrlLabel": "Kaynak URL",
+      "namePlaceholder": "benim-pazaryerim",
+      "sourcePlaceholder": "https://github.com/kullanici/pazaryeri",
+      "add": "Ekle",
+      "searchPlaceholder": "Eklenti ara...",
+      "allCategories": "Tümü",
+      "noSources": "Pazaryeri kaynağı yapılandırılmadı",
+      "noSourcesHint": "Mevcut eklentilere göz atmak için bir pazaryeri kaynağı ekleyin",
+      "noResults": "Aramanızla eşleşen eklenti yok",
+      "installGuidance": "\"{name}\" yüklemek için kaynaktan .zip dosyasını indirin ve Eklenti Yükle düğmesiyle yükleyin."
+    },
+    "mainAgentLabel": "Ana ajan",
+    "noPluginsYet": "Henüz eklenti yok",
+    "noPluginsYetHint": "Bir eklenti paketi yükleyin veya pazaryerinden birini yükleyin",
+    "automationHooks": "Otomasyon kancaları",
+    "installing": "Yükleniyor...",
+    "installAndAssign": "Yükle ve ata",
+    "install": "Eklenti Yükle",
+    "detail": {
+      "viewSource": "Kaynağı Görüntüle",
+      "installedOn": "{date} tarihinde yüklendi",
+      "author": "Yazar",
+      "homepage": "Ana Sayfa",
+      "source": "Kaynak",
+      "skills": "Beceriler",
+      "agents": "Ajanlar",
+      "hooks": "Kancalar",
+      "mcpServers": "MCP Sunucuları",
+      "lspServers": "LSP Sunucuları",
+      "noDescription": "Açıklama yok",
+      "handlers": "{count} işleyici",
+      "connected": "bağlı"
+    },
+    "status": {
+      "active": "Aktif",
+      "disabled": "Devre Dışı",
+      "error": "Hata"
+    },
+    "components": {
+      "skills": "{count, plural, one {# beceri} other {# beceri}}",
+      "agents": "{count, plural, one {# ajan} other {# ajan}}",
+      "hooks": "kancalar",
+      "hookEvents": "{count, plural, one {# kanca olayı} other {# kanca olayı}}",
+      "mcpServers": "{count, plural, one {# MCP sunucusu} other {# MCP sunucusu}}",
+      "agentRecordsCreated": "{count, plural, one {# ajan kaydı oluşturuldu} other {# ajan kaydı oluşturuldu}}",
+      "workflowCreated": "{count} ajanla iş akışı oluşturuldu",
+      "referenceFiles": "{count, plural, one {# referans dosyası eklendi} other {# referans dosyası eklendi}}"
+    },
+    "subtitle": "Ajanınızı beceriler, kancalar, MCP sunucuları ve daha fazlasıyla genişletin.",
+    "enable": "Etkinleştir",
+    "disable": "Devre Dışı Bırak",
+    "uninstall": "Kaldır",
+    "onlyZipSupported": "Yalnızca .zip eklenti paketleri desteklenir"
+  },
+  "dev": {
+    "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
   }
 }

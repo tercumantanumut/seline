@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ModelBagItem } from "./model-bag-item";
 import type { ModelItem, ModelRole, LLMProvider } from "./model-bag.types";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface ModelBagGridProps {
   models: ModelItem[];
@@ -24,13 +25,14 @@ export function ModelBagGrid({
   activeProvider,
   isSaving,
 }: ModelBagGridProps) {
+  const t = useTranslations("modelBag");
   const [customModelInput, setCustomModelInput] = useState("");
 
   if (models.length === 0 && activeProvider !== "openrouter" && activeProvider !== "ollama") {
     return (
       <div className="flex items-center justify-center rounded-lg border border-dashed border-terminal-border p-8">
         <p className="font-mono text-sm text-terminal-muted">
-          No models match your filters
+          {t("noMatch")}
         </p>
       </div>
     );
@@ -60,7 +62,7 @@ export function ModelBagGrid({
             }}
           />
           <span className="font-mono text-[9px] text-terminal-muted">
-            Enter + ↵
+            {t("enterToAssign")}
           </span>
         </div>
       )}

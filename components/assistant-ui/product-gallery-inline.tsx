@@ -4,6 +4,7 @@ import type { FC } from "react";
 import { useState, useCallback } from "react";
 import { CheckCircle2, ExternalLink, Loader2Icon, ImageIcon, PaperclipIcon } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useGallery } from "./gallery-context";
 
 // Define the component type matching assistant-ui pattern
@@ -37,6 +38,7 @@ const GalleryCard: FC<{
   isAttaching: boolean;
   onAttach: () => void;
 }> = ({ item, isAttached, isAttaching, onAttach }) => {
+  const t = useTranslations("assistantUi.gallery");
   const [imageError, setImageError] = useState(false);
 
   return (
@@ -66,7 +68,7 @@ const GalleryCard: FC<{
         {imageError ? (
           <div className="flex flex-col items-center text-terminal-muted">
             <ImageIcon className="w-8 h-8" />
-            <span className="text-xs mt-1">Image unavailable</span>
+            <span className="text-xs mt-1">{t("imageUnavailable")}</span>
           </div>
         ) : (
           <img
@@ -107,6 +109,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.gallery");
   const [attachedItems, setAttachedItems] = useState<Set<string>>(new Set());
   const [attachingItems, setAttachingItems] = useState<Set<string>>(new Set());
   const gallery = useGallery();
@@ -114,7 +117,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
 
   const handleAttach = useCallback(async (item: GalleryItem) => {
     if (!gallery) {
-      toast.error("Cannot attach image - gallery context not available");
+      toast.error(t("noContextAvailable"));
       return;
     }
 
@@ -134,10 +137,10 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
     try {
       await gallery.attachImageToComposer(item.imageUrl, item.name);
       setAttachedItems((prev) => new Set(prev).add(item.id));
-      toast.success(`📎 "${item.name}" attached to chat`);
+      toast.success(t("attachedToChat", { name: item.name }));
     } catch (error) {
       console.error("[Gallery] Failed to attach image:", error);
-      toast.error("Failed to attach image");
+      toast.error(t("attachFailed"));
     } finally {
       setAttachingItems((prev) => {
         const next = new Set(prev);
@@ -153,7 +156,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
       <div className="my-3 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono">
         <div className="flex items-center gap-2">
           <Loader2Icon className="w-4 h-4 text-terminal-green animate-spin" />
-          <span className="text-sm text-terminal-dark">Loading images...</span>
+          <span className="text-sm text-terminal-dark">{t("loading")}</span>
         </div>
         {args?.query && (
           <p className="text-xs text-terminal-muted mt-1">Search: &quot;{args.query}&quot;</p>
@@ -166,7 +169,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
   if (result?.status === "error") {
     return (
       <div className="my-3 rounded-lg bg-red-50 shadow-sm p-4 font-mono">
-        <p className="text-sm text-red-600">{result.error || "Failed to load images"}</p>
+        <p className="text-sm text-red-600">{result.error || t("loadFailed")}</p>
       </div>
     );
   }
@@ -175,7 +178,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
   if (!result?.products?.length || result.status === "no_results") {
     return (
       <div className="my-3 rounded-lg bg-terminal-cream/80 shadow-sm p-4 font-mono">
-        <p className="text-sm text-terminal-muted">No images found</p>
+        <p className="text-sm text-terminal-muted">{t("noImages")}</p>
         {args?.query && (
           <p className="text-xs text-terminal-muted mt-1">Search: &quot;{args.query}&quot;</p>
         )}
@@ -190,7 +193,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="font-medium text-terminal-dark text-sm">
-            {result.products.length} Image{result.products.length !== 1 ? "s" : ""} Found
+            {t("imagesFound", { count: result.products.length })}
           </h3>
           {args?.query && (
             <p className="text-xs text-terminal-muted">Search: &quot;{args.query}&quot;</p>
@@ -199,7 +202,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
         {attachedItems.size > 0 && (
           <span className="text-xs text-terminal-green font-medium flex items-center gap-1">
             <PaperclipIcon className="w-3 h-3" />
-            {attachedItems.size} attached
+            {t("attached", { count: attachedItems.size })}
           </span>
         )}
       </div>
@@ -220,7 +223,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
       {/* Hint */}
       <p className="text-xs text-terminal-muted mt-3 flex items-center gap-1">
         <PaperclipIcon className="w-3 h-3" />
-        Click an image to attach it to your next message
+        {t("attachHint")}
       </p>
     </div>
   );

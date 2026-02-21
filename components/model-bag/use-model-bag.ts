@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPut } from "@/lib/utils/resilient-fetch";
 import { buildModelCatalog } from "@/lib/config/model-catalog";
 import type {
@@ -47,6 +48,7 @@ const ALL_PROVIDERS: LLMProvider[] = [
 ];
 
 export function useModelBag() {
+  const t = useTranslations("modelBag");
   const [state, setState] = useState<ModelBagState>({
     models: [],
     providers: [],
@@ -67,7 +69,7 @@ export function useModelBag() {
     setState((prev) => ({ ...prev, isLoading: true }));
     const { data, error } = await resilientFetch<SettingsData>("/api/settings");
     if (error || !data) {
-      toast.error("Failed to load model settings");
+      toast.error(t("loadFailed"));
       setState((prev) => ({ ...prev, isLoading: false }));
       return;
     }
@@ -135,7 +137,7 @@ export function useModelBag() {
       const settingsKey = ROLE_TO_SETTINGS_KEY[role];
       const { error } = await resilientPut("/api/settings", { [settingsKey]: modelId });
       if (error) {
-        toast.error("Failed to update model");
+        toast.error(t("updateFailed"));
         setState((prev) => ({ ...prev, isSaving: false }));
         return;
       }
@@ -152,7 +154,7 @@ export function useModelBag() {
         })),
         isSaving: false,
       }));
-      toast.success(`${role} model updated`);
+      toast.success(t("roleUpdated", { role }));
     },
     [],
   );
@@ -172,12 +174,12 @@ export function useModelBag() {
         utilityModel: "",
       });
       if (error) {
-        toast.error("Failed to switch provider");
+        toast.error(t("switchProviderFailed"));
         setState((prev) => ({ ...prev, isSaving: false }));
         return;
       }
       await fetchSettings();
-      toast.success(`Switched to ${PROVIDER_DISPLAY_NAMES[provider]}`);
+      toast.success(t("providerSwitched", { name: PROVIDER_DISPLAY_NAMES[provider] }));
     },
     [fetchSettings],
   );

@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MarketplaceBrowser } from "@/components/plugins/marketplace-browser";
+import { useTranslations } from "next-intl";
 
 interface InstalledPlugin {
   id: string;
@@ -85,6 +86,7 @@ interface CharacterOption {
 }
 
 export function PluginSettings() {
+  const t = useTranslations("plugins");
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [characters, setCharacters] = useState<CharacterOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +109,7 @@ export function PluginSettings() {
       setPlugins(data.plugins || []);
     } catch (error) {
       console.error("[PluginSettings] Load error:", error);
+      toast.error(t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -152,30 +155,30 @@ export function PluginSettings() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed to update plugin");
-      toast.success(`Plugin ${newStatus === "active" ? "enabled" : "disabled"}`);
+      toast.success(newStatus === "active" ? t("pluginEnabled") : t("pluginDisabled"));
       loadPlugins();
     } catch {
-      toast.error("Failed to update plugin status");
+      toast.error(t("updateFailed"));
     }
   };
 
   const uninstallPlugin = async (pluginId: string, pluginName: string) => {
-    if (!confirm(`Uninstall plugin "${pluginName}"? This cannot be undone.`)) return;
+    if (!confirm(t("uninstallConfirm", { name: pluginName }))) return;
 
     try {
       const res = await fetch(`/api/plugins/${pluginId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to uninstall");
-      toast.success(`Plugin "${pluginName}" uninstalled`);
+      toast.success(t("pluginUninstalled", { name: pluginName }));
       loadPlugins();
     } catch {
-      toast.error("Failed to uninstall plugin");
+      toast.error(t("uninstallFailed"));
     }
   };
 
   const startInstallForFiles = (files: File[]) => {
     if (files.length === 0) return;
     if (characters.length === 0) {
-      toast.error("Create at least one agent before installing plugins with agent workflows.");
+      toast.error(t("requireAgentFirst"));
       return;
     }
     setPendingUploadFiles(files);
@@ -191,7 +194,7 @@ export function PluginSettings() {
   const installPendingPluginFiles = async () => {
     if (pendingUploadFiles.length === 0) return;
     if (!selectedTargetCharacterId) {
-      toast.error("Select a main agent before continuing.");
+      toast.error(t("selectAgentFirst"));
       return;
     }
 
@@ -218,29 +221,29 @@ export function PluginSettings() {
       const createdAgents = Array.isArray(data.createdAgents) ? data.createdAgents.length : 0;
       const auxCount: number = data.auxiliaryFiles?.count ?? 0;
       const descriptionParts = [
-        `${data.components?.skills?.length || 0} skills`,
-        `${data.components?.agents?.length || 0} agents`,
+        t("components.skills", { count: data.components?.skills?.length || 0 }),
+        t("components.agents", { count: data.components?.agents?.length || 0 }),
       ];
       if (createdAgents > 0) {
-        descriptionParts.push(`${createdAgents} agent records created`);
+        descriptionParts.push(t("components.agentRecordsCreated", { count: createdAgents }));
       }
       if (data.workflow) {
-        descriptionParts.push(`workflow created with ${(data.workflow.subAgentIds?.length || 0) + 1} agents`);
+        descriptionParts.push(t("components.workflowCreated", { count: (data.workflow.subAgentIds?.length || 0) + 1 }));
       }
       if (auxCount > 0) {
-        descriptionParts.push(`${auxCount} reference file${auxCount !== 1 ? "s" : ""} linked to workspace`);
+        descriptionParts.push(t("components.referenceFiles", { count: auxCount }));
       }
 
-      toast.success(`Plugin "${data.plugin?.name}" installed`, {
+      toast.success(t("pluginInstalled", { name: data.plugin?.name ?? "" }), {
         description: descriptionParts.join(", "),
         ...(data.workflow
-          ? { action: { label: "View Agents", onClick: () => window.location.assign("/") } }
+          ? { action: { label: t("viewAgents"), onClick: () => window.location.assign("/") } }
           : {}),
       });
 
       if (data.auxiliaryFiles?.workspaceRegistered) {
-        toast.info("Plugin workspace folder registered", {
-          description: "Reference files are now accessible to the agent via its sync folder.",
+        toast.info(t("workspaceRegistered"), {
+          description: t("workspaceRegisteredDesc"),
         });
       }
 
@@ -248,7 +251,7 @@ export function PluginSettings() {
       setPendingUploadFiles([]);
       loadPlugins();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Plugin import failed");
+      toast.error(error instanceof Error ? error.message : t("importFailed"));
     } finally {
       setUploading(false);
     }
@@ -277,10 +280,10 @@ export function PluginSettings() {
       ? Object.keys(plugin.components.mcpServers).length
       : 0;
 
-    if (skills > 0) counts.push(`${skills} skill${skills > 1 ? "s" : ""}`);
-    if (agents > 0) counts.push(`${agents} agent${agents > 1 ? "s" : ""}`);
-    if (hookEvents > 0) counts.push(`${hookEvents} hook event${hookEvents > 1 ? "s" : ""}`);
-    if (mcpServers > 0) counts.push(`${mcpServers} MCP server${mcpServers > 1 ? "s" : ""}`);
+    if (skills > 0) counts.push(t("components.skills", { count: skills }));
+    if (agents > 0) counts.push(t("components.agents", { count: agents }));
+    if (hookEvents > 0) counts.push(t("components.hookEvents", { count: hookEvents }));
+    if (mcpServers > 0) counts.push(t("components.mcpServers", { count: mcpServers }));
 
     return counts;
   };
@@ -299,10 +302,10 @@ export function PluginSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-mono text-lg font-bold text-terminal-dark">
-            Plugins
+            {t("title")}
           </h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Add new capabilities to your agent with installable plugins.
+            {t("description")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -313,7 +316,7 @@ export function PluginSettings() {
             onClick={() => setShowMarketplace(!showMarketplace)}
           >
             <Globe className="mr-1.5 size-3.5" />
-            {showMarketplace ? "Hide marketplace" : "Browse marketplace"}
+            {showMarketplace ? t("hideMarketplace") : t("browseMarketplace")}
           </Button>
           <label
             className={cn(
@@ -327,7 +330,7 @@ export function PluginSettings() {
             ) : (
               <Upload className="size-4" />
             )}
-            {uploading ? "Installing..." : "Install plugin"}
+            {uploading ? t("installing") : t("install")}
             <input
               type="file"
               accept=".zip,.md,.mds"
@@ -359,30 +362,30 @@ export function PluginSettings() {
         <DialogContent className="bg-terminal-cream sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark">
-              Confirm plugin install
+              {t("confirmInstallTitle")}
             </DialogTitle>
             <DialogDescription className="font-mono text-terminal-muted">
-              Choose the main agent for this plugin. Imported sub-agents, tools, and shared folders will be linked to that workflow.
+              {t("confirmInstallDesc")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="rounded border border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3">
               <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                Files
+                {t("filesLabel")}
               </p>
               <p className="mt-1 font-mono text-sm text-terminal-dark">
-                {pendingUploadFiles.length} file{pendingUploadFiles.length === 1 ? "" : "s"} selected
+                {t("filesSelected", { count: pendingUploadFiles.length })}
               </p>
               <p className="mt-1 line-clamp-2 font-mono text-xs text-terminal-muted">
                 {pendingUploadFiles.slice(0, 2).map((file) => file.name).join(", ")}
-                {pendingUploadFiles.length > 2 ? ` +${pendingUploadFiles.length - 2} more` : ""}
+                {pendingUploadFiles.length > 2 ? t("moreFiles", { count: pendingUploadFiles.length - 2 }) : ""}
               </p>
             </div>
 
             <div className="space-y-1">
               <label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                Main agent
+                {t("mainAgentLabel")}
               </label>
               <select
                 value={selectedTargetCharacterId}
@@ -409,7 +412,7 @@ export function PluginSettings() {
               }}
               disabled={uploading}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
@@ -419,10 +422,10 @@ export function PluginSettings() {
               {uploading ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Installing...
+                  {t("installing")}
                 </>
               ) : (
-                "Install and assign"
+                t("installAndAssign")
               )}
             </Button>
           </DialogFooter>
@@ -435,10 +438,10 @@ export function PluginSettings() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="size-12 text-terminal-muted/40" />
             <p className="mt-4 font-mono text-sm text-terminal-muted">
-              No plugins yet
+              {t("noPluginsYet")}
             </p>
             <p className="mt-1 font-mono text-xs text-terminal-muted/70">
-              Upload a plugin package or install one from the marketplace
+              {t("noPluginsYetHint")}
             </p>
           </CardContent>
         </Card>
@@ -463,6 +466,8 @@ export function PluginSettings() {
                   <button
                     onClick={() => toggleExpanded(plugin.id)}
                     className="flex items-center gap-2 text-left"
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? t("collapsePlugin", { name: plugin.name }) : t("expandPlugin", { name: plugin.name })}
                   >
                     {isExpanded ? (
                       <ChevronDown className="size-4 text-terminal-muted shrink-0" />
@@ -495,6 +500,7 @@ export function PluginSettings() {
                     variant="ghost"
                     size="icon"
                     className="size-8 text-red-500 hover:text-red-600"
+                    aria-label={t("uninstallPluginLabel", { name: plugin.name })}
                     onClick={() => uninstallPlugin(plugin.id, plugin.name)}
                   >
                     <Trash2 className="size-4" />
@@ -555,27 +561,25 @@ export function PluginSettings() {
                   {plugin.components.skills?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <FileCode className="size-3" />
-                      {plugin.components.skills.length} skill
-                      {plugin.components.skills.length > 1 ? "s" : ""}
+                      {t("components.skills", { count: plugin.components.skills.length })}
                     </span>
                   )}
                   {plugin.components.agents?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <Bot className="size-3" />
-                      {plugin.components.agents.length} agent
-                      {plugin.components.agents.length > 1 ? "s" : ""}
+                      {t("components.agents", { count: plugin.components.agents.length })}
                     </span>
                   )}
                   {plugin.components.hooks && (
                     <span className="flex items-center gap-1">
                       <Webhook className="size-3" />
-                      hooks
+                      {t("components.hooks")}
                     </span>
                   )}
                   {plugin.components.mcpServers && (
                     <span className="flex items-center gap-1">
                       <Server className="size-3" />
-                      {Object.keys(plugin.components.mcpServers).length} MCP
+                      {t("components.mcpServers", { count: Object.keys(plugin.components.mcpServers).length })}
                     </span>
                   )}
                 </div>
@@ -585,7 +589,7 @@ export function PluginSettings() {
               {plugin.status === "error" && plugin.lastError && (
                 <Alert variant="destructive" className="mt-3">
                   <AlertCircle className="size-4" />
-                  <AlertTitle className="font-mono text-xs">Issue</AlertTitle>
+                  <AlertTitle className="font-mono text-xs">{t("errorTitle")}</AlertTitle>
                   <AlertDescription className="font-mono text-xs">
                     {plugin.lastError}
                   </AlertDescription>
@@ -601,7 +605,7 @@ export function PluginSettings() {
                       <div className="flex items-start gap-2">
                         <Info className="size-3 text-terminal-muted mt-0.5 shrink-0" />
                         <div>
-                          <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Author</p>
+                          <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{t("author")}</p>
                           <p className="font-mono text-xs text-terminal-dark">
                             {plugin.manifest.author.name}
                             {plugin.manifest.author.email && (
@@ -616,7 +620,7 @@ export function PluginSettings() {
                     <div className="flex items-start gap-2">
                       <Clock className="size-3 text-terminal-muted mt-0.5 shrink-0" />
                       <div>
-                        <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Installed</p>
+                        <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{t("installedLabel")}</p>
                         <p className="font-mono text-xs text-terminal-dark">
                           {new Date(plugin.installedAt).toLocaleDateString(undefined, {
                             year: "numeric",
@@ -639,7 +643,7 @@ export function PluginSettings() {
                           className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
                         >
                           <Globe className="size-3" />
-                          Homepage
+                          {t("detail.homepage")}
                           <ExternalLink className="size-2.5" />
                         </a>
                       )}
@@ -651,7 +655,7 @@ export function PluginSettings() {
                           className="inline-flex items-center gap-1 font-mono text-xs text-terminal-green hover:underline"
                         >
                           <FileCode className="size-3" />
-                          Source
+                          {t("detail.source")}
                           <ExternalLink className="size-2.5" />
                         </a>
                       )}
@@ -678,7 +682,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <FileCode className="size-3.5" />
-                        Skills ({plugin.components.skills.length})
+                        {t("detail.skills")} ({plugin.components.skills.length})
                       </h4>
                       <div className="space-y-1.5 pl-5">
                         {plugin.components.skills.map((skill) => (
@@ -702,7 +706,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Bot className="size-3.5" />
-                        Agents ({plugin.components.agents.length})
+                        {t("detail.agents")} ({plugin.components.agents.length})
                       </h4>
                       <div className="space-y-1.5 pl-5">
                         {plugin.components.agents.map((agent) => (
@@ -726,7 +730,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Webhook className="size-3.5" />
-                        Automation hooks
+                        {t("automationHooks")}
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.entries(plugin.components.hooks.hooks || {}).map(
@@ -739,8 +743,7 @@ export function PluginSettings() {
                                 {event}
                               </Badge>
                               <span className="font-mono text-[10px] text-terminal-muted">
-                                {Array.isArray(entries) ? entries.length : 0} handler
-                                {Array.isArray(entries) && entries.length > 1 ? "s" : ""}
+                                {t("detail.handlers", { count: Array.isArray(entries) ? entries.length : 0 })}
                               </span>
                             </div>
                           )
@@ -754,7 +757,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        Tool servers ({Object.keys(plugin.components.mcpServers).length})
+                        {t("toolServersTitle", { count: Object.keys(plugin.components.mcpServers).length })}
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.mcpServers).map((name) => (
@@ -766,7 +769,7 @@ export function PluginSettings() {
                               variant="outline"
                               className="font-mono text-[9px] px-1.5 py-0 text-terminal-green"
                             >
-                              connected
+                              {t("detail.connected")}
                             </Badge>
                           </div>
                         ))}
@@ -779,7 +782,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        Language servers ({Object.keys(plugin.components.lspServers).length})
+                        {t("detail.lspServers")} ({Object.keys(plugin.components.lspServers).length})
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.lspServers).map((name) => (
@@ -796,7 +799,7 @@ export function PluginSettings() {
               {/* Install date (compact, when not expanded) */}
               {!isExpanded && (
                 <p className="mt-3 font-mono text-[10px] text-terminal-muted/50">
-                  Installed{" "}
+                  {t("installedLabel")}{" "}
                   {new Date(plugin.installedAt).toLocaleDateString()}
                 </p>
               )}

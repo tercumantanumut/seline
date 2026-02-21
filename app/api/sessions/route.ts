@@ -25,12 +25,14 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.trim() || undefined;
     const channelType = (searchParams.get("channelType") as "whatsapp" | "telegram" | "slack" | null) ?? undefined;
     const dateRange = (searchParams.get("dateRange") as "today" | "week" | "month" | "all" | null) ?? undefined;
+    const statusParam = (searchParams.get("status") as "active" | "archived" | null) ?? undefined;
     const wantsPagination =
       searchParams.has("cursor") ||
       searchParams.has("search") ||
       searchParams.has("channelType") ||
       searchParams.has("dateRange") ||
-      searchParams.has("limit");
+      searchParams.has("limit") ||
+      searchParams.has("status");
 
     if (wantsPagination) {
       const result = await listSessionsPaginated({
@@ -41,6 +43,7 @@ export async function GET(req: NextRequest) {
         search,
         channelType,
         dateRange,
+        status: statusParam,
       });
       return NextResponse.json(result);
     }

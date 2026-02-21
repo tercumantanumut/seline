@@ -425,10 +425,10 @@ export function ScheduleForm({
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-2">
                                     <Globe className="h-4 w-4 text-blue-500" />
-                                    <span>Local Time ({localDisplayName ?? localTz})</span>
+                                    <span>{t("fields.localTime", { tz: localDisplayName ?? localTz })}</span>
                                   </div>
                                   <span className="text-xs text-muted-foreground pl-6">
-                                    Detected from your device
+                                    {t("fields.detectedFromDevice")}
                                   </span>
                                 </div>
                               </SelectItem>

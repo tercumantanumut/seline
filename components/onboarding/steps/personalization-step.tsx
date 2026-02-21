@@ -119,7 +119,7 @@ export function PersonalizationStep({
                         value={newPreference}
                         onChange={(e) => setNewPreference(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAddPreference()}
-                        placeholder={`Add a ${activeCategory.replace(/_/g, " ")}...`}
+                        placeholder={t("addPlaceholder", { category: activeCategory.replace(/_/g, " ") })}
                         className="flex-1 rounded-lg border border-terminal-border bg-white px-4 py-3 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-2 focus:ring-terminal-green/20"
                     />
                     <Button
@@ -128,14 +128,14 @@ export function PersonalizationStep({
                         className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
                     >
                         <Plus className="w-4 h-4" />
-                        Add
+                        {t("add")}
                     </Button>
                 </div>
 
                 {/* Example suggestions */}
                 <div className="mb-6">
                     <p className="text-xs text-terminal-muted font-mono mb-2">
-                        Or click to add an example:
+                        {t("exampleHint")}
                     </p>
                     <div className="flex flex-wrap justify-center gap-2">
                         {categories
@@ -162,7 +162,7 @@ export function PersonalizationStep({
                 {totalPreferences > 0 && (
                     <div className="rounded-xl border border-terminal-border bg-white/50 p-4 mb-8">
                         <p className="text-xs text-terminal-muted font-mono mb-3">
-                            Your preferences ({totalPreferences}):
+                            {t("preferencesCount", { count: totalPreferences })}
                         </p>
                         <div className="space-y-3">
                             {categories.map((category) =>
@@ -202,7 +202,7 @@ export function PersonalizationStep({
                         className="gap-2 font-mono text-terminal-muted hover:text-terminal-dark"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back
+                        {t("back")}
                     </Button>
                     <div className="flex gap-2">
                         <Button
@@ -216,7 +216,7 @@ export function PersonalizationStep({
                             onClick={onContinue}
                             className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
                         >
-                            Continue
+                            {t("continue")}
                             <ArrowRight className="w-4 h-4" />
                         </Button>
                     </div>

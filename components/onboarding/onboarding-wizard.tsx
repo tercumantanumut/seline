@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { Shell } from "@/components/layout/shell";
 import {
@@ -29,14 +30,14 @@ interface OnboardingState {
     firecrawlApiKey: string;
 }
 
-const ONBOARDING_STEPS = [
-    { id: "welcome", label: "Welcome", icon: <Sparkles className="w-4 h-4" /> },
-    { id: "provider", label: "Provider", icon: <Key className="w-4 h-4" /> },
-    { id: "auth", label: "Connect", icon: <Key className="w-4 h-4" /> },
-    { id: "embedding", label: "Search", icon: <Database className="w-4 h-4" /> },
-    { id: "web-search", label: "Web Search", icon: <Search className="w-4 h-4" /> },
-    { id: "web-scraping", label: "Web Scraping", icon: <Globe className="w-4 h-4" /> },
-    { id: "complete", label: "Ready", icon: <CheckCircle2 className="w-4 h-4" /> },
+const ONBOARDING_STEP_IDS = [
+    { id: "welcome", icon: <Sparkles className="w-4 h-4" /> },
+    { id: "provider", icon: <Key className="w-4 h-4" /> },
+    { id: "auth", icon: <Key className="w-4 h-4" /> },
+    { id: "embedding", icon: <Database className="w-4 h-4" /> },
+    { id: "web-search", icon: <Search className="w-4 h-4" /> },
+    { id: "web-scraping", icon: <Globe className="w-4 h-4" /> },
+    { id: "complete", icon: <CheckCircle2 className="w-4 h-4" /> },
 ];
 
 const pageVariants = {
@@ -55,6 +56,16 @@ const pageVariants = {
 };
 
 export function OnboardingWizard() {
+    const t = useTranslations("onboarding.wizard");
+    const ONBOARDING_STEPS = [
+        { ...ONBOARDING_STEP_IDS[0], label: t("stepWelcome") },
+        { ...ONBOARDING_STEP_IDS[1], label: t("stepProvider") },
+        { ...ONBOARDING_STEP_IDS[2], label: t("stepConnect") },
+        { ...ONBOARDING_STEP_IDS[3], label: t("stepSearch") },
+        { ...ONBOARDING_STEP_IDS[4], label: t("stepWebSearch") },
+        { ...ONBOARDING_STEP_IDS[5], label: t("stepWebScraping") },
+        { ...ONBOARDING_STEP_IDS[6], label: t("stepReady") },
+    ];
     const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
     const [direction, setDirection] = useState(0);
     const [state, setState] = useState<OnboardingState>({

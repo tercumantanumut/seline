@@ -364,12 +364,12 @@ export const Thread: FC<ThreadProps> = ({
 
       if (pluginItems.length > 0) {
         if (!character?.id || character.id === "default") {
-          toast.error("Please select an agent before importing skills");
+          toast.error(t("skillImportOverlay.selectAgentFirst"));
           return;
         }
 
         const confirmInstall = window.confirm(
-          `Install this plugin package for "${character.name}" and attach discovered sub-agents to this workflow?`
+          t("skillImportOverlay.confirmInstall", { name: character.name })
         );
         if (!confirmInstall) {
           return;
@@ -378,7 +378,7 @@ export const Thread: FC<ThreadProps> = ({
         const MAX_SKILL_SIZE = 50 * 1024 * 1024;
         const oversized = pluginItems.find(({ file }) => file.size > MAX_SKILL_SIZE);
         if (oversized) {
-          toast.error("Skill file exceeds 50MB limit", {
+          toast.error(t("audio.skillFileTooLarge"), {
             description: `File size: ${Math.round(oversized.file.size / 1024 / 1024)}MB (${oversized.relativePath})`,
           });
           return;
@@ -465,26 +465,22 @@ export const Thread: FC<ThreadProps> = ({
 
           const parts: string[] = [];
           if (pluginResult.components?.skills?.length > 0) {
-            parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
+            parts.push(t("skillCount", { count: pluginResult.components.skills.length }));
           }
           if (pluginResult.components?.agents?.length > 0) {
-            parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
+            parts.push(t("agentCount", { count: pluginResult.components.agents.length }));
           }
           if (pluginResult.components?.hasHooks) {
-            parts.push("hooks enabled");
+            parts.push(t("hooksEnabled"));
           }
           if (pluginResult.components?.mcpServers?.length > 0) {
-            parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
+            parts.push(t("mcpServerCount", { count: pluginResult.components.mcpServers.length }));
           }
           if (Array.isArray(pluginResult.createdAgents) && pluginResult.createdAgents.length > 0) {
-            parts.push(
-              `${pluginResult.createdAgents.length} agent profile${pluginResult.createdAgents.length > 1 ? "s" : ""} created`
-            );
+            parts.push(t("agentProfilesCreated", { count: pluginResult.createdAgents.length }));
           }
           if (pluginResult.workflow) {
-            parts.push(
-              `workflow created with ${(pluginResult.workflow.subAgentIds?.length || 0) + 1} agents`
-            );
+            parts.push(t("workflowCreated", { count: (pluginResult.workflow.subAgentIds?.length || 0) + 1 }));
           }
 
           setSkillImportPhase("success");
@@ -494,22 +490,22 @@ export const Thread: FC<ThreadProps> = ({
 
           const isLegacy = pluginResult.isLegacySkillFormat;
           const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-          toast.success(isLegacy ? "Skill imported successfully" : "Plugin installed", {
+          toast.success(isLegacy ? t("skillImportOverlay.skillImported") : t("skillImportOverlay.pluginInstalled"), {
             description: isLegacy
-              ? `${pluginResult.plugin?.name} is ready to use`
+              ? t("skillImportOverlay.readyToUse", { name: pluginResult.plugin?.name ?? "" })
               : `${pluginResult.plugin?.name}${summary}`,
             action: isLegacy
               ? {
-                  label: "View Skills",
+                  label: t("skillImportOverlay.viewSkills"),
                   onClick: () => router.push(`/agents/${character.id}/skills`),
                 }
               : pluginResult.workflow
                 ? {
-                    label: "View Workflow",
+                    label: t("skillImportOverlay.viewWorkflow"),
                     onClick: () => router.push("/"),
                   }
                 : {
-                    label: "View Plugins",
+                    label: t("skillImportOverlay.viewPlugins"),
                     onClick: () => router.push("/settings?section=plugins"),
                   },
           });
@@ -531,10 +527,10 @@ export const Thread: FC<ThreadProps> = ({
               return;
             }
             if (importTimedOut) {
-              const timeoutMessage = "Import timed out after 2 minutes. Please try again.";
+              const timeoutMessage = t("skillImportOverlay.importTimedOutDesc");
               setSkillImportPhase("error");
               setSkillImportError(timeoutMessage);
-              toast.error("Import timed out", {
+              toast.error(t("skillImportOverlay.importTimedOut"), {
                 description: timeoutMessage,
               });
               scheduleSkillImportReset(4000, true);
@@ -548,7 +544,7 @@ export const Thread: FC<ThreadProps> = ({
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
           setSkillImportPhase("error");
           setSkillImportError(errorMsg);
-          toast.error("Import failed", {
+          toast.error(t("skillImportOverlay.importFailed"), {
             description: errorMsg,
           });
 
@@ -682,11 +678,11 @@ export const Thread: FC<ThreadProps> = ({
 
               {/* Phase label */}
               <span className="text-lg font-semibold font-mono text-terminal-dark">
-                {skillImportPhase === "uploading" && "Uploading…"}
-                {skillImportPhase === "parsing" && "Parsing package…"}
-                {skillImportPhase === "importing" && "Importing skill…"}
-                {skillImportPhase === "success" && "Import complete!"}
-                {skillImportPhase === "error" && "Import failed"}
+                {skillImportPhase === "uploading" && t("skillImportOverlay.uploading")}
+                {skillImportPhase === "parsing" && t("skillImportOverlay.parsing")}
+                {skillImportPhase === "importing" && t("skillImportOverlay.importing")}
+                {skillImportPhase === "success" && t("skillImportOverlay.success")}
+                {skillImportPhase === "error" && t("skillImportOverlay.error")}
               </span>
 
               {/* File name */}
@@ -711,7 +707,7 @@ export const Thread: FC<ThreadProps> = ({
 
               {/* Success subtitle */}
               {skillImportPhase === "success" && skillImportName && (
-                <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
+                <p className="text-sm font-mono text-terminal-muted">{t("skillImportOverlay.readyToUse", { name: skillImportName })}</p>
               )}
 
               {/* Plugin component detail */}
@@ -1678,7 +1674,7 @@ const Composer: FC<{
     }
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      toast.error("Voice input is not supported in this environment.");
+      toast.error(t("audio.voiceNotSupported"));
       return;
     }
 
@@ -1710,7 +1706,7 @@ const Composer: FC<{
         mediaRecorderRef.current = null;
         recordingChunksRef.current = [];
         stopRecordingStream();
-        toast.error("Voice recording failed.");
+        toast.error(t("audio.voiceRecordingFailed"));
       };
 
       recorder.onstop = async () => {
@@ -1722,13 +1718,13 @@ const Composer: FC<{
         stopRecordingStream();
 
         if (chunks.length === 0) {
-          toast.error("No audio captured. Please try again.");
+          toast.error(t("audio.noAudioCaptured"));
           return;
         }
 
         const audioBlob = new Blob(chunks, { type: mimeType });
         if (audioBlob.size === 0) {
-          toast.error("No audio captured. Please try again.");
+          toast.error(t("audio.noAudioCaptured"));
           return;
         }
 
@@ -1751,12 +1747,12 @@ const Composer: FC<{
 
           const payload = await response.json().catch(() => null);
           if (!response.ok) {
-            throw new Error(payload?.error || "Transcription failed");
+            throw new Error(payload?.error || t("toast.transcriptionFailed"));
           }
 
           const transcript = typeof payload?.text === "string" ? payload.text.trim() : "";
           if (!transcript) {
-            throw new Error("No speech detected");
+            throw new Error(t("toast.noSpeechDetected"));
           }
 
           setInputValue((prev) => {
@@ -1777,7 +1773,7 @@ const Composer: FC<{
             updateCursorPosition(cursor);
           });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Transcription failed";
+          const errorMessage = error instanceof Error ? error.message : t("toast.transcriptionFailed");
           toast.error(errorMessage);
         } finally {
           setIsTranscribingVoice(false);
@@ -1787,7 +1783,7 @@ const Composer: FC<{
       recorder.start(250);
       setIsRecordingVoice(true);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Could not access microphone";
+      const errorMessage = error instanceof Error ? error.message : t("toast.micAccessFailed");
       toast.error(errorMessage);
       setIsRecordingVoice(false);
       setIsTranscribingVoice(false);
@@ -1990,7 +1986,7 @@ const Composer: FC<{
                 </span>
               </div>
               <span className="text-[11px] font-mono text-terminal-muted/80">
-                {isLoadingSkills ? "Loading skills..." : `${filteredSkills.length} result${filteredSkills.length === 1 ? "" : "s"}`}
+                {isLoadingSkills ? t("skillImportOverlay.loadingSkills") : t("skillImportOverlay.skillResults", { count: filteredSkills.length })}
               </span>
             </div>
             <div className="relative mt-2">
@@ -2036,8 +2032,8 @@ const Composer: FC<{
                   }
                 }}
                 className="w-full rounded-md border border-terminal-border/60 bg-white/85 py-1.5 pl-8 pr-3 text-sm font-mono text-terminal-dark outline-none transition-colors placeholder:text-terminal-muted/70 focus:border-terminal-green/50"
-                placeholder="Search skills, categories, and descriptions"
-                aria-label="Search skills"
+                placeholder={t("skillPicker.searchPlaceholder")}
+                aria-label={t("skillPicker.searchAriaLabel")}
               />
             </div>
           </div>
@@ -2046,13 +2042,13 @@ const Composer: FC<{
             {skills.length === 0 && !isLoadingSkills ? (
               <div className="px-2 py-8 text-center">
                 <p className="text-xs font-mono text-terminal-muted">
-                  No skills available yet - drop a .md skill file or visit Settings {'->'} Plugins.
+                  {t("skillPicker.noSkillsYet")}
                 </p>
               </div>
             ) : filteredSkills.length === 0 ? (
               <div className="px-2 py-8 text-center">
                 <p className="text-xs font-mono text-terminal-muted">
-                  No skills match "{skillPickerQuery}"
+                  {t("skillPicker.noMatch", { query: skillPickerQuery })}
                 </p>
               </div>
             ) : (
@@ -2097,7 +2093,7 @@ const Composer: FC<{
                     </div>
                     {requiredInputs.length > 0 && (
                       <span className="mt-0.5 shrink-0 rounded border border-amber-300/80 bg-amber-50 px-1.5 py-0.5 text-[10px] font-mono text-amber-700">
-                        needs input
+                        {t("skillPicker.needsInput")}
                       </span>
                     )}
                   </button>
@@ -2107,10 +2103,10 @@ const Composer: FC<{
           </div>
 
           <div className="flex items-center gap-4 border-t border-terminal-border/50 px-4 py-2 text-[10px] font-mono text-terminal-muted/80">
-            <span>↑↓ navigate</span>
-            <span>Tab/Enter select</span>
-            <span>Esc close</span>
-            <span>Command Space open</span>
+            <span>{t("skillPicker.navigate")}</span>
+            <span>{t("skillPicker.select")}</span>
+            <span>{t("skillPicker.close")}</span>
+            <span>{t("skillPicker.open")}</span>
           </div>
         </div>
       )}
@@ -2434,6 +2430,7 @@ const Composer: FC<{
  * Click a model → instantly switch. Icon placeholder ready for custom PNGs.
  */
 const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
+  const tBag = useTranslations("modelBag");
   const [open, setOpen] = useState(false);
   const bag = useModelBag();
   const [search, setSearch] = useState("");
@@ -2504,10 +2501,10 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
         // to return the session override as if it were the global default, creating
         // inconsistency between the session model and what logs/temperature/caching use.
         // The session override takes precedence via session-model-resolver.ts.
-        toast.success(`Switched to ${model.name} for this session`);
+        toast.success(tBag("switched", { name: model.name }));
         setOpen(false);
       } catch {
-        toast.error("Failed to switch model");
+        toast.error(tBag("switchFailed"));
       } finally {
         setSaving(false);
       }
@@ -2557,9 +2554,9 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 <PackageIcon className="size-4 text-terminal-green" />
               </div>
               <div>
-                <h3 className="font-mono text-sm font-bold text-terminal-cream leading-none">Model Bag</h3>
+                <h3 className="font-mono text-sm font-bold text-terminal-cream leading-none">{tBag("title")}</h3>
                 <p className="font-mono text-[10px] text-terminal-cream/50 mt-0.5">
-                  {visibleModels.length} model{visibleModels.length !== 1 ? "s" : ""} available
+                  {tBag("modelCount", { count: visibleModels.length })}
                 </p>
               </div>
             </div>
@@ -2578,7 +2575,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 {getModelIcon(activeModel)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Currently active</p>
+                <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{tBag("currentlyActive")}</p>
                 <p className="font-mono text-xs font-semibold text-terminal-dark truncate">{activeModel.name}</p>
               </div>
               <span className={cn(
@@ -2636,7 +2633,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search..."
+                placeholder={tBag("bagSearchPlaceholder")}
                 className="w-full rounded-lg border border-terminal-border/30 bg-white py-1 pl-7 pr-2 font-mono text-[11px] text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green/30"
               />
             </div>
@@ -2650,8 +2647,8 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           ) : visibleModels.length === 0 ? (
             <div className="py-12 text-center">
               <PackageIcon className="mx-auto size-8 text-terminal-muted/30 mb-2" />
-              <p className="font-mono text-xs text-terminal-muted">No models found</p>
-              <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">Connect providers in Settings</p>
+              <p className="font-mono text-xs text-terminal-muted">{tBag("noModels")}</p>
+              <p className="font-mono text-[10px] text-terminal-muted/60 mt-1">{tBag("connectProviders")}</p>
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto overscroll-contain">
@@ -2724,17 +2721,17 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                               </span>
                             )}
                             {model.capabilities.thinking && (
-                              <span className="rounded px-1 py-0.5 bg-purple-100 font-mono text-[9px] text-purple-600" title="Extended thinking">
+                              <span className="rounded px-1 py-0.5 bg-purple-100 font-mono text-[9px] text-purple-600" title={tBag("capabilityThinking")} aria-label={tBag("capabilityThinking")}>
                                 🧠
                               </span>
                             )}
                             {model.capabilities.speed === "fast" && (
-                              <span className="rounded px-1 py-0.5 bg-amber-50 font-mono text-[9px] text-amber-600" title="Fast">
+                              <span className="rounded px-1 py-0.5 bg-amber-50 font-mono text-[9px] text-amber-600" title={tBag("capabilityFast")} aria-label={tBag("capabilityFast")}>
                                 ⚡
                               </span>
                             )}
                             {model.capabilities.vision && (
-                              <span className="rounded px-1 py-0.5 bg-blue-50 font-mono text-[9px] text-blue-500" title="Vision">
+                              <span className="rounded px-1 py-0.5 bg-blue-50 font-mono text-[9px] text-blue-500" title={tBag("capabilityVision")} aria-label={tBag("capabilityVision")}>
                                 👁
                               </span>
                             )}
@@ -2759,7 +2756,7 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
           {/* ── Footer ── */}
           <div className="shrink-0 border-t border-terminal-border/20 px-4 py-2 bg-terminal-cream/60">
             <p className="font-mono text-[10px] text-terminal-muted text-center">
-              Click to switch model · Manage providers in <span className="text-terminal-green font-semibold">Settings</span>
+              {tBag.rich("footerHint", { settings: (chunks) => <span className="text-terminal-green font-semibold">{chunks}</span> })}
             </p>
           </div>
         </div>
@@ -3071,19 +3068,20 @@ const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = false }) 
 };
 
 const BranchPicker: FC = () => {
+  const t = useTranslations("assistantUi");
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
       className="inline-flex items-center gap-1 text-xs text-terminal-muted font-mono"
     >
       <BranchPickerPrimitive.Previous asChild>
-        <Button variant="ghost" size="icon" className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
+        <Button variant="ghost" size="icon" aria-label={t("prevBranch")} className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
           ←
         </Button>
       </BranchPickerPrimitive.Previous>
       <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       <BranchPickerPrimitive.Next asChild>
-        <Button variant="ghost" size="icon" className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
+        <Button variant="ghost" size="icon" aria-label={t("nextBranch")} className="size-6 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10">
           →
         </Button>
       </BranchPickerPrimitive.Next>
@@ -3140,7 +3138,7 @@ const AssistantActionBar: FC<{ ttsEnabled?: boolean; messageText?: string }> = (
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || "Failed to synthesize speech");
+        throw new Error(payload?.error || t("toast.synthesizeFailed"));
       }
 
       const audioBlob = await response.blob();
@@ -3161,7 +3159,7 @@ const AssistantActionBar: FC<{ ttsEnabled?: boolean; messageText?: string }> = (
         void audio.play();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to synthesize speech";
+      const errorMessage = error instanceof Error ? error.message : t("toast.synthesizeFailed");
       toast.error(errorMessage);
     } finally {
       setIsSpeaking(false);

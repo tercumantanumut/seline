@@ -97,6 +97,8 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center justify-between bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4 transition-colors hover:bg-terminal-cream dark:hover:bg-terminal-cream-dark/70"
+                aria-expanded={isExpanded}
+                aria-label={isExpanded ? t("collapse") : t("expand")}
             >
                 <div className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4 text-terminal-muted" />
@@ -288,6 +290,7 @@ function RerankerModelField({
     onModelIdChange: (value: string) => void;
     label: string;
 }) {
+    const t = useTranslations("settings.vector.advanced");
     const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadProgress, setDownloadProgress] = useState(0);
@@ -354,7 +357,7 @@ function RerankerModelField({
         }).electronAPI;
 
         if (!electronAPI?.model?.download) {
-            setDownloadError("Model download API not available. Please restart the app.");
+            setDownloadError(t("reranking.downloadApiUnavailable"));
             setDownloading(null);
             return;
         }
@@ -369,7 +372,7 @@ function RerankerModelField({
                     }
                     if (data.status === "error") {
                         setDownloading(null);
-                        setDownloadError(data.error || "Download failed");
+                        setDownloadError(data.error || t("reranking.downloadFailed"));
                     }
                 }
             });
@@ -378,10 +381,10 @@ function RerankerModelField({
         try {
             const result = await electronAPI.model.download(targetModelId);
             if (!result.success) {
-                setDownloadError(result.error || "Download failed");
+                setDownloadError(result.error || t("reranking.downloadFailed"));
             }
         } catch (err) {
-            setDownloadError(err instanceof Error ? err.message : "Download failed");
+            setDownloadError(err instanceof Error ? err.message : t("reranking.downloadFailed"));
         } finally {
             setDownloading(null);
             electronAPI.model.removeProgressListener?.();
@@ -406,7 +409,7 @@ function RerankerModelField({
                                 {model.name} {modelStatus[model.id] ? "✓" : ""}
                             </option>
                         ))}
-                        <option value="__custom__">Custom model ID</option>
+                        <option value="__custom__">{t("reranking.customModelOption")}</option>
                     </select>
 
                     {isElectronEnv && (
@@ -428,10 +431,10 @@ function RerankerModelField({
                             ) : modelStatus[selectedModelId] ? (
                                 <>
                                     <CheckIcon className="size-4" />
-                                    Ready
+                                    {t("reranking.ready")}
                                 </>
                             ) : (
-                                "Download"
+                                t("reranking.download")
                             )}
                         </Button>
                     )}
@@ -440,17 +443,17 @@ function RerankerModelField({
 
             <div>
                 <label className="mb-1 block font-mono text-xs text-terminal-muted">
-                    Custom model ID
+                    {t("reranking.customModelLabel")}
                 </label>
                 <input
                     type="text"
                     value={modelId}
                     onChange={(e) => onModelIdChange(e.target.value)}
-                    placeholder="cross-encoder/ms-marco-MiniLM-L-6-v2"
+                    placeholder={t("reranking.customModelPlaceholder")}
                     className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
                 />
                 <p className="mt-1 font-mono text-xs text-terminal-muted">
-                    Pick a preset or enter any Hugging Face cross-encoder reranker model ID.
+                    {t("reranking.customModelHelper")}
                 </p>
             </div>
 
@@ -462,9 +465,7 @@ function RerankerModelField({
                         <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 p-2">
                             <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-red-600" />
                             <p className="font-mono text-xs text-red-700">
-                                <strong>Wrong model type:</strong> This appears to be an embedding model, not a cross-encoder reranker.
-                                Rerankers score (query, text) pairs — they don&apos;t produce vectors.
-                                Select a cross-encoder model like &quot;cross-encoder/ms-marco-MiniLM-L-6-v2&quot;.
+                                {t("reranking.wrongModelType")}
                             </p>
                         </div>
                     );
@@ -474,8 +475,7 @@ function RerankerModelField({
                         <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2">
                             <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                             <p className="font-mono text-xs text-amber-700">
-                                <strong>Unrecognized model:</strong> Ensure this is a cross-encoder model (not an embedding model).
-                                Cross-encoders output relevance scores, not vectors.
+                                {t("reranking.unrecognizedModel")}
                             </p>
                         </div>
                     );

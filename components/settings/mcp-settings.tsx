@@ -294,7 +294,7 @@ export function MCPSettings() {
         }
         if (error) {
             console.error("Failed to load MCP config:", error);
-            toast.error("Failed to load MCP configuration");
+            toast.error(t("loadFailed"));
         }
         setIsLoading(false);
     };
@@ -309,10 +309,10 @@ export function MCPSettings() {
             setMcpServers(updatedServers);
             setRawJson(JSON.stringify({ mcpServers: updatedServers }, null, 2));
             setEnvironment(updatedEnv);
-            toast.success("Settings saved");
+            toast.success(t("saved"));
         } else {
             console.error("Failed to save MCP config:", error);
-            toast.error("Could not save settings");
+            toast.error(t("saveFailed"));
         }
         setIsSaving(false);
     };
@@ -332,14 +332,14 @@ export function MCPSettings() {
         if (data) {
             const result = data.results[serverName];
             if (result?.success) {
-                toast.success(`Connected to ${serverName}`);
+                toast.success(t("connected", { server: serverName }));
             } else {
-                toast.error(`Could not connect to ${serverName}: ${result?.error}`);
+                toast.error(t("connectFailed", { server: serverName, error: result?.error ?? "" }));
             }
             await loadConfig();
         } else {
             console.error(`Failed to connect to ${serverName}:`, error);
-            toast.error(`Connection failed: ${error || "Unknown issue"}`);
+            toast.error(error ? t("connectionFailed", { error }) : t("connectionFailedUnknown"));
         }
         setConnectingState(prev => ({ ...prev, [serverName]: false }));
     };
@@ -350,7 +350,7 @@ export function MCPSettings() {
         await saveAll(updatedServers);
         setIsAddingServer(false);
         setEditingServer(null);
-        toast.success(`Server ${name} ${editingServer ? 'updated' : 'added'}`);
+        toast.success(editingServer ? t("serverUpdated", { name }) : t("serverAdded", { name }));
     };
 
     const handleFormCancel = () => {
@@ -372,18 +372,18 @@ export function MCPSettings() {
             if (changed) {
                 setEnvironment(newEnv);
                 await saveAll(mcpServers, newEnv);
-                toast.info(`Added ${template.requiredEnv.length} environment variable(s). Fill in the values below.`);
+                toast.info(t("envVarsAdded", { count: template.requiredEnv.length }));
             }
         }
 
         // Add server directly from template
         const updatedServers = { ...mcpServers, [template.id]: template.config };
         await saveAll(updatedServers);
-        toast.success(`${template.name} server added`);
+        toast.success(t("templateAdded", { name: template.name }));
     };
 
     const handleDeleteServer = async (serverName: string) => {
-        if (!confirm(`Delete ${serverName}?`)) return;
+        if (!confirm(t("deleteConfirm", { name: serverName }))) return;
 
         const updatedServers = { ...mcpServers };
         delete updatedServers[serverName];
@@ -410,18 +410,18 @@ export function MCPSettings() {
         // If disabling, the API will handle disconnection
         // Load config to refresh status badges
         if (!enabled) {
-            toast.success(`${serverName} ${t("serverDisabled")}`);
+            toast.success(t("serverDisabledFeedback", { name: serverName }));
             await loadConfig();
         } else {
-            toast.success(`${serverName} ${t("serverEnabled")}`);
+            toast.success(t("serverEnabledFeedback", { name: serverName }));
         }
     };
 
     const getStatusDisplay = (serverName: string) => {
         const s = status.find(st => st.serverName === serverName);
-        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: "Not connected" };
-        if (s.connected) return { badge: "bg-terminal-green/20 text-terminal-green", icon: Check, text: "Connected" };
-        return { badge: "bg-red-100 text-red-600", icon: X, text: "Error" };
+        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: t("statusNotConnected") };
+        if (s.connected) return { badge: "bg-terminal-green/20 text-terminal-green", icon: Check, text: t("statusConnected") };
+        return { badge: "bg-red-100 text-red-600", icon: X, text: t("statusError") };
     };
 
     if (isLoading) {
@@ -438,14 +438,17 @@ export function MCPSettings() {
             {/* 1. Quick Start Templates */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Recommended servers
+                    {t("recommendedServers")}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {PREBUILT_TEMPLATES.map(template => (
-                        <button
+                        <div
                             key={template.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => handleApplyTemplate(template)}
-                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left"
+                            onKeyDown={(e) => e.key === "Enter" && handleApplyTemplate(template)}
+                            className="flex flex-col items-start p-3 rounded-md border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 hover:border-terminal-green hover:shadow-sm transition-all text-left cursor-pointer"
                         >
                             <div className="flex items-center justify-between w-full gap-2">
                                 <div className="flex items-center gap-2">
@@ -456,16 +459,16 @@ export function MCPSettings() {
                                             <Terminal className="h-4 w-4" />
                                         )}
                                     </div>
-                                    <span className="font-mono font-medium text-sm">{template.name}</span>
+                                    <span className="font-mono font-medium text-sm">{t(`templates.${template.id}.name`)}</span>
                                 </div>
                                 {template.requiredEnv.length > 0 && (
                                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
                                         <Key className="h-3 w-3 mr-1" />
-                                        Auth
+                                        {t("authBadge")}
                                     </Badge>
                                 )}
                             </div>
-                            <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{template.description}</p>
+                            <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{t(`templates.${template.id}.description`)}</p>
                             <div className="flex items-center gap-2 mt-2">
                                 <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
                                     {template.config.type === "sse" ? "sse" : "stdio"}
@@ -486,22 +489,22 @@ export function MCPSettings() {
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <Info className="h-3 w-3 mr-1" />
-                                                Help
+                                                {t("helpButton")}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-72 text-xs">
                                             <div className="space-y-2">
-                                                <p className="font-semibold">{template.name}</p>
-                                                <p>Required variables: {template.requiredEnv.join(", ")}</p>
+                                                <p className="font-semibold">{t(`templates.${template.id}.name`)}</p>
+                                                <p>{t("requiredVariables", { vars: template.requiredEnv.join(", ") })}</p>
                                                 {template.setupInstructions && (
-                                                    <p className="text-terminal-muted">{template.setupInstructions}</p>
+                                                    <p className="text-terminal-muted">{t(`templates.${template.id}.setup`)}</p>
                                                 )}
                                             </div>
                                         </PopoverContent>
                                     </Popover>
                                 )}
                             </div>
-                        </button>
+                        </div>
                     ))}
                 </div>
             </div>
@@ -510,11 +513,11 @@ export function MCPSettings() {
             <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-terminal-border pb-2">
                     <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                        Added servers
+                        {t("addedServers")}
                     </h3>
                     <Button size="sm" onClick={() => setIsAddingServer(!isAddingServer)} variant={isAddingServer ? "secondary" : "default"}>
                         <Plus className="h-4 w-4 mr-2" />
-                        {isAddingServer ? "Cancel" : "Add custom server"}
+                        {isAddingServer ? t("cancelAdd") : t("addCustomServer")}
                     </Button>
                 </div>
 
@@ -533,7 +536,7 @@ export function MCPSettings() {
                 {Object.keys(mcpServers).length === 0 && !isAddingServer ? (
                     <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 py-10 text-center">
                         <Plug className="h-8 w-8 text-terminal-muted mx-auto mb-2" />
-                        <p className="font-mono text-sm text-terminal-muted">No servers added yet. Add one to get started.</p>
+                        <p className="font-mono text-sm text-terminal-muted">{t("noServersYet")}</p>
                     </div>
                 ) : (
                     <div className="grid gap-3">
@@ -591,7 +594,7 @@ export function MCPSettings() {
                                                 {/* Show header count for SSE servers */}
                                                 {!config.command && config.headers && Object.keys(config.headers).length > 0 && (
                                                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-blue-50 text-blue-700 border-blue-200">
-                                                        {Object.keys(config.headers).length} header{Object.keys(config.headers).length > 1 ? 's' : ''}
+                                                        {t("headerCount", { count: Object.keys(config.headers).length })}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -599,7 +602,7 @@ export function MCPSettings() {
                                             {currentStatus?.lastError ? (
                                                 <Alert variant="destructive" className="mt-2">
                                                     <AlertCircle className="h-4 w-4" />
-                                                    <AlertTitle>Connection failed</AlertTitle>
+                                                    <AlertTitle>{t("connectionFailedTitle")}</AlertTitle>
                                                     <AlertDescription className="text-xs whitespace-pre-wrap font-mono">
                                                         {currentStatus.lastError}
                                                     </AlertDescription>
@@ -611,7 +614,7 @@ export function MCPSettings() {
                                                     </span>
                                                     {currentStatus?.connected && (
                                                         <span className="font-mono text-xs text-terminal-green">
-                                                            {currentStatus.toolCount} active tools
+                                                            {t("activeTools", { count: currentStatus.toolCount })}
                                                         </span>
                                                     )}
                                                 </div>
@@ -634,6 +637,7 @@ export function MCPSettings() {
                                             className={cn("h-8 px-2", isConnecting && "animate-pulse")}
                                             onClick={() => connectServer(name)}
                                             disabled={isConnecting || config.enabled === false}
+                                            aria-label={t("reconnectServer")}
                                         >
                                             {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />}
                                         </Button>
@@ -643,6 +647,7 @@ export function MCPSettings() {
                                             className="h-8 px-2"
                                             onClick={() => setEditingServer(name)}
                                             disabled={config.enabled === false}
+                                            aria-label={t("editServer")}
                                         >
                                             <Edit2 className="h-4 w-4 text-terminal-muted hover:text-terminal-dark" />
                                         </Button>
@@ -651,6 +656,7 @@ export function MCPSettings() {
                                             variant="ghost"
                                             className="h-8 px-2 hover:bg-red-50"
                                             onClick={() => handleDeleteServer(name)}
+                                            aria-label={t("deleteServer")}
                                         >
                                             <Trash2 className="h-4 w-4 text-terminal-muted hover:text-red-500" />
                                         </Button>
@@ -665,7 +671,7 @@ export function MCPSettings() {
             {/* 3. Environment Variables */}
             <div className="space-y-4">
                 <h3 className="font-mono text-sm font-semibold text-terminal-dark border-b border-terminal-border pb-2">
-                    Environment variables
+                    {t("environmentVariables")}
                 </h3>
 
                 {/* 📁 Available Variables Section */}
@@ -673,7 +679,7 @@ export function MCPSettings() {
 
                 <div className="space-y-2">
                     {Object.keys(environment).length === 0 && (
-                        <p className="font-mono text-xs text-terminal-muted italic">No environment variables yet.</p>
+                        <p className="font-mono text-xs text-terminal-muted italic">{t("noEnvVarsYet")}</p>
                     )}
 
                     {Object.entries(environment).map(([key, value]) => (
@@ -683,11 +689,11 @@ export function MCPSettings() {
                                 type="password"
                                 value={value}
                                 onChange={(e) => setEnvironment({ ...environment, [key]: e.target.value })}
-                                placeholder="Value..."
+                                placeholder={t("envValuePlaceholder")}
                                 className="flex-1 font-mono text-xs"
                                 onBlur={() => saveAll(mcpServers, environment)}
                             />
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => {
+                            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("removeEnvVar")} onClick={() => {
                                 const newEnv = { ...environment };
                                 delete newEnv[key];
                                 setEnvironment(newEnv);
@@ -700,7 +706,7 @@ export function MCPSettings() {
 
                     {!showNewEnvInput ? (
                         <Button size="sm" variant="outline" onClick={() => setShowNewEnvInput(true)} className="mt-2">
-                            <Plus className="h-3 w-3 mr-2" /> Add variable
+                            <Plus className="h-3 w-3 mr-2" /> {t("addVariable")}
                         </Button>
                     ) : (
                         <div className="flex gap-2 mt-2 items-center animate-in fade-in">
@@ -719,7 +725,7 @@ export function MCPSettings() {
                                 }}
                             />
                             <span className="text-xs text-terminal-muted">=</span>
-                            <span className="text-xs text-terminal-muted italic">Value (you can add it later)</span>
+                            <span className="text-xs text-terminal-muted italic">{t("envValueHint")}</span>
                             <div className="flex gap-1 ml-auto">
                                 <Button size="sm" onClick={() => {
                                     if (newEnvKey) {
@@ -727,8 +733,8 @@ export function MCPSettings() {
                                         setNewEnvKey("");
                                         setShowNewEnvInput(false);
                                     }
-                                }}>Add</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setShowNewEnvInput(false)}>Cancel</Button>
+                                }}>{t("addEnvVar")}</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setShowNewEnvInput(false)}>{t("cancelEnvVar")}</Button>
                             </div>
                         </div>
                     )}
@@ -743,12 +749,12 @@ export function MCPSettings() {
                     onClick={() => setShowJsonMode(!showJsonMode)}
                     className="text-xs text-terminal-muted hover:text-terminal-dark p-0"
                 >
-                    {showJsonMode ? "Hide advanced JSON" : "Show advanced JSON"}
+                    {showJsonMode ? t("hideAdvancedJson") : t("showAdvancedJson")}
                 </Button>
 
                 {showJsonMode && (
                     <div className="mt-4 space-y-2 animate-in fade-in slide-in-from-top-2">
-                        <Label>Raw JSON settings</Label>
+                        <Label>{t("rawJsonSettings")}</Label>
                         <Textarea
                             value={rawJson}
                             onChange={(e) => setRawJson(e.target.value)}
@@ -762,14 +768,14 @@ export function MCPSettings() {
                                         setMcpServers(parsed.mcpServers);
                                         saveAll(parsed.mcpServers, environment);
                                     } else {
-                                        toast.error("Invalid JSON: missing 'mcpServers' root key");
+                                        toast.error(t("invalidJsonMissingRoot"));
                                     }
                                 } catch (e) {
-                                    toast.error("Invalid JSON syntax");
+                                    toast.error(t("invalidJsonSyntax"));
                                 }
-                            }}>Apply JSON</Button>
+                            }}>{t("applyJson")}</Button>
                         </div>
-                        <p className="text-xs text-terminal-muted">Top-level key must be &quot;mcpServers&quot;.</p>
+                        <p className="text-xs text-terminal-muted">{t("jsonKeyHint")}</p>
                     </div>
                 )}
             </div>

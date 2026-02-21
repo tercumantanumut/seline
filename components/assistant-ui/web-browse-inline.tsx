@@ -23,6 +23,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 
 // ============================================================================
 // Types
@@ -38,19 +39,19 @@ interface WebBrowseInlineProps {
 }
 
 // ============================================================================
-// Phase Configuration
+// Phase Configuration (icons and colors only — labels are translated at render)
 // ============================================================================
 
-const PHASE_CONFIG: Record<
+const PHASE_STATIC: Record<
   WebBrowsePhase,
-  { icon: typeof GlobeIcon; label: string; color: string }
+  { icon: typeof GlobeIcon; color: string }
 > = {
-  idle: { icon: GlobeIcon, label: "", color: "text-terminal-muted" },
-  fetching: { icon: LoaderIcon, label: "Fetching", color: "text-blue-500" },
-  caching: { icon: LoaderIcon, label: "Caching", color: "text-blue-500" },
-  synthesizing: { icon: LoaderIcon, label: "Analyzing", color: "text-purple-500" },
-  complete: { icon: CheckCircleIcon, label: "Complete", color: "text-green-600" },
-  error: { icon: AlertCircleIcon, label: "Error", color: "text-red-500" },
+  idle: { icon: GlobeIcon, color: "text-terminal-muted" },
+  fetching: { icon: LoaderIcon, color: "text-blue-500" },
+  caching: { icon: LoaderIcon, color: "text-blue-500" },
+  synthesizing: { icon: LoaderIcon, color: "text-purple-500" },
+  complete: { icon: CheckCircleIcon, color: "text-green-600" },
+  error: { icon: AlertCircleIcon, color: "text-red-500" },
 };
 
 // ============================================================================
@@ -65,9 +66,19 @@ export const WebBrowseInline: FC<WebBrowseInlineProps> = ({
   onCancel,
   className,
 }) => {
+  const t = useTranslations("assistantUi.webBrowse");
   const [showPages, setShowPages] = useState(false);
-  const config = PHASE_CONFIG[phase];
+  const phaseLabels: Record<WebBrowsePhase, string> = {
+    idle: "",
+    fetching: t("phaseFetching"),
+    caching: t("phaseCaching"),
+    synthesizing: t("phaseAnalyzing"),
+    complete: t("phaseComplete"),
+    error: t("phaseError"),
+  };
+  const config = PHASE_STATIC[phase];
   const Icon = config.icon;
+  const label = phaseLabels[phase];
   const isActive = phase === "fetching" || phase === "caching" || phase === "synthesizing";
 
   // Don't render if idle
@@ -91,7 +102,7 @@ export const WebBrowseInline: FC<WebBrowseInlineProps> = ({
             )}
           />
           <span className={cn("font-mono text-xs", config.color)}>
-            {config.label}
+            {label}
             {phaseMessage && `: ${phaseMessage}`}
           </span>
         </div>
@@ -120,7 +131,7 @@ export const WebBrowseInline: FC<WebBrowseInlineProps> = ({
             ) : (
               <ChevronDownIcon className="size-3" />
             )}
-            {fetchedPages.length} page{fetchedPages.length !== 1 ? "s" : ""} loaded
+            {t("pagesLoaded", { count: fetchedPages.length })}
           </button>
 
           {showPages && (
@@ -149,7 +160,7 @@ export const WebBrowseInline: FC<WebBrowseInlineProps> = ({
       {/* Error Display */}
       {error && (
         <div className="mt-1 text-xs text-red-600 font-mono">
-          Error: {error}
+          {t("errorPrefix", { message: error })}
         </div>
       )}
     </div>

@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 interface PluginSummary {
   id: string;
@@ -44,6 +45,8 @@ interface PluginSummary {
 }
 
 export function PluginStatusBadge() {
+  const t = useTranslations("plugins.chatBadge");
+  const tPlugins = useTranslations("plugins");
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -122,10 +125,10 @@ export function PluginStatusBadge() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed");
-      toast.success(`Plugin ${newStatus === "active" ? "enabled" : "disabled"}`);
+      toast.success(newStatus === "active" ? tPlugins("pluginEnabled") : tPlugins("pluginDisabled"));
       loadPlugins();
     } catch {
-      toast.error("Failed to update plugin");
+      toast.error(tPlugins("updateFailed"));
     } finally {
       setToggling(null);
     }
@@ -172,10 +175,10 @@ export function PluginStatusBadge() {
         </TooltipTrigger>
         <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
           {loading
-            ? "Loading plugins..."
+            ? t("loading")
             : activeCount > 0
-              ? `${activeCount} plugin${activeCount > 1 ? "s" : ""} active`
-              : "No active plugins"}
+              ? t("active", { count: activeCount })
+              : t("noActive")}
         </TooltipContent>
       </Tooltip>
 
@@ -186,7 +189,7 @@ export function PluginStatusBadge() {
             <div className="flex items-center gap-2">
               <Plug className="size-3.5 text-terminal-green" />
               <span className="font-mono text-xs font-bold text-terminal-cream">
-                Plugins
+                {tPlugins("title")}
               </span>
               <Badge
                 variant="secondary"
@@ -209,7 +212,7 @@ export function PluginStatusBadge() {
               <div className="py-8 text-center">
                 <Plug className="mx-auto size-6 text-terminal-muted/30 mb-2" />
                 <p className="font-mono text-xs text-terminal-muted">
-                  No plugins installed
+                  {t("noPlugins")}
                 </p>
               </div>
             ) : (
@@ -246,18 +249,17 @@ export function PluginStatusBadge() {
                       </span>
                       {plugin.skillCount > 0 && (
                         <span className="font-mono text-[9px] text-terminal-muted">
-                          · {plugin.skillCount} skill
-                          {plugin.skillCount > 1 ? "s" : ""}
+                          · {t("skillCount", { count: plugin.skillCount })}
                         </span>
                       )}
                       {plugin.hasHooks && (
                         <span className="font-mono text-[9px] text-terminal-green">
-                          · hooks
+                          · {t("hooksLabel")}
                         </span>
                       )}
                       {plugin.hasMcp && (
                         <span className="font-mono text-[9px] text-blue-500">
-                          · MCP
+                          · {t("mcpLabel")}
                         </span>
                       )}
                     </div>
@@ -292,7 +294,7 @@ export function PluginStatusBadge() {
               className="flex items-center gap-1.5 font-mono text-[10px] text-terminal-green hover:text-terminal-green/80 transition-colors"
             >
               <Settings className="size-3" />
-              Manage Plugins
+              {t("managePlugins")}
             </button>
           </div>
         </div>

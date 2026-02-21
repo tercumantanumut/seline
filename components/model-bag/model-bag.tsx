@@ -16,6 +16,7 @@ import { ModelBagTooltip } from "./model-bag-tooltip";
 import type { ModelRole } from "./model-bag.types";
 import { cn } from "@/lib/utils";
 import { Loader2Icon, PackageIcon, SearchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface ModelBagProps {
   className?: string;
@@ -25,6 +26,7 @@ interface ModelBagProps {
 const ROLES: ModelRole[] = ["chat", "research", "vision", "utility"];
 
 export function ModelBag({ className, onClose }: ModelBagProps) {
+  const t = useTranslations("modelBag");
   const bag = useModelBag();
 
   if (bag.isLoading) {
@@ -47,15 +49,17 @@ export function ModelBag({ className, onClose }: ModelBagProps) {
         <div className="flex items-center gap-2">
           <PackageIcon className="size-5 text-terminal-green" />
           <h2 className="font-mono text-lg font-bold text-terminal-dark">
-            Model Bag
+            {t("title")}
           </h2>
           <span className="rounded-full bg-terminal-green/10 px-2 py-0.5 font-mono text-xs text-terminal-green">
-            {bag.models.length} models
+            {t("modelCount", { count: bag.models.length })}
           </span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
+            aria-label={t("close")}
+            title={t("close")}
             className="rounded-md p-1 text-terminal-muted transition-colors hover:bg-terminal-dark/10 hover:text-terminal-dark"
           >
             ✕
@@ -80,7 +84,7 @@ export function ModelBag({ className, onClose }: ModelBagProps) {
       {/* Divider */}
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-terminal-border" />
-        <span className="font-mono text-xs text-terminal-muted">INVENTORY</span>
+        <span className="font-mono text-xs text-terminal-muted">{t("inventory")}</span>
         <div className="h-px flex-1 bg-terminal-border" />
       </div>
 
@@ -98,7 +102,7 @@ export function ModelBag({ className, onClose }: ModelBagProps) {
             type="text"
             value={bag.searchQuery}
             onChange={(e) => bag.setSearchQuery(e.target.value)}
-            placeholder="Search models..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-terminal-border bg-white/50 py-1.5 pl-8 pr-3 font-mono text-xs text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>

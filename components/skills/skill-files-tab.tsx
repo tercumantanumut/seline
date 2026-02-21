@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { FileCode, FileText, Image, FileArchive, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import type { SkillFile } from "@/lib/db/sqlite-skills-schema";
 
 interface SkillFilesTabProps {
@@ -12,6 +14,7 @@ interface SkillFilesTabProps {
 }
 
 export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
+  const t = useTranslations("skills.files");
   const [files, setFiles] = useState<SkillFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +85,10 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      toast.success(t("downloadSuccess"));
     } catch (err) {
       console.error("Download error:", err);
+      toast.error(t("downloadFailed"));
     }
   };
 
@@ -111,7 +116,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center h-64 text-red-500">
-        Error: {error}
+        {t("errorPrefix")}: {error}
       </div>
     );
   }
@@ -119,7 +124,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
   if (files.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-terminal-muted">
-        No files found. This skill doesn't have any attached files.
+        {t("noFiles")}
       </div>
     );
   }
@@ -131,7 +136,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileCode className="h-4 w-4" />
-            Scripts ({categorizedFiles.scripts.length})
+            {t("scripts", { count: categorizedFiles.scripts.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.scripts.map((file) => (
@@ -151,13 +156,14 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                   </div>
                   {file.isExecutable && (
                     <Badge variant="outline" className="text-terminal-green border-terminal-green">
-                      Executable
+                      {t("executable")}
                     </Badge>
                   )}
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -173,7 +179,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            References ({categorizedFiles.references.length})
+            {t("references", { count: categorizedFiles.references.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.references.map((file) => (
@@ -195,6 +201,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -210,7 +217,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3 flex items-center gap-2">
             <FileArchive className="h-4 w-4" />
-            Assets ({categorizedFiles.assets.length})
+            {t("assets", { count: categorizedFiles.assets.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.assets.map((file) => (
@@ -232,6 +239,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -246,7 +254,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
       {categorizedFiles.other.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-terminal-dark mb-3">
-            Other Files ({categorizedFiles.other.length})
+            {t("otherFiles", { count: categorizedFiles.other.length })}
           </h3>
           <div className="space-y-2">
             {categorizedFiles.other.map((file) => (
@@ -268,6 +276,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />

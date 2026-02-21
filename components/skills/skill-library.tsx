@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ interface SkillLibraryProps {
 }
 
 export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
+  const t = useTranslations("skills.library");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<SkillLibraryItem[]>([]);
@@ -132,9 +134,9 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error || "Failed to copy skill");
-      setMessage("Skill copied successfully.");
+      setMessage(t("copySuccess"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to copy skill");
+      setError(err instanceof Error ? err.message : t("copyFailed"));
     } finally {
       setCopyingSkillId(null);
     }
@@ -144,23 +146,23 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
     <div className="space-y-4">
       <Card className="border-terminal-border">
         <CardHeader>
-          <CardTitle className="font-mono text-terminal-dark">Cross-Agent Skill Library</CardTitle>
+          <CardTitle className="font-mono text-terminal-dark">{t("title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search skills"
+              placeholder={t("searchPlaceholder")}
               className="rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
             />
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm">
-              <option value="">All categories</option>
+              <option value="">{t("allCategories")}</option>
               {categories.map((item) => (
                 <option key={item} value={item}>{item}</option>
               ))}
             </select>
-            <Button onClick={onApplyFilters} variant="outline" className="font-mono">Apply Filters</Button>
+            <Button onClick={onApplyFilters} variant="outline" className="font-mono">{t("applyFilters")}</Button>
           </div>
           {message ? <p className="text-sm font-mono text-green-700">{message}</p> : null}
           {error ? <p className="text-sm font-mono text-red-600">{error}</p> : null}
@@ -172,7 +174,7 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
       ) : null}
 
       {!loading && items.length === 0 ? (
-        <Card><CardContent className="pt-6 font-mono text-terminal-muted">No skills matched your current filters.</CardContent></Card>
+        <Card><CardContent className="pt-6 font-mono text-terminal-muted">{t("noMatch")}</CardContent></Card>
       ) : null}
 
       <div className="grid gap-3">
@@ -187,12 +189,12 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
                 <Badge variant="outline" className="font-mono text-xs">v{item.version}</Badge>
               </div>
 
-              <p className="text-sm text-terminal-muted">{item.description || "No description"}</p>
+              <p className="text-sm text-terminal-muted">{item.description || t("noDescription")}</p>
               <div className="flex flex-wrap gap-3 text-xs font-mono text-terminal-muted">
-                <span>Category: {item.category || "general"}</span>
-                <span>Runs: {item.runCount30d}</span>
-                <span>Success: {item.successRate30d ?? "N/A"}%</span>
-                <span>Updated: {new Date(item.updatedAt).toLocaleString()}</span>
+                <span>{t("category")}: {item.category || t("categoryGeneral")}</span>
+                <span>{t("runs")}: {item.runCount30d}</span>
+                <span>{t("success")}: {item.successRate30d ?? "N/A"}%</span>
+                <span>{t("updated")}: {new Date(item.updatedAt).toLocaleString()}</span>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
@@ -201,7 +203,7 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
                   onChange={(e) => setCopyTargets((prev) => ({ ...prev, [item.skillId]: e.target.value }))}
                   className="rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
                 >
-                  <option value="">Select target agent</option>
+                  <option value="">{t("selectAgent")}</option>
                   {characters
                     .filter((character) => character.id !== item.characterId)
                     .map((character) => (
@@ -215,14 +217,14 @@ export function SkillLibrary({ onOpenSkill }: SkillLibraryProps) {
                   disabled={!copyTargets[item.skillId] || copyingSkillId === item.skillId}
                 >
                   {copyingSkillId === item.skillId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Copy
+                  {t("copy")}
                 </Button>
                 <Button
                   variant="outline"
                   className="font-mono"
                   onClick={() => onOpenSkill?.(item.skillId, item.characterId)}
                 >
-                  Open
+                  {t("open")}
                 </Button>
               </div>
             </CardContent>

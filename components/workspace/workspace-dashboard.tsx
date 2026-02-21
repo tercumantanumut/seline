@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, ExternalLink, GitBranch, Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,37 +27,32 @@ const COLLAPSED_COUNT = 3;
 
 const STATUS_STYLES: Record<
   string,
-  { bg: string; border: string; text: string; label: string }
+  { bg: string; border: string; text: string }
 > = {
   active: {
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     text: "text-emerald-700",
-    label: "Active",
   },
   "changes-ready": {
     bg: "bg-amber-50",
     border: "border-amber-200",
     text: "text-amber-700",
-    label: "Changes Ready",
   },
   "pr-open": {
     bg: "bg-blue-50",
     border: "border-blue-200",
     text: "text-blue-700",
-    label: "PR Open",
   },
   merged: {
     bg: "bg-purple-50",
     border: "border-purple-200",
     text: "text-purple-700",
-    label: "Merged",
   },
   "cleanup-pending": {
     bg: "bg-gray-100",
     border: "border-gray-300",
     text: "text-gray-600",
-    label: "Cleanup",
   },
 };
 
@@ -64,15 +60,17 @@ const STATUS_STYLES: Record<
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatRelativeTime(dateStr?: string): string {
+type RelativeTimeFn = (key: string, values?: Record<string, string | number | Date>) => string;
+
+function formatRelativeTime(dateStr: string | undefined, t: RelativeTimeFn): string {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("minutesAgo", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("daysAgo", { n: days });
 }
 
 function formatBranch(branch?: string): string {
@@ -94,7 +92,20 @@ function getInitials(name?: string): string {
 // ---------------------------------------------------------------------------
 
 export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardProps) {
+  const t = useTranslations("workspace.dashboard");
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+
+  const getStatusLabel = useCallback((status: string): string => {
+    const map: Record<string, string> = {
+      active: t("statusActive"),
+      "changes-ready": t("statusChangesReady"),
+      "pr-open": t("statusPrOpen"),
+      merged: t("statusMerged"),
+      "cleanup-pending": t("statusCleanup"),
+    };
+    return map[status] ?? status;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [cleaningUp, setCleaningUp] = useState<Set<string>>(new Set());
@@ -134,10 +145,10 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
         action: "cleanup",
       });
       if (error) throw new Error(error);
-      toast.success("Workspace cleaned up");
+      toast.success(t("cleanedUp"));
       await fetchWorkspaces();
     } catch {
-      toast.error("Failed to clean up workspace");
+      toast.error(t("cleanupFailed"));
     } finally {
       setCleaningUp((prev) => {
         const next = new Set(prev);
@@ -160,7 +171,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
       <div className="flex items-center gap-2 mb-3">
         <GitBranch className="h-4 w-4 text-terminal-muted" />
         <h2 className="text-sm font-mono font-medium text-terminal-dark">
-          Active Workspaces
+          {t("activeWorkspaces")}
         </h2>
         <Badge variant="outline" className="font-mono text-xs text-terminal-muted">
           {workspaces.length}
@@ -214,7 +225,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     )}
                     variant="outline"
                   >
-                    {style.label}
+                    {getStatusLabel(ws.status)}
                   </Badge>
                 </div>
 
@@ -232,12 +243,12 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     {ws.prNumber
                       ? `PR #${ws.prNumber}${ws.prStatus ? ` (${ws.prStatus})` : ""}`
                       : ws.changedFiles != null
-                        ? `${ws.changedFiles} file${ws.changedFiles !== 1 ? "s" : ""} changed`
-                        : "No changes"}
+                        ? t("filesChanged", { count: ws.changedFiles })
+                        : t("noChanges")}
                   </span>
                   {(ws.lastSyncedAt || ws.createdAt) && (
                     <span className="text-[10px] font-mono text-terminal-muted/70">
-                      {formatRelativeTime(ws.lastSyncedAt ?? ws.createdAt)}
+                      {formatRelativeTime(ws.lastSyncedAt ?? ws.createdAt, t)}
                     </span>
                   )}
                 </div>
@@ -257,7 +268,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       ) : (
                         <Trash2 className="h-3 w-3 mr-1" />
                       )}
-                      Cleanup
+                      {t("cleanup")}
                     </Button>
                   ) : ws.status === "pr-open" && ws.prUrl ? (
                     <Button
@@ -268,7 +279,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     >
                       <a href={ws.prUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-3 w-3 mr-1" />
-                        View PR
+                        {t("viewPR")}
                       </a>
                     </Button>
                   ) : (
@@ -279,7 +290,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       onClick={() => onNavigateToSession?.(ws.sessionId, ws.agentId)}
                     >
                       <Play className="h-3 w-3 mr-1" />
-                      Continue
+                      {t("continue")}
                     </Button>
                   )}
                 </div>
@@ -301,12 +312,12 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
             {expanded ? (
               <>
                 <ChevronUp className="h-3 w-3 mr-1" />
-                Show less
+                {t("showLess")}
               </>
             ) : (
               <>
                 <ChevronDown className="h-3 w-3 mr-1" />
-                Show all ({workspaces.length})
+                {t("showAll", { count: workspaces.length })}
               </>
             )}
           </Button>
