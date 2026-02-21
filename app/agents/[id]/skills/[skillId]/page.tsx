@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,9 @@ function splitLines(value: string): string[] {
 export default function SkillDetailPage({ params }: { params: Promise<{ id: string; skillId: string }> }) {
   const { id: characterId, skillId } = use(params);
   const router = useRouter();
+  const t = useTranslations("skills.detail");
+  const tNew = useTranslations("skills.new");
+  const tStatus = useTranslations("skills.status");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,7 +84,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/skills/${skillId}?includeRuns=true&includeHistory=true`);
       const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload?.error || "Failed to load skill");
+      if (!res.ok) throw new Error(payload?.error || t("loadFailed"));
 
       const nextSkill = payload.skill as SkillRecord;
       const nextRuns = Array.isArray(payload.runs) ? payload.runs : [];
@@ -111,7 +115,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         setCharacters(list.filter((item: CharacterOption) => item.id !== characterId));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load skill");
+      setError(err instanceof Error ? err.message : t("loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -146,13 +150,13 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to save skill");
+        throw new Error(payload?.error || t("saveFailed"));
       }
 
-      setMessage("Skill updated successfully.");
+      setMessage(t("updatedSuccess"));
       await loadSkill();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save skill");
+      setError(err instanceof Error ? err.message : t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -172,7 +176,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to run skill");
+        throw new Error(payload?.error || t("runFailed"));
       }
 
       // Redirect to the session where the skill is running
@@ -181,10 +185,10 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         return;
       }
 
-      setMessage("Skill run triggered.");
+      setMessage(t("runTriggered"));
       await loadSkill();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to run skill");
+      setError(err instanceof Error ? err.message : t("runFailed"));
     } finally {
       setRunning(false);
     }
@@ -204,12 +208,12 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to copy skill");
+        throw new Error(payload?.error || t("copyFailed"));
       }
-      setMessage("Skill copied successfully.");
+      setMessage(t("copiedSuccess"));
       setCopyTargetCharacterId("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to copy skill");
+      setError(err instanceof Error ? err.message : t("copyFailed"));
     } finally {
       setCopying(false);
     }
@@ -221,7 +225,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         <Button asChild variant="ghost" className="font-mono">
           <Link href={`/agents/${characterId}/skills`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Skills
+            {t("backToSkills")}
           </Link>
         </Button>
 
@@ -233,66 +237,66 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
         {message ? <p className="text-sm font-mono text-green-700">{message}</p> : null}
 
         {!loading && !skill ? (
-          <Card><CardContent className="pt-6 font-mono">Skill not found.</CardContent></Card>
+          <Card><CardContent className="pt-6 font-mono">{t("notFound")}</CardContent></Card>
         ) : null}
 
         {skill ? (
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <Card className="border-terminal-border">
               <CardHeader>
-                <CardTitle className="font-mono">Skill Detail & Editor</CardTitle>
+                <CardTitle className="font-mono">{t("title")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-mono text-terminal-dark">
-                    Name
+                    {tNew("nameLabel")}
                     <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                   </label>
                   <label className="text-sm font-mono text-terminal-dark">
-                    Category
+                    {tNew("categoryLabel")}
                     <input value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                   </label>
                 </div>
 
                 <label className="block text-sm font-mono text-terminal-dark">
-                  Description
+                  {tNew("descriptionLabel")}
                   <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 min-h-[80px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                 </label>
 
                 <label className="block text-sm font-mono text-terminal-dark">
-                  Prompt Template
+                  {tNew("promptLabel")}
                   <textarea value={promptTemplate} onChange={(e) => setPromptTemplate(e.target.value)} className="mt-1 min-h-[180px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-mono text-terminal-dark">
-                    Tool Hints (one per line)
+                    {tNew("toolHintsLabel")}
                     <textarea value={toolHints} onChange={(e) => setToolHints(e.target.value)} className="mt-1 min-h-[110px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                   </label>
                   <label className="block text-sm font-mono text-terminal-dark">
-                    Trigger Examples (one per line)
+                    {tNew("triggerLabel")}
                     <textarea value={triggerExamples} onChange={(e) => setTriggerExamples(e.target.value)} className="mt-1 min-h-[110px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm" />
                   </label>
                 </div>
 
                 <label className="block text-sm font-mono text-terminal-dark">
-                  Status
+                  {t("statusLabel")}
                   <select value={status} onChange={(e) => setStatus(e.target.value as SkillStatus)} className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm">
-                    <option value="active">active</option>
-                    <option value="draft">draft</option>
-                    <option value="archived">archived</option>
+                    <option value="active">{tStatus("active")}</option>
+                    <option value="draft">{tStatus("draft")}</option>
+                    <option value="archived">{tStatus("archived")}</option>
                   </select>
                 </label>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="font-mono">Version {skill.version}</Badge>
+                  <Badge variant="outline" className="font-mono">{t("version", { version: skill.version })}</Badge>
                   <Button onClick={onSave} disabled={!canSave || saving} className="font-mono">
                     {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save
+                    {t("save")}
                   </Button>
                   <Button variant="outline" onClick={onRunNow} disabled={running} className="font-mono">
                     {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                    Run Now
+                    {t("runNow")}
                   </Button>
                 </div>
               </CardContent>
@@ -300,25 +304,25 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
 
             <div className="space-y-4">
               <Card className="border-terminal-border">
-                <CardHeader><CardTitle className="font-mono text-base">Copy Skill</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="font-mono text-base">{t("copySkill")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <select value={copyTargetCharacterId} onChange={(e) => setCopyTargetCharacterId(e.target.value)} className="w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm">
-                    <option value="">Select target agent</option>
+                    <option value="">{t("selectAgent")}</option>
                     {characters.map((character) => (
                       <option key={character.id} value={character.id}>{character.displayName || character.name}</option>
                     ))}
                   </select>
                   <Button onClick={onCopySkill} disabled={!copyTargetCharacterId || copying} className="w-full font-mono" variant="outline">
                     {copying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Copy to Agent
+                    {t("copyToAgent")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-terminal-border">
-                <CardHeader><CardTitle className="font-mono text-base">Run History</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="font-mono text-base">{t("runHistory")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                  {runs.length === 0 ? <p className="text-sm font-mono text-terminal-muted">No runs yet.</p> : null}
+                  {runs.length === 0 ? <p className="text-sm font-mono text-terminal-muted">{t("noRuns")}</p> : null}
                   {runs.map((run) => (
                     <div key={run.runId} className="rounded border border-terminal-border/70 p-2">
                       <div className="flex items-center justify-between gap-2">
@@ -334,9 +338,9 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
               </Card>
 
               <Card className="border-terminal-border">
-                <CardHeader><CardTitle className="font-mono text-base">Version History</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="font-mono text-base">{t("versionHistory")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
-                  {versions.length === 0 ? <p className="text-sm font-mono text-terminal-muted">No prior versions captured yet.</p> : null}
+                  {versions.length === 0 ? <p className="text-sm font-mono text-terminal-muted">{t("noPriorVersions")}</p> : null}
                   {versions.map((version) => (
                     <div key={version.id} className="rounded border border-terminal-border/70 p-2">
                       <div className="flex items-center justify-between gap-2">

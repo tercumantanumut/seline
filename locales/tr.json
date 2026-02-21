@@ -2856,6 +2856,29 @@
       "open": "Aç",
       "copySuccess": "Beceri başarıyla kopyalandı.",
       "copyFailed": "Beceri kopyalanamadı"
+    },
+    "detail": {
+      "backToSkills": "Becerilere Dön",
+      "title": "Beceri Detayı ve Düzenleyici",
+      "statusLabel": "Durum",
+      "version": "Versiyon {version}",
+      "save": "Kaydet",
+      "runNow": "Şimdi Çalıştır",
+      "copySkill": "Beceriyi Kopyala",
+      "copyToAgent": "Ajana Kopyala",
+      "runHistory": "Çalıştırma Geçmişi",
+      "versionHistory": "Versiyon Geçmişi",
+      "noRuns": "Henüz çalıştırma yok.",
+      "noPriorVersions": "Henüz önceki versiyon kaydedilmedi.",
+      "notFound": "Beceri bulunamadı.",
+      "updatedSuccess": "Beceri başarıyla güncellendi.",
+      "runTriggered": "Beceri çalıştırması tetiklendi.",
+      "copiedSuccess": "Beceri başarıyla kopyalandı.",
+      "loadFailed": "Beceri yüklenemedi",
+      "selectAgent": "Hedef ajan seçin",
+      "saveFailed": "Beceri kaydedilemedi",
+      "runFailed": "Beceri çalıştırılamadı",
+      "copyFailed": "Beceri kopyalanamadı"
     }
   },
   "schedules": {
