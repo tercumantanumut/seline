@@ -225,6 +225,11 @@ export default function SettingsPage() {
   const [claudecodeLoading, setClaudecodeLoading] = useState(false);
 
   useEffect(() => {
+    document.title = `${t("title")} — Seline`;
+    return () => { document.title = "Seline"; };
+  }, [t]);
+
+  useEffect(() => {
     loadSettings();
     loadAntigravityAuth();
     loadCodexAuth();

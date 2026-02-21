@@ -62,6 +62,11 @@ function UsagePageContent() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId);
 
   useEffect(() => {
+    document.title = `${t("title")} — Seline`;
+    return () => { document.title = "Seline"; };
+  }, [t]);
+
+  useEffect(() => {
     async function loadSessions() {
       try {
         setLoadingSessions(true);

@@ -250,6 +250,12 @@ export default function DashboardPage() {
   const [skillWindow, setSkillWindow] = useState<WindowPreset>("7d");
   const [skillOpen, setSkillOpen] = useState(false);
 
+  // Update browser tab title
+  useEffect(() => {
+    document.title = `${t("title")} — Seline`;
+    return () => { document.title = "Seline"; };
+  }, [t]);
+
   const loadChatStats = async () => {
     try {
       setChatLoading(true);
