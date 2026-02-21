@@ -19,6 +19,11 @@ export default function AboutPage() {
   const { root, scope } = useAnimeScope();
 
   useEffect(() => {
+    document.title = `${t("title")} — Seline`;
+    return () => { document.title = "Seline"; };
+  }, [t]);
+
+  useEffect(() => {
     if (!scope.current || prefersReducedMotion) return;
 
     scope.current.add(() => {

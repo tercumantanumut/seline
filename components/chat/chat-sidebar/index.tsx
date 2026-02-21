@@ -647,9 +647,10 @@ export function CharacterSidebar({
               <>
                 {pinnedSessions.length > 0 ? (
                   <div className="space-y-1.5">
-                    <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-amber/80 flex items-center gap-1">
+                    <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-amber/80 flex items-center gap-1.5">
                       <Pin className="h-2.5 w-2.5" />
                       {t("sidebar.pinnedSection")}
+                      <span className="ml-auto tabular-nums text-terminal-amber/60 normal-case">{pinnedSessions.length}</span>
                     </p>
                     {pinnedSessions.map((session) => {
                       const isCurrent = session.id === currentSessionId;
