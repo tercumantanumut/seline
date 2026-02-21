@@ -1573,7 +1573,21 @@
       "syncedFolderVariable": "Birincil senkronize klasör",
       "syncedFoldersArrayVariable": "Tüm senkronize klasörler (ayrı argümanlar)",
       "variableHelp": "Tek klasör erişimi için \\${SYNCED_FOLDER} veya çoklu klasör erişimi için \\${SYNCED_FOLDERS_ARRAY} kullanın",
-      "variablePreview": "Önizleme"
+      "variablePreview": "Önizleme",
+      "loadFailed": "MCP yapılandırması yüklenemedi",
+      "saved": "Ayarlar kaydedildi",
+      "saveFailed": "Ayarlar kaydedilemedi",
+      "connected": "{server} ile bağlantı kuruldu",
+      "connectFailed": "{server} ile bağlantı kurulamadı: {error}",
+      "connectionFailed": "Bağlantı başarısız: {error}",
+      "connectionFailedUnknown": "Bağlantı başarısız: Bilinmeyen sorun",
+      "serverAdded": "{name} sunucusu eklendi",
+      "serverUpdated": "{name} sunucusu güncellendi",
+      "templateAdded": "{name} sunucusu eklendi",
+      "envVarsAdded": "{count} ortam değişkeni eklendi. Değerleri aşağıya girin.",
+      "deleteConfirm": "{name} silinsin mi?",
+      "invalidJsonMissingRoot": "Geçersiz JSON: 'mcpServers' kök anahtarı eksik",
+      "invalidJsonSyntax": "Geçersiz JSON sözdizimi"
     }
   },
   "modelBag": {
