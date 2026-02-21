@@ -1316,7 +1316,7 @@ function ScheduledRunBanner({
                     <div className="mt-0.5 h-8 w-1.5 rounded-full bg-terminal-green/60" />
                     <div className="space-y-1">
                         <p className="font-mono text-sm text-terminal-dark">
-                            {t("scheduledRun.active", { taskName: run.taskName || "Background task" })}
+                            {t("scheduledRun.active", { taskName: run.taskName || t("scheduledRun.backgroundTask") })}
                         </p>
                         <p className="text-xs text-terminal-muted">
                             {t("scheduledRun.description")}
