@@ -3092,6 +3092,7 @@
     "loadSchedulesFailed": "Zamanlamalar yüklenemedi",
     "deleteScheduleFailed": "Zamanlama silinemedi",
     "triggerScheduleFailed": "Zamanlama tetiklenemedi",
+    "createFailed": "Zamanlama oluşturulamadı",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Yeniden Dene",

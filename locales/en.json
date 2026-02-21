@@ -3107,6 +3107,7 @@
     "loadSchedulesFailed": "Failed to load schedules",
     "deleteScheduleFailed": "Failed to delete schedule",
     "triggerScheduleFailed": "Failed to trigger schedule",
+    "createFailed": "Failed to create schedule",
     "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",

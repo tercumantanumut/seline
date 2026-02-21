@@ -585,7 +585,7 @@ export default function ChatInterface({
         if (activeTaskForSession?.type === "scheduled") {
             setActiveRun({
                 runId: activeTaskForSession.runId,
-                taskName: activeTaskForSession.taskName || "Scheduled task",
+                taskName: activeTaskForSession.taskName || t("scheduledRun.backgroundTask"),
                 startedAt: activeTaskForSession.startedAt,
             });
         } else {

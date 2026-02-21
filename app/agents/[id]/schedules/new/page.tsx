@@ -22,6 +22,7 @@ export default function NewSchedulePage({
 }) {
     const { id: characterId } = use(params);
     const tc = useTranslations("common");
+    const t = useTranslations("schedules");
 
     const [character, setCharacter] = useState<CharacterBasic | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -36,13 +37,13 @@ export default function NewSchedulePage({
                     const data = await response.json();
                     setCharacter(data.character);
                 } else if (response.status === 404) {
-                    setError("Agent not found");
+                    setError(t("agentNotFound"));
                 } else if (response.status === 403) {
-                    setError("Access denied");
+                    setError(t("accessDenied"));
                 }
             } catch (err) {
                 console.error("Failed to load character:", err);
-                setError("Failed to load agent");
+                setError(t("loadFailed"));
             } finally {
                 setIsLoading(false);
             }
@@ -58,7 +59,7 @@ export default function NewSchedulePage({
         });
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.error || "Failed to create schedule");
+            throw new Error(errorData.error || t("createFailed"));
         }
     };
 
