@@ -456,7 +456,7 @@ export function MCPSettings() {
                                             <Terminal className="h-4 w-4" />
                                         )}
                                     </div>
-                                    <span className="font-mono font-medium text-sm">{template.name}</span>
+                                    <span className="font-mono font-medium text-sm">{t(`templates.${template.id}.name`)}</span>
                                 </div>
                                 {template.requiredEnv.length > 0 && (
                                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
@@ -465,7 +465,7 @@ export function MCPSettings() {
                                     </Badge>
                                 )}
                             </div>
-                            <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{template.description}</p>
+                            <p className="font-mono text-xs text-terminal-muted mt-1 line-clamp-1">{t(`templates.${template.id}.description`)}</p>
                             <div className="flex items-center gap-2 mt-2">
                                 <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
                                     {template.config.type === "sse" ? "sse" : "stdio"}
@@ -491,10 +491,10 @@ export function MCPSettings() {
                                         </PopoverTrigger>
                                         <PopoverContent className="w-72 text-xs">
                                             <div className="space-y-2">
-                                                <p className="font-semibold">{template.name}</p>
+                                                <p className="font-semibold">{t(`templates.${template.id}.name`)}</p>
                                                 <p>{t("requiredVariables", { vars: template.requiredEnv.join(", ") })}</p>
                                                 {template.setupInstructions && (
-                                                    <p className="text-terminal-muted">{template.setupInstructions}</p>
+                                                    <p className="text-terminal-muted">{t(`templates.${template.id}.setup`)}</p>
                                                 )}
                                             </div>
                                         </PopoverContent>
