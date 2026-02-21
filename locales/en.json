@@ -953,7 +953,28 @@
     "gallery": {
       "noContextAvailable": "Cannot attach image - gallery context not available",
       "attachedToChat": "\"{name}\" attached to chat",
-      "attachFailed": "Failed to attach image"
+      "attachFailed": "Failed to attach image",
+      "imageUnavailable": "Image unavailable",
+      "loading": "Loading images...",
+      "loadFailed": "Failed to load images",
+      "noImages": "No images found",
+      "imagesFound": "{count, plural, one {# Image Found} other {# Images Found}}",
+      "attached": "{count} attached",
+      "attachHint": "Click an image to attach it to your next message"
+    },
+    "commandOutput": {
+      "error": "Error",
+      "success": "Success",
+      "running": "Running",
+      "expandOutput": "Expand output",
+      "collapseOutput": "Collapse output",
+      "exitCode": "Exit code:",
+      "output": "Output",
+      "standardError": "Standard Error",
+      "stdErrWarning": " (warnings/diagnostics)",
+      "truncated": "Output truncated. Full log available (ID: {logId})",
+      "copyRetrieval": "Copy Retrieval Command",
+      "clickToExpand": "Click to expand output..."
     },
     "voiceTool": {
       "stop": "Stop",
@@ -973,7 +994,19 @@
       "stepsUpdated": "{count, plural, one {# step updated} other {# steps updated}}"
     },
     "vectorSearch": {
-      "tryRefinements": "Try these refinements"
+      "tryRefinements": "Try these refinements",
+      "searching": "Searching...",
+      "searchFailed": "Search Failed",
+      "searchError": "An error occurred during search",
+      "noResults": "No Results Found",
+      "noResultsHint": "Try rephrasing your query or using different keywords.",
+      "searchComplete": "Search Complete",
+      "findingLabel": "{count, plural, one {finding} other {findings}}",
+      "fileLabel": "{count, plural, one {file} other {files}}",
+      "chunksAnalyzed": "chunks analyzed",
+      "findingsLabel": "Findings",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all"
     },
     "calculator": {
       "calculating": "Calculating",
@@ -3087,6 +3120,10 @@
       "draftSaved": "Draft saved successfully",
       "createSchedule": "Create Schedule",
       "updateSchedule": "Update Schedule",
+      "unsavedChanges": "Unsaved Changes",
+      "unsavedChangesDescription": "You have unsaved changes in this schedule. Are you sure you want to discard them and leave?",
+      "stayAndEdit": "Stay and Edit",
+      "discardAndLeave": "Discard & Leave",
       "sections": {
         "basicInfo": "Basic Information",
         "frequency": "Frequency & Timing",
