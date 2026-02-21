@@ -410,10 +410,10 @@ export function MCPSettings() {
         // If disabling, the API will handle disconnection
         // Load config to refresh status badges
         if (!enabled) {
-            toast.success(`${serverName} ${t("serverDisabled")}`);
+            toast.success(t("serverDisabledFeedback", { name: serverName }));
             await loadConfig();
         } else {
-            toast.success(`${serverName} ${t("serverEnabled")}`);
+            toast.success(t("serverEnabledFeedback", { name: serverName }));
         }
     };
 

@@ -1835,6 +1835,8 @@
     "mcp": {
       "serverEnabled": "Server enabled",
       "serverDisabled": "Server disabled",
+      "serverEnabledFeedback": "{name} enabled",
+      "serverDisabledFeedback": "{name} disabled",
       "enableServer": "Enable server",
       "disableServer": "Disable server",
       "disabledBadge": "Disabled",

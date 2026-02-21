@@ -2135,6 +2135,8 @@
       "resolvedCommand": "Çözümlenen komut:",
       "serverDisabled": "Sunucu devre dışı bırakıldı",
       "serverEnabled": "Sunucu etkinleştirildi",
+      "serverEnabledFeedback": "{name} etkinleştirildi",
+      "serverDisabledFeedback": "{name} devre dışı bırakıldı",
       "syncedFolderVariable": "Birincil senkronize klasör",
       "syncedFoldersArrayVariable": "Tüm senkronize klasörler (ayrı argümanlar)",
       "variableHelp": "Tek klasör erişimi için \\${SYNCED_FOLDER} veya çoklu klasör erişimi için \\${SYNCED_FOLDERS_ARRAY} kullanın",
