@@ -1908,7 +1908,9 @@
       "recommendedServers": "Recommended servers",
       "authBadge": "Auth",
       "helpButton": "Help",
-      "preview": "Preview:"
+      "preview": "Preview:",
+      "headerCount": "{count, plural, one {# header} other {# headers}}",
+      "jsonKeyHint": "Top-level key must be \"mcpServers\"."
     },
     "models": {
       "title": "Model choices",
@@ -3374,6 +3376,14 @@
   "plugins": {
     "title": "Plugins",
     "subtitle": "Extend your agent with skills, hooks, MCP servers, and more.",
+    "description": "Add new capabilities to your agent with installable plugins.",
+    "confirmInstallTitle": "Confirm plugin install",
+    "confirmInstallDesc": "Choose the main agent for this plugin. Imported sub-agents, tools, and shared folders will be linked to that workflow.",
+    "filesLabel": "Files",
+    "filesSelected": "{count, plural, one {# file selected} other {# files selected}}",
+    "moreFiles": " +{count} more",
+    "cancel": "Cancel",
+    "toolServersTitle": "Tool servers ({count})",
     "install": "Install Plugin",
     "installing": "Installing...",
     "installAndAssign": "Install and assign",

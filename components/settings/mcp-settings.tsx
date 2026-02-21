@@ -591,7 +591,7 @@ export function MCPSettings() {
                                                 {/* Show header count for SSE servers */}
                                                 {!config.command && config.headers && Object.keys(config.headers).length > 0 && (
                                                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-blue-50 text-blue-700 border-blue-200">
-                                                        {Object.keys(config.headers).length} header{Object.keys(config.headers).length > 1 ? 's' : ''}
+                                                        {t("headerCount", { count: Object.keys(config.headers).length })}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -772,7 +772,7 @@ export function MCPSettings() {
                                 }
                             }}>{t("applyJson")}</Button>
                         </div>
-                        <p className="text-xs text-terminal-muted">Top-level key must be &quot;mcpServers&quot;.</p>
+                        <p className="text-xs text-terminal-muted">{t("jsonKeyHint")}</p>
                     </div>
                 )}
             </div>

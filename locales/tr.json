@@ -2199,7 +2199,9 @@
       "recommendedServers": "Önerilen sunucular",
       "authBadge": "Doğrulama",
       "helpButton": "Yardım",
-      "preview": "Önizleme:"
+      "preview": "Önizleme:",
+      "headerCount": "{count, plural, one {# başlık} other {# başlık}}",
+      "jsonKeyHint": "Üst düzey anahtar \"mcpServers\" olmalıdır."
     }
   },
   "modelBag": {
@@ -3370,6 +3372,14 @@
   },
   "plugins": {
     "title": "Eklentiler",
+    "description": "Yüklenebilir eklentilerle ajana yeni yetenekler ekleyin.",
+    "confirmInstallTitle": "Eklenti kurulumunu onayla",
+    "confirmInstallDesc": "Bu eklenti için ana ajanı seçin. İçe aktarılan alt ajanlar, araçlar ve paylaşılan klasörler bu iş akışına bağlanacaktır.",
+    "filesLabel": "Dosyalar",
+    "filesSelected": "{count, plural, one {# dosya seçildi} other {# dosya seçildi}}",
+    "moreFiles": " +{count} daha",
+    "cancel": "İptal",
+    "toolServersTitle": "Araç sunucuları ({count})",
     "noPlugins": "Eklenti yüklü değil",
     "noPluginsHint": "Başlamak için bir eklenti .zip paketi yükleyin",
     "expandPlugin": "{name} ayrıntılarını genişlet",

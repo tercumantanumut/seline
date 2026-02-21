@@ -302,10 +302,10 @@ export function PluginSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-mono text-lg font-bold text-terminal-dark">
-            Plugins
+            {t("title")}
           </h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Add new capabilities to your agent with installable plugins.
+            {t("description")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -362,24 +362,24 @@ export function PluginSettings() {
         <DialogContent className="bg-terminal-cream sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-mono text-terminal-dark">
-              Confirm plugin install
+              {t("confirmInstallTitle")}
             </DialogTitle>
             <DialogDescription className="font-mono text-terminal-muted">
-              Choose the main agent for this plugin. Imported sub-agents, tools, and shared folders will be linked to that workflow.
+              {t("confirmInstallDesc")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="rounded border border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3">
               <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                Files
+                {t("filesLabel")}
               </p>
               <p className="mt-1 font-mono text-sm text-terminal-dark">
-                {pendingUploadFiles.length} file{pendingUploadFiles.length === 1 ? "" : "s"} selected
+                {t("filesSelected", { count: pendingUploadFiles.length })}
               </p>
               <p className="mt-1 line-clamp-2 font-mono text-xs text-terminal-muted">
                 {pendingUploadFiles.slice(0, 2).map((file) => file.name).join(", ")}
-                {pendingUploadFiles.length > 2 ? ` +${pendingUploadFiles.length - 2} more` : ""}
+                {pendingUploadFiles.length > 2 ? t("moreFiles", { count: pendingUploadFiles.length - 2 }) : ""}
               </p>
             </div>
 
@@ -412,7 +412,7 @@ export function PluginSettings() {
               }}
               disabled={uploading}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
@@ -561,27 +561,25 @@ export function PluginSettings() {
                   {plugin.components.skills?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <FileCode className="size-3" />
-                      {plugin.components.skills.length} skill
-                      {plugin.components.skills.length > 1 ? "s" : ""}
+                      {t("components.skills", { count: plugin.components.skills.length })}
                     </span>
                   )}
                   {plugin.components.agents?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <Bot className="size-3" />
-                      {plugin.components.agents.length} agent
-                      {plugin.components.agents.length > 1 ? "s" : ""}
+                      {t("components.agents", { count: plugin.components.agents.length })}
                     </span>
                   )}
                   {plugin.components.hooks && (
                     <span className="flex items-center gap-1">
                       <Webhook className="size-3" />
-                      hooks
+                      {t("components.hooks")}
                     </span>
                   )}
                   {plugin.components.mcpServers && (
                     <span className="flex items-center gap-1">
                       <Server className="size-3" />
-                      {Object.keys(plugin.components.mcpServers).length} MCP
+                      {t("components.mcpServers", { count: Object.keys(plugin.components.mcpServers).length })}
                     </span>
                   )}
                 </div>
@@ -745,8 +743,7 @@ export function PluginSettings() {
                                 {event}
                               </Badge>
                               <span className="font-mono text-[10px] text-terminal-muted">
-                                {Array.isArray(entries) ? entries.length : 0} handler
-                                {Array.isArray(entries) && entries.length > 1 ? "s" : ""}
+                                {t("detail.handlers", { count: Array.isArray(entries) ? entries.length : 0 })}
                               </span>
                             </div>
                           )
@@ -760,7 +757,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Server className="size-3.5" />
-                        Tool servers ({Object.keys(plugin.components.mcpServers).length})
+                        {t("toolServersTitle", { count: Object.keys(plugin.components.mcpServers).length })}
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.keys(plugin.components.mcpServers).map((name) => (
