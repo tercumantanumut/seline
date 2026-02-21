@@ -9,6 +9,7 @@ import { tool, jsonSchema } from "ai";
 import { searchWithRipgrep, isRipgrepAvailable, type RipgrepMatch, type RipgrepSearchResult } from "./ripgrep";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { logToolEvent } from "@/lib/ai/tool-registry";
 
 export interface LocalGrepToolOptions {
     sessionId: string;
@@ -254,9 +255,18 @@ Respects .gitignore and skips binary files by default.`,
 
             // Validate pattern is provided
             if (!pattern || typeof pattern !== "string" || pattern.trim() === "") {
+                const errorMessage = "Missing or invalid pattern. Use: localGrep({ pattern: \"your-search-term\" })";
+                logToolEvent({
+                    level: "error",
+                    toolName: "localGrep",
+                    event: "error",
+                    error: errorMessage,
+                    metadata: { searchPath: "native_localgrep" },
+                });
+
                 return {
                     status: "error",
-                    error: "Missing or invalid pattern. Use: localGrep({ pattern: \"your-search-term\" })",
+                    error: errorMessage,
                 };
             }
 
@@ -266,9 +276,18 @@ Respects .gitignore and skips binary files by default.`,
 
             // Check if ripgrep is available
             if (!isRipgrepAvailable()) {
+                const errorMessage = "ripgrep is not available. The vscode-ripgrep package may not be installed correctly.";
+                logToolEvent({
+                    level: "error",
+                    toolName: "localGrep",
+                    event: "error",
+                    error: errorMessage,
+                    metadata: { searchPath: "native_localgrep" },
+                });
+
                 return {
                     status: "error",
-                    error: "ripgrep is not available. The vscode-ripgrep package may not be installed correctly.",
+                    error: errorMessage,
                 };
             }
 
@@ -276,6 +295,14 @@ Respects .gitignore and skips binary files by default.`,
             const settings = loadSettings();
             const enabled = settings.localGrepEnabled ?? true;
             if (!enabled) {
+                logToolEvent({
+                    level: "warn",
+                    toolName: "localGrep",
+                    event: "error",
+                    error: "Local Grep is disabled in settings.",
+                    metadata: { searchPath: "native_localgrep" },
+                });
+
                 return {
                     status: "disabled",
                     message: "Local Grep is disabled in settings.",
@@ -292,22 +319,49 @@ Respects .gitignore and skips binary files by default.`,
                     searchPaths = folders.map((f) => f.folderPath);
 
                     if (searchPaths.length === 0) {
+                        const message =
+                            "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.";
+                        logToolEvent({
+                            level: "warn",
+                            toolName: "localGrep",
+                            event: "error",
+                            error: message,
+                            metadata: { searchPath: "native_localgrep" },
+                        });
+
                         return {
                             status: "no_paths",
-                            message:
-                                "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.",
+                            message,
                         };
                     }
                 } catch {
+                    const errorMessage = "Failed to retrieve synced folders. Please specify paths to search explicitly.";
+                    logToolEvent({
+                        level: "error",
+                        toolName: "localGrep",
+                        event: "error",
+                        error: errorMessage,
+                        metadata: { searchPath: "native_localgrep" },
+                    });
+
                     return {
                         status: "error",
-                        error: "Failed to retrieve synced folders. Please specify paths to search explicitly.",
+                        error: errorMessage,
                     };
                 }
             } else if (searchPaths.length === 0) {
+                const message = "No paths specified. Please provide paths to search.";
+                logToolEvent({
+                    level: "warn",
+                    toolName: "localGrep",
+                    event: "error",
+                    error: message,
+                    metadata: { searchPath: "native_localgrep" },
+                });
+
                 return {
                     status: "no_paths",
-                    message: "No paths specified. Please provide paths to search.",
+                    message,
                 };
             }
 
@@ -324,6 +378,18 @@ Respects .gitignore and skips binary files by default.`,
                 });
 
                 const formattedOutput = formatResults(searchResult, pattern);
+
+                logToolEvent({
+                    level: "info",
+                    toolName: "localGrep",
+                    event: "success",
+                    metadata: {
+                        searchPath: "native_localgrep",
+                        pattern,
+                        regex: isRegex,
+                        matchCount: searchResult.matches.length,
+                    },
+                });
 
                 return {
                     status: "success",
@@ -343,9 +409,23 @@ Respects .gitignore and skips binary files by default.`,
                 };
             } catch (error) {
                 const rawError = error instanceof Error ? error.message : "Search failed";
+                const enrichedError = isRegex ? buildRegexErrorHint(pattern, rawError) : rawError;
+
+                logToolEvent({
+                    level: "error",
+                    toolName: "localGrep",
+                    event: "error",
+                    error: enrichedError,
+                    metadata: {
+                        searchPath: "native_localgrep",
+                        pattern,
+                        regex: isRegex,
+                    },
+                });
+
                 return {
                     status: "error",
-                    error: isRegex ? buildRegexErrorHint(pattern, rawError) : rawError,
+                    error: enrichedError,
                 };
             }
         },

@@ -164,11 +164,13 @@ export const TOOL_DISCOVERY_MINIMAL = `## Tool Discovery & Codebase Search
 - ✅ RIGHT: localGrep({ pattern: "tutorial", fileTypes: ["tsx"] })
 
 **When user says "search the codebase" or "find X in the code":**
-→ Use \`localGrep\` for exact text/regex patterns
+→ Prefer \`localGrep\` first for exact text/regex patterns (primary path)
 → Default \`localGrep\` to literal mode (\`regex: false\`) unless user explicitly asks for regex
 → Start narrow to avoid bloat: keep \`maxResults\` near 20 and low \`contextLines\`, then expand only if needed
 → If regex mode fails with parse errors, suggest escaping metacharacters or switching to literal mode
 → Use \`vectorSearch\` for conceptual/semantic search
+→ If \`localGrep\` is unavailable/fails, \`executeCommand\` with \`rg\` is a supported fallback path
+→ For shell fallback, pass \`command: "rg"\` with args array (not one full shell string)
 
 **When to use searchTools:**
 → You need a capability you don't see (e.g., "generate image", "browse web")
@@ -199,11 +201,13 @@ export const TOOL_DISCOVERY_ALWAYS = `## Tool Discovery & Codebase Search
 Only use \`searchTools\` if you need to confirm a capability or view detailed usage instructions.
 
 **When user says "search the codebase" or "find X in the code":**
-→ Use \`localGrep\` for exact text/regex patterns
+→ Prefer \`localGrep\` first for exact text/regex patterns (primary path)
 → Default \`localGrep\` to literal mode (\`regex: false\`) unless user explicitly asks for regex
 → Start narrow to avoid bloat: keep \`maxResults\` near 20 and low \`contextLines\`, then expand only if needed
 → If regex mode fails with parse errors, suggest escaping metacharacters or switching to literal mode
-→ Use \`vectorSearch\` for conceptual/semantic search`;
+→ Use \`vectorSearch\` for conceptual/semantic search
+→ If \`localGrep\` is unavailable/fails, \`executeCommand\` with \`rg\` is a supported fallback path
+→ For shell fallback, pass \`command: "rg"\` with args array (not one full shell string)`;
 
 /**
  * Multi-Image Tool Usage Guidelines
