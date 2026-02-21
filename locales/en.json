@@ -859,7 +859,18 @@
     },
     "voiceTool": {
       "stop": "Stop",
-      "play": "Play"
+      "play": "Play",
+      "synthesizing": "Synthesizing speech\u2026",
+      "ttsFailed": "TTS failed",
+      "checkingTranscription": "Checking transcription\u2026",
+      "transcriptionFailed": "Transcription check failed"
+    },
+    "planTool": {
+      "updating": "Updating plan\u2026",
+      "creating": "Creating plan\u2026",
+      "planError": "Plan error: {error}",
+      "plan": "Plan",
+      "stepsUpdated": "{count, plural, one {# step updated} other {# steps updated}}"
     },
     "vectorSearch": {
       "tryRefinements": "Try these refinements"
@@ -1675,7 +1686,8 @@
       "removeHeader": "Remove header",
       "cancel": "Cancel",
       "save": "Save Server",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "requiredVariables": "Required variables: {vars}"
     },
     "models": {
       "title": "Model choices",
@@ -1800,7 +1812,15 @@
           "description": "Rerank top results with an ONNX model for higher precision.",
           "enable": "Enable reranking",
           "topK": "Rerank top K",
-          "modelPath": "Rerank model path"
+          "modelPath": "Rerank model path",
+          "customModelOption": "Custom model ID",
+          "customModelLabel": "Custom model ID",
+          "customModelPlaceholder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+          "customModelHelper": "Pick a preset or enter any Hugging Face cross-encoder reranker model ID.",
+          "ready": "Ready",
+          "download": "Download",
+          "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs — they don\u2019t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
+          "unrecognizedModel": "Unrecognized model: Ensure this is a cross-encoder model (not an embedding model). Cross-encoders output relevance scores, not vectors."
         },
         "queryProcessing": {
           "title": "Query Processing",

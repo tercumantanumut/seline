@@ -492,7 +492,7 @@ export function MCPSettings() {
                                         <PopoverContent className="w-72 text-xs">
                                             <div className="space-y-2">
                                                 <p className="font-semibold">{template.name}</p>
-                                                <p>Required variables: {template.requiredEnv.join(", ")}</p>
+                                                <p>{t("requiredVariables", { vars: template.requiredEnv.join(", ") })}</p>
                                                 {template.setupInstructions && (
                                                     <p className="text-terminal-muted">{template.setupInstructions}</p>
                                                 )}

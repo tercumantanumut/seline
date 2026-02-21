@@ -849,7 +849,18 @@
     },
     "voiceTool": {
       "stop": "Durdur",
-      "play": "Oynat"
+      "play": "Oynat",
+      "synthesizing": "Ses sentezleniyor\u2026",
+      "ttsFailed": "TTS başarısız",
+      "checkingTranscription": "Transkripsiyon kontrol ediliyor\u2026",
+      "transcriptionFailed": "Transkripsiyon kontrolü başarısız"
+    },
+    "planTool": {
+      "updating": "Plan güncelleniyor\u2026",
+      "creating": "Plan oluşturuluyor\u2026",
+      "planError": "Plan hatası: {error}",
+      "plan": "Plan",
+      "stepsUpdated": "{count} adım güncellendi"
     },
     "vectorSearch": {
       "tryRefinements": "Bu iyileştirmeleri deneyin"
@@ -1684,7 +1695,15 @@
           "description": "En üst sonuçları ONNX modeliyle yeniden sıralar.",
           "enable": "Yeniden sıralamayı etkinleştir",
           "topK": "Yeniden sıralama üst K",
-          "modelPath": "Yeniden sıralama model yolu"
+          "modelPath": "Yeniden sıralama model yolu",
+          "customModelOption": "Özel model ID",
+          "customModelLabel": "Özel model ID",
+          "customModelPlaceholder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+          "customModelHelper": "Bir ön ayar seçin veya herhangi bir Hugging Face çapraz kodlayıcı yeniden sıralayıcı model ID'si girin.",
+          "ready": "Hazır",
+          "download": "İndir",
+          "wrongModelType": "Yanlış model türü: Bu bir gömme modeli gibi görünüyor, çapraz kodlayıcı yeniden sıralayıcı değil. Yeniden sıralayıcılar (sorgu, metin) çiftlerini puanlar — vektör üretmez. Lütfen \"cross-encoder/ms-marco-MiniLM-L-6-v2\" gibi bir çapraz kodlayıcı model seçin.",
+          "unrecognizedModel": "Tanınmayan model: Bunun bir çapraz kodlayıcı model olduğundan emin olun (gömme modeli değil). Çapraz kodlayıcılar ilgi puanları çıktılar, vektör değil."
         },
         "queryProcessing": {
           "title": "Sorgu İşleme",
@@ -1956,7 +1975,8 @@
       "removeHeader": "Başlığı kaldır",
       "cancel": "İptal",
       "save": "Sunucuyu Kaydet",
-      "saving": "Kaydediliyor..."
+      "saving": "Kaydediliyor...",
+      "requiredVariables": "Gerekli değişkenler: {vars}"
     }
   },
   "modelBag": {
