@@ -263,6 +263,7 @@ function AgentOverflowMenu({
   onRemoveFromWorkflow,
   removeFromWorkflowLabel,
 }: AgentOverflowMenuProps) {
+  const t = useTranslations("picker");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -283,37 +284,37 @@ function AgentOverflowMenu({
       >
         <DropdownMenuItem onSelect={() => onEditIdentity(character)}>
           <Pencil className="w-3.5 h-3.5 mr-2" />
-          Edit Info
+          {t("menu.editInfo")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditTools(character)}>
           <Wrench className="w-3.5 h-3.5 mr-2" />
-          Manage Tools
+          {t("menu.manageTools")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditFolders(character)}>
           <DatabaseIcon className="w-3.5 h-3.5 mr-2" />
-          Sync Folders
+          {t("menu.syncFolders")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditMcp(character)}>
           <Plug className="w-3.5 h-3.5 mr-2" />
-          MCP Tools
+          {t("menu.mcpTools")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onEditPlugins(character)}>
           <Puzzle className="w-3.5 h-3.5 mr-2" />
-          Plugins
+          {t("menu.plugins")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onNavigateDashboard}>
           <BarChart2 className="w-3.5 h-3.5 mr-2" />
-          Dashboard
+          {t("menu.dashboard")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => onDuplicate(character.id)}>
           <Copy className="w-3.5 h-3.5 mr-2" />
-          Duplicate
+          {t("menu.duplicate")}
         </DropdownMenuItem>
         {showAddToWorkflow && (
           <DropdownMenuItem onSelect={() => onAddToWorkflow?.(character)} disabled={!canAddToWorkflow}>
             <GitBranchPlus className="w-3.5 h-3.5 mr-2" />
-            {addToWorkflowLabel || "Add to Workflow..."}
+            {addToWorkflowLabel}
           </DropdownMenuItem>
         )}
         {onRemoveFromWorkflow && removeFromWorkflowLabel && (
@@ -334,7 +335,7 @@ function AgentOverflowMenu({
           className="text-red-600 focus:text-red-600"
         >
           <Trash2 className="w-3.5 h-3.5 mr-2" />
-          Delete
+          {t("menu.delete")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

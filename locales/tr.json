@@ -193,6 +193,16 @@
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
+    "menu": {
+      "editInfo": "Bilgileri Düzenle",
+      "manageTools": "Araçları Yönet",
+      "syncFolders": "Klasörleri Senkronize Et",
+      "mcpTools": "MCP Araçları",
+      "plugins": "Eklentiler",
+      "dashboard": "Kontrol Paneli",
+      "duplicate": "Çoğalt",
+      "delete": "Sil"
+    },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
       "title": "Ajan Eklentileri",
@@ -1752,7 +1762,8 @@
       "untitled": "Başlıksız oturum",
       "invalidDate": "Geçersiz tarih",
       "select": "Detaylı kullanım ve analitik için soldan bir oturum seçin.",
-      "started": "Başlangıç {date}"
+      "started": "Başlangıç {date}",
+      "openInChat": "Sohbette aç"
     },
     "analytics": {
       "loading": "Oturum analizi hesaplanıyor...",
