@@ -9,7 +9,6 @@ import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_DURATIONS, ZLUTTY_EASINGS } from "@/lib/animations/utils";
 import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 
-const STYLY_URL = "https://www.styly.io";
 const LINKEDIN_URL = "https://www.linkedin.com/in/umut-tan-97214b9b/";
 const GITHUB_URL = "https://github.com/tercumantanumut/seline";
 
@@ -103,16 +102,6 @@ export default function AboutPage() {
                 <p className="text-lg font-mono font-semibold text-terminal-dark">{t("headline")}</p>
                 <p className="text-sm font-mono text-terminal-muted">{t("byline")}</p>
                 <div className="flex flex-wrap gap-3">
-                  <a
-                    className="about-link inline-flex items-center gap-2 rounded-full border border-terminal-border bg-white/80 px-3 py-1.5 text-xs font-mono text-terminal-dark transition-colors hover:bg-terminal-cream hover:text-terminal-green"
-                    href={STYLY_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={linkStyle}
-                  >
-                    {t("linkStyly")}
-                    <ExternalLinkIcon className="size-3" />
-                  </a>
                   <a
                     className="about-link inline-flex items-center gap-2 rounded-full border border-terminal-border bg-white/80 px-3 py-1.5 text-xs font-mono text-terminal-dark transition-colors hover:bg-terminal-cream hover:text-terminal-green"
                     href={LINKEDIN_URL}
