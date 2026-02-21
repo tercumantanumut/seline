@@ -135,7 +135,7 @@ export default function NewSkillPage({ params }: { params: Promise<{ id: string 
                   value={toolHints}
                   onChange={(e) => setToolHints(e.target.value)}
                   className="mt-1 min-h-[110px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                  placeholder="webSearch&#10;webBrowse"
+                  placeholder="webSearch"
                 />
               </label>
               <label className="block text-sm font-mono text-terminal-dark">

@@ -306,7 +306,12 @@ async function handleCreate(
     return { status: "error" as const, error: "Invalid repoPath. Must be an absolute path without shell metacharacters." };
   }
 
-  const normalizedRepoPath = path.resolve(repoPath);
+  const rawRepoPath = repoPath.trim();
+  const useWindowsPath = isWindowsAbsolutePath(rawRepoPath);
+  const pathApi = useWindowsPath ? path.win32 : path;
+  const normalizedRepoPath = useWindowsPath
+    ? path.win32.normalize(rawRepoPath)
+    : path.resolve(rawRepoPath);
   const normalizedRepoPathForChecks = normalizedRepoPath.trim();
   if (!isValidPath(normalizedRepoPathForChecks)) {
     return { status: "error" as const, error: "Invalid repoPath after normalization." };
@@ -354,8 +359,8 @@ async function handleCreate(
   }
 
   // Compute worktree path: <repoPath>/../worktrees/<branch-slug>
-  const worktreeParent = path.join(normalizedRepoPath, "..", "worktrees");
-  const worktreePath = path.join(worktreeParent, branchSlug(branch));
+  const worktreeParent = pathApi.join(normalizedRepoPath, "..", "worktrees");
+  const worktreePath = pathApi.join(worktreeParent, branchSlug(branch));
 
   // Don't overwrite existing directory
   if (fs.existsSync(worktreePath)) {

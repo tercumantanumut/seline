@@ -40,10 +40,12 @@ vi.mock("@/lib/ai/web-search/providers", () => ({
   isAnySearchProviderAvailable: providerMocks.isAnySearchProviderAvailable,
 }));
 
-vi.mock("@/lib/ai/web-cache", () => ({
-  cacheWebSearchResults: vi.fn(),
-  formatBriefSearchResults: vi.fn(() => "brief"),
-  cleanupExpiredWebCache: vi.fn(),
+const browseMocks = vi.hoisted(() => ({
+  browseAndSynthesize: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/web-browse", () => ({
+  browseAndSynthesize: browseMocks.browseAndSynthesize,
 }));
 
 import { createWebSearchTool } from "@/lib/ai/web-search";
@@ -79,6 +81,13 @@ describe("createWebSearchTool", () => {
       ],
       providerUsed: "duckduckgo",
     });
+
+    browseMocks.browseAndSynthesize.mockResolvedValue({
+      success: true,
+      synthesis: "Synthesis",
+      fetchedUrls: ["https://www.fenerbahce.org/"],
+      failedUrls: [],
+    });
   });
 
   it("falls back to DuckDuckGo in auto mode when Tavily fails", async () => {
@@ -99,6 +108,8 @@ describe("createWebSearchTool", () => {
     expect(result.status).toBe("success");
     expect(result.provider).toBe("duckduckgo");
     expect(result.sources).toHaveLength(1);
+    expect(browseMocks.browseAndSynthesize).toHaveBeenCalledTimes(1);
+    expect(result.answer).toBe("Synthesis");
   });
 
   it("does not fallback when Tavily is explicitly selected", async () => {
@@ -122,5 +133,22 @@ describe("createWebSearchTool", () => {
     expect(providerMocks.duckduckgoProvider.search).not.toHaveBeenCalled();
     expect(result.provider).toBe("tavily");
     expect(result.sources).toHaveLength(0);
+    expect(browseMocks.browseAndSynthesize).not.toHaveBeenCalled();
+  });
+
+  it("supports direct URL mode without running search providers", async () => {
+    const tool = createWebSearchTool({ sessionId: "session-1", userId: "user-1", characterId: null });
+
+    const result = await tool.execute(
+      { query: "Summarize this", urls: ["https://example.com/page"] },
+      { toolCallId: "tc-3", messages: [], abortSignal: new AbortController().signal }
+    ) as any;
+
+    expect(providerMocks.tavilyProvider.search).not.toHaveBeenCalled();
+    expect(providerMocks.duckduckgoProvider.search).not.toHaveBeenCalled();
+    expect(browseMocks.browseAndSynthesize).toHaveBeenCalledTimes(1);
+    expect(result.provider).toBe("direct-urls");
+    expect(result.sources).toHaveLength(1);
+    expect(result.answer).toBe("Synthesis");
   });
 });
