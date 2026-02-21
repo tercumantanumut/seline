@@ -1026,7 +1026,17 @@
       "viewPR": "PR'ı Görüntüle",
       "showLess": "Daha az göster",
       "showAll": "Tümünü göster ({count})",
-      "continue": "Devam Et"
+      "continue": "Devam Et",
+      "statusActive": "Aktif",
+      "statusChangesReady": "Değişiklikler Hazır",
+      "statusPrOpen": "PR Açık",
+      "statusMerged": "Birleştirildi",
+      "statusCleanup": "Temizle",
+      "minutesAgo": "{n} dk önce",
+      "hoursAgo": "{n} sa önce",
+      "daysAgo": "{n} gün önce",
+      "noChanges": "Değişiklik yok",
+      "filesChanged": "{count} dosya değişti"
     },
     "onboarding": {
       "step1": {
@@ -2918,6 +2928,12 @@
   "schedules": {
     "title": "Zamanlanmış Görevler",
     "description": "{name} için otomatik görevler oluşturun",
+    "agentNotFound": "Ajan bulunamadı",
+    "accessDenied": "Erişim reddedildi",
+    "loadFailed": "Ajan yüklenemedi",
+    "scheduleNotFound": "Zamanlama bulunamadı",
+    "loadScheduleFailed": "Zamanlama yüklenemedi",
+    "updateScheduleFailed": "Zamanlama güncellenemedi",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Yeniden Dene",

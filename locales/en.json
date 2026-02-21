@@ -1036,7 +1036,17 @@
       "viewPR": "View PR",
       "showLess": "Show less",
       "showAll": "Show all ({count})",
-      "continue": "Continue"
+      "continue": "Continue",
+      "statusActive": "Active",
+      "statusChangesReady": "Changes Ready",
+      "statusPrOpen": "PR Open",
+      "statusMerged": "Merged",
+      "statusCleanup": "Cleanup",
+      "minutesAgo": "{n}m ago",
+      "hoursAgo": "{n}h ago",
+      "daysAgo": "{n}d ago",
+      "noChanges": "No changes",
+      "filesChanged": "{count, plural, one {# file changed} other {# files changed}}"
     },
     "onboarding": {
       "step1": {
@@ -2933,6 +2943,12 @@
   "schedules": {
     "title": "Scheduled Tasks",
     "description": "Automate {name} to run tasks on a schedule",
+    "agentNotFound": "Agent not found",
+    "accessDenied": "Access denied",
+    "loadFailed": "Failed to load agent",
+    "scheduleNotFound": "Schedule not found",
+    "loadScheduleFailed": "Failed to load schedule",
+    "updateScheduleFailed": "Failed to update schedule",
     "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",
