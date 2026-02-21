@@ -1522,8 +1522,19 @@
           "label": "Seline AI API Anahtarı",
           "placeholder": "Seline AI anahtarınızı girin",
           "helper": "Görsel/video üretimi için gerekli"
+        },
+        "ollama": {
+          "label": "Ollama URL",
+          "placeholder": "http://localhost:11434/v1",
+          "helper": "Yerel Ollama OpenAI uyumlu uç nokta URL'sini kullanın."
+        },
+        "openai": {
+          "label": "OpenAI API Anahtarı",
+          "placeholder": "sk-...",
+          "helper": "OpenAI konuşmadan metne ve metinden konuşmaya için gereklidir."
         }
-      }
+      },
+      "readyStatus": "Hazır"
     },
     "models": {
       "title": "Model Seçimi",
@@ -1667,6 +1678,7 @@
     },
     "preferences": {
       "title": "Tercihler",
+      "description": "Görünümü, dili ve arka plan kontrol davranışını kişiselleştirin.",
       "theme": {
         "label": "Tema",
         "dark": "Karanlık",

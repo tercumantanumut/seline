@@ -1550,8 +1550,19 @@
           "label": "Seline media key",
           "placeholder": "Enter your Seline AI key",
           "helper": "Needed for image and video generation."
+        },
+        "ollama": {
+          "label": "Ollama URL",
+          "placeholder": "http://localhost:11434/v1",
+          "helper": "Use the URL of your local Ollama OpenAI-compatible endpoint."
+        },
+        "openai": {
+          "label": "OpenAI API Key",
+          "placeholder": "sk-...",
+          "helper": "Needed for OpenAI speech-to-text and text-to-speech."
         }
-      }
+      },
+      "readyStatus": "Ready"
     },
     "mcp": {
       "serverEnabled": "Server enabled",
@@ -1783,6 +1794,7 @@
     },
     "preferences": {
       "title": "App preferences",
+      "description": "Personalize appearance, language, and how background checks run.",
       "theme": {
         "label": "Theme",
         "dark": "Dark",

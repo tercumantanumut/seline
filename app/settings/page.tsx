@@ -1516,7 +1516,7 @@ function SettingsPanel({
               )}>
                 Codex
                 {codexAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1542,7 +1542,7 @@ function SettingsPanel({
               )}>
                 Claude Code
                 {claudecodeAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1568,7 +1568,7 @@ function SettingsPanel({
               )}>
                 Antigravity
                 {antigravityAuth?.isAuthenticated && (
-                  <span className="ml-2 text-xs text-terminal-green">Ready</span>
+                  <span className="ml-2 text-xs text-terminal-green">{t("api.readyStatus")}</span>
                 )}
               </span>
             </label>
@@ -1701,16 +1701,16 @@ function SettingsPanel({
 
           {formState.llmProvider === "ollama" && (
             <div>
-              <label className="mb-1 block font-mono text-sm text-terminal-muted">Ollama URL</label>
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.ollama.label")}</label>
               <input
                 type="text"
                 value={formState.ollamaBaseUrl}
                 onChange={(e) => updateField("ollamaBaseUrl", e.target.value)}
-                placeholder="http://localhost:11434/v1"
+                placeholder={t("api.fields.ollama.placeholder")}
                 className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
               />
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Use the URL of your local Ollama OpenAI-compatible endpoint.
+                {t("api.fields.ollama.helper")}
               </p>
             </div>
           )}
@@ -1752,16 +1752,16 @@ function SettingsPanel({
           </div>
 
           <div>
-            <label className="mb-1 block font-mono text-sm text-terminal-muted">OpenAI API Key</label>
+            <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.openai.label")}</label>
             <input
               type="password"
               value={formState.openaiApiKey}
               onChange={(e) => updateField("openaiApiKey", e.target.value)}
-              placeholder="sk-..."
+              placeholder={t("api.fields.openai.placeholder")}
               className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
             />
             <p className="mt-1 font-mono text-xs text-terminal-muted">
-              Needed for OpenAI speech-to-text and text-to-speech. Get a key at{" "}
+              {t("api.fields.openai.helper")}{" "}
               <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-terminal-green underline hover:text-terminal-green/80">
                 platform.openai.com
               </a>
@@ -2790,7 +2790,7 @@ function PreferencesSection({ formState, updateField }: PreferencesSectionProps)
       <div>
         <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("preferences.title")}</h2>
         <p className="mt-1 font-mono text-sm text-terminal-muted">
-          Personalize appearance, language, and how background checks run.
+          {t("preferences.description")}
         </p>
       </div>
 
