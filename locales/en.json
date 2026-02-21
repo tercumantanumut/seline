@@ -1499,10 +1499,31 @@
     },
     "api": {
       "title": "Choose your AI provider",
+      "description": "Choose where your assistant models run, then add only the keys you need.",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
+      "ollama": "Ollama (local)",
       "keysTitle": "Provider keys",
+      "auth": {
+        "pasteInstructions": "A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.",
+        "codePlaceholder": "Paste the authorization code here...",
+        "cancel": "Cancel",
+        "submitCode": "Submit Code",
+        "verifying": "Verifying...",
+        "signOut": "Sign out",
+        "connecting": "Connecting...",
+        "signedIn": "Signed in: {email}",
+        "antigravityTitle": "Antigravity models",
+        "antigravityDesc": "Use your Antigravity subscription to access supported premium models.",
+        "signInGoogle": "Sign in with Google",
+        "codexTitle": "OpenAI Codex",
+        "codexDesc": "Connect your OpenAI account to use Codex models.",
+        "signInOpenAI": "Sign in with OpenAI",
+        "claudecodeTitle": "Claude Code",
+        "claudecodeDesc": "Connect your Anthropic account to use Claude Code models.",
+        "signInAnthropic": "Sign in with Anthropic"
+      },
       "fields": {
         "anthropic": {
           "label": "Anthropic API Key",

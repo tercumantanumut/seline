@@ -1471,10 +1471,31 @@
     },
     "api": {
       "title": "LLM Sağlayıcısı",
+      "description": "Asistan modellerinizin nerede çalışacağını seçin, ardından yalnızca ihtiyacınız olan anahtarları ekleyin.",
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
+      "ollama": "Ollama (yerel)",
       "keysTitle": "API Anahtarları",
+      "auth": {
+        "pasteInstructions": "Bir tarayıcı sekmesi açıldı. Yetkilendirdikten sonra sayfada gösterilen kodu kopyalayın ve aşağıya yapıştırın.",
+        "codePlaceholder": "Yetkilendirme kodunu buraya yapıştırın...",
+        "cancel": "İptal",
+        "submitCode": "Kodu Gönder",
+        "verifying": "Doğrulanıyor...",
+        "signOut": "Çıkış yap",
+        "connecting": "Bağlanıyor...",
+        "signedIn": "Oturum açıldı: {email}",
+        "antigravityTitle": "Antigravity modelleri",
+        "antigravityDesc": "Desteklenen premium modellere erişmek için Antigravity aboneliğinizi kullanın.",
+        "signInGoogle": "Google ile giriş yap",
+        "codexTitle": "OpenAI Codex",
+        "codexDesc": "Codex modellerini kullanmak için OpenAI hesabınızı bağlayın.",
+        "signInOpenAI": "OpenAI ile giriş yap",
+        "claudecodeTitle": "Claude Code",
+        "claudecodeDesc": "Claude Code modellerini kullanmak için Anthropic hesabınızı bağlayın.",
+        "signInAnthropic": "Anthropic ile giriş yap"
+      },
       "fields": {
         "anthropic": {
           "label": "Anthropic API Anahtarı",

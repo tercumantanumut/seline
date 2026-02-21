@@ -1351,18 +1351,19 @@ function ClaudeCodePasteInput({
   onSubmit: (code: string) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations("settings.api.auth");
   const [code, setCode] = useState("");
 
   return (
     <div className="mt-3 space-y-3 border-t border-terminal-border pt-3">
       <p className="font-mono text-xs text-terminal-muted">
-        A browser tab has been opened. After authorizing, copy the code shown on the page and paste it below.
+        {t("pasteInstructions")}
       </p>
       <input
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        placeholder="Paste the authorization code here..."
+        placeholder={t("codePlaceholder")}
         className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
         autoFocus
         onKeyDown={(e) => {
@@ -1377,14 +1378,14 @@ function ClaudeCodePasteInput({
           disabled={loading}
           className="rounded border border-terminal-border px-3 py-1.5 font-mono text-xs text-terminal-muted hover:bg-terminal-bg disabled:opacity-50"
         >
-          Cancel
+          {t("cancel")}
         </button>
         <button
           onClick={() => onSubmit(code)}
           disabled={loading || !code.trim()}
           className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
         >
-          {loading ? "Verifying..." : "Submit Code"}
+          {loading ? t("verifying") : t("submitCode")}
         </button>
       </div>
     </div>
@@ -1423,7 +1424,7 @@ function SettingsPanel({
         <div>
           <h2 className="mb-1 font-mono text-lg font-semibold text-terminal-dark">{t("api.title")}</h2>
           <p className="mb-4 font-mono text-sm text-terminal-muted">
-            Choose where your assistant models run, then add only the keys you need.
+            {t("api.description")}
           </p>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
@@ -1475,7 +1476,7 @@ function SettingsPanel({
                 }}
                 className="size-4 accent-terminal-green"
               />
-              <span className="font-mono text-terminal-dark">Ollama (local)</span>
+              <span className="font-mono text-terminal-dark">{t("api.ollama")}</span>
             </label>
             <label className="flex items-center gap-3">
               <input
@@ -1580,14 +1581,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Antigravity models
+                {t("api.auth.antigravityTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Use your Antigravity subscription to access supported premium models.
+                {t("api.auth.antigravityDesc")}
               </p>
               {antigravityAuth?.isAuthenticated && antigravityAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {antigravityAuth.email}
+                  {t("api.auth.signedIn", { email: antigravityAuth.email })}
                 </p>
               )}
             </div>
@@ -1598,7 +1599,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "..." : "Sign out"}
+                  {antigravityLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : (
                 <button
@@ -1606,7 +1607,7 @@ function SettingsPanel({
                   disabled={antigravityLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {antigravityLoading ? "Connecting..." : "Sign in with Google"}
+                  {antigravityLoading ? t("api.auth.connecting") : t("api.auth.signInGoogle")}
                 </button>
               )}
             </div>
@@ -1618,14 +1619,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                OpenAI Codex
+                {t("api.auth.codexTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect your OpenAI account to use Codex models.
+                {t("api.auth.codexDesc")}
               </p>
               {codexAuth?.isAuthenticated && (codexAuth.email || codexAuth.accountId) && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {codexAuth.email || codexAuth.accountId}
+                  {t("api.auth.signedIn", { email: codexAuth.email || codexAuth.accountId || "" })}
                 </p>
               )}
             </div>
@@ -1636,7 +1637,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {codexLoading ? "..." : "Sign out"}
+                  {codexLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : (
                 <button
@@ -1644,7 +1645,7 @@ function SettingsPanel({
                   disabled={codexLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {codexLoading ? "Connecting..." : "Sign in with OpenAI"}
+                  {codexLoading ? t("api.auth.connecting") : t("api.auth.signInOpenAI")}
                 </button>
               )}
             </div>
@@ -1656,14 +1657,14 @@ function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-mono text-sm font-semibold text-terminal-dark">
-                Claude Code
+                {t("api.auth.claudecodeTitle")}
               </h3>
               <p className="mt-1 font-mono text-xs text-terminal-muted">
-                Connect your Anthropic account to use Claude Code models.
+                {t("api.auth.claudecodeDesc")}
               </p>
               {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
                 <p className="mt-1 font-mono text-xs text-terminal-green">
-                  Signed in: {claudecodeAuth.email}
+                  {t("api.auth.signedIn", { email: claudecodeAuth.email })}
                 </p>
               )}
             </div>
@@ -1674,7 +1675,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-red-300 bg-red-50 px-3 py-1.5 font-mono text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "..." : "Sign out"}
+                  {claudecodeLoading ? "..." : t("api.auth.signOut")}
                 </button>
               ) : !claudeCodePasteMode ? (
                 <button
@@ -1682,7 +1683,7 @@ function SettingsPanel({
                   disabled={claudecodeLoading}
                   className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
                 >
-                  {claudecodeLoading ? "Connecting..." : "Sign in with Anthropic"}
+                  {claudecodeLoading ? t("api.auth.connecting") : t("api.auth.signInAnthropic")}
                 </button>
               ) : null}
             </div>
