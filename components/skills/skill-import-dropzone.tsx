@@ -82,7 +82,7 @@ export function SkillImportDropzone({
       setPhase("success");
 
       toast.success(t("importedSuccess"), {
-        description: `${result.skillName} with ${result.scriptsFound} script(s)`,
+        description: t("importedDesc", { name: result.skillName, count: result.scriptsFound }),
       });
 
       onImportSuccess(result.skillId);

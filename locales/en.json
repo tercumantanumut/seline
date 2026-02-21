@@ -3047,6 +3047,7 @@
       "browse": "Browse Files",
       "tryAgain": "Try Again",
       "importedSuccess": "Skill imported successfully",
+      "importedDesc": "{name} with {count, plural, one {# script} other {# scripts}}",
       "invalidFileType": "Invalid file type",
       "invalidFileTypeDesc": "Only .zip packages or .md files are supported",
       "fileTooLarge": "File too large",

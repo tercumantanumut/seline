@@ -3032,6 +3032,7 @@
       "browse": "Dosyalara Gözat",
       "tryAgain": "Tekrar Dene",
       "importedSuccess": "Beceri başarıyla içe aktarıldı",
+      "importedDesc": "{name} ile {count, plural, one {# betik} other {# betik}}",
       "invalidFileType": "Geçersiz dosya türü",
       "invalidFileTypeDesc": "Yalnızca .zip paketleri veya .md dosyaları desteklenir",
       "fileTooLarge": "Dosya çok büyük",
