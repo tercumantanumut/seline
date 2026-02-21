@@ -2290,6 +2290,24 @@
       "invalidFileTypeDesc": "Only .zip packages or .md files are supported",
       "fileTooLarge": "File too large",
       "fileTooLargeDesc": "File size exceeds 50MB limit"
+    },
+    "library": {
+      "title": "Cross-Agent Skill Library",
+      "searchPlaceholder": "Search skills",
+      "allCategories": "All categories",
+      "applyFilters": "Apply Filters",
+      "noMatch": "No skills matched your current filters.",
+      "noDescription": "No description",
+      "category": "Category",
+      "categoryGeneral": "general",
+      "runs": "Runs",
+      "success": "Success",
+      "updated": "Updated",
+      "selectAgent": "Select target agent",
+      "copy": "Copy",
+      "open": "Open",
+      "copySuccess": "Skill copied successfully.",
+      "copyFailed": "Failed to copy skill"
     }
   },
   "schedules": {
