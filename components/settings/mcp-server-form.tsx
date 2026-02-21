@@ -77,26 +77,26 @@ export function MCPServerForm({
         const newErrors: string[] = [];
 
         if (!serverName.trim()) {
-            newErrors.push("Server name is required");
+            newErrors.push(t("validationServerNameRequired"));
         } else if (
             existingNames.includes(serverName) &&
             serverName !== initialName
         ) {
-            newErrors.push("Server name already exists");
+            newErrors.push(t("validationServerNameExists"));
         }
 
         if (serverType === "stdio") {
             if (!command.trim()) {
-                newErrors.push("Command is required for stdio transport");
+                newErrors.push(t("validationCommandRequired"));
             }
         } else {
             if (!url.trim()) {
-                newErrors.push("URL is required for SSE transport");
+                newErrors.push(t("validationUrlRequired"));
             } else {
                 try {
                     new URL(url.replace(/\$\{[^}]+\}/g, "placeholder"));
                 } catch {
-                    newErrors.push("Invalid URL format");
+                    newErrors.push(t("validationInvalidUrl"));
                 }
             }
         }

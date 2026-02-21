@@ -357,7 +357,7 @@ function RerankerModelField({
         }).electronAPI;
 
         if (!electronAPI?.model?.download) {
-            setDownloadError("Model download API not available. Please restart the app.");
+            setDownloadError(t("reranking.downloadApiUnavailable"));
             setDownloading(null);
             return;
         }
@@ -372,7 +372,7 @@ function RerankerModelField({
                     }
                     if (data.status === "error") {
                         setDownloading(null);
-                        setDownloadError(data.error || "Download failed");
+                        setDownloadError(data.error || t("reranking.downloadFailed"));
                     }
                 }
             });
@@ -381,10 +381,10 @@ function RerankerModelField({
         try {
             const result = await electronAPI.model.download(targetModelId);
             if (!result.success) {
-                setDownloadError(result.error || "Download failed");
+                setDownloadError(result.error || t("reranking.downloadFailed"));
             }
         } catch (err) {
-            setDownloadError(err instanceof Error ? err.message : "Download failed");
+            setDownloadError(err instanceof Error ? err.message : t("reranking.downloadFailed"));
         } finally {
             setDownloading(null);
             electronAPI.model.removeProgressListener?.();
