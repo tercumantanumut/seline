@@ -335,9 +335,9 @@ export function CustomWorkflowsManager({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-terminal-text">Create Workflow</h3>
+        <h3 className="text-lg font-semibold text-terminal-text">{t("createWorkflow")}</h3>
         <p className="text-sm text-terminal-muted">
-          Configure external instances and define new custom workflows.
+          {t("createWorkflowDescription")}
         </p>
       </div>
 

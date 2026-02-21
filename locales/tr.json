@@ -842,6 +842,20 @@
       "noContextAvailable": "Görsel eklenemiyor - galeri bağlamı mevcut değil",
       "attachedToChat": "\"{name}\" sohbete eklendi",
       "attachFailed": "Görsel eklenemedi"
+    },
+    "voiceTool": {
+      "stop": "Durdur",
+      "play": "Oynat"
+    },
+    "vectorSearch": {
+      "tryRefinements": "Bu iyileştirmeleri deneyin"
+    },
+    "skillPicker": {
+      "needsInput": "girdi gerekli",
+      "navigate": "↑↓ gezin",
+      "select": "Tab/Enter seç",
+      "close": "Esc kapat",
+      "open": "Command Space aç"
     }
   },
   "workspace": {
@@ -1726,7 +1740,9 @@
     "workflows": {
       "analyzed": "İş akışı analiz edildi",
       "saved": "İş akışı kaydedildi",
-      "deleted": "İş akışı silindi"
+      "deleted": "İş akışı silindi",
+      "createWorkflow": "İş Akışı Oluştur",
+      "createWorkflowDescription": "Harici örnekleri yapılandırın ve yeni özel iş akışları tanımlayın."
     }
   },
   "vectorSearch": {

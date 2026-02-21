@@ -9,6 +9,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { useOptionalVoice } from "./voice-context";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.voiceTool");
   const voiceCtx = useOptionalVoice();
   const hasAutoPlayed = useRef(false);
 
@@ -113,12 +115,12 @@ export const SpeakAloudToolUI: ToolCallContentPartComponent = ({
         {isPlaying ? (
           <>
             <SquareIcon className="w-3 h-3 fill-current" />
-            <span>Stop</span>
+            <span>{t("stop")}</span>
           </>
         ) : (
           <>
             <Volume2Icon className="w-3.5 h-3.5 text-terminal-green" />
-            <span>Play</span>
+            <span>{t("play")}</span>
           </>
         )}
         <span className="text-terminal-muted">

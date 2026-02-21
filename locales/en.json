@@ -852,6 +852,20 @@
       "noContextAvailable": "Cannot attach image - gallery context not available",
       "attachedToChat": "\"{name}\" attached to chat",
       "attachFailed": "Failed to attach image"
+    },
+    "voiceTool": {
+      "stop": "Stop",
+      "play": "Play"
+    },
+    "vectorSearch": {
+      "tryRefinements": "Try these refinements"
+    },
+    "skillPicker": {
+      "needsInput": "needs input",
+      "navigate": "↑↓ navigate",
+      "select": "Tab/Enter select",
+      "close": "Esc close",
+      "open": "Command Space open"
     }
   },
   "workspace": {
@@ -1741,7 +1755,9 @@
     "workflows": {
       "analyzed": "Workflow analyzed",
       "saved": "Workflow saved",
-      "deleted": "Workflow deleted"
+      "deleted": "Workflow deleted",
+      "createWorkflow": "Create Workflow",
+      "createWorkflowDescription": "Configure external instances and define new custom workflows."
     }
   },
   "vectorSearch": {

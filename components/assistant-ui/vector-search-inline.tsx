@@ -12,6 +12,7 @@
 import type { FC } from "react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { VectorSearchResult, SearchFinding } from "@/lib/ai/vector-search";
 import {
@@ -220,13 +221,14 @@ const FindingCard: FC<{
 };
 
 const SuggestedRefinements: FC<{ refinements: string[] }> = ({ refinements }) => {
+  const t = useTranslations("assistantUi.vectorSearch");
   if (refinements.length === 0) return null;
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-medium text-terminal-muted">
         <LightbulbIcon className="w-3 h-3 text-terminal-amber" />
-        <span>Try these refinements</span>
+        <span>{t("tryRefinements")}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {refinements.slice(0, 4).map((suggestion, idx) => (

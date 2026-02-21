@@ -2097,7 +2097,7 @@ const Composer: FC<{
                     </div>
                     {requiredInputs.length > 0 && (
                       <span className="mt-0.5 shrink-0 rounded border border-amber-300/80 bg-amber-50 px-1.5 py-0.5 text-[10px] font-mono text-amber-700">
-                        needs input
+                        {t("skillPicker.needsInput")}
                       </span>
                     )}
                   </button>
@@ -2107,10 +2107,10 @@ const Composer: FC<{
           </div>
 
           <div className="flex items-center gap-4 border-t border-terminal-border/50 px-4 py-2 text-[10px] font-mono text-terminal-muted/80">
-            <span>↑↓ navigate</span>
-            <span>Tab/Enter select</span>
-            <span>Esc close</span>
-            <span>Command Space open</span>
+            <span>{t("skillPicker.navigate")}</span>
+            <span>{t("skillPicker.select")}</span>
+            <span>{t("skillPicker.close")}</span>
+            <span>{t("skillPicker.open")}</span>
           </div>
         </div>
       )}
@@ -2558,9 +2558,9 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                 <PackageIcon className="size-4 text-terminal-green" />
               </div>
               <div>
-                <h3 className="font-mono text-sm font-bold text-terminal-cream leading-none">Model Bag</h3>
+                <h3 className="font-mono text-sm font-bold text-terminal-cream leading-none">{tBag("title")}</h3>
                 <p className="font-mono text-[10px] text-terminal-cream/50 mt-0.5">
-                  {visibleModels.length} model{visibleModels.length !== 1 ? "s" : ""} available
+                  {tBag("modelCount", { count: visibleModels.length })}
                 </p>
               </div>
             </div>
