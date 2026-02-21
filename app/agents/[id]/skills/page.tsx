@@ -145,7 +145,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline" className="gap-2 font-mono">
-                <Link href="/skills/library"><Library className="h-4 w-4" />Library</Link>
+                <Link href="/skills/library"><Library className="h-4 w-4" />{t("library")}</Link>
               </Button>
               <Button
                 variant="outline"
@@ -153,7 +153,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                 className="gap-2 font-mono"
               >
                 <Upload className="h-4 w-4" />
-                {showImport ? "Hide Import" : "Import Package"}
+                {showImport ? t("hideImport") : t("importPackage")}
               </Button>
               <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
                 <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
@@ -167,8 +167,8 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
               <SkillImportDropzone
                 characterId={character.id}
                 onImportSuccess={(skillId) => {
-                  toast.success("Skill imported successfully", {
-                    description: `Skill ID: ${skillId}`,
+                  toast.success(t("importSuccess"), {
+                    description: t("importSuccessDesc", { skillId }),
                   });
                   setShowImport(false);
                   // Reload skills
@@ -182,7 +182,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
                   loadSkills();
                 }}
                 onImportError={(error) => {
-                  toast.error("Import failed", {
+                  toast.error(t("importFailed"), {
                     description: error,
                   });
                 }}

@@ -2310,6 +2310,12 @@
   "skills": {
     "title": "Skills",
     "pageDescription": "Manage reusable skill recipes for {name}.",
+    "library": "Library",
+    "importPackage": "Import Package",
+    "hideImport": "Hide Import",
+    "importSuccess": "Skill imported successfully",
+    "importSuccessDesc": "Skill ID: {skillId}",
+    "importFailed": "Import failed",
     "emptyTitle": "No skills yet",
     "emptyDescription": "Save a workflow as a skill from chat, then run or schedule it here.",
     "status": {

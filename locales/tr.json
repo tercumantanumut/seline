@@ -2295,6 +2295,12 @@
   "skills": {
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
+    "library": "Kütüphane",
+    "importPackage": "Paket İçe Aktar",
+    "hideImport": "İçe Aktarmayı Gizle",
+    "importSuccess": "Yetenek başarıyla içe aktarıldı",
+    "importSuccessDesc": "Yetenek ID: {skillId}",
+    "importFailed": "İçe aktarma başarısız",
     "emptyTitle": "Henuz yetenek yok",
     "emptyDescription": "Sohbette bir is akisini yetenek olarak kaydedin, sonra burada calistirin veya zamanlayin.",
     "status": {
