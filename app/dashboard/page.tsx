@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,11 +151,13 @@ function SessionCard({
   agentName,
   onClick,
   pinned,
+  untitledLabel,
 }: {
   session: SessionInfo;
   agentName?: string;
   onClick: () => void;
   pinned?: boolean;
+  untitledLabel: string;
 }) {
   return (
     <div
@@ -171,7 +174,7 @@ function SessionCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-mono text-sm font-medium text-terminal-dark truncate">
-          {session.title || "Untitled chat"}
+          {session.title || untitledLabel}
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/80">
           {agentName ? <span className="text-terminal-green/80">{agentName}</span> : null}
@@ -192,10 +195,12 @@ function AgentRow({
   agent,
   maxCount,
   onClick,
+  chatsLabel,
 }: {
   agent: AgentStat;
   maxCount: number;
   onClick: () => void;
+  chatsLabel: string;
 }) {
   const pct = maxCount > 0 ? (agent.sessionCount / maxCount) * 100 : 0;
   const initials = agent.name.slice(0, 2).toUpperCase();
@@ -217,7 +222,7 @@ function AgentRow({
             {agent.name}
           </p>
           <span className="font-mono text-xs text-terminal-muted shrink-0 ml-2">
-            {agent.sessionCount} chats
+            {chatsLabel}
           </span>
         </div>
         <div className="h-1 w-full rounded-full bg-terminal-border/40 overflow-hidden">
@@ -235,6 +240,7 @@ function AgentRow({
 
 export default function DashboardPage() {
   const router = useRouter();
+  const t = useTranslations("dashboard");
   const [chatStats, setChatStats] = useState<ChatStats | null>(null);
   const [chatLoading, setChatLoading] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -254,7 +260,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load stats");
       setChatStats(data as ChatStats);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Failed to load stats");
+      setChatError(err instanceof Error ? err.message : t("loadError"));
     } finally {
       setChatLoading(false);
     }
@@ -269,7 +275,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to load skill data");
       setSkillSummary(data as SkillSummary);
     } catch (err) {
-      setSkillError(err instanceof Error ? err.message : "Failed to load skill data");
+      setSkillError(err instanceof Error ? err.message : t("skill.loadError"));
     } finally {
       setSkillLoading(false);
     }
@@ -313,8 +319,8 @@ export default function DashboardPage() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-mono text-2xl font-bold text-terminal-dark">Dashboard</h1>
-            <p className="font-mono text-sm text-terminal-muted mt-0.5">Your AI workspace at a glance</p>
+            <h1 className="font-mono text-2xl font-bold text-terminal-dark">{t("title")}</h1>
+            <p className="font-mono text-sm text-terminal-muted mt-0.5">{t("subtitle")}</p>
           </div>
           <Button
             size="sm"
@@ -328,7 +334,7 @@ export default function DashboardPage() {
             ) : (
               <RefreshCw className="mr-2 h-4 w-4" />
             )}
-            Refresh
+            {t("refresh")}
           </Button>
         </div>
 
@@ -392,28 +398,28 @@ export default function DashboardPage() {
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
               <StatCard
                 icon={MessageSquare}
-                label="Total chats"
+                label={t("stats.totalChats")}
                 value={chatStats.totalSessions.toLocaleString()}
                 accent="green"
               />
               <StatCard
                 icon={Hash}
-                label="Total messages"
+                label={t("stats.totalMessages")}
                 value={chatStats.totalMessages.toLocaleString()}
                 accent="blue"
               />
               <StatCard
                 icon={Calendar}
-                label="Today"
+                label={t("stats.today")}
                 value={chatStats.sessionsToday}
-                sub="active chats"
+                sub={t("stats.activeChats")}
                 accent="amber"
               />
               <StatCard
                 icon={TrendingUp}
-                label="This week"
+                label={t("stats.thisWeek")}
                 value={chatStats.sessionsThisWeek}
-                sub="active chats"
+                sub={t("stats.activeChats")}
                 accent="muted"
               />
             </div>
@@ -424,7 +430,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2">
                   <Pin className="h-4 w-4 text-terminal-amber" />
                   <h2 className="font-mono text-sm font-semibold text-terminal-dark uppercase tracking-wider">
-                    Pinned Chats
+                    {t("pinned")}
                   </h2>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -437,6 +443,7 @@ export default function DashboardPage() {
                         agentName={agent?.name}
                         onClick={() => goToSession(session)}
                         pinned
+                        untitledLabel={t("untitledChat")}
                       />
                     );
                   })}
@@ -451,13 +458,13 @@ export default function DashboardPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="font-mono text-sm font-semibold text-terminal-dark flex items-center gap-2">
                     <Clock className="h-4 w-4 text-terminal-muted" />
-                    Recent Chats
+                    {t("recentChats")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {chatStats.recentSessions.length === 0 ? (
                     <p className="font-mono text-sm text-terminal-muted text-center py-4">
-                      No chats yet. Start a conversation!
+                      {t("noChats")}
                     </p>
                   ) : (
                     chatStats.recentSessions.map((session) => {
@@ -468,6 +475,7 @@ export default function DashboardPage() {
                           session={session}
                           agentName={agent?.name}
                           onClick={() => goToSession(session)}
+                          untitledLabel={t("untitledChat")}
                         />
                       );
                     })
@@ -480,13 +488,13 @@ export default function DashboardPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="font-mono text-sm font-semibold text-terminal-dark flex items-center gap-2">
                     <Zap className="h-4 w-4 text-terminal-muted" />
-                    Top Agents
+                    {t("topAgents")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
                   {chatStats.topAgents.length === 0 ? (
                     <p className="font-mono text-sm text-terminal-muted text-center py-4">
-                      No agents used yet.
+                      {t("noAgents")}
                     </p>
                   ) : (
                     chatStats.topAgents.map((agent) => (
@@ -495,6 +503,7 @@ export default function DashboardPage() {
                         agent={agent}
                         maxCount={maxAgentCount}
                         onClick={() => goToAgent(agent.id)}
+                        chatsLabel={t("agentChats", { count: agent.sessionCount })}
                       />
                     ))
                   )}
@@ -512,7 +521,7 @@ export default function DashboardPage() {
           >
             <span className="font-mono text-sm font-medium text-terminal-muted flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              Skill Automation
+              {t("skillAutomation")}
             </span>
             {skillOpen ? (
               <ChevronUp className="h-4 w-4 text-terminal-muted" />
@@ -556,25 +565,25 @@ export default function DashboardPage() {
               ) : skillSummary ? (
                 <>
                   <div className="grid gap-3 sm:grid-cols-4">
-                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">Total Runs</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.totalRuns}</CardContent></Card>
-                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">Success Rate</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.successRate ?? "N/A"}%</CardContent></Card>
-                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">Failures</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillFailureCount}</CardContent></Card>
-                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">Latency</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.queryLatencyMs} ms</CardContent></Card>
+                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">{t("skill.totalRuns")}</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.totalRuns}</CardContent></Card>
+                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">{t("skill.successRate")}</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.successRate ?? "N/A"}%</CardContent></Card>
+                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">{t("skill.failures")}</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillFailureCount}</CardContent></Card>
+                    <Card><CardHeader className="pb-1"><CardTitle className="text-xs font-mono text-terminal-muted">{t("skill.latency")}</CardTitle></CardHeader><CardContent className="pt-0 font-mono font-bold">{skillSummary.queryLatencyMs} ms</CardContent></Card>
                   </div>
                   {skillSummary.topSkills.length > 0 ? (
                     <div className="space-y-1">
-                      <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">Top Skills</p>
+                      <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">{t("skill.topSkills")}</p>
                       {skillSummary.topSkills.map((skill) => (
                         <div key={skill.skillId} className="flex items-center justify-between border-b border-terminal-border/30 pb-1 text-sm font-mono">
                           <span className="text-terminal-dark">{skill.name}</span>
-                          <span className="text-terminal-muted">{skill.runs} runs · {skill.successRate ?? "N/A"}%</span>
+                          <span className="text-terminal-muted">{t("skill.runs", { count: skill.runs })} · {skill.successRate ?? "N/A"}%</span>
                         </div>
                       ))}
                     </div>
                   ) : null}
                   {skillSummary.upcomingRuns.length > 0 ? (
                     <div className="space-y-1">
-                      <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">Upcoming Runs</p>
+                      <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">{t("skill.upcomingRuns")}</p>
                       {skillSummary.upcomingRuns.map((run) => (
                         <div key={run.taskId} className="flex items-center justify-between border-b border-terminal-border/30 pb-1 text-sm font-mono">
                           <span className="text-terminal-dark">{run.taskName}</span>
@@ -584,10 +593,10 @@ export default function DashboardPage() {
                     </div>
                   ) : null}
                   <div className="rounded border border-terminal-border/40 bg-terminal-cream/30 p-3 space-y-1 text-xs font-mono text-terminal-muted">
-                    <p>Auto-triggered: {skillSummary.telemetrySummary.autoTriggeredCount} · Manual: {skillSummary.telemetrySummary.manualRunCount}</p>
-                    <p>Copy: {skillSummary.telemetrySummary.copySuccessCount} ok / {skillSummary.telemetrySummary.copyFailureCount} fail</p>
-                    <p>Updates: {skillSummary.telemetrySummary.updateSuccessCount} ok / {skillSummary.telemetrySummary.updateStaleCount} stale</p>
-                    <p>As of: {new Date(skillSummary.asOf).toLocaleString()}</p>
+                    <p>{t("skill.telemetry.autoTriggered", { auto: skillSummary.telemetrySummary.autoTriggeredCount, manual: skillSummary.telemetrySummary.manualRunCount })}</p>
+                    <p>{t("skill.telemetry.copy", { ok: skillSummary.telemetrySummary.copySuccessCount, fail: skillSummary.telemetrySummary.copyFailureCount })}</p>
+                    <p>{t("skill.telemetry.updates", { ok: skillSummary.telemetrySummary.updateSuccessCount, stale: skillSummary.telemetrySummary.updateStaleCount })}</p>
+                    <p>{t("skill.telemetry.asOf", { time: new Date(skillSummary.asOf).toLocaleString() })}</p>
                   </div>
                 </>
               ) : null}

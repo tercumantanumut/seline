@@ -1792,6 +1792,43 @@
       }
     }
   },
+  "dashboard": {
+    "title": "Kontrol Paneli",
+    "subtitle": "Yapay zeka çalışma alanınıza genel bakış",
+    "refresh": "Yenile",
+    "loadError": "İstatistikler yüklenemedi",
+    "stats": {
+      "totalChats": "Toplam sohbet",
+      "totalMessages": "Toplam mesaj",
+      "today": "Bugün",
+      "thisWeek": "Bu hafta",
+      "activeChats": "aktif sohbet"
+    },
+    "pinned": "Sabitlenmiş Sohbetler",
+    "recentChats": "Son Sohbetler",
+    "noChats": "Henüz sohbet yok. Bir konuşma başlatın!",
+    "topAgents": "Öne Çıkan Ajanlar",
+    "noAgents": "Henüz ajan kullanılmadı.",
+    "agentChats": "{count} sohbet",
+    "untitledChat": "Başlıksız sohbet",
+    "skillAutomation": "Beceri Otomasyonu",
+    "skill": {
+      "totalRuns": "Toplam Çalıştırma",
+      "successRate": "Başarı Oranı",
+      "failures": "Başarısızlıklar",
+      "latency": "Gecikme",
+      "topSkills": "Öne Çıkan Beceriler",
+      "upcomingRuns": "Yaklaşan Çalıştırmalar",
+      "loadError": "Beceri verileri yüklenemedi",
+      "runs": "{count} çalıştırma",
+      "telemetry": {
+        "autoTriggered": "Otomatik: {auto} · Manuel: {manual}",
+        "copy": "Kopyalama: {ok} ok / {fail} başarısız",
+        "updates": "Güncellemeler: {ok} ok / {stale} eski",
+        "asOf": "İtibarıyla: {time}"
+      }
+    }
+  },
   "memory": {
     "pending": "Beklemede",
     "auto": "Otomatik",

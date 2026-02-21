@@ -1807,6 +1807,43 @@
       }
     }
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Your AI workspace at a glance",
+    "refresh": "Refresh",
+    "loadError": "Failed to load stats",
+    "stats": {
+      "totalChats": "Total chats",
+      "totalMessages": "Total messages",
+      "today": "Today",
+      "thisWeek": "This week",
+      "activeChats": "active chats"
+    },
+    "pinned": "Pinned Chats",
+    "recentChats": "Recent Chats",
+    "noChats": "No chats yet. Start a conversation!",
+    "topAgents": "Top Agents",
+    "noAgents": "No agents used yet.",
+    "agentChats": "{count} chats",
+    "untitledChat": "Untitled chat",
+    "skillAutomation": "Skill Automation",
+    "skill": {
+      "totalRuns": "Total Runs",
+      "successRate": "Success Rate",
+      "failures": "Failures",
+      "latency": "Latency",
+      "topSkills": "Top Skills",
+      "upcomingRuns": "Upcoming Runs",
+      "loadError": "Failed to load skill data",
+      "runs": "{count} runs",
+      "telemetry": {
+        "autoTriggered": "Auto-triggered: {auto} · Manual: {manual}",
+        "copy": "Copy: {ok} ok / {fail} fail",
+        "updates": "Updates: {ok} ok / {stale} stale",
+        "asOf": "As of: {time}"
+      }
+    }
+  },
   "memory": {
     "pending": "Pending",
     "auto": "Auto",
