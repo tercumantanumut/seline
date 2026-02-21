@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeWorkflow } from "@/lib/comfyui/custom/analyzer";
 import { fetchObjectInfo, resolveCustomComfyUIBaseUrl } from "@/lib/comfyui/custom/client";
+import { buildWorkflowChatPreview } from "@/lib/comfyui/custom/chat-preview";
+import { countWorkflowNodes } from "@/lib/comfyui/custom/workflow-utils";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +13,7 @@ export async function POST(request: NextRequest) {
       comfyuiBaseUrl?: string;
       comfyuiHost?: string;
       comfyuiPort?: number;
+      fileName?: string;
     };
     if (!body.workflow) {
       return NextResponse.json({ error: "Missing workflow JSON." }, { status: 400 });
@@ -31,7 +34,20 @@ export async function POST(request: NextRequest) {
     }
 
     const analysis = analyzeWorkflow(workflowJson, body.format, { objectInfo });
-    return NextResponse.json(analysis);
+    const nodeCount = countWorkflowNodes(workflowJson);
+    const preview = await buildWorkflowChatPreview({
+      fileName: body.fileName || "workflow.json",
+      nodeCount,
+      inputs: analysis.inputs,
+      outputs: analysis.outputs,
+    });
+
+    return NextResponse.json({
+      ...analysis,
+      nodeCount,
+      summary: preview.summary,
+      importantInputIds: preview.importantInputIds,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to analyze workflow";
     const isConnectionError =

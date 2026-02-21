@@ -969,6 +969,33 @@
       "agentProfilesCreated": "{count, plural, one {# ajan profili oluşturuldu} other {# ajan profili oluşturuldu}}",
       "workflowCreated": "{count} ajanla iş akışı oluşturuldu"
     },
+    "comfyuiImport": {
+      "title": "ComfyUI iş akışlarını içe aktar",
+      "description": "{agent} için araçları bağlamadan önce algılanan iş akışı şemalarını inceleyin.",
+      "analyzing": "İş akışları analiz ediliyor...",
+      "noWorkflowsFound": "Bu bırakmada iş akışı JSON dosyası bulunamadı.",
+      "tooManyFiles": "Çok fazla iş akışı dosyası. Maksimum {max}.",
+      "fileTooLarge": "İş akışı dosyası 5MB sınırını aşıyor: {name}",
+      "analysisFailed": "İş akışı analizi başarısız",
+      "invalidJson": "Geçersiz JSON dosyası",
+      "summaryFallback": "Bu iş akışını içe aktarmadan önce girdileri inceleyin.",
+      "noValidWorkflows": "Kullanılabilir girişlere sahip geçerli iş akışı bulunamadı.",
+      "selectAtLeastOne": "İçe aktarmak için en az bir iş akışı seçin.",
+      "importFailed": "İş akışı içe aktarma başarısız",
+      "workflowCount": "{count, plural, one {# iş akışı içe aktarıldı} other {# iş akışı içe aktarıldı}}",
+      "toolAttachedCount": "{count, plural, one {# araç ajana bağlandı} other {# araç ajana bağlandı}}",
+      "discoveredCount": "{count, plural, one {# araç sohbet oturumuna eklendi} other {# araç sohbet oturumuna eklendi}}",
+      "importSuccess": "ComfyUI iş akışları içe aktarıldı",
+      "partialFailure": "Bazı iş akışı dosyaları içe aktarılamadı",
+      "workflowNameLabel": "Araç adı",
+      "nodeCount": "{count} düğüm",
+      "inputCount": "{count} girdi",
+      "outputCount": "{count} çıktı",
+      "selectedCount": "{count} seçili",
+      "cancel": "İptal",
+      "importing": "İçe aktarılıyor...",
+      "importAction": "Seçilenleri içe aktar"
+    },
     "audio": {
       "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin.",
       "voiceNotSupported": "Bu ortamda ses girişi desteklenmiyor.",
@@ -2130,7 +2157,11 @@
       "hfTokenPlaceholder": "hf_...",
       "backendsLabel": "Arka Uçlar",
       "workflowsHeading": "Özel ComfyUI iş akışları",
-      "workflowsDesc": "Bir iş akışı JSON dosyası yapıştırın veya yükleyin, ardından kaydetmeden önce giriş ve çıkışları inceleyin."
+      "workflowsDesc": "İş akışı JSON dosyalarını sohbete sürükleyip bırakarak geçerli ajana otomatik bağlayın.",
+      "primaryFlowTitle": "Önerilen kurulum",
+      "primaryFlowDesc": "ComfyUI iş akışlarını doğrudan sohbette içe aktarın. Grafiği analiz eder, isim önerir ve araçları otomatik bağlarız.",
+      "advancedSetupTitle": "Gelişmiş kurulum",
+      "advancedSetupDesc": "İleri seviye kullanıcılar için manuel backend anahtarları ve şema ayarları."
     },
     "onboarding": {
       "title": "Kurulum",
