@@ -104,6 +104,7 @@ interface CharacterSidebarProps {
     format: "markdown" | "json" | "text",
   ) => Promise<void>;
   onPinSession: (sessionId: string) => Promise<void>;
+  onArchiveSession: (sessionId: string) => Promise<void>;
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
 
@@ -146,6 +147,7 @@ export function CharacterSidebar({
   onRenameSession,
   onExportSession,
   onPinSession,
+  onArchiveSession,
   onAvatarChange,
 }: CharacterSidebarProps) {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -318,6 +320,7 @@ export function CharacterSidebar({
               onCancelEdit={stopEditing}
               onStartEdit={() => startEditingSession(session)}
               onDelete={() => handleDeleteRequest(session)}
+              onArchive={() => void onArchiveSession(session.id)}
               onExport={(format) => void onExportSession(session.id, format)}
               onResetChannel={() => void onResetChannelSession(session.id)}
               isPinned={session.metadata?.pinned === true}
@@ -608,6 +611,7 @@ export function CharacterSidebar({
                           onCancelEdit={stopEditing}
                           onStartEdit={() => startEditingSession(session)}
                           onDelete={() => handleDeleteRequest(session)}
+                          onArchive={() => void onArchiveSession(session.id)}
                           onExport={(format) => void onExportSession(session.id, format)}
                           onResetChannel={() => void onResetChannelSession(session.id)}
                           isPinned={true}

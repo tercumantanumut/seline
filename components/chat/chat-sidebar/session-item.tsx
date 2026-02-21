@@ -4,19 +4,20 @@ import { useCallback, useRef } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import {
+  Archive,
+  BarChart2,
   Clock,
+  Download,
+  ExternalLink,
+  GitBranch,
+  Loader2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
-  Loader2,
-  Trash2,
-  Download,
-  RotateCcw,
-  GitBranch,
-  ExternalLink,
   Pin,
   PinOff,
-  BarChart2,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ interface SessionItemProps {
   onCancelEdit: () => void;
   onStartEdit: () => void;
   onDelete: () => void;
+  onArchive?: () => void;
   onExport: (format: "markdown" | "json" | "text") => void;
   onResetChannel: () => void;
   isPinned?: boolean;
@@ -69,6 +71,7 @@ export function SessionItem({
   onCancelEdit,
   onStartEdit,
   onDelete,
+  onArchive,
   onExport,
   onResetChannel,
   isPinned = false,
@@ -339,6 +342,12 @@ export function SessionItem({
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuSeparator />
+            {onArchive ? (
+              <DropdownMenuItem onSelect={onArchive}>
+                <Archive className="h-3.5 w-3.5" />
+                {t("sidebar.archive")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem
               className="text-red-600 hover:!text-red-600"
               onSelect={onDelete}
