@@ -2620,6 +2620,7 @@ export async function POST(req: Request) {
         sessionId,
         userId: dbUser.id,
         characterId: characterId || null,
+        sessionMetadata,
       }),
       docsSearch: createDocsSearchTool({
         userId: dbUser.id,
@@ -2633,11 +2634,13 @@ export async function POST(req: Request) {
         sessionId,
         userId: dbUser.id,
         characterId: characterId || null,
+        sessionMetadata,
       }),
       webQuery: createWebQueryTool({
         sessionId,
         userId: dbUser.id,
         characterId: characterId || null,
+        sessionMetadata,
       }),
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
@@ -3137,6 +3140,7 @@ export async function POST(req: Request) {
           sessionId,
           userId: dbUser.id,
           characterId: characterId || null,
+          sessionMetadata,
         }),
       }),
       ...(allTools.readFile && {
@@ -3163,6 +3167,7 @@ export async function POST(req: Request) {
           sessionId,
           userId: dbUser.id,
           characterId: characterId || null,
+          sessionMetadata,
         }),
       }),
       ...(allTools.webQuery && {
@@ -3170,6 +3175,7 @@ export async function POST(req: Request) {
           sessionId,
           userId: dbUser.id,
           characterId: characterId || null,
+          sessionMetadata,
         }),
       }),
       ...(allTools.executeCommand && {

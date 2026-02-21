@@ -138,7 +138,8 @@ async function executeVectorSearch(
   options: VectorSearchOptions,
   args: { query: string; maxResults?: number; minScore?: number; folderIds?: string[] }
 ): Promise<VectorSearchResult> {
-  const { sessionId, characterId } = options;
+  const { sessionId, characterId, sessionMetadata } = options;
+  const vectorSessionKey = `vector:${sessionId}`;
 
   // Input normalization: Handle common AI parameter mistakes
   // Similar to ripgrep tool pattern for robustness
@@ -221,9 +222,9 @@ async function executeVectorSearch(
     };
   }
 
-  // Get session for this character
-  const session = getVectorSearchSession(characterId);
-  const searchHistory = getSearchHistory(characterId, 3);
+  // Get session scoped to current chat session to prevent cross-chat bleed.
+  const session = getVectorSearchSession(vectorSessionKey, characterId);
+  const searchHistory = getSearchHistory(vectorSessionKey, 3);
 
   console.log(`[VectorSearchV2] Searching for: "${query.slice(0, 50)}..." (session: ${session.id})`);
 
@@ -240,11 +241,15 @@ async function executeVectorSearch(
 
   if (rawHits.length === 0) {
     // Add to history even if no results
-    addSearchHistory(characterId, {
-      query,
-      strategy: "semantic",
-      resultsCount: 0,
-    });
+    addSearchHistory(
+      vectorSessionKey,
+      {
+        query,
+        strategy: "semantic",
+        resultsCount: 0,
+      },
+      characterId
+    );
 
     // Check if user has folders but they might be in files-only mode
     const folders = await getSyncFolders(characterId);
@@ -276,11 +281,15 @@ async function executeVectorSearch(
   const config = getVectorSearchConfig();
 
   if (!config.enableLLMSynthesis) {
-    addSearchHistory(characterId, {
-      query,
-      strategy: "semantic",
-      resultsCount: rawHits.length,
-    });
+    addSearchHistory(
+      vectorSessionKey,
+      {
+        query,
+        strategy: "semantic",
+        resultsCount: rawHits.length,
+      },
+      characterId
+    );
 
     const fileGroups = new Map<string, typeof rawHits>();
     for (const hit of rawHits) {
@@ -322,6 +331,7 @@ async function executeVectorSearch(
     query,
     rawResults,
     searchHistory,
+    sessionMetadata,
     allowedFolderPaths,
     fileTreeSummary,
   });
@@ -330,11 +340,15 @@ async function executeVectorSearch(
     // Fallback: return basic results without synthesis
     console.warn("[VectorSearchV2] Synthesis failed, returning raw results");
 
-    addSearchHistory(characterId, {
-      query,
-      strategy: "semantic",
-      resultsCount: rawHits.length,
-    });
+    addSearchHistory(
+      vectorSessionKey,
+      {
+        query,
+        strategy: "semantic",
+        resultsCount: rawHits.length,
+      },
+      characterId
+    );
 
     // Group raw results by file for basic presentation
     const fileGroups = new Map<string, typeof rawHits>();
@@ -367,11 +381,15 @@ async function executeVectorSearch(
   }
 
   // Add to search history
-  addSearchHistory(characterId, {
-    query,
-    strategy: synthesisResult.strategy,
-    resultsCount: synthesisResult.findings.length,
-  });
+  addSearchHistory(
+    vectorSessionKey,
+    {
+      query,
+      strategy: synthesisResult.strategy,
+      resultsCount: synthesisResult.findings.length,
+    },
+    characterId
+  );
 
   // Collect unique file types from findings
   const fileTypes = [...new Set(
@@ -454,7 +472,8 @@ export function createVectorSearchToolV2(options: VectorSearchOptions) {
  * Create a basic query tool for follow-up searches using existing context
  */
 export function createVectorQueryTool(options: VectorSearchOptions) {
-  const { characterId } = options;
+  const { sessionId, characterId } = options;
+  const vectorSessionKey = `vector:${sessionId}`;
 
   return tool({
     description: `Quick follow-up search using existing search context.
@@ -499,7 +518,7 @@ Note: Requires prior vectorSearch calls in this session.`,
         };
       }
 
-      const searchHistory = getSearchHistory(characterId, 5);
+      const searchHistory = getSearchHistory(vectorSessionKey, 5);
 
       if (searchHistory.length === 0) {
         return {

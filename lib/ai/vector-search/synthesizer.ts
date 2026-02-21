@@ -14,7 +14,6 @@
 
 import { generateText, tool, jsonSchema } from "ai";
 import { readFile } from "fs/promises";
-import { getUtilityModel } from "@/lib/ai/providers";
 import type {
   SynthesisRequest,
   SynthesisResult,
@@ -22,6 +21,10 @@ import type {
   SearchStrategy,
   RawSearchResult,
 } from "./types";
+import {
+  getSessionProviderTemperature,
+  resolveSessionUtilityModel,
+} from "@/lib/ai/session-model-resolver";
 import { extname, basename, join, resolve, relative } from "path";
 
 // ============================================================================
@@ -490,7 +493,14 @@ Returns the file content with line numbers.`,
 export async function synthesizeSearchResults(
   request: SynthesisRequest
 ): Promise<SynthesisResult> {
-  const { query, rawResults, searchHistory, allowedFolderPaths, fileTreeSummary } = request;
+  const {
+    query,
+    rawResults,
+    searchHistory,
+    sessionMetadata,
+    allowedFolderPaths,
+    fileTreeSummary,
+  } = request;
 
   try {
     if (rawResults.length === 0) {
@@ -533,13 +543,13 @@ export async function synthesizeSearchResults(
     // Call the utility model with tools and timeout
     // Note: maxSteps enables multi-step tool calling in AI SDK 5.0+
     const generateOptions = {
-      model: getUtilityModel(),
+      model: resolveSessionUtilityModel(sessionMetadata),
       system: SYNTHESIS_SYSTEM_PROMPT,
       prompt: contextPrompt,
       tools,
       maxSteps: tools ? MAX_TOOL_STEPS : 1, // Only allow multi-step if tools are available
       maxOutputTokens: 4000,
-      temperature: 0.2, // Low temperature for more consistent JSON output
+      temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
     };
 
     const result = await Promise.race([
@@ -596,11 +606,11 @@ export async function synthesizeSearchResults(
       console.warn(`[VectorSearchSynthesizer] No text after ${toolCalls} tool calls, requesting final response`);
       try {
         const followUp = await generateText({
-          model: getUtilityModel(),
+          model: resolveSessionUtilityModel(sessionMetadata),
           system: SYNTHESIS_SYSTEM_PROMPT,
           prompt: contextPrompt + "\n\n## IMPORTANT\nYou have already read the relevant files. Now provide your JSON response with findings.",
           maxOutputTokens: 4000,
-          temperature: 0.2,
+          temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
         });
         finalText = followUp.text || "";
         console.log(`[VectorSearchSynthesizer] Follow-up response: ${finalText.length} chars`);
