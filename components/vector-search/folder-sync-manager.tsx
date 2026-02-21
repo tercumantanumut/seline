@@ -153,6 +153,11 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [useRecommendedExcludes, setUseRecommendedExcludes] = useState(true);
+  const [isPickingFolder, setIsPickingFolder] = useState(false);
+
+  const isElectron =
+    typeof window !== "undefined" &&
+    !!(window as Window & { electronAPI?: { isElectron?: boolean } }).electronAPI?.isElectron;
 
   const [newIndexingMode, setNewIndexingMode] = useState<IndexingMode>("auto");
   const [newSyncMode, setNewSyncMode] = useState<SyncMode>("triggered");
@@ -305,6 +310,26 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     }, 500);
     return () => clearTimeout(timer);
   }, [newFolderPath, newExtensions, newRecursive, newExcludePatterns]);
+
+  const handleOpenFolderPicker = async () => {
+    if (isElectron) {
+      setIsPickingFolder(true);
+      try {
+        const selectedPath = await window.electronAPI!.dialog.selectFolder();
+        if (selectedPath) {
+          setNewFolderPath(selectedPath);
+          setShowAddForm(true);
+        }
+      } catch {
+        // Native picker failed — fall back to manual text input
+        setShowAddForm(true);
+      } finally {
+        setIsPickingFolder(false);
+      }
+    } else {
+      setShowAddForm(true);
+    }
+  };
 
   const handleAddFolder = async () => {
     if (!newFolderPath.trim()) return;
@@ -850,126 +875,112 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
         </div>
       )}
 
-      {/* Add Folder Form */}
+      {/* Add Folder Review Page */}
       {showAddForm ? (
         <div className="rounded border border-terminal-border bg-terminal-cream/30 p-4 space-y-4">
-          {/* Form Header with Status */}
+          {/* Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <PlusIcon className="w-4 h-4 text-terminal-green" />
-              <span className="font-mono text-sm font-semibold text-terminal-dark">
-                {t("formTitle")}
-              </span>
-            </div>
-            {newFolderPath.trim() && !isAdding && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-terminal-amber/10 border border-terminal-amber/30">
-                <AlertCircleIcon className="w-3 h-3 text-terminal-amber" />
-                <span className="font-mono text-[10px] text-terminal-amber font-medium">
-                  {t("notYetAdded")}
-                </span>
-              </div>
-            )}
+            <h3 className="font-mono text-sm font-semibold text-terminal-dark flex items-center gap-2">
+              <FolderIcon className="w-4 h-4 text-terminal-green" />
+              {t("reviewSetup")}
+            </h3>
+            <button
+              onClick={resetForm}
+              className="p-1 hover:bg-terminal-dark/10 rounded text-terminal-muted hover:text-terminal-dark transition-colors"
+            >
+              <XCircleIcon className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Step Indicator */}
-          <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-            <span className={cn(
-              "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
-              newFolderPath.trim()
-                ? "bg-terminal-green text-white"
-                : "bg-terminal-dark/20 text-terminal-dark"
-            )}>1</span>
-            <span className={newFolderPath.trim() ? "text-terminal-green" : ""}>
-              {t("stepEnterPath")}
-            </span>
-            <span className="text-terminal-muted/50">→</span>
-            <span className={cn(
-              "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
-              "bg-terminal-dark/20 text-terminal-dark"
-            )}>2</span>
-            <span>{t("stepClickAdd")}</span>
-          </div>
-
-          {/* Folder Path Input */}
-          <div className="space-y-2">
-            <Label className="font-mono text-sm text-terminal-dark">{t("folderPath")}</Label>
-            <Input
-              value={newFolderPath}
-              onChange={(e) => setNewFolderPath(e.target.value)}
-              placeholder={t("folderPathPlaceholder")}
-              className="font-mono text-sm break-all [word-break:break-all]"
-              style={{ wordBreak: 'break-all' }}
-            />
-            <p className="text-xs font-mono text-terminal-muted">
-              {t("folderPathTip")}
-            </p>
-
-            {/* Folder analysis feedback */}
-            {isAnalyzing && (
-              <div className="flex items-center gap-2 text-xs font-mono text-terminal-muted">
-                <Loader2Icon className="w-3 h-3 animate-spin" />
-                {t("analyzing")}
-              </div>
-            )}
-            {folderAnalysis && !isAnalyzing && (
-              <div className="rounded bg-terminal-green/10 border border-terminal-green/30 p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircleIcon className="w-4 h-4 text-terminal-green" />
-                  <span className="font-mono text-sm text-terminal-dark font-semibold">
-                    {folderAnalysis.folderName}
-                  </span>
+          {/* Folder path: display card (Electron) or text input (web) */}
+          {isElectron && newFolderPath ? (
+            <div className="rounded border border-terminal-border bg-background p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-semibold text-terminal-dark truncate">
+                    {newFolderPath.split(/[/\\]/).pop()}
+                  </p>
+                  <p className="font-mono text-xs text-terminal-muted truncate" title={newFolderPath}>
+                    {newFolderPath}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono text-terminal-muted">
-                  <div>
-                    <span className="text-terminal-green">
-                      {folderAnalysis.fileCountLimited ? "1000+" : folderAnalysis.fileCountPreview}
-                    </span>{" "}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOpenFolderPicker}
+                  className="shrink-0 font-mono text-xs text-terminal-muted hover:text-terminal-dark"
+                >
+                  {t("changeFolder")}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label className="font-mono text-sm text-terminal-dark">{t("folderPath")}</Label>
+              <Input
+                value={newFolderPath}
+                onChange={(e) => setNewFolderPath(e.target.value)}
+                placeholder={t("folderPathPlaceholder")}
+                className="font-mono text-sm"
+                autoFocus
+              />
+              <p className="text-xs font-mono text-terminal-muted">{t("folderPathTip")}</p>
+            </div>
+          )}
+
+          {/* Folder analysis */}
+          {isAnalyzing && (
+            <div className="flex items-center gap-2 py-1 text-sm font-mono text-terminal-muted">
+              <Loader2Icon className="w-4 h-4 animate-spin" />
+              {t("analyzing")}
+            </div>
+          )}
+          {folderAnalysis && !isAnalyzing && (
+            <div className="rounded bg-terminal-green/10 border border-terminal-green/30 p-3">
+              <div className="flex items-center gap-3">
+                <CheckCircleIcon className="w-5 h-5 text-terminal-green shrink-0" />
+                <div>
+                  <p className="font-mono text-sm font-semibold text-terminal-dark">
+                    {folderAnalysis.fileCountLimited ? "1000+" : folderAnalysis.fileCountPreview}{" "}
                     {t("filesToIndex")}
-                  </div>
+                  </p>
                   {folderAnalysis.detectedPatterns.length > 0 && (
-                    <div>
-                      <span className="text-terminal-green">{folderAnalysis.detectedPatterns.length}</span>{" "}
-                      {t("ignorePatternsDetected")}
-                    </div>
+                    <p className="font-mono text-xs text-terminal-muted">
+                      {folderAnalysis.detectedPatterns.length} {t("ignorePatternsDetected")}
+                    </p>
                   )}
                 </div>
-                {/* Warning for large files */}
-                {(folderAnalysis.largeFileCount ?? 0) > 0 && (
-                  <div className="rounded bg-terminal-amber/10 border border-terminal-amber/30 p-2 mt-2">
-                    <div className="flex items-start gap-2">
-                      <AlertCircleIcon className="w-4 h-4 text-terminal-amber flex-shrink-0 mt-0.5" />
-                      <div className="text-xs font-mono">
-                        <span className="text-terminal-amber font-semibold">
-                          {folderAnalysis.largeFileCount}{" "}
-                          {t("largeFilesWillBeSkipped", {
-                            maxLines: folderAnalysis.maxFileLines ?? 3000,
-                          })}
-                        </span>
-                        {folderAnalysis.largeFileExamples && folderAnalysis.largeFileExamples.length > 0 && (
-                          <div className="text-terminal-muted mt-1">
-                            {folderAnalysis.largeFileExamples.join(", ")}
-                          </div>
-                        )}
-                      </div>
+              </div>
+              {(folderAnalysis.largeFileCount ?? 0) > 0 && (
+                <div className="mt-2 rounded bg-terminal-amber/10 border border-terminal-amber/30 p-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircleIcon className="w-4 h-4 text-terminal-amber shrink-0 mt-0.5" />
+                    <div className="text-xs font-mono">
+                      <span className="text-terminal-amber font-semibold">
+                        {folderAnalysis.largeFileCount}{" "}
+                        {t("largeFilesWillBeSkipped", { maxLines: folderAnalysis.maxFileLines ?? 3000 })}
+                      </span>
+                      {folderAnalysis.largeFileExamples && folderAnalysis.largeFileExamples.length > 0 && (
+                        <div className="text-terminal-muted mt-1">
+                          {folderAnalysis.largeFileExamples.join(", ")}
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-            {analysisError && !isAnalyzing && !folderAnalysis && newFolderPath.trim() && (
-              <div className="rounded bg-terminal-amber/10 border border-terminal-amber/30 p-3">
-                <div className="flex items-center gap-2">
-                  <AlertCircleIcon className="w-4 h-4 text-terminal-amber" />
-                  <span className="font-mono text-xs text-terminal-dark">
-                    {analysisError}
-                  </span>
                 </div>
-                <p className="font-mono text-xs text-terminal-muted mt-1">
-                  {t("verifyLater")}
-                </p>
+              )}
+            </div>
+          )}
+          {analysisError && !isAnalyzing && !folderAnalysis && newFolderPath.trim() && (
+            <div className="rounded bg-terminal-amber/10 border border-terminal-amber/30 p-3">
+              <div className="flex items-center gap-2">
+                <AlertCircleIcon className="w-4 h-4 text-terminal-amber" />
+                <span className="font-mono text-xs text-terminal-dark">{analysisError}</span>
               </div>
-            )}
-          </div>
+              <p className="font-mono text-xs text-terminal-muted mt-1">{t("verifyLater")}</p>
+            </div>
+          )}
 
           {/* Display Name */}
           <div>
@@ -994,6 +1005,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
             </Label>
           </div>
 
+          {/* Indexing setup */}
           <div className="rounded border border-terminal-border bg-terminal-cream/40 p-3 space-y-2">
             <div className="font-mono text-xs text-terminal-muted">{t("indexingControls")}</div>
             <div className="flex gap-2">
@@ -1186,43 +1198,36 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={resetForm}
-              className="font-mono"
-            >
+          <div className="flex gap-2 pt-2 border-t border-terminal-border">
+            <Button variant="outline" onClick={resetForm} className="font-mono">
               {t("cancel")}
             </Button>
             <Button
               onClick={handleAddFolder}
               disabled={isAdding || !newFolderPath.trim() || isAnalyzing}
               className={cn(
-                "gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono transition-all",
-                // Pulse effect when path is valid and ready to add
+                "ml-auto gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono transition-all",
                 newFolderPath.trim() && !isAdding && !isAnalyzing && folderAnalysis &&
-                "ring-2 ring-terminal-green/50 ring-offset-2 ring-offset-terminal-cream shadow-lg shadow-terminal-green/20"
+                  "ring-2 ring-terminal-green/50 ring-offset-2 ring-offset-terminal-cream shadow-lg shadow-terminal-green/20"
               )}
             >
               {isAdding ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <PlusIcon className="w-4 h-4" />}
               {t("addFolder")}
             </Button>
           </div>
-
-          {/* Reminder text when path is entered */}
-          {newFolderPath.trim() && !isAdding && (
-            <p className="text-xs font-mono text-terminal-amber text-center pt-1">
-              ⚠️ {t("clickAddReminder")}
-            </p>
-          )}
         </div>
       ) : (
         <Button
           variant="outline"
-          onClick={() => setShowAddForm(true)}
+          onClick={handleOpenFolderPicker}
+          disabled={isPickingFolder}
           className="w-full gap-2 font-mono border-dashed"
         >
-          <FolderIcon className="w-4 h-4" />
+          {isPickingFolder ? (
+            <Loader2Icon className="w-4 h-4 animate-spin" />
+          ) : (
+            <FolderIcon className="w-4 h-4" />
+          )}
           {t("addFolderToIndex")}
         </Button>
       )}

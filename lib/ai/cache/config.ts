@@ -13,12 +13,10 @@ import type { CacheConfig } from "./types";
 /**
  * Default cache configuration
  * - Enabled by default for cost savings
- * - 5-minute TTL (most cost-effective for frequent usage)
  * - 1024 min tokens (Anthropic requirement for Sonnet/Opus 4)
  */
 export const DEFAULT_CACHE_CONFIG: CacheConfig = {
   enabled: true,
-  defaultTtl: "5m",
   minTokensToCache: 1024,
 };
 
@@ -32,7 +30,6 @@ export function getCacheConfig(): CacheConfig {
 
     return {
       enabled: settings.promptCachingEnabled ?? DEFAULT_CACHE_CONFIG.enabled,
-      defaultTtl: (settings.promptCachingTtl as "5m" | "1h") ?? DEFAULT_CACHE_CONFIG.defaultTtl,
       minTokensToCache: DEFAULT_CACHE_CONFIG.minTokensToCache,
     };
   } catch (error) {

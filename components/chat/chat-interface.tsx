@@ -194,6 +194,7 @@ export default function ChatInterface({
     const adaptivePollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const adaptivePollBackoffRef = useRef(5000);
     const nextCursorRef = useRef<string | null>(initialNextCursor);
+    const userLoadedMoreRef = useRef(false);
     const filterKeyRef = useRef(`${searchQuery}|${channelFilter}|${dateRange}`);
     const isPollingRef = useRef(false);
     const lastProgressTimeRef = useRef<number>(0);
@@ -257,9 +258,11 @@ export default function ChatInterface({
         silent?: boolean;
         append?: boolean;
         overrideCursor?: string | null;
+        preserveExtra?: boolean;
     }) => {
         const silent = options?.silent ?? false;
         const append = options?.append ?? false;
+        const preserveExtra = options?.preserveExtra ?? false;
         const cursor = options?.overrideCursor !== undefined
             ? options.overrideCursor
             : (append ? nextCursorRef.current : null);
@@ -303,15 +306,28 @@ export default function ChatInterface({
 
             setSessions((prev) => {
                 if (!append) {
+                    if (preserveExtra && prev.length > pageSessions.length) {
+                        // User has loaded more pages — merge fresh page-1 data without
+                        // truncating the extra sessions they loaded.
+                        const freshById = new Map(pageSessions.map((s) => [s.id, s]));
+                        const prevIds = new Set(prev.map((s) => s.id));
+                        const newOnes = pageSessions.filter((s) => !prevIds.has(s.id));
+                        const refreshed = prev.map((s) => freshById.get(s.id) ?? s);
+                        return sortSessionsByUpdatedAt([...newOnes, ...refreshed]);
+                    }
                     return areSessionsEquivalent(prev, pageSessions) ? prev : pageSessions;
                 }
                 const existingIds = new Set(prev.map((session) => session.id));
                 const merged = [...prev, ...pageSessions.filter((session) => !existingIds.has(session.id))];
                 return sortSessionsByUpdatedAt(merged);
             });
-            nextCursorRef.current = data.nextCursor ?? null;
-            setNextCursor(data.nextCursor ?? null);
-            setHasMoreSessions(Boolean(data.nextCursor));
+            // When preserveExtra, keep the existing cursor/hasMore so "Load more"
+            // continues working from where the user left off.
+            if (!preserveExtra) {
+                nextCursorRef.current = data.nextCursor ?? null;
+                setNextCursor(data.nextCursor ?? null);
+                setHasMoreSessions(Boolean(data.nextCursor));
+            }
             setTotalSessionCount(typeof data.totalCount === "number" ? data.totalCount : pageSessions.length);
             return true;
         } catch (err) {
@@ -343,6 +359,7 @@ export default function ChatInterface({
         if (!hasMoreSessions || loadingSessions) {
             return;
         }
+        userLoadedMoreRef.current = true;
         await loadSessions({ append: true });
     }, [hasMoreSessions, loadingSessions, loadSessions]);
 
@@ -352,6 +369,7 @@ export default function ChatInterface({
             return;
         }
         filterKeyRef.current = filterKey;
+        userLoadedMoreRef.current = false;
         nextCursorRef.current = null;
         setNextCursor(null);
         setHasMoreSessions(true);
@@ -888,7 +906,7 @@ export default function ChatInterface({
                 if (document.visibilityState !== "visible") {
                     return;
                 }
-                void loadSessions({ silent: true, overrideCursor: null });
+                void loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
                 void reloadSessionMessages(sessionId, { remount: true });
             }, 2500);
 
@@ -914,7 +932,7 @@ export default function ChatInterface({
                 const previousSignature = sessionListSignatureRef.current;
                 isPollingRef.current = true;
                 try {
-                    const success = await loadSessions({ silent: true, overrideCursor: null });
+                    const success = await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
                     const nextSignature = sessionListSignatureRef.current;
                     if (success && previousSignature !== nextSignature) {
                         adaptivePollBackoffRef.current = 5000;

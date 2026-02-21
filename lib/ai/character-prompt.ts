@@ -183,7 +183,6 @@ export function buildCacheableCharacterPrompt(
     toolLoadingMode?: "deferred" | "always";
     channelType?: string | null;
     enableCaching?: boolean;
-    cacheTtl?: "5m" | "1h";
     skillSummaries?: Array<{ id: string; name: string; description: string; triggerExamples?: string[] }>;
   } = {}
 ): CacheableSystemBlock[] {
@@ -191,7 +190,6 @@ export function buildCacheableCharacterPrompt(
     toolLoadingMode = "deferred",
     channelType,
     enableCaching = false,
-    cacheTtl = "5m",
   } = options;
 
   // Check for custom prompt override first
@@ -203,7 +201,7 @@ export function buildCacheableCharacterPrompt(
       content: metadata.systemPromptOverride,
       ...(enableCaching && {
         providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
         },
       }),
     }];
@@ -256,7 +254,7 @@ export function buildCacheableCharacterPrompt(
     // Cache character identity (stable, rarely changes)
     ...(enableCaching && {
       providerOptions: {
-        anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+        anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
       },
     }),
   });
@@ -272,7 +270,7 @@ export function buildCacheableCharacterPrompt(
       // Cache memories (they update periodically, not every request)
       ...(enableCaching && {
         providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
         },
       }),
     });
@@ -290,7 +288,7 @@ export function buildCacheableCharacterPrompt(
         content: skillBlock.markdown,
         ...(enableCaching && {
           providerOptions: {
-            anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+            anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
           },
         }),
       });
@@ -328,7 +326,7 @@ export function buildCacheableCharacterPrompt(
     // Cache guidelines (never change)
     ...(enableCaching && {
       providerOptions: {
-        anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+        anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
       },
     }),
   });

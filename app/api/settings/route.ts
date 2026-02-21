@@ -93,7 +93,6 @@ export async function PUT(request: NextRequest) {
       postEditTypecheckScope: body.postEditTypecheckScope !== undefined ? body.postEditTypecheckScope : currentSettings.postEditTypecheckScope,
       postEditRunInPatchTool: body.postEditRunInPatchTool !== undefined ? body.postEditRunInPatchTool : currentSettings.postEditRunInPatchTool,
       promptCachingEnabled: body.promptCachingEnabled !== undefined ? body.promptCachingEnabled : currentSettings.promptCachingEnabled,
-      promptCachingTtl: body.promptCachingTtl !== undefined ? body.promptCachingTtl : currentSettings.promptCachingTtl,
       // RTK (experimental)
       rtkEnabled: body.rtkEnabled !== undefined ? body.rtkEnabled : currentSettings.rtkEnabled,
       rtkVerbosity: body.rtkVerbosity !== undefined ? body.rtkVerbosity : currentSettings.rtkVerbosity,

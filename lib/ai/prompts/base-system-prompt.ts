@@ -37,8 +37,6 @@ export interface BaseSystemPromptOptions {
   additionalContext?: string;
   /** Enable prompt caching for system blocks (Anthropic-compatible providers) */
   enableCaching?: boolean;
-  /** Cache TTL (5m or 1h) */
-  cacheTtl?: "5m" | "1h";
 }
 
 /**
@@ -151,7 +149,6 @@ export function buildCacheableSystemPrompt(
     toolLoadingMode = "deferred",
     additionalContext,
     enableCaching = false,
-    cacheTtl = "5m",
   } = options;
 
   const blocks: CacheableSystemBlock[] = [];
@@ -192,7 +189,7 @@ export function buildCacheableSystemPrompt(
     // Cache this block if caching is enabled
     ...(enableCaching && {
       providerOptions: {
-        anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+        anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
       },
     }),
   });
@@ -213,7 +210,7 @@ export function buildCacheableSystemPrompt(
       // Cache additional context if enabled (character instructions are stable)
       ...(enableCaching && {
         providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: cacheTtl } },
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
         },
       }),
     });
@@ -230,7 +227,6 @@ export function buildDefaultCacheableSystemPrompt(
     includeToolDiscovery?: boolean;
     toolLoadingMode?: "deferred" | "always";
     enableCaching?: boolean;
-    cacheTtl?: "5m" | "1h";
   } = {}
 ): CacheableSystemBlock[] {
   return buildCacheableSystemPrompt({
@@ -238,6 +234,5 @@ export function buildDefaultCacheableSystemPrompt(
     includeToolDiscovery: options.includeToolDiscovery ?? true,
     toolLoadingMode: options.toolLoadingMode ?? "deferred",
     enableCaching: options.enableCaching ?? false,
-    cacheTtl: options.cacheTtl ?? "5m",
   });
 }
