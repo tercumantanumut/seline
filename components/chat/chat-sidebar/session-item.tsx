@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { toast } from "sonner";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -10,6 +11,7 @@ import {
   Download,
   ExternalLink,
   GitBranch,
+  Link2,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -130,6 +132,16 @@ export function SessionItem({
     },
     [formatter, t]
   );
+
+  const handleCopyLink = useCallback(() => {
+    const characterId = session.characterId;
+    const url = characterId
+      ? `${window.location.origin}/chat/${characterId}?sessionId=${session.id}`
+      : `${window.location.origin}/chat?sessionId=${session.id}`;
+    void navigator.clipboard.writeText(url).then(() => {
+      toast.success(t("sidebar.linkCopied"));
+    });
+  }, [session.characterId, session.id, t]);
 
   const handleInputBlur = useCallback(() => {
     if (skipBlurRef.current) {
@@ -300,6 +312,8 @@ export function SessionItem({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={t("sidebar.moreOptions")}
+              title={t("sidebar.moreOptions")}
               className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
               onClick={(event) => event.stopPropagation()}
             >
@@ -334,6 +348,10 @@ export function SessionItem({
                 <BarChart2 className="h-3.5 w-3.5" />
                 {t("sidebar.viewAnalytics")}
               </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleCopyLink}>
+              <Link2 className="h-3.5 w-3.5" />
+              {t("sidebar.copyLink")}
             </DropdownMenuItem>
             {effectiveChannel ? (
               <DropdownMenuItem onSelect={onResetChannel}>
