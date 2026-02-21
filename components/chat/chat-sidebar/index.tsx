@@ -306,7 +306,7 @@ export function CharacterSidebar({
   ).length;
   const loadedCount = sessions.length;
   const hasNoResults = !loadingSessions && loadedCount === 0;
-  const shouldGroupSessions = sessions.length > 5;
+  const shouldGroupSessions = sessions.length > 5 && !searchQuery.trim();
   const activeFilterCount =
     Number(channelFilter !== "all") + Number(dateRange !== "all");
   const orderedSessions = useMemo(
