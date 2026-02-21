@@ -1,6 +1,6 @@
 import spawn from "cross-spawn";
 import type { ChildProcess, IOType } from "child_process";
-import { execSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 import { PassThrough, type Stream } from "stream";
 import * as fs from "fs";
 import * as path from "path";
@@ -44,6 +44,13 @@ const MACOS_NODE_PATHS = [
     "/opt/homebrew/bin",
     "/opt/homebrew/sbin",
 ];
+
+type BundledNodeProbeCache = {
+    binaryPath: string;
+    usable: boolean;
+};
+
+let bundledNodeProbeCache: BundledNodeProbeCache | null = null;
 
 function normalizeExecutableName(command: string): string {
     const baseName = path.basename(command).toLowerCase();
@@ -116,6 +123,37 @@ type ResolvedSpawnCommand = {
     env?: Record<string, string>;
 };
 
+function isBundledNodeUsable(binaryPath: string): boolean {
+    if (bundledNodeProbeCache?.binaryPath === binaryPath) {
+        return bundledNodeProbeCache.usable;
+    }
+
+    try {
+        const probe = spawnSync(binaryPath, ["--version"], {
+            // Keep stdin as a pipe to avoid ignore-related EBADF issues in some Electron contexts.
+            stdio: ["pipe", "ignore", "ignore"],
+            windowsHide: true,
+            timeout: 2000,
+        });
+
+        const usable = !probe.error && probe.status === 0;
+        if (!usable) {
+            const reason = probe.error
+                ? probe.error.message
+                : `exitCode=${probe.status ?? "null"} signal=${probe.signal ?? "null"}`;
+            console.warn(`[MCP] Bundled node probe failed: ${binaryPath} (${reason})`);
+        }
+
+        bundledNodeProbeCache = { binaryPath, usable };
+        return usable;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[MCP] Bundled node probe threw for ${binaryPath}: ${message}`);
+        bundledNodeProbeCache = { binaryPath, usable: false };
+        return false;
+    }
+}
+
 /**
  * Get path to bundled Node.js binary (Windows and macOS, production builds)
  * Returns null if not found or not on a supported platform
@@ -125,8 +163,8 @@ function getBundledNodeExe(): string | null {
         return null;
     }
 
-    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
-        || process.env.ELECTRON_RESOURCES_PATH;
+    const resourcesPath = process.env.ELECTRON_RESOURCES_PATH
+        || (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
 
     if (!resourcesPath) {
         return null;
@@ -136,10 +174,22 @@ function getBundledNodeExe(): string | null {
     const bundledNodePath = path.join(resourcesPath, "standalone", "node_modules", ".bin", nodeBinaryName);
 
     try {
-        if (fs.existsSync(bundledNodePath)) {
-            console.log(`[MCP] Found bundled ${nodeBinaryName} at: ${bundledNodePath}`);
-            return bundledNodePath;
+        if (!fs.existsSync(bundledNodePath)) {
+            return null;
         }
+
+        if (process.platform !== "win32" && !isExecutable(bundledNodePath)) {
+            console.warn(`[MCP] Bundled ${nodeBinaryName} is not executable: ${bundledNodePath}`);
+            return null;
+        }
+
+        if (!isBundledNodeUsable(bundledNodePath)) {
+            console.warn(`[MCP] Bundled ${nodeBinaryName} is unusable, falling back to Electron runtime`);
+            return null;
+        }
+
+        console.log(`[MCP] Found bundled ${nodeBinaryName} at: ${bundledNodePath}`);
+        return bundledNodePath;
     } catch {
         // Ignore filesystem errors
     }
@@ -207,8 +257,8 @@ function prependPath(existingPath: string | undefined, extraDir: string): string
 function getBundledNpmCliPath(cliName: "npx-cli.js" | "npm-cli.js"): string | null {
     // In packaged Electron apps, process.resourcesPath is only available in the main process.
     // For the Next.js server (child process), we use ELECTRON_RESOURCES_PATH env var.
-    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath 
-        || process.env.ELECTRON_RESOURCES_PATH;
+    const resourcesPath = process.env.ELECTRON_RESOURCES_PATH
+        || (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
     
     const candidates = [
         // Primary: bundled in resources/standalone/node_modules/npm/bin/
