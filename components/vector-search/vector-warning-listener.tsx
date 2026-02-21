@@ -63,10 +63,7 @@ export function VectorWarningListener() {
           return;
         }
         lastToastAtRef.current = Date.now();
-        toast.warning(
-          "Search index mismatch detected. If results seem off, refresh synced folders in Agent Settings.",
-          { duration: 9000 }
-        );
+        toast.warning(t("indexMismatch"), { duration: 9000 });
       }
     };
 

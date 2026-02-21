@@ -119,21 +119,22 @@ const ToolStatus: FC<{ isRunning: boolean; result?: ToolResult }> = memo(({
   isRunning,
   result,
 }) => {
+  const t = useTranslations("assistantUi.toolStatus");
   if (isRunning) {
     return (
-      <span className="text-xs text-terminal-muted font-mono transition-opacity duration-150">Processing...</span>
+      <span className="text-xs text-terminal-muted font-mono transition-opacity duration-150">{t("processing")}</span>
     );
   }
 
   if (result?.status === "error") {
-    return <span className="text-xs text-red-600 font-mono transition-opacity duration-150">Failed</span>;
+    return <span className="text-xs text-red-600 font-mono transition-opacity duration-150">{t("failed")}</span>;
   }
 
   if (result?.status === "processing") {
-    return <span className="text-xs text-terminal-amber font-mono transition-opacity duration-150">Queued</span>;
+    return <span className="text-xs text-terminal-amber font-mono transition-opacity duration-150">{t("queued")}</span>;
   }
 
-  return <span className="text-xs text-terminal-green font-mono transition-opacity duration-150">Completed</span>;
+  return <span className="text-xs text-terminal-green font-mono transition-opacity duration-150">{t("completed")}</span>;
 });
 ToolStatus.displayName = "ToolStatus";
 
@@ -170,7 +171,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (rawResults !== undefined && !Array.isArray(rawResults)) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          Unexpected tool search results format.
+          {tResults("unexpectedFormat")}
           <pre className={cn("mt-2 max-h-64", TOOL_RESULT_PRE_CLASS)}>
             {formatResultValue(rawResults)}
           </pre>
@@ -213,7 +214,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   if (toolName === "listAllTools") {
     return (
       <div className={TOOL_RESULT_TEXT_CLASS}>
-        {result.message || "Tools listed successfully"}
+        {result.message || tResults("toolsListedSuccessfully")}
       </div>
     );
   }
@@ -244,14 +245,14 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
         {/* Summary/Answer */}
         {result.answer && (
           <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
-            <span className="font-medium">Summary:</span> {result.answer}
+            <span className="font-medium">{tResults("webSearchSummary")}:</span> {result.answer}
           </div>
         )}
 
         {/* Sources with clickable links */}
         <div className="space-y-2">
           <span className="text-terminal-muted text-xs">
-            {sources.length} source{sources.length !== 1 ? "s" : ""} found:
+            {tResults("sourcesFound", { count: sources.length })}
           </span>
           {sources.map((source, idx) => (
             <div key={idx} className="pl-2 border-l-2 border-terminal-green/30">
@@ -290,7 +291,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (readResult.status === "error") {
       return (
         <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
-          {readResult.error || "Failed to read file"}
+          {readResult.error || tResults("readFileFailed")}
         </div>
       );
     }
@@ -353,7 +354,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (grepResult.status === "error") {
       return (
         <div className={cn("font-mono", TOOL_RESULT_TEXT_CLASS)}>
-          <p className="mb-2 text-red-600">Search failed</p>
+          <p className="mb-2 text-red-600">{tResults("searchFailed")}</p>
           <pre className={TOOL_RESULT_ERROR_PRE_CLASS}>
             {grepResult.error || "Unknown localGrep error"}
           </pre>
@@ -365,7 +366,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     if (grepResult.status === "no_paths" || grepResult.status === "disabled") {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {grepResult.message || "No paths to search"}
+          {grepResult.message || tResults("noPathsToSearch")}
         </div>
       );
     }
@@ -375,7 +376,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       return (
         <div className={cn("font-mono", TOOL_RESULT_TEXT_CLASS)}>
           <p className="text-terminal-dark mb-2">
-            Found {grepResult.matchCount} match{grepResult.matchCount !== 1 ? "es" : ""} for &quot;{grepResult.pattern}&quot;
+            {tResults("matchesFound", { count: grepResult.matchCount ?? 0, pattern: grepResult.pattern ?? "" })}
           </p>
           {grepResult.results && (
             <pre className={cn("mt-2 max-h-64", TOOL_RESULT_PRE_CLASS)}>
@@ -389,7 +390,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     // Fallback for other localGrep statuses
     return (
       <div className={TOOL_RESULT_TEXT_CLASS}>
-        {grepResult.message || "Search completed"}
+        {grepResult.message || tResults("searchCompleted")}
       </div>
     );
   }

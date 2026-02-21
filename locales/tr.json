@@ -923,7 +923,22 @@
       "noToolsFound": "\"{query}\" ile eşleşen araç bulunamadı",
       "toolsFound": "{count, plural, one {# araç bulundu} other {# araç bulundu}}: {names}",
       "webSearchUnavailable": "Web araması kullanılamıyor",
-      "noWebResults": "\"{query}\" için sonuç bulunamadı"
+      "noWebResults": "\"{query}\" için sonuç bulunamadı",
+      "unexpectedFormat": "Beklenmedik araç arama sonuçları biçimi.",
+      "toolsListedSuccessfully": "Araçlar başarıyla listelendi",
+      "readFileFailed": "Dosya okunamadı",
+      "searchFailed": "Arama başarısız",
+      "noPathsToSearch": "Aranacak yol yok",
+      "searchCompleted": "Arama tamamlandı",
+      "webSearchSummary": "Özet",
+      "sourcesFound": "{count, plural, one {# kaynak bulundu:} other {# kaynak bulundu:}}",
+      "matchesFound": "{count, plural, one {\"{pattern}\" için # eşleşme bulundu} other {\"{pattern}\" için # eşleşme bulundu}}"
+    },
+    "toolStatus": {
+      "processing": "İşleniyor...",
+      "failed": "Başarısız",
+      "queued": "Kuyruğa alındı",
+      "completed": "Tamamlandı"
     },
     "gallery": {
       "noContextAvailable": "Görsel eklenemiyor - galeri bağlamı mevcut değil",
@@ -2059,6 +2074,9 @@
       "invalidJsonSyntax": "Geçersiz JSON sözdizimi",
       "removeEnvVar": "Ortam değişkenini kaldır",
       "removeArg": "Argümanı kaldır",
+      "statusNotConnected": "Bağlı değil",
+      "statusConnected": "Bağlı",
+      "statusError": "Hata",
       "reconnectServer": "Sunucuya yeniden bağlan",
       "editServer": "Sunucuyu düzenle",
       "deleteServer": "Sunucuyu sil",
@@ -2144,7 +2162,11 @@
       "chatModel": "Sohbet Modeli",
       "researchModel": "Araştırma Modeli",
       "visionModel": "Görüntü Modeli",
-      "utilityModel": "Yardımcı Model"
+      "utilityModel": "Yardımcı Model",
+      "clearAllOverrides": "Tüm geçersiz kılmaları temizle",
+      "helpText": "Boş = global ayarı kullan. Yalnızca bu oturum için geçersiz kılmak üzere model kimliği girin.",
+      "globalLabel": "global:",
+      "providerDefault": "(sağlayıcı varsayılanı)"
     },
     "currentlyActive": "Şu anda aktif",
     "connectProviders": "Ayarlar'dan sağlayıcı bağlayın",

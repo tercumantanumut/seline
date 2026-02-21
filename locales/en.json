@@ -933,7 +933,22 @@
       "noToolsFound": "No tools found matching \"{query}\"",
       "toolsFound": "{count, plural, one {Found # tool} other {Found # tools}}: {names}",
       "webSearchUnavailable": "Web search unavailable",
-      "noWebResults": "No results found for \"{query}\""
+      "noWebResults": "No results found for \"{query}\"",
+      "unexpectedFormat": "Unexpected tool search results format.",
+      "toolsListedSuccessfully": "Tools listed successfully",
+      "readFileFailed": "Failed to read file",
+      "searchFailed": "Search failed",
+      "noPathsToSearch": "No paths to search",
+      "searchCompleted": "Search completed",
+      "webSearchSummary": "Summary",
+      "sourcesFound": "{count, plural, one {# source found:} other {# sources found:}}",
+      "matchesFound": "{count, plural, one {Found # match for \"{pattern}\"} other {Found # matches for \"{pattern}\"}}"
+    },
+    "toolStatus": {
+      "processing": "Processing...",
+      "failed": "Failed",
+      "queued": "Queued",
+      "completed": "Completed"
     },
     "gallery": {
       "noContextAvailable": "Cannot attach image - gallery context not available",
@@ -1770,6 +1785,9 @@
       "invalidJsonSyntax": "Invalid JSON syntax",
       "removeEnvVar": "Remove environment variable",
       "removeArg": "Remove argument",
+      "statusNotConnected": "Not connected",
+      "statusConnected": "Connected",
+      "statusError": "Error",
       "reconnectServer": "Reconnect server",
       "editServer": "Edit server",
       "deleteServer": "Delete server",
@@ -2159,7 +2177,11 @@
       "chatModel": "Chat Model",
       "researchModel": "Research Model",
       "visionModel": "Vision Model",
-      "utilityModel": "Utility Model"
+      "utilityModel": "Utility Model",
+      "clearAllOverrides": "Clear all overrides",
+      "helpText": "Empty = use global setting. Enter a model ID to override for this session only.",
+      "globalLabel": "global:",
+      "providerDefault": "(provider default)"
     },
     "currentlyActive": "Currently active",
     "connectProviders": "Connect providers in Settings",
