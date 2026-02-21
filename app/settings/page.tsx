@@ -2380,8 +2380,8 @@ function SettingsPanel({
 
             {/* Local Grep Settings */}
             <div className="mt-6 rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
-              <h3 className="font-mono text-sm font-semibold text-terminal-dark">Local grep search</h3>
-              <p className="mt-1 font-mono text-xs text-terminal-muted">Configure fast text search in synced folders.</p>
+              <h3 className="font-mono text-sm font-semibold text-terminal-dark">{t("localGrep.heading")}</h3>
+              <p className="mt-1 font-mono text-xs text-terminal-muted">{t("localGrep.description")}</p>
 
               <div className="mt-4 space-y-3">
                 <label className="flex items-center gap-3">
@@ -2391,7 +2391,7 @@ function SettingsPanel({
                     onChange={(e) => updateField("localGrepEnabled", e.target.checked)}
                     className="size-4 accent-terminal-green"
                   />
-                  <span className="font-mono text-sm text-terminal-dark">Enable local grep tool</span>
+                  <span className="font-mono text-sm text-terminal-dark">{t("localGrep.enableLabel")}</span>
                 </label>
                 <label className="flex items-center gap-3">
                   <input
@@ -2400,13 +2400,13 @@ function SettingsPanel({
                     onChange={(e) => updateField("localGrepRespectGitignore", e.target.checked)}
                     className="size-4 accent-terminal-green"
                   />
-                  <span className="font-mono text-sm text-terminal-dark">Ignore files listed in .gitignore</span>
+                  <span className="font-mono text-sm text-terminal-dark">{t("localGrep.gitignoreLabel")}</span>
                 </label>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Maximum results</label>
+                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.maxResultsLabel")}</label>
                   <input
                     type="number"
                     min={1}
@@ -2417,7 +2417,7 @@ function SettingsPanel({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-xs text-terminal-muted">Context lines</label>
+                  <label className="mb-1 block font-mono text-xs text-terminal-muted">{t("localGrep.contextLinesLabel")}</label>
                   <input
                     type="number"
                     min={0}
@@ -2447,9 +2447,9 @@ function SettingsPanel({
     return (
       <div className={settingsSectionShellClassName}>
         <div>
-          <h2 className="mb-2 text-lg font-semibold text-terminal-text">Local image generation</h2>
+          <h2 className="mb-2 text-lg font-semibold text-terminal-text">{t("localImage.heading")}</h2>
           <p className="text-sm text-terminal-muted">
-            Run image generation on this device using local backends.
+            {t("localImage.description")}
           </p>
         </div>
 
@@ -2460,9 +2460,9 @@ function SettingsPanel({
                 <KeyIcon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-terminal-text">Hugging Face token</p>
+                <p className="text-sm font-semibold text-terminal-text">{t("localImage.hfTokenTitle")}</p>
                 <p className="text-xs text-terminal-muted">
-                  Needed to download gated models such as FLUX.2 Klein.
+                  {t("localImage.hfTokenDesc")}
                 </p>
               </div>
             </div>
@@ -2472,20 +2472,20 @@ function SettingsPanel({
               rel="noopener noreferrer"
               className="text-xs text-terminal-green underline hover:text-terminal-green/80"
             >
-              Open token settings
+              {t("localImage.hfTokenLink")}
             </a>
           </div>
           <input
             type="password"
             value={formState.huggingFaceToken}
             onChange={(e) => updateField("huggingFaceToken", e.target.value)}
-            placeholder="hf_..."
+            placeholder={t("localImage.hfTokenPlaceholder")}
             className="mt-3 w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 text-sm text-terminal-text placeholder:text-terminal-muted/60 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
         </div>
 
         <div className="space-y-3">
-          <p className="text-xs uppercase tracking-wide text-terminal-muted">Backends</p>
+          <p className="text-xs uppercase tracking-wide text-terminal-muted">{t("localImage.backendsLabel")}</p>
           <LocalModelsManager
             zImageEnabled={formState.comfyuiEnabled}
             zImageBackendPath={formState.comfyuiBackendPath}
@@ -2504,9 +2504,9 @@ function SettingsPanel({
 
         <div className="border-t border-terminal-border/60 pt-6 space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-terminal-text">Custom ComfyUI workflows</h3>
+            <h3 className="text-sm font-semibold text-terminal-text">{t("localImage.workflowsHeading")}</h3>
             <p className="text-xs text-terminal-muted">
-              Paste or upload a workflow JSON file, then review inputs and outputs before saving.
+              {t("localImage.workflowsDesc")}
             </p>
           </div>
           <CustomWorkflowsManager

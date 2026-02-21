@@ -1739,6 +1739,25 @@
         "providerLocalDesc": "Bu cihazda çalışır. Harici API anahtarı gerekmez."
       }
     },
+    "localGrep": {
+      "heading": "Yerel grep araması",
+      "description": "Senkronize klasörlerde hızlı metin aramasını yapılandırın.",
+      "enableLabel": "Yerel grep aracını etkinleştir",
+      "gitignoreLabel": ".gitignore dosyasında listelenen dosyaları yoksay",
+      "maxResultsLabel": "Maksimum sonuç",
+      "contextLinesLabel": "Bağlam satırları"
+    },
+    "localImage": {
+      "heading": "Yerel görsel üretimi",
+      "description": "Yerel arka uçlar kullanarak bu cihazda görsel üretin.",
+      "hfTokenTitle": "Hugging Face jetonu",
+      "hfTokenDesc": "FLUX.2 Klein gibi kısıtlı modelleri indirmek için gereklidir.",
+      "hfTokenLink": "Jeton ayarlarını aç",
+      "hfTokenPlaceholder": "hf_...",
+      "backendsLabel": "Arka Uçlar",
+      "workflowsHeading": "Özel ComfyUI iş akışları",
+      "workflowsDesc": "Bir iş akışı JSON dosyası yapıştırın veya yükleyin, ardından kaydetmeden önce giriş ve çıkışları inceleyin."
+    },
     "onboarding": {
       "title": "Kurulum",
       "description": "Ayarlarınızı yeniden yapılandırmak için kurulum sihirbazını tekrar çalıştırın",

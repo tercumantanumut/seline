@@ -1854,6 +1854,25 @@
         "providerLocal": "Local (whisper.cpp)",
         "providerLocalDesc": "Runs on this device. No external API key needed."
       }
+    },
+    "localGrep": {
+      "heading": "Local grep search",
+      "description": "Configure fast text search in synced folders.",
+      "enableLabel": "Enable local grep tool",
+      "gitignoreLabel": "Ignore files listed in .gitignore",
+      "maxResultsLabel": "Maximum results",
+      "contextLinesLabel": "Context lines"
+    },
+    "localImage": {
+      "heading": "Local image generation",
+      "description": "Run image generation on this device using local backends.",
+      "hfTokenTitle": "Hugging Face token",
+      "hfTokenDesc": "Needed to download gated models such as FLUX.2 Klein.",
+      "hfTokenLink": "Open token settings",
+      "hfTokenPlaceholder": "hf_...",
+      "backendsLabel": "Backends",
+      "workflowsHeading": "Custom ComfyUI workflows",
+      "workflowsDesc": "Paste or upload a workflow JSON file, then review inputs and outputs before saving."
     }
   },
   "modelBag": {
