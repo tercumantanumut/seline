@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, ExternalLink, ChevronRight, ChevronLeft, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface WebSearchStepProps {
     onContinue: (tavilyApiKey: string) => void;
@@ -11,6 +12,7 @@ interface WebSearchStepProps {
 }
 
 export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps) {
+    const t = useTranslations("onboarding.webSearch");
     const [apiKey, setApiKey] = useState("");
     const [isValidating, setIsValidating] = useState(false);
     const [validationStatus, setValidationStatus] = useState<"idle" | "valid" | "invalid">("idle");
@@ -19,7 +21,7 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
     const handleValidate = async () => {
         if (!apiKey.trim()) {
             setValidationStatus("invalid");
-            setValidationMessage("Please enter an API key");
+            setValidationMessage(t("validationEmpty"));
             return;
         }
 
@@ -38,14 +40,14 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
 
             if (data.valid) {
                 setValidationStatus("valid");
-                setValidationMessage("API key is valid!");
+                setValidationMessage(t("validationValid"));
             } else {
                 setValidationStatus("invalid");
-                setValidationMessage(data.error || "Invalid API key");
+                setValidationMessage(data.error || t("validationInvalid"));
             }
         } catch (error) {
             setValidationStatus("invalid");
-            setValidationMessage("Failed to validate API key");
+            setValidationMessage(t("validationFailed"));
         } finally {
             setIsValidating(false);
         }
@@ -64,43 +66,43 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                         <Search className="w-8 h-8 text-terminal-green" />
                     </div>
                     <h1 className="font-mono text-3xl font-bold text-terminal-dark">
-                        Enable Web Search
+                        {t("title")}
                     </h1>
                     <p className="font-mono text-terminal-muted max-w-lg mx-auto">
-                        Web search works out of the box with DuckDuckGo (free). Add a Tavily API key for richer results and Deep Research.
+                        {t("subtitle")}
                     </p>
                 </div>
 
                 {/* Feature Overview */}
                 <div className="rounded-lg border-2 border-terminal-border bg-white p-6 space-y-4">
                     <h2 className="font-mono text-lg font-semibold text-terminal-dark">
-                        What you'll get:
+                        {t("featuresTitle")}
                     </h2>
                     <ul className="space-y-3">
                         <li className="flex items-start gap-3">
                             <CheckCircle2 className="w-5 h-5 text-terminal-green mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="font-mono text-sm font-medium text-terminal-dark">Deep Research</p>
+                                <p className="font-mono text-sm font-medium text-terminal-dark">{t("features.deepResearch.title")}</p>
                                 <p className="font-mono text-xs text-terminal-muted">
-                                    Comprehensive web research with multi-source synthesis
+                                    {t("features.deepResearch.desc")}
                                 </p>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
                             <CheckCircle2 className="w-5 h-5 text-terminal-green mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="font-mono text-sm font-medium text-terminal-dark">Real-time Information</p>
+                                <p className="font-mono text-sm font-medium text-terminal-dark">{t("features.realtime.title")}</p>
                                 <p className="font-mono text-xs text-terminal-muted">
-                                    Access current events, news, and up-to-date information
+                                    {t("features.realtime.desc")}
                                 </p>
                             </div>
                         </li>
                         <li className="flex items-start gap-3">
                             <CheckCircle2 className="w-5 h-5 text-terminal-green mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="font-mono text-sm font-medium text-terminal-dark">Fact Verification</p>
+                                <p className="font-mono text-sm font-medium text-terminal-dark">{t("features.factVerification.title")}</p>
                                 <p className="font-mono text-xs text-terminal-muted">
-                                    Verify claims and cross-reference information from multiple sources
+                                    {t("features.factVerification.desc")}
                                 </p>
                             </div>
                         </li>
@@ -111,7 +113,7 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                 <div className="rounded-lg border-2 border-terminal-border bg-white p-6 space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="font-mono text-base font-semibold text-terminal-dark">
-                            Tavily API Key
+                            {t("apiKeyTitle")}
                         </h3>
                         <a
                             href="https://app.tavily.com/sign-up"
@@ -119,7 +121,7 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 font-mono text-xs text-terminal-green hover:text-terminal-green/80 transition-colors"
                         >
-                            Get your API key
+                            {t("getApiKey")}
                             <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                     </div>
@@ -175,12 +177,12 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                             {isValidating ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Validating...
+                                    {t("validating")}
                                 </>
                             ) : (
                                 <>
                                     <CheckCircle2 className="w-4 h-4" />
-                                    Test API Key
+                                    {t("testKey")}
                                 </>
                             )}
                         </Button>
@@ -188,15 +190,15 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
 
                     <div className="rounded bg-terminal-cream/50 p-3 space-y-2">
                         <p className="font-mono text-xs font-medium text-terminal-dark">
-                            Getting started:
+                            {t("gettingStarted")}
                         </p>
                         <ol className="font-mono text-xs text-terminal-muted space-y-1 list-decimal list-inside">
-                            <li>Sign up at tavily.com (free tier available)</li>
-                            <li>Copy your API key from the dashboard</li>
-                            <li>Paste it above and click &quot;Test API Key&quot;</li>
+                            <li>{t("step1")}</li>
+                            <li>{t("step2")}</li>
+                            <li>{t("step3")}</li>
                         </ol>
                         <p className="font-mono text-xs text-terminal-muted mt-2">
-                            💡 No API key? Skip this step — DuckDuckGo provides free web search automatically.
+                            💡 {t("noKeyHint")}
                         </p>
                     </div>
                 </div>
@@ -209,7 +211,7 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                         className="gap-2 font-mono"
                     >
                         <ChevronLeft className="w-4 h-4" />
-                        Back
+                        {t("back")}
                     </Button>
 
                     <div className="flex items-center gap-3">
@@ -218,14 +220,14 @@ export function WebSearchStep({ onContinue, onBack, onSkip }: WebSearchStepProps
                             variant="ghost"
                             className="font-mono text-terminal-muted hover:text-terminal-dark"
                         >
-                            Skip for now
+                            {t("skip")}
                         </Button>
                         <Button
                             onClick={handleContinue}
                             disabled={validationStatus !== "valid"}
                             className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90"
                         >
-                            Continue
+                            {t("continue")}
                             <ChevronRight className="w-4 h-4" />
                         </Button>
                     </div>
