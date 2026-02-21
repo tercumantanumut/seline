@@ -2597,6 +2597,7 @@ export async function POST(req: Request) {
         sessionId,
         userId: dbUser.id,
         characterId: characterId || null,
+        sessionMetadata,
       }),
       docsSearch: createDocsSearchTool({
         userId: dbUser.id,
@@ -3105,6 +3106,7 @@ export async function POST(req: Request) {
           sessionId,
           userId: dbUser.id,
           characterId: characterId || null,
+          sessionMetadata,
         }),
       }),
       ...(allTools.readFile && {

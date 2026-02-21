@@ -12,9 +12,10 @@
  */
 
 import { generateText } from "ai";
-import { getUtilityModel, getProviderTemperature } from "./providers";
 import {
   getEnhancementSession,
+  getSessionMemorySignature,
+  setSessionMemorySignature,
   addSessionMessage,
   buildEnhancementRequest,
   ENHANCEMENT_SYSTEM_PROMPT,
@@ -24,6 +25,11 @@ import { formatMemoriesForPrompt } from "@/lib/agent-memory/prompt-injection";
 import { searchWithRouter, type VectorSearchHit } from "@/lib/vectordb";
 import { isVectorDBEnabled } from "@/lib/vectordb/client";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { decideMemoryInjection } from "./prompt-enhancement-memory";
+import {
+  getSessionProviderTemperature,
+  resolveSessionUtilityModel,
+} from "./session-model-resolver";
 import { extname, basename } from "path";
 
 // =============================================================================
@@ -37,6 +43,10 @@ export interface LLMEnhancementOptions {
   conversationContext?: Array<{ role: string; content: string }>;
   /** User ID for tool access */
   userId?: string;
+  /** Session ID for strict enhancement session scoping */
+  sessionId?: string;
+  /** Session metadata for utility model resolution */
+  sessionMetadata?: Record<string, unknown> | null;
   /** Whether to include file tree in context (default: true) */
   includeFileTree?: boolean;
   /** Whether to include memories in context (default: true) */
@@ -331,9 +341,19 @@ export async function enhancePromptWithLLM(
     // Determine if we can do semantic search (requires characterId, vectorDB, and indexed files)
     const canDoSemanticSearch = characterId && isVectorDBEnabled() && await hasIndexedFiles(characterId);
 
+    // Session key must include the session/chat identity to prevent cross-session leakage.
+    const sessionKey = options.sessionId
+      ? `enhance:${options.sessionId}`
+      : `enhance:${characterId || "__global__"}`;
+    const session = getEnhancementSession(sessionKey);
+
     let searchResults: { hits: VectorSearchHit[]; filesFound: number } | null = null;
     let fileTree: Awaited<ReturnType<typeof getFileTreeForAgent>> = [];
-    let memories: { markdown: string; tokenEstimate: number; memoryCount: number } = { markdown: "", tokenEstimate: 0, memoryCount: 0 };
+    let memories: { markdown: string; tokenEstimate: number; memoryCount: number } = {
+      markdown: "",
+      tokenEstimate: 0,
+      memoryCount: 0,
+    };
 
     // Stage 1: Semantic search (only if we have context)
     if (canDoSemanticSearch) {
@@ -359,6 +379,37 @@ export async function enhancePromptWithLLM(
     const searchResultsFormatted = searchResults ? formatSearchResultsForLLM(searchResults.hits) : "";
     const recentMessages = options.conversationContext?.slice(-3) || [];
 
+    const memoryInjection = decideMemoryInjection(
+      memories.markdown,
+      getSessionMemorySignature(sessionKey)
+    );
+
+    if (memoryInjection.signature !== null) {
+      setSessionMemorySignature(sessionKey, memoryInjection.signature);
+    }
+
+    if (memoryInjection.dedupedMemoryLineCount > 0) {
+      console.log(
+        `[PromptEnhancementV2] Deduplicated ${memoryInjection.dedupedMemoryLineCount} duplicate memory entries`
+      );
+    }
+
+    if (!memoryInjection.shouldInject && memoryInjection.signature) {
+      console.log("[PromptEnhancementV2] Skipping unchanged memory payload for this session");
+    }
+
+    if (memoryInjection.tokenEstimateBeforeDedup > 0) {
+      const dedupSavings =
+        memoryInjection.tokenEstimateBeforeDedup - memoryInjection.tokenEstimateAfterDedup;
+      const injectionSavings =
+        memoryInjection.tokenEstimateAfterDedup - memoryInjection.tokenEstimateInjected;
+      console.log(
+        `[PromptEnhancementV2] Memory tokens raw=${memoryInjection.tokenEstimateBeforeDedup}, ` +
+        `deduped=${memoryInjection.tokenEstimateAfterDedup}, injected=${memoryInjection.tokenEstimateInjected}, ` +
+        `saved=${dedupSavings + injectionSavings}`
+      );
+    }
+
     // Detect input type for format-aware enhancement
     const inputType = detectInputType(originalQuery);
     console.log(`[PromptEnhancementV2] Detected input type: ${inputType}`);
@@ -369,26 +420,23 @@ export async function enhancePromptWithLLM(
       searchResults: searchResultsFormatted || "No file context available - enhance the prompt based on clarity, specificity, and best practices.",
       fileTree: fileTreeMarkdown,
       recentMessages,
-      memories: memories.markdown,
+      memories: memoryInjection.injectedMarkdown,
       inputType,
     });
-
-    // Get session for this character (or use a generic session key)
-    const session = getEnhancementSession(characterId || "__global__");
 
     // Stage 2: LLM refinement with timeout
     console.log(`[PromptEnhancementV2] Calling LLM with ${timeoutMs}ms timeout...`);
 
     const llmResult = await Promise.race([
       generateText({
-        model: getUtilityModel(),
+        model: resolveSessionUtilityModel(options.sessionMetadata),
         system: ENHANCEMENT_SYSTEM_PROMPT,
         messages: [
           ...session.messages,
           { role: "user" as const, content: enhancementRequest },
         ],
         maxOutputTokens: 3000,
-        temperature: getProviderTemperature(0.3),
+        temperature: getSessionProviderTemperature(options.sessionMetadata, 0.3),
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);
@@ -415,7 +463,6 @@ export async function enhancePromptWithLLM(
     }
 
     // Store messages in session for continuity
-    const sessionKey = characterId || "__global__";
     addSessionMessage(sessionKey, { role: "user", content: enhancementRequest });
     addSessionMessage(sessionKey, { role: "assistant", content: llmResult.text });
 

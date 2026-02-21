@@ -42,6 +42,45 @@ function ensureExecutable(filePath) {
     fs.chmodSync(filePath, 0o755);
 }
 
+
+function copyBundledNodeMacLibraries(nodeExeSrc, standaloneDir) {
+    if (process.platform !== 'darwin') return;
+
+    let nodeBinaryPath = nodeExeSrc;
+    try {
+        nodeBinaryPath = fs.realpathSync(nodeExeSrc);
+    } catch {
+        // Keep original path if realpath resolution fails.
+    }
+
+    const nodeSrcDir = path.dirname(nodeBinaryPath);
+    const nodeLibSrcDir = path.resolve(nodeSrcDir, '..', 'lib');
+    const nodeLibDestDir = path.join(standaloneDir, 'node_modules', 'lib');
+
+    if (!fs.existsSync(nodeLibSrcDir)) {
+        console.warn(`  Warning: Node lib directory not found: ${nodeLibSrcDir}`);
+        return;
+    }
+
+    const libnodeFiles = fs.readdirSync(nodeLibSrcDir)
+        .filter((name) => /^libnode\..+\.dylib$/i.test(name));
+
+    if (libnodeFiles.length === 0) {
+        console.warn(`  Warning: No libnode*.dylib found in ${nodeLibSrcDir}`);
+        return;
+    }
+
+    ensureDir(nodeLibDestDir);
+    for (const fileName of libnodeFiles) {
+        const src = path.join(nodeLibSrcDir, fileName);
+        const dest = path.join(nodeLibDestDir, fileName);
+        fs.copyFileSync(src, dest);
+        ensureExecutable(dest);
+    }
+
+    console.log(`  Bundled Node sidecar libraries: ${libnodeFiles.join(', ')}`);
+}
+
 function pruneOnnxRuntime(baseDir, napiDirName, keepOs, keepArch) {
     const napiDir = path.join(baseDir, "bin", napiDirName);
     if (!fs.existsSync(napiDir)) return;
@@ -411,6 +450,7 @@ if (process.platform === 'win32' || process.platform === 'darwin') {
         // Ensure the binary is executable on macOS
         if (process.platform === 'darwin') {
             ensureExecutable(nodeExeDest);
+            copyBundledNodeMacLibraries(nodeExeSrc, standaloneDir);
         }
         const stats = fs.statSync(nodeExeDest);
         console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);

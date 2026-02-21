@@ -159,12 +159,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   protected override processResponseStream(
     stream: ReadableStream<Uint8Array>,
   ): ReadableStream<UIMessageChunk> {
-    // Allow turning batching off via env flag (roll-back lever).
+    const baseStream = super.processResponseStream(stream);
+
     if (!STREAM_BATCH_ENABLED) {
-      return super.processResponseStream(stream);
+      return baseStream;
     }
 
-    const baseStream = super.processResponseStream(stream);
 
     let bufferedDelta = "";
     let lastTextId: string | null = null;

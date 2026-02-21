@@ -18,7 +18,11 @@ import {
   completeAgentRun,
   withRunContext,
 } from "@/lib/observability";
-import { getOrCreateCharacterSession, createSession } from "@/lib/db/queries";
+import {
+  getOrCreateCharacterSession,
+  createSession,
+  getSessionByMetadataKey,
+} from "@/lib/db/queries";
 
 interface EnhancePromptRequestBody {
   input?: string;
@@ -52,20 +56,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // characterId is now optional - we can enhance prompts without agent context
     const validCharacterId = characterId && typeof characterId === "string" ? characterId : null;
 
-    // Get or create a session for observability
-    // If we have a characterId, use character session; otherwise create a generic session
-    let sessionId: string;
+    // Get or create a session for observability and session-scoped enhancement state
+    let sessionRecord: Awaited<ReturnType<typeof createSession>>;
     if (validCharacterId) {
       const { session } = await getOrCreateCharacterSession(userId, validCharacterId, "Prompt Enhancement");
-      sessionId = session.id;
+      sessionRecord = session;
     } else {
-      const session = await createSession({
-        title: "Prompt Enhancement",
+      const metadataKey = `prompt-enhancement:${userId}`;
+      const existingSession = await getSessionByMetadataKey(
         userId,
-        metadata: { type: "prompt-enhancement" },
-      });
-      sessionId = session.id;
+        "prompt-enhancement",
+        metadataKey
+      );
+
+      sessionRecord =
+        existingSession ??
+        (await createSession({
+          title: "Prompt Enhancement",
+          userId,
+          metadata: { type: "prompt-enhancement", key: metadataKey },
+        }));
     }
+
+    const sessionId = sessionRecord.id;
 
     // Create agent run for observability
     const agentRun = await createAgentRun({
@@ -92,6 +105,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               timeoutMs: 45000, // 45s — search + LLM synthesis pipeline needs headroom
               conversationContext,
               userId,
+              sessionId,
+              sessionMetadata: sessionRecord.metadata as Record<string, unknown> | null,
               includeFileTree: true,
               includeMemories: true,
             };

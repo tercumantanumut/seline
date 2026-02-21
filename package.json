@@ -40,6 +40,8 @@
     "test:validate:tool-errors:dry": "tsx scripts/validation/exec-validation.ts validate-tool-error-auditability --dry-run",
     "test:validate:mac-signing": "tsx scripts/validation/exec-validation.ts validate-macos-signing-notarization",
     "test:validate:mac-signing:dry": "tsx scripts/validation/exec-validation.ts validate-macos-signing-notarization --dry-run",
+    "test:validate:utility-session-token-audit": "tsx scripts/validation/exec-validation.ts validate-utility-session-token-audit",
+    "test:validate:utility-session-token-audit:dry": "tsx scripts/validation/exec-validation.ts validate-utility-session-token-audit --dry-run",
     "test:ddg:windows": "tsx scripts/diagnose-ddg-windows.ts",
     "test:ddg:runtime": "tsx scripts/verify-ddg-runtime.ts",
     "db:generate": "drizzle-kit generate",
