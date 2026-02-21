@@ -1557,6 +1557,15 @@
       "variablePreview": "Önizleme"
     }
   },
+  "modelBag": {
+    "title": "Model Çantası",
+    "modelCount": "{count, plural, one {# model} other {# model}}",
+    "inventory": "ENVANTER",
+    "searchPlaceholder": "Model ara...",
+    "noMatch": "Filtrelere uyan model yok",
+    "close": "Kapat",
+    "enterToAssign": "Enter + ↵"
+  },
   "about": {
     "title": "Hakkında",
     "subtitle": "Destek, bilgi ve bağlantılar",
@@ -2081,6 +2090,20 @@
     "description": "{name} için otomatik görevler oluşturun",
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
+    "retry": "Yeniden Dene",
+    "filters": {
+      "search": "Zamanlamaları ara...",
+      "allStatuses": "Tüm Durumlar",
+      "active": "Aktif",
+      "inactive": "Pasif",
+      "draft": "Taslak",
+      "allPriorities": "Tüm Öncelikler",
+      "high": "Yüksek",
+      "normal": "Normal",
+      "low": "Düşük",
+      "noMatch": "Filtrelere uyan zamanlama yok",
+      "clearFilters": "Filtreleri temizle"
+    },
     "newForm": {
       "delivery": {
         "label": "Teslimat",

@@ -1572,6 +1572,15 @@
       }
     }
   },
+  "modelBag": {
+    "title": "Model Bag",
+    "modelCount": "{count, plural, one {# model} other {# models}}",
+    "inventory": "INVENTORY",
+    "searchPlaceholder": "Search models...",
+    "noMatch": "No models match your filters",
+    "close": "Close",
+    "enterToAssign": "Enter + ↵"
+  },
   "about": {
     "title": "About",
     "subtitle": "Credits, support, and links",
@@ -2106,7 +2115,9 @@
       "allPriorities": "All Priorities",
       "high": "High",
       "normal": "Normal",
-      "low": "Low"
+      "low": "Low",
+      "noMatch": "No schedules match your filters",
+      "clearFilters": "Clear filters"
     },
     "empty": {
       "title": "No scheduled tasks yet",

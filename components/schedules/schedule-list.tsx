@@ -203,7 +203,7 @@ export function ScheduleList({
         </AnimatedCard>
       ) : filteredSchedules.length === 0 && schedules.length > 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-          <p className="font-mono text-terminal-muted">No schedules match your filters</p>
+          <p className="font-mono text-terminal-muted">{t("filters.noMatch")}</p>
           <Button
             variant="ghost"
             onClick={() => {
@@ -213,7 +213,7 @@ export function ScheduleList({
             }}
             className="font-mono text-sm"
           >
-            Clear filters
+            {t("filters.clearFilters")}
           </Button>
         </div>
       ) : (
