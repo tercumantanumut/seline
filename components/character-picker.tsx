@@ -1978,6 +1978,7 @@ export function CharacterPicker() {
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setSearchQuery("")}
             placeholder={t("searchPlaceholder")}
             className="w-full pl-10 pr-4 py-2 bg-terminal-bg/30 border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
           />
