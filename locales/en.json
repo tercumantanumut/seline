@@ -1429,7 +1429,21 @@
       "variableHelp": "Use ${SYNCED_FOLDER} for single-folder access or ${SYNCED_FOLDERS_ARRAY} for multi-folder access",
       "insertVariable": "Insert Variable",
       "resolvedCommand": "Resolved command:",
-      "configWarning": "Configuration Warning"
+      "configWarning": "Configuration Warning",
+      "loadFailed": "Failed to load MCP configuration",
+      "saved": "Settings saved",
+      "saveFailed": "Could not save settings",
+      "connected": "Connected to {server}",
+      "connectFailed": "Could not connect to {server}: {error}",
+      "connectionFailed": "Connection failed: {error}",
+      "connectionFailedUnknown": "Connection failed: Unknown issue",
+      "serverAdded": "Server {name} added",
+      "serverUpdated": "Server {name} updated",
+      "templateAdded": "{name} server added",
+      "envVarsAdded": "Added {count} environment variable(s). Fill in the values below.",
+      "deleteConfirm": "Delete {name}?",
+      "invalidJsonMissingRoot": "Invalid JSON: missing 'mcpServers' root key",
+      "invalidJsonSyntax": "Invalid JSON syntax"
     },
     "models": {
       "title": "Model choices",

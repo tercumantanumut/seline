@@ -294,7 +294,7 @@ export function MCPSettings() {
         }
         if (error) {
             console.error("Failed to load MCP config:", error);
-            toast.error("Failed to load MCP configuration");
+            toast.error(t("loadFailed"));
         }
         setIsLoading(false);
     };
@@ -309,10 +309,10 @@ export function MCPSettings() {
             setMcpServers(updatedServers);
             setRawJson(JSON.stringify({ mcpServers: updatedServers }, null, 2));
             setEnvironment(updatedEnv);
-            toast.success("Settings saved");
+            toast.success(t("saved"));
         } else {
             console.error("Failed to save MCP config:", error);
-            toast.error("Could not save settings");
+            toast.error(t("saveFailed"));
         }
         setIsSaving(false);
     };
@@ -332,14 +332,14 @@ export function MCPSettings() {
         if (data) {
             const result = data.results[serverName];
             if (result?.success) {
-                toast.success(`Connected to ${serverName}`);
+                toast.success(t("connected", { server: serverName }));
             } else {
-                toast.error(`Could not connect to ${serverName}: ${result?.error}`);
+                toast.error(t("connectFailed", { server: serverName, error: result?.error ?? "" }));
             }
             await loadConfig();
         } else {
             console.error(`Failed to connect to ${serverName}:`, error);
-            toast.error(`Connection failed: ${error || "Unknown issue"}`);
+            toast.error(error ? t("connectionFailed", { error }) : t("connectionFailedUnknown"));
         }
         setConnectingState(prev => ({ ...prev, [serverName]: false }));
     };
@@ -350,7 +350,7 @@ export function MCPSettings() {
         await saveAll(updatedServers);
         setIsAddingServer(false);
         setEditingServer(null);
-        toast.success(`Server ${name} ${editingServer ? 'updated' : 'added'}`);
+        toast.success(editingServer ? t("serverUpdated", { name }) : t("serverAdded", { name }));
     };
 
     const handleFormCancel = () => {
@@ -372,18 +372,18 @@ export function MCPSettings() {
             if (changed) {
                 setEnvironment(newEnv);
                 await saveAll(mcpServers, newEnv);
-                toast.info(`Added ${template.requiredEnv.length} environment variable(s). Fill in the values below.`);
+                toast.info(t("envVarsAdded", { count: template.requiredEnv.length }));
             }
         }
 
         // Add server directly from template
         const updatedServers = { ...mcpServers, [template.id]: template.config };
         await saveAll(updatedServers);
-        toast.success(`${template.name} server added`);
+        toast.success(t("templateAdded", { name: template.name }));
     };
 
     const handleDeleteServer = async (serverName: string) => {
-        if (!confirm(`Delete ${serverName}?`)) return;
+        if (!confirm(t("deleteConfirm", { name: serverName }))) return;
 
         const updatedServers = { ...mcpServers };
         delete updatedServers[serverName];
@@ -762,10 +762,10 @@ export function MCPSettings() {
                                         setMcpServers(parsed.mcpServers);
                                         saveAll(parsed.mcpServers, environment);
                                     } else {
-                                        toast.error("Invalid JSON: missing 'mcpServers' root key");
+                                        toast.error(t("invalidJsonMissingRoot"));
                                     }
                                 } catch (e) {
-                                    toast.error("Invalid JSON syntax");
+                                    toast.error(t("invalidJsonSyntax"));
                                 }
                             }}>Apply JSON</Button>
                         </div>
