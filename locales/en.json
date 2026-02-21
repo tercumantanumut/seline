@@ -1573,7 +1573,22 @@
       "editServer": "Edit server",
       "deleteServer": "Delete server",
       "addEnvVar": "Add",
-      "cancelEnvVar": "Cancel"
+      "cancelEnvVar": "Cancel",
+      "addedServers": "Added servers",
+      "addCustomServer": "Add custom server",
+      "cancelAdd": "Cancel",
+      "noServersYet": "No servers added yet. Add one to get started.",
+      "connectionFailedTitle": "Connection failed",
+      "activeTools": "{count} active tools",
+      "environmentVariables": "Environment variables",
+      "noEnvVarsYet": "No environment variables yet.",
+      "envValuePlaceholder": "Value...",
+      "addVariable": "Add variable",
+      "envValueHint": "Value (you can add it later)",
+      "showAdvancedJson": "Show advanced JSON",
+      "hideAdvancedJson": "Hide advanced JSON",
+      "rawJsonSettings": "Raw JSON settings",
+      "applyJson": "Apply JSON"
     },
     "models": {
       "title": "Model choices",

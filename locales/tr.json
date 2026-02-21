@@ -1719,7 +1719,22 @@
       "editServer": "Sunucuyu düzenle",
       "deleteServer": "Sunucuyu sil",
       "addEnvVar": "Ekle",
-      "cancelEnvVar": "İptal"
+      "cancelEnvVar": "İptal",
+      "addedServers": "Eklenen sunucular",
+      "addCustomServer": "Özel sunucu ekle",
+      "cancelAdd": "İptal",
+      "noServersYet": "Henüz sunucu eklenmedi. Başlamak için bir tane ekleyin.",
+      "connectionFailedTitle": "Bağlantı başarısız",
+      "activeTools": "{count} aktif araç",
+      "environmentVariables": "Ortam değişkenleri",
+      "noEnvVarsYet": "Henüz ortam değişkeni yok.",
+      "envValuePlaceholder": "Değer...",
+      "addVariable": "Değişken ekle",
+      "envValueHint": "Değer (daha sonra ekleyebilirsiniz)",
+      "showAdvancedJson": "Gelişmiş JSON'u göster",
+      "hideAdvancedJson": "Gelişmiş JSON'u gizle",
+      "rawJsonSettings": "Ham JSON ayarları",
+      "applyJson": "JSON'u Uygula"
     }
   },
   "modelBag": {
