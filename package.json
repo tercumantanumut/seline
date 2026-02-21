@@ -35,6 +35,8 @@
     "test:validate:tool-errors:dry": "tsx scripts/validation/exec-validation.ts validate-tool-error-auditability --dry-run",
     "test:validate:mac-signing": "tsx scripts/validation/exec-validation.ts validate-macos-signing-notarization",
     "test:validate:mac-signing:dry": "tsx scripts/validation/exec-validation.ts validate-macos-signing-notarization --dry-run",
+    "test:ddg:windows": "tsx scripts/diagnose-ddg-windows.ts",
+    "test:ddg:runtime": "tsx scripts/verify-ddg-runtime.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

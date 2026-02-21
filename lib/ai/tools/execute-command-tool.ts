@@ -214,6 +214,10 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
 - Smart default timeouts (30s normal, 120s for package managers)
 - Output size limits prevent memory issues
 
+**Efficiency:**
+- For potentially large output, self-limit in the command itself (e.g., \`head\`, \`tail\`, or PowerShell \`Select-Object -First\`)
+- Prefer \`localGrep\` for codebase file discovery/search over broad recursive shell listings
+
 **Common Use Cases:**
 - Run tests: executeCommand({ command: "npm", args: ["test"] })
 - Check git status: executeCommand({ command: "git", args: ["status"] })

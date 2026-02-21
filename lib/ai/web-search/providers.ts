@@ -126,6 +126,66 @@ export class TavilyProvider implements WebSearchProvider {
 // DuckDuckGo Provider
 // ============================================================================
 
+type DuckDuckGoRawResult = { title?: string; href?: string; body?: string };
+
+function resolveDuckDuckGoRedirect(href: string): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) return null;
+
+  const asAbsolute = trimmed.startsWith("//") ? `https:${trimmed}` : trimmed;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(asAbsolute, "https://duckduckgo.com");
+  } catch {
+    return null;
+  }
+
+  const isDuckDuckGoRedirect =
+    parsed.hostname.endsWith("duckduckgo.com") && (parsed.pathname === "/l" || parsed.pathname.startsWith("/l/"));
+
+  if (isDuckDuckGoRedirect) {
+    const uddg = parsed.searchParams.get("uddg")?.trim();
+    if (!uddg) return null;
+
+    let decoded = uddg;
+    try {
+      decoded = decodeURIComponent(uddg);
+    } catch {
+      // Keep original value if decoding fails.
+    }
+
+    if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
+      return decoded;
+    }
+    return null;
+  }
+
+  if (asAbsolute.startsWith("http://") || asAbsolute.startsWith("https://")) {
+    return asAbsolute;
+  }
+
+  return null;
+}
+
+function normalizeDuckDuckGoResults(raw: DuckDuckGoRawResult[]): WebSearchSource[] {
+  return raw
+    .map((r, index) => {
+      const url = resolveDuckDuckGoRedirect(r.href ?? "");
+      if (!url) return null;
+      if (url.includes("duckduckgo.com/y.js") || url.includes("google.com/search?q=")) return null;
+
+      return {
+        url: url.trim(),
+        title: r.title?.trim() || "",
+        snippet: r.body?.replace(/\s+/g, " ").trim().substring(0, 500) || "",
+        // Position-based heuristic (DDG doesn't provide relevance scores)
+        relevanceScore: Math.max(0.5, 1.0 - index * 0.05),
+      };
+    })
+    .filter((source): source is WebSearchSource => source !== null);
+}
+
 export class DuckDuckGoProvider implements WebSearchProvider {
   name = "duckduckgo";
 
@@ -140,27 +200,41 @@ export class DuckDuckGoProvider implements WebSearchProvider {
     try {
       const ddgs = await createDDGS();
 
-      const raw = await ddgs.text({
-        keywords: query,
-        maxResults,
-        backend: "lite", // Most reliable backend — html gets rate-limited faster
-      });
+      const backends: Array<"lite" | "html" | "auto"> = ["lite", "html", "auto"];
+      let sources: WebSearchSource[] = [];
+      let lastError: unknown;
 
-      const sources = raw
-        // Filter ads and broken URLs
-        .filter((r: { href: string }) => {
-          if (!r.href || !r.href.startsWith("http")) return false;
-          if (r.href.includes("duckduckgo.com/y.js")) return false;
-          if (r.href.includes("google.com/search?q=")) return false;
-          return true;
-        })
-        .map((r: { title: string; href: string; body: string }, index: number) => ({
-          url: r.href.trim(),
-          title: r.title?.trim() || "",
-          snippet: r.body?.replace(/\s+/g, " ").trim().substring(0, 500) || "",
-          // Position-based heuristic (DDG doesn't provide relevance scores)
-          relevanceScore: Math.max(0.5, 1.0 - index * 0.05),
-        }));
+      for (const backend of backends) {
+        try {
+          const candidate = await ddgs.text({
+            keywords: query,
+            maxResults,
+            backend,
+          });
+
+          const raw = Array.isArray(candidate) ? (candidate as DuckDuckGoRawResult[]) : [];
+          const normalized = normalizeDuckDuckGoResults(raw);
+
+          if (normalized.length > 0) {
+            sources = normalized;
+            if (backend !== "lite") {
+              console.warn(`[WEB-SEARCH] DuckDuckGo fallback backend succeeded: ${backend}`);
+            }
+            break;
+          }
+
+          if (raw.length > 0) {
+            console.warn(`[WEB-SEARCH] DuckDuckGo backend returned unusable URLs: ${backend}`);
+          }
+        } catch (error) {
+          lastError = error;
+          console.warn(`[WEB-SEARCH] DuckDuckGo backend failed: ${backend}`);
+        }
+      }
+
+      if (sources.length === 0 && lastError) {
+        throw lastError;
+      }
 
       console.log(`[WEB-SEARCH] DuckDuckGo returned ${sources.length} results for: ${query}`);
 
