@@ -78,6 +78,39 @@ Seline ships with full MCP support. Servers are configured per-agent and auto-co
 
 Node.js is bundled inside the app on macOS and Windows, so MCP servers that need `npx` or `node` work out of the box without a system Node.js installation.
 
+### MCP packaged-runtime fix (2026-02-21)
+
+If packaged builds show logs like:
+
+- `[MCP] Bundled node is unusable, falling back to Electron runtime`
+- `MCP error -32000: Connection closed`
+
+and all stdio MCP servers fail (not only Chrome DevTools), the issue is usually one of:
+
+1. Bundled Node executable is present but not runnable in the packaged app.
+2. On macOS, bundled `node` is missing required sidecar `libnode*.dylib` files.
+
+Implemented fixes:
+
+- **Runtime fallback hardening** (`lib/mcp/stdio-transport.ts`)
+  - For `npx`/`npm` MCP servers, runtime resolution now prefers:
+    1) bundled Node, 2) system `node` from PATH, 3) Electron-as-Node as last resort.
+  - This prevents broad MCP failures when bundled Node is temporarily unusable.
+
+- **macOS Node sidecar bundling** (`scripts/electron-prepare.js`)
+  - During packaging, `libnode*.dylib` files are copied into `standalone/node_modules/lib`.
+  - This fixes packaged macOS crashes such as `Library not loaded: @rpath/libnode.127.dylib`.
+
+Quick verification after build:
+
+```bash
+npm run electron:verify-package -- --platform=mac
+APP_RES="dist-electron/mac-arm64/Seline.app/Contents/Resources"
+"$APP_RES/standalone/node_modules/.bin/node" --version
+```
+
+Expected result: the Node version prints successfully (for example `v22.x`) and MCP stdio servers can spawn without immediate connection-closed errors.
+
 ## Multi-Channel Inbox
 
 Turn your agents into always-on bots by connecting WhatsApp, Telegram, or Slack. Each agent can have its own channel connections—inbound messages route to the assigned agent with full context, and responses flow back through the same channel automatically.
