@@ -32,7 +32,8 @@ export interface SearchHistoryEntry {
 
 export interface VectorSearchSession {
   id: string;
-  characterId: string;
+  sessionKey: string;
+  characterId?: string | null;
   searchHistory: SearchHistoryEntry[];
   createdAt: Date;
   lastUsedAt: Date;
@@ -46,6 +47,7 @@ export interface VectorSearchOptions {
   sessionId: string;
   userId: string;
   characterId?: string | null;
+  sessionMetadata?: Record<string, unknown> | null;
 }
 
 export interface SearchFinding {
@@ -131,6 +133,8 @@ export interface SynthesisRequest {
   query: string;
   rawResults: RawSearchResult[];
   searchHistory: SearchHistoryEntry[];
+  /** Session metadata for utility model/provider resolution */
+  sessionMetadata?: Record<string, unknown> | null;
   /** Allowed folder paths for the readFile tool (synced folders) */
   allowedFolderPaths: string[];
   /** Optional file tree summary to help the LLM understand workspace structure */

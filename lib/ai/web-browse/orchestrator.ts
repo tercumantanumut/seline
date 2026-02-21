@@ -460,6 +460,7 @@ export async function browseAndSynthesize(
       sessionId,
       query,
       urls: fetchedUrls,
+      sessionMetadata: options.sessionMetadata,
       abortSignal,
     });
 
@@ -527,13 +528,15 @@ export async function querySessionContent(
   sessionId: string,
   query: string,
   urls?: string[],
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  sessionMetadata?: Record<string, unknown> | null
 ): Promise<BrowseAndSynthesizeResult> {
   try {
     const synthesisResult = await synthesizeWebContent({
       sessionId,
       query,
       urls,
+      sessionMetadata,
       abortSignal,
     });
 

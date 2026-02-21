@@ -117,7 +117,7 @@ async function executeWebBrowse(
   args: WebBrowseArgs,
   toolCallOptions?: ToolExecutionOptions
 ): Promise<WebBrowseToolResult> {
-  const { sessionId, userId, characterId } = options;
+  const { sessionId } = options;
   const { urls, query } = args;
   const normalizedUrls = Array.isArray(urls)
     ? urls
@@ -139,7 +139,7 @@ async function executeWebBrowse(
   const result = await browseAndSynthesize({
     urls: normalizedUrls,
     query,
-    options: { sessionId, userId, characterId },
+    options,
     abortSignal: toolCallOptions?.abortSignal,
   });
 
@@ -164,10 +164,11 @@ async function executeWebBrowse(
  * Core webQuery execution logic (extracted for logging wrapper)
  */
 async function executeWebQuery(
-  sessionId: string,
+  options: WebBrowseOptions,
   args: WebQueryArgs,
   toolCallOptions?: ToolExecutionOptions
 ): Promise<WebBrowseToolResult> {
+  const { sessionId, sessionMetadata } = options;
   const { query } = args;
 
   // Check if there's any content in the session
@@ -185,7 +186,8 @@ async function executeWebQuery(
     sessionId,
     query,
     recentUrls.length > 0 ? recentUrls : undefined,
-    toolCallOptions?.abortSignal
+    toolCallOptions?.abortSignal,
+    sessionMetadata
   );
 
   if (!result.success) {
@@ -253,7 +255,7 @@ export function createWebQueryTool(options: WebBrowseOptions) {
     "webQuery",
     sessionId,
     (args: WebQueryArgs, toolCallOptions?: ToolExecutionOptions) =>
-      executeWebQuery(sessionId, args, toolCallOptions)
+      executeWebQuery(options, args, toolCallOptions)
   );
 
   return tool({

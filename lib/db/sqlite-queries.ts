@@ -169,6 +169,28 @@ export async function getSessionByCharacterId(userId: string, characterId: strin
   return result[0] || null;
 }
 
+export async function getSessionByMetadataKey(
+  userId: string,
+  type: string,
+  key: string
+): Promise<Session | null> {
+  const result = await db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.userId, userId),
+        eq(sessions.status, "active"),
+        sql`json_extract(${sessions.metadata}, '$.type') = ${type}`,
+        sql`json_extract(${sessions.metadata}, '$.key') = ${key}`
+      )
+    )
+    .orderBy(desc(sessions.updatedAt))
+    .limit(1);
+
+  return result[0] || null;
+}
+
 /**
  * List all sessions for a specific character
  */

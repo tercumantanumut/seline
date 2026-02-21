@@ -38,6 +38,7 @@ export interface WebBrowseOptions {
   sessionId: string;
   userId: string;
   characterId?: string | null;
+  sessionMetadata?: Record<string, unknown> | null;
 }
 
 export interface WebBrowseResult {
@@ -107,6 +108,7 @@ export interface SynthesisRequest {
   sessionId: string;
   query: string;
   urls?: string[]; // Optional: limit to specific URLs
+  sessionMetadata?: Record<string, unknown> | null;
   abortSignal?: AbortSignal;
 }
 

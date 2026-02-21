@@ -2,7 +2,7 @@
  * LLM-Driven Prompt Enhancement Session Management
  *
  * Manages isolated secondary LLM sessions for prompt enhancement.
- * Sessions are per-character and maintain conversation context for
+ * Sessions are per chat/session identity and maintain conversation context for
  * iterative refinement within the enhancement workflow.
  */
 
@@ -15,10 +15,11 @@ import { nanoid } from "nanoid";
 
 export interface EnhancementSession {
   id: string;
-  characterId: string;
+  sessionKey: string;
   messages: ModelMessage[];
   createdAt: Date;
   lastUsedAt: Date;
+  lastMemorySignature: string | null;
 }
 
 export interface EnhancementRequestContext {
@@ -32,7 +33,7 @@ export interface EnhancementRequestContext {
 }
 
 // =============================================================================
-// Session Store (In-Memory, Per-Character)
+// Session Store (In-Memory, Per Session)
 // =============================================================================
 
 const sessionStore = new Map<string, EnhancementSession>();
@@ -42,21 +43,22 @@ const SESSION_TTL_MS = 30 * 600 * 1000;
 const MAX_SESSION_MESSAGES = 6;
 
 /**
- * Get or create enhancement session for a character
+ * Get or create enhancement session for a chat/session key.
  */
-export function getEnhancementSession(characterId: string): EnhancementSession {
-  let session = sessionStore.get(characterId);
+export function getEnhancementSession(sessionKey: string): EnhancementSession {
+  let session = sessionStore.get(sessionKey);
 
   if (!session) {
     session = {
       id: nanoid(),
-      characterId,
+      sessionKey,
       messages: [],
       createdAt: new Date(),
       lastUsedAt: new Date(),
+      lastMemorySignature: null,
     };
-    sessionStore.set(characterId, session);
-    console.log(`[EnhancementSession] Created new session for ${characterId}: ${session.id}`);
+    sessionStore.set(sessionKey, session);
+    console.log(`[EnhancementSession] Created new session for ${sessionKey}: ${session.id}`);
   }
 
   session.lastUsedAt = new Date();
@@ -67,10 +69,10 @@ export function getEnhancementSession(characterId: string): EnhancementSession {
  * Add a message to the session and maintain message limit
  */
 export function addSessionMessage(
-  characterId: string,
+  sessionKey: string,
   message: ModelMessage
 ): void {
-  const session = getEnhancementSession(characterId);
+  const session = getEnhancementSession(sessionKey);
   session.messages.push(message);
 
   // Limit session history to prevent context bloat
@@ -79,12 +81,22 @@ export function addSessionMessage(
   }
 }
 
+export function getSessionMemorySignature(sessionKey: string): string | null {
+  const session = sessionStore.get(sessionKey);
+  return session?.lastMemorySignature ?? null;
+}
+
+export function setSessionMemorySignature(sessionKey: string, signature: string | null): void {
+  const session = getEnhancementSession(sessionKey);
+  session.lastMemorySignature = signature;
+}
+
 /**
- * Clear session for a character
+ * Clear session for a session key
  */
-export function clearSession(characterId: string): void {
-  sessionStore.delete(characterId);
-  console.log(`[EnhancementSession] Cleared session for ${characterId}`);
+export function clearSession(sessionKey: string): void {
+  sessionStore.delete(sessionKey);
+  console.log(`[EnhancementSession] Cleared session for ${sessionKey}`);
 }
 
 /**
@@ -94,9 +106,9 @@ export function cleanupStaleSessions(): number {
   const now = Date.now();
   let cleaned = 0;
 
-  for (const [characterId, session] of sessionStore) {
+  for (const [sessionKey, session] of sessionStore) {
     if (now - session.lastUsedAt.getTime() > SESSION_TTL_MS) {
-      sessionStore.delete(characterId);
+      sessionStore.delete(sessionKey);
       cleaned++;
     }
   }

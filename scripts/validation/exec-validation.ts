@@ -151,6 +151,7 @@ async function main() {
     console.error("  - validate-chat-overflow-guards");
     console.error("  - validate-tool-error-auditability");
     console.error("  - validate-macos-signing-notarization");
+    console.error("  - validate-utility-session-token-audit");
     process.exit(1);
   }
 
