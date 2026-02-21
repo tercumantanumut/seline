@@ -222,7 +222,7 @@
     "emptyTitle": "İlk Ajanınızı Oluşturun",
     "emptyDescription": "Ajanlar, belirli görevlere özelleştirilmiş AI asistanlarıdır. Kişiselleştirilmiş yardım almak için bir tane oluşturun.",
     "searchPlaceholder": "Ajanlar ve is akislarinda ara...",
-    "noResults": "Aramanızla eşleşen ajan bulunamadı",
+    "noResults": "\"{query}\" ile eşleşen ajan bulunamadı",
     "clearSearch": "Aramayı temizle",
     "vectorTitle": "Senkronize Klasörler",
     "syncedFolders": "Senkronize klasörler",
@@ -1640,6 +1640,7 @@
       "cancel": "İptal",
       "emptyHint": "Sohbetleri g?rmek i?in yeni sohbet ba?lat?n veya filtreleri de?i?tirin.",
       "searchPlaceholder": "Sohbetlerde ara...",
+      "searchShortcutHint": "Odaklanmak için / tuşuna basın",
       "channelAll": "T?m kanallar",
       "messageCount": "{count, plural, one {# mesaj} other {# mesaj}}",
       "groups": {
@@ -1875,6 +1876,8 @@
       "activeChats": "aktif sohbet"
     },
     "pinned": "Sabitlenmiş Sohbetler",
+    "noPinned": "Henüz sabitlenmiş sohbet yok",
+    "pinCta": "Önemli sohbetleri ··· → Sohbeti sabitle ile işaretleyin",
     "recentChats": "Son Sohbetler",
     "viewAllChats": "Tümünü gör",
     "noChats": "Henüz sohbet yok. Bir konuşma başlatın!",

@@ -222,7 +222,7 @@
     "emptyTitle": "Create Your First Agent",
     "emptyDescription": "Agents are AI assistants tailored to specific tasks. Create one to get started with personalized help.",
     "searchPlaceholder": "Search agents and workflows...",
-    "noResults": "No agents match your search",
+    "noResults": "No agents match \"{query}\"",
     "clearSearch": "Clear search",
     "vectorTitle": "Synced Folders",
     "syncedFolders": "Synced folders",
@@ -1653,6 +1653,7 @@
       "empty": "No chat history yet",
       "emptyHint": "Create a new chat or adjust filters to see conversations.",
       "searchPlaceholder": "Search chats...",
+      "searchShortcutHint": "Press / to focus",
       "channelAll": "All channels",
       "messageCount": "{count, plural, one {# message} other {# messages}}",
       "groups": {
@@ -1890,6 +1891,8 @@
       "activeChats": "active chats"
     },
     "pinned": "Pinned Chats",
+    "noPinned": "No pinned chats yet",
+    "pinCta": "Pin important chats via ··· → Pin chat",
     "recentChats": "Recent Chats",
     "viewAllChats": "View all",
     "noChats": "No chats yet. Start a conversation!",

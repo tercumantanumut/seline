@@ -2036,7 +2036,7 @@ export function CharacterPicker() {
       {/* Empty state - search returned no results */}
       {characters.length > 0 && standaloneCharacters.length === 0 && searchQuery.trim() !== "" && (
         <div className="text-center py-8">
-          <p className="font-mono text-sm text-terminal-muted">{t("noResults")}</p>
+          <p className="font-mono text-sm text-terminal-muted">{t("noResults", { query: searchQuery.trim() })}</p>
           <button
             type="button"
             onClick={() => setSearchQuery("")}

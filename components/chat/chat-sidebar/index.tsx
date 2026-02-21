@@ -523,6 +523,7 @@ export function CharacterSidebar({
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder={t("sidebar.searchPlaceholder")}
                 aria-label={t("sidebar.searchPlaceholder")}
+                title={t("sidebar.searchShortcutHint")}
               />
               {searchQuery ? (
                 <button

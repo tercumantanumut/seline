@@ -456,7 +456,19 @@ export default function DashboardPage() {
                   })}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Pin className="h-4 w-4 text-terminal-muted" />
+                  <h2 className="font-mono text-sm font-semibold text-terminal-muted">
+                    {t("pinned")}
+                  </h2>
+                </div>
+                <p className="font-mono text-xs text-terminal-muted/60 border border-dashed border-terminal-border/40 rounded px-3 py-2">
+                  {t("noPinned")} — {t("pinCta")}
+                </p>
+              </div>
+            )}
 
             {/* ── Recent chats + Top agents ── */}
             <div className="grid gap-4 lg:grid-cols-5">
