@@ -682,11 +682,11 @@ export const Thread: FC<ThreadProps> = ({
 
               {/* Phase label */}
               <span className="text-lg font-semibold font-mono text-terminal-dark">
-                {skillImportPhase === "uploading" && "Uploading…"}
-                {skillImportPhase === "parsing" && "Parsing package…"}
-                {skillImportPhase === "importing" && "Importing skill…"}
-                {skillImportPhase === "success" && "Import complete!"}
-                {skillImportPhase === "error" && "Import failed"}
+                {skillImportPhase === "uploading" && t("skillImportOverlay.uploading")}
+                {skillImportPhase === "parsing" && t("skillImportOverlay.parsing")}
+                {skillImportPhase === "importing" && t("skillImportOverlay.importing")}
+                {skillImportPhase === "success" && t("skillImportOverlay.success")}
+                {skillImportPhase === "error" && t("skillImportOverlay.error")}
               </span>
 
               {/* File name */}
@@ -711,7 +711,7 @@ export const Thread: FC<ThreadProps> = ({
 
               {/* Success subtitle */}
               {skillImportPhase === "success" && skillImportName && (
-                <p className="text-sm font-mono text-terminal-muted">{skillImportName} is ready to use</p>
+                <p className="text-sm font-mono text-terminal-muted">{t("skillImportOverlay.readyToUse", { name: skillImportName })}</p>
               )}
 
               {/* Plugin component detail */}
@@ -1722,13 +1722,13 @@ const Composer: FC<{
         stopRecordingStream();
 
         if (chunks.length === 0) {
-          toast.error("No audio captured. Please try again.");
+          toast.error(t("audio.noAudioCaptured"));
           return;
         }
 
         const audioBlob = new Blob(chunks, { type: mimeType });
         if (audioBlob.size === 0) {
-          toast.error("No audio captured. Please try again.");
+          toast.error(t("audio.noAudioCaptured"));
           return;
         }
 
@@ -1990,7 +1990,7 @@ const Composer: FC<{
                 </span>
               </div>
               <span className="text-[11px] font-mono text-terminal-muted/80">
-                {isLoadingSkills ? "Loading skills..." : `${filteredSkills.length} result${filteredSkills.length === 1 ? "" : "s"}`}
+                {isLoadingSkills ? t("skillImportOverlay.loadingSkills") : t("skillImportOverlay.skillResults", { count: filteredSkills.length })}
               </span>
             </div>
             <div className="relative mt-2">

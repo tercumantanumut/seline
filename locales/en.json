@@ -805,6 +805,19 @@
       "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Edit (FLUX.2 Klein 9B)",
       "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)"
+    },
+    "skillImportOverlay": {
+      "uploading": "Uploading…",
+      "parsing": "Parsing package…",
+      "importing": "Importing skill…",
+      "success": "Import complete!",
+      "error": "Import failed",
+      "readyToUse": "{name} is ready to use",
+      "loadingSkills": "Loading skills...",
+      "skillResults": "{count, plural, one {# result} other {# results}}"
+    },
+    "audio": {
+      "noAudioCaptured": "No audio captured. Please try again."
     }
   },
   "folderSync": {
