@@ -2324,6 +2324,24 @@
       "downloadFailed": "İndirme başarısız",
       "executable": "Çalıştırılabilir"
     },
+    "new": {
+      "backToSkills": "Becerilere Dön",
+      "title": "Beceri Oluştur",
+      "nameLabel": "Ad",
+      "namePlaceholder": "Haftalık rakip özeti",
+      "categoryLabel": "Kategori",
+      "categoryPlaceholder": "pazarlama",
+      "descriptionLabel": "Açıklama",
+      "descriptionPlaceholder": "Haftalık rakip değişikliklerini kısa maddeler halinde özetle.",
+      "promptLabel": "Şablon Prompt",
+      "promptPlaceholder": "Son 7 günü analiz et ve en fazla 5 madde sun.",
+      "toolHintsLabel": "Araç İpuçları (her satıra bir tane)",
+      "triggerLabel": "Tetikleyici Örnekler (her satıra bir tane)",
+      "triggerPlaceholder": "Bu hafta rakiplerimizde ne değişti?",
+      "cancel": "İptal",
+      "create": "Beceri Oluştur",
+      "createFailed": "Beceri oluşturulamadı"
+    },
     "import": {
       "uploading": "Yükleniyor...",
       "parsing": "Paket ayrıştırılıyor...",

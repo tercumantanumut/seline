@@ -2339,6 +2339,24 @@
       "downloadFailed": "Download failed",
       "executable": "Executable"
     },
+    "new": {
+      "backToSkills": "Back to Skills",
+      "title": "Create Skill",
+      "nameLabel": "Name",
+      "namePlaceholder": "Weekly competitor summary",
+      "categoryLabel": "Category",
+      "categoryPlaceholder": "marketing",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Summarize weekly competitor changes with concise bullets.",
+      "promptLabel": "Prompt Template",
+      "promptPlaceholder": "Analyze the last 7 days and provide 5 bullets max.",
+      "toolHintsLabel": "Tool Hints (one per line)",
+      "triggerLabel": "Trigger Examples (one per line)",
+      "triggerPlaceholder": "What changed with our competitors this week?",
+      "cancel": "Cancel",
+      "create": "Create Skill",
+      "createFailed": "Failed to create skill"
+    },
     "import": {
       "uploading": "Uploading...",
       "parsing": "Parsing package...",

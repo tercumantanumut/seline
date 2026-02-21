@@ -7,6 +7,7 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 function splitLines(value: string): string[] {
   return value
@@ -18,6 +19,7 @@ function splitLines(value: string): string[] {
 export default function NewSkillPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: characterId } = use(params);
   const router = useRouter();
+  const t = useTranslations("skills.new");
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -54,7 +56,7 @@ export default function NewSkillPage({ params }: { params: Promise<{ id: string 
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to create skill");
+        throw new Error(payload?.error || t("createFailed"));
       }
 
       const skillId = payload?.skill?.id;
@@ -64,7 +66,7 @@ export default function NewSkillPage({ params }: { params: Promise<{ id: string 
         router.push(`/agents/${characterId}/skills`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create skill");
+      setError(err instanceof Error ? err.message : t("createFailed"));
     } finally {
       setSaving(false);
     }
@@ -76,73 +78,73 @@ export default function NewSkillPage({ params }: { params: Promise<{ id: string 
         <Button asChild variant="ghost" className="mb-4 font-mono">
           <Link href={`/agents/${characterId}/skills`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Skills
+            {t("backToSkills")}
           </Link>
         </Button>
 
         <Card className="border-terminal-border">
           <CardHeader>
-            <CardTitle className="font-mono text-terminal-dark">Create Skill</CardTitle>
+            <CardTitle className="font-mono text-terminal-dark">{t("title")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-mono text-terminal-dark">
-                Name
+                {t("nameLabel")}
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                  placeholder="Weekly competitor summary"
+                  placeholder={t("namePlaceholder")}
                 />
               </label>
               <label className="text-sm font-mono text-terminal-dark">
-                Category
+                {t("categoryLabel")}
                 <input
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="mt-1 w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                  placeholder="marketing"
+                  placeholder={t("categoryPlaceholder")}
                 />
               </label>
             </div>
 
             <label className="block text-sm font-mono text-terminal-dark">
-              Description
+              {t("descriptionLabel")}
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="mt-1 min-h-[84px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                placeholder="Summarize weekly competitor changes with concise bullets."
+                placeholder={t("descriptionPlaceholder")}
               />
             </label>
 
             <label className="block text-sm font-mono text-terminal-dark">
-              Prompt Template
+              {t("promptLabel")}
               <textarea
                 value={promptTemplate}
                 onChange={(e) => setPromptTemplate(e.target.value)}
                 className="mt-1 min-h-[180px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                placeholder="Analyze the last 7 days and provide 5 bullets max."
+                placeholder={t("promptPlaceholder")}
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm font-mono text-terminal-dark">
-                Tool Hints (one per line)
+                {t("toolHintsLabel")}
                 <textarea
                   value={toolHints}
                   onChange={(e) => setToolHints(e.target.value)}
                   className="mt-1 min-h-[110px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                  placeholder="webSearch\nwebBrowse"
+                  placeholder="webSearch&#10;webBrowse"
                 />
               </label>
               <label className="block text-sm font-mono text-terminal-dark">
-                Trigger Examples (one per line)
+                {t("triggerLabel")}
                 <textarea
                   value={triggerExamples}
                   onChange={(e) => setTriggerExamples(e.target.value)}
                   className="mt-1 min-h-[110px] w-full rounded border border-terminal-border bg-white px-3 py-2 font-mono text-sm"
-                  placeholder="What changed with our competitors this week?"
+                  placeholder={t("triggerPlaceholder")}
                 />
               </label>
             </div>
@@ -151,11 +153,11 @@ export default function NewSkillPage({ params }: { params: Promise<{ id: string 
 
             <div className="flex items-center justify-end gap-2">
               <Button variant="outline" className="font-mono" asChild>
-                <Link href={`/agents/${characterId}/skills`}>Cancel</Link>
+                <Link href={`/agents/${characterId}/skills`}>{t("cancel")}</Link>
               </Button>
               <Button onClick={handleSubmit} className="font-mono" disabled={!canSubmit || saving}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Create Skill
+                {t("create")}
               </Button>
             </div>
           </CardContent>
