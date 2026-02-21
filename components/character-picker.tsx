@@ -1369,6 +1369,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to delete character:", error);
+      toast.error(t("deleteFailed"));
     } finally {
       setIsDeleting(false);
     }
@@ -1413,6 +1414,7 @@ export function CharacterPicker() {
       );
     } catch (error) {
       console.error("Failed to load agent plugins:", error);
+      toast.error(t("plugins.loadFailed"));
       setAgentPlugins([]);
     } finally {
       setLoadingAgentPlugins(false);
@@ -1447,6 +1449,7 @@ export function CharacterPicker() {
       });
     } catch (error) {
       console.error("Failed to update agent plugin:", error);
+      toast.error(t("plugins.updateFailed"));
     } finally {
       setSavingPluginId(null);
     }
@@ -1499,6 +1502,7 @@ export function CharacterPicker() {
       }
     } catch (error) {
       console.error("Failed to save MCP tools:", error);
+      toast.error(t("saveMcpFailed"));
     } finally {
       setIsSaving(false);
     }

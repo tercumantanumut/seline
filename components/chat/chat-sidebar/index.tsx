@@ -435,6 +435,7 @@ export function CharacterSidebar({
               onClick={() => setAvatarDialogOpen(true)}
               className="relative group cursor-pointer"
               title={t("sidebar.changeAvatar")}
+              aria-label={t("sidebar.changeAvatar")}
             >
               <Avatar className="h-10 w-10 shadow-sm">
                 {avatarUrl ? (
@@ -529,7 +530,7 @@ export function CharacterSidebar({
                 <button
                   className="absolute right-2 top-2.5 text-terminal-muted hover:text-terminal-dark transition-colors"
                   onClick={() => onSearchChange("")}
-                  aria-label="Clear search"
+                  aria-label={t("sidebar.clearSearch")}
                 >
                   <X className="h-4 w-4" />
                 </button>

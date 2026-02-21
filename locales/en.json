@@ -195,6 +195,8 @@
     "deleteAgent": "Delete agent",
     "saveToolsFailed": "Failed to save tool selection",
     "saveIdentityFailed": "Failed to save agent details",
+    "deleteFailed": "Failed to delete agent",
+    "saveMcpFailed": "Failed to save MCP tool settings",
     "folders": "Folders",
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
@@ -214,7 +216,9 @@
       "subtitle": "Enable or disable plugins for {name}",
       "configure": "Configure plugins",
       "enabledCount": "{count, plural, one {# plugin enabled} other {# plugins enabled}}",
-      "empty": "No assignable plugins found"
+      "empty": "No assignable plugins found",
+      "loadFailed": "Failed to load plugins",
+      "updateFailed": "Failed to update plugin"
     },
     "mcpRemovalWarning": {
       "title": "Active Session Detected",
@@ -1829,6 +1833,7 @@
       "viewAnalytics": "View analytics",
       "copyLink": "Copy link",
       "linkCopied": "Link copied!",
+      "clearSearch": "Clear search",
       "moreOptions": "More options",
       "archive": "Archive chat",
       "archived": "Archived",

@@ -195,6 +195,8 @@
     "deleteAgent": "Ajanı sil",
     "saveToolsFailed": "Araç seçimi kaydedilemedi",
     "saveIdentityFailed": "Ajan bilgileri kaydedilemedi",
+    "deleteFailed": "Ajan silinemedi",
+    "saveMcpFailed": "MCP araç ayarları kaydedilemedi",
     "folders": "Klasörler",
     "configureTools": "Araçları yapılandır",
     "mcpTools": "MCP Araçları",
@@ -214,7 +216,9 @@
       "subtitle": "{name} için eklentileri etkinleştirin veya devre dışı bırakın",
       "configure": "Eklentileri yapılandır",
       "enabledCount": "{count, plural, one {# eklenti etkin} other {# eklenti etkin}}",
-      "empty": "Atanabilir eklenti bulunamadı"
+      "empty": "Atanabilir eklenti bulunamadı",
+      "loadFailed": "Eklentiler yüklenemedi",
+      "updateFailed": "Eklenti güncellenemedi"
     },
     "mcpRemovalWarning": {
       "title": "Aktif Oturum Tespit Edildi",
@@ -1810,6 +1814,7 @@
       "viewAnalytics": "Analitikleri görüntüle",
       "copyLink": "Bağlantıyı kopyala",
       "linkCopied": "Bağlantı kopyalandı!",
+      "clearSearch": "Aramayı temizle",
       "moreOptions": "Diğer seçenekler",
       "archive": "Sohbeti arşivle",
       "archived": "Arşivlendi",
