@@ -1110,6 +1110,24 @@ export default function ChatInterface({
         }
     }, [sessions, loadSessions]);
 
+    const archiveSession = useCallback(async (sessionToArchiveId: string) => {
+        try {
+            await resilientPatch(`/api/sessions/${sessionToArchiveId}`, { status: "archived" });
+            // If archiving the current session, clear it
+            if (sessionToArchiveId === sessionId) {
+                const remaining = sessions.filter((s) => s.id !== sessionToArchiveId);
+                if (remaining.length > 0) {
+                    await switchSession(remaining[0].id);
+                } else {
+                    router.replace(`/chat/${character.id}`, { scroll: false });
+                }
+            }
+            await loadSessions({ silent: true, overrideCursor: null, preserveExtra: userLoadedMoreRef.current });
+        } catch (error) {
+            console.error("Failed to archive session:", error);
+        }
+    }, [sessionId, sessions, switchSession, loadSessions, router, character.id]);
+
     const handleAvatarChange = useCallback((newAvatarUrl: string | null) => {
         setCharacterDisplay((prev) => ({
             ...prev,
@@ -1175,6 +1193,7 @@ export default function ChatInterface({
                     onRenameSession={renameSession}
                     onExportSession={exportSession}
                     onPinSession={pinSession}
+                    onArchiveSession={archiveSession}
                     onAvatarChange={handleAvatarChange}
                 />
             }
