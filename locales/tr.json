@@ -2765,7 +2765,39 @@
         "toolEventsWillAppear": "Araç yürütmeleri burada görünecek",
         "viewData": "Verileri gör ({count} alan)",
         "runNotFound": "Çalıştırma bulunamadı",
-        "failedToLoad": "Çalıştırma yüklenemedi"
+        "failedToLoad": "Çalıştırma yüklenemedi",
+        "backToRuns": "Çalıştırmalara Dön",
+        "metadata": "Meta Veri",
+        "eventTimeline": "Olay Zaman Çizelgesi ({count} olay)",
+        "noEventsRecorded": "Kayıtlı olay yok",
+        "durationLabel": "Süre:"
+      }
+    },
+    "prompts": {
+      "title": "Komut Şablonları",
+      "subtitle": "Komut versiyonu performansını görüntüle ve karşılaştır",
+      "refresh": "Yenile",
+      "noTemplates": "Komut şablonu bulunamadı",
+      "loadFailed": "Komutlar yüklenemedi",
+      "created": "Oluşturuldu: {date}",
+      "detail": {
+        "backToPrompts": "Komutlara Dön",
+        "versions": "Versiyonlar",
+        "versionCount": "{count} versiyon",
+        "selectVersions": "Karşılaştırmak için versiyonları seçin",
+        "metricsComparison": "Metrik Karşılaştırması",
+        "promptContent": "Komut İçeriği",
+        "runs": "{count} çalıştırma",
+        "table": {
+          "version": "Versiyon",
+          "runs": "Çalıştırma",
+          "success": "Başarılı",
+          "failed": "Başarısız",
+          "rate": "Oran",
+          "avgDuration": "Ort. Süre"
+        },
+        "templateNotFound": "Şablon bulunamadı",
+        "loadFailed": "Şablon yüklenemedi"
       }
     }
   },

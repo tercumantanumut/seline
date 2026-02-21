@@ -2780,7 +2780,39 @@
         "toolEventsWillAppear": "Tool executions will appear here",
         "viewData": "View data ({count} fields)",
         "runNotFound": "Run not found",
-        "failedToLoad": "Failed to load run"
+        "failedToLoad": "Failed to load run",
+        "backToRuns": "Back to Runs",
+        "metadata": "Metadata",
+        "eventTimeline": "Event Timeline ({count} events)",
+        "noEventsRecorded": "No events recorded",
+        "durationLabel": "Duration:"
+      }
+    },
+    "prompts": {
+      "title": "Prompt Templates",
+      "subtitle": "View and compare prompt version performance",
+      "refresh": "Refresh",
+      "noTemplates": "No prompt templates found",
+      "loadFailed": "Failed to load prompts",
+      "created": "Created: {date}",
+      "detail": {
+        "backToPrompts": "Back to Prompts",
+        "versions": "Versions",
+        "versionCount": "{count, plural, one {# version} other {# versions}}",
+        "selectVersions": "Select versions to compare",
+        "metricsComparison": "Metrics Comparison",
+        "promptContent": "Prompt Content",
+        "runs": "{count} runs",
+        "table": {
+          "version": "Version",
+          "runs": "Runs",
+          "success": "Success",
+          "failed": "Failed",
+          "rate": "Rate",
+          "avgDuration": "Avg Duration"
+        },
+        "templateNotFound": "Template not found",
+        "loadFailed": "Failed to load template"
       }
     }
   },
