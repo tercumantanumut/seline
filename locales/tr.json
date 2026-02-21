@@ -1501,6 +1501,8 @@
         "title": "Gelişmiş Vektör Ayarları",
         "description": "Geri getirme, parçalama, yeniden sıralama ve dosya limitlerini ince ayarlayın.",
         "resetToDefaults": "Varsayılanlara sıfırla",
+        "expand": "Gelişmiş ayarları genişlet",
+        "collapse": "Gelişmiş ayarları daralt",
         "hybridSearch": {
           "title": "Hibrit Arama",
           "description": "Daha iyi kapsam için yoğun ve sözcüksel aramayı birleştirir.",
@@ -1601,7 +1603,9 @@
       "envVarsAdded": "{count} ortam değişkeni eklendi. Değerleri aşağıya girin.",
       "deleteConfirm": "{name} silinsin mi?",
       "invalidJsonMissingRoot": "Geçersiz JSON: 'mcpServers' kök anahtarı eksik",
-      "invalidJsonSyntax": "Geçersiz JSON sözdizimi"
+      "invalidJsonSyntax": "Geçersiz JSON sözdizimi",
+      "removeEnvVar": "Ortam değişkenini kaldır",
+      "removeArg": "Argümanı kaldır"
     }
   },
   "modelBag": {
@@ -2463,6 +2467,9 @@
     "title": "Eklentiler",
     "noPlugins": "Eklenti yüklü değil",
     "noPluginsHint": "Başlamak için bir eklenti .zip paketi yükleyin",
+    "expandPlugin": "{name} ayrıntılarını genişlet",
+    "collapsePlugin": "{name} ayrıntılarını daralt",
+    "uninstallPluginLabel": "{name} eklentisini kaldır",
     "pluginInstalled": "\"{name}\" eklentisi yüklendi",
     "pluginEnabled": "Eklenti etkinleştirildi",
     "pluginDisabled": "Eklenti devre dışı bırakıldı",

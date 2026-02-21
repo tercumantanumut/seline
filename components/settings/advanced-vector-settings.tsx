@@ -97,6 +97,8 @@ export function AdvancedVectorSettings(props: AdvancedVectorSettingsProps) {
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center justify-between bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4 transition-colors hover:bg-terminal-cream dark:hover:bg-terminal-cream-dark/70"
+                aria-expanded={isExpanded}
+                aria-label={isExpanded ? t("collapse") : t("expand")}
             >
                 <div className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4 text-terminal-muted" />

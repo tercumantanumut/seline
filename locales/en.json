@@ -1457,7 +1457,9 @@
       "envVarsAdded": "Added {count} environment variable(s). Fill in the values below.",
       "deleteConfirm": "Delete {name}?",
       "invalidJsonMissingRoot": "Invalid JSON: missing 'mcpServers' root key",
-      "invalidJsonSyntax": "Invalid JSON syntax"
+      "invalidJsonSyntax": "Invalid JSON syntax",
+      "removeEnvVar": "Remove environment variable",
+      "removeArg": "Remove argument"
     },
     "models": {
       "title": "Model choices",
@@ -1560,6 +1562,8 @@
         "title": "Advanced Vector Settings",
         "description": "Fine-tune retrieval behavior, chunking, reranking, and file limits.",
         "resetToDefaults": "Reset to defaults",
+        "expand": "Expand advanced settings",
+        "collapse": "Collapse advanced settings",
         "hybridSearch": {
           "title": "Hybrid Search",
           "description": "Combine dense and lexical search for better recall.",
@@ -2473,6 +2477,9 @@
     "disable": "Disable",
     "noPlugins": "No plugins installed",
     "noPluginsHint": "Upload a plugin .zip package to get started",
+    "expandPlugin": "Expand {name} details",
+    "collapsePlugin": "Collapse {name} details",
+    "uninstallPluginLabel": "Uninstall {name}",
     "pluginInstalled": "Plugin \"{name}\" installed",
     "pluginEnabled": "Plugin enabled",
     "pluginDisabled": "Plugin disabled",

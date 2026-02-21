@@ -8,6 +8,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,7 @@ export function MCPServerForm({
     onCancel,
     existingNames = [],
 }: MCPServerFormProps) {
+    const t = useTranslations("settings.mcp");
     // Basic fields
     const [serverName, setServerName] = useState(initialName);
     const [serverType, setServerType] = useState<"stdio" | "sse">(
@@ -396,6 +398,7 @@ export function MCPServerForm({
                                     size="icon"
                                     variant="ghost"
                                     className="h-8 w-8 shrink-0"
+                                    aria-label={t("removeArg")}
                                     onClick={() => handleRemoveArg(index)}
                                 >
                                     <X className="h-3 w-3" />

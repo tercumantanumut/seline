@@ -465,6 +465,8 @@ export function PluginSettings() {
                   <button
                     onClick={() => toggleExpanded(plugin.id)}
                     className="flex items-center gap-2 text-left"
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? t("collapsePlugin", { name: plugin.name }) : t("expandPlugin", { name: plugin.name })}
                   >
                     {isExpanded ? (
                       <ChevronDown className="size-4 text-terminal-muted shrink-0" />
@@ -497,6 +499,7 @@ export function PluginSettings() {
                     variant="ghost"
                     size="icon"
                     className="size-8 text-red-500 hover:text-red-600"
+                    aria-label={t("uninstallPluginLabel", { name: plugin.name })}
                     onClick={() => uninstallPlugin(plugin.id, plugin.name)}
                   >
                     <Trash2 className="size-4" />

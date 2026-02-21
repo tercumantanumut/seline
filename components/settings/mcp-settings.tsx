@@ -687,7 +687,7 @@ export function MCPSettings() {
                                 className="flex-1 font-mono text-xs"
                                 onBlur={() => saveAll(mcpServers, environment)}
                             />
-                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => {
+                            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("removeEnvVar")} onClick={() => {
                                 const newEnv = { ...environment };
                                 delete newEnv[key];
                                 setEnvironment(newEnv);
