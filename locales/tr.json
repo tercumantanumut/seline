@@ -507,7 +507,8 @@
         "comfyuiEnabled": "ComfyUI etkin olmalı",
         "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
         "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "localGrepEnabled": "Yerel Grep etkin olmalı",
+        "devWorkspaceEnabled": "Geliştirici Çalışma Alanı etkin olmalı"
       }
     },
     "tools": {
@@ -718,6 +719,14 @@
       "localGrep": {
         "name": "Yerel Grep",
         "description": "ripgrep ile hızlı ve regex arama"
+      },
+      "workspace": {
+        "name": "Çalışma Alanı",
+        "description": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet"
+      },
+      "delegateToSubagent": {
+        "name": "Alt Ajana Devret",
+        "description": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       }
     }
   },
@@ -917,7 +926,8 @@
       "referenceImageFlux2Klein9B": "Referans (FLUX.2 Klein 9B)",
       "toolOutputPreview": "Araç çıktı önizlemesi {index}",
       "hide": "Gizle",
-      "details": "Detaylar"
+      "details": "Detaylar",
+      "workspace": "Çalışma Alanı"
     },
     "patchFile": {
       "patchLabel": "Yama",
@@ -1517,7 +1527,11 @@
         "localGrep": "Yerel Grep",
         "localGrepDesc": "ripgrep ile hızlı ve regex arama",
         "memorize": "Hafıza",
-        "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin"
+        "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin",
+        "workspace": "Çalışma Alanı",
+        "workspaceDesc": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet",
+        "delegateToSubagent": "Alt Ajana Devret",
+        "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
       },
       "back": "← Geri",
       "continue": "Devam →",
@@ -1532,7 +1546,8 @@
         "comfyuiEnabled": "ComfyUI etkin olmalı",
         "flux2Klein4bEnabled": "FLUX.2 Klein 4B etkin olmalı",
         "flux2Klein9bEnabled": "FLUX.2 Klein 9B etkin olmalı",
-        "localGrepEnabled": "Yerel Grep etkin olmalı"
+        "localGrepEnabled": "Yerel Grep etkin olmalı",
+        "devWorkspaceEnabled": "Geliştirici Çalışma Alanı etkin olmalı"
       }
     },
     "style": {
@@ -3219,18 +3234,6 @@
         "label": "Değişkenler"
       }
     },
-    "retry": "Tekrar Dene",
-    "filters": {
-      "search": "Zamanlamalarda ara...",
-      "allStatuses": "Tüm Durumlar",
-      "active": "Aktif",
-      "inactive": "Pasif",
-      "allPriorities": "Tüm Öncelikler",
-      "high": "Yüksek",
-      "normal": "Normal",
-      "low": "Düşük",
-      "draft": "Taslak"
-    },
     "empty": {
       "title": "Henüz zamanlanmış görev yok",
       "description": "Ajanınızı otomatikleştirmek için bir zamanlama oluşturun",
@@ -3477,6 +3480,17 @@
     "viewAgents": "Ajanları Görüntüle",
     "browseMarketplace": "Pazaryerini gözat",
     "hideMarketplace": "Pazaryerini gizle",
+    "import": {
+      "pluginInstalled": "Eklenti yüklendi",
+      "skillImported": "Beceri başarıyla içe aktarıldı",
+      "viewPlugins": "Eklentileri Görüntüle",
+      "viewSkills": "Becerileri Görüntüle",
+      "importFailed": "İçe aktarma başarısız",
+      "parsingPackage": "Paket ayrıştırılıyor…",
+      "importingPlugin": "Eklenti yükleniyor…",
+      "uploading": "Yükleniyor…",
+      "importComplete": "İçe aktarma tamamlandı!"
+    },
     "errorTitle": "Sorun",
     "author": "Yazar",
     "installedLabel": "Yüklendi",
