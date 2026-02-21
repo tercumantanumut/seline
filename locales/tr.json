@@ -2361,7 +2361,12 @@
       },
       "save": "İş akışını kaydet",
       "saving": "Kaydediliyor...",
-      "delete": "Sil"
+      "delete": "Sil",
+      "loadFailed": "İş akışları yüklenemedi",
+      "analysisFailed": "İş akışı analizi başarısız",
+      "formatFailed": "JSON biçimlendirme başarısız",
+      "saveFailed": "İş akışı kaydedilemedi",
+      "deleteFailed": "İş akışı silinemedi"
     },
     "localModels": {
       "title": "Yerel Görsel Üretimi",
@@ -3524,5 +3529,8 @@
       "hooks": "kancalar",
       "mcpServers": "{count} MCP sunucusu"
     }
+  },
+  "dev": {
+    "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
   }
 }

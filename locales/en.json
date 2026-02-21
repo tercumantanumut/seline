@@ -2376,7 +2376,12 @@
       },
       "save": "Save workflow",
       "saving": "Saving...",
-      "delete": "Delete"
+      "delete": "Delete",
+      "loadFailed": "Failed to load workflows",
+      "analysisFailed": "Workflow analysis failed",
+      "formatFailed": "Failed to format JSON",
+      "saveFailed": "Workflow save failed",
+      "deleteFailed": "Workflow delete failed"
     },
     "localModels": {
       "title": "Local Image Generation",
@@ -3543,5 +3548,8 @@
       "uploading": "Uploading…",
       "importComplete": "Import complete!"
     }
+  },
+  "dev": {
+    "dimensionMismatch": "Embedding dimension mismatch. Re-sync your folders in Settings to fix."
   }
 }
