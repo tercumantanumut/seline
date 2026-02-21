@@ -155,16 +155,59 @@ const STREAM_BATCH_INTERVAL_MS = Number.isFinite(envInterval)
 const envMax = Number(process.env.NEXT_PUBLIC_STREAM_BATCH_MAX_CHARS);
 const STREAM_BATCH_MAX_CHARS = Number.isFinite(envMax) ? envMax : 4000;
 
+let hasRequestedDesktopPermission = false;
+
+async function notifyDesktopCompletion(): Promise<void> {
+  if (typeof window === "undefined" || typeof Notification === "undefined") {
+    return;
+  }
+
+  let permission = Notification.permission;
+
+  // Request permission once from app context so macOS can show the native prompt.
+  if (permission === "default" && !hasRequestedDesktopPermission) {
+    hasRequestedDesktopPermission = true;
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      return;
+    }
+  }
+
+  if (permission !== "granted") {
+    return;
+  }
+
+  try {
+    new Notification("Seline", {
+      body: "Task completed successfully",
+      silent: false,
+    });
+  } catch {
+    // Ignore renderer notification errors; chat flow must never be blocked.
+  }
+}
+
 class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   protected override processResponseStream(
     stream: ReadableStream<Uint8Array>,
   ): ReadableStream<UIMessageChunk> {
-    // Allow turning batching off via env flag (roll-back lever).
+    const baseStream = super.processResponseStream(stream);
+
+    // Keep desktop completion notifications active even if delta batching is disabled.
     if (!STREAM_BATCH_ENABLED) {
-      return super.processResponseStream(stream);
+      return baseStream.pipeThrough(
+        new TransformStream<UIMessageChunk, UIMessageChunk>({
+          transform(chunk, controller) {
+            controller.enqueue(chunk);
+          },
+          flush() {
+            void notifyDesktopCompletion();
+          },
+        }),
+      );
     }
 
-    const baseStream = super.processResponseStream(stream);
 
     let bufferedDelta = "";
     let lastTextId: string | null = null;
@@ -265,6 +308,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
         flush(controller) {
           clearTimer();
           flushBuffer(controller);
+          void notifyDesktopCompletion();
         },
       }),
     );
