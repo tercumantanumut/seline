@@ -50,6 +50,7 @@ type ChatStats = {
   pinnedSessions: SessionInfo[];
   recentSessions: SessionInfo[];
   topAgents: AgentStat[];
+  agentMap: Record<string, { name: string; avatarUrl: string | null }>;
 };
 
 // Skill telemetry types (kept for the collapsed section)
@@ -428,7 +429,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {chatStats.pinnedSessions.map((session) => {
-                    const agent = chatStats.topAgents.find((a) => a.id === session.characterId);
+                    const agent = session.characterId ? chatStats.agentMap[session.characterId] : undefined;
                     return (
                       <SessionCard
                         key={session.id}
@@ -460,7 +461,7 @@ export default function DashboardPage() {
                     </p>
                   ) : (
                     chatStats.recentSessions.map((session) => {
-                      const agent = chatStats.topAgents.find((a) => a.id === session.characterId);
+                      const agent = session.characterId ? chatStats.agentMap[session.characterId] : undefined;
                       return (
                         <SessionCard
                           key={session.id}

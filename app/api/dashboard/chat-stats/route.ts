@@ -162,6 +162,15 @@ export async function GET(req: NextRequest) {
       metadata: (s.metadata ?? {}) as Record<string, unknown>,
     });
 
+    // Full agent lookup map (for pinned/recent sessions that may not be in topAgents)
+    const agentMap: Record<string, { name: string; avatarUrl: string | null }> = {};
+    for (const [id, detail] of agentDetailsMap) {
+      agentMap[id] = {
+        name: detail.displayName ?? detail.name,
+        avatarUrl: detail.avatarUrl,
+      };
+    }
+
     return NextResponse.json({
       totalSessions: totalsRow.totalSessions,
       totalMessages: totalsRow.totalMessages,
@@ -170,6 +179,7 @@ export async function GET(req: NextRequest) {
       pinnedSessions: pinnedRows.map(toSessionInfo),
       recentSessions: recentRows.map(toSessionInfo),
       topAgents,
+      agentMap,
     });
   } catch (error) {
     console.error("[dashboard/chat-stats] Failed:", error);
