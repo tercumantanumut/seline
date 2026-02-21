@@ -15,6 +15,8 @@ type ChildPayload = {
   };
 };
 
+const ORIGINAL_EXEC_PATH = process.execPath;
+
 type CmdProcessInfo = {
   ProcessId: number;
   ParentProcessId: number;
@@ -176,8 +178,36 @@ describe("StdioClientTransport (integration)", () => {
           await waitForFile(outputPath, 2000);
           const payload = JSON.parse(fs.readFileSync(outputPath, "utf8")) as ChildPayload;
 
-          expect(payload.execPath).toBe(process.execPath);
-          expect(payload.env.ELECTRON_RUN_AS_NODE).toBe("1");
+          let expectedExecPath = process.execPath;
+          let expectRunAsNode = true;
+          if (process.platform !== "win32") {
+            try {
+              const resolved = execSync("command -v node", {
+                encoding: "utf8",
+                timeout: 2000,
+              }).trim();
+              if (resolved && path.isAbsolute(resolved)) {
+                expectedExecPath = resolved;
+                expectRunAsNode = false;
+              }
+            } catch {
+              // Ignore command lookup failures.
+            }
+          }
+
+          const resolvedPayloadExecPath = fs.existsSync(payload.execPath)
+            ? fs.realpathSync(payload.execPath)
+            : payload.execPath;
+          const resolvedExpectedExecPath = fs.existsSync(expectedExecPath)
+            ? fs.realpathSync(expectedExecPath)
+            : expectedExecPath;
+
+          expect(resolvedPayloadExecPath).toBe(resolvedExpectedExecPath);
+          if (expectRunAsNode) {
+            expect(payload.env.ELECTRON_RUN_AS_NODE).toBe("1");
+          } else {
+            expect(payload.env.ELECTRON_RUN_AS_NODE).toBeNull();
+          }
           // if (process.platform === "win32") {
           //   expect(payload.env.npm_config_script_shell).toBe(process.execPath);
           // }
@@ -194,6 +224,70 @@ describe("StdioClientTransport (integration)", () => {
       } else {
         process.env.ELECTRON_RESOURCES_PATH = originalResourcesPath;
       }
+      fs.rmSync(resourcesRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to system node runtime when bundled node binary is unusable", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const fixturePath = path.join(process.cwd(), "tests", "fixtures", "mcp-idle-server.js");
+    const resourcesRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-unusable-node-"));
+    const npmBinDir = path.join(resourcesRoot, "standalone", "node_modules", "npm", "bin");
+    const bundledNodeDir = path.join(resourcesRoot, "standalone", "node_modules", ".bin");
+    fs.mkdirSync(npmBinDir, { recursive: true });
+    fs.mkdirSync(bundledNodeDir, { recursive: true });
+
+    const npxCliPath = path.join(npmBinDir, "npx-cli.js");
+    fs.copyFileSync(fixturePath, npxCliPath);
+
+    const unusableBundledNodePath = path.join(bundledNodeDir, "node");
+    fs.writeFileSync(unusableBundledNodePath, "not-a-real-node-binary\n", "utf8");
+    fs.chmodSync(unusableBundledNodePath, 0o755);
+
+    const fallbackNodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-system-node-"));
+    const fallbackNodePath = path.join(fallbackNodeDir, "node");
+    fs.symlinkSync(ORIGINAL_EXEC_PATH, fallbackNodePath);
+
+    const outputPath = path.join(os.tmpdir(), `mcp-stdio-unusable-node-${Date.now()}.json`);
+    const originalResourcesPath = process.env.ELECTRON_RESOURCES_PATH;
+
+    const transport = new StdioClientTransport({
+      command: "npx",
+      args: [outputPath],
+      env: {
+        PATH: `${bundledNodeDir}${path.delimiter}${fallbackNodeDir}`,
+      },
+      stderr: "pipe",
+    });
+
+    try {
+      process.env.ELECTRON_RESOURCES_PATH = resourcesRoot;
+
+      await transport.start();
+      await waitForFile(outputPath, 2000);
+      const payload = JSON.parse(fs.readFileSync(outputPath, "utf8")) as ChildPayload;
+
+      const resolvedPayloadExecPath = fs.existsSync(payload.execPath)
+        ? fs.realpathSync(payload.execPath)
+        : payload.execPath;
+      const resolvedFallbackExecPath = fs.realpathSync(fallbackNodePath);
+
+      expect(resolvedPayloadExecPath).toBe(resolvedFallbackExecPath);
+      expect(payload.env.ELECTRON_RUN_AS_NODE).toBeNull();
+    } finally {
+      await transport.close();
+      if (originalResourcesPath === undefined) {
+        delete process.env.ELECTRON_RESOURCES_PATH;
+      } else {
+        process.env.ELECTRON_RESOURCES_PATH = originalResourcesPath;
+      }
+      if (fs.existsSync(outputPath)) {
+        fs.unlinkSync(outputPath);
+      }
+      fs.rmSync(fallbackNodeDir, { recursive: true, force: true });
       fs.rmSync(resourcesRoot, { recursive: true, force: true });
     }
   });
