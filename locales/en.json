@@ -961,7 +961,13 @@
       "viewPlugins": "View Plugins",
       "importTimedOut": "Import timed out",
       "importTimedOutDesc": "Import timed out after 2 minutes. Please try again.",
-      "importFailed": "Import failed"
+      "importFailed": "Import failed",
+      "skillCount": "{count, plural, one {# skill} other {# skills}}",
+      "agentCount": "{count, plural, one {# agent} other {# agents}}",
+      "hooksEnabled": "hooks enabled",
+      "mcpServerCount": "{count, plural, one {# MCP server} other {# MCP servers}}",
+      "agentProfilesCreated": "{count, plural, one {# agent profile created} other {# agent profiles created}}",
+      "workflowCreated": "workflow created with {count} agents"
     },
     "audio": {
       "noAudioCaptured": "No audio captured. Please try again.",
@@ -3467,10 +3473,14 @@
     "workspaceRegisteredDesc": "Reference files are now accessible to the agent via its sync folder.",
     "viewAgents": "View Agents",
     "components": {
-      "skills": "{count} skill(s)",
-      "agents": "{count} agent(s)",
+      "skills": "{count, plural, one {# skill} other {# skills}}",
+      "agents": "{count, plural, one {# agent} other {# agents}}",
       "hooks": "hooks",
-      "mcpServers": "{count} MCP server(s)"
+      "hookEvents": "{count, plural, one {# hook event} other {# hook events}}",
+      "mcpServers": "{count, plural, one {# MCP server} other {# MCP servers}}",
+      "agentRecordsCreated": "{count, plural, one {# agent record created} other {# agent records created}}",
+      "workflowCreated": "workflow created with {count} agents",
+      "referenceFiles": "{count, plural, one {# reference file linked} other {# reference files linked}}"
     },
     "mainAgentLabel": "Main agent",
     "noPluginsYet": "No plugins yet",

@@ -465,26 +465,22 @@ export const Thread: FC<ThreadProps> = ({
 
           const parts: string[] = [];
           if (pluginResult.components?.skills?.length > 0) {
-            parts.push(`${pluginResult.components.skills.length} skill${pluginResult.components.skills.length > 1 ? "s" : ""}`);
+            parts.push(t("skillCount", { count: pluginResult.components.skills.length }));
           }
           if (pluginResult.components?.agents?.length > 0) {
-            parts.push(`${pluginResult.components.agents.length} agent${pluginResult.components.agents.length > 1 ? "s" : ""}`);
+            parts.push(t("agentCount", { count: pluginResult.components.agents.length }));
           }
           if (pluginResult.components?.hasHooks) {
-            parts.push("hooks enabled");
+            parts.push(t("hooksEnabled"));
           }
           if (pluginResult.components?.mcpServers?.length > 0) {
-            parts.push(`${pluginResult.components.mcpServers.length} MCP server${pluginResult.components.mcpServers.length > 1 ? "s" : ""}`);
+            parts.push(t("mcpServerCount", { count: pluginResult.components.mcpServers.length }));
           }
           if (Array.isArray(pluginResult.createdAgents) && pluginResult.createdAgents.length > 0) {
-            parts.push(
-              `${pluginResult.createdAgents.length} agent profile${pluginResult.createdAgents.length > 1 ? "s" : ""} created`
-            );
+            parts.push(t("agentProfilesCreated", { count: pluginResult.createdAgents.length }));
           }
           if (pluginResult.workflow) {
-            parts.push(
-              `workflow created with ${(pluginResult.workflow.subAgentIds?.length || 0) + 1} agents`
-            );
+            parts.push(t("workflowCreated", { count: (pluginResult.workflow.subAgentIds?.length || 0) + 1 }));
           }
 
           setSkillImportPhase("success");

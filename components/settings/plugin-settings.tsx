@@ -221,17 +221,17 @@ export function PluginSettings() {
       const createdAgents = Array.isArray(data.createdAgents) ? data.createdAgents.length : 0;
       const auxCount: number = data.auxiliaryFiles?.count ?? 0;
       const descriptionParts = [
-        `${data.components?.skills?.length || 0} skills`,
-        `${data.components?.agents?.length || 0} agents`,
+        t("components.skills", { count: data.components?.skills?.length || 0 }),
+        t("components.agents", { count: data.components?.agents?.length || 0 }),
       ];
       if (createdAgents > 0) {
-        descriptionParts.push(`${createdAgents} agent records created`);
+        descriptionParts.push(t("components.agentRecordsCreated", { count: createdAgents }));
       }
       if (data.workflow) {
-        descriptionParts.push(`workflow created with ${(data.workflow.subAgentIds?.length || 0) + 1} agents`);
+        descriptionParts.push(t("components.workflowCreated", { count: (data.workflow.subAgentIds?.length || 0) + 1 }));
       }
       if (auxCount > 0) {
-        descriptionParts.push(`${auxCount} reference file${auxCount !== 1 ? "s" : ""} linked to workspace`);
+        descriptionParts.push(t("components.referenceFiles", { count: auxCount }));
       }
 
       toast.success(t("pluginInstalled", { name: data.plugin?.name ?? "" }), {
@@ -280,10 +280,10 @@ export function PluginSettings() {
       ? Object.keys(plugin.components.mcpServers).length
       : 0;
 
-    if (skills > 0) counts.push(`${skills} skill${skills > 1 ? "s" : ""}`);
-    if (agents > 0) counts.push(`${agents} agent${agents > 1 ? "s" : ""}`);
-    if (hookEvents > 0) counts.push(`${hookEvents} hook event${hookEvents > 1 ? "s" : ""}`);
-    if (mcpServers > 0) counts.push(`${mcpServers} MCP server${mcpServers > 1 ? "s" : ""}`);
+    if (skills > 0) counts.push(t("components.skills", { count: skills }));
+    if (agents > 0) counts.push(t("components.agents", { count: agents }));
+    if (hookEvents > 0) counts.push(t("components.hookEvents", { count: hookEvents }));
+    if (mcpServers > 0) counts.push(t("components.mcpServers", { count: mcpServers }));
 
     return counts;
   };

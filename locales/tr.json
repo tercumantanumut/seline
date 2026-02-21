@@ -951,7 +951,13 @@
       "viewPlugins": "Eklentilere Git",
       "importTimedOut": "İçe aktarma zaman aşımına uğradı",
       "importTimedOutDesc": "İçe aktarma 2 dakika sonra zaman aşımına uğradı. Lütfen tekrar deneyin.",
-      "importFailed": "İçe aktarma başarısız"
+      "importFailed": "İçe aktarma başarısız",
+      "skillCount": "{count, plural, one {# beceri} other {# beceri}}",
+      "agentCount": "{count, plural, one {# ajan} other {# ajan}}",
+      "hooksEnabled": "kancalar etkin",
+      "mcpServerCount": "{count, plural, one {# MCP sunucusu} other {# MCP sunucusu}}",
+      "agentProfilesCreated": "{count, plural, one {# ajan profili oluşturuldu} other {# ajan profili oluşturuldu}}",
+      "workflowCreated": "{count} ajanla iş akışı oluşturuldu"
     },
     "audio": {
       "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin.",
@@ -3526,11 +3532,20 @@
       "error": "Hata"
     },
     "components": {
-      "skills": "{count} beceri",
-      "agents": "{count} ajan",
+      "skills": "{count, plural, one {# beceri} other {# beceri}}",
+      "agents": "{count, plural, one {# ajan} other {# ajan}}",
       "hooks": "kancalar",
-      "mcpServers": "{count} MCP sunucusu"
-    }
+      "hookEvents": "{count, plural, one {# kanca olayı} other {# kanca olayı}}",
+      "mcpServers": "{count, plural, one {# MCP sunucusu} other {# MCP sunucusu}}",
+      "agentRecordsCreated": "{count, plural, one {# ajan kaydı oluşturuldu} other {# ajan kaydı oluşturuldu}}",
+      "workflowCreated": "{count} ajanla iş akışı oluşturuldu",
+      "referenceFiles": "{count, plural, one {# referans dosyası eklendi} other {# referans dosyası eklendi}}"
+    },
+    "subtitle": "Ajanınızı beceriler, kancalar, MCP sunucuları ve daha fazlasıyla genişletin.",
+    "enable": "Etkinleştir",
+    "disable": "Devre Dışı Bırak",
+    "uninstall": "Kaldır",
+    "onlyZipSupported": "Yalnızca .zip eklenti paketleri desteklenir"
   },
   "dev": {
     "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
