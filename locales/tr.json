@@ -2235,7 +2235,21 @@
       "globalLabel": "global:",
       "providerDefault": "(sağlayıcı varsayılanı)",
       "modelLabel": "Model",
-      "globalStatus": "Global"
+      "globalStatus": "Global",
+      "overrideBadge": "GEÇERSİZ"
+    },
+    "providerFilter": {
+      "all": "Tümü",
+      "activeProvider": "{name} (aktif sağlayıcı)",
+      "doubleClickToSwitch": "{name} — geçmek için çift tıklayın",
+      "notConfigured": "{name} — yapılandırılmamış"
+    },
+    "tooltip": {
+      "assigned": "Atanan:",
+      "vision": "Görsel",
+      "thinking": "Düşünme",
+      "tools": "Araçlar",
+      "notConfigured": "Sağlayıcı yapılandırılmamış — API anahtarı ekleyin veya Ayarlar'dan bağlayın"
     },
     "providerLabel": "Sağlayıcı:",
     "defaultBadge": "VAR",
