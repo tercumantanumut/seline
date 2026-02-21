@@ -1446,7 +1446,12 @@
     },
     "errors": {
       "load": "Ayarlar yüklenemedi",
-      "save": "Ayarlar kaydedilemedi"
+      "save": "Ayarlar kaydedilemedi",
+      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin.",
+      "loginFailed": "Giriş başarısız. Lütfen tekrar deneyin.",
+      "authStartFailed": "Kimlik doğrulama başlatılamadı",
+      "codeExchangeFailed": "Kod değişimi başarısız",
+      "memorySaveFailed": "Bellek varsayılanları kaydedilemedi"
     },
     "api": {
       "title": "LLM Sağlayıcısı",
@@ -2103,7 +2108,11 @@
       "errors": {
         "notFound": "Ajan bulunamadı",
         "forbidden": "Bu ajana erişiminiz yok",
-        "loadFailed": "Ajan yüklenemedi"
+        "loadFailed": "Ajan yüklenemedi",
+        "approveFailed": "Bellek onaylanamadı",
+        "rejectFailed": "Bellek reddedilemedi",
+        "deleteFailed": "Bellek silinemedi",
+        "addFailed": "Bellek eklenemedi"
       },
       "goHome": "Ana Sayfaya Dön"
     },

@@ -109,6 +109,7 @@ export function PluginSettings() {
       setPlugins(data.plugins || []);
     } catch (error) {
       console.error("[PluginSettings] Load error:", error);
+      toast.error(t("loadFailed"));
     } finally {
       setLoading(false);
     }

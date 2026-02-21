@@ -448,7 +448,7 @@ export default function SettingsPage() {
       } else if (popup) {
         popup.location.href = authData.url;
       } else {
-        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        toast.error(t("errors.popupBlocked"));
         cleanup();
         return;
       }
@@ -500,6 +500,7 @@ export default function SettingsPage() {
 
     } catch (err) {
       console.error("Antigravity login failed:", err);
+      toast.error(t("errors.loginFailed"));
       cleanup();
     }
   };
@@ -575,7 +576,7 @@ export default function SettingsPage() {
       } else if (popup) {
         popup.location.href = authData.url;
       } else {
-        toast.error("Popup blocked. Please allow popups for this site and try again.");
+        toast.error(t("errors.popupBlocked"));
         cleanup();
         return;
       }
@@ -627,6 +628,7 @@ export default function SettingsPage() {
       }, 5 * 60 * 1000);
     } catch (err) {
       console.error("Codex login failed:", err);
+      toast.error(t("errors.loginFailed"));
       cleanup();
     }
   };
@@ -678,7 +680,7 @@ export default function SettingsPage() {
       setClaudeCodePasteMode(true);
     } catch (err) {
       console.error("Claude Code login failed:", err);
-      toast.error("Failed to start authentication");
+      toast.error(t("errors.authStartFailed"));
     } finally {
       setClaudecodeLoading(false);
     }
@@ -703,7 +705,7 @@ export default function SettingsPage() {
       setClaudeCodePasteMode(false);
     } catch (err) {
       console.error("Claude Code code exchange failed:", err);
-      toast.error(err instanceof Error ? err.message : "Code exchange failed");
+      toast.error(err instanceof Error ? err.message : t("errors.codeExchangeFailed"));
     } finally {
       setClaudecodeLoading(false);
     }
@@ -3211,6 +3213,7 @@ function MemorySection() {
       });
     } catch (error) {
       console.error("Failed to save memory defaults:", error);
+      toast.error(t("errors.memorySaveFailed"));
     } finally {
       setSaving(false);
     }

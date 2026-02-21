@@ -1474,7 +1474,12 @@
     },
     "errors": {
       "load": "Failed to load settings",
-      "save": "Failed to save settings"
+      "save": "Failed to save settings",
+      "popupBlocked": "Popup blocked. Please allow popups for this site and try again.",
+      "loginFailed": "Login failed. Please try again.",
+      "authStartFailed": "Failed to start authentication",
+      "codeExchangeFailed": "Code exchange failed",
+      "memorySaveFailed": "Failed to save memory defaults"
     },
     "api": {
       "title": "Choose your AI provider",
@@ -2118,7 +2123,11 @@
       "errors": {
         "notFound": "Agent not found",
         "forbidden": "You don't have access to this agent",
-        "loadFailed": "Failed to load agent"
+        "loadFailed": "Failed to load agent",
+        "approveFailed": "Failed to approve memory",
+        "rejectFailed": "Failed to reject memory",
+        "deleteFailed": "Failed to delete memory",
+        "addFailed": "Failed to add memory"
       },
       "goHome": "Go Home"
     },
