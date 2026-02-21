@@ -133,6 +133,15 @@
       },
       "cta": "Seline'i kullanmaya başla"
     },
+    "wizard": {
+      "stepWelcome": "Hoş Geldiniz",
+      "stepProvider": "Sağlayıcı",
+      "stepConnect": "Bağlan",
+      "stepSearch": "Arama",
+      "stepWebSearch": "Web Araması",
+      "stepWebScraping": "Web Kazıma",
+      "stepReady": "Hazır"
+    },
     "webSearch": {
       "title": "Web Aramasını Etkinleştir",
       "subtitle": "Web araması DuckDuckGo ile kutudan çıkar (ücretsiz). Daha zengin sonuçlar ve Derin Araştırma için Tavily API anahtarı ekleyin.",
@@ -951,6 +960,36 @@
       "searchAriaLabel": "Becerilerde ara",
       "noSkillsYet": "Henüz beceri yok - bir .md beceri dosyası bırakın veya Ayarlar → Eklentiler bölümünü ziyaret edin.",
       "noMatch": "\"{query}\" ile eşleşen beceri yok"
+    },
+    "editFileTool": {
+      "creating": "Oluşturuluyor...",
+      "writing": "Yazılıyor...",
+      "editing": "Düzenleniyor...",
+      "createFailed": "Oluşturma başarısız",
+      "writeFailed": "Yazma başarısız",
+      "editFailed": "Düzenleme başarısız",
+      "createdWithWarnings": "Uyarılarla oluşturuldu",
+      "wroteWithWarnings": "Uyarılarla yazıldı",
+      "editedWithWarnings": "Uyarılarla düzenlendi",
+      "created": "Oluşturuldu",
+      "wrote": "Yazıldı",
+      "edited": "Düzenlendi",
+      "showLess": "Daha az göster",
+      "showAll": "Tümünü göster ({count} satır)",
+      "diagnosticsLabel": "Tanılama ({tool})",
+      "errors": "{count, plural, one {# hata} other {# hata}}",
+      "warnings": "{count, plural, one {# uyarı} other {# uyarı}}",
+      "lines": "{count, plural, one {# satır} other {# satır}}",
+      "processing": "İşleniyor..."
+    },
+    "webBrowse": {
+      "phaseFetching": "Getiriliyor",
+      "phaseCaching": "Önbelleğe alınıyor",
+      "phaseAnalyzing": "Analiz ediliyor",
+      "phaseComplete": "Tamamlandı",
+      "phaseError": "Hata",
+      "pagesLoaded": "{count, plural, one {# sayfa yüklendi} other {# sayfa yüklendi}}",
+      "errorPrefix": "Hata: {message}"
     }
   },
   "workspace": {

@@ -133,6 +133,15 @@
       },
       "cta": "Start Using Seline"
     },
+    "wizard": {
+      "stepWelcome": "Welcome",
+      "stepProvider": "Provider",
+      "stepConnect": "Connect",
+      "stepSearch": "Search",
+      "stepWebSearch": "Web Search",
+      "stepWebScraping": "Web Scraping",
+      "stepReady": "Ready"
+    },
     "webSearch": {
       "title": "Enable Web Search",
       "subtitle": "Web search works out of the box with DuckDuckGo (free). Add a Tavily API key for richer results and Deep Research.",
@@ -961,6 +970,36 @@
       "searchAriaLabel": "Search skills",
       "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings → Plugins.",
       "noMatch": "No skills match \"{query}\""
+    },
+    "editFileTool": {
+      "creating": "Creating...",
+      "writing": "Writing...",
+      "editing": "Editing...",
+      "createFailed": "Create failed",
+      "writeFailed": "Write failed",
+      "editFailed": "Edit failed",
+      "createdWithWarnings": "Created with warnings",
+      "wroteWithWarnings": "Wrote with warnings",
+      "editedWithWarnings": "Edited with warnings",
+      "created": "Created",
+      "wrote": "Wrote",
+      "edited": "Edited",
+      "showLess": "Show less",
+      "showAll": "Show all ({count} lines)",
+      "diagnosticsLabel": "Diagnostics ({tool})",
+      "errors": "{count, plural, one {# error} other {# errors}}",
+      "warnings": "{count, plural, one {# warning} other {# warnings}}",
+      "lines": "{count, plural, one {# line} other {# lines}}",
+      "processing": "Processing..."
+    },
+    "webBrowse": {
+      "phaseFetching": "Fetching",
+      "phaseCaching": "Caching",
+      "phaseAnalyzing": "Analyzing",
+      "phaseComplete": "Complete",
+      "phaseError": "Error",
+      "pagesLoaded": "{count, plural, one {# page loaded} other {# pages loaded}}",
+      "errorPrefix": "Error: {message}"
     }
   },
   "workspace": {
