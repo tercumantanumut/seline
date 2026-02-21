@@ -215,12 +215,12 @@ export function SessionModelOverride({
               className="flex w-full items-center justify-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 font-mono text-[10px] text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
             >
               <XIcon className="size-3" />
-              Clear all overrides
+              {t("clearAllOverrides")}
             </button>
           )}
 
           <p className="font-mono text-[9px] text-terminal-muted">
-            Empty = use global setting. Enter a model ID to override for this session only.
+            {t("helpText")}
           </p>
         </div>
       )}
@@ -247,6 +247,7 @@ function ModelOverrideField({
   onChange: (value: string) => void;
   isSaving: boolean;
 }) {
+  const t = useTranslations("modelBag.sessionOverride");
   const [localValue, setLocalValue] = useState(value);
   const roleInfo = ROLE_THEME[role];
 
@@ -262,7 +263,7 @@ function ModelOverrideField({
         <span>{label}</span>
         {globalDefault && (
           <span className="ml-auto text-[8px] italic">
-            global: {globalDefault || "(provider default)"}
+            {t("globalLabel")} {globalDefault || t("providerDefault")}
           </span>
         )}
       </label>
@@ -281,7 +282,7 @@ function ModelOverrideField({
           }
         }}
         disabled={isSaving}
-        placeholder={globalDefault || "(provider default)"}
+        placeholder={globalDefault || t("providerDefault")}
         className="w-full rounded border border-terminal-border bg-white/80 px-2 py-1 font-mono text-[10px] text-terminal-dark placeholder:text-terminal-muted/40 focus:border-terminal-green focus:outline-none disabled:opacity-50"
       />
     </div>

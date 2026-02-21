@@ -419,9 +419,9 @@ export function MCPSettings() {
 
     const getStatusDisplay = (serverName: string) => {
         const s = status.find(st => st.serverName === serverName);
-        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: "Not connected" };
-        if (s.connected) return { badge: "bg-terminal-green/20 text-terminal-green", icon: Check, text: "Connected" };
-        return { badge: "bg-red-100 text-red-600", icon: X, text: "Error" };
+        if (!s) return { badge: "bg-terminal-border text-terminal-muted", icon: AlertCircle, text: t("statusNotConnected") };
+        if (s.connected) return { badge: "bg-terminal-green/20 text-terminal-green", icon: Check, text: t("statusConnected") };
+        return { badge: "bg-red-100 text-red-600", icon: X, text: t("statusError") };
     };
 
     if (isLoading) {
