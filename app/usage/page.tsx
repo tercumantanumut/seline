@@ -216,7 +216,7 @@ function UsagePageContent() {
                       className="flex shrink-0 items-center gap-1.5 rounded-md border border-terminal-border bg-white px-2.5 py-1.5 font-mono text-xs text-terminal-dark transition-colors hover:bg-terminal-cream hover:border-terminal-green"
                     >
                       <MessageSquareIcon className="size-3 text-terminal-green" />
-                      Open in chat
+                      {t("sessions.openInChat")}
                     </Link>
                   ) : null}
                 </div>

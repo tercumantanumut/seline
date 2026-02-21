@@ -193,6 +193,16 @@
     "folders": "Folders",
     "configureTools": "Configure tools",
     "mcpTools": "MCP Tools",
+    "menu": {
+      "editInfo": "Edit Info",
+      "manageTools": "Manage Tools",
+      "syncFolders": "Sync Folders",
+      "mcpTools": "MCP Tools",
+      "plugins": "Plugins",
+      "dashboard": "Dashboard",
+      "duplicate": "Duplicate",
+      "delete": "Delete"
+    },
     "mcpToolsTitle": "Configure MCP Tools",
     "plugins": {
       "title": "Agent Plugins",
@@ -1767,7 +1777,8 @@
       "untitled": "Untitled session",
       "invalidDate": "Invalid date",
       "select": "Select a session on the left to see detailed usage and analytics.",
-      "started": "Started {date}"
+      "started": "Started {date}",
+      "openInChat": "Open in chat"
     },
     "analytics": {
       "loading": "Computing session analytics...",
