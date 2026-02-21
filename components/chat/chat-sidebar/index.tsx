@@ -54,6 +54,7 @@ import { ChannelConnectionsDialog } from "@/components/channels/channel-connecti
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { SessionItem } from "./session-item";
 import { CHANNEL_TYPE_ICONS } from "./constants";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
@@ -555,8 +556,16 @@ export function CharacterSidebar({
         <ScrollArea className="flex-1 min-h-0 px-4">
           <div className="space-y-2 pr-2 pb-2">
             {loadingSessions && loadedCount === 0 ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-4 w-4 animate-spin text-terminal-muted" />
+              <div className="space-y-1.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                    <Skeleton className="h-6 w-6 shrink-0 rounded-sm" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-full rounded" />
+                      <Skeleton className="h-3 w-2/3 rounded" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : hasNoResults ? (
               <div className="rounded-lg border border-dashed border-terminal-border/60 bg-terminal-cream/40 p-4 text-center">

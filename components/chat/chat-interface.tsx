@@ -723,6 +723,21 @@ export default function ChatInterface({
         [character.id, character.name, loadSessions, router]
     );
 
+    // Global keyboard shortcut: Cmd+N (Mac) / Ctrl+N (Win/Linux) → new session
+    useEffect(() => {
+        const handleNewSessionShortcut = (e: KeyboardEvent) => {
+            const isCombo = e.metaKey ? e.metaKey && e.key === "n" : e.ctrlKey && e.key === "n";
+            if (!isCombo) return;
+            // Don't intercept when an input/textarea is focused (let browser handle)
+            const tag = (document.activeElement as HTMLElement)?.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement as HTMLElement)?.isContentEditable) return;
+            e.preventDefault();
+            void createNewSession();
+        };
+        window.addEventListener("keydown", handleNewSessionShortcut);
+        return () => window.removeEventListener("keydown", handleNewSessionShortcut);
+    }, [createNewSession]);
+
     const resetChannelSession = useCallback(
         async (sessionToResetId: string, options?: { archiveOld?: boolean }) => {
             try {

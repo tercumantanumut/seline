@@ -19,6 +19,7 @@ import {
   Clock,
   Zap,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -295,9 +296,9 @@ export default function DashboardPage() {
 
   const goToSession = (session: SessionInfo) => {
     if (session.characterId) {
-      router.push(`/chat/${session.characterId}?session=${session.id}`);
+      router.push(`/chat/${session.characterId}?sessionId=${session.id}`);
     } else {
-      router.push(`/chat?session=${session.id}`);
+      router.push(`/chat?sessionId=${session.id}`);
     }
   };
 
@@ -335,8 +336,54 @@ export default function DashboardPage() {
         ) : null}
 
         {chatLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-terminal-muted" />
+          <div className="space-y-6">
+            {/* Stat cards skeleton */}
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i} className="bg-terminal-cream/40 border-terminal-border/50">
+                  <CardContent className="pt-5 pb-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-9 w-9 rounded-md shrink-0" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-7 w-16" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {/* Recent + agents skeleton */}
+            <div className="grid gap-4 lg:grid-cols-5">
+              <Card className="lg:col-span-3 bg-terminal-cream/30 border-terminal-border/50">
+                <CardHeader className="pb-2"><Skeleton className="h-4 w-28" /></CardHeader>
+                <CardContent className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg border border-terminal-border/40 bg-terminal-cream/40 p-3">
+                      <Skeleton className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-full" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+              <Card className="lg:col-span-2 bg-terminal-cream/30 border-terminal-border/50">
+                <CardHeader className="pb-2"><Skeleton className="h-4 w-24" /></CardHeader>
+                <CardContent className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-1.5 w-full rounded-full" />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         ) : chatStats ? (
           <>
