@@ -878,6 +878,26 @@
       "showLess": "Show less",
       "showAll": "Show all ({count})",
       "continue": "Continue"
+    },
+    "onboarding": {
+      "step1": {
+        "title": "Workspaces let your agent work in isolation",
+        "description": "Your agent can create a separate copy of your code using git worktrees, make changes, and submit them for review — without touching your working files.",
+        "hint": "This badge appears in your chat header when a workspace is active."
+      },
+      "step2": {
+        "title": "Review changes before they land",
+        "description": "See exactly what changed in a side panel with syntax-highlighted diffs. Approve changes, sync them to your local repository, or ask the agent to revise.",
+        "hint": "Click \"View Changes\" from the workspace badge to open the diff panel."
+      },
+      "step3": {
+        "title": "Track all workspaces at a glance",
+        "description": "See all your agents' active workspaces on the home page — their status, branch names, PR links, and quick actions like continue, cleanup, or view PR.",
+        "hint": "Active workspaces appear above your agent cards on the home page."
+      },
+      "skip": "Skip",
+      "gotIt": "Got it",
+      "next": "Next"
     }
   },
   "folderSync": {
