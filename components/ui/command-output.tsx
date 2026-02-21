@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ChevronDown, ChevronRight, Terminal, Check, X, Clock } from "lucide-react";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { TerminalBlock, TerminalPrompt, TerminalOutput } from "./terminal-prompt";
 
 interface CommandOutputProps {
@@ -39,11 +40,13 @@ interface CommandOutputProps {
  * Status indicator component
  */
 function StatusIndicator({ success, error }: { success?: boolean; error?: string }) {
+    const t = useTranslations("assistantUi.commandOutput");
+
     if (error) {
         return (
             <span className="flex items-center gap-1 text-red-400">
                 <X className="h-3.5 w-3.5" />
-                <span className="text-xs">Error</span>
+                <span className="text-xs">{t("error")}</span>
             </span>
         );
     }
@@ -52,7 +55,7 @@ function StatusIndicator({ success, error }: { success?: boolean; error?: string
         return (
             <span className="flex items-center gap-1 text-terminal-green">
                 <Check className="h-3.5 w-3.5" />
-                <span className="text-xs">Success</span>
+                <span className="text-xs">{t("success")}</span>
             </span>
         );
     }
@@ -60,7 +63,7 @@ function StatusIndicator({ success, error }: { success?: boolean; error?: string
     return (
         <span className="flex items-center gap-1 text-terminal-amber">
             <Clock className="h-3.5 w-3.5" />
-            <span className="text-xs">Running</span>
+            <span className="text-xs">{t("running")}</span>
         </span>
     );
 }
@@ -91,6 +94,7 @@ export function CommandOutput({
     className,
 }: CommandOutputProps) {
     // Auto-collapse successful commands with no stderr
+    const t = useTranslations("assistantUi.commandOutput");
     const shouldAutoCollapse = defaultCollapsed ?? (success && !stderr && (stdout?.length ?? 0) > 500);
     const [isCollapsed, setIsCollapsed] = useState(shouldAutoCollapse);
 
@@ -129,7 +133,7 @@ export function CommandOutput({
                         <button
                             onClick={() => setIsCollapsed(!isCollapsed)}
                             className="text-terminal-text/60 hover:text-terminal-text transition-colors p-1 -m-1"
-                            aria-label={isCollapsed ? "Expand output" : "Collapse output"}
+                            aria-label={isCollapsed ? t("expandOutput") : t("collapseOutput")}
                         >
                             {isCollapsed ? (
                                 <ChevronRight className="h-4 w-4" />
@@ -144,7 +148,7 @@ export function CommandOutput({
             {/* Exit code if not 0 or null */}
             {exitCode !== null && exitCode !== undefined && exitCode !== 0 && (
                 <div className="text-xs text-terminal-amber pl-6">
-                    Exit code: {exitCode}
+                    {t("exitCode")} {exitCode}
                 </div>
             )}
 
@@ -168,7 +172,7 @@ export function CommandOutput({
                     {stdout && stdout.trim() && (
                         <div className="space-y-1">
                             <div className="text-xs text-terminal-text/40 uppercase tracking-wide pl-6">
-                                Output
+                                {t("output")}
                             </div>
                             <TerminalOutput className="whitespace-pre-wrap font-mono text-xs max-h-96 overflow-auto">
                                 {stdout}
@@ -183,7 +187,7 @@ export function CommandOutput({
                                 "text-xs uppercase tracking-wide pl-6",
                                 success ? "text-terminal-text/40" : "text-red-400/60"
                             )}>
-                                Standard Error{success ? " (warnings/diagnostics)" : ""}
+                                {t("standardError")}{success ? t("stdErrWarning") : ""}
                             </div>
                             <TerminalOutput
                                 type={success ? "default" : "error"}
@@ -200,7 +204,7 @@ export function CommandOutput({
                             <div className="flex items-center gap-2 text-terminal-amber">
                                 <Clock className="h-4 w-4 shrink-0" />
                                 <span className="text-xs font-medium">
-                                    Output truncated. Full log available (ID: {logId})
+                                    {t("truncated", { logId })}
                                 </span>
                             </div>
                             <button
@@ -209,7 +213,7 @@ export function CommandOutput({
                                 }}
                                 className="text-[10px] uppercase tracking-wider bg-terminal-amber/20 hover:bg-terminal-amber/30 text-terminal-amber px-2 py-1 rounded transition-colors border border-terminal-amber/20 shrink-0"
                             >
-                                Copy Retrieval Command
+                                {t("copyRetrieval")}
                             </button>
                         </div>
                     )}
@@ -222,7 +226,7 @@ export function CommandOutput({
                     onClick={() => setIsCollapsed(false)}
                     className="text-xs text-terminal-text/40 hover:text-terminal-text/60 transition-colors pl-6"
                 >
-                    Click to expand output...
+                    {t("clickToExpand")}
                 </button>
             )}
         </TerminalBlock>

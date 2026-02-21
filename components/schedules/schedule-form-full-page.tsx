@@ -718,18 +718,18 @@ export function ScheduleFormFullPage({
             <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
                 <AlertDialogContent className="font-mono">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">Unsaved Changes</AlertDialogTitle>
+                        <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">{t("unsavedChanges")}</AlertDialogTitle>
                         <AlertDialogDescription className="text-terminal-muted">
-                            You have unsaved changes in this schedule. Are you sure you want to discard them and leave?
+                            {t("unsavedChangesDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="font-mono">Stay and Edit</AlertDialogCancel>
+                        <AlertDialogCancel className="font-mono">{t("stayAndEdit")}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => router.back()}
                             className="bg-red-500 hover:bg-red-600 text-white font-mono"
                         >
-                            Discard & Leave
+                            {t("discardAndLeave")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

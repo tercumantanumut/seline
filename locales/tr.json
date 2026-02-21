@@ -943,7 +943,14 @@
     "gallery": {
       "noContextAvailable": "Görsel eklenemiyor - galeri bağlamı mevcut değil",
       "attachedToChat": "\"{name}\" sohbete eklendi",
-      "attachFailed": "Görsel eklenemedi"
+      "attachFailed": "Görsel eklenemedi",
+      "imageUnavailable": "Görsel kullanılamıyor",
+      "loading": "Görseller yükleniyor...",
+      "loadFailed": "Görseller yüklenemedi",
+      "noImages": "Görsel bulunamadı",
+      "imagesFound": "{count, plural, one {# Görsel Bulundu} other {# Görsel Bulundu}}",
+      "attached": "{count} eklendi",
+      "attachHint": "Bir görsele tıklayarak sonraki mesajınıza ekleyin"
     },
     "voiceTool": {
       "stop": "Durdur",
@@ -955,6 +962,20 @@
       "playFailed": "Ses çalınamadı",
       "playbackBlocked": "Ses oynatma tarayıcı tarafından engellendi"
     },
+    "commandOutput": {
+      "error": "Hata",
+      "success": "Başarılı",
+      "running": "Çalışıyor",
+      "expandOutput": "Çıktıyı genişlet",
+      "collapseOutput": "Çıktıyı daralt",
+      "exitCode": "Çıkış kodu:",
+      "output": "Çıktı",
+      "standardError": "Standart Hata",
+      "stdErrWarning": " (uyarılar/tanılamalar)",
+      "truncated": "Çıktı kesildi. Tam günlük mevcut (ID: {logId})",
+      "copyRetrieval": "Alma Komutunu Kopyala",
+      "clickToExpand": "Çıktıyı genişletmek için tıklayın..."
+    },
     "planTool": {
       "updating": "Plan güncelleniyor\u2026",
       "creating": "Plan oluşturuluyor\u2026",
@@ -963,7 +984,19 @@
       "stepsUpdated": "{count} adım güncellendi"
     },
     "vectorSearch": {
-      "tryRefinements": "Bu iyileştirmeleri deneyin"
+      "tryRefinements": "Bu iyileştirmeleri deneyin",
+      "searching": "Aranıyor...",
+      "searchFailed": "Arama Başarısız",
+      "searchError": "Arama sırasında bir hata oluştu",
+      "noResults": "Sonuç Bulunamadı",
+      "noResultsHint": "Sorgunuzu yeniden ifade etmeyi veya farklı anahtar kelimeler kullanmayı deneyin.",
+      "searchComplete": "Arama Tamamlandı",
+      "findingLabel": "{count, plural, one {bulgu} other {bulgu}}",
+      "fileLabel": "{count, plural, one {dosya} other {dosya}}",
+      "chunksAnalyzed": "parça analiz edildi",
+      "findingsLabel": "Bulgular",
+      "collapseAll": "Tümünü daralt",
+      "expandAll": "Tümünü genişlet"
     },
     "calculator": {
       "calculating": "Hesaplanıyor",
@@ -3074,6 +3107,10 @@
       "systemActive": "SİSTEM AKTİF",
       "untitledDraft": "Başlıksız Taslak",
       "updateSchedule": "Zamanlamayı Güncelle",
+      "unsavedChanges": "Kaydedilmemiş Değişiklikler",
+      "unsavedChangesDescription": "Bu zamanlamada kaydedilmemiş değişiklikler var. Bu değişiklikleri atmak ve ayrılmak istediğinizden emin misiniz?",
+      "stayAndEdit": "Kal ve Düzenle",
+      "discardAndLeave": "Değişiklikleri At ve Çık",
       "variables": {
         "categories": {
           "context": "Bağlam Değişkenleri",

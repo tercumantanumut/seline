@@ -269,6 +269,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.vectorSearch");
   const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set([0])); // First one expanded by default
 
   const isRunning = result === undefined;
@@ -308,7 +309,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
             <Loader2Icon className="w-4 h-4 text-terminal-green animate-spin" />
           </div>
           <div className="flex-1">
-            <div className="text-sm font-medium text-terminal-dark">Searching...</div>
+            <div className="text-sm font-medium text-terminal-dark">{t("searching")}</div>
             <div className="text-xs text-terminal-muted mt-0.5 break-words [overflow-wrap:anywhere]">
               &quot;{query}&quot;
             </div>
@@ -331,9 +332,9 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
             <AlertCircleIcon className="w-4 h-4 text-destructive" />
           </div>
           <div>
-            <div className="text-sm font-medium text-destructive">Search Failed</div>
+            <div className="text-sm font-medium text-destructive">{t("searchFailed")}</div>
             <div className="text-xs text-destructive/80 mt-0.5 break-words [overflow-wrap:anywhere]">
-              {result?.message || result?.error || "An error occurred during search"}
+              {result?.message || result?.error || t("searchError")}
             </div>
           </div>
         </div>
@@ -354,9 +355,9 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
             <SearchIcon className="w-4 h-4 text-terminal-muted" />
           </div>
           <div>
-            <div className="text-sm font-medium text-terminal-dark">No Results Found</div>
+            <div className="text-sm font-medium text-terminal-dark">{t("noResults")}</div>
             <div className="text-xs text-terminal-muted mt-0.5 break-words [overflow-wrap:anywhere]">
-              {result?.message || "Try rephrasing your query or using different keywords."}
+              {result?.message || t("noResultsHint")}
             </div>
           </div>
         </div>
@@ -386,7 +387,7 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-terminal-dark">Search Complete</span>
+              <span className="text-sm font-medium text-terminal-dark">{t("searchComplete")}</span>
               <StrategyBadge strategy={result.strategy} />
             </div>
             {result.reasoning && (
@@ -407,19 +408,19 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
           <div className="mt-3 flex items-center gap-3 text-xs text-terminal-muted">
             <span className="flex items-center gap-1">
               <span className="font-medium text-terminal-dark">{result.findings.length}</span>
-              finding{result.findings.length !== 1 ? "s" : ""}
+              {t("findingLabel", { count: result.findings.length })}
             </span>
             <span className="w-1 h-1 rounded-full bg-terminal-muted/50" />
             <span className="flex items-center gap-1">
               <span className="font-medium text-terminal-dark">{fileCount}</span>
-              file{fileCount !== 1 ? "s" : ""}
+              {t("fileLabel", { count: fileCount })}
             </span>
             {result.stats.totalChunks > 0 && (
               <>
                 <span className="w-1 h-1 rounded-full bg-terminal-muted/50" />
                 <span className="flex items-center gap-1">
                   <span className="font-medium text-terminal-dark">{result.stats.totalChunks}</span>
-                  chunks analyzed
+                  {t("chunksAnalyzed")}
                 </span>
               </>
             )}
@@ -431,13 +432,13 @@ export const VectorSearchToolUI: ToolCallContentPartComponent = ({
       <div className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-terminal-muted uppercase tracking-wide">
-            Findings
+            {t("findingsLabel")}
           </span>
           <button
             onClick={toggleAll}
             className="text-xs text-terminal-muted hover:text-terminal-dark transition-colors underline-offset-2 hover:underline"
           >
-            {expandedFiles.size === result.findings.length ? "Collapse all" : "Expand all"}
+            {expandedFiles.size === result.findings.length ? t("collapseAll") : t("expandAll")}
           </button>
         </div>
 
