@@ -3210,7 +3210,21 @@
       "addFailed": "Pazaryeri eklenemedi",
       "removeConfirm": "\"{name}\" pazaryerini kaldır?",
       "removed": "\"{name}\" pazaryeri kaldırıldı",
-      "removeFailed": "Pazaryeri kaldırılamadı"
-    }
+      "removeFailed": "Pazaryeri kaldırılamadı",
+      "addSource": "Kaynak Ekle",
+      "cancel": "İptal",
+      "nameLabel": "Ad",
+      "sourceUrlLabel": "Kaynak URL",
+      "add": "Ekle",
+      "searchPlaceholder": "Eklenti ara...",
+      "allCategories": "Tümü",
+      "noSources": "Pazaryeri kaynağı yapılandırılmadı",
+      "noSourcesHint": "Mevcut eklentilere göz atmak için bir pazaryeri kaynağı ekleyin",
+      "noResults": "Aramanızla eşleşen eklenti yok"
+    },
+    "mainAgentLabel": "Ana ajan",
+    "noPluginsYet": "Henüz eklenti yok",
+    "noPluginsYetHint": "Bir eklenti paketi yükleyin veya pazaryerinden birini yükleyin",
+    "automationHooks": "Otomasyon kancaları"
   }
 }

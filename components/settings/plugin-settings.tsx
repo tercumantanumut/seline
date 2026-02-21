@@ -385,7 +385,7 @@ export function PluginSettings() {
 
             <div className="space-y-1">
               <label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                Main agent
+                {t("mainAgentLabel")}
               </label>
               <select
                 value={selectedTargetCharacterId}
@@ -438,10 +438,10 @@ export function PluginSettings() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="size-12 text-terminal-muted/40" />
             <p className="mt-4 font-mono text-sm text-terminal-muted">
-              No plugins yet
+              {t("noPluginsYet")}
             </p>
             <p className="mt-1 font-mono text-xs text-terminal-muted/70">
-              Upload a plugin package or install one from the marketplace
+              {t("noPluginsYetHint")}
             </p>
           </CardContent>
         </Card>
@@ -732,7 +732,7 @@ export function PluginSettings() {
                     <div>
                       <h4 className="flex items-center gap-1.5 font-mono text-xs font-semibold text-terminal-dark mb-2">
                         <Webhook className="size-3.5" />
-                        Automation hooks
+                        {t("automationHooks")}
                       </h4>
                       <div className="space-y-1 pl-5">
                         {Object.entries(plugin.components.hooks.hooks || {}).map(
