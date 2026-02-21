@@ -1,23 +1,17 @@
 /**
- * Web Search Tool
+ * Unified Web Tool
  *
- * Lightweight web search tool with provider abstraction.
- * Supports Tavily (paid, rich metadata) and DuckDuckGo (free, basic results).
- * Designed for quick lookups, not comprehensive research.
+ * Single web entrypoint that can:
+ * - Search the web for relevant URLs
+ * - Fetch page content
+ * - Synthesize a grounded answer from fetched content
  *
- * Key differences from Deep Research:
- * - Max 10 pages per search
- * - Max 1 iteration (only iterate if absolutely necessary)
- * - No report generation, just raw search results
- * - Faster and more lightweight
- *
- * When userId and characterId are provided, results are cached
- * in the embeddings system for later retrieval via docsSearch.
+ * This replaces the old multi-tool web flow.
  */
 
-import { tool, jsonSchema } from "ai";
-import { cacheWebSearchResults, formatBriefSearchResults, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
+import { tool, jsonSchema, type ToolExecutionOptions } from "ai";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
+import { browseAndSynthesize } from "@/lib/ai/web-browse";
 import { getSearchProvider, getWebSearchProviderStatus, isAnySearchProviderAvailable } from "./providers";
 
 // ============================================================================
@@ -38,14 +32,12 @@ export interface WebSearchResult {
   answer?: string;
   message?: string;
   iterationPerformed: boolean;
-  formattedResults?: string;  // Pre-formatted markdown with source links
-  provider?: string;          // Which provider was used
+  formattedResults?: string;
+  provider?: string;
+  fetchedUrls?: string[];
+  failedUrls?: string[];
 }
 
-/**
- * Format search results as markdown with source URLs
- * Similar to how deep research presents its findings
- */
 function formatSearchResults(sources: WebSearchSource[], answer?: string): string {
   if (sources.length === 0) {
     return "No results found.";
@@ -54,17 +46,52 @@ function formatSearchResults(sources: WebSearchSource[], answer?: string): strin
   let formatted = "";
 
   if (answer) {
-    formatted += `**Summary:** ${answer}\n\n`;
+    formatted += `${answer}\n\n`;
   }
 
-  formatted += "**Sources:**\n\n";
+  formatted += "Sources:\n";
   sources.forEach((source, index) => {
-    formatted += `${index + 1}. **${source.title}**\n`;
-    formatted += `   - [${source.url}](${source.url})\n`;
-    formatted += `   - ${source.snippet}\n\n`;
+    formatted += `${index + 1}. ${source.title} - ${source.url}\n`;
   });
 
-  return formatted;
+  return formatted.trim();
+}
+
+function normalizeProvidedUrls(urls?: string[] | string): string[] {
+  if (!urls) return [];
+
+  const rawList = Array.isArray(urls)
+    ? urls
+    : urls
+        .split(",")
+        .map((u) => u.trim())
+        .filter((u) => u.length > 0);
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of rawList) {
+    try {
+      const parsed = new URL(candidate);
+      const value = parsed.toString();
+      if (!seen.has(value)) {
+        seen.add(value);
+        normalized.push(value);
+      }
+    } catch {
+      // Ignore invalid URL candidates to keep tool resilient.
+    }
+  }
+
+  return normalized;
+}
+
+function hostAsTitle(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
 
 // ============================================================================
@@ -76,28 +103,49 @@ const webSearchSchema = jsonSchema<{
   maxResults?: number;
   includeAnswer?: boolean;
   iterateIfLowQuality?: boolean;
+  urls?: string[] | string;
+  includeMarkdown?: boolean | string;
 }>({
   type: "object",
   title: "WebSearchInput",
-  description: "Input schema for web search queries",
+  description: "Input schema for unified web search and browsing",
   properties: {
     query: {
       type: "string",
-      description: "The search query to look up on the web",
+      description: "What you need from the web content",
     },
     maxResults: {
       type: "number",
       minimum: 1,
       maximum: 10,
-      description: "Maximum number of results to return (1-10, default: 5)",
+      description: "Maximum number of search results to use (1-10, default: 5)",
     },
     includeAnswer: {
       type: "boolean",
-      description: "Whether to include an AI-generated answer summary (default: true, only available with Tavily provider)",
+      description: "Whether provider-level summary should be requested when available",
     },
     iterateIfLowQuality: {
       type: "boolean",
-      description: "Whether to perform a follow-up search if initial results have low relevance (default: false)",
+      description: "Whether to run one refinement pass if initial search quality is low",
+    },
+    urls: {
+      oneOf: [
+        {
+          type: "array",
+          items: { type: "string", format: "uri" },
+          minItems: 1,
+          maxItems: 5,
+          description: "Optional direct URLs to browse (skips search step)",
+        },
+        {
+          type: "string",
+          description: "Optional comma-separated URLs to browse",
+        },
+      ],
+    },
+    includeMarkdown: {
+      type: ["boolean", "string"],
+      description: "Ignored for compatibility with legacy callers",
     },
   },
   required: ["query"],
@@ -108,7 +156,8 @@ const webSearchSchema = jsonSchema<{
 // Tool Factory
 // ============================================================================
 
-const MIN_QUALITY_THRESHOLD = 0.3; // Minimum average relevance score to consider results "good"
+const MIN_QUALITY_THRESHOLD = 0.3;
+const MAX_BROWSE_URLS = 5;
 
 export interface WebSearchToolOptions {
   sessionId?: string;
@@ -116,25 +165,72 @@ export interface WebSearchToolOptions {
   characterId?: string | null;
 }
 
-// Input args type for webSearch
 interface WebSearchArgs {
   query: string;
   maxResults?: number;
   includeAnswer?: boolean;
   iterateIfLowQuality?: boolean;
+  urls?: string[] | string;
+  includeMarkdown?: boolean | string;
 }
 
-/**
- * Core webSearch execution logic (extracted for logging wrapper)
- */
 async function executeWebSearch(
   options: WebSearchToolOptions,
-  args: WebSearchArgs
+  args: WebSearchArgs,
+  toolCallOptions?: ToolExecutionOptions
 ): Promise<WebSearchResult> {
-  const { userId, characterId } = options;
+  const { sessionId, userId, characterId } = options;
   const { query, maxResults = 5, includeAnswer = true, iterateIfLowQuality = false } = args;
 
-  // Get the configured provider
+  const browseOptions = {
+    sessionId: sessionId || "UNSCOPED",
+    userId: userId || "UNSCOPED",
+    characterId: characterId || null,
+  };
+
+  // 1) Optional direct browse mode (single tool, explicit URLs)
+  const providedUrls = normalizeProvidedUrls(args.urls).slice(0, MAX_BROWSE_URLS);
+  if (providedUrls.length > 0) {
+    const browseResult = await browseAndSynthesize({
+      urls: providedUrls,
+      query,
+      options: browseOptions,
+      abortSignal: toolCallOptions?.abortSignal,
+    });
+
+    const syntheticSources: WebSearchSource[] = providedUrls.map((url, idx) => ({
+      url,
+      title: hostAsTitle(url),
+      snippet: "",
+      relevanceScore: Math.max(0.5, 1 - idx * 0.1),
+    }));
+
+    if (!browseResult.success) {
+      return {
+        status: "error",
+        query,
+        sources: syntheticSources,
+        message: browseResult.error || "Failed to browse provided URLs",
+        iterationPerformed: false,
+        fetchedUrls: browseResult.fetchedUrls,
+        failedUrls: browseResult.failedUrls,
+      };
+    }
+
+    return {
+      status: "success",
+      query,
+      sources: syntheticSources,
+      answer: browseResult.synthesis,
+      iterationPerformed: false,
+      formattedResults: browseResult.synthesis,
+      provider: "direct-urls",
+      fetchedUrls: browseResult.fetchedUrls,
+      failedUrls: browseResult.failedUrls.length > 0 ? browseResult.failedUrls : undefined,
+    };
+  }
+
+  // 2) Search phase
   const providerStatus = getWebSearchProviderStatus();
   const provider = getSearchProvider();
 
@@ -143,12 +239,12 @@ async function executeWebSearch(
       status: "no_provider",
       query,
       sources: [],
-      message: "Web search is currently unavailable because Tavily is selected without an API key. Switch Web Search Provider to Auto or DuckDuckGo, or add your Tavily key in Settings.",
+      message:
+        "Web search is currently unavailable because Tavily is selected without an API key. Switch Web Search Provider to Auto or DuckDuckGo, or add your Tavily key in Settings.",
       iterationPerformed: false,
     };
   }
 
-  // Perform initial search
   const initialResult = await provider.search(query, {
     maxResults,
     includeAnswer,
@@ -159,14 +255,13 @@ async function executeWebSearch(
   let finalSources = finalResult.sources;
   let iterationPerformed = false;
 
-  // In auto mode, recover to DuckDuckGo when Tavily fails at runtime.
   if (
     providerStatus.configuredProvider === "auto" &&
     provider.name === "tavily" &&
     finalSources.length === 0 &&
     finalResult.error
   ) {
-    console.warn(`[WEB-SEARCH] Auto fallback to DuckDuckGo after Tavily failure: ${finalResult.error}`);
+    console.warn(`[WEB] Auto fallback to DuckDuckGo after Tavily failure: ${finalResult.error}`);
     const fallbackProvider = getSearchProvider("duckduckgo");
     const fallbackResult = await fallbackProvider.search(query, {
       maxResults,
@@ -180,19 +275,17 @@ async function executeWebSearch(
     }
   }
 
-  // Check if we should iterate (only if enabled, results are low quality, AND provider has real scores)
-  // Skip quality check for DuckDuckGo since scores are synthetic/position-based
-  if (iterateIfLowQuality && provider.name === "tavily" && finalResult.providerUsed === "tavily" && finalResult.sources.length > 0) {
+  if (
+    iterateIfLowQuality &&
+    provider.name === "tavily" &&
+    finalResult.providerUsed === "tavily" &&
+    finalResult.sources.length > 0
+  ) {
     const avgScore =
       finalResult.sources.reduce((sum, s) => sum + s.relevanceScore, 0) /
       finalResult.sources.length;
 
     if (avgScore < MIN_QUALITY_THRESHOLD) {
-      console.log(
-        `[WEB-SEARCH] Low quality results (avg score: ${avgScore.toFixed(2)}), performing refined search`
-      );
-
-      // Refine the query for better results
       const refinedQuery = `${query} (detailed information)`;
       const refinedResult = await provider.search(refinedQuery, {
         maxResults,
@@ -200,7 +293,6 @@ async function executeWebSearch(
         searchDepth: "advanced",
       });
 
-      // Merge results, preferring higher scoring ones
       const allSources = [...finalResult.sources, ...refinedResult.sources];
       const uniqueSources = allSources.reduce((acc, source) => {
         if (!acc.find((s) => s.url === source.url)) {
@@ -209,7 +301,6 @@ async function executeWebSearch(
         return acc;
       }, [] as WebSearchSource[]);
 
-      // Sort by relevance and take top results
       finalSources = uniqueSources
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .slice(0, maxResults);
@@ -218,84 +309,82 @@ async function executeWebSearch(
     }
   }
 
-  // Cache results if we have user context
-  if (userId && characterId && finalSources.length > 0) {
-    // Cache in background, don't block response
-    cacheWebSearchResults(
-      { status: "success", query, sources: finalSources, iterationPerformed },
-      { userId, characterId, expiryHours: 1 }
-    ).catch((err) => {
-      console.error("[WEB-SEARCH] Failed to cache results:", err);
-    });
+  if (finalSources.length === 0) {
+    return {
+      status: "success",
+      query,
+      sources: [],
+      answer: finalResult.answer,
+      iterationPerformed,
+      formattedResults: "No results found.",
+      provider: finalResult.providerUsed ?? provider.name,
+      message: finalResult.error,
+    };
+  }
 
-    // Cleanup expired cache in background
-    cleanupExpiredWebCache().catch((err) => {
-      console.error("[WEB-SEARCH] Failed to cleanup expired cache:", err);
-    });
+  // 3) Browse + synthesize phase (single-tool behavior)
+  const urlsToBrowse = finalSources.slice(0, Math.min(maxResults, MAX_BROWSE_URLS)).map((s) => s.url);
+  const browseResult = await browseAndSynthesize({
+    urls: urlsToBrowse,
+    query,
+    options: browseOptions,
+    abortSignal: toolCallOptions?.abortSignal,
+  });
 
-    // Return brief results to save context
+  if (!browseResult.success) {
     return {
       status: "success",
       query,
       sources: finalSources,
       answer: finalResult.answer,
       iterationPerformed,
-      formattedResults: formatBriefSearchResults(finalSources),
+      formattedResults: formatSearchResults(finalSources, finalResult.answer),
       provider: finalResult.providerUsed ?? provider.name,
+      message: browseResult.error || "Search succeeded but browsing failed",
+      fetchedUrls: browseResult.fetchedUrls,
+      failedUrls: browseResult.failedUrls,
     };
   }
 
-  // No caching context - return full results
   return {
     status: "success",
     query,
     sources: finalSources,
-    answer: finalResult.answer,
+    answer: browseResult.synthesis,
     iterationPerformed,
-    formattedResults: formatSearchResults(finalSources, finalResult.answer),
+    formattedResults: browseResult.synthesis,
     provider: finalResult.providerUsed ?? provider.name,
+    fetchedUrls: browseResult.fetchedUrls,
+    failedUrls: browseResult.failedUrls.length > 0 ? browseResult.failedUrls : undefined,
   };
 }
 
-/**
- * Create the web search tool instance.
- * When userId and characterId are provided, results are cached in embeddings
- * and a brief summary is returned instead of full results.
- */
 export function createWebSearchTool(options: WebSearchToolOptions = {}) {
   const { sessionId } = options;
 
-  // Wrap the execute function with logging
   const executeWithLogging = withToolLogging(
     "webSearch",
     sessionId,
-    (args: WebSearchArgs) => executeWebSearch(options, args)
+    (args: WebSearchArgs, toolCallOptions?: ToolExecutionOptions) =>
+      executeWebSearch(options, args, toolCallOptions)
   );
 
   return tool({
-    description: `Search the web for current information. Use for quick lookups, fact-checking, or finding recent information. Maximum 10 results per search.
+    description: `Unified web tool for finding and reading web content in one call.
 
-**DO NOT use for:**
-- Image or video generation tasks (use the appropriate generation/editing tools directly)
-- Researching how to write prompts or use creative tools (tool instructions are provided via searchTools)
-- Looking up artistic styles, techniques, or visual concepts that you can describe directly in generation prompts
+Use for:
+- searching current information
+- reading specific URLs
+- getting a synthesized answer grounded in fetched pages
 
-**DO use for:**
-- Finding current trends, popular styles, or recent cultural references when the user explicitly asks for them
-- Fact-checking specific details (e.g., "What does a 1960s Danish modern chair look like?")
-- Looking up real-world information needed for accurate generation (e.g., "Current fashion trends 2024")
-
-The key distinction: Use webSearch for factual lookups that inform your creative work, but NOT as a substitute for directly using generation tools once you know what to create.
-
-For comprehensive research, use the Deep Research feature instead.`,
+Behavior:
+- if urls are provided: fetch + synthesize those URLs
+- if urls are omitted: search first, then fetch top results, then synthesize`,
     inputSchema: webSearchSchema,
     execute: executeWithLogging,
   });
 }
 
-/**
- * Check if web search is available (any provider configured)
- */
 export function isWebSearchAvailable(): boolean {
   return isAnySearchProviderAvailable();
 }

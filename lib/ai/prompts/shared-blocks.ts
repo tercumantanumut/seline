@@ -77,7 +77,7 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 **NEVER output tool invocation syntax as text.** This is a critical error that breaks functionality.
 
 ### What NOT to do (WRONG - causes system failure):
-- ❌ Writing \`webBrowse{"urls":["..."]}\` in your response text
+- ❌ Writing \`webSearch{"query":"..."}\` in your response text
 - ❌ Writing \`searchTools{"query":"..."}\` as plain text
 - ❌ Writing \`editImageFlux2Flex{"prompt":"...", "source_image_url":"..."}\` in chat
 - ❌ Any pattern like \`toolName{...}\` or \`toolName({...})\` in your text output
@@ -89,7 +89,7 @@ export const TOOL_INVOCATION_FORMAT = `## Tool Invocation Format (CRITICAL - REA
 
 ### What TO do (CORRECT):
 - ✅ Make actual structured tool calls using the tool calling interface
-- ✅ Say "I'll browse that URL" then INVOKE the webBrowse tool properly
+- ✅ Say "I'll check the web" then INVOKE the webSearch tool properly
 - ✅ Say "Let me search for tools" then INVOKE searchTools properly
 
 ### Rules:

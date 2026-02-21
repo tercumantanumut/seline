@@ -4,13 +4,9 @@
  * Tools for scraping and crawling web content using Firecrawl API.
  * - firecrawlScrape: Extract content from a single URL
  * - firecrawlCrawl: Crawl multiple pages from a starting URL
- *
- * When userId and characterId are provided, scraped content is cached
- * in the embeddings system for later retrieval via docsSearch.
  */
 
 import { tool, jsonSchema } from "ai";
-import { cacheWebPage, formatBriefPageResult, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWebScraperProvider } from "@/lib/ai/web-scraper/provider";
@@ -111,10 +107,8 @@ interface FirecrawlScrapeArgs {
  * Core firecrawlScrape execution logic (extracted for logging wrapper)
  */
 async function executeFirecrawlScrape(
-  options: FirecrawlToolOptions,
   args: FirecrawlScrapeArgs
 ): Promise<FirecrawlScrapeResult> {
-  const { userId, characterId } = options;
   const { url, onlyMainContent = true, waitFor, extractImages = false } = args;
 
   try {
@@ -191,31 +185,6 @@ async function executeFirecrawlScrape(
       : undefined;
     const extractedLinks = extractImages ? links : undefined;
 
-    // Cache results if we have user context
-    if (userId && characterId && markdown) {
-      // Cache in background, don't block response
-      cacheWebPage(url, markdown, title, { userId, characterId, expiryHours: 1 }).catch((err) => {
-        console.error("[FIRECRAWL] Failed to cache page:", err);
-      });
-
-      // Cleanup expired cache in background
-      cleanupExpiredWebCache().catch((err) => {
-        console.error("[FIRECRAWL] Failed to cleanup expired cache:", err);
-      });
-
-      // Return brief result to save context
-      return {
-        status: "success",
-        url,
-        markdown: formatBriefPageResult(url, title, markdown.length),
-        title,
-        description,
-        images,
-        ogImage,
-      };
-    }
-
-    // No caching context - return full result
     return {
       status: "success",
       url,
@@ -238,8 +207,6 @@ async function executeFirecrawlScrape(
 
 /**
  * Create the Firecrawl scrape tool for single page extraction.
- * When userId and characterId are provided, content is cached in embeddings
- * and a brief summary is returned instead of full content.
  */
 export function createFirecrawlScrapeTool(options: FirecrawlToolOptions = {}) {
   const { sessionId } = options;
@@ -248,7 +215,7 @@ export function createFirecrawlScrapeTool(options: FirecrawlToolOptions = {}) {
   const executeWithLogging = withToolLogging(
     "firecrawlScrape",
     sessionId,
-    (args: FirecrawlScrapeArgs) => executeFirecrawlScrape(options, args)
+    (args: FirecrawlScrapeArgs) => executeFirecrawlScrape(args)
   );
 
   return tool({

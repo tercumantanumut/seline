@@ -2,8 +2,7 @@
  * Tool Selector
  *
  * Decision logic for intelligent tool selection that enforces:
- * - Cache-first lookups (docsSearch/vectorSearch before webSearch)
- * - webSearch usage limits (max 2 per session)
+ * - Search deduplication and lightweight loop prevention
  * - describeImage-first workflow for image uploads
  * - Reference image caching for virtual try-on
  *
@@ -75,29 +74,14 @@ export function evaluateSearchToolUsage(
     };
   }
 
-  // For webSearch specifically, check limits
-  if (toolName === "webSearch") {
-    const count = getToolCount(state, "webSearch");
-
-    if (isToolLimitExceeded(state, "webSearch", limits)) {
-      return {
-        allow: false,
-        alternativeTool: "docsSearch",
-        reason: `webSearch limit (${limits.maxWebSearchCalls}) reached. Use docsSearch to find relevant cached content.`,
-        alternativeParams: { query },
-      };
-    }
-
-    // Suggest docsSearch first if we have cached markers
-    if (state.cachedMarkers.length > 0 && count > 0) {
-      return {
-        allow: false,
-        alternativeTool: "docsSearch",
-        reason:
-          "Cached web results exist. Try docsSearch first before making another webSearch.",
-        alternativeParams: { query },
-      };
-    }
+  // For webSearch specifically, check optional limits
+  if (toolName === "webSearch" && isToolLimitExceeded(state, "webSearch", limits)) {
+    return {
+      allow: false,
+      alternativeTool: "docsSearch",
+      reason: `webSearch limit (${limits.maxWebSearchCalls}) reached. Use docsSearch to find relevant cached content.`,
+      alternativeParams: { query },
+    };
   }
 
   return { allow: true, reason: "Tool usage approved" };
@@ -167,7 +151,7 @@ export function evaluateToolSelection(
   }
 
   // Check search tool usage patterns
-  if (["webSearch", "webBrowse", "docsSearch"].includes(context.toolName)) {
+  if (["webSearch", "docsSearch"].includes(context.toolName)) {
     const searchResult = evaluateSearchToolUsage(context, state, limits);
     if (!searchResult.allow) {
       return searchResult;

@@ -58,9 +58,7 @@ export const UTILITY_TOOLS = [
 /**
  * Static default tools for new agents.
  *
- * Includes always-on core + utility tools plus webSearch (DuckDuckGo fallback).
- * Excludes webBrowse because it depends on scraper configuration and can appear
- * checked-but-unavailable in capabilities UI when prerequisites are missing.
+ * Includes always-on core + utility tools plus unified webSearch.
  */
 export const DEFAULT_ENABLED_TOOLS: string[] = [
   ...ALWAYS_ENABLED_TOOLS,
@@ -113,36 +111,17 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
     console.log("[SelineTemplate] Vector Search disabled: vectorDBEnabled is not true");
   }
 
-  // 4. Web Search (always enabled — DuckDuckGo fallback needs no API key)
+  // 4. Unified Web tool (always enabled)
   enabledTools.push("webSearch");
   const hasTavilyKey = typeof settings.tavilyApiKey === "string" && settings.tavilyApiKey.trim().length > 0;
   const webSearchProvider = settings.webSearchProvider || "auto";
   if (hasTavilyKey) {
-    console.log("[SelineTemplate] Web Search enabled: tavilyApiKey is set (provider: " + webSearchProvider + ")");
+    console.log("[SelineTemplate] Web enabled: Tavily configured (provider: " + webSearchProvider + ")");
   } else {
-    console.log("[SelineTemplate] Web Search enabled: using DuckDuckGo fallback (provider: " + webSearchProvider + ")");
+    console.log("[SelineTemplate] Web enabled: DuckDuckGo/local fallback active (provider: " + webSearchProvider + ")");
   }
 
-  // 5. Conditional: Web Browse (requires Firecrawl API key OR local web scraper)
-  const hasFirecrawlKey = typeof settings.firecrawlApiKey === "string" && settings.firecrawlApiKey.trim().length > 0;
-  const isLocalScraper = settings.webScraperProvider === "local";
-  if (hasFirecrawlKey || isLocalScraper) {
-    enabledTools.push("webBrowse");
-    console.log(
-      `[SelineTemplate] Web Browse enabled: ${isLocalScraper ? "local scraper" : "firecrawlApiKey is set"}`
-    );
-  } else {
-    warnings.push({
-      toolId: "webBrowse",
-      toolName: "Web Browse",
-      reason: "No web scraping provider configured (Firecrawl API key missing and local scraper not enabled)",
-      settingsKeys: ["firecrawlApiKey", "webScraperProvider"],
-      action: "Add a Firecrawl API key or switch to local web scraper in Settings → API Keys",
-    });
-    console.log("[SelineTemplate] Web Browse disabled: firecrawlApiKey not set and webScraperProvider is not 'local'");
-  }
-
-  // 6. Log excluded tools
+  // 5. Log excluded tools
   for (const toolId of EXCLUDED_TOOLS) {
     console.log(`[SelineTemplate] ${toolId} excluded by design (not in Seline default template)`);
   }

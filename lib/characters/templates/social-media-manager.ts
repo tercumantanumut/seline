@@ -7,7 +7,7 @@ export const SOCIAL_MEDIA_MANAGER_TEMPLATE: AgentTemplate = {
   purpose: "Creates campaign calendars, content drafts, and trend summaries for social channels.",
   category: "marketing",
   version: "1.0.0",
-  enabledTools: ["webSearch", "webBrowse", "runSkill", "updateSkill", "updatePlan"],
+  enabledTools: ["webSearch", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     {
       category: "workflow_patterns",
@@ -20,7 +20,7 @@ export const SOCIAL_MEDIA_MANAGER_TEMPLATE: AgentTemplate = {
       name: "Weekly trend digest",
       description: "Summarize top social trends for the last 7 days.",
       promptTemplate: "Summarize top social trends from the last 7 days in 5 bullets with one action each.",
-      toolHints: ["webSearch", "webBrowse"],
+      toolHints: ["webSearch"],
       triggerExamples: ["What social trends should we react to this week?", "Give me this week's social trend digest"],
       category: "marketing",
     },
