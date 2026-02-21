@@ -17,13 +17,13 @@
 
 import { spawn, ChildProcess } from "child_process";
 import { existsSync } from "fs";
-import { join } from "path";
+import { basename, isAbsolute, join } from "path";
 import { validateCommand, validateExecutionDirectory } from "./validator";
 import { commandLogger } from "./logger";
 import { saveTerminalLog } from "./log-manager";
 import { getRTKBinary, getRTKEnvironment, getRTKFlags, shouldUseRTK } from "@/lib/rtk";
 import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
-import type { ExecuteOptions, ExecuteResult, BackgroundProcessInfo } from "./types";
+import type { ExecuteOptions, ExecuteResult, ExecuteSearchMetadata, BackgroundProcessInfo } from "./types";
 
 /**
  * Default configuration values
@@ -34,47 +34,66 @@ const DEFAULT_MAX_OUTPUT_SIZE = 1048576; // 1MB
 // Projection/token limiting happens later in model/transport shaping paths.
 // Canonical history persistence remains lossless where possible.
 
-/**
- * Get bundled binary directories available in a packaged app.
- */
-function getBundledBinariesPaths(): string[] {
-    // In packaged Electron apps:
-    // - Main process: process.resourcesPath is available
-    // - Renderer/Next.js server: ELECTRON_RESOURCES_PATH env var is set
-    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
-        || process.env.ELECTRON_RESOURCES_PATH;
+type BundledRuntimeInfo = {
+    resourcesPath: string | null;
+    isProductionBuild: boolean;
+    nodeBinDir: string | null;
+    toolsBinDir: string | null;
+    bundledBinDirs: string[];
+    bundledNodePath: string | null;
+    bundledNpmCliPath: string | null;
+    bundledNpxCliPath: string | null;
+};
 
-    if (!resourcesPath) {
-        return [];
-    }
+function getResourcesPath(): string | null {
+    return (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+        || process.env.ELECTRON_RESOURCES_PATH
+        || null;
+}
 
-    const bundledCandidates = [
-        join(resourcesPath, "standalone", "node_modules", ".bin"),
-        join(resourcesPath, "standalone", "tools", "bin"),
-    ];
+function getBundledRuntimeInfo(): BundledRuntimeInfo {
+    const resourcesPath = getResourcesPath();
+    const nodeBinDir = resourcesPath ? join(resourcesPath, "standalone", "node_modules", ".bin") : null;
+    const toolsBinDir = resourcesPath ? join(resourcesPath, "standalone", "tools", "bin") : null;
+    const bundledNodePath = nodeBinDir
+        ? join(nodeBinDir, process.platform === "win32" ? "node.exe" : "node")
+        : null;
+    const bundledNpmCliPath = resourcesPath
+        ? join(resourcesPath, "standalone", "node_modules", "npm", "bin", "npm-cli.js")
+        : null;
+    const bundledNpxCliPath = resourcesPath
+        ? join(resourcesPath, "standalone", "node_modules", "npm", "bin", "npx-cli.js")
+        : null;
 
-    try {
-        return bundledCandidates.filter((candidate) => existsSync(candidate));
-    } catch {
-        // Ignore filesystem errors
-        return [];
-    }
+    const bundledCandidates = [nodeBinDir, toolsBinDir].filter((candidate): candidate is string => Boolean(candidate));
+    const bundledBinDirs = bundledCandidates.filter((candidate) => existsSync(candidate));
+
+    return {
+        resourcesPath,
+        isProductionBuild: !!resourcesPath && process.env.ELECTRON_IS_DEV !== "1" && process.env.NODE_ENV !== "development",
+        nodeBinDir,
+        toolsBinDir,
+        bundledBinDirs,
+        bundledNodePath: bundledNodePath && existsSync(bundledNodePath) ? bundledNodePath : null,
+        bundledNpmCliPath: bundledNpmCliPath && existsSync(bundledNpmCliPath) ? bundledNpmCliPath : null,
+        bundledNpxCliPath: bundledNpxCliPath && existsSync(bundledNpxCliPath) ? bundledNpxCliPath : null,
+    };
+}
+
+function prependBundledPaths(pathValue: string, runtime: BundledRuntimeInfo): string {
+    if (runtime.bundledBinDirs.length === 0) return pathValue;
+    const pathSeparator = process.platform === "win32" ? ";" : ":";
+    return `${runtime.bundledBinDirs.join(pathSeparator)}${pathSeparator}${pathValue}`;
 }
 
 /**
  * Build a minimal, safe environment for command execution
  * Includes bundled Node.js binaries in PATH for packaged apps
  */
-function buildSafeEnvironment(): Record<string, string | undefined> {
-    // Start with system PATH
-    let pathValue = process.env.PATH || "";
-
-    // Prepend bundled binary directories if available.
-    const bundledBinPaths = getBundledBinariesPaths();
-    if (bundledBinPaths.length > 0) {
-        const pathSeparator = process.platform === "win32" ? ";" : ":";
-        pathValue = `${bundledBinPaths.join(pathSeparator)}${pathSeparator}${pathValue}`;
-        console.log(`[Command Executor] Prepending bundled binaries to PATH: ${bundledBinPaths.join(", ")}`);
+function buildSafeEnvironment(runtime: BundledRuntimeInfo): Record<string, string | undefined> {
+    const pathValue = prependBundledPaths(process.env.PATH || "", runtime);
+    if (runtime.bundledBinDirs.length > 0) {
+        console.log(`[Command Executor] Prepending bundled binaries to PATH: ${runtime.bundledBinDirs.join(", ")}`);
     }
 
     return {
@@ -85,16 +104,72 @@ function buildSafeEnvironment(): Record<string, string | undefined> {
         LANG: process.env.LANG,
         TERM: process.env.TERM || "xterm-256color",
         // Platform-specific
-        SYSTEMROOT: process.env.SYSTEMROOT, // Windows needs this
-        COMSPEC: process.env.COMSPEC, // Windows command interpreter
+        SYSTEMROOT: process.env.SYSTEMROOT,
+        COMSPEC: process.env.COMSPEC,
         TEMP: process.env.TEMP,
         TMP: process.env.TMP,
         USERPROFILE: process.env.USERPROFILE,
-        // Pass ELECTRON_RESOURCES_PATH for child processes (like MCP servers)
         ELECTRON_RESOURCES_PATH: process.env.ELECTRON_RESOURCES_PATH,
-        // Explicitly unset dangerous vars by not including them
-        // NODE_OPTIONS, LD_PRELOAD, etc. are NOT passed
     };
+}
+
+function normalizeExecutable(command: string): string {
+    return basename(command.trim()).toLowerCase().replace(/\.(?:cmd|bat|exe)$/i, "");
+}
+
+function resolveBundledNodeCommand(
+    command: string,
+    args: string[],
+    env: NodeJS.ProcessEnv,
+    runtime: BundledRuntimeInfo,
+): { command: string; args: string[]; env: NodeJS.ProcessEnv; resolution: string | null } {
+    if (!runtime.resourcesPath || isAbsolute(command)) {
+        return { command, args, env, resolution: null };
+    }
+
+    const normalized = normalizeExecutable(command);
+    if (normalized === "node" && runtime.bundledNodePath) {
+        return { command: runtime.bundledNodePath, args, env, resolution: `resolved '${command}' to bundled node` };
+    }
+
+    if (normalized === "npm" && runtime.bundledNodePath && runtime.bundledNpmCliPath) {
+        return {
+            command: runtime.bundledNodePath,
+            args: [runtime.bundledNpmCliPath, ...args],
+            env,
+            resolution: "resolved 'npm' via bundled node + npm-cli.js",
+        };
+    }
+
+    if (normalized === "npx" && runtime.bundledNodePath && runtime.bundledNpxCliPath) {
+        return {
+            command: runtime.bundledNodePath,
+            args: [runtime.bundledNpxCliPath, ...args],
+            env,
+            resolution: "resolved 'npx' via bundled node + npx-cli.js",
+        };
+    }
+
+    return { command, args, env, resolution: null };
+}
+
+function buildNotFoundDiagnostic(command: string, runtime: BundledRuntimeInfo, env: NodeJS.ProcessEnv, resolution: string | null): string {
+    const pathSeparator = process.platform === "win32" ? ";" : ":";
+    const effectivePathHead = (env.PATH || "").split(pathSeparator).slice(0, 5).join("\n  ");
+    const lines = [
+        `Mode: ${runtime.isProductionBuild ? "packaged" : "development"}`,
+        `resourcesPath: ${runtime.resourcesPath ?? "<none>"}`,
+        `bundled node bin dir: ${runtime.nodeBinDir ?? "<none>"} (exists=${runtime.nodeBinDir ? existsSync(runtime.nodeBinDir) : false})`,
+        `bundled tools bin dir: ${runtime.toolsBinDir ?? "<none>"} (exists=${runtime.toolsBinDir ? existsSync(runtime.toolsBinDir) : false})`,
+        `bundled node binary: ${runtime.bundledNodePath ?? "<missing>"}`,
+        `bundled npm cli: ${runtime.bundledNpmCliPath ?? "<missing>"}`,
+        `bundled npx cli: ${runtime.bundledNpxCliPath ?? "<missing>"}`,
+        `effective PATH prefix:\n  ${effectivePathHead || "<empty>"}`,
+    ];
+
+    if (resolution) lines.push(`command resolution: ${resolution}`);
+    lines.push(`requested command: ${command}`);
+    return lines.join("\n");
 }
 
 // EBADF helpers imported from @/lib/spawn-utils
@@ -121,6 +196,53 @@ const LONG_RUNNING_COMMANDS = new Set([
 
 const LONG_RUNNING_TIMEOUT = 120_000; // 2 minutes
 const BACKGROUND_TIMEOUT = 600_000;   // 10 minutes for background processes
+
+function isShellRipgrepCommand(command: string): boolean {
+    return normalizeExecutable(command) === "rg";
+}
+
+function getRtkRgFallbackReason(params: {
+    command: string;
+    wrappedByRTK: boolean;
+    stderr?: string;
+    error?: string;
+}): ExecuteSearchMetadata["fallbackReason"] | undefined {
+    if (!params.wrappedByRTK || !isShellRipgrepCommand(params.command)) {
+        return undefined;
+    }
+
+    const combined = `${params.stderr ?? ""}\n${params.error ?? ""}`.toLowerCase();
+    if (combined.includes("unrecognized subcommand") && combined.includes("rg")) {
+        return "rtk_rg_unrecognized_subcommand";
+    }
+
+    if (combined.includes("unknown command") && combined.includes("rg")) {
+        return "rtk_rg_unknown_command";
+    }
+
+    return undefined;
+}
+
+function buildExecuteSearchMetadata(params: {
+    originalCommand: string;
+    finalCommand: string;
+    wrappedByRTK: boolean;
+    fallbackTriggered?: boolean;
+    fallbackReason?: ExecuteSearchMetadata["fallbackReason"];
+}): ExecuteSearchMetadata | undefined {
+    if (!isShellRipgrepCommand(params.originalCommand)) {
+        return undefined;
+    }
+
+    return {
+        searchPath: "shell_rg",
+        wrappedByRTK: params.wrappedByRTK,
+        fallbackTriggered: params.fallbackTriggered ?? false,
+        fallbackReason: params.fallbackReason,
+        originalCommand: params.originalCommand,
+        finalCommand: params.finalCommand,
+    };
+}
 
 /**
  * Resolve a smart default timeout: long-running package-manager commands get
@@ -158,9 +280,15 @@ function needsWindowsShell(command: string): boolean {
 function wrapWithRTK(
     command: string,
     args: string[],
-    baseEnv: NodeJS.ProcessEnv
+    baseEnv: NodeJS.ProcessEnv,
+    options: { forceDirect?: boolean } = {}
 ): { command: string; args: string[]; usingRTK: boolean; env: NodeJS.ProcessEnv } {
     const direct = { command, args, usingRTK: false, env: baseEnv };
+
+    // Allow targeted bypass (used for shell rg compatibility fallback).
+    if (options.forceDirect) {
+        return direct;
+    }
 
     // Check if RTK should be used for this command
     if (!shouldUseRTK(command)) {
@@ -228,14 +356,20 @@ export async function startBackgroundProcess(
     }
     const resolvedCwd = cwdValidation.resolvedPath ?? cwd;
 
-    const baseEnv = buildSafeEnvironment() as NodeJS.ProcessEnv;
+    const runtime = getBundledRuntimeInfo();
+    const baseEnv = buildSafeEnvironment(runtime) as NodeJS.ProcessEnv;
 
-    // Wrap with RTK if enabled
+    // Wrap with RTK if enabled, otherwise resolve bundled Node/npm/npx in packaged builds.
+    const wrapped = wrapWithRTK(command, args, baseEnv);
+    const resolved = wrapped.usingRTK
+        ? { command: wrapped.command, args: wrapped.args, env: wrapped.env, resolution: null }
+        : resolveBundledNodeCommand(wrapped.command, wrapped.args, wrapped.env, runtime);
+
     const {
         command: finalCommand,
         args: finalArgs,
         env: finalEnv,
-    } = wrapWithRTK(command, args, baseEnv);
+    } = resolved;
 
     const id = nextBgId();
 
@@ -481,6 +615,8 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         characterId,
         confirmRemoval,
         maxOutputSize = DEFAULT_MAX_OUTPUT_SIZE,
+        forceDirectExecution = false,
+        fallbackReasonForDirectExecution,
     } = options;
 
     const timeout = resolveTimeout(command, options.timeout);
@@ -520,12 +656,25 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
         let timeoutId: NodeJS.Timeout | null = null;
         let child: ChildProcess;
 
-        const baseEnv = buildSafeEnvironment() as NodeJS.ProcessEnv;
+        const runtime = getBundledRuntimeInfo();
+        const baseEnv = buildSafeEnvironment(runtime) as NodeJS.ProcessEnv;
+        const wrapped = wrapWithRTK(command, args, baseEnv, { forceDirect: forceDirectExecution });
+        const resolved = wrapped.usingRTK
+            ? { command: wrapped.command, args: wrapped.args, env: wrapped.env, resolution: null }
+            : resolveBundledNodeCommand(wrapped.command, wrapped.args, wrapped.env, runtime);
+
         const {
             command: finalCommand,
             args: finalArgs,
             env: finalEnv,
-        } = wrapWithRTK(command, args, baseEnv);
+        } = resolved;
+        const searchMetadata = buildExecuteSearchMetadata({
+            originalCommand: command,
+            finalCommand,
+            wrappedByRTK: wrapped.usingRTK,
+            fallbackTriggered: forceDirectExecution,
+            fallbackReason: forceDirectExecution ? fallbackReasonForDirectExecution : undefined,
+        });
 
         try {
             // Spawn process
@@ -616,6 +765,12 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 // Save full log
                 const logId = saveTerminalLog(stdout, stderr);
 
+                const fallbackReason = getRtkRgFallbackReason({
+                    command,
+                    wrappedByRTK: wrapped.usingRTK,
+                    stderr,
+                });
+
                 resolve({
                     success: !killed && code === 0,
                     stdout: stdout.trim(),
@@ -626,6 +781,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                     executionTime,
                     logId,
                     isTruncated: false,
+                    searchMetadata: fallbackReason
+                        ? buildExecuteSearchMetadata({
+                            originalCommand: command,
+                            finalCommand,
+                            wrappedByRTK: wrapped.usingRTK,
+                            fallbackTriggered: true,
+                            fallbackReason,
+                        })
+                        : searchMetadata,
                 });
             });
 
@@ -648,6 +812,12 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                             context,
                         );
                         const logId = saveTerminalLog(fb.stdout, fb.stderr);
+                        const fallbackReason = getRtkRgFallbackReason({
+                            command,
+                            wrappedByRTK: wrapped.usingRTK,
+                            stderr: fb.stderr,
+                        });
+
                         resolve({
                             success: fb.exitCode === 0 && !fb.timedOut,
                             stdout: fb.stdout.trim(),
@@ -658,11 +828,26 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                             executionTime,
                             logId,
                             isTruncated: false,
+                            searchMetadata: fallbackReason
+                                ? buildExecuteSearchMetadata({
+                                    originalCommand: command,
+                                    finalCommand,
+                                    wrappedByRTK: wrapped.usingRTK,
+                                    fallbackTriggered: true,
+                                    fallbackReason,
+                                })
+                                : searchMetadata,
                         });
                     } catch (fbErr) {
                         const executionTime = Date.now() - startTime;
                         const msg = fbErr instanceof Error ? fbErr.message : "File-capture fallback failed";
                         commandLogger.logExecutionError(command, msg, context);
+                        const fallbackReason = getRtkRgFallbackReason({
+                            command,
+                            wrappedByRTK: wrapped.usingRTK,
+                            error: msg,
+                        });
+
                         resolve({
                             success: false,
                             stdout: "",
@@ -671,6 +856,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                             signal: null,
                             error: msg,
                             executionTime,
+                            searchMetadata: fallbackReason
+                                ? buildExecuteSearchMetadata({
+                                    originalCommand: command,
+                                    finalCommand,
+                                    wrappedByRTK: wrapped.usingRTK,
+                                    fallbackTriggered: true,
+                                    fallbackReason,
+                                })
+                                : searchMetadata,
                         });
                     }
                     return;
@@ -683,15 +877,18 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
 
                 // Check if it's a "command not found" error
                 if (error.message.includes("ENOENT") || error.message.includes("spawn") && error.message.includes("not found")) {
-                    const bundledBinPaths = getBundledBinariesPaths();
-                    const pathInfo = bundledBinPaths.length > 0
-                        ? `\n\nBundled binaries paths: ${bundledBinPaths.join(", ")}\nCurrent PATH: ${process.env.PATH?.split(process.platform === "win32" ? ";" : ":").slice(0, 3).join("\n  ")}`
-                        : "\n\nNo bundled binaries found. Running in development mode or binaries not packaged.";
-
-                    errorMessage = `Command '${command}' not found. ${errorMessage}${pathInfo}\n\nTip: For Node.js commands (npm, npx, node), ensure the app is properly packaged with bundled binaries.`;
+                    const diagnostic = buildNotFoundDiagnostic(command, runtime, finalEnv, resolved.resolution);
+                    errorMessage = `Command '${command}' not found. ${errorMessage}\n\n${diagnostic}\n\nTip: For Node.js commands (npm, npx, node), Seline expects bundled binaries under resources/standalone.`;
                 }
 
                 commandLogger.logExecutionError(command, errorMessage, context);
+
+                const fallbackReason = getRtkRgFallbackReason({
+                    command,
+                    wrappedByRTK: wrapped.usingRTK,
+                    stderr,
+                    error: errorMessage,
+                });
 
                 resolve({
                     success: false,
@@ -701,6 +898,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                     signal: null,
                     error: errorMessage,
                     executionTime,
+                    searchMetadata: fallbackReason
+                        ? buildExecuteSearchMetadata({
+                            originalCommand: command,
+                            finalCommand,
+                            wrappedByRTK: wrapped.usingRTK,
+                            fallbackTriggered: true,
+                            fallbackReason,
+                        })
+                        : searchMetadata,
                 });
             });
         } catch (error) {
@@ -720,6 +926,12 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                         context,
                     );
                     const logId = saveTerminalLog(fb.stdout, fb.stderr);
+                    const fallbackReason = getRtkRgFallbackReason({
+                        command,
+                        wrappedByRTK: wrapped.usingRTK,
+                        stderr: fb.stderr,
+                    });
+
                     resolve({
                         success: fb.exitCode === 0 && !fb.timedOut,
                         stdout: fb.stdout.trim(),
@@ -730,11 +942,26 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                         executionTime,
                         logId,
                         isTruncated: false,
+                        searchMetadata: fallbackReason
+                            ? buildExecuteSearchMetadata({
+                                originalCommand: command,
+                                finalCommand,
+                                wrappedByRTK: wrapped.usingRTK,
+                                fallbackTriggered: true,
+                                fallbackReason,
+                            })
+                            : searchMetadata,
                     });
                 }).catch((fbErr) => {
                     const executionTime = Date.now() - startTime;
                     const msg = fbErr instanceof Error ? fbErr.message : "File-capture fallback failed";
                     commandLogger.logExecutionError(command, msg, context);
+                    const fallbackReason = getRtkRgFallbackReason({
+                        command,
+                        wrappedByRTK: wrapped.usingRTK,
+                        error: msg,
+                    });
+
                     resolve({
                         success: false,
                         stdout: "",
@@ -743,6 +970,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                         signal: null,
                         error: msg,
                         executionTime,
+                        searchMetadata: fallbackReason
+                            ? buildExecuteSearchMetadata({
+                                originalCommand: command,
+                                finalCommand,
+                                wrappedByRTK: wrapped.usingRTK,
+                                fallbackTriggered: true,
+                                fallbackReason,
+                            })
+                            : searchMetadata,
                     });
                 });
                 return;
@@ -751,6 +987,11 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
             const executionTime = Date.now() - startTime;
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             commandLogger.logExecutionError(command, errorMessage, context);
+            const fallbackReason = getRtkRgFallbackReason({
+                command,
+                wrappedByRTK: wrapped.usingRTK,
+                error: errorMessage,
+            });
 
             resolve({
                 success: false,
@@ -760,6 +1001,15 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 signal: null,
                 error: errorMessage,
                 executionTime,
+                searchMetadata: fallbackReason
+                    ? buildExecuteSearchMetadata({
+                        originalCommand: command,
+                        finalCommand,
+                        wrappedByRTK: wrapped.usingRTK,
+                        fallbackTriggered: true,
+                        fallbackReason,
+                    })
+                    : searchMetadata,
             });
         }
     });
@@ -792,6 +1042,11 @@ export async function executeCommandWithValidation(
             signal: null,
             error: cwdValidation.error,
             executionTime: Date.now() - startTime,
+            searchMetadata: buildExecuteSearchMetadata({
+                originalCommand: options.command,
+                finalCommand: options.command,
+                wrappedByRTK: false,
+            }),
         };
     }
 

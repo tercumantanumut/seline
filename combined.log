@@ -1,0 +1,82 @@
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:29:39.149Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:39.151Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:39.151Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:39.151Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:40.536Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:40.537Z"}
+{"backend":"html","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:40.537Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:40.537Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:40.537Z","url":"https://html.duckduckgo.com/html"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:42.567Z"}
+{"backend":"html","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:42.568Z"}
+{"backend":"auto","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:42.568Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:42.568Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:42.568Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:44.388Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:44.388Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:29:44.390Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:44.390Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:44.390Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:44.390Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:45.182Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:45.182Z"}
+{"backend":"html","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:45.182Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:45.182Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:45.182Z","url":"https://html.duckduckgo.com/html"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:46.744Z"}
+{"backend":"html","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:46.744Z"}
+{"backend":"auto","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:46.744Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:46.744Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:46.744Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:48.184Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:48.184Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:29:48.186Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:48.186Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:48.186Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:48.186Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:48.956Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:48.956Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:29:48.958Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:29:48.958Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:29:48.958Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:29:48.958Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:29:49.646Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:29:49.646Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:31:10.212Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:10.215Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:10.215Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:10.215Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:11.357Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:11.358Z"}
+{"backend":"html","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:11.358Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:11.359Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:11.359Z","url":"https://html.duckduckgo.com/html"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:13.683Z"}
+{"backend":"html","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:13.683Z"}
+{"backend":"auto","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:13.683Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:13.683Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:13.683Z","url":"https://html.duckduckgo.com/html"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:15.403Z"}
+{"backend":"html","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:15.404Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:31:15.406Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:15.406Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:15.406Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:15.406Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:16.063Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:16.063Z"}
+{"backend":"html","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:16.063Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:16.063Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:16.063Z","url":"https://html.duckduckgo.com/html"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:17.550Z"}
+{"backend":"html","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:17.551Z"}
+{"backend":"auto","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:17.551Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:17.551Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:17.551Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:18.967Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:18.968Z"}
+{"level":"info","message":"Initializing DDGS with options","timeout":10000,"timestamp":"2026-02-21T14:31:18.970Z","verify":true}
+{"backend":"lite","keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting text search","region":"wt-wt","safesearch":"moderate","timelimit":null,"timestamp":"2026-02-21T14:31:18.970Z"}
+{"keywords":"Fenerbahçe","level":"info","maxResults":8,"message":"Starting HTML lite search","region":"wt-wt","timelimit":null,"timestamp":"2026-02-21T14:31:18.970Z"}
+{"level":"info","message":"Making request","method":"POST","timestamp":"2026-02-21T14:31:18.970Z","url":"https://lite.duckduckgo.com/lite"}
+{"level":"info","message":"Reached maximum results limit","resultCount":8,"timestamp":"2026-02-21T14:31:19.662Z"}
+{"backend":"lite","level":"info","message":"Search completed successfully","resultCount":8,"timestamp":"2026-02-21T14:31:19.662Z"}

@@ -6,6 +6,7 @@
  */
 
 import { tool, jsonSchema } from "ai";
+import { logToolEvent } from "@/lib/ai/tool-registry";
 import fs from "fs/promises";
 import path from "path";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
@@ -216,7 +217,8 @@ export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
 
 **Efficiency:**
 - For potentially large output, self-limit in the command itself (e.g., \`head\`, \`tail\`, or PowerShell \`Select-Object -First\`)
-- Prefer \`localGrep\` for codebase file discovery/search over broad recursive shell listings
+- Prefer \`localGrep\` for codebase file discovery/search (primary path)
+- If \`localGrep\` is unavailable/fails, using this tool with \`command: "rg"\` is a supported fallback
 
 **Common Use Cases:**
 - Run tests: executeCommand({ command: "npm", args: ["test"] })
@@ -397,17 +399,63 @@ The tool returns immediately with a processId. Poll with processId to check stat
 
                 // ── Foreground execution ─────────────────────────────────
                 const maxTimeout = 600_000; // 10 min for foreground too
-                const result = await executeCommandWithValidation(
-                     {
-                         command: normalizedInput.command,
-                         args: normalizedInput.args,
-                         cwd: executionDir,
-                         timeout: timeout ? Math.min(timeout, maxTimeout) : undefined, // let executor pick smart default
-                         characterId: characterId,
-                         confirmRemoval,
-                     },
-                     syncedFolders // Whitelist of allowed directories (second parameter)
-                 );
+                const initialOptions = {
+                    command: normalizedInput.command,
+                    args: normalizedInput.args,
+                    cwd: executionDir,
+                    timeout: timeout ? Math.min(timeout, maxTimeout) : undefined,
+                    characterId: characterId,
+                    confirmRemoval,
+                };
+
+                let result = await executeCommandWithValidation(
+                    initialOptions,
+                    syncedFolders
+                );
+
+                const fallbackReason = result.searchMetadata?.fallbackReason;
+                if (
+                    (fallbackReason === "rtk_rg_unrecognized_subcommand" || fallbackReason === "rtk_rg_unknown_command")
+                    && normalizedInput.command.trim().toLowerCase() === "rg"
+                ) {
+                    logToolEvent({
+                        level: "warn",
+                        toolName: "executeCommand",
+                        event: "retry",
+                        error: `RTK rejected rg command (${fallbackReason}); retrying direct rg execution`,
+                        metadata: {
+                            searchPath: "shell_rg",
+                            fallbackReason,
+                            wrappedByRTK: true,
+                        },
+                    });
+
+                    result = await executeCommandWithValidation(
+                        {
+                            ...initialOptions,
+                            forceDirectExecution: true,
+                            fallbackReasonForDirectExecution: fallbackReason,
+                        },
+                        syncedFolders
+                    );
+                }
+
+                if (result.searchMetadata?.searchPath === "shell_rg") {
+                    logToolEvent({
+                        level: result.success ? "info" : "error",
+                        toolName: "executeCommand",
+                        event: result.success ? "success" : "error",
+                        error: result.success ? undefined : result.error,
+                        metadata: {
+                            searchPath: result.searchMetadata.searchPath,
+                            wrappedByRTK: result.searchMetadata.wrappedByRTK,
+                            fallbackTriggered: result.searchMetadata.fallbackTriggered,
+                            fallbackReason: result.searchMetadata.fallbackReason,
+                            originalCommand: result.searchMetadata.originalCommand,
+                            finalCommand: result.searchMetadata.finalCommand,
+                        },
+                    });
+                }
 
                 const toolResult: ExecuteCommandToolResult = {
                     status: result.success

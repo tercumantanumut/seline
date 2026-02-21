@@ -22,11 +22,30 @@ export interface ExecuteOptions {
   maxOutputSize?: number;
   /** Explicit confirmation required for removal commands (rm/rmdir/del/...) */
   confirmRemoval?: boolean;
+  /** Internal use: skip RTK wrapping for this invocation */
+  forceDirectExecution?: boolean;
+  /** Internal use: preserve fallback reason when forcing direct execution */
+  fallbackReasonForDirectExecution?: ExecuteSearchMetadata["fallbackReason"];
 }
 
 /**
  * Result of command execution
  */
+export interface ExecuteSearchMetadata {
+  /** Which search path was used by executeCommand */
+  searchPath: "shell_rg";
+  /** Whether command execution was wrapped by RTK */
+  wrappedByRTK: boolean;
+  /** Whether fallback to direct command was attempted after RTK failure */
+  fallbackTriggered: boolean;
+  /** Reason fallback was triggered */
+  fallbackReason?: "rtk_rg_unrecognized_subcommand" | "rtk_rg_unknown_command";
+  /** Original command requested by tool caller */
+  originalCommand: string;
+  /** Final executable used for the successful/returned run */
+  finalCommand: string;
+}
+
 export interface ExecuteResult {
   /** Whether the command executed successfully (exit code 0) */
   success: boolean;
@@ -46,6 +65,8 @@ export interface ExecuteResult {
   logId?: string;
   /** Whether the output was truncated in context */
   isTruncated?: boolean;
+  /** Metadata for shell ripgrep compatibility/fallback diagnostics */
+  searchMetadata?: ExecuteSearchMetadata;
 }
 
 /**

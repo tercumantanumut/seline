@@ -94,6 +94,12 @@ const requiredPaths = [
   (platform === 'win32' || platform === 'win')
     ? 'standalone/tools/bin/apply_patch.cmd'
     : 'standalone/tools/bin/apply_patch',
+  // Bundled Node runtime + npm/npx CLI files are required for execute-command in packaged apps.
+  (platform === 'win32' || platform === 'win')
+    ? 'standalone/node_modules/.bin/node.exe'
+    : 'standalone/node_modules/.bin/node',
+  'standalone/node_modules/npm/bin/npm-cli.js',
+  'standalone/node_modules/npm/bin/npx-cli.js',
 ];
 
 // RTK bundle is optional at runtime (experimental), but warn if absent in package.
