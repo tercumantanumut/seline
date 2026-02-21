@@ -57,6 +57,21 @@ describe("web search provider status", () => {
     expect(isAnySearchProviderAvailable()).toBe(true);
   });
 
+  it("keeps auto mode on DuckDuckGo when WEB_SEARCH_PROVIDER is stale and Tavily key is cleared", () => {
+    process.env.WEB_SEARCH_PROVIDER = "auto";
+    delete process.env.TAVILY_API_KEY;
+
+    const status = getWebSearchProviderStatus();
+
+    expect(status).toMatchObject({
+      configuredProvider: "auto",
+      activeProvider: "duckduckgo",
+      available: true,
+      tavilyConfigured: false,
+      isFallback: true,
+    });
+  });
+
   it("stays on DuckDuckGo when explicitly configured", () => {
     process.env.TAVILY_API_KEY = "tvly-test-key";
     process.env.WEB_SEARCH_PROVIDER = "duckduckgo";

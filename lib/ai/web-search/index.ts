@@ -18,7 +18,7 @@
 import { tool, jsonSchema } from "ai";
 import { cacheWebSearchResults, formatBriefSearchResults, cleanupExpiredWebCache } from "@/lib/ai/web-cache";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
-import { getSearchProvider, isAnySearchProviderAvailable } from "./providers";
+import { getSearchProvider, getWebSearchProviderStatus, isAnySearchProviderAvailable } from "./providers";
 
 // ============================================================================
 // Types
@@ -135,6 +135,7 @@ async function executeWebSearch(
   const { query, maxResults = 5, includeAnswer = true, iterateIfLowQuality = false } = args;
 
   // Get the configured provider
+  const providerStatus = getWebSearchProviderStatus();
   const provider = getSearchProvider();
 
   if (!provider.isAvailable()) {
@@ -154,15 +155,37 @@ async function executeWebSearch(
     searchDepth: "basic",
   });
 
-  let finalSources = initialResult.sources;
+  let finalResult = initialResult;
+  let finalSources = finalResult.sources;
   let iterationPerformed = false;
+
+  // In auto mode, recover to DuckDuckGo when Tavily fails at runtime.
+  if (
+    providerStatus.configuredProvider === "auto" &&
+    provider.name === "tavily" &&
+    finalSources.length === 0 &&
+    finalResult.error
+  ) {
+    console.warn(`[WEB-SEARCH] Auto fallback to DuckDuckGo after Tavily failure: ${finalResult.error}`);
+    const fallbackProvider = getSearchProvider("duckduckgo");
+    const fallbackResult = await fallbackProvider.search(query, {
+      maxResults,
+      includeAnswer: false,
+      searchDepth: "basic",
+    });
+
+    if (fallbackResult.sources.length > 0) {
+      finalResult = fallbackResult;
+      finalSources = fallbackResult.sources;
+    }
+  }
 
   // Check if we should iterate (only if enabled, results are low quality, AND provider has real scores)
   // Skip quality check for DuckDuckGo since scores are synthetic/position-based
-  if (iterateIfLowQuality && provider.name === "tavily" && initialResult.sources.length > 0) {
+  if (iterateIfLowQuality && provider.name === "tavily" && finalResult.providerUsed === "tavily" && finalResult.sources.length > 0) {
     const avgScore =
-      initialResult.sources.reduce((sum, s) => sum + s.relevanceScore, 0) /
-      initialResult.sources.length;
+      finalResult.sources.reduce((sum, s) => sum + s.relevanceScore, 0) /
+      finalResult.sources.length;
 
     if (avgScore < MIN_QUALITY_THRESHOLD) {
       console.log(
@@ -178,7 +201,7 @@ async function executeWebSearch(
       });
 
       // Merge results, preferring higher scoring ones
-      const allSources = [...initialResult.sources, ...refinedResult.sources];
+      const allSources = [...finalResult.sources, ...refinedResult.sources];
       const uniqueSources = allSources.reduce((acc, source) => {
         if (!acc.find((s) => s.url === source.url)) {
           acc.push(source);
@@ -215,10 +238,10 @@ async function executeWebSearch(
       status: "success",
       query,
       sources: finalSources,
-      answer: initialResult.answer,
+      answer: finalResult.answer,
       iterationPerformed,
       formattedResults: formatBriefSearchResults(finalSources),
-      provider: provider.name,
+      provider: finalResult.providerUsed ?? provider.name,
     };
   }
 
@@ -227,10 +250,10 @@ async function executeWebSearch(
     status: "success",
     query,
     sources: finalSources,
-    answer: initialResult.answer,
+    answer: finalResult.answer,
     iterationPerformed,
-    formattedResults: formatSearchResults(finalSources, initialResult.answer),
-    provider: provider.name,
+    formattedResults: formatSearchResults(finalSources, finalResult.answer),
+    provider: finalResult.providerUsed ?? provider.name,
   };
 }
 
