@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,21 +89,6 @@ function parseAsUTC(dateStr: string): Date {
   return new Date(normalized);
 }
 
-function relativeTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return "–";
-  const date = parseAsUTC(dateStr);
-  if (isNaN(date.getTime())) return "–";
-  const diffMs = Date.now() - date.getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function StatCard({
@@ -159,6 +144,12 @@ function SessionCard({
   pinned?: boolean;
   untitledLabel: string;
 }) {
+  const formatter = useFormatter();
+  const dateStr = session.lastMessageAt ?? session.updatedAt;
+  const formattedTime = dateStr
+    ? formatter.relativeTime(parseAsUTC(dateStr))
+    : "–";
+
   return (
     <div
       onClick={onClick}
@@ -180,7 +171,7 @@ function SessionCard({
           {agentName ? <span className="text-terminal-green/80">{agentName}</span> : null}
           <span className="flex items-center gap-1">
             <Clock className="h-2.5 w-2.5" />
-            {relativeTime(session.lastMessageAt ?? session.updatedAt)}
+            {formattedTime}
           </span>
           {session.messageCount > 0 ? (
             <span>{session.messageCount} msg{session.messageCount !== 1 ? "s" : ""}</span>
