@@ -244,6 +244,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     postEditTypecheckScope: "auto",
     postEditRunInPatchTool: false,
     webScraperProvider: "firecrawl",
+    webSearchProvider: "auto",
     embeddingProvider: "openrouter",
     vectorDBEnabled: false,
     vectorSearchHybridEnabled: true,
@@ -456,8 +457,15 @@ function updateEnvFromSettings(settings: AppSettings): void {
     } else {
         delete process.env.OLLAMA_BASE_URL;
     }
-    if (settings.tavilyApiKey) {
-        process.env.TAVILY_API_KEY = settings.tavilyApiKey;
+    if (settings.tavilyApiKey !== undefined) {
+        const nextTavilyApiKey = settings.tavilyApiKey.trim();
+        if (nextTavilyApiKey.length > 0) {
+            process.env.TAVILY_API_KEY = nextTavilyApiKey;
+        } else {
+            delete process.env.TAVILY_API_KEY;
+        }
+    } else {
+        delete process.env.TAVILY_API_KEY;
     }
     if (settings.firecrawlApiKey) {
         process.env.FIRECRAWL_API_KEY = settings.firecrawlApiKey;
@@ -467,6 +475,8 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.webSearchProvider) {
         process.env.WEB_SEARCH_PROVIDER = settings.webSearchProvider;
+    } else {
+        delete process.env.WEB_SEARCH_PROVIDER;
     }
     if (settings.stylyAiApiKey) {
         process.env.STYLY_AI_API_KEY = settings.stylyAiApiKey;

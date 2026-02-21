@@ -21,6 +21,10 @@ export interface WebSearchProviderResult {
   sources: WebSearchSource[];
   /** AI-generated answer summary (Tavily only) */
   answer?: string;
+  /** Provider that produced this result, useful for auto-mode fallback diagnostics. */
+  providerUsed?: "tavily" | "duckduckgo";
+  /** Provider-level error. Consumers may use this to decide fallback behavior. */
+  error?: string;
 }
 
 export interface WebSearchProviderOptions {
@@ -80,7 +84,11 @@ export class TavilyProvider implements WebSearchProvider {
     const apiKey = getTavilyApiKey();
     if (!apiKey) {
       console.warn("[WEB-SEARCH] Tavily API key not configured");
-      return { sources: [] };
+      return {
+        sources: [],
+        providerUsed: "tavily",
+        error: "Tavily API key not configured",
+      };
     }
 
     const { maxResults = 10, searchDepth = "basic", includeAnswer = true } = options;
@@ -114,10 +122,16 @@ export class TavilyProvider implements WebSearchProvider {
           relevanceScore: result.score,
         })),
         answer: data.answer,
+        providerUsed: "tavily",
       };
     } catch (error) {
       console.error("[WEB-SEARCH] Tavily search error:", error);
-      return { sources: [] };
+      const message = error instanceof Error ? error.message : "Unknown Tavily error";
+      return {
+        sources: [],
+        providerUsed: "tavily",
+        error: message,
+      };
     }
   }
 }
@@ -241,6 +255,7 @@ export class DuckDuckGoProvider implements WebSearchProvider {
       return {
         sources,
         answer: undefined, // DDG doesn't provide AI answer summaries
+        providerUsed: "duckduckgo",
       };
     } catch (error: any) {
       // Check for rate limit error specifically
@@ -249,7 +264,12 @@ export class DuckDuckGoProvider implements WebSearchProvider {
       } else {
         console.error("[WEB-SEARCH] DuckDuckGo search error:", error);
       }
-      return { sources: [] };
+      const message = error instanceof Error ? error.message : "Unknown DuckDuckGo error";
+      return {
+        sources: [],
+        providerUsed: "duckduckgo",
+        error: message,
+      };
     }
   }
 }

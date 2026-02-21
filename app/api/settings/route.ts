@@ -53,6 +53,7 @@ export async function PUT(request: NextRequest) {
       ollamaBaseUrl: body.ollamaBaseUrl !== undefined ? body.ollamaBaseUrl : currentSettings.ollamaBaseUrl,
       theme: body.theme ?? currentSettings.theme,
       webScraperProvider: body.webScraperProvider ?? currentSettings.webScraperProvider,
+      webSearchProvider: body.webSearchProvider ?? currentSettings.webSearchProvider,
       // Model settings - allow empty string to clear, undefined to keep current
       // On provider switch: clear model fields unless the request explicitly provides new values
       chatModel: body.chatModel !== undefined ? body.chatModel : (providerIsChanging ? "" : currentSettings.chatModel),
@@ -147,8 +148,9 @@ export async function PUT(request: NextRequest) {
     if (body.kimiApiKey && !body.kimiApiKey.includes("•")) {
       updatedSettings.kimiApiKey = body.kimiApiKey;
     }
-    if (body.tavilyApiKey && !body.tavilyApiKey.includes("•")) {
-      updatedSettings.tavilyApiKey = body.tavilyApiKey;
+    if (body.tavilyApiKey !== undefined && !String(body.tavilyApiKey).includes("•")) {
+      const nextTavilyApiKey = String(body.tavilyApiKey).trim();
+      updatedSettings.tavilyApiKey = nextTavilyApiKey.length > 0 ? nextTavilyApiKey : undefined;
     }
     if (body.firecrawlApiKey && !body.firecrawlApiKey.includes("•")) {
       updatedSettings.firecrawlApiKey = body.firecrawlApiKey;
