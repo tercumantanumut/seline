@@ -405,6 +405,7 @@ Run shell commands safely within synced folders. Dangerous commands (rm, sudo, f
 **Key rules:**
 - \`command\` = executable only (e.g., "npm"), NOT a full shell line
 - \`args\` = array of arguments (e.g., ["run", "build"])
+- Prefer \`localGrep\` for codebase file discovery/search; if using shell listings, always self-limit output (e.g., \`head\`, \`Select-Object -First\`)
 - Python inline: \`{ command: "python", args: ["-c", "print('hello')"] }\`
 - 30s default timeout (max 5min)`,
       loading: { deferLoading: true },
