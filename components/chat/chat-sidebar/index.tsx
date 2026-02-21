@@ -27,6 +27,7 @@ import {
   Send,
   Trash2,
   Pencil,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -488,18 +489,34 @@ export function CharacterSidebar({
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="shrink-0 px-4 pb-2">
-          <h3 className="mb-2 text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
-            {t("sidebar.history")}
-          </h3>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
+              {t("sidebar.history")}
+            </h3>
+            {totalCount > 0 ? (
+              <span className="text-[10px] font-mono text-terminal-muted/70 tabular-nums">
+                {totalCount.toLocaleString()}
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-terminal-muted" />
               <Input
-                className="pl-8 h-9 font-mono text-sm"
+                className={cn("pl-8 h-9 font-mono text-sm", searchQuery ? "pr-8" : "")}
                 value={searchQuery}
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder={t("sidebar.searchPlaceholder")}
               />
+              {searchQuery ? (
+                <button
+                  className="absolute right-2 top-2.5 text-terminal-muted hover:text-terminal-dark transition-colors"
+                  onClick={() => onSearchChange("")}
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
             <Button
               variant="ghost"
