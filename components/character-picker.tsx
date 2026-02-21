@@ -778,7 +778,7 @@ export function CharacterPicker() {
   const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
 
   // Search/filter state
-  const [searchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch settings to check if Vector Search and Developer Workspace are enabled
   useEffect(() => {
@@ -1969,6 +1969,20 @@ export function CharacterPicker() {
         </div>
       )}
 
+      {/* Agent search — only shown when there are enough agents to warrant filtering */}
+      {characters.length > 4 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-terminal-muted pointer-events-none" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="w-full pl-10 pr-4 py-2 bg-terminal-bg/30 border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
+          />
+        </div>
+      )}
+
       <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {/* Create New Agent Card */}
         <AnimatedCard
@@ -2016,6 +2030,20 @@ export function CharacterPicker() {
           />
         ))}
       </div>
+
+      {/* Empty state - search returned no results */}
+      {characters.length > 0 && standaloneCharacters.length === 0 && searchQuery.trim() !== "" && (
+        <div className="text-center py-8">
+          <p className="font-mono text-sm text-terminal-muted">{t("noResults")}</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="mt-2 font-mono text-xs text-terminal-green hover:underline"
+          >
+            {t("clearSearch")}
+          </button>
+        </div>
+      )}
 
       {/* Empty state - no agents created yet */}
       {characters.length === 0 && (
