@@ -2239,7 +2239,10 @@
       "title": "Are you sure?"
     },
     "files": {
-      "noFiles": "No files found. This skill doesn't have any attached files."
+      "noFiles": "No files found. This skill doesn't have any attached files.",
+      "download": "Download file",
+      "downloadSuccess": "File downloaded",
+      "downloadFailed": "Download failed"
     },
     "import": {
       "uploading": "Uploading...",
@@ -2264,6 +2267,10 @@
     "pageDescription": "Automate {name} to run tasks on a defined schedule. Monitor execution history and manage active workflows.",
     "create": "New Schedule",
     "retry": "Retry",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "deleteConfirmTitle": "Delete Schedule",
+    "deleteConfirmDescription": "This will permanently delete this scheduled task and all its run history. This action cannot be undone.",
     "filters": {
       "search": "Search schedules...",
       "allStatuses": "All Statuses",
@@ -2301,7 +2308,9 @@
       "viewChat": "View Chat",
       "continueChat": "Continue",
       "noSession": "No session created",
-      "neverRun": "Never run"
+      "neverRun": "Never run",
+      "editSchedule": "Edit schedule",
+      "deleteSchedule": "Delete schedule"
     },
     "form": {
       "createTitle": "Create Schedule",

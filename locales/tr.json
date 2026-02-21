@@ -2224,7 +2224,10 @@
       "title": "Emin misiniz?"
     },
     "files": {
-      "noFiles": "Dosya bulunamadı. Bu beceriye ait herhangi bir dosya yok."
+      "noFiles": "Dosya bulunamadı. Bu beceriye ait herhangi bir dosya yok.",
+      "download": "Dosyayı indir",
+      "downloadSuccess": "Dosya indirildi",
+      "downloadFailed": "İndirme başarısız"
     },
     "import": {
       "uploading": "Yükleniyor...",
@@ -2249,6 +2252,10 @@
     "pageDescription": "{name} için tanımlı bir programa göre görevler çalıştırın. Çalıştırma geçmişini izleyin ve aktif iş akışlarını yönetin.",
     "create": "Yeni Zamanlama",
     "retry": "Yeniden Dene",
+    "delete": "Sil",
+    "cancel": "İptal",
+    "deleteConfirmTitle": "Zamanlamayı Sil",
+    "deleteConfirmDescription": "Bu zamanlanmış görev ve tüm çalıştırma geçmişi kalıcı olarak silinecektir. Bu işlem geri alınamaz.",
     "filters": {
       "search": "Zamanlamaları ara...",
       "allStatuses": "Tüm Durumlar",
@@ -2386,7 +2393,9 @@
       "continueChat": "Devam Et",
       "noSession": "Oturum oluşturulmadı",
       "neverRun": "Hiç çalıştırılmadı",
-      "draft": "Taslak"
+      "draft": "Taslak",
+      "editSchedule": "Zamanlamayı düzenle",
+      "deleteSchedule": "Zamanlamayı sil"
     },
     "form": {
       "createTitle": "Zamanlama Oluştur",

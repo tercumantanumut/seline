@@ -6,6 +6,7 @@ import { FileCode, FileText, Image, FileArchive, Download, Loader2 } from "lucid
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import type { SkillFile } from "@/lib/db/sqlite-skills-schema";
 
 interface SkillFilesTabProps {
@@ -84,8 +85,10 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      toast.success(t("downloadSuccess"));
     } catch (err) {
       console.error("Download error:", err);
+      toast.error(t("downloadFailed"));
     }
   };
 
@@ -160,6 +163,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -197,6 +201,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -234,6 +239,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
@@ -270,6 +276,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={t("download")}
                   onClick={() => downloadFile(file)}
                 >
                   <Download className="h-4 w-4" />
