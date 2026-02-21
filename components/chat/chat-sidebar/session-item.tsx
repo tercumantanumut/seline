@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Pin,
   PinOff,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -324,6 +325,12 @@ export function SessionItem({
             <DropdownMenuItem onSelect={() => onExport("json")}>
               <Download className="h-3.5 w-3.5" />
               {t("sidebar.exportJson")}
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={`/usage?sessionId=${session.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                <BarChart2 className="h-3.5 w-3.5" />
+                {t("sidebar.viewAnalytics")}
+              </a>
             </DropdownMenuItem>
             {effectiveChannel ? (
               <DropdownMenuItem onSelect={onResetChannel}>
