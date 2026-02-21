@@ -125,10 +125,10 @@ export function PluginStatusBadge() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed");
-      toast.success(`Plugin ${newStatus === "active" ? "enabled" : "disabled"}`);
+      toast.success(newStatus === "active" ? tPlugins("pluginEnabled") : tPlugins("pluginDisabled"));
       loadPlugins();
     } catch {
-      toast.error("Failed to update plugin");
+      toast.error(tPlugins("updateFailed"));
     } finally {
       setToggling(null);
     }
