@@ -1840,6 +1840,33 @@
       "deleted": "Workflow deleted",
       "createWorkflow": "Create Workflow",
       "createWorkflowDescription": "Configure external instances and define new custom workflows."
+    },
+    "installer": {
+      "title": "Local Image Generation (Z-Image Turbo FP8)",
+      "titleSimple": "Local Image Generation (Z-Image)",
+      "description": "Generate images locally using ComfyUI with the Z-Image Turbo FP8 model. Requires Docker and an NVIDIA GPU with ~12GB VRAM.",
+      "webOnlyNote": "Local ComfyUI backend is only available in the desktop app.",
+      "enableLabel": "Enable Local Image Generation",
+      "enableDesc": "Use local ComfyUI instead of cloud APIs",
+      "dockerInstalled": "Docker Installed",
+      "imageBuilt": "Docker Image Built",
+      "modelsDownloaded": "Models Downloaded",
+      "containerRunning": "Container Running",
+      "apiHealthy": "API Healthy",
+      "refreshStatus": "Refresh Status",
+      "setupButton": "Setup ComfyUI (Build + Download ~12GB Models)",
+      "dockerRequired": "Docker is required. Please install Docker Desktop first.",
+      "stopComfyUI": "Stop ComfyUI",
+      "startComfyUI": "Start ComfyUI",
+      "setupWillTitle": "One-click setup will:",
+      "setupStep1": "Build Docker images (~10-20 min first time)",
+      "setupStep2": "Download z-image-turbo-fp8-aio.safetensors (~11GB)",
+      "setupStep3": "Download z-image-detailer.safetensors (~1.2GB)",
+      "setupStep4": "Start ComfyUI containers",
+      "advancedSettings": "Advanced Settings",
+      "backendPath": "ComfyUI Backend Path",
+      "backendPathPlaceholder": "Auto-detected path or custom location",
+      "backendPathDesc": "Override the default location for ComfyUI backend files and models."
     }
   },
   "vectorSearch": {

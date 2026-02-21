@@ -1825,6 +1825,33 @@
       "deleted": "İş akışı silindi",
       "createWorkflow": "İş Akışı Oluştur",
       "createWorkflowDescription": "Harici örnekleri yapılandırın ve yeni özel iş akışları tanımlayın."
+    },
+    "installer": {
+      "title": "Yerel Görsel Üretimi (Z-Image Turbo FP8)",
+      "titleSimple": "Yerel Görsel Üretimi (Z-Image)",
+      "description": "Z-Image Turbo FP8 modeliyle ComfyUI kullanarak görselleri yerel olarak oluşturun. Docker ve ~12 GB VRAM'e sahip NVIDIA GPU gerektirir.",
+      "webOnlyNote": "Yerel ComfyUI arka ucu yalnızca masaüstü uygulamasında kullanılabilir.",
+      "enableLabel": "Yerel Görsel Üretimini Etkinleştir",
+      "enableDesc": "Bulut API'leri yerine yerel ComfyUI kullan",
+      "dockerInstalled": "Docker Kurulu",
+      "imageBuilt": "Docker İmajı Oluşturuldu",
+      "modelsDownloaded": "Modeller İndirildi",
+      "containerRunning": "Kapsayıcı Çalışıyor",
+      "apiHealthy": "API Sağlıklı",
+      "refreshStatus": "Durumu Yenile",
+      "setupButton": "ComfyUI Kur (Oluştur + ~12 GB Model İndir)",
+      "dockerRequired": "Docker gereklidir. Lütfen önce Docker Desktop'ı kurun.",
+      "stopComfyUI": "ComfyUI'yi Durdur",
+      "startComfyUI": "ComfyUI'yi Başlat",
+      "setupWillTitle": "Tek tıkla kurulum:",
+      "setupStep1": "Docker imajlarını oluşturur (~10-20 dk ilk seferde)",
+      "setupStep2": "z-image-turbo-fp8-aio.safetensors indirir (~11 GB)",
+      "setupStep3": "z-image-detailer.safetensors indirir (~1.2 GB)",
+      "setupStep4": "ComfyUI kapsayıcılarını başlatır",
+      "advancedSettings": "Gelişmiş Ayarlar",
+      "backendPath": "ComfyUI Arka Uç Yolu",
+      "backendPathPlaceholder": "Otomatik algılanan yol veya özel konum",
+      "backendPathDesc": "ComfyUI arka uç dosyaları ve modelleri için varsayılan konumu geçersiz kıl."
     }
   },
   "vectorSearch": {
