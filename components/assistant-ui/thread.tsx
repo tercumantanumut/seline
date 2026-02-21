@@ -364,12 +364,12 @@ export const Thread: FC<ThreadProps> = ({
 
       if (pluginItems.length > 0) {
         if (!character?.id || character.id === "default") {
-          toast.error("Please select an agent before importing skills");
+          toast.error(t("skillImportOverlay.selectAgentFirst"));
           return;
         }
 
         const confirmInstall = window.confirm(
-          `Install this plugin package for "${character.name}" and attach discovered sub-agents to this workflow?`
+          t("skillImportOverlay.confirmInstall", { name: character.name })
         );
         if (!confirmInstall) {
           return;
@@ -494,22 +494,22 @@ export const Thread: FC<ThreadProps> = ({
 
           const isLegacy = pluginResult.isLegacySkillFormat;
           const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-          toast.success(isLegacy ? "Skill imported successfully" : "Plugin installed", {
+          toast.success(isLegacy ? t("skillImportOverlay.skillImported") : t("skillImportOverlay.pluginInstalled"), {
             description: isLegacy
               ? `${pluginResult.plugin?.name} is ready to use`
               : `${pluginResult.plugin?.name}${summary}`,
             action: isLegacy
               ? {
-                  label: "View Skills",
+                  label: t("skillImportOverlay.viewSkills"),
                   onClick: () => router.push(`/agents/${character.id}/skills`),
                 }
               : pluginResult.workflow
                 ? {
-                    label: "View Workflow",
+                    label: t("skillImportOverlay.viewWorkflow"),
                     onClick: () => router.push("/"),
                   }
                 : {
-                    label: "View Plugins",
+                    label: t("skillImportOverlay.viewPlugins"),
                     onClick: () => router.push("/settings?section=plugins"),
                   },
           });
@@ -531,10 +531,10 @@ export const Thread: FC<ThreadProps> = ({
               return;
             }
             if (importTimedOut) {
-              const timeoutMessage = "Import timed out after 2 minutes. Please try again.";
+              const timeoutMessage = t("skillImportOverlay.importTimedOutDesc");
               setSkillImportPhase("error");
               setSkillImportError(timeoutMessage);
-              toast.error("Import timed out", {
+              toast.error(t("skillImportOverlay.importTimedOut"), {
                 description: timeoutMessage,
               });
               scheduleSkillImportReset(4000, true);
@@ -548,7 +548,7 @@ export const Thread: FC<ThreadProps> = ({
           const errorMsg = error instanceof Error ? error.message : "Unknown error";
           setSkillImportPhase("error");
           setSkillImportError(errorMsg);
-          toast.error("Import failed", {
+          toast.error(t("skillImportOverlay.importFailed"), {
             description: errorMsg,
           });
 
@@ -2434,6 +2434,7 @@ const Composer: FC<{
  * Click a model → instantly switch. Icon placeholder ready for custom PNGs.
  */
 const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
+  const tBag = useTranslations("modelBag");
   const [open, setOpen] = useState(false);
   const bag = useModelBag();
   const [search, setSearch] = useState("");
@@ -2504,10 +2505,10 @@ const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
         // to return the session override as if it were the global default, creating
         // inconsistency between the session model and what logs/temperature/caching use.
         // The session override takes precedence via session-model-resolver.ts.
-        toast.success(`Switched to ${model.name} for this session`);
+        toast.success(tBag("switched", { name: model.name }));
         setOpen(false);
       } catch {
-        toast.error("Failed to switch model");
+        toast.error(tBag("switchFailed"));
       } finally {
         setSaving(false);
       }

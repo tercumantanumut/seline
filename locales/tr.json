@@ -808,7 +808,17 @@
       "error": "İçe aktarma başarısız",
       "readyToUse": "{name} kullanıma hazır",
       "loadingSkills": "Beceriler yükleniyor...",
-      "skillResults": "{count, plural, one {# sonuç} other {# sonuç}}"
+      "skillResults": "{count, plural, one {# sonuç} other {# sonuç}}",
+      "selectAgentFirst": "Becerileri içe aktarmadan önce lütfen bir ajan seçin",
+      "confirmInstall": "Bu eklenti paketini \"{name}\" için yükleyip keşfedilen alt ajanları bu iş akışına ekleyecek misiniz?",
+      "skillImported": "Beceri başarıyla içe aktarıldı",
+      "pluginInstalled": "Eklenti yüklendi",
+      "viewSkills": "Becerilere Git",
+      "viewWorkflow": "İş Akışına Git",
+      "viewPlugins": "Eklentilere Git",
+      "importTimedOut": "İçe aktarma zaman aşımına uğradı",
+      "importTimedOutDesc": "İçe aktarma 2 dakika sonra zaman aşımına uğradı. Lütfen tekrar deneyin.",
+      "importFailed": "İçe aktarma başarısız"
     },
     "audio": {
       "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin.",
@@ -823,6 +833,11 @@
       "toolsFound": "{count, plural, one {# araç bulundu} other {# araç bulundu}}: {names}",
       "webSearchUnavailable": "Web araması kullanılamıyor",
       "noWebResults": "\"{query}\" için sonuç bulunamadı"
+    },
+    "gallery": {
+      "noContextAvailable": "Görsel eklenemiyor - galeri bağlamı mevcut değil",
+      "attachedToChat": "\"{name}\" sohbete eklendi",
+      "attachFailed": "Görsel eklenemedi"
     }
   },
   "workspace": {
@@ -830,7 +845,29 @@
       "syncFailed": "Değişiklikler yerel ortama aktarılamadı",
       "syncSuccess": "Değişiklikler başarıyla yerel ortama aktarıldı",
       "discardFailed": "Çalışma alanı değişiklikleri iptal edilemedi",
-      "discardSuccess": "Çalışma alanı değişiklikleri iptal edildi"
+      "discardSuccess": "Çalışma alanı değişiklikleri iptal edildi",
+      "loading": "Çalışma alanı durumu yükleniyor...",
+      "retry": "Yeniden dene",
+      "noChanges": "Değişiklik tespit edilmedi",
+      "createPR": "PR Oluştur",
+      "syncToLocal": "Yerele Aktar",
+      "syncing": "Aktarılıyor...",
+      "discard": "İptal Et",
+      "discardTitle": "Çalışma Alanı Değişikliklerini İptal Et",
+      "discardDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri kalıcı olarak silecektir. Bu işlem geri alınamaz.",
+      "cancel": "İptal",
+      "discarding": "İptal ediliyor...",
+      "discardChanges": "Değişiklikleri İptal Et"
+    },
+    "dashboard": {
+      "activeWorkspaces": "Aktif Çalışma Alanları",
+      "cleanup": "Temizle",
+      "cleanedUp": "Çalışma alanı temizlendi",
+      "cleanupFailed": "Çalışma alanı temizlenemedi",
+      "viewPR": "PR'ı Görüntüle",
+      "showLess": "Daha az göster",
+      "showAll": "Tümünü göster ({count})",
+      "continue": "Devam Et"
     }
   },
   "folderSync": {
@@ -1629,7 +1666,9 @@
       "loadingConfig": "Model yapılandırması yükleniyor...",
       "updateFailed": "Oturum modeli güncellenemedi",
       "updateSuccess": "Oturum modeli güncellendi"
-    }
+    },
+    "switched": "Bu oturum için {name} modeline geçildi",
+    "switchFailed": "Model değiştirilemedi"
   },
   "about": {
     "title": "Hakkında",

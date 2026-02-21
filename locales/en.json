@@ -818,7 +818,17 @@
       "error": "Import failed",
       "readyToUse": "{name} is ready to use",
       "loadingSkills": "Loading skills...",
-      "skillResults": "{count, plural, one {# result} other {# results}}"
+      "skillResults": "{count, plural, one {# result} other {# results}}",
+      "selectAgentFirst": "Please select an agent before importing skills",
+      "confirmInstall": "Install this plugin package for \"{name}\" and attach discovered sub-agents to this workflow?",
+      "skillImported": "Skill imported successfully",
+      "pluginInstalled": "Plugin installed",
+      "viewSkills": "View Skills",
+      "viewWorkflow": "View Workflow",
+      "viewPlugins": "View Plugins",
+      "importTimedOut": "Import timed out",
+      "importTimedOutDesc": "Import timed out after 2 minutes. Please try again.",
+      "importFailed": "Import failed"
     },
     "audio": {
       "noAudioCaptured": "No audio captured. Please try again.",
@@ -833,6 +843,11 @@
       "toolsFound": "{count, plural, one {Found # tool} other {Found # tools}}: {names}",
       "webSearchUnavailable": "Web search unavailable",
       "noWebResults": "No results found for \"{query}\""
+    },
+    "gallery": {
+      "noContextAvailable": "Cannot attach image - gallery context not available",
+      "attachedToChat": "\"{name}\" attached to chat",
+      "attachFailed": "Failed to attach image"
     }
   },
   "workspace": {
@@ -840,7 +855,29 @@
       "syncFailed": "Failed to sync changes to local",
       "syncSuccess": "Changes synced to local successfully",
       "discardFailed": "Failed to discard workspace changes",
-      "discardSuccess": "Workspace changes discarded"
+      "discardSuccess": "Workspace changes discarded",
+      "loading": "Loading workspace status...",
+      "retry": "Retry",
+      "noChanges": "No changes detected",
+      "createPR": "Create PR",
+      "syncToLocal": "Sync to Local",
+      "syncing": "Syncing...",
+      "discard": "Discard",
+      "discardTitle": "Discard Workspace Changes",
+      "discardDescription": "This will remove the git worktree for branch <strong>{branch}</strong> and permanently discard all uncommitted changes. This action cannot be undone.",
+      "cancel": "Cancel",
+      "discarding": "Discarding...",
+      "discardChanges": "Discard Changes"
+    },
+    "dashboard": {
+      "activeWorkspaces": "Active Workspaces",
+      "cleanup": "Cleanup",
+      "cleanedUp": "Workspace cleaned up",
+      "cleanupFailed": "Failed to clean up workspace",
+      "viewPR": "View PR",
+      "showLess": "Show less",
+      "showAll": "Show all ({count})",
+      "continue": "Continue"
     }
   },
   "folderSync": {
@@ -1644,7 +1681,9 @@
       "loadingConfig": "Loading model config...",
       "updateFailed": "Failed to update session model",
       "updateSuccess": "Session model updated"
-    }
+    },
+    "switched": "Switched to {name} for this session",
+    "switchFailed": "Failed to switch model"
   },
   "about": {
     "title": "About",
