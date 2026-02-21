@@ -437,7 +437,7 @@ export const Shell: FC<ShellProps> = ({
                       <DropdownMenuItem asChild className="font-mono">
                         <Link href="/dashboard">
                           <BarChart2Icon className="mr-2 size-4" />
-                          Dashboard
+                          {t("sidebar.dashboard")}
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem
