@@ -228,7 +228,7 @@ function buildExecuteSearchMetadata(params: {
     finalCommand: string;
     wrappedByRTK: boolean;
     fallbackTriggered?: boolean;
-    fallbackReason?: string;
+    fallbackReason?: ExecuteSearchMetadata["fallbackReason"];
 }): ExecuteSearchMetadata | undefined {
     if (!isShellRipgrepCommand(params.originalCommand)) {
         return undefined;
