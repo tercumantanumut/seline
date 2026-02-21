@@ -47,13 +47,13 @@ export default function AgentSchedulesPage({
           const data = await response.json();
           setCharacter(data.character);
         } else if (response.status === 404) {
-          setError("Agent not found");
+          setError(t("agentNotFound"));
         } else if (response.status === 403) {
-          setError("Access denied");
+          setError(t("accessDenied"));
         }
       } catch (err) {
         console.error("Failed to load character:", err);
-        setError("Failed to load agent");
+        setError(t("loadFailed"));
       } finally {
         setIsLoading(false);
       }

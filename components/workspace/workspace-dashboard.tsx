@@ -27,37 +27,32 @@ const COLLAPSED_COUNT = 3;
 
 const STATUS_STYLES: Record<
   string,
-  { bg: string; border: string; text: string; label: string }
+  { bg: string; border: string; text: string }
 > = {
   active: {
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     text: "text-emerald-700",
-    label: "Active",
   },
   "changes-ready": {
     bg: "bg-amber-50",
     border: "border-amber-200",
     text: "text-amber-700",
-    label: "Changes Ready",
   },
   "pr-open": {
     bg: "bg-blue-50",
     border: "border-blue-200",
     text: "text-blue-700",
-    label: "PR Open",
   },
   merged: {
     bg: "bg-purple-50",
     border: "border-purple-200",
     text: "text-purple-700",
-    label: "Merged",
   },
   "cleanup-pending": {
     bg: "bg-gray-100",
     border: "border-gray-300",
     text: "text-gray-600",
-    label: "Cleanup",
   },
 };
 
@@ -65,15 +60,17 @@ const STATUS_STYLES: Record<
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatRelativeTime(dateStr?: string): string {
+type RelativeTimeFn = (key: string, values?: Record<string, string | number | Date>) => string;
+
+function formatRelativeTime(dateStr: string | undefined, t: RelativeTimeFn): string {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("minutesAgo", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("daysAgo", { n: days });
 }
 
 function formatBranch(branch?: string): string {
@@ -97,6 +94,18 @@ function getInitials(name?: string): string {
 export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardProps) {
   const t = useTranslations("workspace.dashboard");
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+
+  const getStatusLabel = useCallback((status: string): string => {
+    const map: Record<string, string> = {
+      active: t("statusActive"),
+      "changes-ready": t("statusChangesReady"),
+      "pr-open": t("statusPrOpen"),
+      merged: t("statusMerged"),
+      "cleanup-pending": t("statusCleanup"),
+    };
+    return map[status] ?? status;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [cleaningUp, setCleaningUp] = useState<Set<string>>(new Set());
@@ -216,7 +225,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     )}
                     variant="outline"
                   >
-                    {style.label}
+                    {getStatusLabel(ws.status)}
                   </Badge>
                 </div>
 
@@ -234,12 +243,12 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     {ws.prNumber
                       ? `PR #${ws.prNumber}${ws.prStatus ? ` (${ws.prStatus})` : ""}`
                       : ws.changedFiles != null
-                        ? `${ws.changedFiles} file${ws.changedFiles !== 1 ? "s" : ""} changed`
-                        : "No changes"}
+                        ? t("filesChanged", { count: ws.changedFiles })
+                        : t("noChanges")}
                   </span>
                   {(ws.lastSyncedAt || ws.createdAt) && (
                     <span className="text-[10px] font-mono text-terminal-muted/70">
-                      {formatRelativeTime(ws.lastSyncedAt ?? ws.createdAt)}
+                      {formatRelativeTime(ws.lastSyncedAt ?? ws.createdAt, t)}
                     </span>
                   )}
                 </div>
