@@ -169,7 +169,7 @@ export function SessionModelOverride({
         <div className="mt-2 space-y-2 border-t border-terminal-border/50 pt-2">
           {/* Chat model override */}
           <ModelOverrideField
-            label="Chat Model"
+            label={t("chatModel")}
             role="chat"
             value={state.config.sessionChatModel || ""}
             globalDefault={state.globalDefaults.chatModel}
@@ -179,7 +179,7 @@ export function SessionModelOverride({
 
           {/* Research model override */}
           <ModelOverrideField
-            label="Research Model"
+            label={t("researchModel")}
             role="research"
             value={state.config.sessionResearchModel || ""}
             globalDefault={state.globalDefaults.researchModel}
@@ -189,7 +189,7 @@ export function SessionModelOverride({
 
           {/* Vision model override */}
           <ModelOverrideField
-            label="Vision Model"
+            label={t("visionModel")}
             role="vision"
             value={state.config.sessionVisionModel || ""}
             globalDefault={state.globalDefaults.visionModel}
@@ -199,7 +199,7 @@ export function SessionModelOverride({
 
           {/* Utility model override */}
           <ModelOverrideField
-            label="Utility Model"
+            label={t("utilityModel")}
             role="utility"
             value={state.config.sessionUtilityModel || ""}
             globalDefault={state.globalDefaults.utilityModel}
