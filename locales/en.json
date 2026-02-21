@@ -2723,6 +2723,11 @@
       "hooks": "hooks",
       "mcpServers": "{count} MCP server(s)"
     },
+    "browseMarketplace": "Browse marketplace",
+    "hideMarketplace": "Hide marketplace",
+    "errorTitle": "Issue",
+    "author": "Author",
+    "installedLabel": "Installed",
     "marketplace": {
       "browse": "Browse Marketplace",
       "add": "Add Marketplace",

@@ -2707,6 +2707,11 @@
     "workspaceRegistered": "Eklenti çalışma alanı klasörü kaydedildi",
     "workspaceRegisteredDesc": "Referans dosyaları artık ajana senkronizasyon klasörü aracılığıyla erişilebilir.",
     "viewAgents": "Ajanları Görüntüle",
+    "browseMarketplace": "Pazaryerini gözat",
+    "hideMarketplace": "Pazaryerini gizle",
+    "errorTitle": "Sorun",
+    "author": "Yazar",
+    "installedLabel": "Yüklendi",
     "chatBadge": {
       "loading": "Eklentiler yükleniyor...",
       "active": "{count, plural, one {# eklenti aktif} other {# eklenti aktif}}",

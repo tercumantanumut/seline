@@ -316,7 +316,7 @@ export function PluginSettings() {
             onClick={() => setShowMarketplace(!showMarketplace)}
           >
             <Globe className="mr-1.5 size-3.5" />
-            {showMarketplace ? "Hide marketplace" : "Browse marketplace"}
+            {showMarketplace ? t("hideMarketplace") : t("browseMarketplace")}
           </Button>
           <label
             className={cn(
@@ -330,7 +330,7 @@ export function PluginSettings() {
             ) : (
               <Upload className="size-4" />
             )}
-            {uploading ? "Installing..." : "Install plugin"}
+            {uploading ? t("installing") : t("install")}
             <input
               type="file"
               accept=".zip,.md,.mds"
@@ -591,7 +591,7 @@ export function PluginSettings() {
               {plugin.status === "error" && plugin.lastError && (
                 <Alert variant="destructive" className="mt-3">
                   <AlertCircle className="size-4" />
-                  <AlertTitle className="font-mono text-xs">Issue</AlertTitle>
+                  <AlertTitle className="font-mono text-xs">{t("errorTitle")}</AlertTitle>
                   <AlertDescription className="font-mono text-xs">
                     {plugin.lastError}
                   </AlertDescription>
@@ -607,7 +607,7 @@ export function PluginSettings() {
                       <div className="flex items-start gap-2">
                         <Info className="size-3 text-terminal-muted mt-0.5 shrink-0" />
                         <div>
-                          <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Author</p>
+                          <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{t("author")}</p>
                           <p className="font-mono text-xs text-terminal-dark">
                             {plugin.manifest.author.name}
                             {plugin.manifest.author.email && (
@@ -622,7 +622,7 @@ export function PluginSettings() {
                     <div className="flex items-start gap-2">
                       <Clock className="size-3 text-terminal-muted mt-0.5 shrink-0" />
                       <div>
-                        <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">Installed</p>
+                        <p className="font-mono text-[10px] text-terminal-muted uppercase tracking-wider">{t("installedLabel")}</p>
                         <p className="font-mono text-xs text-terminal-dark">
                           {new Date(plugin.installedAt).toLocaleDateString(undefined, {
                             year: "numeric",
