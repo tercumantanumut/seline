@@ -2,7 +2,7 @@
  * Vector Search Session Store
  *
  * In-memory session-scoped storage for search history with TTL-based cleanup.
- * Sessions are isolated per character and automatically cleaned up.
+ * Sessions are isolated per chat/session identity and automatically cleaned up.
  * Follows the web-browse session store pattern.
  */
 
@@ -29,24 +29,31 @@ const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 const sessionStore = new Map<string, VectorSearchSession>();
 
 /**
- * Get or create a vector search session for a character
+ * Get or create a vector search session for a chat/session key
  */
-export function getVectorSearchSession(characterId: string): VectorSearchSession {
-  let session = sessionStore.get(characterId);
+export function getVectorSearchSession(
+  sessionKey: string,
+  characterId?: string | null
+): VectorSearchSession {
+  let session = sessionStore.get(sessionKey);
 
   if (!session) {
     session = {
       id: nanoid(),
+      sessionKey,
       characterId,
       searchHistory: [],
       createdAt: new Date(),
       lastUsedAt: new Date(),
     };
-    sessionStore.set(characterId, session);
-    console.log(`[VectorSearchSession] Created new session for character: ${characterId}`);
+    sessionStore.set(sessionKey, session);
+    console.log(`[VectorSearchSession] Created new session: ${sessionKey}`);
   }
 
   session.lastUsedAt = new Date();
+  if (characterId && !session.characterId) {
+    session.characterId = characterId;
+  }
   return session;
 }
 
@@ -54,10 +61,11 @@ export function getVectorSearchSession(characterId: string): VectorSearchSession
  * Add a search to the session history
  */
 export function addSearchHistory(
-  characterId: string,
-  entry: Omit<SearchHistoryEntry, "timestamp">
+  sessionKey: string,
+  entry: Omit<SearchHistoryEntry, "timestamp">,
+  characterId?: string | null
 ): void {
-  const session = getVectorSearchSession(characterId);
+  const session = getVectorSearchSession(sessionKey, characterId);
 
   session.searchHistory.push({
     ...entry,
@@ -73,24 +81,24 @@ export function addSearchHistory(
 }
 
 /**
- * Get recent search history for a character
+ * Get recent search history for a session
  */
 export function getSearchHistory(
-  characterId: string,
+  sessionKey: string,
   limit: number = 5
 ): SearchHistoryEntry[] {
-  const session = sessionStore.get(characterId);
+  const session = sessionStore.get(sessionKey);
   if (!session) return [];
 
   return session.searchHistory.slice(-limit);
 }
 
 /**
- * Clear session for a character
+ * Clear session for a session key
  */
-export function clearSession(characterId: string): void {
-  sessionStore.delete(characterId);
-  console.log(`[VectorSearchSession] Cleared session for character: ${characterId}`);
+export function clearSession(sessionKey: string): void {
+  sessionStore.delete(sessionKey);
+  console.log(`[VectorSearchSession] Cleared session: ${sessionKey}`);
 }
 
 /**
@@ -101,14 +109,14 @@ export function cleanupStaleSessions(): number {
   let cleaned = 0;
   const sessionsToDelete: string[] = [];
 
-  for (const [characterId, session] of sessionStore) {
+  for (const [sessionKey, session] of sessionStore) {
     if (now - session.lastUsedAt.getTime() > SESSION_TTL_MS) {
-      sessionsToDelete.push(characterId);
+      sessionsToDelete.push(sessionKey);
     }
   }
 
-  for (const characterId of sessionsToDelete) {
-    sessionStore.delete(characterId);
+  for (const sessionKey of sessionsToDelete) {
+    sessionStore.delete(sessionKey);
     cleaned++;
   }
 

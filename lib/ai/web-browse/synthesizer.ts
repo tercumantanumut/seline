@@ -12,10 +12,13 @@
  */
 
 import { generateText } from "ai";
-import { getUtilityModel } from "@/lib/ai/providers";
 import { getSessionContent, getContentByUrls } from "./session-store";
 import type { SynthesisRequest, SynthesisResult, WebContentEntry } from "./types";
 import { logToolEvent } from "@/lib/ai/tool-registry/logging";
+import {
+  getSessionProviderTemperature,
+  resolveSessionUtilityModel,
+} from "@/lib/ai/session-model-resolver";
 
 // ============================================================================
 // Configuration
@@ -202,7 +205,7 @@ function enhanceQueryForShopping(query: string, hasImages: boolean): string {
 export async function synthesizeWebContent(
   request: SynthesisRequest
 ): Promise<SynthesisResult> {
-  const { sessionId, query, urls, abortSignal } = request;
+  const { sessionId, query, urls, sessionMetadata, abortSignal } = request;
   const startTime = Date.now();
 
   // Log synthesis start
@@ -269,11 +272,11 @@ Based on the web content above, provide a comprehensive answer to the user's que
     // Call the utility model with timeout
     const result = await Promise.race([
       generateText({
-        model: getUtilityModel(),
+        model: resolveSessionUtilityModel(sessionMetadata),
         system: SYNTHESIS_SYSTEM_PROMPT,
         prompt: synthesisPrompt,
         maxOutputTokens: 2000,
-        temperature: 0.3,
+        temperature: getSessionProviderTemperature(sessionMetadata, 0.3),
         abortSignal,
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), SYNTHESIS_TIMEOUT_MS)),
