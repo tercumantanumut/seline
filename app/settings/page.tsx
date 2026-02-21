@@ -2560,40 +2560,40 @@ function SettingsPanel({
 
   if (section === "voice") {
     const ttsAutoModeOptions = [
-      { value: "off" as const, label: "Only on request", description: "Audio is created only when you ask for it." },
-      { value: "channels-only" as const, label: "For channel replies", description: "Voice notes are added automatically in channels." },
-      { value: "always" as const, label: "For every reply", description: "Every assistant reply includes audio output." },
+      { value: "off" as const, label: t("voice.tts.modeOff"), description: t("voice.tts.modeOffDesc") },
+      { value: "channels-only" as const, label: t("voice.tts.modeChannels"), description: t("voice.tts.modeChannelsDesc") },
+      { value: "always" as const, label: t("voice.tts.modeAlways"), description: t("voice.tts.modeAlwaysDesc") },
     ];
 
     const ttsProviderOptions = [
-      { value: "edge" as const, label: "Edge TTS", description: "Built-in Microsoft voices. No API key needed.", badge: "Free" },
-      { value: "openai" as const, label: "OpenAI TTS", description: "Uses your OpenAI or OpenRouter API key.", badge: "API Key" },
-      { value: "elevenlabs" as const, label: "ElevenLabs", description: "Natural premium voices and voice cloning.", badge: "API Key" },
+      { value: "edge" as const, label: t("voice.tts.providerEdge"), description: t("voice.tts.providerEdgeDesc"), badge: t("voice.tts.badgeFree") },
+      { value: "openai" as const, label: t("voice.tts.providerOpenAI"), description: t("voice.tts.providerOpenAIDesc"), badge: t("voice.tts.badgeApiKey") },
+      { value: "elevenlabs" as const, label: t("voice.tts.providerElevenLabs"), description: t("voice.tts.providerElevenLabsDesc"), badge: t("voice.tts.badgeApiKey") },
     ];
 
     const sttProviderOptions = [
-      { value: "openai" as const, label: "OpenAI Whisper", description: "Cloud transcription using your OpenAI or OpenRouter API key." },
-      { value: "local" as const, label: "Local (whisper.cpp)", description: "Runs on this device. No external API key needed." },
+      { value: "openai" as const, label: t("voice.stt.providerOpenAI"), description: t("voice.stt.providerOpenAIDesc") },
+      { value: "local" as const, label: t("voice.stt.providerLocal"), description: t("voice.stt.providerLocalDesc") },
     ];
 
     return (
       <div className={settingsSectionShellClassName}>
         <div className="space-y-1.5">
-          <h2 className="font-mono text-lg font-semibold text-terminal-dark">Voice & Audio</h2>
+          <h2 className="font-mono text-lg font-semibold text-terminal-dark">{t("voice.heading")}</h2>
           <p className="font-mono text-sm text-terminal-muted">
-            Set up spoken replies and audio transcription with clear, friendly defaults.
+            {t("voice.description")}
           </p>
         </div>
 
         <div className="space-y-5">
           <SettingsPanelCard
-            title="Text-to-Speech (TTS)"
-            description="Let the assistant speak replies in a way that matches how you chat."
+            title={t("voice.tts.title")}
+            description={t("voice.tts.description")}
           >
             <SettingsToggleRow
               id="ttsEnabled"
-              label="Turn on spoken replies"
-              description="When enabled, the assistant can send voice output for replies."
+              label={t("voice.tts.enableLabel")}
+              description={t("voice.tts.enableDesc")}
               checked={formState.ttsEnabled}
               onChange={(checked) => updateField("ttsEnabled", checked)}
             />
@@ -2601,8 +2601,8 @@ function SettingsPanel({
             {formState.ttsEnabled ? (
               <div className="space-y-6">
                 <SettingsOptionGroup
-                  title="When should voice be created?"
-                  description="Pick how often audio should be added to assistant replies."
+                  title={t("voice.tts.whenTitle")}
+                  description={t("voice.tts.whenDesc")}
                 >
                   {ttsAutoModeOptions.map((option) => (
                     <SettingsRadioCard
@@ -2619,8 +2619,8 @@ function SettingsPanel({
                 </SettingsOptionGroup>
 
                 <SettingsOptionGroup
-                  title="Voice provider"
-                  description="Choose the service that generates spoken audio."
+                  title={t("voice.tts.providerTitle")}
+                  description={t("voice.tts.providerDesc")}
                 >
                   {ttsProviderOptions.map((option) => (
                     <SettingsRadioCard
@@ -2639,9 +2639,9 @@ function SettingsPanel({
 
                 {formState.ttsProvider === "openai" && (
                   <SettingsField
-                    label="Default OpenAI voice"
+                    label={t("voice.tts.defaultVoiceLabel")}
                     htmlFor="openaiTtsVoice"
-                    helperText="Used when a request does not specify a different voice."
+                    helperText={t("voice.tts.defaultVoiceHelper")}
                     className="max-w-sm"
                   >
                     <select
@@ -2662,31 +2662,31 @@ function SettingsPanel({
 
                 {formState.ttsProvider === "elevenlabs" && (
                   <SettingsOptionGroup
-                    title="ElevenLabs account details"
-                    description="Add your key and voice so replies use the right ElevenLabs profile."
+                    title={t("voice.tts.elevenLabsTitle")}
+                    description={t("voice.tts.elevenLabsDesc")}
                   >
                     <div className="grid gap-4 md:grid-cols-2">
-                      <SettingsField label="ElevenLabs API key" htmlFor="elevenLabsApiKey">
+                      <SettingsField label={t("voice.tts.elevenLabsKeyLabel")} htmlFor="elevenLabsApiKey">
                         <input
                           id="elevenLabsApiKey"
                           type="password"
                           value={formState.elevenLabsApiKey}
                           onChange={(e) => updateField("elevenLabsApiKey", e.target.value)}
-                          placeholder="xi_..."
+                          placeholder={t("voice.tts.elevenLabsKeyPlaceholder")}
                           className={settingsInputClassName}
                         />
                       </SettingsField>
                       <SettingsField
-                        label="Voice ID"
+                        label={t("voice.tts.voiceIdLabel")}
                         htmlFor="elevenLabsVoiceId"
-                        helperText="You can copy this from the ElevenLabs voice library."
+                        helperText={t("voice.tts.voiceIdHelper")}
                       >
                         <input
                           id="elevenLabsVoiceId"
                           type="text"
                           value={formState.elevenLabsVoiceId}
                           onChange={(e) => updateField("elevenLabsVoiceId", e.target.value)}
-                          placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                          placeholder={t("voice.tts.voiceIdPlaceholder")}
                           aria-describedby="elevenLabsVoiceId-help"
                           className={settingsInputClassName}
                         />
@@ -2696,9 +2696,9 @@ function SettingsPanel({
                 )}
 
                 <SettingsField
-                  label="Long message limit (characters)"
+                  label={t("voice.tts.limitLabel")}
                   htmlFor="ttsSummarizeThreshold"
-                  helperText="Messages above this limit are shortened before audio is generated."
+                  helperText={t("voice.tts.limitHelper")}
                   className="max-w-xs"
                 >
                   <input
@@ -2716,19 +2716,19 @@ function SettingsPanel({
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
-                Turn this on to choose when voice is generated and which provider to use.
+                {t("voice.tts.disabledHint")}
               </div>
             )}
           </SettingsPanelCard>
 
           <SettingsPanelCard
-            title="Speech-to-Text (STT)"
-            description="Convert incoming voice notes into text so they are easier to read and search."
+            title={t("voice.stt.title")}
+            description={t("voice.stt.description")}
           >
             <SettingsToggleRow
               id="sttEnabled"
-              label="Turn on transcription"
-              description="Automatically transcribe audio attachments from channels and voice-note apps."
+              label={t("voice.stt.enableLabel")}
+              description={t("voice.stt.enableDesc")}
               checked={formState.sttEnabled}
               onChange={(checked) => updateField("sttEnabled", checked)}
             />
@@ -2736,8 +2736,8 @@ function SettingsPanel({
             {formState.sttEnabled ? (
               <div className="space-y-6">
                 <SettingsOptionGroup
-                  title="Transcription provider"
-                  description="Pick where audio is transcribed."
+                  title={t("voice.stt.providerTitle")}
+                  description={t("voice.stt.providerDesc")}
                 >
                   {sttProviderOptions.map((option) => (
                     <SettingsRadioCard
@@ -2759,7 +2759,7 @@ function SettingsPanel({
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-terminal-border/60 bg-terminal-bg/5 px-3 py-2.5 font-mono text-xs text-terminal-muted dark:border-terminal-border/80 dark:bg-terminal-cream/5">
-                Turn this on to pick a provider and configure local Whisper model options.
+                {t("voice.stt.disabledHint")}
               </div>
             )}
           </SettingsPanelCard>
