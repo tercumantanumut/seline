@@ -902,7 +902,24 @@
       "referenceImageFlux2Klein4B": "Reference (FLUX.2 Klein 4B)",
       "generateImageFlux2Klein9B": "Generate (FLUX.2 Klein 9B)",
       "editImageFlux2Klein9B": "Edit (FLUX.2 Klein 9B)",
-      "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)"
+      "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)",
+      "toolOutputPreview": "Tool output preview {index}",
+      "hide": "Hide",
+      "details": "Details"
+    },
+    "patchFile": {
+      "patchLabel": "Patch",
+      "fileCount": "{count, plural, one {# file} other {# files}}",
+      "changed": "{count} changed",
+      "showLess": "▲ Show less",
+      "showAll": "▼ Show all ({count} lines)",
+      "diagnostics": "Diagnostics ({tool})",
+      "errors": "{count, plural, one {# error} other {# errors}}",
+      "warnings": "{count, plural, one {# warning} other {# warnings}}",
+      "processing": "Processing..."
+    },
+    "delegations": {
+      "activeDelegations": "{count, plural, one {# active delegation} other {# active delegations}}"
     },
     "skillImportOverlay": {
       "uploading": "Uploading…",
@@ -2233,6 +2250,8 @@
       "globalStatus": "Global"
     },
     "providerLabel": "Provider:",
+    "defaultBadge": "DEF",
+    "assignTo": "ASSIGN TO:",
     "currentlyActive": "Currently active",
     "connectProviders": "Connect providers in Settings",
     "footerHint": "Click to switch model · Manage providers in <settings>Settings</settings>",
@@ -2505,7 +2524,9 @@
       "indicator": {
         "tooltip": "Context: {current}/{max} ({percentage})",
         "compactNow": "Compact now",
-        "newSession": "Start new session"
+        "newSession": "Start new session",
+        "thresholdsLabel": "Warn {warn}% · Crit {crit}% · Hard {hard}%",
+        "thresholdsTooltip": "Thresholds (warning / critical / hard limit): {thresholds}"
       },
       "blocked": {
         "title": "Context window limit exceeded",

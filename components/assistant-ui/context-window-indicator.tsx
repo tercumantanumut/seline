@@ -60,7 +60,7 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
   const warningPct = Math.round((status.thresholds.warning / status.maxTokens) * 100);
   const criticalPct = Math.round((status.thresholds.critical / status.maxTokens) * 100);
   const hardPct = Math.round((status.thresholds.hardLimit / status.maxTokens) * 100);
-  const thresholdsLabel = `Warn ${warningPct}% · Crit ${criticalPct}% · Hard ${hardPct}%`;
+  const thresholdsLabel = t("indicator.thresholdsLabel", { warn: warningPct, crit: criticalPct, hard: hardPct });
 
   const barColor = {
     safe: "bg-terminal-green",
@@ -113,7 +113,7 @@ export const ContextWindowIndicator: FC<ContextWindowIndicatorProps> = ({
         >
           <p>{tooltipText}</p>
           <p className="mt-1 text-terminal-cream/80">
-            {`Thresholds (warning / critical / hard limit): ${thresholdsLabel}`}
+            {t("indicator.thresholdsTooltip", { thresholds: thresholdsLabel })}
           </p>
           {showAction && (
             <Button

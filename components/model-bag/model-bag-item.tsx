@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { PROVIDER_THEME, ROLE_THEME } from "./model-bag.constants";
 import { getModelIcon } from "./model-bag.utils";
@@ -25,6 +26,7 @@ export function ModelBagItem({
   onAssign,
   isSaving,
 }: ModelBagItemProps) {
+  const t = useTranslations("modelBag");
   const [showMenu, setShowMenu] = useState(false);
   const theme = PROVIDER_THEME[model.provider];
   const hasRoles = model.assignedRoles.length > 0;
@@ -66,7 +68,7 @@ export function ModelBagItem({
       {/* Default badge */}
       {model.isDefault && (
         <div className="absolute left-0 top-0 rounded-br-md rounded-tl-md bg-terminal-green/20 px-1 font-mono text-[7px] font-bold text-terminal-green">
-          DEF
+          {t("defaultBadge")}
         </div>
       )}
 
@@ -109,7 +111,7 @@ export function ModelBagItem({
           onClick={(e) => e.stopPropagation()}
         >
           <p className="mb-1 px-1 font-mono text-[9px] font-bold text-terminal-muted">
-            ASSIGN TO:
+            {t("assignTo")}
           </p>
           {ALL_ROLES.map((role) => (
             <button

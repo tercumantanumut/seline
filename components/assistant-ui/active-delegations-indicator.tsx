@@ -1,6 +1,7 @@
 "use client";
 
 import { FC } from "react";
+import { useTranslations } from "next-intl";
 import { useDelegationStatus } from "@/lib/hooks/use-delegation-status";
 import {
   Tooltip,
@@ -20,6 +21,7 @@ function formatElapsed(ms: number): string {
 export const ActiveDelegationsIndicator: FC<{
   characterId: string | null;
 }> = ({ characterId }) => {
+  const t = useTranslations("assistantUi.delegations");
   const { delegations } = useDelegationStatus(characterId);
 
   const running = delegations.filter((d) => d.running);
@@ -32,7 +34,7 @@ export const ActiveDelegationsIndicator: FC<{
           <div className="flex items-center gap-1.5 text-[10px] font-mono text-terminal-muted cursor-default">
             <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>
-              {running.length} active delegation{running.length !== 1 ? "s" : ""}
+              {t("activeDelegations", { count: running.length })}
               {" · "}
               {running
                 .map((d) => `${d.delegateAgent} (${formatElapsed(d.elapsed)})`)
