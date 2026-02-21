@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { FileCode, FileText, Image, FileArchive, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +13,7 @@ interface SkillFilesTabProps {
 }
 
 export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
+  const t = useTranslations("skills.files");
   const [files, setFiles] = useState<SkillFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export function SkillFilesTab({ skillId }: SkillFilesTabProps) {
   if (files.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-terminal-muted">
-        No files found. This skill doesn't have any attached files.
+        {t("noFiles")}
       </div>
     );
   }

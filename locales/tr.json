@@ -102,7 +102,10 @@
         "hint": "Kimlik doğrulama için yönlendirileceksiniz"
       },
       "skip": "Şimdilik geç",
-      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz"
+      "skipHint": "Bunu daha sonra Ayarlar'dan yapılandırabilirsiniz",
+      "connectingGoogle": "Google'a bağlanılıyor...",
+      "connectingOpenAI": "OpenAI'ye bağlanılıyor...",
+      "popupBlocked": "Açılır pencere engellendi. Lütfen bu site için açılır pencerelere izin verin ve tekrar deneyin."
     },
     "personalization": {
       "title": "Deneyiminizi Kişiselleştirin",
@@ -807,7 +810,18 @@
       "skillResults": "{count, plural, one {# sonuç} other {# sonuç}}"
     },
     "audio": {
-      "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin."
+      "noAudioCaptured": "Ses yakalanmadı. Lütfen tekrar deneyin.",
+      "voiceNotSupported": "Bu ortamda ses girişi desteklenmiyor.",
+      "voiceRecordingFailed": "Ses kaydı başarısız oldu.",
+      "skillFileTooLarge": "Beceri dosyası 50MB sınırını aşıyor"
+    }
+  },
+  "workspace": {
+    "diff": {
+      "syncFailed": "Değişiklikler yerel ortama aktarılamadı",
+      "syncSuccess": "Değişiklikler başarıyla yerel ortama aktarıldı",
+      "discardFailed": "Çalışma alanı değişiklikleri iptal edilemedi",
+      "discardSuccess": "Çalışma alanı değişiklikleri iptal edildi"
     }
   },
   "folderSync": {
@@ -2103,6 +2117,9 @@
       "error": "Beceri silinemedi",
       "success": "Beceri kalıcı olarak silindi",
       "title": "Emin misiniz?"
+    },
+    "files": {
+      "noFiles": "Dosya bulunamadı. Bu beceriye ait herhangi bir dosya yok."
     },
     "import": {
       "uploading": "Yükleniyor...",

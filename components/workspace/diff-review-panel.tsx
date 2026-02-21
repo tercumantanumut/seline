@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -81,6 +82,7 @@ export function DiffReviewPanel({
   onCreatePR,
   onSyncToLocal,
 }: DiffReviewPanelProps) {
+  const t = useTranslations("workspace.diff");
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,16 +137,16 @@ export function DiffReviewPanel({
         { action: "sync-to-local" }
       );
       if (syncError) {
-        toast.error("Failed to sync changes to local");
+        toast.error(t("syncFailed"));
       } else {
-        toast.success("Changes synced to local successfully");
+        toast.success(t("syncSuccess"));
       }
     } catch {
-      toast.error("Failed to sync changes to local");
+      toast.error(t("syncFailed"));
     } finally {
       setIsSyncing(false);
     }
-  }, [sessionId, onSyncToLocal]);
+  }, [sessionId, onSyncToLocal, t]);
 
   const handleDiscard = useCallback(async () => {
     setIsDiscarding(true);
@@ -154,14 +156,14 @@ export function DiffReviewPanel({
         { action: "cleanup" }
       );
       if (cleanupError) {
-        toast.error("Failed to discard workspace changes");
+        toast.error(t("discardFailed"));
       } else {
-        toast.success("Workspace changes discarded");
+        toast.success(t("discardSuccess"));
         window.dispatchEvent(new CustomEvent("workspace-status-changed", { detail: { sessionId } }));
         onClose();
       }
     } catch {
-      toast.error("Failed to discard workspace changes");
+      toast.error(t("discardFailed"));
     } finally {
       setIsDiscarding(false);
       setShowDiscardDialog(false);

@@ -102,7 +102,10 @@
         "hint": "You'll be redirected to authenticate"
       },
       "skip": "Skip for now",
-      "skipHint": "You can configure this later in Settings"
+      "skipHint": "You can configure this later in Settings",
+      "connectingGoogle": "Connecting to Google...",
+      "connectingOpenAI": "Connecting to OpenAI...",
+      "popupBlocked": "Popup blocked. Please allow popups for this site and try again."
     },
     "personalization": {
       "title": "Personalize Your Experience",
@@ -817,7 +820,18 @@
       "skillResults": "{count, plural, one {# result} other {# results}}"
     },
     "audio": {
-      "noAudioCaptured": "No audio captured. Please try again."
+      "noAudioCaptured": "No audio captured. Please try again.",
+      "voiceNotSupported": "Voice input is not supported in this environment.",
+      "voiceRecordingFailed": "Voice recording failed.",
+      "skillFileTooLarge": "Skill file exceeds 50MB limit"
+    }
+  },
+  "workspace": {
+    "diff": {
+      "syncFailed": "Failed to sync changes to local",
+      "syncSuccess": "Changes synced to local successfully",
+      "discardFailed": "Failed to discard workspace changes",
+      "discardSuccess": "Workspace changes discarded"
     }
   },
   "folderSync": {
@@ -2118,6 +2132,9 @@
       "error": "Failed to delete skill",
       "success": "Skill deleted permanently",
       "title": "Are you sure?"
+    },
+    "files": {
+      "noFiles": "No files found. This skill doesn't have any attached files."
     },
     "import": {
       "uploading": "Uploading...",

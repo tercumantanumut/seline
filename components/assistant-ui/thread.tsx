@@ -378,7 +378,7 @@ export const Thread: FC<ThreadProps> = ({
         const MAX_SKILL_SIZE = 50 * 1024 * 1024;
         const oversized = pluginItems.find(({ file }) => file.size > MAX_SKILL_SIZE);
         if (oversized) {
-          toast.error("Skill file exceeds 50MB limit", {
+          toast.error(t("audio.skillFileTooLarge"), {
             description: `File size: ${Math.round(oversized.file.size / 1024 / 1024)}MB (${oversized.relativePath})`,
           });
           return;
@@ -1678,7 +1678,7 @@ const Composer: FC<{
     }
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      toast.error("Voice input is not supported in this environment.");
+      toast.error(t("audio.voiceNotSupported"));
       return;
     }
 
@@ -1710,7 +1710,7 @@ const Composer: FC<{
         mediaRecorderRef.current = null;
         recordingChunksRef.current = [];
         stopRecordingStream();
-        toast.error("Voice recording failed.");
+        toast.error(t("audio.voiceRecordingFailed"));
       };
 
       recorder.onstop = async () => {

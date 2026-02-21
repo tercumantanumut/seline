@@ -82,7 +82,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 );
 
                 if (popup) {
-                    popup.document.write("<p style='font-family:monospace;padding:20px'>Connecting to Google...</p>");
+                    popup.document.write(`<p style='font-family:monospace;padding:20px'>${t("connectingGoogle")}</p>`);
                 }
             }
 
@@ -99,7 +99,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             } else if (popup) {
                 popup.location.href = authData.url;
             } else {
-                toast.error("Popup blocked. Please allow popups for this site and try again.");
+                toast.error(t("popupBlocked"));
                 cleanup();
                 return;
             }
@@ -184,7 +184,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                 );
 
                 if (popup) {
-                    popup.document.write("<p style='font-family:monospace;padding:20px'>Connecting to OpenAI...</p>");
+                    popup.document.write(`<p style='font-family:monospace;padding:20px'>${t("connectingOpenAI")}</p>`);
                 }
             }
 
@@ -201,7 +201,7 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
             } else if (popup) {
                 popup.location.href = authData.url;
             } else {
-                toast.error("Popup blocked. Please allow popups for this site and try again.");
+                toast.error(t("popupBlocked"));
                 cleanup();
                 return;
             }
