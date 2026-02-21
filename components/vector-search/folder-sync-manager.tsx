@@ -644,15 +644,16 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                     </p>
                     {folder.isPrimary && (
                       <span className="text-[10px] bg-terminal-green/10 text-terminal-green border border-terminal-green/20 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider">
-                        Primary
+                        {t("primaryBadge")}
                       </span>
                     )}
                     {folder.inheritedFromWorkflowId && (
                       <span
                         className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0 rounded font-mono uppercase font-bold tracking-wider"
-                        title="This folder is shared from a workflow"
+                        title={t("sharedFromWorkflow")}
+                        aria-label={t("sharedFromWorkflow")}
                       >
-                        Workflow
+                        {t("workflowBadge")}
                       </span>
                     )}
                   </div>
@@ -682,7 +683,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       variant="ghost"
                       size="icon"
                       onClick={() => handleSetPrimary(folder.id)}
-                      title="Set as primary folder"
+                      title={t("setPrimaryFolder")}
+                      aria-label={t("setPrimaryFolder")}
                       className="h-8 w-8 shrink-0 text-terminal-muted hover:text-terminal-amber hover:bg-terminal-amber/10"
                     >
                       <StarIcon className="w-4 h-4" />
@@ -693,7 +695,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
                       variant="ghost"
                       size="icon"
                       onClick={() => handleCancelSync(folder.id)}
-                      title="Cancel sync"
+                      title={t("cancelSync")}
+                      aria-label={t("cancelSync")}
                       className="h-8 w-8 shrink-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                     >
                       <XCircleIcon className="w-4 h-4" />
