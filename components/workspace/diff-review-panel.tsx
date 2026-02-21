@@ -231,7 +231,7 @@ export function DiffReviewPanel({
                   <div className="flex-1 flex items-center justify-center">
                     <div className="flex flex-col items-center gap-3 text-terminal-muted">
                       <Loader2Icon className="w-6 h-6 animate-spin" />
-                      <span className="text-sm font-mono">Loading workspace status...</span>
+                      <span className="text-sm font-mono">{t("loading")}</span>
                     </div>
                   </div>
                 )}
@@ -243,7 +243,7 @@ export function DiffReviewPanel({
                       <AlertCircleIcon className="w-8 h-8 text-destructive" />
                       <p className="text-sm font-mono text-destructive">{error}</p>
                       <Button variant="outline" size="sm" onClick={fetchWorkspaceStatus}>
-                        Retry
+                        {t("retry")}
                       </Button>
                     </div>
                   </div>
@@ -295,7 +295,7 @@ export function DiffReviewPanel({
                       <div className="py-2">
                         {changedFiles.length === 0 && !workspaceStatus?.diffStat && (
                           <div className="flex items-center justify-center py-12 text-terminal-muted">
-                            <p className="text-sm font-mono">No changes detected</p>
+                            <p className="text-sm font-mono">{t("noChanges")}</p>
                           </div>
                         )}
 
@@ -321,7 +321,7 @@ export function DiffReviewPanel({
                     onClick={onCreatePR}
                   >
                     <GitPullRequestIcon className="w-3.5 h-3.5" />
-                    Create PR
+                    {t("createPR")}
                   </Button>
                 )}
 
@@ -337,7 +337,7 @@ export function DiffReviewPanel({
                   ) : (
                     <DownloadIcon className="w-3.5 h-3.5" />
                   )}
-                  {isSyncing ? "Syncing..." : "Sync to Local"}
+                  {isSyncing ? t("syncing") : t("syncToLocal")}
                 </Button>
 
                 <div className="flex-1" />
@@ -349,7 +349,7 @@ export function DiffReviewPanel({
                   onClick={() => setShowDiscardDialog(true)}
                 >
                   <Trash2Icon className="w-3.5 h-3.5" />
-                  Discard
+                  {t("discard")}
                 </Button>
               </div>
             </motion.div>
@@ -360,14 +360,16 @@ export function DiffReviewPanel({
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard Workspace Changes</AlertDialogTitle>
+            <AlertDialogTitle>{t("discardTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the git worktree for branch <strong className="font-semibold">{branch}</strong> and
-              permanently discard all uncommitted changes. This action cannot be undone.
+              {t.rich("discardDescription", {
+                branch,
+                strong: (chunks) => <strong className="font-semibold">{chunks}</strong>,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDiscarding}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDiscarding}>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDiscard}
               disabled={isDiscarding}
@@ -376,10 +378,10 @@ export function DiffReviewPanel({
               {isDiscarding ? (
                 <>
                   <Loader2Icon className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Discarding...
+                  {t("discarding")}
                 </>
               ) : (
-                "Discard Changes"
+                t("discardChanges")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, ExternalLink, GitBranch, Loader2, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -94,6 +95,7 @@ function getInitials(name?: string): string {
 // ---------------------------------------------------------------------------
 
 export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardProps) {
+  const t = useTranslations("workspace.dashboard");
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -134,10 +136,10 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
         action: "cleanup",
       });
       if (error) throw new Error(error);
-      toast.success("Workspace cleaned up");
+      toast.success(t("cleanedUp"));
       await fetchWorkspaces();
     } catch {
-      toast.error("Failed to clean up workspace");
+      toast.error(t("cleanupFailed"));
     } finally {
       setCleaningUp((prev) => {
         const next = new Set(prev);
@@ -160,7 +162,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
       <div className="flex items-center gap-2 mb-3">
         <GitBranch className="h-4 w-4 text-terminal-muted" />
         <h2 className="text-sm font-mono font-medium text-terminal-dark">
-          Active Workspaces
+          {t("activeWorkspaces")}
         </h2>
         <Badge variant="outline" className="font-mono text-xs text-terminal-muted">
           {workspaces.length}
@@ -257,7 +259,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       ) : (
                         <Trash2 className="h-3 w-3 mr-1" />
                       )}
-                      Cleanup
+                      {t("cleanup")}
                     </Button>
                   ) : ws.status === "pr-open" && ws.prUrl ? (
                     <Button
@@ -268,7 +270,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                     >
                       <a href={ws.prUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-3 w-3 mr-1" />
-                        View PR
+                        {t("viewPR")}
                       </a>
                     </Button>
                   ) : (
@@ -279,7 +281,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                       onClick={() => onNavigateToSession?.(ws.sessionId, ws.agentId)}
                     >
                       <Play className="h-3 w-3 mr-1" />
-                      Continue
+                      {t("continue")}
                     </Button>
                   )}
                 </div>
@@ -301,12 +303,12 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
             {expanded ? (
               <>
                 <ChevronUp className="h-3 w-3 mr-1" />
-                Show less
+                {t("showLess")}
               </>
             ) : (
               <>
                 <ChevronDown className="h-3 w-3 mr-1" />
-                Show all ({workspaces.length})
+                {t("showAll", { count: workspaces.length })}
               </>
             )}
           </Button>

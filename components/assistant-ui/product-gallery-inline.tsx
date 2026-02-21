@@ -4,6 +4,7 @@ import type { FC } from "react";
 import { useState, useCallback } from "react";
 import { CheckCircle2, ExternalLink, Loader2Icon, ImageIcon, PaperclipIcon } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useGallery } from "./gallery-context";
 
 // Define the component type matching assistant-ui pattern
@@ -107,6 +108,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
   args,
   result,
 }) => {
+  const t = useTranslations("assistantUi.gallery");
   const [attachedItems, setAttachedItems] = useState<Set<string>>(new Set());
   const [attachingItems, setAttachingItems] = useState<Set<string>>(new Set());
   const gallery = useGallery();
@@ -114,7 +116,7 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
 
   const handleAttach = useCallback(async (item: GalleryItem) => {
     if (!gallery) {
-      toast.error("Cannot attach image - gallery context not available");
+      toast.error(t("noContextAvailable"));
       return;
     }
 
@@ -134,10 +136,10 @@ export const ProductGalleryToolUI: ToolCallContentPartComponent = ({
     try {
       await gallery.attachImageToComposer(item.imageUrl, item.name);
       setAttachedItems((prev) => new Set(prev).add(item.id));
-      toast.success(`📎 "${item.name}" attached to chat`);
+      toast.success(t("attachedToChat", { name: item.name }));
     } catch (error) {
       console.error("[Gallery] Failed to attach image:", error);
-      toast.error("Failed to attach image");
+      toast.error(t("attachFailed"));
     } finally {
       setAttachingItems((prev) => {
         const next = new Set(prev);
