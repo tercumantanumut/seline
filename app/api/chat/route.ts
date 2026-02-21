@@ -2975,7 +2975,8 @@ export async function POST(req: Request) {
     // Runtime discovery and execution happen through runSkill/updateSkill actions.
     const runtimeSkillsHint =
       "\n\n[Skills Runtime]\n" +
-      "Use runSkill for action=list|inspect|run (DB + plugin skills).\n" +
+      "Use runSkill for action=inspect|run (DB + plugin skills).\n" +
+      "runSkill action=list is feature-gated by ENABLE_LIST_SKILLS_TOOL and may be disabled.\n" +
       "Use updateSkill for action=create|patch|replace|metadata|copy|archive.\n" +
       "Prefer tool-first skill discovery instead of relying on static prompt catalogs.";
     if (typeof systemPromptValue === "string") {

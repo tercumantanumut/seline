@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/skills/queries", () => ({
+  getSkillsSummaryForPrompt: vi.fn(async () => []),
+}));
+
 import { formatSkillsForPromptFromSummary } from "@/lib/skills/prompt-injection";
 
 describe("formatSkillsForPromptFromSummary", () => {
@@ -13,6 +18,7 @@ describe("formatSkillsForPromptFromSummary", () => {
     ]);
 
     expect(result.markdown).toContain("Skill-triggering policy");
+    expect(result.markdown).toContain("gated behind ENABLE_LIST_SKILLS_TOOL");
     expect(result.markdown).toContain("Trigger examples: What changed this week?");
     expect(result.skillCount).toBe(1);
   });
