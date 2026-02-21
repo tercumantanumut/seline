@@ -20,6 +20,7 @@ import {
   Clock,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -465,6 +466,12 @@ export default function DashboardPage() {
                   <CardTitle className="font-mono text-sm font-semibold text-terminal-dark flex items-center gap-2">
                     <Clock className="h-4 w-4 text-terminal-muted" />
                     {t("recentChats")}
+                    <Link
+                      href="/usage"
+                      className="ml-auto font-mono text-xs font-normal text-terminal-muted hover:text-terminal-green transition-colors"
+                    >
+                      {t("viewAllChats")} →
+                    </Link>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -496,6 +503,12 @@ export default function DashboardPage() {
                   <CardTitle className="font-mono text-sm font-semibold text-terminal-dark flex items-center gap-2">
                     <Zap className="h-4 w-4 text-terminal-muted" />
                     {t("topAgents")}
+                    <Link
+                      href="/"
+                      className="ml-auto font-mono text-xs font-normal text-terminal-muted hover:text-terminal-green transition-colors"
+                    >
+                      {t("viewAllAgents")} →
+                    </Link>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
