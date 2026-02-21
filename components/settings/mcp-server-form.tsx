@@ -195,7 +195,7 @@ export function MCPServerForm({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h4 className="font-mono text-sm font-semibold text-terminal-dark">
-                    {initialName ? "Edit Server" : "Add New Server"}
+                    {initialName ? t("editServer") : t("addNewServer")}
                 </h4>
                 <Button
                     variant="ghost"
@@ -204,7 +204,7 @@ export function MCPServerForm({
                     className="h-7 text-xs"
                 >
                     <Info className="h-3 w-3 mr-1" />
-                    Variables
+                    {t("variablesButton")}
                 </Button>
             </div>
 
@@ -214,13 +214,12 @@ export function MCPServerForm({
                     <Info className="h-4 w-4 text-terminal-green" />
                     <AlertDescription className="text-xs space-y-2">
                         <div className="font-semibold text-terminal-dark">
-                            Available Environment Variables:
+                            {t("availableEnvVars")}
                         </div>
                         <div className="space-y-1">
                             {Object.keys(environment).length === 0 ? (
                                 <p className="text-terminal-muted italic">
-                                    No environment variables set. Add them in the Environment
-                                    Variables section below.
+                                    {t("noEnvVarsSet")}
                                 </p>
                             ) : (
                                 Object.keys(environment).map((key) => (
@@ -248,7 +247,7 @@ export function MCPServerForm({
                             )}
                         </div>
                         <div className="text-[10px] text-terminal-muted pt-2 border-t">
-                            <strong>Path Variables:</strong> Use{" "}
+                            <strong>{t("pathVariables")}</strong> Use{" "}
                             <code className="text-terminal-green">
                                 ${"{SYNCED_FOLDER}"}
                             </code>
@@ -268,7 +267,7 @@ export function MCPServerForm({
             {/* Basic Fields */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>Server Name</Label>
+                    <Label>{t("serverName")}</Label>
                     <Input
                         value={serverName}
                         onChange={(e) => setServerName(e.target.value)}
@@ -278,7 +277,7 @@ export function MCPServerForm({
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label>Transport Type</Label>
+                    <Label>{t("transportType")}</Label>
                     <div className="flex bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 rounded-md border border-terminal-border p-1">
                         <button
                             onClick={() => setServerType("stdio")}
@@ -310,7 +309,7 @@ export function MCPServerForm({
             {serverType === "stdio" && (
                 <div className="space-y-3">
                     <div className="space-y-2">
-                        <Label>Command</Label>
+                        <Label>{t("command")}</Label>
                         <Input
                             value={command}
                             onChange={(e) => setCommand(e.target.value)}
@@ -321,7 +320,7 @@ export function MCPServerForm({
 
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <Label>Arguments</Label>
+                            <Label>{t("arguments")}</Label>
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button
@@ -330,7 +329,7 @@ export function MCPServerForm({
                                         className="h-6 text-[10px] gap-1 px-2"
                                     >
                                         <Plus className="h-3 w-3" />
-                                        Insert Variable
+                                        {t("insertVariable")}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-64 p-2" align="end">
@@ -343,7 +342,7 @@ export function MCPServerForm({
                                                 ${"{SYNCED_FOLDER}"}
                                             </code>
                                             <p className="text-[10px] text-terminal-muted">
-                                                Primary synced folder
+                                                {t("primaryFolder")}
                                             </p>
                                         </button>
                                         <button
@@ -356,14 +355,14 @@ export function MCPServerForm({
                                                 ${"{SYNCED_FOLDERS_ARRAY}"}
                                             </code>
                                             <p className="text-[10px] text-terminal-muted">
-                                                All folders (expands to multiple args)
+                                                {t("allFolders")}
                                             </p>
                                         </button>
                                         {Object.keys(environment).length > 0 && (
                                             <>
                                                 <div className="border-t my-1 pt-1">
                                                     <p className="text-[10px] text-terminal-muted px-1.5">
-                                                        Environment Variables:
+                                                        {t("envVarsSection")}
                                                     </p>
                                                 </div>
                                                 {Object.keys(environment).map((key) => (
@@ -413,7 +412,7 @@ export function MCPServerForm({
                             <Input
                                 value={newArg}
                                 onChange={(e) => setNewArg(e.target.value)}
-                                placeholder="Add argument..."
+                                placeholder={t("addArgumentPlaceholder")}
                                 className="font-mono text-xs"
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") {
@@ -439,7 +438,7 @@ export function MCPServerForm({
                 <div className="space-y-3">
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <Label>Server URL</Label>
+                            <Label>{t("serverUrl")}</Label>
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button
@@ -448,7 +447,7 @@ export function MCPServerForm({
                                         className="h-6 text-[10px] gap-1 px-2"
                                     >
                                         <Plus className="h-3 w-3" />
-                                        Insert Variable
+                                        {t("insertVariable")}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-64 p-2" align="end">
@@ -486,9 +485,9 @@ export function MCPServerForm({
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
                             <Label className="text-xs">
-                                Request Headers{" "}
+                                {t("requestHeaders")}{" "}
                                 <span className="text-terminal-muted font-normal">
-                                    (Optional)
+                                    ({t("optionalLabel")})
                                 </span>
                             </Label>
                             <Popover>
@@ -499,14 +498,14 @@ export function MCPServerForm({
                                         className="h-6 text-[10px] gap-1 px-2"
                                     >
                                         <Info className="h-3 w-3" />
-                                        Examples
+                                        {t("examples")}
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-80 p-3" align="end">
                                     <div className="space-y-2 text-xs">
                                         <div>
                                             <div className="font-semibold text-terminal-dark mb-1">
-                                                Bearer Token:
+                                                {t("bearerTokenExample")}
                                             </div>
                                             <code className="text-terminal-green text-[10px] bg-terminal-bg p-1 rounded">
                                                 Authorization: Bearer ${"{YOUR_API_KEY}"}
@@ -514,22 +513,21 @@ export function MCPServerForm({
                                         </div>
                                         <div>
                                             <div className="font-semibold text-terminal-dark mb-1">
-                                                API Key Header:
+                                                {t("apiKeyHeaderExample")}
                                             </div>
                                             <code className="text-terminal-green text-[10px] bg-terminal-bg p-1 rounded">
                                                 X-API-Key: ${"{YOUR_API_KEY}"}
                                             </code>
                                         </div>
                                         <p className="text-terminal-muted pt-2 border-t text-[10px]">
-                                            Use ${"{VAR_NAME}"} to reference environment variables
+                                            {t("useVarHint")}
                                         </p>
                                     </div>
                                 </PopoverContent>
                             </Popover>
                         </div>
                         <p className="text-[10px] text-terminal-muted">
-                            Headers are sent with every SSE request. Use ${"{VAR_NAME}"} for environment variables.
-                            Common: Authorization, X-API-Key, X-Project-ID.
+                            {t("headersHint")}
                         </p>
 
                         {Object.keys(headers).length === 0 && (
@@ -580,7 +578,7 @@ export function MCPServerForm({
                                             onChange={(e) =>
                                                 setHeaders({ ...headers, [key]: e.target.value })
                                             }
-                                            placeholder="Value or ${VAR}"
+                                            placeholder={t("headerValuePlaceholder")}
                                             className="font-mono text-xs pr-8"
                                         />
                                         <button
@@ -590,6 +588,7 @@ export function MCPServerForm({
                                                     [key]: !showHeaderValues[key],
                                                 })
                                             }
+                                            aria-label={showHeaderValues[key] ? t("hideHeaderValue") : t("showHeaderValue")}
                                             className="absolute right-2 top-1/2 -translate-y-1/2 text-terminal-muted hover:text-terminal-dark"
                                         >
                                             {showHeaderValues[key] ? (
@@ -603,6 +602,7 @@ export function MCPServerForm({
                                         size="icon"
                                         variant="ghost"
                                         className="h-8 w-8 shrink-0"
+                                        aria-label={t("removeHeader")}
                                         onClick={() => handleRemoveHeader(key)}
                                     >
                                         <X className="h-3 w-3" />
@@ -625,7 +625,7 @@ export function MCPServerForm({
                                 onClick={() => setShowHeaderInput(true)}
                                 className="w-full"
                             >
-                                <Plus className="h-3 w-3 mr-2" /> Add Header
+                                <Plus className="h-3 w-3 mr-2" /> {t("addHeader")}
                             </Button>
                         ) : (
                             <div className="space-y-2 p-3 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 rounded border border-terminal-border">
@@ -633,7 +633,7 @@ export function MCPServerForm({
                                     <Input
                                         value={newHeaderKey}
                                         onChange={(e) => setNewHeaderKey(e.target.value)}
-                                        placeholder="Header name (e.g. Authorization)"
+                                        placeholder={t("headerNamePlaceholder")}
                                         className="flex-1 font-mono text-xs"
                                         autoFocus
                                     />
@@ -669,7 +669,7 @@ export function MCPServerForm({
                                 <Input
                                     value={newHeaderValue}
                                     onChange={(e) => setNewHeaderValue(e.target.value)}
-                                    placeholder="Bearer ${YOUR_API_KEY}"
+                                    placeholder={t("headerValuePlaceholder")}
                                     className="font-mono text-xs"
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter") {
@@ -687,10 +687,10 @@ export function MCPServerForm({
                                             setNewHeaderValue("");
                                         }}
                                     >
-                                        Cancel
+                                        {t("cancelHeader")}
                                     </Button>
                                     <Button size="sm" onClick={handleAddHeader}>
-                                        Add
+                                        {t("confirmHeader")}
                                     </Button>
                                 </div>
                             </div>
@@ -716,10 +716,10 @@ export function MCPServerForm({
             {/* Actions */}
             <div className="flex justify-end gap-2 pt-2 border-t border-terminal-border">
                 <Button variant="ghost" onClick={onCancel} disabled={isSaving}>
-                    Cancel
+                    {t("cancel")}
                 </Button>
                 <Button onClick={handleSubmit} disabled={errors.length > 0 || isSaving}>
-                    {isSaving ? "Saving..." : "Save Server"}
+                    {isSaving ? t("saving") : t("save")}
                 </Button>
             </div>
         </div>
