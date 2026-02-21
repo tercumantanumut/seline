@@ -149,7 +149,7 @@ export function SessionModelOverride({
         <span className="font-bold text-terminal-dark">{t("modelLabel")}</span>
         {state.hasOverrides ? (
           <span className="rounded bg-terminal-green/15 px-1 text-[9px] font-bold text-terminal-green">
-            OVERRIDE
+            {t("overrideBadge")}
           </span>
         ) : (
           <span className="text-terminal-muted">{t("globalStatus")}</span>

@@ -2250,7 +2250,21 @@
       "globalLabel": "global:",
       "providerDefault": "(provider default)",
       "modelLabel": "Model",
-      "globalStatus": "Global"
+      "globalStatus": "Global",
+      "overrideBadge": "OVERRIDE"
+    },
+    "providerFilter": {
+      "all": "All",
+      "activeProvider": "{name} (active provider)",
+      "doubleClickToSwitch": "{name} — double-click to switch",
+      "notConfigured": "{name} — not configured"
+    },
+    "tooltip": {
+      "assigned": "Assigned:",
+      "vision": "Vision",
+      "thinking": "Thinking",
+      "tools": "Tools",
+      "notConfigured": "Provider not configured — set API key or connect in Settings"
     },
     "providerLabel": "Provider:",
     "defaultBadge": "DEF",

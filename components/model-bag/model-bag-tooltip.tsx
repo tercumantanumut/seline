@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { PROVIDER_THEME, ROLE_THEME } from "./model-bag.constants";
 import { speedLabel, tierLabel } from "./model-bag.utils";
@@ -10,6 +11,7 @@ interface ModelBagTooltipProps {
 }
 
 export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
+  const t = useTranslations("modelBag.tooltip");
   if (!model) return null;
 
   const theme = PROVIDER_THEME[model.provider];
@@ -47,16 +49,16 @@ export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
           <Badge label={`📐 ${caps.contextWindow}`} />
         )}
         <Badge label={speedLabel(caps.speed)} />
-        {caps.vision && <Badge label="👁️ Vision" />}
-        {caps.thinking && <Badge label="🧠 Thinking" />}
-        {caps.toolUse && <Badge label="🔧 Tools" />}
+        {caps.vision && <Badge label={`👁️ ${t("vision")}`} />}
+        {caps.thinking && <Badge label={`🧠 ${t("thinking")}`} />}
+        {caps.toolUse && <Badge label={`🔧 ${t("tools")}`} />}
       </div>
 
       {/* Assigned roles */}
       {model.assignedRoles.length > 0 && (
         <div className="mt-2 flex gap-1">
           <span className="font-mono text-[9px] text-terminal-muted">
-            Assigned:
+            {t("assigned")}
           </span>
           {model.assignedRoles.map((role) => (
             <span
@@ -71,7 +73,7 @@ export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
 
       {!model.isAvailable && (
         <p className="mt-2 font-mono text-[10px] text-red-500">
-          ⚠ Provider not configured — set API key or connect in Settings
+          ⚠ {t("notConfigured")}
         </p>
       )}
     </div>

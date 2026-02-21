@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { PROVIDER_THEME } from "./model-bag.constants";
 import type { ProviderStatus, LLMProvider } from "./model-bag.types";
@@ -17,6 +18,7 @@ export function ModelBagProviderFilter({
   onFilterChange,
   onProviderSwitch,
 }: ModelBagProviderFilterProps) {
+  const t = useTranslations("modelBag.providerFilter");
   return (
     <div className="flex flex-wrap gap-1">
       {/* "All" pill */}
@@ -29,7 +31,7 @@ export function ModelBagProviderFilter({
             : "bg-white/50 text-terminal-muted hover:bg-white/80",
         )}
       >
-        All
+        {t("all")}
       </button>
 
       {/* Provider pills */}
@@ -48,10 +50,10 @@ export function ModelBagProviderFilter({
             }}
             title={
               p.isActive
-                ? `${p.displayName} (active provider)`
+                ? t("activeProvider", { name: p.displayName })
                 : p.isAuthenticated
-                  ? `${p.displayName} — double-click to switch`
-                  : `${p.displayName} — not configured`
+                  ? t("doubleClickToSwitch", { name: p.displayName })
+                  : t("notConfigured", { name: p.displayName })
             }
             className={cn(
               "flex items-center gap-1 rounded-full px-2 py-1 font-mono text-[10px] font-medium transition-all",
