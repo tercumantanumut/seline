@@ -34,7 +34,7 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
     "",
     "You have the following skills available.",
     "Skill-triggering policy:",
-    "- runSkill action=\"list\" is gated behind ENABLE_LIST_SKILLS_TOOL and may be disabled by default.",
+    "- Use `runSkill` action=\"list\" to discover runtime-available skills when needed.",
     "- Use `runSkill` action=\"inspect\" to read full skill content before execution.",
     "- If a user request clearly matches a skill trigger, call `runSkill` action=\"run\".",
     "- runSkill returns runnable instructions; you must execute those instructions to complete the task.",
@@ -68,7 +68,7 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
   const truncated = included < skills.length;
   if (truncated) {
     lines.push("");
-    lines.push("If list access is enabled, you can call `runSkill` with action=\"list\" for the full catalog.");
+    lines.push("If you need the full catalog, call `runSkill` with action=\"list\".");
     consumedTokens += estimateTokens(lines[lines.length - 1]);
   }
 

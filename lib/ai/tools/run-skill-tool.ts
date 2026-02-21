@@ -14,10 +14,6 @@ import {
 
 type RunSkillAction = "list" | "inspect" | "run";
 
-const ENABLE_LIST_SKILLS_TOOL =
-  process.env.ENABLE_LIST_SKILLS_TOOL === "true" ||
-  process.env.ENABLE_LIST_SKILLS_TOOL === "1";
-
 interface RunSkillInput {
   action?: RunSkillAction;
   skillId?: string;
@@ -175,17 +171,6 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
       const action = normalizeAction(input);
 
       if (action === "list") {
-        if (!ENABLE_LIST_SKILLS_TOOL) {
-          return {
-            success: false,
-            action,
-            error:
-              "runSkill action='list' is currently disabled to reduce token-heavy skill catalog responses. Set ENABLE_LIST_SKILLS_TOOL=true to re-enable.",
-            hint:
-              "Use runSkill action='inspect' or action='run' with skillId/skillName when you already know the target skill.",
-          };
-        }
-
         const skills = await listRuntimeSkills({
           userId: options.userId,
           characterId: options.characterId,

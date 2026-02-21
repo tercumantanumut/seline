@@ -18,7 +18,7 @@ describe("formatSkillsForPromptFromSummary", () => {
     ]);
 
     expect(result.markdown).toContain("Skill-triggering policy");
-    expect(result.markdown).toContain("gated behind ENABLE_LIST_SKILLS_TOOL");
+    expect(result.markdown).toContain("action=\"list\" to discover runtime-available skills");
     expect(result.markdown).toContain("Trigger examples: What changed this week?");
     expect(result.skillCount).toBe(1);
   });

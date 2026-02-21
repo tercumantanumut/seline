@@ -54,9 +54,10 @@ async function loadTool() {
   });
 }
 
-describe("createRunSkillTool list gating", () => {
+describe("createRunSkillTool list action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
     mocks.listRuntimeSkills.mockResolvedValue([
       {
         canonicalId: "skill-1",
@@ -77,29 +78,23 @@ describe("createRunSkillTool list gating", () => {
     ]);
   });
 
-  it("returns disabled response for action=list by default", async () => {
-    delete process.env.ENABLE_LIST_SKILLS_TOOL;
-    vi.resetModules();
-
-    const tool = await loadTool();
-    const result = await (tool as any).execute({ action: "list" });
-
-    expect(result.success).toBe(false);
-    expect(String(result.error || "")).toContain("currently disabled");
-    expect(mocks.listRuntimeSkills).not.toHaveBeenCalled();
-  });
-
-  it("allows action=list when ENABLE_LIST_SKILLS_TOOL=true", async () => {
-    process.env.ENABLE_LIST_SKILLS_TOOL = "true";
-    vi.resetModules();
-
+  it("supports action=list without any env gate", async () => {
     const tool = await loadTool();
     const result = await (tool as any).execute({ action: "list" });
 
     expect(result.success).toBe(true);
+    expect(result.action).toBe("list");
     expect(result.count).toBe(1);
     expect(mocks.listRuntimeSkills).toHaveBeenCalledTimes(1);
+  });
 
-    delete process.env.ENABLE_LIST_SKILLS_TOOL;
+  it("defaults to list when no action and no skill target are provided", async () => {
+    const tool = await loadTool();
+    const result = await (tool as any).execute({});
+
+    expect(result.success).toBe(true);
+    expect(result.action).toBe("list");
+    expect(result.count).toBe(1);
+    expect(mocks.listRuntimeSkills).toHaveBeenCalledTimes(1);
   });
 });
