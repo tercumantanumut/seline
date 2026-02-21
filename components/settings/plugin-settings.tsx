@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MarketplaceBrowser } from "@/components/plugins/marketplace-browser";
+import { useTranslations } from "next-intl";
 
 interface InstalledPlugin {
   id: string;
@@ -85,6 +86,7 @@ interface CharacterOption {
 }
 
 export function PluginSettings() {
+  const t = useTranslations("plugins");
   const [plugins, setPlugins] = useState<InstalledPlugin[]>([]);
   const [characters, setCharacters] = useState<CharacterOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,30 +154,30 @@ export function PluginSettings() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed to update plugin");
-      toast.success(`Plugin ${newStatus === "active" ? "enabled" : "disabled"}`);
+      toast.success(newStatus === "active" ? t("pluginEnabled") : t("pluginDisabled"));
       loadPlugins();
     } catch {
-      toast.error("Failed to update plugin status");
+      toast.error(t("updateFailed"));
     }
   };
 
   const uninstallPlugin = async (pluginId: string, pluginName: string) => {
-    if (!confirm(`Uninstall plugin "${pluginName}"? This cannot be undone.`)) return;
+    if (!confirm(t("uninstallConfirm", { name: pluginName }))) return;
 
     try {
       const res = await fetch(`/api/plugins/${pluginId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to uninstall");
-      toast.success(`Plugin "${pluginName}" uninstalled`);
+      toast.success(t("pluginUninstalled", { name: pluginName }));
       loadPlugins();
     } catch {
-      toast.error("Failed to uninstall plugin");
+      toast.error(t("uninstallFailed"));
     }
   };
 
   const startInstallForFiles = (files: File[]) => {
     if (files.length === 0) return;
     if (characters.length === 0) {
-      toast.error("Create at least one agent before installing plugins with agent workflows.");
+      toast.error(t("requireAgentFirst"));
       return;
     }
     setPendingUploadFiles(files);
@@ -191,7 +193,7 @@ export function PluginSettings() {
   const installPendingPluginFiles = async () => {
     if (pendingUploadFiles.length === 0) return;
     if (!selectedTargetCharacterId) {
-      toast.error("Select a main agent before continuing.");
+      toast.error(t("selectAgentFirst"));
       return;
     }
 
@@ -231,16 +233,16 @@ export function PluginSettings() {
         descriptionParts.push(`${auxCount} reference file${auxCount !== 1 ? "s" : ""} linked to workspace`);
       }
 
-      toast.success(`Plugin "${data.plugin?.name}" installed`, {
+      toast.success(t("pluginInstalled", { name: data.plugin?.name ?? "" }), {
         description: descriptionParts.join(", "),
         ...(data.workflow
-          ? { action: { label: "View Agents", onClick: () => window.location.assign("/") } }
+          ? { action: { label: t("viewAgents"), onClick: () => window.location.assign("/") } }
           : {}),
       });
 
       if (data.auxiliaryFiles?.workspaceRegistered) {
-        toast.info("Plugin workspace folder registered", {
-          description: "Reference files are now accessible to the agent via its sync folder.",
+        toast.info(t("workspaceRegistered"), {
+          description: t("workspaceRegisteredDesc"),
         });
       }
 
@@ -248,7 +250,7 @@ export function PluginSettings() {
       setPendingUploadFiles([]);
       loadPlugins();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Plugin import failed");
+      toast.error(error instanceof Error ? error.message : t("importFailed"));
     } finally {
       setUploading(false);
     }

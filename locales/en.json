@@ -2444,7 +2444,13 @@
     "importFailed": "Plugin import failed",
     "updateFailed": "Failed to update plugin status",
     "uninstallFailed": "Failed to uninstall plugin",
+    "loadFailed": "Failed to load plugins",
     "onlyZipSupported": "Only .zip plugin packages are supported",
+    "requireAgentFirst": "Create at least one agent before installing plugins with agent workflows.",
+    "selectAgentFirst": "Select a main agent before continuing.",
+    "workspaceRegistered": "Plugin workspace folder registered",
+    "workspaceRegisteredDesc": "Reference files are now accessible to the agent via its sync folder.",
+    "viewAgents": "View Agents",
     "components": {
       "skills": "{count} skill(s)",
       "agents": "{count} agent(s)",
