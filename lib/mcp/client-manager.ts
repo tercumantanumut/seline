@@ -242,6 +242,20 @@ class MCPClientManager {
                         `\nOriginal error: ${error.message}`
                     );
                 }
+
+                // MCP -32000 "Connection closed" — process started but died before handshake
+                if (error?.code === -32000 || error?.message?.includes("Connection closed")) {
+                    throw new Error(
+                        `MCP server "${serverName}" connection closed unexpectedly. ` +
+                        `The server process started but exited before completing initialization.\n\n` +
+                        `Common causes:\n` +
+                        `- The bundled Node.js binary could not run (check macOS Gatekeeper)\n` +
+                        `- The MCP package failed to install (network/proxy issue)\n` +
+                        `- The MCP server crashed during startup\n` +
+                        `\nOriginal error: ${error.message}`
+                    );
+                }
+
                 throw error;
             }
 
