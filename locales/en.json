@@ -1001,6 +1001,8 @@
       "requiredBadge": "Required",
       "criticalBadge": "Critical",
       "noPreviewInputs": "No highlighted inputs detected for preview.",
+      "showMoreInputs": "Show +{count} more",
+      "showLessInputs": "Show less",
       "cancel": "Cancel",
       "importing": "Importing...",
       "importAction": "Import selected"
