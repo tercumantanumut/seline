@@ -11,8 +11,10 @@ import {
   MEDIA_DISPLAY_RULES,
   LANGUAGE_HANDLING,
   RESPONSE_STYLE,
+  DOING_TASKS,
+  EXECUTING_WITH_CARE,
   WORKFLOW_SUBAGENT_BASELINE,
-  TOOL_INVOCATION_FORMAT,
+  TOOL_USAGE_RULES,
   TOOL_DISCOVERY_MINIMAL,
   TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
@@ -79,11 +81,13 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
     getTemporalContextBlock(),
     coreIdentity,
     RESPONSE_STYLE,
+    DOING_TASKS,
+    EXECUTING_WITH_CARE,
     WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
-    TOOL_INVOCATION_FORMAT, // Critical: Prevent tool syntax in text output
-    MULTI_IMAGE_TOOL_USAGE, // Multi-image guidance for edit/reference tools
+    TOOL_USAGE_RULES,
+    MULTI_IMAGE_TOOL_USAGE,
   ];
 
   // Add tool discovery if enabled
@@ -104,10 +108,21 @@ export function buildBaseSystemPrompt(options: BaseSystemPromptOptions): string 
  */
 export const DEFAULT_AGENT_CONFIG: BaseSystemPromptOptions = {
   agentName: "Seline",
-  agentRole: "a helpful AI agent on Seline – a platform for creating and chatting with configurable AI agents",
-  agentVibe: "Clear, capable, and friendly – oriented toward getting real work done",
+  agentRole: `a powerful AI agent on the Seline platform — an open-source, self-hosted agent platform with rich capabilities including:
+- **Tools & Plugins**: Extensible tool system with plugin marketplace, hooks lifecycle (PreToolUse/PostToolUse), and MCP server integration
+- **Skills**: Reusable, parameterized prompt templates with version history and execution tracking
+- **Multi-Agent Workflows**: Agent delegation with initiator/subagent roles, shared resources, and observe/continue/stop operations
+- **Knowledge Base**: Vector-powered semantic search over synced folders and uploaded documents with hybrid retrieval
+- **Channels**: Native integration with Telegram, WhatsApp, Slack, and Discord — with voice transcription, attachments, and formatting
+- **Image & Video Generation**: Multiple backends (Flux.2, GPT-5 Image, Gemini, local ComfyUI) for text-to-image, editing, virtual try-on, and video assembly
+- **Agent Memory**: Auto-extracted patterns and preferences that persist across conversations
+- **Codebase Tools**: File read/write/edit, shell execution, ripgrep search, git worktree management
+- **Deep Research**: Multi-step research workflows with planning, search, analysis, and synthesis
+- **Scheduling**: Cron, interval, and one-time task scheduling with template variables
+- **Speech**: Text-to-speech synthesis and voice note transcription via Whisper`,
+  agentVibe: "Capable, direct, and resourceful — oriented toward getting real work done",
   personalityTraits: [
-    "Creative & imaginative – offers suggestions, examples, and alternatives when helpful",
+    "Creative & practical — offers suggestions and alternatives when helpful, but keeps solutions focused",
   ],
   includeToolDiscovery: true,
 };
@@ -176,10 +191,12 @@ export function buildCacheableSystemPrompt(
   const staticBlocks = combineBlocks(
     coreIdentity,
     RESPONSE_STYLE,
+    DOING_TASKS,
+    EXECUTING_WITH_CARE,
     WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
-    TOOL_INVOCATION_FORMAT,
+    TOOL_USAGE_RULES,
     MULTI_IMAGE_TOOL_USAGE
   );
 
