@@ -63,23 +63,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const queuedAt = nowISO();
-    const updatedMetadata = appendLivePromptQueueEntry(
-      (session.metadata as Record<string, unknown>) ?? {},
-      {
-        id: promptId,
-        runId,
-        content,
-        createdAt: queuedAt,
-        source,
-      }
-    );
 
-    await updateSession(sessionId, {
-      metadata: updatedMetadata,
-    });
-
-    // Persist mid-run user prompt immediately so it is visible in chat history,
-    // while still letting the active run consume it from livePromptQueue metadata.
+    // Persist user prompt first to avoid invisible prompt processing if message write fails.
     const userMessageIndex = await nextOrderingIndex(sessionId);
     await createMessage({
       id: promptId,
@@ -95,6 +80,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       },
       createdAt: queuedAt,
+    });
+
+    const updatedMetadata = appendLivePromptQueueEntry(
+      (session.metadata as Record<string, unknown>) ?? {},
+      {
+        id: promptId,
+        runId,
+        content,
+        createdAt: queuedAt,
+        source,
+      }
+    );
+
+    await updateSession(sessionId, {
+      metadata: updatedMetadata,
     });
 
     taskRegistry.emitProgress(runId, "Live prompt queued");
