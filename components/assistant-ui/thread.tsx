@@ -1028,10 +1028,17 @@ const Composer: FC<{
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
+  const isComposerMountedRef = useRef(true);
 
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const livePromptSubmitChainRef = useRef<Promise<void>>(Promise.resolve());
+  const queuedIdCounterRef = useRef(0);
+
+  const createQueuedMessageId = useCallback(() => {
+    queuedIdCounterRef.current += 1;
+    return `queued-${Date.now().toString(36)}-${queuedIdCounterRef.current.toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  }, []);
 
   const markQueuedMessageStatus = useCallback((id: string, status: QueuedMessage["status"]) => {
     setQueuedMessages((prev) => prev.map((msg) => (msg.id === id ? { ...msg, status } : msg)));
@@ -1039,6 +1046,12 @@ const Composer: FC<{
 
   const removeQueuedMessageById = useCallback((id: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== id));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isComposerMountedRef.current = false;
+    };
   }, []);
   const {
     draft: inputValue,
@@ -1116,7 +1129,7 @@ const Composer: FC<{
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
   const queueLivePromptForActiveRun = useCallback(async (content: string): Promise<boolean> => {
-    if (!sessionId || !content) {
+    if (!sessionId || !content || !isComposerMountedRef.current) {
       return false;
     }
 
@@ -1126,6 +1139,10 @@ const Composer: FC<{
     let targetRunId = livePromptRunId?.trim() || "";
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      if (!isComposerMountedRef.current) {
+        return false;
+      }
+
       try {
         if (!targetRunId) {
           const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string | null }>(
@@ -1136,6 +1153,9 @@ const Composer: FC<{
           if (error || !data?.hasActiveRun || !data.runId) {
             if (attempt < MAX_ATTEMPTS - 1) {
               await wait(RETRY_DELAY_MS);
+              if (!isComposerMountedRef.current) {
+                return false;
+              }
               continue;
             }
             return false;
@@ -1165,6 +1185,9 @@ const Composer: FC<{
         targetRunId = "";
         if (attempt < MAX_ATTEMPTS - 1) {
           await wait(RETRY_DELAY_MS);
+          if (!isComposerMountedRef.current) {
+            return false;
+          }
           continue;
         }
 
@@ -1173,6 +1196,9 @@ const Composer: FC<{
         if (attempt < MAX_ATTEMPTS - 1) {
           targetRunId = "";
           await wait(RETRY_DELAY_MS);
+          if (!isComposerMountedRef.current) {
+            return false;
+          }
           continue;
         }
 
@@ -1300,7 +1326,10 @@ const Composer: FC<{
       isAwaitingRunStart.current = true;
 
       const nextMessage = queuedMessages[nextFallbackQueueIndex];
-      setQueuedMessages((prev) => prev.filter((_, index) => index !== nextFallbackQueueIndex));
+      if (!nextMessage) {
+        return;
+      }
+      setQueuedMessages((prev) => prev.filter((message) => message.id !== nextMessage.id));
 
       // Small delay to ensure the runtime is ready for the next message
       setTimeout(() => {
@@ -1364,7 +1393,7 @@ const Composer: FC<{
         const shouldInjectLivePrompt = !isDeepResearchMode;
 
         if (shouldInjectLivePrompt) {
-          const queuedId = `queued-${Date.now()}`;
+          const queuedId = createQueuedMessageId();
           setQueuedMessages((prev) => [...prev, {
             id: queuedId,
             content: expandedMessage,
@@ -1376,7 +1405,15 @@ const Composer: FC<{
           livePromptSubmitChainRef.current = livePromptSubmitChainRef.current
             .catch(() => undefined)
             .then(async () => {
+              if (!isComposerMountedRef.current) {
+                return;
+              }
+
               const queued = await queueLivePromptForActiveRun(expandedMessage);
+              if (!isComposerMountedRef.current) {
+                return;
+              }
+
               if (queued) {
                 markQueuedMessageStatus(queuedId, "queued-live");
                 if (!hasStopIntent(expandedMessage)) {
@@ -1395,7 +1432,7 @@ const Composer: FC<{
         } else {
           // Queue the message when AI is busy (text only, no attachments for queued)
           setQueuedMessages((prev) => [...prev, {
-            id: `queued-${Date.now()}`,
+            id: createQueuedMessageId(),
             content: expandedMessage,
             mode: isDeepResearchMode ? "deep-research" : "chat",
             status: "queued-fallback",
@@ -1440,6 +1477,7 @@ const Composer: FC<{
     queueLivePromptForActiveRun,
     markQueuedMessageStatus,
     livePromptSubmitChainRef,
+    createQueuedMessageId,
   ]);
 
   // Insert a file mention from the autocomplete dropdown
@@ -2115,7 +2153,11 @@ const Composer: FC<{
                   {msg.stopIntent && <CircleStopIcon className="size-3 text-red-500" />}
                   <button
                     onClick={() => removeFromQueue(msg.id)}
-                    className="text-terminal-muted hover:text-red-500 transition-colors"
+                    disabled={isQueueingLive}
+                    className={cn(
+                      "text-terminal-muted transition-colors",
+                      isQueueingLive ? "cursor-not-allowed opacity-50" : "hover:text-red-500"
+                    )}
                   >
                     <XIcon className="size-3" />
                   </button>

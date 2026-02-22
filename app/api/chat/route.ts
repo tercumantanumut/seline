@@ -2147,32 +2147,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const livePromptPayload = body.livePromptQueue as {
-      id?: unknown;
-      runId?: unknown;
-      content?: unknown;
-      source?: unknown;
-    } | undefined;
-    const livePromptRunId = typeof livePromptPayload?.runId === "string"
-      ? livePromptPayload.runId.trim()
-      : "";
-
-    if (livePromptRunId) {
-      const promptId = typeof livePromptPayload?.id === "string"
-        ? livePromptPayload.id.trim()
-        : "";
-      const promptContent = typeof livePromptPayload?.content === "string"
-        ? livePromptPayload.content.trim()
-        : "";
-
-      if (!promptId || !promptContent) {
-        return new Response(
-          JSON.stringify({ error: "livePromptQueue.id and livePromptQueue.content are required" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
-
     // Get or create session (always associated with user)
     // Also track system prompt injection state
     let sessionId = providedSessionId;
@@ -3642,9 +3616,9 @@ export async function POST(req: Request) {
     };
 
     const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
-    const seenLivePromptIds = new Set<string>();
-    const createStreamResult = async () =>
-      withRunContext(
+    const createStreamResult = async () => {
+      const seenLivePromptIds = new Set<string>();
+      return withRunContext(
         {
           runId,
           sessionId,
@@ -4175,12 +4149,25 @@ export async function POST(req: Request) {
                 durationMs: registryDurationMs,
               });
             }
+
+            // Ensure aborted runs do not leave stale live prompt queue entries behind.
+            const freshSession = await getSession(sessionId);
+            const freshMetadata = (freshSession?.metadata as Record<string, unknown>) || {};
+            const existingLivePromptQueue = getLivePromptQueueEntries(freshMetadata);
+            const retainedLivePromptQueue = existingLivePromptQueue.filter((entry) => entry.runId !== runId);
+            await updateSession(sessionId, {
+              metadata: {
+                ...freshMetadata,
+                livePromptQueue: retainedLivePromptQueue,
+              },
+            });
           } catch (error) {
             console.error("[CHAT API] Failed to record cancellation:", error);
           }
         },
         })
       );
+    };
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
