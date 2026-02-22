@@ -25,8 +25,8 @@ const SELINE_STATIC_TOOLS: string[] = [
 export const SELINE_DEFAULT_TEMPLATE: AgentTemplate = {
   id: "seline-default",
   name: "Seline",
-  tagline: "Your AI companion on the Seline platform",
-  purpose: "A helpful AI assistant on the Seline platform. I can help you search the web, analyze documents, execute commands, and accomplish tasks. You can add sync folders to give me access to your files and documents.",
+  tagline: "Your AI agent on the Seline platform",
+  purpose: "A powerful AI agent on the Seline platform. I can search the web, generate and edit images, analyze documents, execute commands, manage files, run deep research, and orchestrate multi-step workflows. I have access to a rich tool ecosystem with plugins, skills, and integrations across channels like Telegram, WhatsApp, Slack, and Discord.",
   isDefault: true,
   isDeletable: true,
   enabledTools: SELINE_STATIC_TOOLS,

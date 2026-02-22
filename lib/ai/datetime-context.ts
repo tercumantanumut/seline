@@ -75,26 +75,16 @@ export function getCurrentDateTimeContext(): string {
  */
 export function getTemporalContextBlock(): string {
   const now = new Date();
-  
-  // Core datetime context
+
   const dateTimeContext = getCurrentDateTimeContext();
-  
-  // Additional temporal metadata
+
   const year = now.getFullYear();
   const month = now.toLocaleString("en-US", { month: "long" });
   const quarter = `Q${Math.ceil((now.getMonth() + 1) / 3)}`;
-  
-  return `## Current Date & Time Context
+
+  return `## Current Date & Time
 
 ${dateTimeContext}
-Year: ${year} | Month: ${month} | Quarter: ${quarter}
-
-Use this information for:
-- Time-sensitive queries and recommendations
-- Web searches (search for current/recent information from ${year})
-- Relative time calculations ("this year", "last month", "recently")
-- Understanding temporal references in user messages
-
-Important: This time is regenerated fresh for every message. Always use the time shown here or in <environment_details>, never repeat a time you stated earlier in this conversation. For reminders/scheduling, backend validation uses runtime server time.`;
+Year: ${year} | Month: ${month} | Quarter: ${quarter}`;
 }
 
