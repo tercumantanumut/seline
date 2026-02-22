@@ -48,29 +48,28 @@ const searchSessionsSchema = jsonSchema<SearchSessionsArgs>({
   additionalProperties: false,
 });
 
-// TODO(human): Implement the result shaping logic.
-// This function receives raw session rows from the DB and should return
-// a clean, token-efficient summary array for the AI to reason over.
-//
-// Each session has: id, title, summary, characterId, channelType,
-// messageCount, totalTokenCount, lastMessageAt, createdAt, status,
-// metadata (JSON with characterName, pinned, model overrides, etc.)
-//
-// Return an array of objects with the fields you think are most useful
-// for an AI agent trying to find relevant past conversations.
+const MAX_SUMMARY_LENGTH = 300;
+
 function shapeSessionResults(
   sessions: Array<Record<string, unknown>>
 ): Array<Record<string, unknown>> {
-  // TODO(human): Shape the results here
-  return sessions.map((s) => ({
-    id: s.id,
-    title: s.title,
-    summary: s.summary,
-    characterId: s.characterId,
-    channelType: s.channelType,
-    messageCount: s.messageCount,
-    lastMessageAt: s.lastMessageAt,
-  }));
+  return sessions.map((s) => {
+    const meta = (s.metadata ?? {}) as Record<string, unknown>;
+    const summary = typeof s.summary === "string" && s.summary.length > MAX_SUMMARY_LENGTH
+      ? s.summary.slice(0, MAX_SUMMARY_LENGTH) + "…"
+      : s.summary;
+
+    return {
+      id: s.id,
+      title: s.title,
+      ...(summary ? { summary } : {}),
+      ...(meta.characterName ? { agent: meta.characterName } : {}),
+      ...(s.channelType ? { channel: s.channelType } : {}),
+      messageCount: s.messageCount,
+      lastMessageAt: s.lastMessageAt,
+      ...(meta.pinned ? { pinned: true } : {}),
+    };
+  });
 }
 
 async function executeSearchSessions(
