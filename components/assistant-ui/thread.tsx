@@ -55,6 +55,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -302,6 +303,67 @@ function mapByRelativePath(items: DroppedImportFile[]): Map<string, DroppedImpor
     lookup.set(item.relativePath, item);
   }
   return lookup;
+}
+
+function getInputCategory(input: CustomComfyUIInput): "prompt" | "media" | "generation" | "advanced" {
+  const name = input.name.toLowerCase();
+
+  if (
+    name.includes("prompt") ||
+    name.includes("text") ||
+    name.includes("caption") ||
+    name.includes("negative")
+  ) {
+    return "prompt";
+  }
+
+  if (
+    input.type === "image" ||
+    input.type === "mask" ||
+    input.type === "video" ||
+    input.type === "file"
+  ) {
+    return "media";
+  }
+
+  if (
+    name.includes("seed") ||
+    name.includes("steps") ||
+    name.includes("cfg") ||
+    name.includes("sampler") ||
+    name.includes("scheduler") ||
+    name.includes("width") ||
+    name.includes("height") ||
+    name.includes("denoise") ||
+    name.includes("strength")
+  ) {
+    return "generation";
+  }
+
+  return "advanced";
+}
+
+function isCriticalInput(input: CustomComfyUIInput): boolean {
+  if (input.required) {
+    return true;
+  }
+
+  const name = input.name.toLowerCase();
+  if (
+    name.includes("prompt") ||
+    name.includes("image") ||
+    name.includes("mask") ||
+    name.includes("video") ||
+    name.includes("seed") ||
+    name.includes("steps") ||
+    name.includes("cfg") ||
+    name.includes("width") ||
+    name.includes("height")
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 export const Thread: FC<ThreadProps> = ({
@@ -973,6 +1035,7 @@ export const Thread: FC<ThreadProps> = ({
   const validComfyPreviewCount = comfyImportPreviews.filter(
     (preview) => !preview.error
   ).length;
+  const selectedComfyPreviewCount = Object.values(comfyImportSelected).filter(Boolean).length;
 
   // Context window status tracking
   const {
@@ -1107,7 +1170,7 @@ export const Thread: FC<ThreadProps> = ({
             setComfyImportDialogOpen(true);
           }}
         >
-          <DialogContent className="sm:max-w-3xl bg-terminal-cream border-terminal-border">
+          <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl bg-terminal-cream border-terminal-border p-3 sm:p-6">
             <DialogHeader>
               <DialogTitle className="font-mono text-terminal-dark">{t("comfyuiImport.title")}</DialogTitle>
               <DialogDescription className="font-mono text-terminal-muted">
@@ -1115,7 +1178,57 @@ export const Thread: FC<ThreadProps> = ({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+            {!comfyImportLoading && comfyImportPreviews.length > 0 && (
+              <div className="rounded border border-terminal-border/70 bg-terminal-bg/50 px-3 py-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs font-mono text-terminal-muted">
+                    {t("comfyuiImport.selectedCount", { count: selectedComfyPreviewCount })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={comfyImportSubmitting || validComfyPreviewCount === 0}
+                      onClick={() => {
+                        setComfyImportSelected((prev) => {
+                          const next = { ...prev };
+                          for (const preview of comfyImportPreviews) {
+                            if (!preview.error) {
+                              next[preview.fileName] = true;
+                            }
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      {t("comfyuiImport.selectAll")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={comfyImportSubmitting}
+                      onClick={() => {
+                        setComfyImportSelected((prev) => {
+                          const next = { ...prev };
+                          for (const key of Object.keys(next)) {
+                            next[key] = false;
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      {t("comfyuiImport.clearSelection")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 max-h-[62vh] overflow-y-auto pr-1">
               {comfyImportLoading && (
                 <div className="flex items-center gap-2 rounded border border-terminal-border/70 bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
                   <Loader2Icon className="size-4 animate-spin" />
@@ -1133,18 +1246,33 @@ export const Thread: FC<ThreadProps> = ({
                 const isSelected = Boolean(comfyImportSelected[preview.fileName]);
                 const hasError = Boolean(preview.error);
                 const disableRow = hasError;
+                const highlightedInputs = preview.inputs.filter((input) =>
+                  preview.importantInputIds.includes(input.id)
+                );
+                const displayInputs = (highlightedInputs.length > 0 ? highlightedInputs : preview.inputs)
+                  .slice(0, 8);
+                const groupedInputs: Record<"prompt" | "media" | "generation" | "advanced", CustomComfyUIInput[]> = {
+                  prompt: [],
+                  media: [],
+                  generation: [],
+                  advanced: [],
+                };
+                for (const input of displayInputs) {
+                  groupedInputs[getInputCategory(input)].push(input);
+                }
+
                 return (
                   <div
                     key={preview.fileName}
                     className={cn(
-                      "rounded border p-3 space-y-2",
+                      "rounded border p-3 space-y-3",
                       disableRow
                         ? "border-red-300/50 bg-red-50/50"
                         : "border-terminal-border/70 bg-terminal-bg/40"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-2 min-w-0">
                         <Checkbox
                           checked={isSelected}
                           disabled={disableRow || comfyImportSubmitting}
@@ -1155,25 +1283,25 @@ export const Thread: FC<ThreadProps> = ({
                             }));
                           }}
                         />
-                        <div>
-                          <p className="text-sm font-semibold font-mono text-terminal-dark">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold font-mono text-terminal-dark truncate">
                             {getDisplayFileName(preview.fileName)}
                           </p>
                           <p className="text-xs font-mono text-terminal-muted break-all">{preview.fileName}</p>
                         </div>
                       </div>
 
-                      <div className="text-xs font-mono text-terminal-muted text-right">
-                        <p>{t("comfyuiImport.nodeCount", { count: preview.nodeCount })}</p>
-                        <p>{t("comfyuiImport.inputCount", { count: preview.inputCount })}</p>
-                        <p>{t("comfyuiImport.outputCount", { count: preview.outputCount })}</p>
+                      <div className="flex flex-wrap gap-1 text-xs font-mono text-terminal-muted">
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.nodeCount", { count: preview.nodeCount })}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.inputCount", { count: preview.inputCount })}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.outputCount", { count: preview.outputCount })}</Badge>
                       </div>
                     </div>
 
                     {preview.error ? (
                       <p className="text-xs font-mono text-red-600">{preview.error}</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="space-y-1">
                           <Label className="text-xs font-mono text-terminal-muted">
                             {t("comfyuiImport.workflowNameLabel")}
@@ -1193,15 +1321,41 @@ export const Thread: FC<ThreadProps> = ({
                         </div>
 
                         <p className="text-xs font-mono text-terminal-muted">{preview.summary}</p>
-                        {preview.inputs.length > 0 && (
-                          <p className="text-xs font-mono text-terminal-muted">
-                            {preview.inputs
-                              .filter((input) => preview.importantInputIds.length === 0 || preview.importantInputIds.includes(input.id))
-                              .slice(0, 6)
-                              .map((input) => input.name)
-                              .join(", ")}
-                          </p>
-                        )}
+
+                        <div className="space-y-2">
+                          {([
+                            ["prompt", t("comfyuiImport.groupPrompt")],
+                            ["media", t("comfyuiImport.groupMedia")],
+                            ["generation", t("comfyuiImport.groupGeneration")],
+                            ["advanced", t("comfyuiImport.groupAdvanced")],
+                          ] as const)
+                            .filter(([group]) => groupedInputs[group].length > 0)
+                            .map(([group, label]) => (
+                              <div key={`${preview.fileName}-${group}`} className="space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide font-mono text-terminal-muted/80">{label}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {groupedInputs[group].map((input) => (
+                                    <div
+                                      key={input.id}
+                                      className="inline-flex items-center gap-1 rounded-md border border-terminal-border/70 bg-terminal-cream px-2 py-1"
+                                    >
+                                      <span className="text-[11px] font-mono text-terminal-dark">{input.name}</span>
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{input.type}</Badge>
+                                      {input.required ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-red-500 text-white hover:bg-red-500">{t("comfyuiImport.requiredBadge")}</Badge>
+                                      ) : isCriticalInput(input) ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-black hover:bg-amber-500">{t("comfyuiImport.criticalBadge")}</Badge>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+
+                          {displayInputs.length === 0 && (
+                            <p className="text-xs font-mono text-terminal-muted">{t("comfyuiImport.noPreviewInputs")}</p>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1209,20 +1363,22 @@ export const Thread: FC<ThreadProps> = ({
               })}
             </div>
 
-            <DialogFooter className="flex items-center justify-between gap-2">
+            <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
               <p className="text-xs font-mono text-terminal-muted mr-auto">
-                {t("comfyuiImport.selectedCount", { count: Object.values(comfyImportSelected).filter(Boolean).length })}
+                {t("comfyuiImport.selectedCount", { count: selectedComfyPreviewCount })}
               </p>
               <Button
                 variant="outline"
                 onClick={resetComfyImportState}
                 disabled={comfyImportSubmitting}
+                className="w-full sm:w-auto"
               >
                 {t("comfyuiImport.cancel")}
               </Button>
               <Button
                 onClick={submitComfyWorkflowImport}
-                disabled={comfyImportSubmitting || validComfyPreviewCount === 0}
+                disabled={comfyImportSubmitting || selectedComfyPreviewCount === 0}
+                className="w-full sm:w-auto"
               >
                 {comfyImportSubmitting ? t("comfyuiImport.importing") : t("comfyuiImport.importAction")}
               </Button>
