@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { getOrCreateLocalUser, getSession, updateSession } from "@/lib/db/queries";
+import { createMessage, getOrCreateLocalUser, getSession, updateSession } from "@/lib/db/queries";
 import { listAgentRunsBySession } from "@/lib/observability";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import {
   appendLivePromptQueueEntry,
@@ -61,19 +62,39 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const queuedAt = nowISO();
     const updatedMetadata = appendLivePromptQueueEntry(
       (session.metadata as Record<string, unknown>) ?? {},
       {
         id: promptId,
         runId,
         content,
-        createdAt: nowISO(),
+        createdAt: queuedAt,
         source,
       }
     );
 
     await updateSession(sessionId, {
       metadata: updatedMetadata,
+    });
+
+    // Persist mid-run user prompt immediately so it is visible in chat history,
+    // while still letting the active run consume it from livePromptQueue metadata.
+    const userMessageIndex = await nextOrderingIndex(sessionId);
+    await createMessage({
+      id: promptId,
+      sessionId,
+      role: "user",
+      content: [{ type: "text", text: content }],
+      orderingIndex: userMessageIndex,
+      metadata: {
+        livePromptQueue: {
+          queued: true,
+          runId,
+          source,
+        },
+      },
+      createdAt: queuedAt,
     });
 
     taskRegistry.emitProgress(runId, "Live prompt queued");
