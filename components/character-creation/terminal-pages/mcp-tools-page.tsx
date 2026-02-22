@@ -75,6 +75,41 @@ export function MCPToolsPage({
         mcpToolPreferences
     );
 
+    const normalizeToolSelections = (
+        incomingSelections: string[],
+        discoveredTools: MCPTool[]
+    ): Set<string> => {
+        const discoveredKeyById = new Map<string, string>();
+        const discoveredKeys = new Set<string>();
+
+        discoveredTools.forEach((tool) => {
+            const key = `${tool.serverName}:${tool.name}`;
+            discoveredKeyById.set(tool.id, key);
+            discoveredKeys.add(key);
+        });
+
+        const normalized = new Set<string>();
+        incomingSelections.forEach((selection) => {
+            if (selection.includes(":")) {
+                normalized.add(selection);
+                return;
+            }
+
+            const mapped = discoveredKeyById.get(selection);
+            if (mapped) {
+                normalized.add(mapped);
+            }
+        });
+
+        return normalized;
+    };
+
+    // Sync selected servers/tools when parent props change (e.g. reopening editor or switching agents)
+    useEffect(() => {
+        setSelectedServers(new Set(enabledMcpServers));
+        setSelectedTools(new Set(enabledMcpTools));
+    }, [enabledMcpServers, enabledMcpTools]);
+
     // Sync preferences when prop changes
     useEffect(() => {
         setToolPreferences(mcpToolPreferences);
@@ -98,6 +133,20 @@ export function MCPToolsPage({
             const { data: toolsData } = await resilientFetch<{ tools?: MCPTool[] }>("/api/mcp/tools");
             const loadedTools = toolsData?.tools || [];
             setTools(loadedTools);
+
+            // Normalize persisted selections:
+            // - Keep canonical format: "serverName:toolName"
+            // - Migrate legacy MCP tool IDs (mcp_...) when possible
+            const normalizedTools = normalizeToolSelections(Array.from(selectedTools), loadedTools);
+            if (normalizedTools.size !== selectedTools.size ||
+                Array.from(normalizedTools).some((tool) => !selectedTools.has(tool))) {
+                setSelectedTools(normalizedTools);
+                onUpdate(
+                    Array.from(selectedServers),
+                    Array.from(normalizedTools),
+                    toolPreferences
+                );
+            }
 
             // Auto-connect if: servers are configured but no tools discovered yet
             // This handles the case where the app restarted and servers need reconnection

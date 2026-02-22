@@ -138,9 +138,89 @@ const toolSearchRouterSchema = z.object({
 });
 
 type ToolSearchRouterDecision = z.infer<typeof toolSearchRouterSchema>;
+const TOOL_SEARCH_GENERIC_TERMS = new Set([
+  "search",
+  "find",
+  "lookup",
+  "tool",
+  "tools",
+  "capability",
+  "capabilities",
+]);
 
 function normalizeToolName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
+}
+
+function tokenizeToolQuery(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+}
+
+function scoreIntentMatch(
+  candidate: ToolSearchResult,
+  queryTerms: string[],
+  registry: ToolRegistry
+): number {
+  if (!queryTerms.length) return 0;
+
+  const metadata = registry.get(candidate.name)?.metadata;
+  const haystack = [
+    candidate.name,
+    candidate.displayName,
+    candidate.description,
+    ...(metadata?.keywords ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  let score = 0;
+  for (const term of queryTerms) {
+    if (!haystack.includes(term)) continue;
+    score += TOOL_SEARCH_GENERIC_TERMS.has(term) ? 0.25 : 1;
+  }
+  return score;
+}
+
+function narrowResultsForSpecificIntent(
+  query: string,
+  candidates: ToolSearchResult[],
+  registry: ToolRegistry
+): ToolSearchResult[] {
+  if (candidates.length <= 5) {
+    return candidates;
+  }
+
+  const queryTerms = tokenizeToolQuery(query);
+  const specificTerms = queryTerms.filter((term) => !TOOL_SEARCH_GENERIC_TERMS.has(term));
+  const activeTerms = specificTerms.length > 0 ? specificTerms : queryTerms;
+
+  if (!activeTerms.length) {
+    return candidates;
+  }
+
+  const scored = candidates
+    .map((candidate) => ({
+      candidate,
+      intentScore: scoreIntentMatch(candidate, activeTerms, registry),
+    }))
+    .filter((entry) => entry.intentScore > 0);
+
+  if (!scored.length) {
+    return candidates;
+  }
+
+  scored.sort((a, b) => {
+    if (b.intentScore !== a.intentScore) {
+      return b.intentScore - a.intentScore;
+    }
+    return b.candidate.relevance - a.candidate.relevance;
+  });
+
+  return scored.map((entry) => entry.candidate);
 }
 
 function dedupeResultsByName(results: ToolSearchResult[]): ToolSearchResult[] {
@@ -346,6 +426,11 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 
       // Preserve deterministic direct-name prioritization even when model routing is skipped.
       results = applyUtilityRouterRanking(query, TOOL_SEARCH_ROUTER_MAX_CANDIDATES, results).results;
+
+      // Secondary utility-stage narrowing:
+      // keep only tools that actually match specific intent terms (e.g. browser/chrome/web)
+      // to avoid flooding the main agent with unrelated utilities.
+      results = narrowResultsForSpecificIntent(query, results, registry);
 
       // Apply category filter if provided - but never filter out strong query matches
       // Models often guess the wrong category, so treat it as a soft hint, not a hard filter
@@ -557,4 +642,3 @@ export function createListToolsTool(context?: ToolSearchContext) {
     },
   });
 }
-

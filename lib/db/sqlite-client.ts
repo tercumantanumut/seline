@@ -1879,6 +1879,7 @@ function runDataMigrations(sqlite: Database.Database): void {
   }
 
   // Migration: Ensure default agents do not auto-enable MCP tools
+  // IMPORTANT: This must run once per character only. Do not wipe user-configured MCP selections.
   try {
     const rows = sqlite.prepare(
       "SELECT id, metadata FROM characters WHERE is_default = 1"
@@ -1888,9 +1889,44 @@ function runDataMigrations(sqlite: Database.Database): void {
     for (const row of rows) {
       try {
         const metadata = JSON.parse(row.metadata || "{}");
+        const alreadyApplied = metadata.defaultMcpDisableMigrationApplied === true;
+        if (alreadyApplied) {
+          continue;
+        }
+
+        const enabledServers = Array.isArray(metadata.enabledMcpServers)
+          ? metadata.enabledMcpServers
+          : [];
+        const enabledTools = Array.isArray(metadata.enabledMcpTools)
+          ? metadata.enabledMcpTools
+          : [];
+        const preferences =
+          metadata.mcpToolPreferences && typeof metadata.mcpToolPreferences === "object"
+            ? metadata.mcpToolPreferences
+            : {};
+
+        const hasUserConfiguredMcp =
+          metadata.mcpUserConfigured === true ||
+          enabledServers.length > 0 ||
+          enabledTools.length > 0 ||
+          Object.keys(preferences).length > 0;
+
+        if (hasUserConfiguredMcp) {
+          // Mark as applied so we don't re-check this character on every startup.
+          metadata.defaultMcpDisableMigrationApplied = true;
+          if (metadata.mcpUserConfigured !== true) {
+            metadata.mcpUserConfigured = true;
+          }
+          sqlite.prepare(
+            "UPDATE characters SET metadata = ?, updated_at = datetime('now') WHERE id = ?"
+          ).run(JSON.stringify(metadata), row.id);
+          continue;
+        }
+
         metadata.enabledMcpServers = [];
         metadata.enabledMcpTools = [];
         metadata.mcpToolPreferences = {};
+        metadata.defaultMcpDisableMigrationApplied = true;
         sqlite.prepare(
           "UPDATE characters SET metadata = ?, updated_at = datetime('now') WHERE id = ?"
         ).run(JSON.stringify(metadata), row.id);

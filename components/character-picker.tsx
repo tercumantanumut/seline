@@ -1410,6 +1410,7 @@ export function CharacterPicker() {
           enabledMcpServers: mcpServers,
           enabledMcpTools: mcpTools,
           mcpToolPreferences: mcpToolPreferences,
+          mcpUserConfigured: true,
         },
       });
       if (!error) {
