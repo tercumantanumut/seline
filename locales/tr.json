@@ -1393,7 +1393,16 @@
         "Yetenekler yapılandırılıyor...",
         "Bilgi tabanı hazırlanıyor...",
         "Yapılandırma tamamlanıyor..."
-      ]
+      ],
+      "title": "{name} ajanı yapılandırılıyor...",
+      "messages": {
+        "initializingProfile": "Ajan profili başlatılıyor...",
+        "configuringCapabilities": "Yetenekler yapılandırılıyor...",
+        "settingUpKnowledgeBase": "Bilgi tabanı kuruluyor...",
+        "applyingToolPermissions": "Araç izinleri uygulanıyor...",
+        "validatingConfiguration": "Yapılandırma doğrulanıyor...",
+        "finalizingSetup": "Ajan kurulumu tamamlanıyor..."
+      }
     },
     "intro": {
       "subtitle": "İşiniz veya projeleriniz için odaklanmış bir AI ajanı yapılandırın",
@@ -1644,17 +1653,6 @@
       "back": "← Geri",
       "creating": "Oluşturuluyor...",
       "createAgent": "Ajan Oluştur ✓"
-    },
-    "loading": {
-      "title": "{name} ajanı yapılandırılıyor...",
-      "messages": {
-        "initializingProfile": "Ajan profili başlatılıyor...",
-        "configuringCapabilities": "Yetenekler yapılandırılıyor...",
-        "settingUpKnowledgeBase": "Bilgi tabanı kuruluyor...",
-        "applyingToolPermissions": "Araç izinleri uygulanıyor...",
-        "validatingConfiguration": "Yapılandırma doğrulanıyor...",
-        "finalizingSetup": "Ajan kurulumu tamamlanıyor..."
-      }
     },
     "success": {
       "title": "{name} Hazır!",
