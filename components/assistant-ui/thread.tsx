@@ -680,6 +680,9 @@ export const Thread: FC<ThreadProps> = ({
   ]);
 
   useEffect(() => {
+    // Keep mount flag accurate in React Strict Mode dev remount cycles.
+    isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
       importAbortControllerRef.current?.abort();
