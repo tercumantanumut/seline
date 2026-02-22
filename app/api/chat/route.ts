@@ -84,6 +84,7 @@ import {
   buildLivePromptInjectionMessage,
   getLivePromptQueueEntries,
   getUnseenLivePromptEntries,
+  hasLivePromptStopIntent,
 } from "@/lib/agent-run/live-prompt-queue";
 
 // ============================================================================
@@ -3731,6 +3732,7 @@ export async function POST(req: Request) {
             seenLivePromptIds
           );
           const livePromptInjection = buildLivePromptInjectionMessage(livePromptEntries);
+          const shouldHardStopForLivePrompt = hasLivePromptStopIntent(livePromptEntries);
 
           if (livePromptInjection) {
             // Vercel AI SDK only accepts system messages at conversation start when returned via prepareStep.
@@ -3743,13 +3745,17 @@ export async function POST(req: Request) {
 
             if (typeof baseSystem === "string") {
               return {
-                activeTools: currentActiveTools as (keyof typeof tools)[],
+                activeTools: shouldHardStopForLivePrompt
+                  ? ([] as (keyof typeof tools)[])
+                  : (currentActiveTools as (keyof typeof tools)[]),
                 system: `${baseSystem}\n\n[Live Prompt Queue]\n${livePromptInjection}`,
               };
             }
 
             return {
-              activeTools: currentActiveTools as (keyof typeof tools)[],
+              activeTools: shouldHardStopForLivePrompt
+                ? ([] as (keyof typeof tools)[])
+                : (currentActiveTools as (keyof typeof tools)[]),
               system: [
                 ...baseSystem,
                 {
