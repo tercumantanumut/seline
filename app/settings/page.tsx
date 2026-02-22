@@ -2435,44 +2435,57 @@ function SettingsPanel({
           />
         </div>
 
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-wide text-terminal-muted">{t("localImage.backendsLabel")}</p>
-          <LocalModelsManager
-            zImageEnabled={formState.comfyuiEnabled}
-            zImageBackendPath={formState.comfyuiBackendPath}
-            onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
-            onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
-            flux4bEnabled={formState.flux2Klein4bEnabled}
-            flux4bBackendPath={formState.flux2Klein4bBackendPath}
-            onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
-            onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
-            flux9bEnabled={formState.flux2Klein9bEnabled}
-            flux9bBackendPath={formState.flux2Klein9bBackendPath}
-            onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
-            onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
-          />
+        <div className="rounded-xl border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-terminal-text">{t("localImage.primaryFlowTitle")}</h3>
+          <p className="text-xs text-terminal-muted">{t("localImage.primaryFlowDesc")}</p>
+          <p className="text-xs text-terminal-muted">{t("localImage.workflowsDesc")}</p>
         </div>
 
-        <div className="border-t border-terminal-border/60 pt-6 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-terminal-text">{t("localImage.workflowsHeading")}</h3>
-            <p className="text-xs text-terminal-muted">
-              {t("localImage.workflowsDesc")}
-            </p>
+        <details className="rounded-xl border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-terminal-text">
+            {t("localImage.advancedSetupTitle")}
+          </summary>
+          <p className="mt-2 text-xs text-terminal-muted">{t("localImage.advancedSetupDesc")}</p>
+
+          <div className="mt-4 space-y-3">
+            <p className="text-xs uppercase tracking-wide text-terminal-muted">{t("localImage.backendsLabel")}</p>
+            <LocalModelsManager
+              zImageEnabled={formState.comfyuiEnabled}
+              zImageBackendPath={formState.comfyuiBackendPath}
+              onZImageEnabledChange={(enabled: boolean) => updateField("comfyuiEnabled", enabled)}
+              onZImageBackendPathChange={(path: string) => updateField("comfyuiBackendPath", path)}
+              flux4bEnabled={formState.flux2Klein4bEnabled}
+              flux4bBackendPath={formState.flux2Klein4bBackendPath}
+              onFlux4bEnabledChange={(enabled: boolean) => updateField("flux2Klein4bEnabled", enabled)}
+              onFlux4bBackendPathChange={(path: string) => updateField("flux2Klein4bBackendPath", path)}
+              flux9bEnabled={formState.flux2Klein9bEnabled}
+              flux9bBackendPath={formState.flux2Klein9bBackendPath}
+              onFlux9bEnabledChange={(enabled: boolean) => updateField("flux2Klein9bEnabled", enabled)}
+              onFlux9bBackendPathChange={(path: string) => updateField("flux2Klein9bBackendPath", path)}
+            />
           </div>
-          <CustomWorkflowsManager
-            connectionBaseUrl={formState.comfyuiCustomBaseUrl}
-            connectionHost={formState.comfyuiCustomHost}
-            connectionPort={formState.comfyuiCustomPort}
-            connectionUseHttps={formState.comfyuiCustomUseHttps}
-            connectionAutoDetect={formState.comfyuiCustomAutoDetect}
-            onConnectionBaseUrlChange={(value: string) => updateField("comfyuiCustomBaseUrl", value)}
-            onConnectionHostChange={(value: string) => updateField("comfyuiCustomHost", value)}
-            onConnectionPortChange={(value: number) => updateField("comfyuiCustomPort", value)}
-            onConnectionUseHttpsChange={(value: boolean) => updateField("comfyuiCustomUseHttps", value)}
-            onConnectionAutoDetectChange={(value: boolean) => updateField("comfyuiCustomAutoDetect", value)}
-          />
-        </div>
+
+          <div className="mt-6 border-t border-terminal-border/60 pt-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-terminal-text">{t("localImage.workflowsHeading")}</h3>
+              <p className="text-xs text-terminal-muted">
+                {t("localImage.workflowsDesc")}
+              </p>
+            </div>
+            <CustomWorkflowsManager
+              connectionBaseUrl={formState.comfyuiCustomBaseUrl}
+              connectionHost={formState.comfyuiCustomHost}
+              connectionPort={formState.comfyuiCustomPort}
+              connectionUseHttps={formState.comfyuiCustomUseHttps}
+              connectionAutoDetect={formState.comfyuiCustomAutoDetect}
+              onConnectionBaseUrlChange={(value: string) => updateField("comfyuiCustomBaseUrl", value)}
+              onConnectionHostChange={(value: string) => updateField("comfyuiCustomHost", value)}
+              onConnectionPortChange={(value: number) => updateField("comfyuiCustomPort", value)}
+              onConnectionUseHttpsChange={(value: boolean) => updateField("comfyuiCustomUseHttps", value)}
+              onConnectionAutoDetectChange={(value: boolean) => updateField("comfyuiCustomAutoDetect", value)}
+            />
+          </div>
+        </details>
       </div>
     );
   }
