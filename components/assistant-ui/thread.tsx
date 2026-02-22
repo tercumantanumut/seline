@@ -972,6 +972,7 @@ interface QueuedMessage {
   id: string;
   content: string;
   mode: "chat" | "deep-research";
+  status?: "queueing-live" | "queued-live" | "queued-fallback";
 }
 
 interface LivePromptPayload {
@@ -1029,6 +1030,14 @@ const Composer: FC<{
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const isQueueingLivePrompt = useRef(false);
+
+  const markQueuedMessageStatus = useCallback((id: string, status: QueuedMessage["status"]) => {
+    setQueuedMessages((prev) => prev.map((msg) => (msg.id === id ? { ...msg, status } : msg)));
+  }, []);
+
+  const removeQueuedMessageById = useCallback((id: string) => {
+    setQueuedMessages((prev) => prev.filter((msg) => msg.id !== id));
+  }, []);
   const {
     draft: inputValue,
     setDraft: setInputValue,
@@ -1256,20 +1265,25 @@ const Composer: FC<{
       isProcessingQueue.current = false;
     }
 
-    // Only process if: not running, has queued messages, and not already processing
-    if (!isQueueBlocked && queuedMessages.length > 0 && !isProcessingQueue.current) {
+    const nextFallbackQueueIndex = queuedMessages.findIndex((message) => (
+      message.status !== "queued-live" && message.status !== "queueing-live"
+    ));
+
+    // Only process fallback queue items after active work ends.
+    if (!isQueueBlocked && nextFallbackQueueIndex >= 0 && !isProcessingQueue.current) {
       isProcessingQueue.current = true;
       isAwaitingRunStart.current = true;
 
-      const nextMessage = queuedMessages[0];
-      setQueuedMessages(prev => prev.slice(1));
+      const nextMessage = queuedMessages[nextFallbackQueueIndex];
+      setQueuedMessages((prev) => prev.filter((_, index) => index !== nextFallbackQueueIndex));
 
       // Small delay to ensure the runtime is ready for the next message
       setTimeout(() => {
-        if (nextMessage.mode === "deep-research" && deepResearch) {
+        if (nextMessage?.mode === "deep-research" && deepResearch) {
           deepResearch.startResearch(nextMessage.content);
           return;
         }
+        if (!nextMessage) return;
         threadRuntime.append({
           role: "user",
           content: [{ type: "text", text: nextMessage.content }],
@@ -1277,6 +1291,17 @@ const Composer: FC<{
       }, 100);
     }
   }, [isQueueBlocked, queuedMessages, threadRuntime, deepResearch]);
+
+  useEffect(() => {
+    if (isQueueBlocked) return;
+    if (!queuedMessages.some((message) => message.status === "queued-live")) return;
+
+    const timeoutId = setTimeout(() => {
+      setQueuedMessages((prev) => prev.filter((message) => message.status !== "queued-live"));
+    }, 1800);
+
+    return () => clearTimeout(timeoutId);
+  }, [isQueueBlocked, queuedMessages]);
 
   // Handle form submission
   const handleSubmit = useCallback((e?: React.FormEvent) => {
@@ -1314,21 +1339,29 @@ const Composer: FC<{
         const shouldInjectLivePrompt = !isDeepResearchMode;
 
         if (shouldInjectLivePrompt) {
+          const queuedId = `queued-${Date.now()}`;
+          setQueuedMessages((prev) => [...prev, {
+            id: queuedId,
+            content: expandedMessage,
+            mode: "chat",
+            status: "queueing-live",
+          }]);
+
           void queueLivePromptForActiveRun(expandedMessage).then((queued) => {
-            if (!queued) {
-              setQueuedMessages(prev => [...prev, {
-                id: `queued-${Date.now()}`,
-                content: expandedMessage,
-                mode: "chat",
-              }]);
+            if (queued) {
+              markQueuedMessageStatus(queuedId, "queued-live");
+              return;
             }
+
+            markQueuedMessageStatus(queuedId, "queued-fallback");
           });
         } else {
           // Queue the message when AI is busy (text only, no attachments for queued)
-          setQueuedMessages(prev => [...prev, {
+          setQueuedMessages((prev) => [...prev, {
             id: `queued-${Date.now()}`,
             content: expandedMessage,
             mode: isDeepResearchMode ? "deep-research" : "chat",
+            status: "queued-fallback",
           }]);
         }
       }
@@ -1367,6 +1400,7 @@ const Composer: FC<{
     updateCursorPosition,
     livePromptRunId,
     queueLivePromptForActiveRun,
+    markQueuedMessageStatus,
   ]);
 
   // Insert a file mention from the autocomplete dropdown
@@ -1594,8 +1628,8 @@ const Composer: FC<{
 
   // Remove a message from the queue
   const removeFromQueue = useCallback((id: string) => {
-    setQueuedMessages(prev => prev.filter(msg => msg.id !== id));
-  }, []);
+    removeQueuedMessageById(id);
+  }, [removeQueuedMessageById]);
 
   // Remove a pasted text item (chip) and its placeholder from the textarea
   const removePastedText = useCallback((index: number) => {
@@ -2020,20 +2054,34 @@ const Composer: FC<{
             </div>
           )}
           <div className="flex flex-wrap gap-1">
-            {queuedMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className="flex items-center gap-1 bg-terminal-dark/10 rounded px-2 py-1 text-xs font-mono text-terminal-dark"
-              >
-                <span className="max-w-32 truncate">{msg.content}</span>
-                <button
-                  onClick={() => removeFromQueue(msg.id)}
-                  className="text-terminal-muted hover:text-red-500 transition-colors"
+            {queuedMessages.map((msg) => {
+              const isQueueingLive = msg.status === "queueing-live";
+              const isQueuedLive = msg.status === "queued-live";
+
+              return (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex items-center gap-1 rounded px-2 py-1 text-xs font-mono",
+                    isQueueingLive
+                      ? "bg-terminal-green/15 text-terminal-dark border border-terminal-green/30"
+                      : isQueuedLive
+                      ? "bg-terminal-green/10 text-terminal-dark border border-terminal-green/20"
+                      : "bg-terminal-dark/10 text-terminal-dark"
+                  )}
                 >
-                  <XIcon className="size-3" />
-                </button>
-              </div>
-            ))}
+                  <span className="max-w-32 truncate">{msg.content}</span>
+                  {isQueueingLive && <Loader2Icon className="size-3 animate-spin text-terminal-green" />}
+                  {isQueuedLive && <CheckCircleIcon className="size-3 text-terminal-green" />}
+                  <button
+                    onClick={() => removeFromQueue(msg.id)}
+                    className="text-terminal-muted hover:text-red-500 transition-colors"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
