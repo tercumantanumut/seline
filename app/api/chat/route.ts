@@ -80,6 +80,11 @@ import {
 import { getRegisteredHooks } from "@/lib/plugins/hooks-engine";
 import { getWorkflowByAgentId, getWorkflowResources } from "@/lib/agents/workflows";
 import { INTERNAL_API_SECRET } from "@/lib/config/internal-api-secret";
+import {
+  buildLivePromptInjectionMessage,
+  getLivePromptQueueEntries,
+  getUnseenLivePromptEntries,
+} from "@/lib/agent-run/live-prompt-queue";
 
 // ============================================================================
 // System Prompt Injection
@@ -2141,6 +2146,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const livePromptPayload = body.livePromptQueue as {
+      id?: unknown;
+      runId?: unknown;
+      content?: unknown;
+      source?: unknown;
+    } | undefined;
+    const livePromptRunId = typeof livePromptPayload?.runId === "string"
+      ? livePromptPayload.runId.trim()
+      : "";
+
+    if (livePromptRunId) {
+      const promptId = typeof livePromptPayload?.id === "string"
+        ? livePromptPayload.id.trim()
+        : "";
+      const promptContent = typeof livePromptPayload?.content === "string"
+        ? livePromptPayload.content.trim()
+        : "";
+
+      if (!promptId || !promptContent) {
+        return new Response(
+          JSON.stringify({ error: "livePromptQueue.id and livePromptQueue.content are required" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Get or create session (always associated with user)
     // Also track system prompt injection state
     let sessionId = providedSessionId;
@@ -2198,6 +2229,7 @@ export async function POST(req: Request) {
 
     const appSettings = loadSettings();
     const toolLoadingMode = appSettings.toolLoadingMode ?? "deferred";
+
     const eventCharacterId =
       characterId ||
       ((sessionMetadata?.characterId as string | undefined) ?? "");
@@ -2526,6 +2558,7 @@ export async function POST(req: Request) {
       taskRegistry.register(chatTask);
     }
     chatTaskRegistered = true;
+
 
     // Only save the NEW user message (the last one in the array)
     // Previous messages have already been saved in earlier requests
@@ -3594,7 +3627,21 @@ export async function POST(req: Request) {
     if (!runId) {
       throw new Error("Agent run unavailable for chat stream");
     }
+
+    const refreshLivePromptMetadata = async (): Promise<Record<string, unknown>> => {
+      try {
+        const latestSession = await getSession(sessionId);
+        if (latestSession?.metadata && typeof latestSession.metadata === "object") {
+          sessionMetadata = latestSession.metadata as Record<string, unknown>;
+        }
+      } catch (error) {
+        console.warn("[CHAT API] Failed to refresh session metadata for live prompts:", error);
+      }
+      return sessionMetadata;
+    };
+
     const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
+    const seenLivePromptIds = new Set<string>();
     const createStreamResult = async () =>
       withRunContext(
         {
@@ -3637,7 +3684,7 @@ export async function POST(req: Request) {
         //
         // The discoveredTools Set is initialized with previouslyDiscoveredTools, so spreading it
         // is sufficient to include both. But we explicitly deduplicate for safety.
-        prepareStep: async ({ stepNumber }) => {
+        prepareStep: async ({ stepNumber, messages: stepMessages }) => {
           // Build the active tools list by combining all sources
           // Use a Set to deduplicate in case tools appear in multiple sources
           let activeToolSet: Set<string>;
@@ -3675,6 +3722,30 @@ export async function POST(req: Request) {
             if (newlyDiscovered.length > 0) {
               console.log(`[CHAT API] Step ${stepNumber}: Active tools now include newly discovered: ${newlyDiscovered.join(", ")}`);
             }
+          }
+
+          const latestLivePromptMetadata = await refreshLivePromptMetadata();
+          const livePromptEntries = getUnseenLivePromptEntries(
+            latestLivePromptMetadata,
+            runId,
+            seenLivePromptIds
+          );
+          const livePromptInjection = buildLivePromptInjectionMessage(livePromptEntries);
+
+          if (livePromptInjection) {
+            const currentMessages = Array.isArray(stepMessages) ? stepMessages : cachedMessages;
+            const injectedMessages: ModelMessage[] = [
+              ...currentMessages,
+              {
+                role: "system",
+                content: livePromptInjection,
+              },
+            ];
+
+            return {
+              activeTools: currentActiveTools as (keyof typeof tools)[],
+              messages: injectedMessages,
+            };
           }
 
           return {
@@ -3971,12 +4042,16 @@ export async function POST(req: Request) {
           const freshSession = await getSession(sessionId);
           const freshMetadata = (freshSession?.metadata as Record<string, unknown>) || {};
 
+          const existingLivePromptQueue = getLivePromptQueueEntries(freshMetadata);
+          const retainedLivePromptQueue = existingLivePromptQueue.filter((entry) => entry.runId !== runId);
+
           // Update session metadata with tracking and discovered tools
           const updatedSession = await updateSession(sessionId, {
             metadata: {
               ...freshMetadata,
               contextInjectionTracking: newTracking,
               ...(discoveredToolsMetadata && { discoveredTools: discoveredToolsMetadata }),
+              livePromptQueue: retainedLivePromptQueue,
             },
           });
 

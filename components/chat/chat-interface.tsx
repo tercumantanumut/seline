@@ -1259,6 +1259,7 @@ export default function ChatInterface({
                             isCancellingBackgroundRun={isCancellingBackgroundRun}
                             canCancelBackgroundRun={Boolean(processingRunId)}
                             isZombieBackgroundRun={isZombieRun}
+                            livePromptRunId={processingRunId ?? activeRun?.runId ?? null}
                         />
                     </div>
                 </ChatProvider>

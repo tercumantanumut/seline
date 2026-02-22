@@ -108,6 +108,7 @@ interface ThreadProps {
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+  livePromptRunId?: string | null;
 }
 
 interface DroppedImportFile {
@@ -221,6 +222,7 @@ export const Thread: FC<ThreadProps> = ({
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
+  livePromptRunId = null,
 }) => {
   const isRunning = useThread((t) => t.isRunning);
   const router = useRouter();
@@ -764,6 +766,7 @@ export const Thread: FC<ThreadProps> = ({
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
               isZombieBackgroundRun={isZombieBackgroundRun}
+              livePromptRunId={livePromptRunId}
               contextStatus={contextStatus}
               contextLoading={contextLoading}
               onCompact={triggerCompact}
@@ -971,6 +974,13 @@ interface QueuedMessage {
   mode: "chat" | "deep-research";
 }
 
+interface LivePromptPayload {
+  runId: string;
+  id: string;
+  content: string;
+  source: "composer-midrun";
+}
+
 interface ComposerSkillLite {
   id: string;
   name: string;
@@ -992,6 +1002,7 @@ const Composer: FC<{
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+  livePromptRunId?: string | null;
   contextStatus?: import("@/lib/hooks/use-context-status").ContextWindowStatus | null;
   contextLoading?: boolean;
   onCompact?: () => Promise<{ success: boolean; compacted: boolean }>;
@@ -1005,6 +1016,7 @@ const Composer: FC<{
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
+  livePromptRunId = null,
   contextStatus = null,
   contextLoading = false,
   onCompact,
@@ -1016,6 +1028,7 @@ const Composer: FC<{
 
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const isQueueingLivePrompt = useRef(false);
   const {
     draft: inputValue,
     setDraft: setInputValue,
@@ -1091,6 +1104,53 @@ const Composer: FC<{
   // Track if we're currently processing a queued message
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
+  const queueLivePromptForActiveRun = useCallback(async (content: string): Promise<boolean> => {
+    if (!sessionId || !content || isQueueingLivePrompt.current) {
+      return false;
+    }
+
+    isQueueingLivePrompt.current = true;
+
+    try {
+      let targetRunId = livePromptRunId?.trim() || "";
+
+      if (!targetRunId) {
+        const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string | null }>(
+          `/api/sessions/${sessionId}/active-run`,
+          { retries: 0 }
+        );
+
+        if (error || !data?.hasActiveRun || !data.runId) {
+          return false;
+        }
+
+        targetRunId = data.runId;
+      }
+
+      const payload: LivePromptPayload = {
+        runId: targetRunId,
+        id: `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        content,
+        source: "composer-midrun",
+      };
+
+      const { data, error } = await resilientPost<{ success?: boolean }>(
+        `/api/sessions/${sessionId}/live-prompt-queue`,
+        payload,
+        { retries: 0 }
+      );
+      if (error || !data?.success) {
+        throw new Error(error || "queue_failed");
+      }
+      return true;
+    } catch (error) {
+      console.error("[Composer] Failed to queue live prompt:", error);
+      toast.error(te("genericRefresh"));
+      return false;
+    } finally {
+      isQueueingLivePrompt.current = false;
+    }
+  }, [livePromptRunId, sessionId, te]);
   const skillPickerRef = useRef<HTMLDivElement>(null);
   const skillSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -1221,21 +1281,22 @@ const Composer: FC<{
   // Handle form submission
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
-    const hasText = inputValue.trim().length > 0;
+    const rawInput = inputValue.trim();
+    const hasText = rawInput.length > 0;
     const hasAttachments = attachmentCount > 0;
 
     if (!hasText && !hasAttachments) return;
 
     // If Deep Research mode is active, start research instead of regular chat
     if (isDeepResearchMode && deepResearch && hasText && !isQueueBlocked) {
-      deepResearch.startResearch(inputValue.trim());
+      deepResearch.startResearch(rawInput);
       clearDraft();
       updateCursorPosition(0);
       return;
     }
 
     // Determine what to send: enhanced context if available, otherwise original input
-    const messageToSend = enhancedContext || inputValue.trim();
+    const messageToSend = enhancedContext || rawInput;
 
     // Expand paste placeholders with full content using delimiters.
     // The backend will use the full content for the AI request but store
@@ -1249,13 +1310,27 @@ const Composer: FC<{
     }
 
     if (isQueueBlocked) {
-      // Queue the message when AI is busy (text only, no attachments for queued)
       if (hasText) {
-        setQueuedMessages(prev => [...prev, {
-          id: `queued-${Date.now()}`,
-          content: expandedMessage,
-          mode: isDeepResearchMode ? "deep-research" : "chat",
-        }]);
+        const shouldInjectLivePrompt = !isDeepResearchMode;
+
+        if (shouldInjectLivePrompt) {
+          void queueLivePromptForActiveRun(expandedMessage).then((queued) => {
+            if (!queued) {
+              setQueuedMessages(prev => [...prev, {
+                id: `queued-${Date.now()}`,
+                content: expandedMessage,
+                mode: "chat",
+              }]);
+            }
+          });
+        } else {
+          // Queue the message when AI is busy (text only, no attachments for queued)
+          setQueuedMessages(prev => [...prev, {
+            id: `queued-${Date.now()}`,
+            content: expandedMessage,
+            mode: isDeepResearchMode ? "deep-research" : "chat",
+          }]);
+        }
       }
       clearDraft();
       updateCursorPosition(0);
@@ -1290,6 +1365,8 @@ const Composer: FC<{
     pastedTexts,
     clearDraft,
     updateCursorPosition,
+    livePromptRunId,
+    queueLivePromptForActiveRun,
   ]);
 
   // Insert a file mention from the autocomplete dropdown
