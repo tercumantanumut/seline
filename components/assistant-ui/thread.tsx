@@ -45,6 +45,18 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -96,6 +108,7 @@ import {
   getRequiredSkillInputs,
   insertSkillRunIntent,
 } from "@/lib/skills/skill-picker-utils";
+import type { CustomComfyUIInput, CustomComfyUIOutput } from "@/lib/comfyui/custom/types";
 
 
 interface ThreadProps {
@@ -118,6 +131,38 @@ interface DroppedImportFile {
 interface VoiceUiSettings {
   ttsEnabled: boolean;
   sttEnabled: boolean;
+}
+
+interface ComfyWorkflowImportPreview {
+  fileName: string;
+  suggestedName: string;
+  nodeCount: number;
+  inputCount: number;
+  outputCount: number;
+  inputs: CustomComfyUIInput[];
+  outputs: CustomComfyUIOutput[];
+  summary: string;
+  importantInputIds: string[];
+  warnings?: string[];
+  error?: string;
+}
+
+interface ComfyWorkflowImportResult {
+  success: boolean;
+  createdWorkflows: Array<{
+    id: string;
+    name: string;
+    toolId: string;
+    fileName: string;
+    inputCount: number;
+    outputCount: number;
+  }>;
+  failedFiles: Array<{
+    fileName: string;
+    error: string;
+  }>;
+  enabledToolCount: number;
+  discoveredToolCount: number;
 }
 
 type WebkitDataTransferItem = DataTransferItem & {
@@ -211,6 +256,116 @@ function isPluginStructureFile(relativePath: string): boolean {
   );
 }
 
+function isComfyWorkflowJsonFile(relativePath: string, file: File): boolean {
+  const normalized = relativePath.replace(/\\/g, "/").toLowerCase();
+  return normalized.endsWith(".json") || file.type === "application/json";
+}
+
+function getDisplayFileName(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] || relativePath;
+}
+
+function buildWorkflowNameSuggestion(relativePath: string, fallbackIndex: number): string {
+  const fileName = getDisplayFileName(relativePath);
+  const raw = fileName
+    .replace(/\.json$/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+
+  if (!raw) {
+    return `Custom ComfyUI Workflow ${fallbackIndex}`;
+  }
+
+  return raw
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function countWorkflowNodesInChat(workflow: Record<string, unknown>): number {
+  if (Array.isArray((workflow as { nodes?: unknown[] }).nodes)) {
+    return (workflow as { nodes: unknown[] }).nodes.length;
+  }
+
+  return Object.keys(workflow).filter((key) => /^\d+$/.test(key)).length;
+}
+
+function isCheckedValue(value: boolean | "indeterminate"): boolean {
+  return value === true;
+}
+
+function mapByRelativePath(items: DroppedImportFile[]): Map<string, DroppedImportFile> {
+  const lookup = new Map<string, DroppedImportFile>();
+  for (const item of items) {
+    lookup.set(item.relativePath, item);
+  }
+  return lookup;
+}
+
+function getInputCategory(input: CustomComfyUIInput): "prompt" | "media" | "generation" | "advanced" {
+  const name = input.name.toLowerCase();
+
+  if (
+    name.includes("prompt") ||
+    name.includes("text") ||
+    name.includes("caption") ||
+    name.includes("negative")
+  ) {
+    return "prompt";
+  }
+
+  if (
+    input.type === "image" ||
+    input.type === "mask" ||
+    input.type === "video" ||
+    input.type === "file"
+  ) {
+    return "media";
+  }
+
+  if (
+    name.includes("seed") ||
+    name.includes("steps") ||
+    name.includes("cfg") ||
+    name.includes("sampler") ||
+    name.includes("scheduler") ||
+    name.includes("width") ||
+    name.includes("height") ||
+    name.includes("denoise") ||
+    name.includes("strength")
+  ) {
+    return "generation";
+  }
+
+  return "advanced";
+}
+
+function isCriticalInput(input: CustomComfyUIInput): boolean {
+  if (input.required) {
+    return true;
+  }
+
+  const name = input.name.toLowerCase();
+  if (
+    name.includes("prompt") ||
+    name.includes("image") ||
+    name.includes("mask") ||
+    name.includes("video") ||
+    name.includes("seed") ||
+    name.includes("steps") ||
+    name.includes("cfg") ||
+    name.includes("width") ||
+    name.includes("height")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export const Thread: FC<ThreadProps> = ({
   onSessionActivity,
   footer,
@@ -236,11 +391,21 @@ export const Thread: FC<ThreadProps> = ({
   const [skillImportName, setSkillImportName] = useState<string | null>(null);
   const [skillImportError, setSkillImportError] = useState<string | null>(null);
   const [importResultDetail, setImportResultDetail] = useState<string | null>(null);
+  const [comfyImportDialogOpen, setComfyImportDialogOpen] = useState(false);
+  const [comfyImportFiles, setComfyImportFiles] = useState<DroppedImportFile[]>([]);
+  const [comfyImportPreviews, setComfyImportPreviews] = useState<ComfyWorkflowImportPreview[]>([]);
+  const [comfyImportSelected, setComfyImportSelected] = useState<Record<string, boolean>>({});
+  const [comfyImportNameOverrides, setComfyImportNameOverrides] = useState<Record<string, string>>({});
+  const [comfyImportExpanded, setComfyImportExpanded] = useState<Record<string, boolean>>({});
+  const [comfyImportLoading, setComfyImportLoading] = useState(false);
+  const [comfyImportSubmitting, setComfyImportSubmitting] = useState(false);
   const dragCounter = useRef(0);
   const isMountedRef = useRef(true);
   const importAbortControllerRef = useRef<AbortController | null>(null);
   const importRequestTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const comfyImportAbortControllerRef = useRef<AbortController | null>(null);
+  const comfyImportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleSkillImportReset = useCallback((delayMs: number, clearError: boolean) => {
     if (importResetTimeoutRef.current) {
@@ -262,11 +427,268 @@ export const Thread: FC<ThreadProps> = ({
     }, delayMs);
   }, []);
 
+  const resetComfyImportState = useCallback(() => {
+    comfyImportAbortControllerRef.current?.abort();
+    comfyImportAbortControllerRef.current = null;
+    if (comfyImportTimeoutRef.current) {
+      clearTimeout(comfyImportTimeoutRef.current);
+      comfyImportTimeoutRef.current = null;
+    }
+
+    setComfyImportDialogOpen(false);
+    setComfyImportFiles([]);
+    setComfyImportPreviews([]);
+    setComfyImportSelected({});
+    setComfyImportNameOverrides({});
+    setComfyImportExpanded({});
+    setComfyImportLoading(false);
+    setComfyImportSubmitting(false);
+  }, []);
+
+  const loadComfyWorkflowPreviews = useCallback(
+    async (workflowItems: DroppedImportFile[]) => {
+      if (!character?.id || character.id === "default") {
+        toast.error(t("skillImportOverlay.selectAgentFirst"));
+        return;
+      }
+
+      if (workflowItems.length === 0) {
+        toast.error(t("comfyuiImport.noWorkflowsFound"));
+        return;
+      }
+
+      if (workflowItems.length > 25) {
+        toast.error(t("comfyuiImport.tooManyFiles", { max: 25 }));
+        return;
+      }
+
+      const oversized = workflowItems.find(({ file }) => file.size > 5 * 1024 * 1024);
+      if (oversized) {
+        toast.error(t("comfyuiImport.fileTooLarge", { name: oversized.relativePath }));
+        return;
+      }
+
+      comfyImportAbortControllerRef.current?.abort();
+      comfyImportAbortControllerRef.current = null;
+      if (comfyImportTimeoutRef.current) {
+        clearTimeout(comfyImportTimeoutRef.current);
+        comfyImportTimeoutRef.current = null;
+      }
+
+      setComfyImportLoading(true);
+      setComfyImportDialogOpen(true);
+      setComfyImportFiles(workflowItems);
+      setComfyImportPreviews([]);
+      setComfyImportSelected({});
+      setComfyImportNameOverrides({});
+      setComfyImportExpanded({});
+
+      const previews: ComfyWorkflowImportPreview[] = [];
+
+      for (let index = 0; index < workflowItems.length; index += 1) {
+        const item = workflowItems[index];
+        try {
+          const text = await item.file.text();
+          const workflowJson = JSON.parse(text) as Record<string, unknown>;
+
+          const { data, error } = await resilientPost<{
+            format: "ui" | "api";
+            inputs?: CustomComfyUIInput[];
+            outputs?: CustomComfyUIOutput[];
+            nodeCount?: number;
+            summary?: string;
+            importantInputIds?: string[];
+            error?: string;
+          }>("/api/comfyui/custom-workflows/analyze", {
+            workflow: workflowJson,
+            fileName: getDisplayFileName(item.relativePath),
+          }, {
+            timeout: 45_000,
+            retries: 0,
+          });
+
+          if (error || !data) {
+            previews.push({
+              fileName: item.relativePath,
+              suggestedName: buildWorkflowNameSuggestion(item.relativePath, index + 1),
+              nodeCount: countWorkflowNodesInChat(workflowJson),
+              inputCount: 0,
+              outputCount: 0,
+              inputs: [],
+              outputs: [],
+              summary: t("comfyuiImport.analysisFailed"),
+              importantInputIds: [],
+              error: data?.error || error || t("comfyuiImport.analysisFailed"),
+            });
+            continue;
+          }
+
+          previews.push({
+            fileName: item.relativePath,
+            suggestedName: buildWorkflowNameSuggestion(item.relativePath, index + 1),
+            nodeCount: data.nodeCount ?? countWorkflowNodesInChat(workflowJson),
+            inputCount: data.inputs?.length || 0,
+            outputCount: data.outputs?.length || 0,
+            inputs: data.inputs || [],
+            outputs: data.outputs || [],
+            summary: data.summary || t("comfyuiImport.summaryFallback"),
+            importantInputIds: data.importantInputIds || [],
+          });
+        } catch (error) {
+          previews.push({
+            fileName: item.relativePath,
+            suggestedName: buildWorkflowNameSuggestion(item.relativePath, index + 1),
+            nodeCount: 0,
+            inputCount: 0,
+            outputCount: 0,
+            inputs: [],
+            outputs: [],
+            summary: t("comfyuiImport.invalidJson"),
+            importantInputIds: [],
+            error: error instanceof Error ? error.message : t("comfyuiImport.invalidJson"),
+          });
+        }
+      }
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      const initialSelection: Record<string, boolean> = {};
+      const nameOverrides: Record<string, string> = {};
+      previews.forEach((preview) => {
+        const selectable = !preview.error;
+        initialSelection[preview.fileName] = selectable;
+        nameOverrides[preview.fileName] = preview.suggestedName;
+      });
+
+      setComfyImportPreviews(previews);
+      setComfyImportSelected(initialSelection);
+      setComfyImportNameOverrides(nameOverrides);
+      setComfyImportLoading(false);
+
+      const validCount = previews.filter((preview) => !preview.error).length;
+      if (validCount === 0) {
+        toast.error(t("comfyuiImport.noValidWorkflows"));
+      }
+    },
+    [character?.id, t]
+  );
+
+  const submitComfyWorkflowImport = useCallback(async () => {
+    if (!character?.id || character.id === "default") {
+      toast.error(t("skillImportOverlay.selectAgentFirst"));
+      return;
+    }
+
+    const selectedPreviews = comfyImportPreviews.filter((preview) => comfyImportSelected[preview.fileName]);
+    if (selectedPreviews.length === 0) {
+      toast.error(t("comfyuiImport.selectAtLeastOne"));
+      return;
+    }
+
+    const selectedFileNames = new Set(selectedPreviews.map((preview) => preview.fileName));
+    const fileLookup = mapByRelativePath(comfyImportFiles);
+
+    const formData = new FormData();
+    for (const fileName of selectedFileNames) {
+      const item = fileLookup.get(fileName);
+      if (!item) {
+        continue;
+      }
+      formData.append("files", item.file, item.relativePath);
+      const overrideName = comfyImportNameOverrides[fileName]?.trim();
+      if (overrideName) {
+        formData.append(`name:${fileName}`, overrideName);
+      }
+    }
+
+    formData.append("characterId", character.id);
+    if (sessionId) {
+      formData.append("sessionId", sessionId);
+    }
+
+    setComfyImportSubmitting(true);
+
+    const controller = new AbortController();
+    comfyImportAbortControllerRef.current = controller;
+    comfyImportTimeoutRef.current = setTimeout(() => {
+      controller.abort();
+    }, 120_000);
+
+    try {
+      const response = await fetch("/api/comfyui/custom-workflows/import", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+
+      if (comfyImportTimeoutRef.current) {
+        clearTimeout(comfyImportTimeoutRef.current);
+        comfyImportTimeoutRef.current = null;
+      }
+      if (comfyImportAbortControllerRef.current === controller) {
+        comfyImportAbortControllerRef.current = null;
+      }
+
+      const result = (await response.json().catch(() => null)) as ComfyWorkflowImportResult | { error?: string; failedFiles?: Array<{ fileName: string; error: string }> } | null;
+      if (!response.ok || !result || !("success" in result)) {
+        throw new Error(result && "error" in result ? result.error || t("comfyuiImport.importFailed") : t("comfyuiImport.importFailed"));
+      }
+
+      const successParts: string[] = [
+        t("comfyuiImport.workflowCount", { count: result.createdWorkflows.length }),
+      ];
+      if (result.enabledToolCount > 0) {
+        successParts.push(t("comfyuiImport.toolAttachedCount", { count: result.enabledToolCount }));
+      }
+      if (result.discoveredToolCount > 0) {
+        successParts.push(t("comfyuiImport.discoveredCount", { count: result.discoveredToolCount }));
+      }
+
+      toast.success(t("comfyuiImport.importSuccess"), {
+        description: successParts.join(" · "),
+      });
+
+      if (result.failedFiles.length > 0) {
+        const failureText = result.failedFiles
+          .slice(0, 3)
+          .map((entry) => `${entry.fileName}: ${entry.error}`)
+          .join("\n");
+        toast.warning(t("comfyuiImport.partialFailure"), {
+          description: failureText,
+        });
+      }
+
+      resetComfyImportState();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : t("comfyuiImport.importFailed");
+      toast.error(t("comfyuiImport.importFailed"), {
+        description: errorMessage,
+      });
+      setComfyImportSubmitting(false);
+    }
+  }, [
+    character?.id,
+    comfyImportFiles,
+    comfyImportNameOverrides,
+    comfyImportPreviews,
+    comfyImportSelected,
+    resetComfyImportState,
+    sessionId,
+    t,
+  ]);
+
   useEffect(() => {
+    // Keep mount flag accurate in React Strict Mode dev remount cycles.
+    isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
       importAbortControllerRef.current?.abort();
       importAbortControllerRef.current = null;
+      comfyImportAbortControllerRef.current?.abort();
+      comfyImportAbortControllerRef.current = null;
       if (importRequestTimeoutRef.current) {
         clearTimeout(importRequestTimeoutRef.current);
         importRequestTimeoutRef.current = null;
@@ -274,6 +696,10 @@ export const Thread: FC<ThreadProps> = ({
       if (importResetTimeoutRef.current) {
         clearTimeout(importResetTimeoutRef.current);
         importResetTimeoutRef.current = null;
+      }
+      if (comfyImportTimeoutRef.current) {
+        clearTimeout(comfyImportTimeoutRef.current);
+        comfyImportTimeoutRef.current = null;
       }
     };
   }, []);
@@ -553,6 +979,15 @@ export const Thread: FC<ThreadProps> = ({
         return;
       }
 
+      const comfyWorkflowItems = droppedItems.filter(({ relativePath, file }) =>
+        isComfyWorkflowJsonFile(relativePath, file)
+      );
+
+      if (comfyWorkflowItems.length > 0) {
+        await loadComfyWorkflowPreviews(comfyWorkflowItems);
+        return;
+      }
+
       const files = droppedItems.map(({ file }) => file);
 
       // ── Image attachments ─────────────────────────────────────────
@@ -592,8 +1027,21 @@ export const Thread: FC<ThreadProps> = ({
         toast.error(t("composer.dropError"));
       }
     },
-    [threadRuntime, t, isDeepResearchMode, character, router, scheduleSkillImportReset]
+    [
+      threadRuntime,
+      t,
+      isDeepResearchMode,
+      character,
+      router,
+      scheduleSkillImportReset,
+      loadComfyWorkflowPreviews,
+    ]
   );
+
+  const validComfyPreviewCount = comfyImportPreviews.filter(
+    (preview) => !preview.error
+  ).length;
+  const selectedComfyPreviewCount = Object.values(comfyImportSelected).filter(Boolean).length;
 
   // Context window status tracking
   const {
@@ -717,6 +1165,257 @@ export const Thread: FC<ThreadProps> = ({
             </div>
           </div>
         )}
+
+        <Dialog
+          open={comfyImportDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              resetComfyImportState();
+              return;
+            }
+            setComfyImportDialogOpen(true);
+          }}
+        >
+          <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl bg-terminal-cream border-terminal-border p-3 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="font-mono text-terminal-dark">{t("comfyuiImport.title")}</DialogTitle>
+              <DialogDescription className="font-mono text-terminal-muted">
+                {t("comfyuiImport.description", { agent: character?.name || "Agent" })}
+              </DialogDescription>
+            </DialogHeader>
+
+            {!comfyImportLoading && comfyImportPreviews.length > 0 && (
+              <div className="rounded border border-terminal-border/70 bg-terminal-bg/50 px-3 py-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs font-mono text-terminal-muted">
+                    {t("comfyuiImport.selectedCount", { count: selectedComfyPreviewCount })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={comfyImportSubmitting || validComfyPreviewCount === 0}
+                      onClick={() => {
+                        setComfyImportSelected((prev) => {
+                          const next = { ...prev };
+                          for (const preview of comfyImportPreviews) {
+                            if (!preview.error) {
+                              next[preview.fileName] = true;
+                            }
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      {t("comfyuiImport.selectAll")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={comfyImportSubmitting}
+                      onClick={() => {
+                        setComfyImportSelected((prev) => {
+                          const next = { ...prev };
+                          for (const key of Object.keys(next)) {
+                            next[key] = false;
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      {t("comfyuiImport.clearSelection")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 max-h-[62vh] overflow-y-auto pr-1">
+              {comfyImportLoading && (
+                <div className="flex items-center gap-2 rounded border border-terminal-border/70 bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
+                  <Loader2Icon className="size-4 animate-spin" />
+                  <span>{t("comfyuiImport.analyzing")}</span>
+                </div>
+              )}
+
+              {!comfyImportLoading && comfyImportPreviews.length === 0 && (
+                <p className="rounded border border-terminal-border/70 bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
+                  {t("comfyuiImport.noWorkflowsFound")}
+                </p>
+              )}
+
+              {!comfyImportLoading && comfyImportPreviews.map((preview) => {
+                const isSelected = Boolean(comfyImportSelected[preview.fileName]);
+                const hasError = Boolean(preview.error);
+                const disableRow = hasError;
+                const highlightedInputs = preview.inputs.filter((input) =>
+                  preview.importantInputIds.includes(input.id)
+                );
+                const displayInputs = (highlightedInputs.length > 0 ? highlightedInputs : preview.inputs)
+                  .slice(0, 8);
+                const shouldCollapseInputs = displayInputs.length > 6;
+                const isExpanded = Boolean(comfyImportExpanded[preview.fileName]);
+                const visibleInputs = shouldCollapseInputs && !isExpanded
+                  ? displayInputs.slice(0, 4)
+                  : displayInputs;
+                const groupedInputs: Record<"prompt" | "media" | "generation" | "advanced", CustomComfyUIInput[]> = {
+                  prompt: [],
+                  media: [],
+                  generation: [],
+                  advanced: [],
+                };
+                for (const input of visibleInputs) {
+                  groupedInputs[getInputCategory(input)].push(input);
+                }
+
+                return (
+                  <div
+                    key={preview.fileName}
+                    className={cn(
+                      "rounded border p-3 space-y-3",
+                      disableRow
+                        ? "border-red-300/50 bg-red-50/50"
+                        : "border-terminal-border/70 bg-terminal-bg/40"
+                    )}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={disableRow || comfyImportSubmitting}
+                          onCheckedChange={(checked) => {
+                            setComfyImportSelected((prev) => ({
+                              ...prev,
+                              [preview.fileName]: isCheckedValue(checked),
+                            }));
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold font-mono text-terminal-dark truncate">
+                            {getDisplayFileName(preview.fileName)}
+                          </p>
+                          <p className="text-xs font-mono text-terminal-muted break-all">{preview.fileName}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1 text-xs font-mono text-terminal-muted">
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.nodeCount", { count: preview.nodeCount })}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.inputCount", { count: preview.inputCount })}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-2 py-0.5">{t("comfyuiImport.outputCount", { count: preview.outputCount })}</Badge>
+                      </div>
+                    </div>
+
+                    {preview.error ? (
+                      <p className="text-xs font-mono text-red-600">{preview.error}</p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-mono text-terminal-muted">
+                            {t("comfyuiImport.workflowNameLabel")}
+                          </Label>
+                          <Input
+                            value={comfyImportNameOverrides[preview.fileName] || ""}
+                            onChange={(event) => {
+                              const nextName = event.target.value;
+                              setComfyImportNameOverrides((prev) => ({
+                                ...prev,
+                                [preview.fileName]: nextName,
+                              }));
+                            }}
+                            disabled={!isSelected || comfyImportSubmitting}
+                            className="h-8 font-mono text-sm"
+                          />
+                        </div>
+
+                        <p className="text-xs font-mono text-terminal-muted">{preview.summary}</p>
+
+                        <div className="space-y-2">
+                          {([
+                            ["prompt", t("comfyuiImport.groupPrompt")],
+                            ["media", t("comfyuiImport.groupMedia")],
+                            ["generation", t("comfyuiImport.groupGeneration")],
+                            ["advanced", t("comfyuiImport.groupAdvanced")],
+                          ] as const)
+                            .filter(([group]) => groupedInputs[group].length > 0)
+                            .map(([group, label]) => (
+                              <div key={`${preview.fileName}-${group}`} className="space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide font-mono text-terminal-muted/80">{label}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {groupedInputs[group].map((input) => (
+                                    <div
+                                      key={input.id}
+                                      className="inline-flex items-center gap-1 rounded-md border border-terminal-border/70 bg-terminal-cream px-2 py-1"
+                                    >
+                                      <span className="text-[11px] font-mono text-terminal-dark">{input.name}</span>
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{input.type}</Badge>
+                                      {input.required ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-red-500 text-white hover:bg-red-500">{t("comfyuiImport.requiredBadge")}</Badge>
+                                      ) : isCriticalInput(input) ? (
+                                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-black hover:bg-amber-500">{t("comfyuiImport.criticalBadge")}</Badge>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+
+                          {displayInputs.length === 0 && (
+                            <p className="text-xs font-mono text-terminal-muted">{t("comfyuiImport.noPreviewInputs")}</p>
+                          )}
+
+                          {shouldCollapseInputs && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setComfyImportExpanded((prev) => ({
+                                  ...prev,
+                                  [preview.fileName]: !isExpanded,
+                                }));
+                              }}
+                            >
+                              {isExpanded
+                                ? t("comfyuiImport.showLessInputs")
+                                : t("comfyuiImport.showMoreInputs", { count: displayInputs.length - 4 })}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-xs font-mono text-terminal-muted mr-auto">
+                {t("comfyuiImport.selectedCount", { count: selectedComfyPreviewCount })}
+              </p>
+              <Button
+                variant="outline"
+                onClick={resetComfyImportState}
+                disabled={comfyImportSubmitting}
+                className="w-full sm:w-auto"
+              >
+                {t("comfyuiImport.cancel")}
+              </Button>
+              <Button
+                onClick={submitComfyWorkflowImport}
+                disabled={comfyImportSubmitting || selectedComfyPreviewCount === 0}
+                className="w-full sm:w-auto"
+              >
+                {comfyImportSubmitting ? t("comfyuiImport.importing") : t("comfyuiImport.importAction")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(

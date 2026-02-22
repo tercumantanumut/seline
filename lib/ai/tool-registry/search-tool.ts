@@ -9,7 +9,9 @@
  * many tools available.
  */
 
-import { tool, jsonSchema } from "ai";
+import { tool, jsonSchema, generateObject } from "ai";
+import { z } from "zod";
+import { getUtilityModel } from "@/lib/ai/providers";
 import { ToolRegistry } from "./registry";
 import type { ToolSearchResult, ToolCategory } from "./types";
 
@@ -122,6 +124,133 @@ interface SearchToolResult {
   message: string;
 }
 
+const TOOL_SEARCH_ROUTER_MODEL_ENABLED =
+  process.env.TOOL_SEARCH_ROUTER_MODEL !== "false";
+
+const TOOL_SEARCH_ROUTER_TIMEOUT_MS = 5000;
+const TOOL_SEARCH_ROUTER_MAX_CANDIDATES = 80;
+
+const toolSearchRouterSchema = z.object({
+  directToolNames: z.array(z.string()).max(12),
+  normalizedQuery: z.string().min(1).max(200),
+  relatedTerms: z.array(z.string().min(1).max(80)).max(8),
+  rationale: z.string().max(320),
+});
+
+type ToolSearchRouterDecision = z.infer<typeof toolSearchRouterSchema>;
+
+function normalizeToolName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
+}
+
+function dedupeResultsByName(results: ToolSearchResult[]): ToolSearchResult[] {
+  const seen = new Set<string>();
+  const deduped: ToolSearchResult[] = [];
+
+  for (const result of results) {
+    if (seen.has(result.name)) continue;
+    seen.add(result.name);
+    deduped.push(result);
+  }
+
+  return deduped;
+}
+
+function buildToolSearchCandidateContext(
+  candidates: ToolSearchResult[]
+): string {
+  if (!candidates.length) return "No candidates.";
+
+  return candidates
+    .map((candidate, index) => {
+      const details = [
+        `${index + 1}. ${candidate.name}`,
+        `displayName=${candidate.displayName}`,
+        `category=${candidate.category}`,
+        `description=${candidate.description}`,
+      ];
+      return details.join(" | ");
+    })
+    .join("\n");
+}
+
+async function routeToolSearchWithUtilityModel(
+  query: string,
+  candidates: ToolSearchResult[]
+): Promise<ToolSearchRouterDecision | null> {
+  if (!TOOL_SEARCH_ROUTER_MODEL_ENABLED) {
+    return null;
+  }
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const candidateContext = buildToolSearchCandidateContext(candidates);
+  const routerPrompt = [
+    `User query: ${query}`,
+    "Select the best tools for this query from the candidate list.",
+    "Prioritize direct tool name matches and precise capability intent.",
+    "Return normalized query and 3-8 related terms for additional keyword search.",
+    "Candidate tools:",
+    candidateContext,
+  ].join("\n\n");
+
+  try {
+    const decisionPromise = generateObject({
+      model: getUtilityModel(),
+      schema: toolSearchRouterSchema,
+      temperature: 0,
+      prompt: routerPrompt,
+    });
+
+    const decision = await Promise.race([
+      decisionPromise,
+      new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), TOOL_SEARCH_ROUTER_TIMEOUT_MS)
+      ),
+    ]);
+
+    if (!decision || !("object" in decision)) {
+      warnSearchTools("[searchTools] Utility router timed out; falling back to registry scoring");
+      return null;
+    }
+
+    return decision.object;
+  } catch (error) {
+    warnSearchTools(
+      `[searchTools] Utility router failed; falling back to registry scoring: ${error instanceof Error ? error.message : String(error)}`
+    );
+    return null;
+  }
+}
+
+function applyUtilityRouterRanking(
+  query: string,
+  limit: number,
+  candidates: ToolSearchResult[]
+): { results: ToolSearchResult[]; routed: boolean } {
+  const queryLower = query.toLowerCase();
+  const queryCompact = normalizeToolName(query);
+
+  const directMatches = candidates.filter((candidate) => {
+    const nameLower = candidate.name.toLowerCase();
+    const displayNameLower = candidate.displayName.toLowerCase();
+    return (
+      nameLower === queryLower ||
+      displayNameLower === queryLower ||
+      normalizeToolName(candidate.name) === queryCompact
+    );
+  });
+
+  if (directMatches.length > 0) {
+    const fallback = dedupeResultsByName([...directMatches, ...candidates]);
+    return { results: fallback.slice(0, limit), routed: true };
+  }
+
+  return { results: dedupeResultsByName(candidates).slice(0, limit), routed: false };
+}
+
 /**
  * Create the tool search tool
  *
@@ -163,15 +292,64 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 **After finding a tool:** Use it immediately. Do NOT call searchTools again for the same task.`,
     inputSchema: toolSearchSchema,
     execute: async ({ query, category, limit = 20 }): Promise<SearchToolResult> => {
-      // Search ALL registered tools (including deferred ones) - this enables tool discovery
-      let results = registry.search(query, limit * 2); // Fetch more to account for filtering
+      const effectiveLimit = Math.min(Math.max(limit, 1), 50);
+
+      // Start with a broad candidate set, then let the utility model narrow and rank.
+      let results = registry.search(query, TOOL_SEARCH_ROUTER_MAX_CANDIDATES);
+
+      const routerDecision = await routeToolSearchWithUtilityModel(query, results);
+      if (routerDecision) {
+        const queryTerms = [
+          query,
+          routerDecision.normalizedQuery,
+          ...routerDecision.relatedTerms,
+        ]
+          .map((term) => term.trim())
+          .filter((term) => term.length > 0);
+
+        for (const term of queryTerms) {
+          const termResults = registry.search(term, TOOL_SEARCH_ROUTER_MAX_CANDIDATES);
+          results = dedupeResultsByName([...results, ...termResults]);
+        }
+
+        const directNameMatches = new Set(
+          routerDecision.directToolNames.map((name) => normalizeToolName(name))
+        );
+        const normalizedQuery = normalizeToolName(routerDecision.normalizedQuery);
+
+        const scored = results.map((candidate) => {
+          let score = candidate.relevance;
+          const candidateName = normalizeToolName(candidate.name);
+          const candidateDisplayName = normalizeToolName(candidate.displayName);
+
+          if (directNameMatches.has(candidateName) || directNameMatches.has(candidateDisplayName)) {
+            score += 3;
+          }
+
+          if (candidateName === normalizedQuery || candidateDisplayName === normalizedQuery) {
+            score += 1.5;
+          }
+
+          return {
+            candidate,
+            score,
+          };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        results = scored.map((entry) => entry.candidate);
+
+        logSearchTools(
+          `[searchTools] Utility router reranked ${results.length} candidates (${routerDecision.rationale})`
+        );
+      }
+
+      // Preserve deterministic direct-name prioritization even when model routing is skipped.
+      results = applyUtilityRouterRanking(query, TOOL_SEARCH_ROUTER_MAX_CANDIDATES, results).results;
 
       // Apply category filter if provided - but never filter out strong query matches
       // Models often guess the wrong category, so treat it as a soft hint, not a hard filter
       if (category) {
-        const categoryLower = category.toLowerCase();
-        const beforeCategoryFilter = results.length;
-
         // Split results: those matching category and those that don't
         const categoryMatches = results.filter((r) => r.category === category);
         const otherMatches = results.filter((r) => r.category !== category);
@@ -204,7 +382,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
       }
 
       // Apply final limit after filtering
-      results = results.slice(0, limit);
+      results = results.slice(0, effectiveLimit);
 
       if (results.length === 0) {
         // Return available tools list when no matches (filtered by enabledTools)

@@ -92,6 +92,11 @@ import {
   shouldRenderAgentsHeader,
   shouldRenderWorkflowSection,
 } from "@/lib/characters/picker-sections";
+import {
+  CHARACTER_TOOL_CATALOG,
+  mergeCharacterToolCatalog,
+  type CharacterToolCatalogItem,
+} from "@/lib/characters/tool-catalog";
 
 /** Category icons (labels come from translations) */
 const CATEGORY_ICONS: Record<string, string> = {
@@ -106,73 +111,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 /** Available tools that can be enabled/disabled */
-type ToolDependency =
-  | "syncedFolders"
-  | "embeddings"
-  | "vectorDbEnabled"
-  | "webScraper"
-  | "openrouterKey"
-  | "comfyuiEnabled"
-  | "flux2Klein4bEnabled"
-  | "flux2Klein9bEnabled"
-  | "localGrepEnabled"
-  | "devWorkspaceEnabled";
-
-type ToolDefinition = {
-  id: string;
-  category: string;
-  dependencies?: ToolDependency[];
-  displayName?: string;
-  description?: string;
-};
-
-const BASE_TOOLS: ToolDefinition[] = [
-  { id: "docsSearch", category: "knowledge" },
-  { id: "vectorSearch", category: "knowledge", dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"] },
-  { id: "readFile", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "editFile", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "writeFile", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "patchFile", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "localGrep", category: "knowledge", dependencies: ["syncedFolders", "localGrepEnabled"] },
-  { id: "webSearch", category: "search" },
-  { id: "assembleVideo", category: "video-generation" },
-  { id: "describeImage", category: "analysis" },
-  { id: "showProductImages", category: "utility" },
-  { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
-  { id: "scheduleTask", category: "utility" },
-  { id: "runSkill", category: "utility" },
-  { id: "updateSkill", category: "utility" },
-  { id: "memorize", category: "utility" },
-  { id: "calculator", category: "utility" },
-  { id: "updatePlan", category: "utility" },
-  { id: "sendMessageToChannel", category: "utility" },
-  { id: "delegateToSubagent", category: "utility" },
-  { id: "workspace", category: "utility", dependencies: ["devWorkspaceEnabled"] },
-  // OpenRouter Image Tools
-  { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
-  { id: "referenceImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "generateImageGpt5Mini", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "editImageGpt5Mini", category: "image-editing", dependencies: ["openrouterKey"] },
-  { id: "referenceImageGpt5Mini", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "generateImageGpt5", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "editImageGpt5", category: "image-editing", dependencies: ["openrouterKey"] },
-  { id: "referenceImageGpt5", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "generateImageGemini25Flash", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "editImageGemini25Flash", category: "image-editing", dependencies: ["openrouterKey"] },
-  { id: "referenceImageGemini25Flash", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "generateImageGemini3Pro", category: "image-generation", dependencies: ["openrouterKey"] },
-  { id: "editImageGemini3Pro", category: "image-editing", dependencies: ["openrouterKey"] },
-  { id: "referenceImageGemini3Pro", category: "image-generation", dependencies: ["openrouterKey"] },
-  // Local ComfyUI Image Tools
-  { id: "generateImageZImage", category: "image-generation", dependencies: ["comfyuiEnabled"] },
-  { id: "generateImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
-  { id: "editImageFlux2Klein4B", category: "image-editing", dependencies: ["flux2Klein4bEnabled"] },
-  { id: "referenceImageFlux2Klein4B", category: "image-generation", dependencies: ["flux2Klein4bEnabled"] },
-  { id: "generateImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
-  { id: "editImageFlux2Klein9B", category: "image-editing", dependencies: ["flux2Klein9bEnabled"] },
-  { id: "referenceImageFlux2Klein9B", category: "image-generation", dependencies: ["flux2Klein9bEnabled"] },
-];
+type ToolDefinition = CharacterToolCatalogItem;
 
 interface CharacterSummary {
   id: string;
@@ -514,7 +453,7 @@ export function CharacterPicker() {
   const [isSaving, setIsSaving] = useState(false);
   const [toolSearchQuery, setToolSearchQuery] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
-  const [availableTools, setAvailableTools] = useState<ToolDefinition[]>(BASE_TOOLS);
+  const [availableTools, setAvailableTools] = useState<ToolDefinition[]>(CHARACTER_TOOL_CATALOG);
 
   // Identity editor state
   const [identityEditorOpen, setIdentityEditorOpen] = useState(false);
@@ -585,7 +524,7 @@ export function CharacterPicker() {
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
 
   const baseTools = useMemo(() => {
-    return BASE_TOOLS.map((tool) => ({
+    return CHARACTER_TOOL_CATALOG.map((tool) => ({
       ...tool,
       displayName: t.has(`tools.${tool.id}.name`) ? t(`tools.${tool.id}.name`) : tool.id,
       description: t.has(`tools.${tool.id}.description`) ? t(`tools.${tool.id}.description`) : "",
@@ -659,33 +598,7 @@ export function CharacterPicker() {
         if (error || !data) throw new Error(error || "Failed to load tools");
         if (cancelled) return;
 
-        const merged = new Map<string, ToolDefinition>();
-        baseTools.forEach((tool) => merged.set(tool.id, tool));
-
-        (data.tools || []).forEach((tool) => {
-          const existing = merged.get(tool.id);
-          if (existing) {
-            merged.set(tool.id, {
-              ...existing,
-              category: existing.category || tool.category,
-              displayName: existing.displayName && existing.displayName !== existing.id
-                ? existing.displayName
-                : tool.displayName,
-              description: existing.description && existing.description.length > 0
-                ? existing.description
-                : tool.description,
-            });
-          } else {
-            merged.set(tool.id, {
-              id: tool.id,
-              category: tool.category,
-              displayName: tool.displayName,
-              description: tool.description,
-            });
-          }
-        });
-
-        const mergedList = Array.from(merged.values()).sort((a, b) => {
+        const mergedList = mergeCharacterToolCatalog(baseTools, data.tools || []).sort((a, b) => {
           if (a.category !== b.category) return a.category.localeCompare(b.category);
           return (a.displayName || a.id).localeCompare(b.displayName || b.id);
         });
