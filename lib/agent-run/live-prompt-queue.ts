@@ -4,6 +4,7 @@ export const LIVE_PROMPT_QUEUE_METADATA_KEY = "livePromptQueue";
 
 const MAX_QUEUE_ITEMS = 50;
 const MAX_PROMPT_LENGTH = 8000;
+const PASTE_CONTENT_PATTERN = /\[PASTE_CONTENT:(\d+):\d+\]\n([\s\S]*?)\n\[\/PASTE_CONTENT:\1\]/g;
 
 export interface LivePromptQueueEntry {
   id: string;
@@ -19,7 +20,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function sanitizeLivePromptContent(content: unknown): string {
   if (typeof content !== "string") return "";
-  return content.trim().slice(0, MAX_PROMPT_LENGTH);
+
+  const normalized = content.replace(
+    PASTE_CONTENT_PATTERN,
+    (_match, n, body) => {
+      const lineCount = typeof body === "string" ? body.split("\n").length : 0;
+      return `[Pasted text #${n} +${lineCount} lines]`;
+    }
+  );
+
+  return normalized.trim().slice(0, MAX_PROMPT_LENGTH);
 }
 
 export function getLivePromptQueueEntries(metadata: unknown): LivePromptQueueEntry[] {
@@ -63,10 +73,15 @@ export function appendLivePromptQueueEntry(
   const base: Record<string, unknown> = isRecord(metadata) ? { ...metadata } : {};
   const queue = getLivePromptQueueEntries(base);
 
+  const sanitizedContent = sanitizeLivePromptContent(entry.content);
+  if (!sanitizedContent) {
+    return base;
+  }
+
   queue.push({
     id: entry.id,
     runId: entry.runId,
-    content: sanitizeLivePromptContent(entry.content),
+    content: sanitizedContent,
     createdAt: entry.createdAt || nowISO(),
     source: entry.source,
   });

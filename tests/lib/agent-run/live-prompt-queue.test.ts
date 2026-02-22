@@ -16,6 +16,20 @@ describe("live prompt queue", () => {
     expect(sanitizeLivePromptContent("   hello world   ")).toBe("hello world");
   });
 
+  it("sanitizes paste delimiters into compact placeholders", () => {
+    const content = [
+      "before",
+      "[PASTE_CONTENT:1:3]",
+      "line one",
+      "line two",
+      "line three",
+      "[/PASTE_CONTENT:1]",
+      "after",
+    ].join("\n");
+
+    expect(sanitizeLivePromptContent(content)).toContain("[Pasted text #1 +3 lines]");
+  });
+
   it("stores entries and returns unseen entries for target run only", () => {
     const metadata = appendLivePromptQueueEntry({}, {
       id: "p1",

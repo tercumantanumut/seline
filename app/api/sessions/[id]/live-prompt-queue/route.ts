@@ -82,8 +82,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       createdAt: queuedAt,
     });
 
+    // Re-read latest metadata before enqueue to avoid overwriting concurrent session updates.
+    const latestSession = await getSession(sessionId);
     const updatedMetadata = appendLivePromptQueueEntry(
-      (session.metadata as Record<string, unknown>) ?? {},
+      (latestSession?.metadata as Record<string, unknown>) ?? (session.metadata as Record<string, unknown>) ?? {},
       {
         id: promptId,
         runId,
