@@ -175,9 +175,10 @@ export const TOOL_DISCOVERY_MINIMAL = `## Tool Discovery & Codebase Search
 **When to use searchTools:**
 → You need a capability you don't see (e.g., "generate image", "browse web")
 → User mentions a tool name you don't recognize
-→ **TIP:** Use broad queries (e.g., \`{query: "grep code"}\`) without category filters for best discovery. Broad queries fuzzy-match across categories, while strict categories can hide useful tools.
+→ **TIP:** Ask one precise capability question first; avoid repetitive broad retries. If searchTools already returned a usable tool, call it directly.
 
-Most tools are deferred-loaded to save tokens. Use searchTools to discover capabilities like image generation or web browsing - NOT to search file contents.`;
+Most tools are deferred-loaded to save tokens. Use searchTools to discover capabilities like image generation or web browsing - NOT to search file contents.
+Never reject a request for missing capability until you check available tools/skills/plugins and relevant execution options (web/terminal) when appropriate.`;
 
 /**
  * Tool Discovery Instructions (Always-Include Mode)

@@ -1,55 +1,32 @@
-import { tool, jsonSchema } from "ai";
-import { listSkillsForUser, assertCharacterOwnership } from "@/lib/skills/queries";
+import { createRunSkillTool, type RunSkillToolOptions } from "./run-skill-tool";
 
-interface ListSkillsInput {
+export type ListSkillsToolOptions = RunSkillToolOptions;
+
+type LegacyListSkillsInput = {
   characterId?: string;
   status?: "draft" | "active" | "archived";
-}
+};
 
-export interface ListSkillsToolOptions {
-  userId: string;
-  characterId: string;
-}
-
-const schema = jsonSchema<ListSkillsInput>({
-  type: "object",
-  properties: {
-    characterId: { type: "string" },
-    status: { type: "string", enum: ["draft", "active", "archived"] },
-  },
-  additionalProperties: false,
-});
-
+/**
+ * Backward-compatible wrapper that maps legacy listSkills usage to runSkill(action="list").
+ * Intentionally not registered in tool discovery; runSkill is the single public surface.
+ */
 export function createListSkillsTool(options: ListSkillsToolOptions) {
-  return tool({
+  const runSkillTool = createRunSkillTool(options) as {
+    inputSchema: unknown;
+    execute: (input: {
+      action?: "list" | "inspect" | "run";
+      query?: string;
+    }) => Promise<unknown>;
+  };
+
+  return {
     description:
-      "List saved skills for the current agent. Use this when user asks what skills are available.",
-    inputSchema: schema,
-    execute: async (input: ListSkillsInput = {}) => {
-      const scopedCharacterId = input.characterId || options.characterId;
-      const ownsCharacter = await assertCharacterOwnership(scopedCharacterId, options.userId);
-      if (!ownsCharacter) {
-        return { success: false, error: "Character not found or not owned by user." };
-      }
-
-      const skills = await listSkillsForUser(options.userId, {
-        characterId: scopedCharacterId,
-        status: input.status,
-      });
-
-      return {
-        success: true,
-        count: skills.length,
-        skills: skills.map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          description: skill.description,
-          status: skill.status,
-          runCount: skill.runCount,
-          successCount: skill.successCount,
-          lastRunAt: skill.lastRunAt,
-        })),
-      };
+      "Legacy alias for runSkill(action='list'). Prefer runSkill as the public interface.",
+    inputSchema: runSkillTool.inputSchema,
+    execute: async (input: LegacyListSkillsInput = {}) => {
+      const query = input.status ? `status:${input.status}` : undefined;
+      return runSkillTool.execute({ action: "list", query });
     },
-  });
+  };
 }
