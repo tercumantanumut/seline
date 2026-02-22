@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/notify-on-stop.sh",
+            "timeout": 10,
+            "statusMessage": "Sending task completion notification..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/ring-on-tool.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

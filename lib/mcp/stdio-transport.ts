@@ -249,11 +249,6 @@ function getBundledNodeExe(): string | null {
 }
 
 function ensureNodeShimDir(): string | null {
-    // In production, we use bundled Node.js directly - no shim needed
-    if (getBundledNodeExe()) {
-        return null;
-    }
-
     const baseDir = process.env.ELECTRON_USER_DATA_PATH || os.tmpdir();
     if (!baseDir) {
         return null;
@@ -293,6 +288,22 @@ function ensureNodeShimDir(): string | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * Get the directory containing a node binary that should be prepended to PATH.
+ * This ensures spawned processes (like npx installing packages that internally
+ * spawn `node`) can always find a working node runtime via PATH lookup.
+ *
+ * Priority: bundled node's .bin dir > Electron-as-Node shim dir > null
+ */
+function getNodeBinDir(): string | null {
+    const bundledNode = getBundledNodeExe();
+    if (bundledNode) {
+        return path.dirname(bundledNode);
+    }
+
+    return ensureNodeShimDir();
 }
 
 function prependPath(existingPath: string | undefined, extraDir: string): string {
@@ -338,7 +349,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
     const normalizedCommand = normalizeExecutableName(originalCommand);
     const baseArgs = serverParams.args ?? [];
     const resolvedCommand = resolveCommandPath(originalCommand);
-    const shimDir = ensureNodeShimDir();
+    const nodeBinDir = getNodeBinDir();
 
     const basePath = serverParams.env?.PATH ?? process.env.PATH;
 
@@ -362,7 +373,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
                 args: [bundledCli, ...baseArgs],
                 env: {
                     ...(useElectronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
-                    ...(shimDir ? { PATH: prependPath(basePath, shimDir) } : {}),
+                    ...(nodeBinDir ? { PATH: prependPath(basePath, nodeBinDir) } : {}),
                 },
             };
         }
@@ -375,7 +386,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
             return {
                 command: bundledNodeExe,
                 args: baseArgs,
-                env: shimDir ? { PATH: prependPath(basePath, shimDir) } : undefined,
+                env: nodeBinDir ? { PATH: prependPath(basePath, nodeBinDir) } : undefined,
             };
         }
 
@@ -385,7 +396,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
             return {
                 command: systemNodeExe,
                 args: baseArgs,
-                env: shimDir ? { PATH: prependPath(basePath, shimDir) } : undefined,
+                env: nodeBinDir ? { PATH: prependPath(basePath, nodeBinDir) } : undefined,
             };
         }
 
@@ -395,7 +406,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
             args: baseArgs,
             env: {
                 ELECTRON_RUN_AS_NODE: "1",
-                ...(shimDir ? { PATH: prependPath(basePath, shimDir) } : {}),
+                ...(nodeBinDir ? { PATH: prependPath(basePath, nodeBinDir) } : {}),
             },
         };
     }
@@ -403,7 +414,7 @@ function resolveSpawnCommand(serverParams: StdioServerParameters): ResolvedSpawn
     return {
         command: resolvedCommand,
         args: baseArgs,
-        env: shimDir ? { PATH: prependPath(basePath, shimDir) } : undefined,
+        env: nodeBinDir ? { PATH: prependPath(basePath, nodeBinDir) } : undefined,
     };
 }
 
@@ -545,6 +556,11 @@ export class StdioClientTransport implements Transport {
             
             const child = spawn(resolvedSpawn.command, resolvedSpawn.args ?? [], spawnOptions);
             this._process = child;
+            // Track early exit for diagnostics
+            let earlyExitCode: number | null = null;
+            let earlyExitSignal: NodeJS.Signals | null = null;
+            let spawnResolved = false;
+
             child.on("error", (error: Error) => {
                 if (isEBADFError(error) && process.platform === "darwin") {
                     const ebadfError = new Error(
@@ -562,11 +578,42 @@ export class StdioClientTransport implements Transport {
             });
             child.on("spawn", () => {
                 console.log(`[MCP] Process spawned with PID: ${child.pid}`);
-                resolve();
+                // Give process a brief moment to crash before declaring success.
+                // Catches immediate failures (bad binary, missing deps, Gatekeeper kill).
+                setTimeout(() => {
+                    spawnResolved = true;
+                    if (earlyExitCode !== null) {
+                        const msg =
+                            `MCP server process exited immediately with code ${earlyExitCode}` +
+                            `${earlyExitSignal ? ` (signal: ${earlyExitSignal})` : ""}. ` +
+                            `Command: ${resolvedSpawn.command} ${(resolvedSpawn.args ?? []).join(" ")}. ` +
+                            `This may indicate the bundled Node.js binary cannot run on this system, ` +
+                            `or the MCP package failed to install via npx.`;
+                        console.error(`[MCP] ${msg}`);
+                        reject(new Error(msg));
+                    } else {
+                        resolve();
+                    }
+                }, 150);
             });
-            child.on("close", (_code: number | null) => {
+            child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+                earlyExitCode = code;
+                earlyExitSignal = signal;
+                if (code !== null && code !== 0) {
+                    console.error(
+                        `[MCP] Process exited with code ${code}` +
+                        `${signal ? ` (signal: ${signal})` : ""}` +
+                        ` — command: ${resolvedSpawn.command} ${(resolvedSpawn.args ?? []).join(" ")}`
+                    );
+                } else if (signal) {
+                    console.warn(`[MCP] Process killed by signal ${signal} — command: ${resolvedSpawn.command}`);
+                }
                 this._process = undefined;
-                this.onclose?.();
+                // If spawn already resolved, fire onclose normally.
+                // If not yet resolved, the spawn handler's setTimeout will pick up the exit.
+                if (spawnResolved) {
+                    this.onclose?.();
+                }
             });
             child.stdin?.on("error", (error: Error) => {
                 this.onerror?.(error);
