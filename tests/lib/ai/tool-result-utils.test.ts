@@ -319,4 +319,23 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
     expect(uiSpecMeta?.valid).toBe(false);
     expect(uiSpecMeta?.errors).toEqual(["Provider does not support generative UI specs."]);
   });
+
+  it("adds uiSpec in projection mode for webSearch when provider supports it", () => {
+    const output = {
+      status: "success",
+      query: "istanbul weather",
+      sources: [
+        { title: "A", url: "https://a.test", relevanceScore: 0.8 },
+      ],
+    };
+
+    const result = normalizeToolResultOutput("webSearch", output, undefined, {
+      mode: "projection",
+      provider: "anthropic",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    const uiSpec = normalized.uiSpec as Record<string, unknown> | undefined;
+    expect(uiSpec?.version).toBe("open-json-ui/v1");
+  });
 });

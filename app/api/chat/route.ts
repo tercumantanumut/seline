@@ -3373,7 +3373,12 @@ export async function POST(req: Request) {
                 );
                 webSearchDisableLogged = true;
               }
-              return buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active");
+              return normalizeToolResultOutput(
+                toolId,
+                buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active"),
+                normalizedArgs,
+                { mode: "projection", provider: sessionProvider }
+              ).output;
             }
 
             if (normalizedQuery) {
@@ -3383,7 +3388,12 @@ export async function POST(req: Request) {
                 webSearchDisabledByLoopGuard = true;
                 webSearchDisableReason = reason;
                 console.warn(`[CHAT API] webSearch loop guard triggered (${reason}) for query: ${normalizedQuery}`);
-                return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+                return normalizeToolResultOutput(
+                  toolId,
+                  buildWebSearchLoopGuardResult(normalizedQuery, reason),
+                  normalizedArgs,
+                  { mode: "projection", provider: sessionProvider }
+                ).output;
               }
             }
 
@@ -3392,7 +3402,12 @@ export async function POST(req: Request) {
               webSearchDisabledByLoopGuard = true;
               webSearchDisableReason = reason;
               console.warn(`[CHAT API] webSearch loop guard triggered (${reason})`);
-              return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+              return normalizeToolResultOutput(
+                toolId,
+                buildWebSearchLoopGuardResult(normalizedQuery, reason),
+                normalizedArgs,
+                { mode: "projection", provider: sessionProvider }
+              ).output;
             }
           }
 
@@ -3413,7 +3428,13 @@ export async function POST(req: Request) {
 
           try {
             const rawResult = await origExecute(args, options as any);
-            const guardedResult = guardToolResultForStreaming(toolId, rawResult, {
+            const normalizedResult = normalizeToolResultOutput(
+              toolId,
+              rawResult,
+              normalizedArgs,
+              { mode: "projection", provider: sessionProvider }
+            ).output;
+            const guardedResult = guardToolResultForStreaming(toolId, normalizedResult, {
               maxTokens: streamToolResultBudgetTokens,
               metadata: {
                 sourceFileName: "app/api/chat/route.ts",
