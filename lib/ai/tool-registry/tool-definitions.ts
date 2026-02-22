@@ -80,6 +80,7 @@ import { createTranscribeTool } from "../tools/transcribe-tool";
 import { createSendMessageToChannelTool } from "../tools/channel-tools";
 import { createDelegateToSubagentTool } from "../tools/delegate-to-subagent-tool";
 import { createCompactSessionTool } from "../tools/compact-session-tool";
+import { createSearchSessionsTool } from "../tools/search-sessions-tool";
 import { createWorkspaceTool } from "../tools/workspace-tool";
 
 /**
@@ -181,6 +182,35 @@ export function registerAllTools(): void {
     ({ sessionId }) =>
       createCompactSessionTool({
         sessionId: sessionId || "UNSCOPED",
+      })
+  );
+
+  // Search Sessions - discover past conversations
+  registry.register(
+    "searchSessions",
+    {
+      displayName: "Search Sessions",
+      category: "utility",
+      keywords: [
+        "session", "sessions", "conversation", "history", "past", "previous",
+        "find", "search", "chat", "thread", "recall", "context",
+      ],
+      shortDescription:
+        "Search past conversation sessions by title, channel, agent, or date range",
+      fullInstructions: `## Search Sessions
+
+Search and filter past conversations. Returns metadata and summaries — not message content.
+
+**Filters:** query (title search), characterName, channelType (whatsapp/telegram/slack), dateRange (today/week/month/all).
+**Use when:** user asks "what did we discuss about X?", "find my Telegram chats", "recent sessions with agent Y".
+**Limit:** Max 50 results per call. Default 20.`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId }) =>
+      createSearchSessionsTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
       })
   );
 
