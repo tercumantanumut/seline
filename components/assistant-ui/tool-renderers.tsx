@@ -11,6 +11,8 @@ import { PatchFileToolUI } from "./patch-file-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
+import { OpenJsonUIRenderer } from "./open-json-ui-renderer";
+import { getGenerativeUISpecFromResult } from "@/lib/ai/generative-ui/payload";
 
 import { WebBrowseInline } from "./web-browse-inline";
 
@@ -59,6 +61,11 @@ const WebBrowseToolUI: AnyToolRenderer = ({ args, result }: { args?: unknown; re
         error={null}
       />
     );
+  }
+
+  const { spec, meta } = getGenerativeUISpecFromResult(result);
+  if (spec) {
+    return <OpenJsonUIRenderer toolName="webBrowse" spec={spec} meta={meta} />;
   }
 
   const typedResult = result as WebBrowseResult;
@@ -119,6 +126,11 @@ const WebBrowseToolUI: AnyToolRenderer = ({ args, result }: { args?: unknown; re
 const WorkspaceToolUI: AnyToolRenderer = ({ result }: { result?: unknown }) => {
   if (!result || typeof result !== "object") {
     return <ToolFallback toolName="workspace" result={result} />;
+  }
+
+  const { spec, meta } = getGenerativeUISpecFromResult(result);
+  if (spec) {
+    return <OpenJsonUIRenderer toolName="workspace" spec={spec} meta={meta} />;
   }
 
   const r = result as {
@@ -191,32 +203,45 @@ const WorkspaceToolUI: AnyToolRenderer = ({ result }: { result?: unknown }) => {
  * using specialized components where they add UX value and ToolFallback
  * for the rest to keep behavior consistent and scalable.
  */
+function withGenerativeUi(toolName: string, Renderer: AnyToolRenderer): AnyToolRenderer {
+  const Wrapped: AnyToolRenderer = (props: { result?: unknown }) => {
+    const { spec, meta } = getGenerativeUISpecFromResult(props?.result);
+    if (spec) {
+      return <OpenJsonUIRenderer toolName={toolName} spec={spec} meta={meta} />;
+    }
+    return <Renderer {...props} />;
+  };
+
+  Wrapped.displayName = `WithGenerativeUi(${toolName})`;
+  return Wrapped;
+}
+
 export const ASSISTANT_TOOL_RENDERERS_BY_NAME = {
   searchTools: ToolFallback,
   listAllTools: ToolFallback,
   retrieveFullContent: ToolFallback,
   compactSession: ToolFallback,
   docsSearch: ToolFallback,
-  vectorSearch: VectorSearchToolUI,
+  vectorSearch: withGenerativeUi("vectorSearch", VectorSearchToolUI),
+  webSearch: withGenerativeUi("webSearch", ToolFallback),
   readFile: ToolFallback,
   localGrep: ToolFallback,
-  executeCommand: ExecuteCommandToolUI,
-  editFile: EditFileToolUI,
-  writeFile: EditFileToolUI,
-  patchFile: PatchFileToolUI,
+  executeCommand: withGenerativeUi("executeCommand", ExecuteCommandToolUI),
+  editFile: withGenerativeUi("editFile", EditFileToolUI),
+  writeFile: withGenerativeUi("writeFile", EditFileToolUI),
+  patchFile: withGenerativeUi("patchFile", PatchFileToolUI),
   scheduleTask: ToolFallback,
   runSkill: ToolFallback,
   updateSkill: ToolFallback,
   memorize: ToolFallback,
-  calculator: CalculatorToolUI,
-  updatePlan: PlanToolUI,
+  calculator: withGenerativeUi("calculator", CalculatorToolUI),
+  updatePlan: withGenerativeUi("updatePlan", PlanToolUI),
   workspace: WorkspaceToolUI,
   speakAloud: SpeakAloudToolUI,
   transcribe: TranscribeToolUI,
   sendMessageToChannel: ToolFallback,
   delegateToSubagent: ToolFallback,
   describeImage: ToolFallback,
-  webSearch: ToolFallback,
   firecrawlCrawl: ToolFallback,
   webBrowse: WebBrowseToolUI,
   webQuery: WebBrowseToolUI,

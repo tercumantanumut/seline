@@ -45,6 +45,7 @@ import {
 // Provider types
 export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
 export type EmbeddingProvider = "openrouter" | "local";
+export type ProviderFeature = "tools" | "streaming" | "images" | "generativeUi";
 
 // Provider configuration
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
@@ -1089,22 +1090,30 @@ export function getProviderDisplayName(): string {
   }
 }
 
+const PROVIDER_FEATURE_SUPPORT: Record<LLMProvider, Record<ProviderFeature, boolean>> = {
+  anthropic: { tools: true, streaming: true, images: true, generativeUi: true },
+  openrouter: { tools: true, streaming: true, images: true, generativeUi: true },
+  antigravity: { tools: true, streaming: true, images: true, generativeUi: true },
+  codex: { tools: true, streaming: true, images: true, generativeUi: true },
+  claudecode: { tools: true, streaming: true, images: true, generativeUi: true },
+  kimi: { tools: true, streaming: true, images: true, generativeUi: true },
+  ollama: { tools: false, streaming: true, images: false, generativeUi: false },
+};
+
+export function providerSupportsFeatureForProvider(
+  provider: LLMProvider,
+  feature: ProviderFeature
+): boolean {
+  return PROVIDER_FEATURE_SUPPORT[provider]?.[feature] ?? false;
+}
+
 /**
- * Check if the current provider supports a specific feature
+ * Check if the current provider supports a specific feature.
+ *
+ * `generativeUi` indicates whether provider/model pipelines are allowed to
+ * emit structured UI specs that can be rendered in chat.
  */
-export function providerSupportsFeature(feature: "tools" | "streaming" | "images"): boolean {
+export function providerSupportsFeature(feature: ProviderFeature): boolean {
   const provider = getConfiguredProvider();
-
-  // All supported providers currently support these features
-  const featureSupport: Record<LLMProvider, Record<string, boolean>> = {
-    anthropic: { tools: true, streaming: true, images: true },
-    openrouter: { tools: true, streaming: true, images: true },
-    antigravity: { tools: true, streaming: true, images: true },
-    codex: { tools: true, streaming: true, images: true },
-    claudecode: { tools: true, streaming: true, images: true },
-    kimi: { tools: true, streaming: true, images: true },
-    ollama: { tools: false, streaming: true, images: false },
-  };
-
-  return featureSupport[provider]?.[feature] ?? false;
+  return providerSupportsFeatureForProvider(provider, feature);
 }

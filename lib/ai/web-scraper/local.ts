@@ -1,4 +1,6 @@
-import puppeteer, { type Browser } from "puppeteer";
+import puppeteer from "puppeteer";
+
+type Browser = Awaited<ReturnType<typeof puppeteer.launch>>;
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30000;
 const NETWORK_IDLE_TIMEOUT_MS = 10000;

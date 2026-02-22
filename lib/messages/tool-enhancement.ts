@@ -10,6 +10,7 @@ import { getToolResultsForSession, createMessage } from "@/lib/db/queries";
 import { isMissingToolResult, normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import type { DBToolResultPart } from "@/lib/messages/converter";
+import type { LLMProvider } from "@/lib/ai/providers";
 
 // Types
 export interface FrontendMessagePart {
@@ -42,6 +43,7 @@ export interface ToolResultEnhancementOptions {
   // Kept for API compatibility; strict history mode does not refetch missing results.
   refetchTools?: Record<string, unknown>;
   maxRefetch?: number;
+  provider?: LLMProvider;
 }
 
 /**
@@ -149,7 +151,6 @@ export async function enhanceFrontendMessagesWithToolResults(
   sessionId: string,
   options: ToolResultEnhancementOptions = {}
 ): Promise<FrontendMessage[]> {
-  void options;
   // Fetch all tool results from the database for this session
   const toolResults = await getToolResultsForSession(sessionId);
 
@@ -185,6 +186,7 @@ export async function enhanceFrontendMessagesWithToolResults(
         if (isMissingToolResult(existing)) {
           const normalized = normalizeToolResultOutput(toolName, partOutput, args, {
             mode: "canonical",
+            provider: options.provider,
           });
           resolvedToolResults.set(part.toolCallId, normalized.output);
           if (!persistedToolResults.has(part.toolCallId)) {
