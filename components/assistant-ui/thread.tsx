@@ -1156,11 +1156,6 @@ const Composer: FC<{
         );
 
         if (!error && data?.success) {
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("live-prompt-queued", {
-              detail: { sessionId },
-            }));
-          }
           return true;
         }
 
@@ -1379,6 +1374,12 @@ const Composer: FC<{
               const queued = await queueLivePromptForActiveRun(expandedMessage);
               if (queued) {
                 markQueuedMessageStatus(queuedId, "queued-live");
+                threadRuntime.append({
+                  role: "user",
+                  content: [{ type: "text", text: expandedMessage }],
+                  startRun: false,
+                  sourceId: `live-queued-${queuedId}`,
+                });
                 return;
               }
 
