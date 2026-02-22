@@ -396,6 +396,7 @@ export const Thread: FC<ThreadProps> = ({
   const [comfyImportPreviews, setComfyImportPreviews] = useState<ComfyWorkflowImportPreview[]>([]);
   const [comfyImportSelected, setComfyImportSelected] = useState<Record<string, boolean>>({});
   const [comfyImportNameOverrides, setComfyImportNameOverrides] = useState<Record<string, string>>({});
+  const [comfyImportExpanded, setComfyImportExpanded] = useState<Record<string, boolean>>({});
   const [comfyImportLoading, setComfyImportLoading] = useState(false);
   const [comfyImportSubmitting, setComfyImportSubmitting] = useState(false);
   const dragCounter = useRef(0);
@@ -439,6 +440,7 @@ export const Thread: FC<ThreadProps> = ({
     setComfyImportPreviews([]);
     setComfyImportSelected({});
     setComfyImportNameOverrides({});
+    setComfyImportExpanded({});
     setComfyImportLoading(false);
     setComfyImportSubmitting(false);
   }, []);
@@ -479,6 +481,7 @@ export const Thread: FC<ThreadProps> = ({
       setComfyImportPreviews([]);
       setComfyImportSelected({});
       setComfyImportNameOverrides({});
+      setComfyImportExpanded({});
 
       const previews: ComfyWorkflowImportPreview[] = [];
 
@@ -1251,13 +1254,18 @@ export const Thread: FC<ThreadProps> = ({
                 );
                 const displayInputs = (highlightedInputs.length > 0 ? highlightedInputs : preview.inputs)
                   .slice(0, 8);
+                const shouldCollapseInputs = displayInputs.length > 6;
+                const isExpanded = Boolean(comfyImportExpanded[preview.fileName]);
+                const visibleInputs = shouldCollapseInputs && !isExpanded
+                  ? displayInputs.slice(0, 4)
+                  : displayInputs;
                 const groupedInputs: Record<"prompt" | "media" | "generation" | "advanced", CustomComfyUIInput[]> = {
                   prompt: [],
                   media: [],
                   generation: [],
                   advanced: [],
                 };
-                for (const input of displayInputs) {
+                for (const input of visibleInputs) {
                   groupedInputs[getInputCategory(input)].push(input);
                 }
 
@@ -1354,6 +1362,25 @@ export const Thread: FC<ThreadProps> = ({
 
                           {displayInputs.length === 0 && (
                             <p className="text-xs font-mono text-terminal-muted">{t("comfyuiImport.noPreviewInputs")}</p>
+                          )}
+
+                          {shouldCollapseInputs && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setComfyImportExpanded((prev) => ({
+                                  ...prev,
+                                  [preview.fileName]: !isExpanded,
+                                }));
+                              }}
+                            >
+                              {isExpanded
+                                ? t("comfyuiImport.showLessInputs")
+                                : t("comfyuiImport.showMoreInputs", { count: displayInputs.length - 4 })}
+                            </Button>
                           )}
                         </div>
                       </div>

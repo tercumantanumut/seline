@@ -1001,6 +1001,8 @@
       "requiredBadge": "Zorunlu",
       "criticalBadge": "Kritik",
       "noPreviewInputs": "Önizleme için öne çıkan girdi algılanmadı.",
+      "showMoreInputs": "+{count} daha göster",
+      "showLessInputs": "Daha az göster",
       "cancel": "İptal",
       "importing": "İçe aktarılıyor...",
       "importAction": "Seçilenleri içe aktar"
