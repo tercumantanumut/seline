@@ -3684,7 +3684,7 @@ export async function POST(req: Request) {
         //
         // The discoveredTools Set is initialized with previouslyDiscoveredTools, so spreading it
         // is sufficient to include both. But we explicitly deduplicate for safety.
-        prepareStep: async ({ stepNumber, messages: stepMessages }) => {
+        prepareStep: async ({ stepNumber }) => {
           // Build the active tools list by combining all sources
           // Use a Set to deduplicate in case tools appear in multiple sources
           let activeToolSet: Set<string>;
@@ -3733,18 +3733,30 @@ export async function POST(req: Request) {
           const livePromptInjection = buildLivePromptInjectionMessage(livePromptEntries);
 
           if (livePromptInjection) {
-            const currentMessages = Array.isArray(stepMessages) ? stepMessages : cachedMessages;
-            const injectedMessages: ModelMessage[] = [
-              ...currentMessages,
-              {
-                role: "system",
-                content: livePromptInjection,
-              },
-            ];
+            // Vercel AI SDK only accepts system messages at conversation start when returned via prepareStep.
+            // Merge live prompts into this step's system block instead of appending a new system message.
+            const baseSystem = injectContext
+              ? systemPromptValue
+              : typeof systemPromptValue === "string"
+              ? ""
+              : [];
+
+            if (typeof baseSystem === "string") {
+              return {
+                activeTools: currentActiveTools as (keyof typeof tools)[],
+                system: `${baseSystem}\n\n[Live Prompt Queue]\n${livePromptInjection}`,
+              };
+            }
 
             return {
               activeTools: currentActiveTools as (keyof typeof tools)[],
-              messages: injectedMessages,
+              system: [
+                ...baseSystem,
+                {
+                  role: "system",
+                  content: `[Live Prompt Queue]\n${livePromptInjection}`,
+                },
+              ],
             };
           }
 
