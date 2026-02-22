@@ -1393,7 +1393,16 @@
         "Setting up capabilities...",
         "Preparing knowledge base...",
         "Finalizing configuration..."
-      ]
+      ],
+      "title": "Configuring agent {name}...",
+      "messages": {
+        "initializingProfile": "Initializing agent profile...",
+        "configuringCapabilities": "Configuring capabilities...",
+        "settingUpKnowledgeBase": "Setting up knowledge base...",
+        "applyingToolPermissions": "Applying tool permissions...",
+        "validatingConfiguration": "Validating configuration...",
+        "finalizingSetup": "Finalizing agent setup..."
+      }
     },
     "intro": {
       "subtitle": "Configure a focused AI agent for your work or projects",
@@ -1689,17 +1698,6 @@
       "back": "← Back",
       "creating": "Creating...",
       "createAgent": "Create Agent ✓"
-    },
-    "loading": {
-      "title": "Configuring agent {name}...",
-      "messages": {
-        "initializingProfile": "Initializing agent profile...",
-        "configuringCapabilities": "Configuring capabilities...",
-        "settingUpKnowledgeBase": "Setting up knowledge base...",
-        "applyingToolPermissions": "Applying tool permissions...",
-        "validatingConfiguration": "Validating configuration...",
-        "finalizingSetup": "Finalizing agent setup..."
-      }
     },
     "success": {
       "title": "{name} is Ready!",

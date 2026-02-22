@@ -106,7 +106,6 @@ appendonlydir/
 
 # Apple API Keys (App Store Connect / Notarization) - NEVER commit
 *.p8
-C:\Users\kashm\Desktop\styly-agent\Seline-Public\test_plugins
 # Misc large files
 *.zip
 *.tar
