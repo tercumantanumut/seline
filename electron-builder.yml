@@ -125,8 +125,8 @@ extraResources:
 asar: true
 compression: "normal"
 
-# Run notarization hook after macOS signing completes.
-afterSign: "scripts/notarize.js"
+# Signing & notarization disabled for now.
+# afterSign: "scripts/notarize.js"
 
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
@@ -134,10 +134,7 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  hardenedRuntime: true
-  gatekeeperAssess: false
-  entitlements: "build-resources/entitlements.mac.plist"
-  entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
+  identity: null
   # icon: "build-resources/icon.icns"
   # Build only for current architecture by default (use CLI flags to override)
   target:
@@ -146,6 +143,7 @@ mac:
   extendInfo:
     NSCameraUsageDescription: "This app requires access to your camera for image capture."
     NSMicrophoneUsageDescription: "This app requires access to your microphone for audio capture."
+    NSUserNotificationAlertStyle: "alert"
 
 # Windows specific configuration
 win:
@@ -168,7 +166,7 @@ nsis:
 
 # DMG settings for macOS
 dmg:
-  sign: true
+  sign: false
   contents:
     - x: 130
       y: 220

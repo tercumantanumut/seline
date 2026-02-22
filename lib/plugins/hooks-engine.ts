@@ -337,8 +337,12 @@ async function executeCommandHook(
 
   // Substitute ${CLAUDE_PLUGIN_ROOT} only when we have a concrete root.
   // If root is unknown, keep the placeholder intact so shell/env expansion can still work.
+  // Escape spaces in the path (e.g. macOS "Application Support") so /bin/sh -c doesn't break.
+  const escapedRoot = pluginRoot ? pluginRoot.replace(/ /g, "\\ ") : "";
   const resolvedCommand = pluginRoot
-    ? command.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot)
+    ? command
+        .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, escapedRoot)
+        .replace(/\$CLAUDE_PLUGIN_ROOT/g, escapedRoot)
     : command;
 
   const timeoutMs = (handler.timeout || 600) * 1000;
