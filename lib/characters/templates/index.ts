@@ -8,11 +8,13 @@ import { CUSTOMER_SUPPORT_AGENT_TEMPLATE } from "./customer-support-agent";
 import { PERSONAL_FINANCE_TRACKER_TEMPLATE } from "./personal-finance-tracker";
 import { LEARNING_COACH_TEMPLATE } from "./learning-coach";
 import { PROJECT_MANAGER_TEMPLATE } from "./project-manager";
+import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
 import { resolveSelineTemplateTools, type ToolResolutionResult } from "./resolve-tools";
 import {
   createCharacter,
   getUserCharacters,
   getUserDefaultCharacter,
+  updateCharacter,
   setDefaultCharacter,
 } from "../queries";
 import { createSkill } from "@/lib/skills/queries";
@@ -20,6 +22,11 @@ import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
 import { getUserWorkspacePath } from "@/lib/workspace/setup";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import {
+  getWorkflowsForInitiator,
+  createSystemAgentWorkflow,
+  addWorkflowMembers,
+} from "@/lib/agents/workflows";
 
 const TEMPLATES: Map<string, AgentTemplate> = new Map([
   [SELINE_DEFAULT_TEMPLATE.id, SELINE_DEFAULT_TEMPLATE],
@@ -77,6 +84,10 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
     // First check if default already exists (fast path)
     const existingDefault = await getUserDefaultCharacter(userId);
     if (existingDefault) {
+      // Fire-and-forget: ensure system agents are provisioned (idempotent)
+      ensureSystemAgentsExist(userId, existingDefault.id).catch((err) => {
+        console.error("[SystemAgents] Background provisioning failed:", err);
+      });
       return existingDefault.id;
     }
 
@@ -109,7 +120,13 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
     // Only create default agent for brand new users (zero characters)
     // This ensures first-time users get the default, but it can be deleted permanently
     try {
-      return await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+      const newDefaultId = await createAgentFromTemplate(userId, SELINE_DEFAULT_TEMPLATE);
+      if (newDefaultId) {
+        ensureSystemAgentsExist(userId, newDefaultId).catch((err) => {
+          console.error("[SystemAgents] Background provisioning failed:", err);
+        });
+      }
+      return newDefaultId;
     } catch (error) {
       // If creation fails due to unique constraint violation (race condition),
       // another request may have created the default
@@ -179,6 +196,11 @@ export async function createAgentFromTemplate(
         enabledMcpServers: [],
         enabledMcpTools: [],
         mcpToolPreferences: {},
+        ...(template.isSystemAgent && {
+          isSystemAgent: true,
+          systemAgentType: template.systemAgentType,
+          systemPromptOverride: template.purpose,
+        }),
       },
     });
 
@@ -292,6 +314,114 @@ async function configureSyncFolders(
     } catch (error) {
       console.warn(`[Templates] Failed to add sync folder ${resolvedPath}:`, error);
     }
+  }
+}
+
+/**
+ * Ensure system specialist agents exist for a user.
+ * Called after the default agent is confirmed.
+ *
+ * Idempotent: once `systemAgentsProvisioned` is set on the default agent's
+ * metadata, deleted agents are NOT re-created (respects user intent).
+ */
+export async function ensureSystemAgentsExist(
+  userId: string,
+  defaultAgentId: string
+): Promise<void> {
+  try {
+    const existingCharacters = await getUserCharacters(userId);
+
+    const existingSystemTypes = new Set<string>();
+    const existingSystemAgentIds: string[] = [];
+
+    for (const char of existingCharacters) {
+      const meta = (char.metadata ?? {}) as Record<string, unknown>;
+      if (meta.isSystemAgent && meta.systemAgentType) {
+        existingSystemTypes.add(meta.systemAgentType as string);
+        existingSystemAgentIds.push(char.id);
+      }
+    }
+
+    const defaultAgent = existingCharacters.find((c) => c.id === defaultAgentId);
+    const defaultMeta = (defaultAgent?.metadata ?? {}) as Record<string, unknown>;
+
+    if (defaultMeta.systemAgentsProvisioned) {
+      // Already provisioned once — only maintain the workflow
+      await ensureSystemWorkflow(userId, defaultAgentId, existingSystemAgentIds);
+      return;
+    }
+
+    // First-time provisioning: create all system agents
+    const newAgentIds: string[] = [];
+
+    for (const template of SYSTEM_AGENT_TEMPLATES) {
+      if (existingSystemTypes.has(template.systemAgentType!)) {
+        continue;
+      }
+
+      const agentId = await createAgentFromTemplate(userId, template);
+      if (agentId) {
+        newAgentIds.push(agentId);
+      }
+    }
+
+    // Mark provisioning complete on the default agent
+    await updateCharacter(defaultAgentId, {
+      metadata: {
+        ...defaultMeta,
+        systemAgentsProvisioned: true,
+      },
+    });
+
+    const allSystemAgentIds = [...existingSystemAgentIds, ...newAgentIds];
+    if (allSystemAgentIds.length > 0) {
+      await ensureSystemWorkflow(userId, defaultAgentId, allSystemAgentIds);
+    }
+
+    console.log(
+      `[SystemAgents] Provisioned ${newAgentIds.length} system agents for user ${userId}`
+    );
+  } catch (error) {
+    console.error("[SystemAgents] Error provisioning system agents:", error);
+    // Non-fatal — default agent still works without specialists
+  }
+}
+
+async function ensureSystemWorkflow(
+  userId: string,
+  initiatorId: string,
+  subagentIds: string[]
+): Promise<void> {
+  if (subagentIds.length === 0) return;
+
+  try {
+    const existingWorkflows = await getWorkflowsForInitiator(userId, initiatorId);
+    const systemWorkflow = existingWorkflows.find(
+      (w) => w.metadata.source === "system-agents"
+    );
+
+    if (systemWorkflow) {
+      // Workflow exists — add any new system agents as members (idempotent)
+      await addWorkflowMembers({
+        workflowId: systemWorkflow.id,
+        members: subagentIds.map((agentId) => ({
+          workflowId: systemWorkflow.id,
+          agentId,
+          role: "subagent" as const,
+        })),
+      });
+      return;
+    }
+
+    // Create the system specialists workflow
+    await createSystemAgentWorkflow({
+      userId,
+      initiatorId,
+      subAgentIds: subagentIds,
+      name: "System Specialists",
+    });
+  } catch (error) {
+    console.error("[SystemAgents] Error ensuring system workflow:", error);
   }
 }
 

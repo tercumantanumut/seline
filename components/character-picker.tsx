@@ -125,6 +125,7 @@ interface CharacterSummary {
     enabledMcpTools?: string[];
     enabledPlugins?: string[];
     purpose?: string;
+    isSystemAgent?: boolean;
   };
   images?: Array<{
     url: string;
@@ -325,6 +326,7 @@ function AgentCardInWorkflow({
   const enabledTools = character.metadata?.enabledTools || [];
   const topTools = getTopTools(enabledTools, 3);
   const purpose = character.metadata?.purpose;
+  const isSystemAgent = character.metadata?.isSystemAgent === true;
   const primaryImage = character.images?.find((img) => img.isPrimary);
   const avatarImage = character.images?.find((img) => img.imageType === "avatar");
   const imageUrl = avatarImage?.url || primaryImage?.url;
@@ -378,6 +380,11 @@ function AgentCardInWorkflow({
               <p className="truncate font-mono text-sm font-medium text-terminal-dark">
                 {character.displayName || character.name}
               </p>
+              {isSystemAgent && (
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-400">
+                  System
+                </span>
+              )}
               {role && (
                 <Badge
                   variant="outline"

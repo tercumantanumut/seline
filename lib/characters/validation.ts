@@ -86,6 +86,11 @@ export const agentMetadataSchema = z.object({
   /** Custom system prompt override (replaces auto-generated prompt if provided) */
   systemPromptOverride: z.string().max(10000).optional(),
 
+  /** Whether this is a system specialist agent (auto-provisioned) */
+  isSystemAgent: z.boolean().optional(),
+  /** The specialist type, e.g. "explore", "plan", "command" */
+  systemAgentType: z.string().optional(),
+
   /**
    * Per-agent MCP configuration
    * Can override or extend global MCP servers
