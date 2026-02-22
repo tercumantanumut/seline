@@ -32,6 +32,8 @@ export interface AgentTemplate {
   category?: string;
   version?: string;
   isDefault?: boolean;
+  isSystemAgent?: boolean;
+  systemAgentType?: string;
   isDeletable?: boolean;
   enabledTools: string[];
   syncFolders?: AgentTemplateSyncFolder[];

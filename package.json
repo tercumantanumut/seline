@@ -1,7 +1,7 @@
 {
   "name": "seline",
-  "version": "0.2.0",
-  "description": "Seline - Agentic styling assistant",
+  "version": "0.2.3",
+  "description": "Seline - Your agents, your rules",
   "author": "Seline",
   "private": true,
   "main": "electron-dist/main.js",

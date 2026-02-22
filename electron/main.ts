@@ -207,14 +207,14 @@ function sendLogToRenderer(level: string, message: string): void {
   }
 
   // Send to renderer if window exists and has subscribers
-  if (mainWindow && logSubscribers > 0) {
+  if (mainWindow && !mainWindow.isDestroyed() && logSubscribers > 0) {
     mainWindow.webContents.send("logs:entry", entry);
   }
 
   // Check for critical errors and send toast notification
   for (const { pattern, type } of CRITICAL_ERROR_PATTERNS) {
     if (pattern.test(message)) {
-      if (mainWindow) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("logs:critical", { type, message: entry.message });
       }
       break;

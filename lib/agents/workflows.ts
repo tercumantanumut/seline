@@ -28,7 +28,7 @@ export interface AgentWorkflow {
   initiatorId: string;
   status: WorkflowStatus;
   metadata: {
-    source: "plugin-import" | "manual";
+    source: "plugin-import" | "manual" | "system-agents";
     pluginId?: string;
     pluginName?: string;
     pluginVersion?: string;
@@ -224,7 +224,11 @@ function parseSharedResources(raw: unknown): WorkflowSharedResources {
 
 function parseWorkflowMetadata(raw: unknown): AgentWorkflow["metadata"] {
   const parsed = toObject(raw);
-  const source = parsed.source === "manual" ? "manual" : "plugin-import";
+  const source = parsed.source === "manual"
+    ? "manual"
+    : parsed.source === "system-agents"
+      ? "system-agents"
+      : "plugin-import";
   return {
     source,
     pluginId: typeof parsed.pluginId === "string" ? parsed.pluginId : undefined,
@@ -1510,4 +1514,82 @@ export async function registerWorkflowSubagentLifecycle(input: {
       });
     },
   };
+}
+
+/**
+ * Returns all active workflows where the given agent is the initiator.
+ */
+export async function getWorkflowsForInitiator(
+  userId: string,
+  initiatorId: string
+): Promise<AgentWorkflow[]> {
+  const rows = await db
+    .select()
+    .from(agentWorkflows)
+    .where(
+      and(
+        eq(agentWorkflows.userId, userId),
+        eq(agentWorkflows.initiatorId, initiatorId),
+        ne(agentWorkflows.status, "archived")
+      )
+    );
+  return rows.map(mapWorkflowRow);
+}
+
+/**
+ * Creates the auto-provisioned "System Specialists" workflow.
+ * Skips the "agent not in active workflow" guard used by createManualWorkflow,
+ * since system provisioning is automatic and non-destructive.
+ */
+export async function createSystemAgentWorkflow(input: {
+  userId: string;
+  initiatorId: string;
+  subAgentIds: string[];
+  name: string;
+}): Promise<AgentWorkflow> {
+  const uniqueSubAgentIds = Array.from(
+    new Set(input.subAgentIds.filter((id) => id !== input.initiatorId))
+  );
+
+  const sharedResources = await buildSharedResourcesSnapshot({
+    initiatorId: input.initiatorId,
+  });
+
+  const [workflowRow] = await db
+    .insert(agentWorkflows)
+    .values({
+      userId: input.userId,
+      name: input.name,
+      initiatorId: input.initiatorId,
+      status: "active",
+      metadata: {
+        source: "system-agents",
+        sharedResources,
+      },
+    })
+    .returning();
+
+  await addWorkflowMembers({
+    workflowId: workflowRow.id,
+    members: [
+      { workflowId: workflowRow.id, agentId: input.initiatorId, role: "initiator" },
+      ...uniqueSubAgentIds.map((agentId) => ({
+        workflowId: workflowRow.id,
+        agentId,
+        role: "subagent" as const,
+      })),
+    ],
+  });
+
+  if (uniqueSubAgentIds.length > 0) {
+    await syncSharedFoldersToSubAgents({
+      userId: input.userId,
+      initiatorId: input.initiatorId,
+      subAgentIds: uniqueSubAgentIds,
+      workflowId: workflowRow.id,
+    });
+    await refreshWorkflowSharedResources(workflowRow.id, input.initiatorId);
+  }
+
+  return mapWorkflowRow(workflowRow);
 }

@@ -12,9 +12,11 @@ import { formatSkillsForPromptFromSummary } from "@/lib/skills/prompt-injection"
 import {
   MEDIA_DISPLAY_RULES,
   RESPONSE_STYLE,
+  DOING_TASKS,
+  EXECUTING_WITH_CARE,
   WORKFLOW_SUBAGENT_BASELINE,
   LANGUAGE_HANDLING,
-  TOOL_INVOCATION_FORMAT,
+  TOOL_USAGE_RULES,
   TOOL_DISCOVERY_MINIMAL,
   TOOL_DISCOVERY_ALWAYS,
   MULTI_IMAGE_TOOL_USAGE,
@@ -147,10 +149,12 @@ export function buildCharacterSystemPrompt(
 
   // Universal guidelines from shared blocks
   sections.push(RESPONSE_STYLE);
+  sections.push(DOING_TASKS);
+  sections.push(EXECUTING_WITH_CARE);
   sections.push(WORKFLOW_SUBAGENT_BASELINE);
   sections.push(LANGUAGE_HANDLING);
   sections.push(MEDIA_DISPLAY_RULES);
-  sections.push(TOOL_INVOCATION_FORMAT); // Critical: Prevent tool syntax in text output
+  sections.push(TOOL_USAGE_RULES);
   sections.push(options.toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL);
   sections.push(MULTI_IMAGE_TOOL_USAGE); // Multi-image guidance for edit/reference tools
 
@@ -312,10 +316,12 @@ export function buildCacheableCharacterPrompt(
   // Block 4: Universal guidelines (static, highly cacheable)
   const guidelines = combineBlocks(
     RESPONSE_STYLE,
+    DOING_TASKS,
+    EXECUTING_WITH_CARE,
     WORKFLOW_SUBAGENT_BASELINE,
     LANGUAGE_HANDLING,
     MEDIA_DISPLAY_RULES,
-    TOOL_INVOCATION_FORMAT,
+    TOOL_USAGE_RULES,
     toolLoadingMode === "always" ? TOOL_DISCOVERY_ALWAYS : TOOL_DISCOVERY_MINIMAL,
     MULTI_IMAGE_TOOL_USAGE
   );
