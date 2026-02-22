@@ -1029,7 +1029,7 @@ const Composer: FC<{
 
   // Message queue state
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
-  const isQueueingLivePrompt = useRef(false);
+  const livePromptSubmitChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const markQueuedMessageStatus = useCallback((id: string, status: QueuedMessage["status"]) => {
     setQueuedMessages((prev) => prev.map((msg) => (msg.id === id ? { ...msg, status } : msg)));
@@ -1114,52 +1114,73 @@ const Composer: FC<{
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
   const queueLivePromptForActiveRun = useCallback(async (content: string): Promise<boolean> => {
-    if (!sessionId || !content || isQueueingLivePrompt.current) {
+    if (!sessionId || !content) {
       return false;
     }
 
-    isQueueingLivePrompt.current = true;
+    const MAX_ATTEMPTS = 24;
+    const RETRY_DELAY_MS = 250;
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    let targetRunId = livePromptRunId?.trim() || "";
 
-    try {
-      let targetRunId = livePromptRunId?.trim() || "";
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      try {
+        if (!targetRunId) {
+          const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string | null }>(
+            `/api/sessions/${sessionId}/active-run`,
+            { retries: 0 }
+          );
 
-      if (!targetRunId) {
-        const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string | null }>(
-          `/api/sessions/${sessionId}/active-run`,
+          if (error || !data?.hasActiveRun || !data.runId) {
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await wait(RETRY_DELAY_MS);
+              continue;
+            }
+            return false;
+          }
+
+          targetRunId = data.runId;
+        }
+
+        const payload: LivePromptPayload = {
+          runId: targetRunId,
+          id: `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          content,
+          source: "composer-midrun",
+        };
+
+        const { data, error } = await resilientPost<{ success?: boolean }>(
+          `/api/sessions/${sessionId}/live-prompt-queue`,
+          payload,
           { retries: 0 }
         );
 
-        if (error || !data?.hasActiveRun || !data.runId) {
-          return false;
+        if (!error && data?.success) {
+          return true;
         }
 
-        targetRunId = data.runId;
-      }
+        // Active run may still be initializing or rotated; retry by re-resolving run id.
+        targetRunId = "";
+        if (attempt < MAX_ATTEMPTS - 1) {
+          await wait(RETRY_DELAY_MS);
+          continue;
+        }
 
-      const payload: LivePromptPayload = {
-        runId: targetRunId,
-        id: `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        content,
-        source: "composer-midrun",
-      };
-
-      const { data, error } = await resilientPost<{ success?: boolean }>(
-        `/api/sessions/${sessionId}/live-prompt-queue`,
-        payload,
-        { retries: 0 }
-      );
-      if (error || !data?.success) {
         throw new Error(error || "queue_failed");
+      } catch (error) {
+        if (attempt < MAX_ATTEMPTS - 1) {
+          targetRunId = "";
+          await wait(RETRY_DELAY_MS);
+          continue;
+        }
+
+        console.error("[Composer] Failed to queue live prompt:", error);
+        return false;
       }
-      return true;
-    } catch (error) {
-      console.error("[Composer] Failed to queue live prompt:", error);
-      toast.error(te("genericRefresh"));
-      return false;
-    } finally {
-      isQueueingLivePrompt.current = false;
     }
-  }, [livePromptRunId, sessionId, te]);
+
+    return false;
+  }, [livePromptRunId, sessionId]);
   const skillPickerRef = useRef<HTMLDivElement>(null);
   const skillSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -1298,7 +1319,7 @@ const Composer: FC<{
 
     const timeoutId = setTimeout(() => {
       setQueuedMessages((prev) => prev.filter((message) => message.status !== "queued-live"));
-    }, 1800);
+    }, 4000);
 
     return () => clearTimeout(timeoutId);
   }, [isQueueBlocked, queuedMessages]);
@@ -1347,14 +1368,17 @@ const Composer: FC<{
             status: "queueing-live",
           }]);
 
-          void queueLivePromptForActiveRun(expandedMessage).then((queued) => {
-            if (queued) {
-              markQueuedMessageStatus(queuedId, "queued-live");
-              return;
-            }
+          livePromptSubmitChainRef.current = livePromptSubmitChainRef.current
+            .catch(() => undefined)
+            .then(async () => {
+              const queued = await queueLivePromptForActiveRun(expandedMessage);
+              if (queued) {
+                markQueuedMessageStatus(queuedId, "queued-live");
+                return;
+              }
 
-            markQueuedMessageStatus(queuedId, "queued-fallback");
-          });
+              markQueuedMessageStatus(queuedId, "queued-fallback");
+            });
         } else {
           // Queue the message when AI is busy (text only, no attachments for queued)
           setQueuedMessages((prev) => [...prev, {
@@ -1401,6 +1425,7 @@ const Composer: FC<{
     livePromptRunId,
     queueLivePromptForActiveRun,
     markQueuedMessageStatus,
+    livePromptSubmitChainRef,
   ]);
 
   // Insert a file mention from the autocomplete dropdown
