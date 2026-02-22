@@ -172,11 +172,23 @@ function buildExecuteCommandSpec(result: Record<string, unknown>): GenerativeUIS
 }
 
 function buildPatchLikeSpec(toolName: string, output: Record<string, unknown>): GenerativeUISpec | undefined {
+  const filePath = asString(output.filePath);
   const content = asString(output.content);
-  const summary = asString(output.summary);
+  const summary = asString(output.summary) || asString(output.message);
   const status = asString(output.status) || "success";
+  const linesChanged = asNumber(output.linesChanged) ?? asNumber(output.lineCount);
+  const bytesWritten = asNumber(output.bytesWritten);
+  const diff = asString(output.diff);
 
-  if (!content && !summary) return undefined;
+  if (!content && !summary && !filePath) return undefined;
+
+  const kvItems = [
+    { label: "Tool", value: toolName },
+    { label: "Status", value: status },
+    { label: "File", value: filePath || "-" },
+    { label: "Lines", value: linesChanged ?? null },
+    { label: "Bytes", value: bytesWritten ?? null },
+  ];
 
   const children: GenerativeUINode[] = [
     {
@@ -185,15 +197,28 @@ function buildPatchLikeSpec(toolName: string, output: Record<string, unknown>): 
       tone: status === "error" ? "danger" : "success",
       children: [
         {
-          type: "text",
-          text: summary || "Operation completed",
-          variant: "body",
+          type: "kv",
+          items: kvItems,
         },
       ],
     },
   ];
 
-  if (content) {
+  if (summary) {
+    children.push({
+      type: "card",
+      title: "Summary",
+      children: [{ type: "text", text: summary, variant: "body" }],
+    });
+  }
+
+  if (diff) {
+    children.push({
+      type: "card",
+      title: "Diff",
+      children: [{ type: "text", text: diff, variant: "code" }],
+    });
+  } else if (content) {
     children.push({
       type: "card",
       title: "Content",
@@ -201,7 +226,74 @@ function buildPatchLikeSpec(toolName: string, output: Record<string, unknown>): 
     });
   }
 
-  return makeSpec(`${toolName} output`, undefined, { type: "stack", gap: "md", children });
+  return makeSpec(`${toolName} output`, filePath, { type: "stack", gap: "md", children });
+}
+
+function buildWorkspaceSpec(output: Record<string, unknown>): GenerativeUISpec | undefined {
+  const status = asString(output.status) || "success";
+  const message = asString(output.message);
+  const error = asString(output.error);
+
+  const workspace = isRecord(output.workspace) ? output.workspace : undefined;
+  const branch = workspace ? asString(workspace.branch) : undefined;
+  const baseBranch = workspace ? asString(workspace.baseBranch) : undefined;
+  const worktreePath = workspace ? asString(workspace.worktreePath) : undefined;
+  const prUrl = workspace ? asString(workspace.prUrl) : undefined;
+  const changedFiles = workspace ? asNumber(workspace.changedFiles) : undefined;
+
+  if (!workspace && !message && !error) return undefined;
+
+  const children: GenerativeUINode[] = [];
+
+  children.push({
+    type: "card",
+    title: "Workspace",
+    tone: status === "error" ? "danger" : "info",
+    children: [
+      {
+        type: "kv",
+        items: [
+          { label: "Status", value: status },
+          { label: "Branch", value: branch || "-" },
+          { label: "Base", value: baseBranch || "-" },
+          { label: "Changed Files", value: changedFiles ?? null },
+        ],
+      },
+    ],
+  });
+
+  if (worktreePath) {
+    children.push({
+      type: "card",
+      title: "Path",
+      children: [{ type: "text", text: worktreePath, variant: "code" }],
+    });
+  }
+
+  if (prUrl) {
+    children.push({
+      type: "card",
+      title: "Pull Request",
+      children: [{ type: "list", items: [prUrl] }],
+    });
+  }
+
+  if (error) {
+    children.push({
+      type: "card",
+      title: "Error",
+      tone: "danger",
+      children: [{ type: "text", text: error, variant: "body" }],
+    });
+  } else if (message) {
+    children.push({
+      type: "card",
+      title: "Message",
+      children: [{ type: "text", text: message, variant: "body" }],
+    });
+  }
+
+  return makeSpec("Workspace", undefined, { type: "stack", gap: "md", children });
 }
 
 function buildPlanSpec(output: Record<string, unknown>): GenerativeUISpec | undefined {
@@ -281,6 +373,8 @@ export function buildAutoGenerativeUISpec(toolName: string, output: unknown): Ge
       return buildPlanSpec(output);
     case "calculator":
       return buildCalculatorSpec(output);
+    case "workspace":
+      return buildWorkspaceSpec(output);
     default:
       return undefined;
   }

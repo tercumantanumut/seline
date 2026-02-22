@@ -1,4 +1,9 @@
-import { validateGenerativeUISpec, type GenerativeUISpec } from "./spec";
+import {
+  extractGenerativeUISpec,
+  validateGenerativeUISpec,
+  type GenerativeUISpec,
+  type GenerativeUISpecExtractionResult,
+} from "./spec";
 
 export type GenerativeUISpecSource = "model" | "auto";
 
@@ -24,6 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function getGenerativeUISpecFromResult(result: unknown): {
   spec?: GenerativeUISpec;
   meta?: GenerativeUISpecMetadata;
+  extraction?: GenerativeUISpecExtractionResult;
 } {
   if (!isRecord(result)) {
     return {};
@@ -33,11 +39,13 @@ export function getGenerativeUISpecFromResult(result: unknown): {
   const candidateMeta = result.uiSpecMeta;
 
   const validated = validateGenerativeUISpec(candidateSpec);
-  const spec = validated.valid ? validated.spec : undefined;
+  const extraction = extractGenerativeUISpec(result);
+  const extractedSpec = extraction.valid ? extraction.spec : undefined;
+  const spec = validated.valid ? validated.spec : extractedSpec;
 
   const meta = isRecord(candidateMeta)
     ? (candidateMeta as unknown as GenerativeUISpecMetadata)
     : undefined;
 
-  return { spec, meta };
+  return { spec, meta, extraction };
 }

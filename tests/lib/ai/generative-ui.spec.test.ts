@@ -74,6 +74,37 @@ describe("auto UI spec generation", () => {
     expect(spec?.root.type).toBe("stack");
   });
 
+  it("builds patch-like visual spec for editFile", () => {
+    const spec = buildAutoGenerativeUISpec("editFile", {
+      status: "success",
+      filePath: "src/app.ts",
+      message: "Edited app.ts",
+      linesChanged: 12,
+      diff: "- old\n+ new",
+    });
+
+    expect(spec).toBeDefined();
+    expect(spec?.version).toBe("open-json-ui/v1");
+    expect(spec?.root.type).toBe("stack");
+  });
+
+  it("builds workspace visual spec", () => {
+    const spec = buildAutoGenerativeUISpec("workspace", {
+      status: "success",
+      workspace: {
+        branch: "feature/x",
+        baseBranch: "main",
+        worktreePath: "/tmp/worktree",
+        changedFiles: 3,
+        prUrl: "https://github.com/org/repo/pull/1",
+      },
+    });
+
+    expect(spec).toBeDefined();
+    expect(spec?.version).toBe("open-json-ui/v1");
+    expect(spec?.root.type).toBe("stack");
+  });
+
   it("returns undefined for unsupported tools", () => {
     const spec = buildAutoGenerativeUISpec("readFile", { content: "abc" });
     expect(spec).toBeUndefined();
@@ -100,6 +131,24 @@ describe("payload parsing", () => {
 
     expect(spec?.title).toBe("Validated");
     expect(meta?.source).toBe("model");
+  });
+
+  it("extracts valid spec from nested payload when top-level uiSpec is missing", () => {
+    const { spec, extraction } = getGenerativeUISpecFromResult({
+      ui: {
+        spec: {
+          version: "open-json-ui/v1",
+          title: "Nested",
+          root: {
+            type: "text",
+            text: "from nested",
+          },
+        },
+      },
+    });
+
+    expect(spec?.title).toBe("Nested");
+    expect(extraction?.valid).toBe(true);
   });
 
   it("drops invalid payload uiSpec", () => {

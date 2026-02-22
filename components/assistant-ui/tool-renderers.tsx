@@ -203,11 +203,31 @@ const WorkspaceToolUI: AnyToolRenderer = ({ result }: { result?: unknown }) => {
  * using specialized components where they add UX value and ToolFallback
  * for the rest to keep behavior consistent and scalable.
  */
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? "";
+  } catch {
+    return "[unserializable result]";
+  }
+}
+
 function withGenerativeUi(toolName: string, Renderer: AnyToolRenderer): AnyToolRenderer {
   const Wrapped: AnyToolRenderer = (props: { result?: unknown }) => {
     const { spec, meta } = getGenerativeUISpecFromResult(props?.result);
     if (spec) {
-      return <OpenJsonUIRenderer toolName={toolName} spec={spec} meta={meta} />;
+      return (
+        <div className="space-y-2">
+          <OpenJsonUIRenderer toolName={toolName} spec={spec} meta={meta} />
+          {props?.result ? (
+            <details className="text-xs text-terminal-muted">
+              <summary className="cursor-pointer hover:text-terminal-dark">View raw</summary>
+              <pre className="mt-2 max-h-64 overflow-auto rounded bg-terminal-dark/5 p-2 text-xs font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark">
+                {safeStringify(props.result)}
+              </pre>
+            </details>
+          ) : null}
+        </div>
+      );
     }
     return <Renderer {...props} />;
   };

@@ -96,6 +96,34 @@ function stripUiSpecForRawDisplay(result: ToolResult): ToolResult {
   return clone as unknown as ToolResult;
 }
 
+function looksLikeJsonBlock(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    return true;
+  }
+
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (!fencedMatch) return false;
+  const body = fencedMatch[1].trim();
+  return (
+    (body.startsWith("{") && body.endsWith("}")) ||
+    (body.startsWith("[") && body.endsWith("]"))
+  );
+}
+
+function parseJsonBlock(text: string): unknown | undefined {
+  const trimmed = text.trim();
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return undefined;
+  }
+}
+
 // Memoized Icon Component with Phosphor Icons
 const ToolIcon: FC<{
   toolName: string;
@@ -678,10 +706,33 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
           );
         }
 
+        // Optional parser: if a tool returns JSON text that embeds an Open-JSON-UI
+        // spec, render it visually before falling back to plain text.
+        const textContent = parsedResult.text || (parsedResult as { content?: string }).content;
+        if (typeof textContent === "string" && looksLikeJsonBlock(textContent)) {
+          const parsedJson = parseJsonBlock(textContent);
+          if (parsedJson) {
+            const extracted = getGenerativeUISpecFromResult(parsedJson);
+            if (extracted.spec) {
+              return (
+                <div className="space-y-2">
+                  <OpenJsonUIRenderer toolName={toolName} spec={extracted.spec} meta={extracted.meta ?? meta} />
+                  <details className="text-xs text-terminal-muted">
+                    <summary className="cursor-pointer hover:text-terminal-dark">
+                      View raw output
+                    </summary>
+                    <ToolResultDisplay toolName={toolName} result={parsedResult} />
+                  </details>
+                </div>
+              );
+            }
+          }
+        }
+
         return hasVisualMedia(parsedResult) ? (
           <ToolResultDisplay toolName={toolName} result={parsedResult} />
         ) : (
-          <details className="text-xs text-terminal-muted">
+          <details className="text-xs text-terminal-muted" open={false}>
             <summary className="cursor-pointer hover:text-terminal-dark">
               View output
             </summary>
