@@ -1156,6 +1156,11 @@ const Composer: FC<{
         );
 
         if (!error && data?.success) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("live-prompt-queued", {
+              detail: { sessionId },
+            }));
+          }
           return true;
         }
 

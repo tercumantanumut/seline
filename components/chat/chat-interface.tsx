@@ -897,14 +897,25 @@ export default function ChatInterface({
             }
         };
 
+        const handleLivePromptQueued = (event: Event) => {
+            const detail = (event as CustomEvent<{ sessionId?: string }>).detail;
+            if (!detail || detail.sessionId !== sessionId) {
+                return;
+            }
+            void reloadSessionMessages(sessionId, { remount: true });
+            refreshSessionTimestamp(sessionId);
+        };
+
         window.addEventListener("background-task-completed", handleTaskCompleted);
         window.addEventListener("background-task-started", handleTaskStarted);
+        window.addEventListener("live-prompt-queued", handleLivePromptQueued);
 
         return () => {
             window.removeEventListener("background-task-completed", handleTaskCompleted);
             window.removeEventListener("background-task-started", handleTaskStarted);
+            window.removeEventListener("live-prompt-queued", handleLivePromptQueued);
         };
-    }, [character.id, loadSessions, reloadSessionMessages, sessionId]);
+    }, [character.id, loadSessions, refreshSessionTimestamp, reloadSessionMessages, sessionId]);
 
     useEffect(() => {
         if (!sessionId) {
