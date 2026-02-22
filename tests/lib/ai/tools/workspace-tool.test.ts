@@ -62,7 +62,7 @@ describe("workspace-tool create action", () => {
     fsMocks.realpathSync.mockImplementation((p: string) => p);
   });
 
-  it("accepts Windows absolute repoPath and verifies repo via git rev-parse", async () => {
+  it.skipIf(process.platform !== "win32")("accepts Windows absolute repoPath and verifies repo via git rev-parse", async () => {
     childProcessMocks.execFileAsync
       .mockResolvedValueOnce({ stdout: "true\n", stderr: "" })
       .mockResolvedValueOnce({ stdout: "main\n", stderr: "" })

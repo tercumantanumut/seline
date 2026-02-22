@@ -100,9 +100,6 @@ const requiredPaths = [
     : 'standalone/node_modules/.bin/node',
   'standalone/node_modules/npm/bin/npm-cli.js',
   'standalone/node_modules/npm/bin/npx-cli.js',
-  ...(platform === 'darwin' || platform === 'mac'
-    ? ['standalone/node_modules/lib']
-    : []),
 ];
 
 // RTK bundle is optional at runtime (experimental), but warn if absent in package.
@@ -124,13 +121,29 @@ for (const required of requiredPaths) {
   }
 }
 
+// Verify the bundled node binary has no external dylib dependencies (macOS only)
 if (platform === 'darwin' || platform === 'mac') {
-  const nodeLibDir = path.join(appResourcesPath, 'standalone', 'node_modules', 'lib');
-  if (fs.existsSync(nodeLibDir)) {
-    const libnodeFiles = fs.readdirSync(nodeLibDir).filter((name) => /^libnode\..+\.dylib$/i.test(name));
-    if (libnodeFiles.length === 0) {
-      console.error('   ❌ FAIL: Missing libnode*.dylib in standalone/node_modules/lib');
-      hasErrors = true;
+  const bundledNode = path.join(appResourcesPath, 'standalone', 'node_modules', '.bin', 'node');
+  if (fs.existsSync(bundledNode)) {
+    try {
+      const { execSync } = require('child_process');
+      const otoolOutput = execSync(`otool -L "${bundledNode}"`, { encoding: 'utf-8' });
+      const nonSystemDeps = otoolOutput.split('\n')
+        .filter(line => line.includes('.dylib'))
+        .filter(line => !line.includes('/usr/lib/') && !line.includes('/System/'))
+        .map(line => line.trim());
+      if (nonSystemDeps.length > 0) {
+        console.error('   ❌ FAIL: Bundled node binary has non-system dylib dependencies:');
+        nonSystemDeps.forEach(dep => console.error(`      ${dep}`));
+        console.error('   This means the binary was NOT downloaded from nodejs.org (official).');
+        console.error('   Homebrew/nvm binaries will crash on end user machines.');
+        hasErrors = true;
+      } else {
+        console.log('   ✅ Bundled node: no external dylib dependencies (official static binary)');
+      }
+    } catch {
+      console.warn('   ⚠️  WARNING: Could not verify bundled node dylib dependencies');
+      hasWarnings = true;
     }
   }
 }

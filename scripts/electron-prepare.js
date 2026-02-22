@@ -43,42 +43,67 @@ function ensureExecutable(filePath) {
 }
 
 
-function copyBundledNodeMacLibraries(nodeExeSrc, standaloneDir) {
-    if (process.platform !== 'darwin') return;
+/**
+ * Download the official Node.js binary from nodejs.org.
+ *
+ * Official binaries are fully statically linked (openssl, icu, libuv, etc.)
+ * and have zero external dylib dependencies beyond macOS system libraries.
+ * This is critical because Homebrew/nvm Node binaries dynamically link against
+ * ~10 Homebrew dylibs that do NOT exist on end users' machines.
+ *
+ * @param {string} nodeVersion - e.g. "22.17.1"
+ * @param {string} destPath - absolute path where the binary should be written
+ * @returns {boolean} true if download succeeded
+ */
+function downloadOfficialNodeBinary(nodeVersion, destPath) {
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const platform = process.platform === 'darwin' ? 'darwin' : 'win';
 
-    let nodeBinaryPath = nodeExeSrc;
+    if (process.platform === 'win32') {
+        // Windows: download .exe directly
+        const url = `https://nodejs.org/dist/v${nodeVersion}/win-${arch}/node.exe`;
+        console.log(`  Downloading official Node.js v${nodeVersion} for Windows ${arch}...`);
+        console.log(`  URL: ${url}`);
+        try {
+            execSync(`curl -fsSL "${url}" -o "${destPath}"`, { stdio: 'inherit', timeout: 120000 });
+            return true;
+        } catch (error) {
+            console.error(`  Failed to download Node.js: ${error.message}`);
+            return false;
+        }
+    }
+
+    // macOS: download tarball and extract the binary
+    const tarballName = `node-v${nodeVersion}-${platform}-${arch}`;
+    const url = `https://nodejs.org/dist/v${nodeVersion}/${tarballName}.tar.gz`;
+    const tempDir = path.join(require('os').tmpdir(), `node-download-${Date.now()}`);
+
+    console.log(`  Downloading official Node.js v${nodeVersion} for macOS ${arch}...`);
+    console.log(`  URL: ${url}`);
+
     try {
-        nodeBinaryPath = fs.realpathSync(nodeExeSrc);
-    } catch {
-        // Keep original path if realpath resolution fails.
+        fs.mkdirSync(tempDir, { recursive: true });
+        // Download and extract only the bin/node file
+        execSync(
+            `curl -fsSL "${url}" | tar -xz -C "${tempDir}" "${tarballName}/bin/node"`,
+            { stdio: 'inherit', timeout: 120000 }
+        );
+
+        const extractedBinary = path.join(tempDir, tarballName, 'bin', 'node');
+        if (!fs.existsSync(extractedBinary)) {
+            console.error(`  Error: Extracted binary not found at ${extractedBinary}`);
+            return false;
+        }
+
+        fs.copyFileSync(extractedBinary, destPath);
+        // Clean up temp dir
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        return true;
+    } catch (error) {
+        console.error(`  Failed to download Node.js: ${error.message}`);
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+        return false;
     }
-
-    const nodeSrcDir = path.dirname(nodeBinaryPath);
-    const nodeLibSrcDir = path.resolve(nodeSrcDir, '..', 'lib');
-    const nodeLibDestDir = path.join(standaloneDir, 'node_modules', 'lib');
-
-    if (!fs.existsSync(nodeLibSrcDir)) {
-        console.warn(`  Warning: Node lib directory not found: ${nodeLibSrcDir}`);
-        return;
-    }
-
-    const libnodeFiles = fs.readdirSync(nodeLibSrcDir)
-        .filter((name) => /^libnode\..+\.dylib$/i.test(name));
-
-    if (libnodeFiles.length === 0) {
-        console.warn(`  Warning: No libnode*.dylib found in ${nodeLibSrcDir}`);
-        return;
-    }
-
-    ensureDir(nodeLibDestDir);
-    for (const fileName of libnodeFiles) {
-        const src = path.join(nodeLibSrcDir, fileName);
-        const dest = path.join(nodeLibDestDir, fileName);
-        fs.copyFileSync(src, dest);
-        ensureExecutable(dest);
-    }
-
-    console.log(`  Bundled Node sidecar libraries: ${libnodeFiles.join(', ')}`);
 }
 
 function pruneOnnxRuntime(baseDir, napiDirName, keepOs, keepArch) {
@@ -433,29 +458,60 @@ try {
 }
 
 // 15. Bundle Node.js executable for MCP subprocess spawning
-// This avoids console window flashing on Windows and provides a clean Node.js runtime on Mac
-// Using a real Node.js binary instead of ELECTRON_RUN_AS_NODE improves compatibility
+// Downloads the official Node.js binary from nodejs.org which is fully statically linked.
+// IMPORTANT: Do NOT use process.execPath (Homebrew/nvm node) — those binaries dynamically
+// link against ~10 Homebrew dylibs (libuv, openssl, icu, brotli, etc.) that don't exist
+// on end users' machines, causing the bundled node to crash with "Library not loaded".
 if (process.platform === 'win32' || process.platform === 'darwin') {
     const platformName = process.platform === 'win32' ? 'Windows' : 'macOS';
-    console.log(`Bundling Node.js executable for ${platformName}...`);
-    const nodeExeSrc = process.execPath; // Current Node.js executable
+    console.log(`Bundling official Node.js binary for ${platformName}...`);
+
+    // Match the major version of the build machine's Node for compatibility
+    const nodeVersion = process.versions.node; // e.g. "22.17.1"
     const nodeBinDir = path.join(standaloneDir, 'node_modules', '.bin');
     const nodeExeName = process.platform === 'win32' ? 'node.exe' : 'node';
     const nodeExeDest = path.join(nodeBinDir, nodeExeName);
 
     ensureDir(nodeBinDir);
 
-    if (fs.existsSync(nodeExeSrc)) {
-        fs.copyFileSync(nodeExeSrc, nodeExeDest);
-        // Ensure the binary is executable on macOS
-        if (process.platform === 'darwin') {
-            ensureExecutable(nodeExeDest);
-            copyBundledNodeMacLibraries(nodeExeSrc, standaloneDir);
-        }
+    const downloaded = downloadOfficialNodeBinary(nodeVersion, nodeExeDest);
+    if (downloaded) {
+        ensureExecutable(nodeExeDest);
         const stats = fs.statSync(nodeExeDest);
-        console.log(`  Bundled ${nodeExeName}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+        console.log(`  Bundled official ${nodeExeName} v${nodeVersion}: ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+
+        // Verify the binary has no external dylib dependencies (sanity check on macOS)
+        if (process.platform === 'darwin') {
+            try {
+                const otoolOutput = execSync(`otool -L "${nodeExeDest}"`, { encoding: 'utf-8' });
+                const nonSystemDeps = otoolOutput.split('\n')
+                    .filter(line => line.includes('.dylib'))
+                    .filter(line => !line.includes('/usr/lib/') && !line.includes('/System/'))
+                    .map(line => line.trim());
+                if (nonSystemDeps.length > 0) {
+                    console.warn('  WARNING: Official node binary has non-system dylib dependencies:');
+                    nonSystemDeps.forEach(dep => console.warn(`    ${dep}`));
+                    console.warn('  This may cause issues on end user machines!');
+                } else {
+                    console.log('  Verified: No external dylib dependencies (fully static)');
+                }
+            } catch {
+                console.warn('  Warning: Could not verify dylib dependencies (otool not available)');
+            }
+        }
     } else {
-        console.warn('  Warning: Could not find Node.js executable to bundle');
+        // Fallback: copy local node binary (may have dylib dependencies)
+        console.warn('  WARNING: Failed to download official Node.js binary.');
+        console.warn('  Falling back to local node binary — this may not work on end user machines!');
+        const nodeExeSrc = process.execPath;
+        if (fs.existsSync(nodeExeSrc)) {
+            fs.copyFileSync(nodeExeSrc, nodeExeDest);
+            ensureExecutable(nodeExeDest);
+            const stats = fs.statSync(nodeExeDest);
+            console.log(`  Bundled local ${nodeExeName} (fallback): ${(stats.size / 1024 / 1024).toFixed(1)} MB`);
+        } else {
+            console.error('  Error: Could not find any Node.js executable to bundle');
+        }
     }
 }
 
