@@ -88,6 +88,7 @@ import {
   type ContextWindowBlockedPayload,
 } from "./context-window-blocked-banner";
 import { resilientFetch, resilientPost, resilientPut } from "@/lib/utils/resilient-fetch";
+import { hasStopIntent } from "@/lib/agent-run/live-prompt-queue";
 import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 import type { SkillRecord } from "@/lib/skills/types";
@@ -973,6 +974,7 @@ interface QueuedMessage {
   content: string;
   mode: "chat" | "deep-research";
   status?: "queueing-live" | "queued-live" | "queued-fallback";
+  stopIntent?: boolean;
 }
 
 interface LivePromptPayload {
@@ -1287,7 +1289,9 @@ const Composer: FC<{
     }
 
     const nextFallbackQueueIndex = queuedMessages.findIndex((message) => (
-      message.status !== "queued-live" && message.status !== "queueing-live"
+      message.status !== "queued-live"
+      && message.status !== "queueing-live"
+      && !message.stopIntent
     ));
 
     // Only process fallback queue items after active work ends.
@@ -1366,6 +1370,7 @@ const Composer: FC<{
             content: expandedMessage,
             mode: "chat",
             status: "queueing-live",
+            stopIntent: hasStopIntent(expandedMessage),
           }]);
 
           livePromptSubmitChainRef.current = livePromptSubmitChainRef.current
@@ -1374,12 +1379,14 @@ const Composer: FC<{
               const queued = await queueLivePromptForActiveRun(expandedMessage);
               if (queued) {
                 markQueuedMessageStatus(queuedId, "queued-live");
-                threadRuntime.append({
-                  role: "user",
-                  content: [{ type: "text", text: expandedMessage }],
-                  startRun: false,
-                  sourceId: `live-queued-${queuedId}`,
-                });
+                if (!hasStopIntent(expandedMessage)) {
+                  threadRuntime.append({
+                    role: "user",
+                    content: [{ type: "text", text: expandedMessage }],
+                    startRun: false,
+                    sourceId: `live-queued-${queuedId}`,
+                  });
+                }
                 return;
               }
 
@@ -1392,6 +1399,7 @@ const Composer: FC<{
             content: expandedMessage,
             mode: isDeepResearchMode ? "deep-research" : "chat",
             status: "queued-fallback",
+            stopIntent: hasStopIntent(expandedMessage),
           }]);
         }
       }
@@ -2104,6 +2112,7 @@ const Composer: FC<{
                   <span className="max-w-32 truncate">{msg.content}</span>
                   {isQueueingLive && <Loader2Icon className="size-3 animate-spin text-terminal-green" />}
                   {isQueuedLive && <CheckCircleIcon className="size-3 text-terminal-green" />}
+                  {msg.stopIntent && <CircleStopIcon className="size-3 text-red-500" />}
                   <button
                     onClick={() => removeFromQueue(msg.id)}
                     className="text-terminal-muted hover:text-red-500 transition-colors"

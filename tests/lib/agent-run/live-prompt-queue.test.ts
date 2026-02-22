@@ -5,6 +5,8 @@ import {
   buildLivePromptInjectionMessage,
   getLivePromptQueueEntries,
   getUnseenLivePromptEntries,
+  hasLivePromptStopIntent,
+  hasStopIntent,
   sanitizeLivePromptContent,
 } from "@/lib/agent-run/live-prompt-queue";
 
@@ -42,6 +44,25 @@ describe("live prompt queue", () => {
     const runBEntries = getUnseenLivePromptEntries(metadataWithSecond, "run-b", new Set<string>());
     expect(runBEntries).toHaveLength(1);
     expect(runBEntries[0]?.id).toBe("p2");
+  });
+
+  it("detects stop intent and marks injection message as critical", () => {
+    expect(hasStopIntent("please STOP now")).toBe(true);
+    expect(hasStopIntent("continue please")).toBe(false);
+
+    const stopEntries = [
+      {
+        id: "s1",
+        runId: "run-a",
+        content: "stop the run now",
+        createdAt: "2026-02-22T00:00:20.000Z",
+        source: "chat",
+      },
+    ];
+
+    expect(hasLivePromptStopIntent(stopEntries)).toBe(true);
+    const stopMessage = buildLivePromptInjectionMessage(stopEntries);
+    expect(stopMessage).toContain("CRITICAL: A stop/cancel instruction is present");
   });
 
   it("sorts entries by createdAt and builds injection message", () => {

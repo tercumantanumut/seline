@@ -93,6 +93,25 @@ export function getUnseenLivePromptEntries(
   return unseen;
 }
 
+const STOP_INTENT_PATTERNS: RegExp[] = [
+  /\bstop\b/i,
+  /\bcancel\b/i,
+  /\babort\b/i,
+  /\bhalt\b/i,
+  /\bterminate\b/i,
+  /\bend\b/i,
+  /\bdo not continue\b/i,
+  /\bdon'?t continue\b/i,
+];
+
+export function hasStopIntent(content: string): boolean {
+  return STOP_INTENT_PATTERNS.some((pattern) => pattern.test(content));
+}
+
+export function hasLivePromptStopIntent(entries: LivePromptQueueEntry[]): boolean {
+  return entries.some((entry) => hasStopIntent(entry.content));
+}
+
 export function buildLivePromptInjectionMessage(entries: LivePromptQueueEntry[]): string | null {
   if (!Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -103,9 +122,13 @@ export function buildLivePromptInjectionMessage(entries: LivePromptQueueEntry[])
     return `${index + 1}. (${sourceLabel}, at ${entry.createdAt}) ${entry.content}`;
   });
 
+  const hasStop = hasLivePromptStopIntent(entries);
+
   return [
     "Live user instructions were submitted while this run was already in progress.",
-    "Apply them immediately when deciding the next tool calls and response.",
+    hasStop
+      ? "CRITICAL: A stop/cancel instruction is present. Do not execute any further tools and conclude safely."
+      : "Apply them immediately when deciding the next tool calls and response.",
     ...lines,
   ].join("\n");
 }
