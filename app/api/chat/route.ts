@@ -2,7 +2,6 @@ import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, t
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
-import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
 import { createVectorSearchToolV2 } from "@/lib/ai/vector-search";
 import { createReadFileTool } from "@/lib/ai/tools/read-file-tool";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
@@ -738,17 +737,6 @@ async function extractContent(
           if (webSearchOutput?.sources && webSearchOutput.sources.length > 0) {
             console.log(`[EXTRACT] webSearch completed: ${webSearchOutput.query} (${webSearchOutput.sources.length} sources)`);
           }
-        } else if (toolName === "webBrowse") {
-          const webBrowseOutput = output as {
-            status?: string;
-            synthesis?: string;
-            fetchedUrls?: string[];
-            sourcesUsed?: string[];
-          } | null;
-          if (webBrowseOutput?.synthesis) {
-            const urls = webBrowseOutput.fetchedUrls || webBrowseOutput.sourcesUsed;
-            console.log(`[EXTRACT] webBrowse completed: fetched ${urls?.length || 0} URLs`);
-          }
         } else if (toolName === "vectorSearch") {
           const vectorSearchOutput = output as {
             status?: string;
@@ -911,17 +899,6 @@ async function extractContent(
           } | undefined;
           if (webSearchResult?.sources && webSearchResult.sources.length > 0) {
             console.log(`[EXTRACT] webSearch completed: ${webSearchResult.query} (${webSearchResult.sources.length} sources)`);
-          }
-        } else if (toolName === "webBrowse") {
-          const webBrowseResult = toolOutput as {
-            status?: string;
-            synthesis?: string;
-            fetchedUrls?: string[];
-            sourcesUsed?: string[];
-          } | undefined;
-          if (webBrowseResult?.synthesis) {
-            const urls = webBrowseResult.fetchedUrls || webBrowseResult.sourcesUsed;
-            console.log(`[EXTRACT] webBrowse completed: fetched ${urls?.length || 0} URLs`);
           }
         } else if (toolName === "vectorSearch") {
           const vectorSearchResult = toolOutput as {
@@ -2627,20 +2604,9 @@ export async function POST(req: Request) {
         characterId: characterId || null,
       }),
       webSearch: createWebSearchTool({
-        userId: dbUser.id,
-        characterId: characterId || null,
-      }),
-      webBrowse: createWebBrowseTool({
         sessionId,
         userId: dbUser.id,
         characterId: characterId || null,
-        sessionMetadata,
-      }),
-      webQuery: createWebQueryTool({
-        sessionId,
-        userId: dbUser.id,
-        characterId: characterId || null,
-        sessionMetadata,
       }),
       retrieveFullContent: createRetrieveFullContentTool({
         sessionId,
@@ -3158,24 +3124,9 @@ export async function POST(req: Request) {
       }),
       ...(allTools.webSearch && {
         webSearch: createWebSearchTool({
-          userId: dbUser.id,
-          characterId: characterId || null,
-        }),
-      }),
-      ...(allTools.webBrowse && {
-        webBrowse: createWebBrowseTool({
           sessionId,
           userId: dbUser.id,
           characterId: characterId || null,
-          sessionMetadata,
-        }),
-      }),
-      ...(allTools.webQuery && {
-        webQuery: createWebQueryTool({
-          sessionId,
-          userId: dbUser.id,
-          characterId: characterId || null,
-          sessionMetadata,
         }),
       }),
       ...(allTools.executeCommand && {

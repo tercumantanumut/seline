@@ -53,8 +53,6 @@ import {
 import { createWebSearchTool } from "../web-search";
 import { createVectorSearchToolV2 } from "../vector-search";
 import { createReadFileTool } from "../tools/read-file-tool";
-import { createFirecrawlCrawlTool } from "../firecrawl";
-import { createWebBrowseTool, createWebQueryTool } from "../web-browse";
 import { createLocalGrepTool } from "../ripgrep";
 import { createExecuteCommandTool } from "../tools/execute-command-tool";
 import { createEditFileTool } from "../tools/edit-file-tool";
@@ -959,44 +957,37 @@ Skipping → wrong gender/body assumptions → poor edit results.
     (context) => createDescribeImageTool(context.sessionId)
   );
 
-  // Web Search Tool (configurable per-agent - lightweight web search)
+  // Unified Web Tool (single entrypoint for search + browse + synthesis)
   registry.register(
     "webSearch",
     {
-      displayName: "Web Search",
+      displayName: "Web",
       category: "search",
       keywords: [
-        "search",
         "web",
+        "search",
+        "browse",
         "internet",
-        "lookup",
-        "find",
-        "google",
+        "url",
+        "fetch",
+        "read",
+        "synthesize",
         "current",
         "news",
         "facts",
-        "information",
-        // Phrase keywords for better discovery
-        "web search",
-        "internet search",
-        "search the web",
-        "online search",
-        "search online",
-        "find online",
-        "browse web",
-        "surf web",
       ],
-      shortDescription:
-        "Search the web for URLs, then use webBrowse to read them",
-      fullInstructions: `## Web Search
+      shortDescription: "Single web tool: search, fetch URLs, and synthesize in one call",
+      fullInstructions: `## Web
 
-Find URLs, then use \`webBrowse\` to read them. Max 2 webSearch calls per conversation.
+Single web tool for both discovery and reading.
 
-**Workflow:** webSearch → get URLs → webBrowse(urls, query) for content.
-**Don't use for:** reading URL content (use webBrowse directly), comprehensive research (use Deep Research).`,
+- If you have URLs: pass them in \`urls\` to fetch + synthesize directly.
+- If you do not have URLs: provide \`query\`; the tool searches first, then fetches top pages and synthesizes.
+
+Use this as the default web workflow.`,
       loading: { deferLoading: true },
       requiresSession: false,
-      // No enableEnvVar — DuckDuckGo fallback needs no API key
+      // No enableEnvVar — DuckDuckGo + local scraper fallback keeps it available
     } satisfies ToolMetadata,
     () => createWebSearchTool()
   );
@@ -1004,98 +995,6 @@ Find URLs, then use \`webBrowse\` to read them. Max 2 webSearch calls per conver
   // ============================================================
   // DEFERRED TOOLS - AI Model Pipelines (require searchTools to discover)
   // ============================================================
-
-  // Firecrawl Crawl Tool
-  registry.register(
-    "firecrawlCrawl",
-    {
-      displayName: "Crawl Website",
-      category: "search",
-      keywords: [
-        "crawl",
-        "spider",
-        "website",
-        "pages",
-        "multiple",
-        "firecrawl",
-        "sitemap",
-        "documentation",
-      ],
-      shortDescription: "Crawl multiple pages from a website starting from a URL",
-      fullInstructions: `## Firecrawl Crawler
-
-Crawl multiple pages from a website as markdown. Good for documentation sites.
-Async — may take up to 60s. Use includePaths/excludePaths to focus on specific sections.`,
-      loading: { deferLoading: true },
-      requiresSession: false,
-      enableEnvVar: "FIRECRAWL_API_KEY",
-    } satisfies ToolMetadata,
-    (context) => createFirecrawlCrawlTool(context.sessionId)
-  );
-
-  // Web Browse Tool - Session-scoped web browsing with synthesis
-  registry.register(
-    "webBrowse",
-    {
-      displayName: "Web Browse",
-      category: "search",
-      keywords: [
-        "browse",
-        "web",
-        "read",
-        "fetch",
-        "analyze",
-        "webpage",
-        "url",
-        "content",
-        "synthesize",
-        // Phrase keywords for better discovery
-        "web browse",
-        "browse website",
-        "read webpage",
-        "fetch url",
-        "scrape web",
-        "extract web",
-        "internet",
-        "web content",
-      ],
-      shortDescription: "Fetch web pages and synthesize information in one operation",
-      fullInstructions: `## Web Browse
-
-Fetch 1-5 URLs and get a synthesized answer. Content cached for this conversation.
-Use webQuery for follow-up questions on already-fetched content. Use webSearch first if you need to find URLs.`,
-      loading: { deferLoading: true },
-      requiresSession: true,
-      enableEnvVar: "FIRECRAWL_API_KEY",
-    } satisfies ToolMetadata,
-    () => createWebBrowseTool({ sessionId: "", userId: "", characterId: null })
-  );
-
-  // Web Query Tool - Query previously fetched content
-  registry.register(
-    "webQuery",
-    {
-      displayName: "Web Query",
-      category: "search",
-      keywords: [
-        "query",
-        "web",
-        "cached",
-        "session",
-        "follow-up",
-        "question",
-        "content",
-      ],
-      shortDescription: "Query previously fetched web content from this conversation",
-      fullInstructions: `## Web Query
-
-Follow-up questions on already-fetched web content (from webBrowse). Content expires after 2 hours.
-Use webBrowse for new URLs; this is for re-querying cached content.`,
-      loading: { deferLoading: true },
-      requiresSession: true,
-    } satisfies ToolMetadata,
-    () => createWebQueryTool({ sessionId: "", userId: "", characterId: null })
-  );
 
   // ============================================================================
   // LOCAL COMFYUI IMAGE GENERATION TOOLS
@@ -1296,7 +1195,7 @@ Edit images with Gemini 2.5 Flash. Two modes: single image edit, or two-image co
 
 **⚠️ Virtual Try-On Workflow (3 mandatory steps):**
 1. \`describeImage\` FIRST → analyze user's photo (never skip!)
-2. Get reference image URL (webSearch/webBrowse)
+2. Get reference image URL (webSearch)
 3. \`editImage\` with BOTH image_url + second_image_url + insights from step 1
 
 **Common mistakes:** Skipping describeImage, omitting second_image_url for try-on, assuming gender without analysis.`,
@@ -1810,9 +1709,9 @@ Automatically uses all media from the current session. Rendering may take time f
         "REQUIRED: Display products with images and purchase links for ALL shopping/product queries",
       fullInstructions: `## Product Gallery — MANDATORY for product queries
 
-**ALWAYS call** after finding products via webSearch/webBrowse. Never skip when you have product info.
+**ALWAYS call** after finding products via webSearch. Never skip when you have product info.
 
-**Workflow:** webSearch → webBrowse (extract images/prices/URLs) → showProductImages immediately.
+**Workflow:** webSearch (extract images/prices/URLs) → showProductImages immediately.
 Each product needs: id, name, imageUrl (required), price, sourceUrl (purchase link).`,
       loading: { deferLoading: true }, // Deferred - discovered via searchTools when shopping
       requiresSession: false,
@@ -1820,7 +1719,7 @@ Each product needs: id, name, imageUrl (required), price, sourceUrl (purchase li
     () =>
       tool({
         description:
-          "REQUIRED for ALL product/shopping queries: Display products with images and purchase links. MUST be called after webSearch/webBrowse when user asks for product recommendations (e.g., 'find floor tiles', 'recommend furniture'). Always include imageUrl and sourceUrl for each product.",
+          "REQUIRED for ALL product/shopping queries: Display products with images and purchase links. MUST be called after webSearch when user asks for product recommendations (e.g., 'find floor tiles', 'recommend furniture'). Always include imageUrl and sourceUrl for each product.",
         inputSchema: jsonSchema<{
           query: string;
           products: Array<{

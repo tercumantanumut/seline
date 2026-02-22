@@ -43,7 +43,7 @@ export interface AgentToolState {
   /** Most recent image analysis result (for virtual try-on workflows) */
   imageAnalysis?: ImageAnalysisState;
 
-  /** URLs of reference images fetched via webSearch/webBrowse */
+  /** URLs of reference images fetched via webSearch */
   fetchedReferenceUrls: Map<string, string>;
 }
 
@@ -51,18 +51,13 @@ export interface AgentToolState {
  * Tool usage limits configuration
  */
 export interface ToolLimits {
-  /** Maximum webSearch calls per session (default: 2) */
+  /** Maximum webSearch calls per session (default: unlimited) */
   maxWebSearchCalls: number;
-  /** Maximum webBrowse calls per session (default: 10) */
-  maxWebBrowseCalls: number;
 }
 
-// Tool limits set to effectively unlimited (Number.MAX_SAFE_INTEGER)
-// Previously: maxWebSearchCalls: 2, maxWebBrowseCalls: 10
-// Removed limits to allow unrestricted tool usage per session
+// Tool limits set to effectively unlimited (Number.MAX_SAFE_INTEGER).
 export const DEFAULT_TOOL_LIMITS: ToolLimits = {
   maxWebSearchCalls: Number.MAX_SAFE_INTEGER,
-  maxWebBrowseCalls: Number.MAX_SAFE_INTEGER,
 };
 
 /**
@@ -104,15 +99,12 @@ export function isToolLimitExceeded(
   toolName: string,
   limits: ToolLimits = DEFAULT_TOOL_LIMITS
 ): boolean {
-  const count = getToolCount(state, toolName);
-  switch (toolName) {
-    case "webSearch":
-      return count >= limits.maxWebSearchCalls;
-    case "webBrowse":
-      return count >= limits.maxWebBrowseCalls;
-    default:
-      return false;
+  if (toolName !== "webSearch") {
+    return false;
   }
+
+  const count = getToolCount(state, toolName);
+  return count >= limits.maxWebSearchCalls;
 }
 
 /**

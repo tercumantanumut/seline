@@ -20,7 +20,6 @@ const SELINE_STATIC_TOOLS: string[] = [
   ...DEFAULT_ENABLED_TOOLS,
   // Conditional tools (included in static list for preview/display)
   "vectorSearch",
-  "webBrowse",
 ];
 
 export const SELINE_DEFAULT_TEMPLATE: AgentTemplate = {

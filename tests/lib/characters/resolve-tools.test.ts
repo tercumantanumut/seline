@@ -187,61 +187,6 @@ describe("resolveSelineTemplateTools", () => {
   });
 
   // =========================================================================
-  // Web Browse — conditional on firecrawlApiKey OR local scraper
-  // =========================================================================
-  describe("webBrowse", () => {
-    it("should include webBrowse when firecrawlApiKey is set", () => {
-      const settings = buildSettings({ firecrawlApiKey: "fc-abc123" });
-      const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).toContain("webBrowse");
-      expect(result.warnings.find((w) => w.toolId === "webBrowse")).toBeUndefined();
-    });
-
-    it("should not include webBrowse in default enabled tools", () => {
-      expect(DEFAULT_ENABLED_TOOLS).not.toContain("webBrowse");
-    });
-
-    it("should include webBrowse when webScraperProvider is 'local'", () => {
-      const settings = buildSettings({
-        webScraperProvider: "local",
-        firecrawlApiKey: undefined,
-      });
-      const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).toContain("webBrowse");
-    });
-
-    it("should NOT include webBrowse when firecrawl key missing AND scraper is not local", () => {
-      const settings = buildSettings({
-        firecrawlApiKey: undefined,
-        webScraperProvider: "firecrawl",
-      });
-      const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("webBrowse");
-    });
-
-    it("should NOT include webBrowse when firecrawl key is empty AND scraper is firecrawl", () => {
-      const settings = buildSettings({
-        firecrawlApiKey: "",
-        webScraperProvider: "firecrawl",
-      });
-      const result = resolveSelineTemplateTools(settings);
-      expect(result.enabledTools).not.toContain("webBrowse");
-    });
-
-    it("should include a warning when webBrowse is disabled", () => {
-      const settings = buildSettings({
-        firecrawlApiKey: undefined,
-        webScraperProvider: "firecrawl",
-      });
-      const result = resolveSelineTemplateTools(settings);
-      const warning = result.warnings.find((w) => w.toolId === "webBrowse");
-      expect(warning).toBeDefined();
-      expect(warning!.settingsKeys).toContain("firecrawlApiKey");
-      expect(warning!.settingsKeys).toContain("webScraperProvider");
-    });
-  });
-
-  // =========================================================================
   // Full configuration — all tools enabled
   // =========================================================================
   describe("full configuration", () => {
@@ -255,7 +200,6 @@ describe("resolveSelineTemplateTools", () => {
 
       expect(result.enabledTools).toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
-      expect(result.enabledTools).toContain("webBrowse");
       expect(result.warnings).toHaveLength(0);
     });
 
@@ -274,7 +218,7 @@ describe("resolveSelineTemplateTools", () => {
   // Bare minimum configuration — only core and utility tools
   // =========================================================================
   describe("bare minimum configuration", () => {
-    it("should have 2 warnings when nothing is configured (webSearch always on via DuckDuckGo)", () => {
+    it("should have 1 warning when nothing is configured (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -283,10 +227,9 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      expect(result.warnings).toHaveLength(2);
+      expect(result.warnings).toHaveLength(1);
       expect(result.warnings.map((w) => w.toolId).sort()).toEqual([
         "vectorSearch",
-        "webBrowse",
       ]);
     });
 
@@ -303,7 +246,6 @@ describe("resolveSelineTemplateTools", () => {
       expect(result.enabledTools.length).toBeGreaterThanOrEqual(16);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
-      expect(result.enabledTools).not.toContain("webBrowse");
     });
   });
 
@@ -311,7 +253,7 @@ describe("resolveSelineTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 18 tools when all prerequisites are met", () => {
+    it("should return exactly 17 tools when all prerequisites are met", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
@@ -319,8 +261,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 3 conditional = 18
-      expect(result.enabledTools).toHaveLength(18);
+      // 6 core + 9 utility + 2 conditional = 17
+      expect(result.enabledTools).toHaveLength(17);
     });
 
     it("should return exactly 16 tools when no optional tools are available (webSearch always on)", () => {
@@ -379,9 +321,10 @@ describe("DEFAULT_ENABLED_TOOLS", () => {
     ]);
   });
 
-  it("should include delegateToSubagent and exclude webBrowse", () => {
+  it("should include delegateToSubagent and only one web tool", () => {
     expect(DEFAULT_ENABLED_TOOLS).toContain("delegateToSubagent");
-    expect(DEFAULT_ENABLED_TOOLS).not.toContain("webBrowse");
+    expect(DEFAULT_ENABLED_TOOLS).toContain("webSearch");
+    expect(DEFAULT_ENABLED_TOOLS.filter((tool) => tool === "webSearch")).toHaveLength(1);
   });
 });
 
