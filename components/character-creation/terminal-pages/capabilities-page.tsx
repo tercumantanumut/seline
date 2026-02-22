@@ -10,227 +10,15 @@ import { ToolDependencyBadge } from "@/components/ui/tool-dependency-badge";
 import { AlertTriangleIcon, LockIcon } from "lucide-react";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import { DEFAULT_ENABLED_TOOLS } from "@/lib/characters/templates/resolve-tools";
+import {
+  CHARACTER_TOOL_CATALOG,
+  mergeCharacterToolCatalog,
+  type CharacterToolCatalogItem,
+} from "@/lib/characters/tool-catalog";
 
 /** Tool capability definition for the wizard */
-export interface ToolCapability {
-  id: string;
-  /** Translation key for display name (e.g., "docsSearch" -> t("tools.docsSearch")) */
-  nameKey?: string;
-  /** Translation key for description (e.g., "docsSearch" -> t("tools.docsSearchDesc")) */
-  descKey?: string;
-  displayName?: string;
-  description?: string;
-  category: string;
-  /** Dependencies required for this tool to function */
-  dependencies?: (
-    | "syncedFolders"
-    | "embeddings"
-    | "vectorDbEnabled"
-    | "webScraper"
-    | "openrouterKey"
-    | "comfyuiEnabled"
-    | "flux2Klein4bEnabled"
-    | "flux2Klein9bEnabled"
-    | "localGrepEnabled"
-    | "devWorkspaceEnabled"
-  )[];
-}
+export interface ToolCapability extends CharacterToolCatalogItem {}
 
-/** Available tools grouped by category - uses translation keys */
-const BASE_TOOLS: ToolCapability[] = [
-  { id: "docsSearch", nameKey: "docsSearch", descKey: "docsSearchDesc", category: "knowledge" },
-  {
-    id: "vectorSearch",
-    nameKey: "vectorSearch",
-    descKey: "vectorSearchDesc",
-    category: "knowledge",
-    dependencies: ["syncedFolders", "embeddings", "vectorDbEnabled"],
-  },
-  { id: "readFile", nameKey: "readFile", descKey: "readFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "editFile", nameKey: "editFile", descKey: "editFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "writeFile", nameKey: "writeFile", descKey: "writeFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
-  { id: "patchFile", nameKey: "patchFile", descKey: "patchFileDesc", category: "knowledge", dependencies: ["syncedFolders"] },
-  {
-    id: "localGrep",
-    nameKey: "localGrep",
-    descKey: "localGrepDesc",
-    category: "knowledge",
-    dependencies: ["syncedFolders", "localGrepEnabled"],
-  },
-  { id: "webSearch", nameKey: "webSearch", descKey: "webSearchDesc", category: "search" },
-  { id: "webBrowse", nameKey: "webBrowse", descKey: "webBrowseDesc", category: "search", dependencies: ["webScraper"] },
-  { id: "webQuery", nameKey: "webQuery", descKey: "webQueryDesc", category: "search", dependencies: ["webScraper"] },
-  { id: "firecrawlCrawl", nameKey: "firecrawlCrawl", descKey: "firecrawlCrawlDesc", category: "search", dependencies: ["webScraper"] },
-  { id: "assembleVideo", nameKey: "assembleVideo", descKey: "assembleVideoDesc", category: "video-generation" },
-  { id: "describeImage", nameKey: "describeImage", descKey: "describeImageDesc", category: "analysis" },
-  { id: "showProductImages", nameKey: "showProductImages", descKey: "showProductImagesDesc", category: "utility" },
-  { id: "executeCommand", nameKey: "executeCommand", descKey: "executeCommandDesc", category: "utility", dependencies: ["syncedFolders"] },
-  { id: "scheduleTask", nameKey: "scheduleTask", descKey: "scheduleTaskDesc", category: "utility" },
-  { id: "runSkill", nameKey: "runSkill", descKey: "runSkillDesc", category: "utility" },
-  { id: "updateSkill", nameKey: "updateSkill", descKey: "updateSkillDesc", category: "utility" },
-  { id: "memorize", nameKey: "memorize", descKey: "memorizeDesc", category: "utility" },
-  { id: "calculator", nameKey: "calculator", descKey: "calculatorDesc", category: "utility" },
-  { id: "updatePlan", nameKey: "updatePlan", descKey: "updatePlanDesc", category: "utility" },
-  { id: "sendMessageToChannel", nameKey: "sendMessageToChannel", descKey: "sendMessageToChannelDesc", category: "utility" },
-  { id: "delegateToSubagent", nameKey: "delegateToSubagent", descKey: "delegateToSubagentDesc", category: "utility" },
-  { id: "workspace", nameKey: "workspace", descKey: "workspaceDesc", category: "utility", dependencies: ["devWorkspaceEnabled"] },
-  // OpenRouter Image Tools
-  {
-    id: "generateImageFlux2Flex",
-    nameKey: "generateImageFlux2Flex",
-    descKey: "generateImageFlux2FlexDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "editImageFlux2Flex",
-    nameKey: "editImageFlux2Flex",
-    descKey: "editImageFlux2FlexDesc",
-    category: "image-editing",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "referenceImageFlux2Flex",
-    nameKey: "referenceImageFlux2Flex",
-    descKey: "referenceImageFlux2FlexDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "generateImageGpt5Mini",
-    nameKey: "generateImageGpt5Mini",
-    descKey: "generateImageGpt5MiniDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "editImageGpt5Mini",
-    nameKey: "editImageGpt5Mini",
-    descKey: "editImageGpt5MiniDesc",
-    category: "image-editing",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "referenceImageGpt5Mini",
-    nameKey: "referenceImageGpt5Mini",
-    descKey: "referenceImageGpt5MiniDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "generateImageGpt5",
-    nameKey: "generateImageGpt5",
-    descKey: "generateImageGpt5Desc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "editImageGpt5",
-    nameKey: "editImageGpt5",
-    descKey: "editImageGpt5Desc",
-    category: "image-editing",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "referenceImageGpt5",
-    nameKey: "referenceImageGpt5",
-    descKey: "referenceImageGpt5Desc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "generateImageGemini25Flash",
-    nameKey: "generateImageGemini25Flash",
-    descKey: "generateImageGemini25FlashDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "editImageGemini25Flash",
-    nameKey: "editImageGemini25Flash",
-    descKey: "editImageGemini25FlashDesc",
-    category: "image-editing",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "referenceImageGemini25Flash",
-    nameKey: "referenceImageGemini25Flash",
-    descKey: "referenceImageGemini25FlashDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "generateImageGemini3Pro",
-    nameKey: "generateImageGemini3Pro",
-    descKey: "generateImageGemini3ProDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "editImageGemini3Pro",
-    nameKey: "editImageGemini3Pro",
-    descKey: "editImageGemini3ProDesc",
-    category: "image-editing",
-    dependencies: ["openrouterKey"],
-  },
-  {
-    id: "referenceImageGemini3Pro",
-    nameKey: "referenceImageGemini3Pro",
-    descKey: "referenceImageGemini3ProDesc",
-    category: "image-generation",
-    dependencies: ["openrouterKey"],
-  },
-  // Local ComfyUI Image Tools
-  {
-    id: "generateImageZImage",
-    nameKey: "generateImageZImage",
-    descKey: "generateImageZImageDesc",
-    category: "image-generation",
-    dependencies: ["comfyuiEnabled"],
-  },
-  {
-    id: "generateImageFlux2Klein4B",
-    nameKey: "generateImageFlux2Klein4B",
-    descKey: "generateImageFlux2Klein4BDesc",
-    category: "image-generation",
-    dependencies: ["flux2Klein4bEnabled"],
-  },
-  {
-    id: "editImageFlux2Klein4B",
-    nameKey: "editImageFlux2Klein4B",
-    descKey: "editImageFlux2Klein4BDesc",
-    category: "image-editing",
-    dependencies: ["flux2Klein4bEnabled"],
-  },
-  {
-    id: "referenceImageFlux2Klein4B",
-    nameKey: "referenceImageFlux2Klein4B",
-    descKey: "referenceImageFlux2Klein4BDesc",
-    category: "image-generation",
-    dependencies: ["flux2Klein4bEnabled"],
-  },
-  {
-    id: "generateImageFlux2Klein9B",
-    nameKey: "generateImageFlux2Klein9B",
-    descKey: "generateImageFlux2Klein9BDesc",
-    category: "image-generation",
-    dependencies: ["flux2Klein9bEnabled"],
-  },
-  {
-    id: "editImageFlux2Klein9B",
-    nameKey: "editImageFlux2Klein9B",
-    descKey: "editImageFlux2Klein9BDesc",
-    category: "image-editing",
-    dependencies: ["flux2Klein9bEnabled"],
-  },
-  {
-    id: "referenceImageFlux2Klein9B",
-    nameKey: "referenceImageFlux2Klein9B",
-    descKey: "referenceImageFlux2Klein9BDesc",
-    category: "image-generation",
-    dependencies: ["flux2Klein9bEnabled"],
-  },
-];
 
 /** Category display order — matches character-picker's CATEGORY_ICONS */
 const CATEGORY_ORDER: Record<string, number> = {
@@ -284,21 +72,17 @@ export function CapabilitiesPage({
   const t = useTranslations("characterCreation.capabilities");
   const tDeps = useTranslations("characterCreation.capabilities.dependencyWarnings");
   const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set(initialEnabledTools));
-  const [availableTools, setAvailableTools] = useState<ToolCapability[]>(BASE_TOOLS);
+  const [availableTools, setAvailableTools] = useState<ToolCapability[]>(CHARACTER_TOOL_CATALOG);
   const [resolutionWarnings, setResolutionWarnings] = useState<ToolResolutionWarning[]>([]);
   const [showForm, setShowForm] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    const baseTools = BASE_TOOLS.map((tool) => ({
+    const baseTools = CHARACTER_TOOL_CATALOG.map((tool) => ({
       ...tool,
-      displayName: tool.nameKey && t.has(`tools.${tool.nameKey}`)
-        ? t(`tools.${tool.nameKey}`)
-        : tool.id,
-      description: tool.descKey && t.has(`tools.${tool.descKey}`)
-        ? t(`tools.${tool.descKey}`)
-        : "",
+      displayName: t.has(`tools.${tool.id}`) ? t(`tools.${tool.id}`) : tool.id,
+      description: t.has(`tools.${tool.id}Desc`) ? t(`tools.${tool.id}Desc`) : "",
     }));
 
     const sortedBaseTools = [...baseTools].sort((a, b) => {
@@ -318,36 +102,9 @@ export function CapabilitiesPage({
         if (error || !data) throw new Error(error || "Failed to load tools");
         if (cancelled) return;
 
-        const merged = new Map<string, ToolCapability>();
-        baseTools.forEach((tool) => merged.set(tool.id, tool));
-
-        (data.tools || []).forEach((tool) => {
-          if (tool.category === "mcp" || tool.id.startsWith("mcp_")) {
-            return;
-          }
-          const existing = merged.get(tool.id);
-          if (existing) {
-            merged.set(tool.id, {
-              ...existing,
-              category: existing.category || tool.category,
-              displayName: existing.displayName && existing.displayName !== existing.id
-                ? existing.displayName
-                : tool.displayName,
-              description: existing.description && existing.description.length > 0
-                ? existing.description
-                : tool.description,
-            });
-          } else {
-            merged.set(tool.id, {
-              id: tool.id,
-              category: tool.category,
-              displayName: tool.displayName,
-              description: tool.description,
-            });
-          }
-        });
-
-        const mergedList = Array.from(merged.values()).sort((a, b) => {
+        const mergedList = mergeCharacterToolCatalog(baseTools, data.tools || [], {
+          excludeMcp: true,
+        }).sort((a, b) => {
           const catA = CATEGORY_ORDER[a.category] ?? 99;
           const catB = CATEGORY_ORDER[b.category] ?? 99;
           if (catA !== catB) return catA - catB;
@@ -610,10 +367,8 @@ export function CapabilitiesPage({
                       {tools.map((tool) => {
                         const isMet = areDependenciesMet(tool);
                         const warning = getDependencyWarning(tool);
-                        const displayName = tool.displayName
-                          || (tool.nameKey && t.has(`tools.${tool.nameKey}`) ? t(`tools.${tool.nameKey}`) : tool.id);
-                        const description = tool.description
-                          || (tool.descKey && t.has(`tools.${tool.descKey}`) ? t(`tools.${tool.descKey}`) : "");
+                        const displayName = tool.displayName || (t.has(`tools.${tool.id}`) ? t(`tools.${tool.id}`) : tool.id);
+                        const description = tool.description || (t.has(`tools.${tool.id}Desc`) ? t(`tools.${tool.id}Desc`) : "");
 
                         return (
                           <ToolToggle
