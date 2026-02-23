@@ -141,16 +141,19 @@ export async function buildSystemPromptForRequest(
   // Append workspace context when Developer Workspace is enabled
   if (devWorkspaceEnabled) {
     const wsInfo = sessionMetadata?.workspaceInfo as Record<string, unknown> | undefined;
+    // Sanitize a workspace field to prevent prompt injection via branch names / paths
+    const sanitizeWsField = (v: unknown): string =>
+      String(v || "").replace(/[\r\n]/g, " ").replace(/^[#\[]/g, "");
     let workspaceBlock: string;
     if (wsInfo && wsInfo.status) {
       workspaceBlock =
         `\n\n## Active Workspace\n` +
         `You are working in a git worktree workspace:\n` +
-        `- Branch: ${wsInfo.branch || "unknown"}\n` +
-        `- Base: ${wsInfo.baseBranch || "unknown"}\n` +
-        `- Path: ${wsInfo.worktreePath || "unknown"}\n` +
-        `- Status: ${wsInfo.status}\n` +
-        (wsInfo.prUrl ? `- PR: ${wsInfo.prUrl}\n` : "") +
+        `- Branch: ${sanitizeWsField(wsInfo.branch) || "unknown"}\n` +
+        `- Base: ${sanitizeWsField(wsInfo.baseBranch) || "unknown"}\n` +
+        `- Path: ${sanitizeWsField(wsInfo.worktreePath) || "unknown"}\n` +
+        `- Status: ${sanitizeWsField(wsInfo.status)}\n` +
+        (wsInfo.prUrl ? `- PR: ${sanitizeWsField(wsInfo.prUrl)}\n` : "") +
         `\nFile tools (readFile, editFile, writeFile, localGrep) work in the worktree path. ` +
         `Use executeCommand for git operations (commit, push, gh pr create) and builds. ` +
         `When changes are ready, ask the user if they want to keep local, push, or create a PR. ` +

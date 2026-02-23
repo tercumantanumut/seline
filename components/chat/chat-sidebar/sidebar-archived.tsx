@@ -2,6 +2,7 @@
 
 import { Archive, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { SessionInfo } from "./types";
 
@@ -68,9 +69,14 @@ export function SidebarArchived({
                   size="sm"
                   className="ml-1.5 h-6 shrink-0 px-2 text-[10px] font-mono text-terminal-green opacity-0 group-hover:opacity-100 hover:bg-terminal-green/10"
                   onClick={() => {
-                    void onRestoreSession(session.id).then(() => {
-                      onArchivedRestored(session.id);
-                    });
+                    void onRestoreSession(session.id)
+                      .then(() => {
+                        onArchivedRestored(session.id);
+                      })
+                      .catch((err) => {
+                        console.error("Failed to restore session:", err);
+                        toast.error(t("sidebar.restoreFailed"));
+                      });
                   }}
                 >
                   {t("sidebar.restore")}

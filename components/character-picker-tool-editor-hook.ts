@@ -242,6 +242,8 @@ export function useToolEditor(
       if (!error) {
         setToolEditorOpen(false);
         loadCharacters();
+      } else {
+        toast.error(t("saveToolsFailed"));
       }
     } catch (error) {
       console.error("Failed to save tools:", error);

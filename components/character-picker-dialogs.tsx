@@ -318,10 +318,6 @@ export function ToolEditorDialog({
                       return (
                         <div
                           key={tl.id}
-                          onClick={() => {
-                            if (!canToggle) return;
-                            toggleTool(tl.id);
-                          }}
                           className={`flex items-start gap-2 p-2 rounded transition-colors ${canToggle ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${isSelected
                             ? "bg-terminal-green/10 border border-terminal-green/30"
                             : "bg-terminal-bg/10 border border-transparent hover:border-terminal-border/50"

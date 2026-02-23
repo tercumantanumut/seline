@@ -21,11 +21,13 @@ async function imageUrlToBase64(imageUrl: string): Promise<string> {
     try {
       // Extract path after /api/media/
       const relativePath = imageUrl.replace("/api/media/", "");
-      const filePath = path.join(
-        process.env.LOCAL_DATA_PATH || ".local-data",
-        "media",
-        relativePath
-      );
+      const mediaRoot = path.resolve(process.env.LOCAL_DATA_PATH || ".local-data", "media");
+      const filePath = path.resolve(mediaRoot, relativePath);
+      // Prevent path traversal: ensure resolved path stays inside mediaRoot
+      if (!filePath.startsWith(mediaRoot + path.sep) && filePath !== mediaRoot) {
+        console.warn(`[CHAT API] Path traversal blocked: ${imageUrl}`);
+        return imageUrl;
+      }
 
       const fileBuffer = await fs.readFile(filePath);
       const base64 = fileBuffer.toString("base64");

@@ -7,6 +7,7 @@ export interface StreamingMessageState {
   toolCallParts: Map<string, DBToolCallPart>;
   loggedIncompleteToolCalls: Set<string>;
   messageId?: string;
+  isCreating?: boolean;
   lastBroadcastAt: number;
   lastBroadcastSignature: string;
   pendingBroadcast?: boolean;
