@@ -25,6 +25,7 @@ export function AgentCardInWorkflow({
   onEditMcp,
   onEditPlugins,
   onDuplicate,
+  isDuplicating = false,
   addToWorkflowLabel,
   onAddToWorkflow,
   canAddToWorkflow,
@@ -46,6 +47,7 @@ export function AgentCardInWorkflow({
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
   onDuplicate: (characterId: string) => void;
+  isDuplicating?: boolean;
   addToWorkflowLabel?: string;
   onAddToWorkflow?: (c: CharacterSummary) => void;
   canAddToWorkflow?: boolean;
@@ -80,6 +82,7 @@ export function AgentCardInWorkflow({
           onEditPlugins={onEditPlugins}
           onNavigateDashboard={() => router.push("/dashboard")}
           onDuplicate={onDuplicate}
+          isDuplicating={isDuplicating}
           addToWorkflowLabel={addToWorkflowLabel}
           onAddToWorkflow={onAddToWorkflow}
           showAddToWorkflow={Boolean(onAddToWorkflow)}
