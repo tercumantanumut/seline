@@ -1836,7 +1836,8 @@ const Composer: FC<{
   const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
   const isDeepResearchActive = deepResearch?.isActive ?? false;
   const isDeepResearchLoading = deepResearch?.isLoading ?? false;
-  const isOperationRunning = isRunning || isDeepResearchLoading;
+  const isDeepResearchBackgroundPolling = deepResearch?.isBackgroundPolling ?? false;
+  const isOperationRunning = isRunning || isDeepResearchLoading || isDeepResearchBackgroundPolling;
   const isQueueBlocked = isOperationRunning || isBackgroundTaskRunning;
 
   // Track if we're currently processing a queued message
@@ -2658,11 +2659,21 @@ const Composer: FC<{
   };
 
   const statusMessage = getStatusMessage();
+  const shouldShowDeepResearchPanel = Boolean(
+    deepResearch
+    && (
+      isDeepResearchActive
+      || isDeepResearchLoading
+      || isDeepResearchBackgroundPolling
+      || deepResearch.phase === "error"
+    )
+  );
+  const isBackgroundProcessingVisible = isProcessingInBackground || isDeepResearchBackgroundPolling;
 
   return (
     <div className="relative w-full">
-      {/* Deep Research Panel - shows when research is active */}
-      {deepResearch && isDeepResearchActive && (
+      {/* Deep Research Panel - includes active and resumed background states */}
+      {deepResearch && shouldShowDeepResearchPanel && (
         <DeepResearchPanel
           phase={deepResearch.phase}
           phaseMessage={deepResearch.phaseMessage}
@@ -2676,7 +2687,7 @@ const Composer: FC<{
       )}
 
       {/* Background Processing Indicator - compact inline version */}
-      {isProcessingInBackground && (
+      {isBackgroundProcessingVisible && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-terminal-green/30 bg-terminal-green/5 px-3 py-2">
           <div className="flex items-center gap-2 flex-1">
             <div className="flex gap-1">

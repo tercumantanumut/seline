@@ -203,7 +203,11 @@ export function PluginSettings() {
       const formData = new FormData();
       formData.append("characterId", selectedTargetCharacterId);
       if (pendingUploadFiles.length === 1) {
-        formData.append("file", pendingUploadFiles[0]);
+        const single = pendingUploadFiles[0];
+        const relativePath = single.webkitRelativePath || single.name;
+        // Directory picker can return a single file with webkitRelativePath set.
+        // Preserve that path so folder imports keep their plugin root structure.
+        formData.append("file", single, relativePath);
       } else {
         for (const file of pendingUploadFiles) {
           formData.append("files", file, file.webkitRelativePath || file.name);

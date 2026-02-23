@@ -43,6 +43,7 @@ export {
   type CreateAgentRunOptions,
   createAgentRun,
   completeAgentRun,
+  updateAgentRunMetadata,
   getAgentRun,
   listAgentRunsBySession,
   // Agent run events

@@ -127,6 +127,27 @@ interface ActiveRunState {
     startedAt: string;
 }
 
+interface DeepResearchStateSnapshot {
+    runId: string;
+    query: string;
+    phase: string;
+    phaseMessage: string;
+    progress: { completed: number; total: number; currentQuery: string } | null;
+    findings: Array<unknown>;
+    finalReport: unknown | null;
+    error: string | null;
+    updatedAt: string;
+}
+
+interface ActiveRunLookupResponse {
+    hasActiveRun: boolean;
+    runId?: string | null;
+    pipelineName?: string;
+    latestDeepResearchRunId?: string | null;
+    latestDeepResearchStatus?: string | null;
+    latestDeepResearchState?: DeepResearchStateSnapshot | null;
+}
+
 type ChannelFilter = "all" | SessionChannelType;
 type DateRangeFilter = "all" | "today" | "week" | "month";
 
@@ -510,7 +531,7 @@ export default function ChatInterface({
         let cancelled = false;
 
         async function checkActiveRun() {
-            const { data, error } = await resilientFetch<{ hasActiveRun: boolean; runId?: string }>(
+            const { data, error } = await resilientFetch<ActiveRunLookupResponse>(
                 `/api/sessions/${sessionId}/active-run`,
                 { retries: 0 }
             );
@@ -522,11 +543,16 @@ export default function ChatInterface({
                 return;
             }
             if (cancelled) return;
-            if (data.hasActiveRun) {
-                console.log("[Background Processing] Detected active run:", data.runId);
+
+            const backgroundRunId = data.hasActiveRun
+                ? data.runId ?? null
+                : (data.latestDeepResearchStatus === "running" ? data.latestDeepResearchRunId ?? null : null);
+
+            if (backgroundRunId) {
+                console.log("[Background Processing] Detected active run:", backgroundRunId);
                 setIsProcessingInBackground(true);
-                setProcessingRunId(data.runId!);
-                startPollingForCompletion(data.runId!);
+                setProcessingRunId(backgroundRunId);
+                startPollingForCompletion(backgroundRunId);
                 void reloadSessionMessages(sessionId, { remount: true });
             } else {
                 // No active run on this session — clear any stale state
