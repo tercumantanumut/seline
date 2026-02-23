@@ -343,6 +343,7 @@ export async function POST(req: Request) {
     // ── Save new user message ──────────────────────────────────────────────────
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const lastMessage = messages[messages.length - 1];
+    let persistedUserMessageId: string | undefined;
     const userMessageCount = messages.filter((msg) => msg.role === "user").length;
 
     if (!isScheduledRun && lastMessage && lastMessage.role === 'user') {
@@ -363,6 +364,7 @@ export async function POST(req: Request) {
         metadata: {},
       });
       const savedUserMessageId = result?.id;
+      persistedUserMessageId = savedUserMessageId;
       console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
 
       const plainTextContent = getPlainTextFromContent(extractedContent);
@@ -382,6 +384,11 @@ export async function POST(req: Request) {
           .filter(m => m.id && uuidRegex.test(m.id))
           .map(m => m.id!)
       );
+      if (persistedUserMessageId) {
+        // If the client sent a non-UUID message id, keep the DB-generated id too.
+        // Without this, normal sends can be mistaken for edit/reload truncation.
+        frontendIds.add(persistedUserMessageId);
+      }
       if (frontendIds.size > 0) {
         const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
         if (deleted > 0) {
