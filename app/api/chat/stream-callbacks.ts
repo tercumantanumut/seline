@@ -18,7 +18,8 @@ import { triggerExtraction } from "@/lib/agent-memory";
 import { deliverChannelReply } from "@/lib/channels/delivery";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import { removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
-import { removeLivePromptQueue } from "@/lib/background-tasks/live-prompt-queue-registry";
+import { removeLivePromptQueue, drainLivePromptQueue } from "@/lib/background-tasks/live-prompt-queue-registry";
+import { signalUndrainedMessages } from "@/lib/background-tasks/undrained-signal";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { runStopHooks } from "@/lib/plugins/hook-integration";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
@@ -32,6 +33,22 @@ import {
 import type { StreamingMessageState } from "./streaming-state";
 import { finalizeStreamingToolCalls } from "./streaming-state";
 import type { ContextInjectionTrackingMetadata } from "./context-injection";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Drain any messages that were queued for live-prompt injection but never
+ * processed by prepareStep (e.g. run ended before a second step was reached).
+ * Rather than persisting them to DB (which creates dangling messages with no
+ * response), we set a per-session signal so the frontend can convert the
+ * injected-live chips to "fallback" and replay them as a new run.
+ */
+function handleUndrainedQueueMessages(runId: string, sessionId: string): void {
+  const undrained = drainLivePromptQueue(runId);
+  if (undrained.length > 0) {
+    signalUndrainedMessages(sessionId);
+  }
+}
 
 // ─── Context interface ────────────────────────────────────────────────────────
 
@@ -96,6 +113,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
     }
 
     if (ctx.agentRun?.id) {
+      handleUndrainedQueueMessages(ctx.agentRun.id, ctx.sessionId);
       removeChatAbortController(ctx.agentRun.id);
       removeLivePromptQueue(ctx.agentRun.id, ctx.sessionId);
     }
@@ -403,6 +421,7 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
     }
 
     if (ctx.agentRun?.id) {
+      handleUndrainedQueueMessages(ctx.agentRun.id, ctx.sessionId);
       removeChatAbortController(ctx.agentRun.id);
       removeLivePromptQueue(ctx.agentRun.id, ctx.sessionId);
     }

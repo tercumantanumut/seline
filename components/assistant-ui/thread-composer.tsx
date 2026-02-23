@@ -65,7 +65,7 @@ export const Composer: FC<{
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
-  onLivePromptInjected?: () => void | Promise<void>;
+  onLivePromptInjected?: () => void | Promise<void | boolean>;
   contextStatus?: import("@/lib/hooks/use-context-status").ContextWindowStatus | null;
   contextLoading?: boolean;
   onCompact?: () => Promise<{ success: boolean; compacted: boolean }>;
@@ -334,11 +334,10 @@ export const Composer: FC<{
                   prev.map(m => m.id === msgId ? { ...m, status: "injected-live" as const } : m)
                 );
                 // NOTE: We intentionally do NOT call onLivePromptInjected here.
-                // Calling refreshMessages mid-stream tears down the assistant-ui thread
-                // runtime (via flushSync + state replacement), killing the SSE connection
-                // and switching to background mode. The injected message is saved at the
-                // correct ordering position in prepareStep and will appear when the run
-                // finishes naturally.
+                // Calling refreshMessages mid-stream with remount:true would destroy
+                // ChatProvider and kill the SSE connection. The injected message is
+                // saved at the correct ordering position in prepareStep and will appear
+                // when the run finishes naturally via the post-run effect below.
               } else {
                 // No active run — fall back to classic replay after run
                 setQueuedMessages(prev =>
@@ -513,11 +512,30 @@ export const Composer: FC<{
     if (!isOperationRunning) setIsCancelling(false);
   }, [isOperationRunning]);
 
-  // Keep injected-live chips visible while the run is active so users can track
-  // delivery; clear them once the run ends and history catches up.
+  // When the run ends: reload messages and determine whether injected-live chips
+  // were processed by prepareStep (normal injection) or not (undrained — run ended
+  // before the queue was drained). Processed chips are cleared; unprocessed chips
+  // are converted to "fallback" so the replayable mechanism sends them as a new run.
   useEffect(() => {
     if (isQueueBlocked) return;
-    setQueuedMessages(prev => prev.filter((msg) => msg.status !== "injected-live"));
+    const hasInjected = queuedMessages.some(m => m.status === "injected-live");
+    if (hasInjected && onLivePromptInjected) {
+      void Promise.resolve(onLivePromptInjected()).then((result) => {
+        const hasUndrained = result === true;
+        if (hasUndrained) {
+          // Server signals undrained messages — convert chips to fallback for replay.
+          setQueuedMessages(prev => prev.map(m =>
+            m.status === "injected-live" ? { ...m, status: "fallback" as const } : m
+          ));
+        } else {
+          // Messages were processed by prepareStep — clear the chips.
+          setQueuedMessages(prev => prev.filter(m => m.status !== "injected-live"));
+        }
+      });
+    } else {
+      setQueuedMessages(prev => prev.filter(m => m.status !== "injected-live"));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isQueueBlocked]);
 
   // Auto-grow textarea

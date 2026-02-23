@@ -510,7 +510,21 @@ export default function ChatInterface({
                                 isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
                                 canCancelBackgroundRun={Boolean(bg.processingRunId)}
                                 isZombieBackgroundRun={bg.isZombieRun}
-                                onLivePromptInjected={bg.refreshMessages}
+                                onLivePromptInjected={async () => {
+                                    // remount:true so ChatProvider reinitialises from DB (same as background mode).
+                                    // Safe here: the run has ended before this callback fires (isQueueBlocked=false).
+                                    await reloadSessionMessages(sessionId ?? "", { remount: true });
+                                    // Check if the run had undrained queue messages that need a new run.
+                                    // Returns true → thread-composer converts injected-live chips to fallback.
+                                    try {
+                                        const res = await fetch(`/api/sessions/${sessionId}/consume-undrained-signal`, { method: "POST" });
+                                        if (res.ok) {
+                                            const data = await res.json() as { hasPending?: boolean };
+                                            return data.hasPending === true;
+                                        }
+                                    } catch { /* non-fatal */ }
+                                    return false;
+                                }}
                             />
                         </div>
                     </ChatProvider>
