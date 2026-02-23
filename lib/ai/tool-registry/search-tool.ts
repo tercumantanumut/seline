@@ -14,6 +14,7 @@ import { z } from "zod";
 import { getUtilityModel } from "@/lib/ai/providers";
 import { ToolRegistry } from "./registry";
 import type { ToolSearchResult, ToolCategory } from "./types";
+import { parseSubagentDirectory, searchSubagents, type SubagentSearchResult } from "./search-tool-subagent-types";
 
 const TOOL_SEARCH_LOGGING_ENABLED =
   process.env.TOOL_SEARCH_LOGGING === "true" || process.env.TOOL_SEARCH_LOGGING === "1";
@@ -61,6 +62,14 @@ export interface ToolSearchContext {
    * If undefined, all enabled tools are shown (legacy behavior).
    */
   loadedTools?: Set<string>;
+
+  /**
+   * Workflow subagent directory for subagent discovery.
+   * When provided, searchTools will also search available subagents
+   * by matching query against subagent names and purposes.
+   * Format: ["- AgentName (id: agent-id): Purpose description", ...]
+   */
+  subagentDirectory?: string[];
 }
 
 /**
@@ -112,7 +121,23 @@ const toolSearchSchema = jsonSchema<{
 interface SearchResultWithAvailability extends ToolSearchResult {
   isAvailable: boolean;
   fullInstructions?: string;
+  resultType: "tool";
 }
+
+/**
+ * Subagent result with availability (always available if in directory)
+ */
+interface SubagentResultWithAvailability extends SubagentSearchResult {
+  isAvailable: true;
+  resultType: "subagent";
+}
+
+/**
+ * Unified result type for both tools and subagents
+ */
+type UnifiedResultWithAvailability =
+  | SearchResultWithAvailability
+  | SubagentResultWithAvailability;
 
 /**
  * Result type for the search tool
@@ -120,8 +145,9 @@ interface SearchResultWithAvailability extends ToolSearchResult {
 interface SearchToolResult {
   status: "success" | "no_results";
   query: string;
-  results: SearchResultWithAvailability[];
+  results: UnifiedResultWithAvailability[];
   message: string;
+  summary?: string;
 }
 
 const TOOL_SEARCH_ROUTER_MODEL_ENABLED =
@@ -347,6 +373,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
   const initialActiveTools = context?.initialActiveTools ?? context?.loadedTools;
   const discoveredTools = context?.discoveredTools;
   const enabledTools = context?.enabledTools;
+  const subagentDirectory = context?.subagentDirectory;
 
   return tool({
     description: `Search for available AI tools by functionality.
@@ -365,6 +392,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 - "semantic search", "vector search" → finds vectorSearch
 - "generate image", "create image" → finds image generation tools
 - "web search", "search internet" → finds web search tools
+- "delegate", "subagent", "agent" → finds delegation tools AND available subagents
 
 **❌ WRONG:** searchTools({ query: "tutorial tooltip positioning" })
 **✅ RIGHT:** localGrep({ pattern: "tooltip", fileTypes: ["ts"] })
@@ -469,7 +497,12 @@ export function createToolSearchTool(context?: ToolSearchContext) {
       // Apply final limit after filtering
       results = results.slice(0, effectiveLimit);
 
-      if (results.length === 0) {
+      // Search subagents if workflow context is available
+      const subagentResults: SubagentSearchResult[] = subagentDirectory
+        ? searchSubagents(query, parseSubagentDirectory(subagentDirectory))
+        : [];
+
+      if (results.length === 0 && subagentResults.length === 0) {
         // Return available tools list when no matches (filtered by enabledTools)
         let availableTools = registry.getAvailableToolsList();
         if (enabledTools) {
@@ -488,57 +521,81 @@ export function createToolSearchTool(context?: ToolSearchContext) {
         };
       }
 
-      // For each result, determine if it's currently available
-      // A tool is available if it's in initialActiveTools OR has been discovered
-      const resultsWithAvailability: SearchResultWithAvailability[] = results.map((r) => {
+      // Convert tool results to unified format with availability
+      const toolResultsWithAvailability: UnifiedResultWithAvailability[] = results.map((r) => {
         const isDeferred = registry.get(r.name)?.metadata.loading.deferLoading ?? false;
         const isInitiallyActive = initialActiveTools?.has(r.name) ?? !isDeferred;
         const wasDiscovered = discoveredTools?.has(r.name) ?? false;
 
         return {
           ...r,
+          resultType: "tool" as const,
           isAvailable: isInitiallyActive || wasDiscovered,
           fullInstructions: r.fullInstructions,
         };
       });
 
+      // Convert subagent results to unified format (always available)
+      const subagentResultsWithAvailability: UnifiedResultWithAvailability[] = subagentResults.map((s) => ({
+        ...s,
+        resultType: "subagent" as const,
+        isAvailable: true,
+      }));
+
+      // Merge and sort by relevance
+      const allResults = [...toolResultsWithAvailability, ...subagentResultsWithAvailability];
+      allResults.sort((a, b) => {
+        const aRel = a.resultType === "tool" ? a.relevance : a.relevance;
+        const bRel = b.resultType === "tool" ? b.relevance : b.relevance;
+        return bRel - aRel;
+      });
+
+      // Apply final limit
+      const limitedResults = allResults.slice(0, effectiveLimit);
+
       // IMPORTANT: Add discovered deferred tools to the discoveredTools set
       // This enables them for use in subsequent steps via prepareStep
       if (discoveredTools) {
-        for (const result of results) {
-          const toolMeta = registry.get(result.name);
-          if (toolMeta?.metadata.loading.deferLoading) {
-            discoveredTools.add(result.name);
-            logSearchTools(`[searchTools] Discovered deferred tool: ${result.name}`);
+        for (const result of limitedResults) {
+          if (result.resultType === "tool") {
+            const toolMeta = registry.get(result.name);
+            if (toolMeta?.metadata.loading.deferLoading) {
+              discoveredTools.add(result.name);
+              logSearchTools(`[searchTools] Discovered deferred tool: ${result.name}`);
+            }
           }
         }
       }
 
-      // Count available tools (after discovery)
-      const availableCount = resultsWithAvailability.filter((r) => r.isAvailable || discoveredTools?.has(r.name)).length;
-      const unavailableCount = resultsWithAvailability.length - availableCount;
+      // Count available items
+      const toolCount = limitedResults.filter((r) => r.resultType === "tool").length;
+      const subagentCount = limitedResults.filter((r) => r.resultType === "subagent").length;
+      const availableCount = limitedResults.filter((r) => r.isAvailable).length;
 
-      let message = `Found ${results.length} tool(s) matching "${query}".`;
+      let message = `Found ${limitedResults.length} result(s) matching "${query}".`;
+      if (toolCount > 0 && subagentCount > 0) {
+        message += ` ${toolCount} tool(s) and ${subagentCount} subagent(s).`;
+      } else if (toolCount > 0) {
+        message += ` ${toolCount} tool(s).`;
+      } else if (subagentCount > 0) {
+        message += ` ${subagentCount} subagent(s).`;
+      }
       if (availableCount > 0) {
-        message += ` ${availableCount} tool(s) are now available for use.`;
+        message += ` ${availableCount} are now available for use.`;
       }
-      if (unavailableCount > 0) {
-        message += ` ${unavailableCount} tool(s) could not be activated.`;
-      }
-      message += " Use the tool name directly to execute available tools.";
 
-      // Update availability status after discovery
-      for (const result of resultsWithAvailability) {
-        if (discoveredTools?.has(result.name)) {
-          result.isAvailable = true;
-        }
+      // Build summary with subagent delegation instructions
+      let summary = "";
+      if (subagentCount > 0) {
+        summary = "To delegate to a subagent, use: delegateToSubagent({ action: 'start', agentId: '<id>', task: '<description>' })";
       }
 
       return {
         status: "success",
         query,
-        results: resultsWithAvailability,
+        results: limitedResults,
         message,
+        summary,
       };
     },
   });
