@@ -331,6 +331,7 @@ async function runClaudeAgentQuery(options: {
   });
 
   let text = "";
+  let sawStreamText = false;
 
   try {
     for await (const message of query) {
@@ -343,6 +344,7 @@ async function runClaudeAgentQuery(options: {
           event.delta.type === "text_delta" &&
           typeof event.delta.text === "string"
         ) {
+          sawStreamText = true;
           text += event.delta.text;
         }
         continue;
@@ -360,17 +362,20 @@ async function runClaudeAgentQuery(options: {
           throw new Error("authentication_failed");
         }
 
-        const content = assistant.message?.content;
-        if (Array.isArray(content)) {
-          for (const part of content) {
-            if (part?.type === "text" && typeof part.text === "string") {
-              text += part.text;
+        // Agent SDK emits both stream deltas and a finalized assistant payload.
+        // If we already consumed deltas, skip assistant text to avoid duplicate output.
+        if (!sawStreamText) {
+          const content = assistant.message?.content;
+          if (Array.isArray(content)) {
+            for (const part of content) {
+              if (part?.type === "text" && typeof part.text === "string") {
+                text += part.text;
+              }
             }
           }
         }
         continue;
       }
-
 
       if (message.type === "result") {
         const result = message as {
@@ -380,8 +385,15 @@ async function runClaudeAgentQuery(options: {
           errors?: string[];
         };
 
-        if (typeof result.result === "string" && result.result.length > 0) {
-          text = `${text}\n${result.result}`.trim();
+        // Some SDK versions include a final textual result summary; only use it
+        // when no stream/assistant text was captured.
+        if (
+          !sawStreamText &&
+          text.trim().length === 0 &&
+          typeof result.result === "string" &&
+          result.result.length > 0
+        ) {
+          text = result.result;
         }
 
         if (Array.isArray(result.errors) && result.errors.length > 0) {
