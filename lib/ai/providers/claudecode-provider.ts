@@ -1,5 +1,13 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  AgentDefinition,
+  HookEvent,
+  HookCallbackMatcher,
+  SdkPluginConfig,
+  OutputFormat,
+  ThinkingConfig,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { LanguageModel } from "ai";
 import {
   classifyRecoverability,
@@ -8,9 +16,108 @@ import {
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
 import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
+import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
+import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+
+/**
+ * SDK-native options that extend a basic Claude Agent SDK query.
+ * These are forwarded directly to the SDK's query() call, enabling full
+ * SDK capabilities: multi-agent delegation, lifecycle hooks, plugin loading,
+ * session continuation, structured output, and thinking controls.
+ *
+ * Use these when you need capabilities beyond the basic prompt→text path
+ * provided by the fetch interceptor (e.g. background tasks, direct SDK calls).
+ */
+export type ClaudeAgentSdkQueryOptions = {
+  /**
+   * Custom subagent definitions for SDK-native Task tool delegation.
+   * Keys are agent names; values define the subagent's prompt, tools, and model.
+   */
+  agents?: Record<string, AgentDefinition>;
+  /**
+   * Tool names auto-allowed without permission prompts.
+   * Does not restrict; use `disallowedTools` to remove tools entirely.
+   */
+  allowedTools?: string[];
+  /**
+   * Tool names to explicitly disallow. These are removed from the model's
+   * context and cannot be used even if otherwise allowed.
+   */
+  disallowedTools?: string[];
+  /**
+   * Lifecycle hook callbacks (PreToolUse, PostToolUse, Notification, etc.).
+   * Enables programmatic observability and control over tool execution.
+   */
+  hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+  /**
+   * Local plugins to load for this session.
+   * Plugins provide custom commands, agents, skills, and hooks.
+   * Currently only `{ type: 'local', path: string }` is supported.
+   */
+  plugins?: SdkPluginConfig[];
+  /**
+   * Resume a prior session by its session ID.
+   * Loads conversation history so the agent can continue where it left off.
+   */
+  resume?: string;
+  /**
+   * Pin a specific session ID for this query (must be a valid UUID).
+   * Mutually exclusive with `resume` unless `forkSession` is used.
+   */
+  sessionId?: string;
+  /**
+   * Structured output format.
+   * When set, the agent returns data matching the provided JSON schema.
+   */
+  outputFormat?: OutputFormat;
+  /**
+   * Extended thinking / reasoning configuration.
+   * - `{ type: 'adaptive' }` — Claude decides when and how much to think (Opus 4.6+)
+   * - `{ type: 'enabled', budgetTokens: number }` — fixed token budget
+   * - `{ type: 'disabled' }` — no extended thinking
+   */
+  thinking?: ThinkingConfig;
+  /**
+   * Response effort level (guides thinking depth).
+   * - 'low' — fastest, minimal thinking
+   * - 'medium' — moderate
+   * - 'high' — deep reasoning (default)
+   * - 'max' — maximum (Opus 4.6 only)
+   */
+  effort?: "low" | "medium" | "high" | "max";
+  /**
+   * Whether to persist the session to ~/.claude/projects/.
+   * Set to `false` for ephemeral or automated workflows that don't need history.
+   * @default true
+   */
+  persistSession?: boolean;
+  /**
+   * Maximum number of conversation turns before stopping.
+   * Defaults to 1000 to allow arbitrarily long agentic work.
+   * @default 1000
+   */
+  maxTurns?: number;
+  /**
+   * Override the permission mode for this specific query.
+   * Defaults to "bypassPermissions" (server context has no interactive TTY).
+   * Use "acceptEdits" for slightly stricter control (auto-accepts file edits,
+   * still gates on arbitrary bash commands).
+   */
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
+  /**
+   * Per-request Seline platform context used to build an in-process MCP server
+   * that exposes ToolRegistry tools and per-agent MCP tools to the SDK agent.
+   *
+   * When provided here (for `queryWithSdkOptions` callers) or propagated via
+   * `mcpContextStore` (for the fetch-interceptor / chat-route path), the SDK
+   * agent can call vectorSearch, memorize, runSkill, scheduleTask, and any
+   * MCP server tools configured for the active agent.
+   */
+  mcpContext?: SelineMcpContext;
+};
 
 function sanitizeLoneSurrogates(input: string): { value: string; changed: boolean } {
   let changed = false;
@@ -215,6 +322,7 @@ function isAuthError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
     lower.includes("authentication") ||
+    lower.includes("authentication_failed") ||
     lower.includes("auth") ||
     lower.includes("oauth") ||
     lower.includes("login")
@@ -304,6 +412,7 @@ async function runClaudeAgentQuery(options: {
   model: string;
   systemPrompt?: string;
   signal?: AbortSignal;
+  sdkOptions?: ClaudeAgentSdkQueryOptions;
 }): Promise<string> {
   const abortController = new AbortController();
   const signal = options.signal;
@@ -317,16 +426,49 @@ async function runClaudeAgentQuery(options: {
     }
   }
 
+  const sdk = options.sdkOptions;
+
+  // Resolve per-request Seline MCP context: explicit sdkOptions take precedence,
+  // then fall back to AsyncLocalStorage (set by the chat route before streamText).
+  const mcpCtx: SelineMcpContext | undefined =
+    sdk?.mcpContext ?? mcpContextStore.getStore();
+
+  // Build an in-process MCP server that exposes Seline platform tools to the
+  // SDK agent when context is available.
+  const selineMcpServers = mcpCtx
+    ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
+    : undefined;
+
   const query = claudeAgentQuery({
     prompt: options.prompt,
     options: {
       abortController,
       cwd: process.cwd(),
       includePartialMessages: true,
-      maxTurns: 1,
+      // Allow multi-step agentic work (read → plan → write → verify).
+      maxTurns: sdk?.maxTurns ?? 1000,
       model: options.model,
-      permissionMode: "default",
+      // bypassPermissions is the correct default for a headless server context:
+      // there is no interactive TTY to approve permission prompts, so "default"
+      // mode causes the agent to stall on every write/bash and fall back to
+      // asking clarifying questions instead of executing.
+      permissionMode: sdk?.permissionMode ?? "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+      // Seline platform tools exposed via in-process MCP server
+      ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
+      // SDK-native passthrough options
+      ...(sdk?.agents ? { agents: sdk.agents } : {}),
+      ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
+      ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
+      ...(sdk?.hooks ? { hooks: sdk.hooks } : {}),
+      ...(sdk?.plugins ? { plugins: sdk.plugins } : {}),
+      ...(sdk?.resume ? { resume: sdk.resume } : {}),
+      ...(sdk?.sessionId ? { sessionId: sdk.sessionId } : {}),
+      ...(sdk?.outputFormat ? { outputFormat: sdk.outputFormat } : {}),
+      ...(sdk?.thinking ? { thinking: sdk.thinking } : {}),
+      ...(sdk?.effort ? { effort: sdk.effort } : {}),
+      ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
     },
   });
 
@@ -358,8 +500,12 @@ async function runClaudeAgentQuery(options: {
           error?: string;
         };
 
-        if (assistant.error === "authentication_failed") {
-          throw new Error("authentication_failed");
+        // Surface auth and billing errors immediately so the retry handler can act.
+        if (
+          assistant.error === "authentication_failed" ||
+          assistant.error === "billing_error"
+        ) {
+          throw new Error(assistant.error);
         }
 
         // Agent SDK emits both stream deltas and a finalized assistant payload.
@@ -403,13 +549,103 @@ async function runClaudeAgentQuery(options: {
         if (result.is_error) {
           throw new Error(result.subtype || "error_during_execution");
         }
+        continue;
       }
+
+      // The SDK emits additional informational messages (system subtypes like
+      // hook_started/hook_response/files_persisted, tool_progress, task_notification,
+      // status, etc.). These don't affect the text output but should not cause errors.
+      // We intentionally fall through without handling them.
     }
   } finally {
     signal?.removeEventListener("abort", onAbort);
   }
 
   return text.trim();
+}
+
+/**
+ * Execute a Claude Agent SDK query with full SDK capabilities.
+ *
+ * Unlike the fetch-interceptor path (`createClaudeCodeProvider`), this API
+ * accepts native SDK options such as agent definitions, lifecycle hooks, plugin
+ * loading, session continuation, structured output, and thinking controls.
+ *
+ * Includes the same retry-with-exponential-backoff and auth-check behaviour as
+ * the fetch interceptor, making it safe to use from background tasks, prompt
+ * enhancement pipelines, and direct SDK integrations.
+ *
+ * @example
+ * ```ts
+ * const result = await queryWithSdkOptions({
+ *   prompt: "Summarise the changes in the last commit",
+ *   model: "claude-sonnet-4-6",
+ *   sdkOptions: {
+ *     persistSession: false,
+ *     maxTurns: 3,
+ *     allowedTools: ["Bash", "Read"],
+ *   },
+ * });
+ * ```
+ */
+export async function queryWithSdkOptions(options: {
+  prompt: string;
+  model?: string;
+  systemPrompt?: string;
+  signal?: AbortSignal;
+  sdkOptions?: ClaudeAgentSdkQueryOptions;
+}): Promise<string> {
+  const model = options.model ?? DEFAULT_MODEL;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await runClaudeAgentQuery({
+        prompt: options.prompt,
+        model,
+        systemPrompt: options.systemPrompt,
+        signal: options.signal,
+        sdkOptions: options.sdkOptions,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (isAuthError(message)) {
+        const authStatus = await readClaudeAgentSdkAuthStatus({ timeoutMs: 20_000, model });
+        if (!authStatus.authenticated) {
+          const err = new Error("Claude Agent SDK authentication required") as Error & {
+            auth: { required: boolean; url: string | undefined; output: string[] | undefined };
+          };
+          err.auth = { required: true, url: authStatus.authUrl, output: authStatus.output };
+          throw err;
+        }
+      }
+
+      const classification = classifyRecoverability({
+        provider: "claudecode",
+        error,
+        message,
+      });
+
+      const retry = shouldRetry({
+        classification,
+        attempt,
+        maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+        aborted: options.signal?.aborted ?? false,
+      });
+
+      if (!retry) {
+        throw error;
+      }
+
+      const delay = getBackoffDelayMs(attempt);
+      console.log("[ClaudeCode] Retrying Agent SDK query", {
+        attempt: attempt + 1,
+        reason: classification.reason,
+        delayMs: delay,
+      });
+      await sleepWithAbort(delay, options.signal ?? undefined);
+    }
+  }
 }
 
 function createClaudeCodeFetch(): typeof fetch {
