@@ -201,17 +201,15 @@ interface WorkspaceLinkResult {
 }
 
 /**
- * Copy plugin auxiliary files (references, scripts, etc.) to the agent's workspace
- * and register that directory as a sync folder so the agent can read them.
+ * Copy plugin auxiliary files (references, scripts, etc.) to the local workspace.
  *
- * Auxiliary files = anything in the plugin package that is NOT a skill or agent
- * markdown file and is NOT a backup artifact.
+ * Note: We intentionally do NOT register plugin workspace directories as sync folders.
+ * Auxiliary files remain available on disk, but plugin import does not mutate the
+ * agent's sync-folder configuration.
  */
 async function linkPluginAuxiliaryFilesToWorkspace(
   plugin: InstalledPlugin,
   parsed: PluginParseResult,
-  characterId: string,
-  userId: string,
 ): Promise<WorkspaceLinkResult> {
   if (!plugin.cachePath) {
     return { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
@@ -258,36 +256,14 @@ async function linkPluginAuxiliaryFilesToWorkspace(
     })
   );
 
-  // Register as a sync folder for this agent if not already covered
-  const { getSyncFolders, addSyncFolder } = await import("@/lib/vectordb/sync-service");
-  const existingFolders = await getSyncFolders(characterId);
-
-  const resolvedPluginDir = path.resolve(pluginWorkspaceDir);
-
-  // Check exact match OR parent directory already watched
-  const alreadyLinked = existingFolders.some(
-    (f) => path.resolve(f.folderPath) === resolvedPluginDir,
-  );
-  const coveredByParent = existingFolders.some(
-    (f) => resolvedPluginDir.startsWith(path.resolve(f.folderPath) + path.sep),
-  );
-
-  if (!alreadyLinked && !coveredByParent) {
-    await addSyncFolder({
-      userId,
-      characterId,
-      folderPath: pluginWorkspaceDir,
-      displayName: `${plugin.name} plugin files`,
-      recursive: true,
-      indexingMode: "files-only",
-      syncMode: "manual",
-    });
-  }
+  // Do not auto-register plugin workspace directories as sync folders.
+  // This prevents plugin imports from polluting agent sync-folder lists and
+  // avoids unintentionally sharing those folders to workflow subagents.
 
   return {
     linkedPath: pluginWorkspaceDir,
     auxiliaryFileCount: auxFiles.length,
-    workspaceRegistered: !alreadyLinked && !coveredByParent,
+    workspaceRegistered: false,
   };
 }
 
@@ -395,7 +371,7 @@ export async function POST(request: NextRequest) {
 
     // Link auxiliary files (references, scripts, etc.) to the agent's workspace
     const workspaceLink: WorkspaceLinkResult = characterId
-      ? await linkPluginAuxiliaryFilesToWorkspace(plugin, parsed, characterId, dbUser.id).catch(
+      ? await linkPluginAuxiliaryFilesToWorkspace(plugin, parsed).catch(
           (err) => {
             console.warn(
               `[PluginImport:${requestId}] Failed to link auxiliary files (non-fatal):`,
