@@ -70,14 +70,14 @@ export async function completeAgentRun(
   metadata?: Record<string, unknown>
 ): Promise<AgentRun | undefined> {
   const completedAt = nowISO();
-  
+
   // Calculate duration from startedAt
   const run = await db.query.agentRuns.findFirst({
     where: eq(agentRuns.id, runId),
   });
-  
+
   if (!run) return undefined;
-  
+
   const runDurationMs = calculateDurationMs(run.startedAt, completedAt);
 
   const [updated] = await db
@@ -88,6 +88,34 @@ export async function completeAgentRun(
       durationMs: runDurationMs,
       updatedAt: completedAt,
       metadata: metadata ? { ...((run.metadata as object) || {}), ...metadata } : run.metadata,
+    })
+    .where(eq(agentRuns.id, runId))
+    .returning();
+
+  return updated;
+}
+
+/**
+ * Merge metadata into an existing run while it is still active.
+ */
+export async function updateAgentRunMetadata(
+  runId: string,
+  metadata: Record<string, unknown>
+): Promise<AgentRun | undefined> {
+  const run = await db.query.agentRuns.findFirst({
+    where: eq(agentRuns.id, runId),
+  });
+
+  if (!run) {
+    return undefined;
+  }
+
+  const updatedAt = nowISO();
+  const [updated] = await db
+    .update(agentRuns)
+    .set({
+      metadata: { ...((run.metadata as object) || {}), ...metadata },
+      updatedAt,
     })
     .where(eq(agentRuns.id, runId))
     .returning();

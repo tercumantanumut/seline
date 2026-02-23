@@ -1,66 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
-import Link from "next/link";
-import { useFormatter, useTranslations } from "next-intl";
-import {
-  Archive,
-  BookText,
-  Camera,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Download,
-  Filter,
-  Hash,
-  Link2,
-  Loader2,
-  MessageCircle,
-  MoreHorizontal,
-  Phone,
-  Pin,
-  Plug,
-  PlusCircle,
-  RotateCcw,
-  Search,
-  Send,
-  Trash2,
-  Pencil,
-  X,
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
-import { DocumentsPanel } from "@/components/documents/documents-panel";
-import { SessionItem } from "./session-item";
-import { CHANNEL_TYPE_ICONS } from "./constants";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import type { SessionChannelType, SessionInfo } from "./types";
+import { parseAsUTC, getDateBucket } from "./sidebar-utils";
+import { SidebarCharacterProfile } from "./sidebar-character-profile";
+import { SidebarDeleteDialog } from "./sidebar-delete-dialog";
+import { SessionList } from "./session-list";
+import { SidebarArchived } from "./sidebar-archived";
+import { SidebarQuickLinks } from "./sidebar-quick-links";
 
 interface CharacterFullData {
   id: string;
@@ -112,23 +64,6 @@ interface CharacterSidebarProps {
   onAvatarChange: (newAvatarUrl: string | null) => void;
 }
 
-function parseAsUTC(dateStr: string): Date {
-  const normalized =
-    dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("-", 10)
-      ? dateStr
-      : dateStr.replace(" ", "T") + "Z";
-  return new Date(normalized);
-}
-
-function getDateBucket(date: Date): "today" | "week" | "older" {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days <= 0) return "today";
-  if (days < 7) return "week";
-  return "older";
-}
-
 export function CharacterSidebar({
   character,
   characterDisplay,
@@ -164,8 +99,6 @@ export function CharacterSidebar({
   const initials =
     characterDisplay?.initials || character.name.substring(0, 2).toUpperCase();
   const t = useTranslations("chat");
-  const tChannels = useTranslations("channels");
-  const formatter = useFormatter();
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [archivedSessions, setArchivedSessions] = useState<SessionInfo[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
@@ -180,20 +113,8 @@ export function CharacterSidebar({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Press '/' to focus the session search field
-  useEffect(() => {
-    const handleSlash = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== "/") return;
-      const tag = (document.activeElement as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement as HTMLElement)?.isContentEditable) return;
-      e.preventDefault();
-      searchInputRef.current?.focus();
-    };
-    window.addEventListener("keydown", handleSlash);
-    return () => window.removeEventListener("keydown", handleSlash);
-  }, []);
+  // Press '/' to focus the session search field — handled inside SessionList via its own ref
 
   const stopEditing = useCallback(() => {
     setEditingSessionId(null);
@@ -204,10 +125,6 @@ export function CharacterSidebar({
     setEditingSessionId(session.id);
     setEditTitle(session.title || "");
   }, []);
-
-  useEffect(() => {
-    // Refs removed, logic moved to SessionItem
-  }, [editingSessionId]);
 
   useEffect(() => {
     if (!archivedOpen) return;
@@ -318,11 +235,7 @@ export function CharacterSidebar({
   const connectedCount = channelConnections.filter(
     (connection) => connection.status === "connected",
   ).length;
-  const loadedCount = sessions.length;
-  const hasNoResults = !loadingSessions && loadedCount === 0;
-  const shouldGroupSessions = sessions.length > 5 && !searchQuery.trim();
-  const activeFilterCount =
-    Number(channelFilter !== "all") + Number(dateRange !== "all");
+
   const orderedSessions = useMemo(
     () => [
       ...groupedSessions.today,
@@ -331,43 +244,6 @@ export function CharacterSidebar({
     ],
     [groupedSessions],
   );
-
-  const renderSessionList = (values: SessionInfo[], label?: string) => {
-    if (values.length === 0) return null;
-    return (
-      <div className="space-y-1.5">
-        {label ? (
-          <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-muted/80">
-            {label}
-          </p>
-        ) : null}
-        {values.map((session) => {
-          const isCurrent = session.id === currentSessionId;
-          const isEditing = editingSessionId === session.id;
-          return (
-            <SessionItem
-              key={session.id}
-              session={session}
-              isCurrent={isCurrent}
-              isEditing={isEditing}
-              editTitle={editTitle}
-              setEditTitle={setEditTitle}
-              onSwitch={() => onSwitchSession(session.id)}
-              onSaveEdit={() => void handleRename()}
-              onCancelEdit={stopEditing}
-              onStartEdit={() => startEditingSession(session)}
-              onDelete={() => handleDeleteRequest(session)}
-              onArchive={() => void onArchiveSession(session.id)}
-              onExport={(format) => void onExportSession(session.id, format)}
-              onResetChannel={() => void onResetChannelSession(session.id)}
-              isPinned={session.metadata?.pinned === true}
-              onPin={() => void onPinSession(session.id)}
-            />
-          );
-        })}
-      </div>
-    );
-  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -389,8 +265,9 @@ export function CharacterSidebar({
         characterName={character.displayName || character.name}
         onConnectionsChange={setChannelConnections}
       />
-      <AlertDialog
+      <SidebarDeleteDialog
         open={deleteDialogOpen}
+        pendingSession={pendingDeleteSession}
         onOpenChange={(open) => {
           if (!open) {
             closeDeleteDialog();
@@ -398,554 +275,73 @@ export function CharacterSidebar({
             setDeleteDialogOpen(true);
           }
         }}
-      >
-        <AlertDialogContent className="font-mono">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-terminal-dark uppercase tracking-tight">
-              {t("channelSession.deleteTitle")}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-terminal-muted">
-              {t("channelSession.deleteDescription")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono">
-              {t("sidebar.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="font-mono bg-terminal-green text-terminal-cream hover:bg-terminal-green/90"
-              onClick={() => void handleArchiveAndReset()}
-            >
-              {t("channelSession.archiveReset")}
-            </AlertDialogAction>
-            <AlertDialogAction
-              className="font-mono bg-red-600 text-white hover:bg-red-600/90"
-              onClick={() => void handleConfirmDelete()}
-            >
-              {t("channelSession.deleteAnyway")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onArchiveAndReset={handleArchiveAndReset}
+        onConfirmDelete={handleConfirmDelete}
+      />
 
-      <div className="shrink-0 px-4 pt-3 pb-2">
-        <div className="rounded-lg border border-terminal-border/30 bg-terminal-cream/80 p-3 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setAvatarDialogOpen(true)}
-              className="relative group cursor-pointer"
-              title={t("sidebar.changeAvatar")}
-              aria-label={t("sidebar.changeAvatar")}
-            >
-              <Avatar className="h-10 w-10 shadow-sm">
-                {avatarUrl ? (
-                  <AvatarImage src={avatarUrl} alt={character.name} />
-                ) : null}
-                <AvatarFallback className="bg-terminal-green/10 text-sm font-mono text-terminal-green">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="absolute inset-0 rounded-full bg-terminal-dark/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                <Camera className="h-3.5 w-3.5 text-terminal-cream" />
-              </div>
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="truncate font-semibold font-mono text-terminal-dark">
-                  {character.displayName || character.name}
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setChannelsOpen(true)}
-                  className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-                >
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  <span className="text-[11px] font-mono">
-                    {t("sidebar.channels")}
-                  </span>
-                </Button>
-              </div>
-              {character.tagline ? (
-                <p className="mt-0.5 truncate text-[11px] text-terminal-muted/80 font-mono">
-                  {character.tagline}
-                </p>
-              ) : null}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                {channelsLoading ? (
-                  <span className="text-[10px] font-mono text-terminal-muted">
-                    {tChannels("connections.loading")}
-                  </span>
-                ) : connectedCount > 0 ? (
-                  channelConnections
-                    .filter((connection) => connection.status === "connected")
-                    .map((connection) => {
-                      const Icon = CHANNEL_TYPE_ICONS[connection.channelType];
-                      return (
-                        <Badge
-                          key={connection.id}
-                          className="border border-transparent bg-emerald-500/15 px-2 py-0.5 text-[10px] font-mono text-emerald-700"
-                        >
-                          <Icon className="mr-1 h-3 w-3" />
-                          {tChannels(`types.${connection.channelType}`)}
-                        </Badge>
-                      );
-                    })
-                ) : (
-                  <span className="text-[10px] font-mono text-terminal-muted">
-                    {t("sidebar.noActiveChannels")}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SidebarCharacterProfile
+        character={character}
+        avatarUrl={avatarUrl ?? undefined}
+        initials={initials}
+        channelConnections={channelConnections}
+        channelsLoading={channelsLoading}
+        onOpenAvatarDialog={() => setAvatarDialogOpen(true)}
+        onOpenChannelsDialog={() => setChannelsOpen(true)}
+      />
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="shrink-0 px-4 pb-2">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold font-mono text-terminal-dark uppercase tracking-wider">
-              {t("sidebar.history")}
-            </h3>
-            {totalCount > 0 ? (
-              <span className="text-[10px] font-mono text-terminal-muted/70 tabular-nums">
-                {totalCount.toLocaleString()}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-terminal-muted" />
-              <Input
-                ref={searchInputRef}
-                className={cn("pl-8 h-9 font-mono text-sm", searchQuery ? "pr-8" : "")}
-                value={searchQuery}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder={t("sidebar.searchPlaceholder")}
-                aria-label={t("sidebar.searchPlaceholder")}
-                title={t("sidebar.searchShortcutHint")}
-              />
-              {searchQuery ? (
-                <button
-                  className="absolute right-2 top-2.5 text-terminal-muted hover:text-terminal-dark transition-colors"
-                  onClick={() => onSearchChange("")}
-                  aria-label={t("sidebar.clearSearch")}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onNewSession}
-              title={t("sidebar.newTitle")}
-              className="h-9 px-2.5 text-terminal-green hover:bg-terminal-green/10"
-            >
-              <PlusCircle className="h-4 w-4 mr-1" />
-              <span className="text-xs font-mono font-medium">
-                {t("sidebar.new")}
-              </span>
-            </Button>
-          </div>
-        </div>
+      <SessionList
+        sessions={sessions}
+        pinnedSessions={pinnedSessions}
+        groupedSessions={groupedSessions}
+        orderedSessions={orderedSessions}
+        currentSessionId={currentSessionId}
+        loadingSessions={loadingSessions}
+        hasMore={hasMore}
+        totalCount={totalCount}
+        searchQuery={searchQuery}
+        channelFilter={channelFilter}
+        dateRange={dateRange}
+        filtersOpen={filtersOpen}
+        connectedCount={connectedCount}
+        editingSessionId={editingSessionId}
+        editTitle={editTitle}
+        setEditTitle={setEditTitle}
+        onSearchChange={onSearchChange}
+        onChannelFilterChange={onChannelFilterChange}
+        onDateRangeChange={onDateRangeChange}
+        onToggleFilters={() => setFiltersOpen((prev) => !prev)}
+        onLoadMore={onLoadMore}
+        onNewSession={onNewSession}
+        onSwitchSession={onSwitchSession}
+        onDeleteRequest={handleDeleteRequest}
+        onArchiveSession={onArchiveSession}
+        onExportSession={onExportSession}
+        onResetChannelSession={(sessionId) => void onResetChannelSession(sessionId)}
+        onPinSession={onPinSession}
+        onSaveEdit={() => void handleRename()}
+        onCancelEdit={stopEditing}
+        onStartEdit={startEditingSession}
+      />
 
-        <div className="shrink-0 px-4 pb-2 space-y-1.5">
-          <button
-            className="flex w-full items-center justify-between rounded-md border border-terminal-border/50 bg-terminal-cream/60 px-2.5 py-2 text-left"
-            onClick={() => setFiltersOpen((prev) => !prev)}
-            aria-expanded={filtersOpen}
-          >
-            <span className="flex items-center gap-1.5 text-xs font-mono text-terminal-dark">
-              <Filter className="h-3.5 w-3.5" />
-              {t("sidebar.filters")}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {activeFilterCount > 0 ? (
-                <Badge className="border-terminal-border bg-terminal-dark/10 px-1.5 py-0 text-[10px] font-mono text-terminal-dark">
-                  {activeFilterCount}
-                </Badge>
-              ) : null}
-              {filtersOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
-              )}
-            </div>
-          </button>
-          {filtersOpen ? (
-            <div className="space-y-2 rounded-md border border-terminal-border/40 bg-terminal-cream/40 p-2.5">
-              {connectedCount > 0 || channelFilter !== "all" ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {(["all", "whatsapp", "telegram", "slack"] as const).map(
-                    (option) => (
-                      <Button
-                        key={option}
-                        variant={
-                          channelFilter === option ? "default" : "outline"
-                        }
-                        size="sm"
-                        className="h-7 px-2.5 text-[11px] font-mono"
-                        onClick={() => onChannelFilterChange(option)}
-                      >
-                        {option === "all"
-                          ? t("sidebar.channelAll")
-                          : tChannels(`types.${option}`)}
-                      </Button>
-                    ),
-                  )}
-                </div>
-              ) : null}
-              <div className="flex flex-wrap gap-1.5">
-                {(["all", "today", "week", "month"] as const).map((option) => (
-                  <Button
-                    key={option}
-                    variant={dateRange === option ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 px-2.5 text-[11px] font-mono"
-                    onClick={() => onDateRangeChange(option)}
-                  >
-                    {t(`sidebar.date.${option}`)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
+      <SidebarArchived
+        archivedOpen={archivedOpen}
+        onToggle={() => setArchivedOpen((prev) => !prev)}
+        archivedSessions={archivedSessions}
+        loadingArchived={loadingArchived}
+        onRestoreSession={onRestoreSession}
+        onArchivedRestored={(sessionId) =>
+          setArchivedSessions((prev) => prev.filter((s) => s.id !== sessionId))
+        }
+      />
 
-        <ScrollArea className="flex-1 min-h-0 px-4">
-          <div className="space-y-2 pr-2 pb-2">
-            {loadingSessions && loadedCount === 0 ? (
-              <div className="space-y-1.5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
-                    <Skeleton className="h-6 w-6 shrink-0 rounded-sm" />
-                    <div className="flex-1 space-y-1.5">
-                      <Skeleton className="h-3.5 w-full rounded" />
-                      <Skeleton className="h-3 w-2/3 rounded" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : hasNoResults ? (
-              <div className="rounded-lg border border-dashed border-terminal-border/60 bg-terminal-cream/40 p-4 text-center">
-                <p className="text-sm text-terminal-muted font-mono">
-                  {t("sidebar.empty")}
-                </p>
-                <p className="mt-1 text-xs text-terminal-muted/80 font-mono">
-                  {t("sidebar.emptyHint")}
-                </p>
-                <Button
-                  className="mt-3 h-8 font-mono"
-                  size="sm"
-                  onClick={onNewSession}
-                >
-                  <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
-                  {t("sidebar.startNew")}
-                </Button>
-              </div>
-            ) : (
-              <>
-                {pinnedSessions.length > 0 ? (
-                  <div className="space-y-1.5">
-                    <p className="px-1 pt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-terminal-amber/80 flex items-center gap-1.5">
-                      <Pin className="h-2.5 w-2.5" />
-                      {t("sidebar.pinnedSection")}
-                      <span className="ml-auto tabular-nums text-terminal-amber/60 normal-case">{pinnedSessions.length}</span>
-                    </p>
-                    {pinnedSessions.map((session) => {
-                      const isCurrent = session.id === currentSessionId;
-                      const isEditing = editingSessionId === session.id;
-                      return (
-                        <SessionItem
-                          key={session.id}
-                          session={session}
-                          isCurrent={isCurrent}
-                          isEditing={isEditing}
-                          editTitle={editTitle}
-                          setEditTitle={setEditTitle}
-                          onSwitch={() => onSwitchSession(session.id)}
-                          onSaveEdit={() => void handleRename()}
-                          onCancelEdit={stopEditing}
-                          onStartEdit={() => startEditingSession(session)}
-                          onDelete={() => handleDeleteRequest(session)}
-                          onArchive={() => void onArchiveSession(session.id)}
-                          onExport={(format) => void onExportSession(session.id, format)}
-                          onResetChannel={() => void onResetChannelSession(session.id)}
-                          isPinned={true}
-                          onPin={() => void onPinSession(session.id)}
-                        />
-                      );
-                    })}
-                    <div className="border-t border-terminal-border/40 pt-1" />
-                  </div>
-                ) : null}
-                {shouldGroupSessions ? (
-                  <>
-                    {renderSessionList(
-                      groupedSessions.today,
-                      t("sidebar.groups.today"),
-                    )}
-                    {renderSessionList(
-                      groupedSessions.week,
-                      t("sidebar.groups.week"),
-                    )}
-                    {renderSessionList(
-                      groupedSessions.older,
-                      t("sidebar.groups.older"),
-                    )}
-                  </>
-                ) : (
-                  renderSessionList(orderedSessions)
-                )}
-              </>
-            )}
-            {hasMore && !hasNoResults ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 font-mono text-xs"
-                onClick={onLoadMore}
-                disabled={loadingSessions}
-              >
-                {loadingSessions ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    {t("sidebar.loadingMore")}
-                  </>
-                ) : (
-                  t("sidebar.loadMore", {
-                    loaded: loadedCount,
-                    total: totalCount,
-                  })
-                )}
-              </Button>
-            ) : null}
-          </div>
-        </ScrollArea>
-
-        {/* ── Archived sessions toggle ── */}
-        <div className="shrink-0 px-4 pb-1">
-          <button
-            className="flex w-full items-center justify-between rounded-md border border-terminal-border/40 bg-terminal-cream/40 px-2.5 py-1.5 text-left hover:bg-terminal-cream/70 transition-colors"
-            onClick={() => setArchivedOpen((prev) => !prev)}
-            aria-expanded={archivedOpen}
-          >
-            <span className="flex items-center gap-1.5 text-xs font-mono text-terminal-muted">
-              <Archive className="h-3 w-3" />
-              {t("sidebar.archived")}
-              {archivedSessions.length > 0 && archivedOpen ? (
-                <span className="ml-1 text-[10px] text-terminal-muted/60">({archivedSessions.length})</span>
-              ) : null}
-            </span>
-            {archivedOpen ? (
-              <ChevronDown className="h-3 w-3 text-terminal-muted/60" />
-            ) : (
-              <ChevronRight className="h-3 w-3 text-terminal-muted/60" />
-            )}
-          </button>
-          {archivedOpen && (
-            <div className="mt-1 space-y-1 rounded-md border border-terminal-border/30 bg-terminal-cream/30 p-1.5">
-              {loadingArchived ? (
-                <div className="flex items-center justify-center py-3">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-terminal-muted" />
-                </div>
-              ) : archivedSessions.length === 0 ? (
-                <p className="py-3 text-center text-xs font-mono text-terminal-muted/60">
-                  {t("sidebar.noArchived")}
-                </p>
-              ) : (
-                archivedSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between rounded px-2 py-1.5 hover:bg-terminal-cream/60 transition-colors group">
-                    <span className="min-w-0 flex-1 truncate text-xs font-mono text-terminal-muted/80">
-                      {session.title || t("session.untitled")}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-1.5 h-6 shrink-0 px-2 text-[10px] font-mono text-terminal-green opacity-0 group-hover:opacity-100 hover:bg-terminal-green/10"
-                      onClick={() => {
-                        void onRestoreSession(session.id).then(() => {
-                          setArchivedSessions((prev) => prev.filter((s) => s.id !== session.id));
-                        });
-                      }}
-                    >
-                      {t("sidebar.restore")}
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="shrink-0 space-y-1.5 px-4 pb-4">
-          <button
-            className="flex w-full items-center justify-between rounded-md border border-terminal-border/50 bg-terminal-cream/60 px-2.5 py-2 text-left"
-            onClick={() => setResourcesOpen((prev) => !prev)}
-            aria-expanded={resourcesOpen}
-          >
-            <span className="flex items-center gap-1.5 text-xs font-mono text-terminal-dark">
-              <Link2 className="h-3.5 w-3.5" />
-              {t("sidebar.quickLinks")}
-            </span>
-            {resourcesOpen ? (
-              <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
-            )}
-          </button>
-          {resourcesOpen ? (
-            <div className="grid grid-cols-3 gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href={`/agents/${character.id}/memory`}
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.agentMemoryShort")}
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href={`/agents/${character.id}/schedules`}
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.schedulesShort")}
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href={`/agents/${character.id}/skills`}
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.skillsShort")}
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href="/skills/library"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.libraryShort")}
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href="/dashboard"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.dashboardShort")}
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-[11px] font-mono"
-                asChild
-              >
-                <Link
-                  href="/usage"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "seline-return-url",
-                        window.location.href,
-                      );
-                    }
-                  }}
-                >
-                  {t("sidebar.usageShort")}
-                </Link>
-              </Button>
-            </div>
-          ) : null}
-
-          <button
-            className="flex w-full items-center justify-between rounded-md border border-terminal-border/50 bg-terminal-cream/60 px-2.5 py-2 text-left"
-            onClick={() => setDocsOpen((prev) => !prev)}
-            aria-expanded={docsOpen}
-          >
-            <span className="flex items-center gap-1.5 text-xs font-mono text-terminal-dark">
-              <BookText className="h-3.5 w-3.5" />
-              {t("sidebar.knowledgeBase")}
-            </span>
-            {docsOpen ? (
-              <ChevronDown className="h-3.5 w-3.5 text-terminal-muted" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 text-terminal-muted" />
-            )}
-          </button>
-          {docsOpen ? (
-            <div className="max-h-56 overflow-y-auto rounded-md border border-terminal-border/40 bg-terminal-cream/30 p-2">
-              <DocumentsPanel
-                agentId={character.id}
-                agentName={character.name}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
+      <SidebarQuickLinks
+        characterId={characterId}
+        characterName={character.name}
+        resourcesOpen={resourcesOpen}
+        docsOpen={docsOpen}
+        onToggleResources={() => setResourcesOpen((prev) => !prev)}
+        onToggleDocs={() => setDocsOpen((prev) => !prev)}
+      />
     </div>
   );
 }

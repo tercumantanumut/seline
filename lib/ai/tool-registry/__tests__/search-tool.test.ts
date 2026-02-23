@@ -139,4 +139,97 @@ describe("createToolSearchTool utility routing", () => {
     expect(result.status).toBe("success");
     expect(mocks.generateObject).not.toHaveBeenCalled();
   });
+
+  it("narrows mixed browser/web intents to related tools only", async () => {
+    process.env.TOOL_SEARCH_ROUTER_MODEL = "false";
+
+    const { ToolRegistry } = await import("../registry");
+    const { createToolSearchTool } = await import("../search-tool");
+
+    ToolRegistry.reset();
+    const registry = ToolRegistry.getInstance();
+
+    registry.register(
+      "searchTools",
+      {
+        displayName: "Search Tools",
+        category: "utility",
+        keywords: ["search"],
+        shortDescription: "search tools",
+        loading: { alwaysLoad: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    registry.register(
+      "webSearch",
+      {
+        displayName: "Web Search",
+        category: "search",
+        keywords: ["web", "browser", "internet"],
+        shortDescription: "search the web",
+        loading: { deferLoading: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    registry.register(
+      "chromeDevtoolsNavigate",
+      {
+        displayName: "navigate_page (chrome-devtools)",
+        category: "mcp",
+        keywords: ["chrome", "browser", "navigate", "web"],
+        shortDescription: "control chrome page navigation",
+        loading: { deferLoading: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    registry.register(
+      "editFile",
+      {
+        displayName: "Edit File",
+        category: "knowledge",
+        keywords: ["file", "edit", "patch"],
+        shortDescription: "modify file content",
+        loading: { deferLoading: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    registry.register(
+      "scheduleTask",
+      {
+        displayName: "Schedule Task",
+        category: "utility",
+        keywords: ["schedule", "task", "cron"],
+        shortDescription: "schedule future execution",
+        loading: { deferLoading: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    const searchTool = createToolSearchTool({
+      initialActiveTools: new Set(["searchTools"]),
+      discoveredTools: new Set<string>(),
+      enabledTools: new Set(["webSearch", "chromeDevtoolsNavigate", "editFile", "scheduleTask"]),
+    }) as any;
+
+    const result = await searchTool.execute({
+      query: "browser, chrome, web search, search internet",
+      limit: 20,
+    });
+
+    expect(result.status).toBe("success");
+    const names = result.results.map((tool: { name: string }) => tool.name);
+    expect(names).toContain("webSearch");
+    expect(names).toContain("chromeDevtoolsNavigate");
+    expect(names).not.toContain("editFile");
+    expect(names).not.toContain("scheduleTask");
+  });
 });

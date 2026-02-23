@@ -309,6 +309,10 @@ export function TerminalWizard() {
           enabledMcpServers: state.enabledMcpServers,
           enabledMcpTools: state.enabledMcpTools,
           mcpToolPreferences: state.mcpToolPreferences,
+          mcpUserConfigured:
+            state.enabledMcpServers.length > 0 ||
+            state.enabledMcpTools.length > 0 ||
+            Object.keys(state.mcpToolPreferences).length > 0,
         },
       });
 

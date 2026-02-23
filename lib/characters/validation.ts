@@ -134,6 +134,12 @@ export const agentMetadataSchema = z.object({
     })
   ).optional(),
 
+  /** Internal marker set when user explicitly configures MCP selections for this agent */
+  mcpUserConfigured: z.boolean().optional(),
+
+  /** Internal migration guard to avoid reapplying default MCP disable logic repeatedly */
+  defaultMcpDisableMigrationApplied: z.boolean().optional(),
+
   /** Workflow linkage for plugin-created sub-agents */
   workflowId: z.string().optional(),
   workflowRole: workflowRoleSchema.optional(),
