@@ -10,7 +10,7 @@
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles, characters } from "@/lib/db/sqlite-character-schema";
 import { eq, and, sql, or } from "drizzle-orm";
-import { removeFolderFromVectorDB } from "./indexing";
+import { removeFileFromVectorDB, removeFolderFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
 import { deleteAgentTable, listAgentTables } from "./collections";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";

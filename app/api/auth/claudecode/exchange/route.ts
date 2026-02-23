@@ -1,40 +1,30 @@
 import { NextResponse } from "next/server";
-import { exchangeClaudeCodeManualCode } from "@/lib/auth/claudecode-oauth-server";
+import { getClaudeCodeAuthStatus } from "@/lib/auth/claudecode-auth";
 
 /**
  * POST /api/auth/claudecode/exchange
- * Body: { code: string }
  *
- * Exchanges a manually-pasted authorization code (from Anthropic's console callback page)
- * for OAuth tokens.
+ * Manual authorization code exchange is removed for Agent SDK mode.
+ * Clients should re-check SDK auth status after completing login externally.
  */
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const body = await request.json();
-    const code = body.code;
+    const status = await getClaudeCodeAuthStatus();
 
-    if (!code || typeof code !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Missing authorization code" },
-        { status: 400 }
-      );
-    }
-
-    const result = await exchangeClaudeCodeManualCode(code);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: status.authenticated,
+      authenticated: status.authenticated,
+      error: status.authenticated
+        ? undefined
+        : "Claude Agent SDK is not authenticated yet. Complete login and try again.",
+      output: status.output,
+      url: status.authUrl || null,
+    });
   } catch (error) {
     console.error("[ClaudeCodeExchange] Error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to exchange authorization code" },
-      { status: 500 }
+      { success: false, error: "Failed to verify authentication status" },
+      { status: 500 },
     );
   }
 }
