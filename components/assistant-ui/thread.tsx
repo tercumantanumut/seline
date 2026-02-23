@@ -24,7 +24,7 @@ import {
   type ContextWindowBlockedPayload,
 } from "./context-window-blocked-banner";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
-import { PluginStatusBadge } from "@/components/plugins/plugin-status-badge";
+import { AgentResourcesBadge } from "./agent-resources-badge";
 import { type VoiceUiSettings } from "./thread-drop-utils";
 import { useThreadDropHandler } from "./use-thread-drop-handler";
 import {
@@ -280,8 +280,7 @@ export const Thread: FC<ThreadProps> = ({
 
           <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
             <ThreadScrollToBottom />
-            {/* Plugin status badge in chat header */}
-            <PluginStatusBadge />
+            <AgentResourcesBadge />
             <Composer
               isBackgroundTaskRunning={isBackgroundTaskRunning}
               isProcessingInBackground={isProcessingInBackground}
