@@ -65,6 +65,7 @@ export const Composer: FC<{
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+  onLivePromptInjected?: () => void | Promise<void>;
   contextStatus?: import("@/lib/hooks/use-context-status").ContextWindowStatus | null;
   contextLoading?: boolean;
   onCompact?: () => Promise<{ success: boolean; compacted: boolean }>;
@@ -332,8 +333,12 @@ export const Composer: FC<{
                 setQueuedMessages(prev =>
                   prev.map(m => m.id === msgId ? { ...m, status: "injected-live" as const } : m)
                 );
-                // Pull fresh DB-backed messages so the injected user prompt appears immediately.
-                void onLivePromptInjected?.();
+                // NOTE: We intentionally do NOT call onLivePromptInjected here.
+                // Calling refreshMessages mid-stream tears down the assistant-ui thread
+                // runtime (via flushSync + state replacement), killing the SSE connection
+                // and switching to background mode. The injected message is saved at the
+                // correct ordering position in prepareStep and will appear when the run
+                // finishes naturally.
                 setTimeout(() => {
                   setQueuedMessages(prev => prev.filter(m => m.id !== msgId));
                 }, 1500);

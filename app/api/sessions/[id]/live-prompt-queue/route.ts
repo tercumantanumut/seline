@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
-import { getOrCreateLocalUser, createMessage } from "@/lib/db/queries";
+import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
-import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import {
   appendToLivePromptQueueBySession,
 } from "@/lib/background-tasks/live-prompt-queue-registry";
@@ -64,22 +63,10 @@ export async function POST(req: Request, { params }: RouteParams) {
       );
     }
 
-    // Persist the user message to DB for conversation history continuity.
-    // Best-effort — the live injection already happened; a DB failure doesn't roll it back.
-    try {
-      const orderingIndex = await nextOrderingIndex(sessionId);
-      await createMessage({
-        sessionId,
-        role: "user",
-        content: [{ type: "text", text: sanitized }],
-        orderingIndex,
-        metadata: {
-          livePromptInjected: true,
-        },
-      });
-    } catch (dbError) {
-      console.warn("[LivePromptQueue] Failed to persist message to DB:", dbError);
-    }
+    // NOTE: The user message is NOT persisted here.
+    // It is saved in prepareStep (route.ts) at the correct ordering position —
+    // after the pre-injection streaming assistant message is flushed and sealed,
+    // ensuring the injected message appears in the right place in chat history.
 
     console.log(
       `[LivePromptQueue] Enqueued for session ${sessionId} ` +
