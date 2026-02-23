@@ -259,7 +259,8 @@ export function useCharacterActions(
       const { data, error } = await resilientPost<{ character: { id: string } }>(
         `/api/characters/${characterId}/duplicate`,
         {},
-        { retries: 0 }
+        // Duplication can copy folders, plugins, and images; default 10s may be too short.
+        { retries: 0, timeout: 60000 }
       );
       if (error || !data?.character) throw new Error(error || "Unknown error");
       await loadCharacters();
