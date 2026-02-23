@@ -204,7 +204,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let sessionId = providedSessionId;
+    sessionId = providedSessionId ?? "";
     let isNewSession = false;
     let sessionMetadata: Record<string, unknown> = {};
 
@@ -441,6 +441,7 @@ export async function POST(req: Request) {
     }
 
     let workflowPromptContext: string | null = null;
+    let workflowPromptContextInput: import("@/lib/agents/workflows").WorkflowPromptContextInput | null = null;
     if (characterId) {
       try {
         const workflowCtx = await getWorkflowByAgentId(characterId);
@@ -458,6 +459,7 @@ export async function POST(req: Request) {
               }
             }
             workflowPromptContext = resources.promptContext;
+            workflowPromptContextInput = resources.promptContextInput;
             console.log(`[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`);
           }
         }
@@ -512,6 +514,7 @@ export async function POST(req: Request) {
       streamToolResultBudgetTokens,
       pluginRoots,
       allowedPluginNames,
+      workflowPromptContextInput,
     });
 
     const {
@@ -672,7 +675,7 @@ export async function POST(req: Request) {
                 // We don't hard-abort here — this lets the model acknowledge the stop request
                 // before the run ends naturally at the next step boundary.
                 return {
-                  activeTools: [] as (keyof typeof allToolsWithMCP)[],
+                  activeTools: [] as string[],
                   system: buildStopSystemMessage(pendingPrompts),
                 };
               }
@@ -726,12 +729,18 @@ export async function POST(req: Request) {
                 content: buildUserInjectionContent(pendingPrompts),
               };
               return {
-                activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[],
+                activeTools: currentActiveTools as string[],
                 messages: [...stepMessages, injectedUserMessage],
               };
             }
 
             return { activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[] };
+          },
+          experimental_repairToolCall: async ({ error, toolCall }) => {
+            // Return null to let the SDK inject the error as a tool result so the model can recover.
+            // Previously this was automatic in older AI SDK versions; v6 requires it explicitly.
+            console.warn(`[CHAT API] Tool call repair triggered for "${toolCall.toolName}": ${error.message}`);
+            return null;
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
