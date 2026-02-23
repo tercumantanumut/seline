@@ -109,8 +109,15 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
     }
 
     // Save assistant message to database.
+    // When a live prompt was injected mid-run, prepareStep split the streaming
+    // message and recorded stepOffset — only include post-injection steps here
+    // so the pre-injection content stays in its own sealed DB record.
+    const relevantSteps =
+      ctx.streamingState?.stepOffset != null
+        ? (steps as StepLike[]).slice(ctx.streamingState.stepOffset)
+        : (steps as StepLike[] | undefined);
     const stepContent = buildCanonicalAssistantContentFromSteps(
-      steps as StepLike[] | undefined,
+      relevantSteps,
       text
     );
     const content = mergeCanonicalAssistantContent(
