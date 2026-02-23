@@ -197,12 +197,31 @@ export async function deleteMessagesNotIn(
 
   const allMessages = await db.query.messages.findMany({
     where: eq(messages.sessionId, sessionId),
-    columns: { id: true, role: true },
+    columns: { id: true, role: true, orderingIndex: true, createdAt: true },
+    orderBy: [
+      asc(sql`case when ${messages.orderingIndex} is null then 1 else 0 end`),
+      asc(messages.orderingIndex),
+      asc(messages.createdAt),
+    ],
   });
 
-  // Only delete user/assistant messages the frontend no longer has.
+  // Only trim a stale suffix (edit/reload semantics).
+  // This avoids deleting older history when the frontend sends a partial list.
+  let maxKeptPosition = -1;
+  for (let i = 0; i < allMessages.length; i += 1) {
+    if (keepIds.has(allMessages[i].id)) {
+      maxKeptPosition = i;
+    }
+  }
+
+  if (maxKeptPosition < 0) return 0;
+
   const idsToDelete = allMessages
-    .filter(m => !keepIds.has(m.id) && (m.role === "user" || m.role === "assistant"))
+    .filter((m, idx) =>
+      idx > maxKeptPosition &&
+      !keepIds.has(m.id) &&
+      (m.role === "user" || m.role === "assistant")
+    )
     .map(m => m.id);
 
   if (idsToDelete.length === 0) return 0;

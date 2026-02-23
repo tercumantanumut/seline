@@ -13,6 +13,8 @@ import {
   deleteMessagesNotIn,
 } from "@/lib/db/queries";
 import { nextOrderingIndex, allocateOrderingIndices, validateSessionOrdering } from "@/lib/session/message-ordering";
+import { getSessionWithMessages } from "@/lib/db/queries-sessions";
+import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
 
 describe("Message Ordering", () => {
   const TEST_USER_ID = "test-user";
@@ -167,72 +169,161 @@ describe("Message Ordering", () => {
     const session = await createSession({ title: "Test", userId: TEST_USER_ID });
     if (!session) throw new Error("Failed to create session");
 
-    await createMessage({
-      id: "11111111-1111-1111-1111-111111111111",
+    const keepUser = await createMessage({
       sessionId: session.id,
       role: "user",
       content: [{ type: "text", text: "Keep user" }],
       orderingIndex: 1,
     });
 
-    await createMessage({
-      id: "22222222-2222-2222-2222-222222222222",
+    const keepAssistant = await createMessage({
       sessionId: session.id,
       role: "assistant",
       content: [{ type: "text", text: "Keep assistant" }],
       orderingIndex: 2,
     });
 
-    await createMessage({
-      id: "33333333-3333-3333-3333-333333333333",
+    const deleteUser = await createMessage({
       sessionId: session.id,
       role: "user",
       content: [{ type: "text", text: "Delete me" }],
       orderingIndex: 3,
     });
 
-    await createMessage({
-      id: "44444444-4444-4444-4444-444444444444",
+    const deleteAssistant = await createMessage({
       sessionId: session.id,
       role: "assistant",
       content: [{ type: "text", text: "Delete me too" }],
       orderingIndex: 4,
     });
 
-    await createMessage({
-      id: "55555555-5555-5555-5555-555555555555",
+    const keepTool = await createMessage({
       sessionId: session.id,
       role: "tool",
       content: [{ type: "tool-result", toolCallId: "t1", result: { ok: true } }],
       orderingIndex: 5,
     });
 
-    await createMessage({
-      id: "66666666-6666-6666-6666-666666666666",
+    const keepSystem = await createMessage({
       sessionId: session.id,
       role: "system",
       content: [{ type: "text", text: "System note" }],
       orderingIndex: 6,
     });
 
+    expect(keepUser?.id).toBeTruthy();
+    expect(keepAssistant?.id).toBeTruthy();
+    expect(deleteUser?.id).toBeTruthy();
+    expect(deleteAssistant?.id).toBeTruthy();
+    expect(keepTool?.id).toBeTruthy();
+    expect(keepSystem?.id).toBeTruthy();
+
     const deleted = await deleteMessagesNotIn(
       session.id,
       new Set([
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
+        keepUser!.id,
+        keepAssistant!.id,
       ])
     );
 
+    // Keep-set stops at orderingIndex 2, so newer stale user/assistant suffix is deleted.
     expect(deleted).toBe(2);
 
     const remaining = await getMessages(session.id);
     const remainingIds = new Set(remaining.map((m) => m.id));
 
-    expect(remainingIds.has("11111111-1111-1111-1111-111111111111")).toBe(true);
-    expect(remainingIds.has("22222222-2222-2222-2222-222222222222")).toBe(true);
-    expect(remainingIds.has("33333333-3333-3333-3333-333333333333")).toBe(false);
-    expect(remainingIds.has("44444444-4444-4444-4444-444444444444")).toBe(false);
-    expect(remainingIds.has("55555555-5555-5555-5555-555555555555")).toBe(true);
-    expect(remainingIds.has("66666666-6666-6666-6666-666666666666")).toBe(true);
+    expect(remainingIds.has(keepUser!.id)).toBe(true);
+    expect(remainingIds.has(keepAssistant!.id)).toBe(true);
+    expect(remainingIds.has(deleteUser!.id)).toBe(false);
+    expect(remainingIds.has(deleteAssistant!.id)).toBe(false);
+    expect(remainingIds.has(keepTool!.id)).toBe(true);
+    expect(remainingIds.has(keepSystem!.id)).toBe(true);
+  });
+
+  it("should return session messages ordered by orderingIndex in getSessionWithMessages", async () => {
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    const sharedCreatedAt = new Date().toISOString();
+
+    const second = await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      content: [{ type: "text", text: "Second" }],
+      orderingIndex: 2,
+      createdAt: sharedCreatedAt,
+    });
+
+    const first = await createMessage({
+      sessionId: session.id,
+      role: "user",
+      content: [{ type: "text", text: "First" }],
+      orderingIndex: 1,
+      createdAt: sharedCreatedAt,
+    });
+
+    expect(first?.id).toBeTruthy();
+    expect(second?.id).toBeTruthy();
+
+    const sessionWithMessages = await getSessionWithMessages(session.id);
+    expect(sessionWithMessages).toBeTruthy();
+
+    const ordered = sessionWithMessages?.messages ?? [];
+    expect(ordered[0]?.id).toBe(first!.id);
+    expect(ordered[1]?.id).toBe(second!.id);
+  });
+
+  it("should keep user messages visible after stale-message cleanup when older tool calls are absent from keepIds", async () => {
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    const olderUser = await createMessage({
+      sessionId: session.id,
+      role: "user",
+      content: [{ type: "text", text: "Older user" }],
+      orderingIndex: 1,
+    });
+
+    const staleAssistantToolCall = await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "tool-1",
+          toolName: "executeCommand",
+          args: { command: "echo", args: ["ok"] },
+          state: "input-available",
+        },
+      ],
+      orderingIndex: 2,
+    });
+
+    const latestAssistant = await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      content: [{ type: "text", text: "Latest assistant" }],
+      orderingIndex: 3,
+    });
+
+    expect(olderUser?.id).toBeTruthy();
+    expect(staleAssistantToolCall?.id).toBeTruthy();
+    expect(latestAssistant?.id).toBeTruthy();
+
+    const deleted = await deleteMessagesNotIn(
+      session.id,
+      new Set([
+        olderUser!.id,
+        latestAssistant!.id,
+      ])
+    );
+
+    expect(deleted).toBe(0);
+
+    const persisted = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(persisted as any);
+
+    expect(uiMessages.map((msg) => msg.id)).toContain(olderUser!.id);
+    expect(uiMessages.map((msg) => msg.id)).toContain(latestAssistant!.id);
   });
 });
