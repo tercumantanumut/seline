@@ -11,6 +11,12 @@ export interface StreamingMessageState {
   lastBroadcastAt: number;
   lastBroadcastSignature: string;
   pendingBroadcast?: boolean;
+  /**
+   * Set when a live prompt injection splits the streaming message mid-run.
+   * Points to the step index (0-based) at which the split occurred.
+   * onFinish uses this to only persist post-injection steps to the new message.
+   */
+  stepOffset?: number;
 }
 
 export function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {

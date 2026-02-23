@@ -67,6 +67,7 @@ export const Thread: FC<ThreadProps> = ({
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
+  onLivePromptInjected,
 }) => {
   const isRunning = useThread((t) => t.isRunning);
   const router = useRouter();

@@ -360,6 +360,11 @@ export function useSessionManager({
     }, [pollingIntervalRef, setIsProcessingInBackground, setProcessingRunId, setIsZombieRun, setIsCancellingBackgroundRun]);
 
     const switchSession = useCallback(async (newSessionId: string) => {
+        // Guard: clicking the same session while a run is active must be a no-op.
+        // clearBackgroundState() would drop processingRunId / isProcessingInBackground,
+        // making the UI think nothing is running and allowing a new message to be sent
+        // while the old run is still executing server-side.
+        if (newSessionId === sessionId) return;
         try {
             setIsLoading(true);
             clearBackgroundState();
@@ -372,7 +377,7 @@ export function useSessionManager({
         } finally {
             setIsLoading(false);
         }
-    }, [character.id, router, fetchSessionMessages, clearBackgroundState, setSessionState]);
+    }, [sessionId, character.id, router, fetchSessionMessages, clearBackgroundState, setSessionState]);
 
     const createNewSession = useCallback(async () => {
         try {
