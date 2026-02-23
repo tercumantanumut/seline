@@ -79,6 +79,7 @@ export const Composer: FC<{
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
+  onLivePromptInjected,
   contextStatus = null,
   contextLoading = false,
   onCompact,
@@ -331,6 +332,8 @@ export const Composer: FC<{
                 setQueuedMessages(prev =>
                   prev.map(m => m.id === msgId ? { ...m, status: "injected-live" as const } : m)
                 );
+                // Pull fresh DB-backed messages so the injected user prompt appears immediately.
+                void onLivePromptInjected?.();
                 setTimeout(() => {
                   setQueuedMessages(prev => prev.filter(m => m.id !== msgId));
                 }, 1500);

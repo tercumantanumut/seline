@@ -510,6 +510,7 @@ export default function ChatInterface({
                                 isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
                                 canCancelBackgroundRun={Boolean(bg.processingRunId)}
                                 isZombieBackgroundRun={bg.isZombieRun}
+                                onLivePromptInjected={bg.refreshMessages}
                             />
                         </div>
                     </ChatProvider>

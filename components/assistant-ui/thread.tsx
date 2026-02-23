@@ -53,6 +53,7 @@ interface ThreadProps {
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
+  onLivePromptInjected?: () => void | Promise<void>;
 }
 
 export const Thread: FC<ThreadProps> = ({
@@ -290,6 +291,7 @@ export const Thread: FC<ThreadProps> = ({
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
               isZombieBackgroundRun={isZombieBackgroundRun}
+              onLivePromptInjected={onLivePromptInjected}
               contextStatus={contextStatus}
               contextLoading={contextLoading}
               onCompact={triggerCompact}

@@ -7,7 +7,7 @@ import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/messa
 import { ContextWindowManager } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
@@ -366,6 +366,25 @@ export async function POST(req: Request) {
       const plainTextContent = getPlainTextFromContent(extractedContent);
       if ((isNewSession || userMessageCount === 1) && plainTextContent.length > 0) {
         void generateSessionTitle(sessionId, plainTextContent);
+      }
+    }
+
+    // ── Edit/Reload truncation cleanup ──────────────────────────────────────
+    // When the user edits a message or clicks reload, assistant-ui sends a
+    // truncated message list (everything up to the edited message + the new
+    // version). DB messages beyond that list are stale and must be removed,
+    // otherwise they reappear when the session is reloaded from DB.
+    if (!isNewSession && !isScheduledRun) {
+      const frontendIds = new Set(
+        messages
+          .filter(m => m.id && uuidRegex.test(m.id))
+          .map(m => m.id!)
+      );
+      if (frontendIds.size > 0) {
+        const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
+        if (deleted > 0) {
+          console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
+        }
       }
     }
 
