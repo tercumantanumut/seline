@@ -335,6 +335,30 @@ export async function indexTextToVectorDB(params: {
 }
 
 /**
+ * Remove all indexed content for a sync folder in a single bulk delete.
+ * Much faster than per-file deletion when removing an entire folder.
+ */
+export async function removeFolderFromVectorDB(params: {
+  characterId: string;
+  folderId: string;
+}): Promise<void> {
+  const { characterId, folderId } = params;
+
+  const db = await getLanceDB();
+  if (!db) return;
+
+  const tableName = getAgentTableName(characterId);
+  const existingTables = await db.tableNames();
+
+  if (!existingTables.includes(tableName)) return;
+
+  const table = await db.openTable(tableName);
+  await table.delete(`folderId = "${folderId}"`);
+
+  console.log(`[VectorDB] Bulk removed all points for folder ${folderId} from ${tableName}`);
+}
+
+/**
  * Remove indexed content for specific point IDs
  */
 export async function removeFileFromVectorDB(params: {
