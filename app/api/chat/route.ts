@@ -75,6 +75,7 @@ import { prepareMessagesForRequest } from "./message-prep";
 import { createOnFinishCallback, createOnAbortCallback } from "./stream-callbacks";
 import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
+import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -527,6 +528,18 @@ export async function POST(req: Request) {
 
     const useDeferredLoading = toolLoadingMode !== "always";
 
+    // ── Seline MCP context for SDK agent tool exposure ─────────────────────────
+    // Stored in AsyncLocalStorage so the Claude Agent SDK fetch interceptor can
+    // read it without needing changes to every function signature in between.
+    // Must be set AFTER buildToolsForRequest() so MCP servers are already
+    // connected and their tools are registered in ToolRegistry.
+    const mcpCtx: SelineMcpContext = {
+      userId: dbUser.id,
+      sessionId,
+      characterId: characterId ?? null,
+      enabledTools: enabledTools ?? undefined,
+    };
+
     // ── Apply caching to messages ──────────────────────────────────────────────
     const cachedMessages = useCaching ? applyCacheToMessages(coreMessages) : coreMessages;
 
@@ -622,8 +635,10 @@ export async function POST(req: Request) {
       streamAbortSignal,
     };
 
-    const createStreamResult = async () =>
-      withRunContext(
+    const createStreamResult = () =>
+      mcpContextStore.run(
+        mcpCtx,
+        () => withRunContext(
         { runId, sessionId, pipelineName: "chat", characterId: characterId || undefined },
         async () => streamText({
           model: resolveSessionLanguageModel(sessionMetadata),
@@ -767,7 +782,8 @@ export async function POST(req: Request) {
           onFinish: createOnFinishCallback(callbackCtx),
           onAbort: createOnAbortCallback(callbackCtx) as any,
         })
-      );
+      )
+    );
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof createStreamResult>>;

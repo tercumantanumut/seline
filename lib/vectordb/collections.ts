@@ -67,7 +67,7 @@ async function ensureV2SchemaCompatibility(params: {
 
   try {
     const schema = await table.schema();
-    const hasLexicalColumn = schema.fields.some((f) => f.name === "lexicalVector");
+    const hasLexicalColumn = schema.fields.some((f: { name: string }) => f.name === "lexicalVector");
     if (hasLexicalColumn) {
       return table;
     }

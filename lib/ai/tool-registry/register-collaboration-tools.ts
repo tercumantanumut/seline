@@ -54,10 +54,10 @@ Run shell commands safely within synced folders. Dangerous commands (rm, sudo, f
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createExecuteCommandTool({
         sessionId: sessionId || "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
@@ -100,10 +100,10 @@ Replace a unique string in a file within synced folders. Also creates new files.
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createEditFileTool({
         sessionId: sessionId || "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
@@ -139,10 +139,10 @@ Write full content to a file within synced folders. Creates or overwrites.
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createWriteFileTool({
         sessionId: sessionId || "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
@@ -182,10 +182,10 @@ Apply batch operations across multiple files atomically. All operations validate
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createPatchFileTool({
         sessionId: sessionId || "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
