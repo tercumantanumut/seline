@@ -339,9 +339,6 @@ export const Composer: FC<{
                 // and switching to background mode. The injected message is saved at the
                 // correct ordering position in prepareStep and will appear when the run
                 // finishes naturally.
-                setTimeout(() => {
-                  setQueuedMessages(prev => prev.filter(m => m.id !== msgId));
-                }, 1500);
               } else {
                 // No active run — fall back to classic replay after run
                 setQueuedMessages(prev =>
@@ -515,6 +512,13 @@ export const Composer: FC<{
   useEffect(() => {
     if (!isOperationRunning) setIsCancelling(false);
   }, [isOperationRunning]);
+
+  // Keep injected-live chips visible while the run is active so users can track
+  // delivery; clear them once the run ends and history catches up.
+  useEffect(() => {
+    if (isQueueBlocked) return;
+    setQueuedMessages(prev => prev.filter((msg) => msg.status !== "injected-live"));
+  }, [isQueueBlocked]);
 
   // Auto-grow textarea
   const adjustTextareaHeight = useCallback(() => {
