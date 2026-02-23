@@ -9,6 +9,7 @@ const dbMocks = vi.hoisted(() => ({
   getOrCreateCharacterSession: vi.fn(),
   createSession: vi.fn(),
   getSessionByMetadataKey: vi.fn(),
+  getSession: vi.fn(),
 }));
 
 const observabilityMocks = vi.hoisted(() => ({
@@ -52,6 +53,7 @@ import { POST } from "@/app/api/enhance-prompt/route";
 describe("POST /api/enhance-prompt session reuse", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dbMocks.getSession.mockResolvedValue(null);
   });
 
   it("reuses stable metadata-keyed session for non-character enhance requests", async () => {
@@ -111,5 +113,60 @@ describe("POST /api/enhance-prompt session reuse", () => {
         key: "prompt-enhancement:user-123",
       },
     });
+  });
+
+  it("uses provided sessionId when it belongs to the current user", async () => {
+    dbMocks.getSession.mockResolvedValue({
+      id: "chat-session-1",
+      userId: "user-123",
+      metadata: { sessionProvider: "codex", sessionUtilityModel: "gpt-5.3-codex-medium" },
+    });
+
+    const req = new Request("http://localhost/api/enhance-prompt", {
+      method: "POST",
+      body: JSON.stringify({
+        input: "Improve this",
+        sessionId: "chat-session-1",
+        useLLM: true,
+      }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(200);
+    expect(dbMocks.getSession).toHaveBeenCalledWith("chat-session-1");
+    expect(dbMocks.getSessionByMetadataKey).not.toHaveBeenCalled();
+    expect(dbMocks.createSession).not.toHaveBeenCalled();
+
+    const llmOptions = enhancementMocks.enhancePromptWithLLM.mock.calls[0][2];
+    expect(llmOptions.sessionId).toBe("chat-session-1");
+    expect(llmOptions.sessionMetadata).toEqual({
+      sessionProvider: "codex",
+      sessionUtilityModel: "gpt-5.3-codex-medium",
+    });
+  });
+
+  it("returns 404 when provided sessionId is missing or not owned by user", async () => {
+    dbMocks.getSession.mockResolvedValue({
+      id: "chat-session-1",
+      userId: "someone-else",
+      metadata: {},
+    });
+
+    const req = new Request("http://localhost/api/enhance-prompt", {
+      method: "POST",
+      body: JSON.stringify({
+        input: "Improve this",
+        sessionId: "chat-session-1",
+        useLLM: true,
+      }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(404);
+    expect(enhancementMocks.enhancePromptWithLLM).not.toHaveBeenCalled();
   });
 });
