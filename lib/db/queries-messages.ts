@@ -178,6 +178,63 @@ export async function markMessagesAsCompactedByIds(
   return (result as unknown as { changes?: number })?.changes ?? messageIds.length;
 }
 
+/**
+ * Delete all user/assistant messages in a session whose IDs are NOT in the
+ * given keep-set. System and tool messages are always preserved (the frontend
+ * never tracks those).
+ *
+ * Used when the frontend performs an edit/reload that truncates the conversation:
+ * assistant-ui sends a shortened message list, so any DB messages beyond that
+ * list must be cleaned up to prevent duplicates on next load.
+ *
+ * @returns The number of deleted messages.
+ */
+export async function deleteMessagesNotIn(
+  sessionId: string,
+  keepIds: Set<string>
+): Promise<number> {
+  if (keepIds.size === 0) return 0;
+
+  const allMessages = await db.query.messages.findMany({
+    where: eq(messages.sessionId, sessionId),
+    columns: { id: true, role: true },
+  });
+
+  // Only delete user/assistant messages the frontend no longer has.
+  const idsToDelete = allMessages
+    .filter(m => !keepIds.has(m.id) && (m.role === "user" || m.role === "assistant"))
+    .map(m => m.id);
+
+  if (idsToDelete.length === 0) return 0;
+
+  const BATCH_SIZE = 100;
+  let totalDeleted = 0;
+  for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
+    const batch = idsToDelete.slice(i, i + BATCH_SIZE);
+    const result = await db
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.sessionId, sessionId),
+          inArray(messages.id, batch)
+        )
+      );
+    totalDeleted += (result as unknown as { changes?: number })?.changes ?? batch.length;
+  }
+
+  if (totalDeleted > 0) {
+    await db
+      .update(sessions)
+      .set({
+        updatedAt: new Date().toISOString(),
+        messageCount: sql`MAX(0, ${sessions.messageCount} - ${totalDeleted})`,
+      })
+      .where(eq(sessions.id, sessionId));
+  }
+
+  return totalDeleted;
+}
+
 // Tool Runs
 export async function createToolRun(data: NewToolRun) {
   const [toolRun] = await db.insert(toolRuns).values(data).returning();
