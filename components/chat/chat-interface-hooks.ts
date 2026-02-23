@@ -125,6 +125,16 @@ export function useBackgroundProcessing({
         }, pollIntervalMs);
     }, [refreshMessages]);
 
+    // Clear polling interval on unmount to prevent stale updates after navigation
+    useEffect(() => {
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+    }, []);
+
     const handleCancelBackgroundRun = useCallback(async () => {
         const runId = processingRunId;
         if (!runId) return;
@@ -362,7 +372,7 @@ export function useSessionManager({
         } finally {
             setIsLoading(false);
         }
-    }, [character.id, router, fetchSessionMessages, clearBackgroundState, setSessionState, sessionSyncNotifier]);
+    }, [character.id, router, fetchSessionMessages, clearBackgroundState, setSessionState]);
 
     const createNewSession = useCallback(async () => {
         try {

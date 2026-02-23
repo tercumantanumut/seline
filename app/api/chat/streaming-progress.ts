@@ -124,15 +124,21 @@ export function createSyncStreamingMessage(
     const partsSnapshot = cloneContentParts(filteredParts);
 
     if (!streamingState.messageId) {
-      const assistantMessageIndex = await nextOrderingIndex(sessionId);
-      const created = await createMessage({
-        sessionId,
-        role: "assistant",
-        content: partsSnapshot,
-        orderingIndex: assistantMessageIndex,
-        metadata: { isStreaming: true, scheduledRunId, scheduledTaskId },
-      });
-      streamingState.messageId = created?.id;
+      if (streamingState.isCreating) return;
+      streamingState.isCreating = true;
+      try {
+        const assistantMessageIndex = await nextOrderingIndex(sessionId);
+        const created = await createMessage({
+          sessionId,
+          role: "assistant",
+          content: partsSnapshot,
+          orderingIndex: assistantMessageIndex,
+          metadata: { isStreaming: true, scheduledRunId, scheduledTaskId },
+        });
+        streamingState.messageId = created?.id;
+      } finally {
+        streamingState.isCreating = false;
+      }
     } else {
       await updateMessage(streamingState.messageId, { content: partsSnapshot });
     }

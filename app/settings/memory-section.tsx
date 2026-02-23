@@ -53,11 +53,14 @@ export function MemorySection() {
   const saveMemoryDefaults = async (newDefaults: typeof memoryDefaults) => {
     setSaving(true);
     try {
-      await fetch("/api/settings", {
+      const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ globalMemoryDefaults: newDefaults }),
       });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
     } catch (error) {
       console.error("Failed to save memory defaults:", error);
       toast.error(t("errors.memorySaveFailed"));
@@ -90,10 +93,14 @@ export function MemorySection() {
   const handleResetOnboarding = async () => {
     setResettingOnboarding(true);
     try {
-      await fetch("/api/onboarding", { method: "DELETE" });
+      const response = await fetch("/api/onboarding", { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       router.push("/onboarding");
     } catch (error) {
       console.error("Failed to reset onboarding:", error);
+      toast.error(t("errors.resetOnboardingFailed"));
       setResettingOnboarding(false);
     }
   };

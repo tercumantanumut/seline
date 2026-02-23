@@ -1769,6 +1769,7 @@
       "authStartFailed": "Kimlik doğrulama başlatılamadı",
       "codeExchangeFailed": "Kod değişimi başarısız",
       "memorySaveFailed": "Bellek varsayılanları kaydedilemedi",
+      "resetOnboardingFailed": "Başlangıç kurulumu sıfırlanamadı",
       "connectingToGoogle": "Google'a bağlanıyor...",
       "connectingToOpenAI": "OpenAI'ya bağlanıyor...",
       "authUrlFailed": "Yetkilendirme URL'si alınamadı"
@@ -2571,6 +2572,7 @@
       "archived": "Arşivlendi",
       "noArchived": "Arşivlenmiş sohbet yok",
       "restore": "Geri yükle",
+      "restoreFailed": "Sohbet geri yüklenemedi",
       "archiveSuccess": "Sohbet arşivlendi",
       "archiveError": "Sohbet arşivlenemedi",
       "exportSuccess": "Sohbet d??a aktar?ld?",

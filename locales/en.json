@@ -1782,6 +1782,7 @@
       "authStartFailed": "Failed to start authentication",
       "codeExchangeFailed": "Code exchange failed",
       "memorySaveFailed": "Failed to save memory defaults",
+      "resetOnboardingFailed": "Failed to reset onboarding",
       "connectingToGoogle": "Connecting to Google...",
       "connectingToOpenAI": "Connecting to OpenAI...",
       "authUrlFailed": "Failed to get authorization URL"
@@ -2575,6 +2576,7 @@
       "archived": "Archived",
       "noArchived": "No archived chats",
       "restore": "Restore",
+      "restoreFailed": "Failed to restore chat",
       "archiveSuccess": "Chat archived",
       "archiveError": "Failed to archive chat",
       "exportSuccess": "Chat exported",
