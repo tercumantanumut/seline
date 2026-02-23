@@ -19,82 +19,15 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost, resilientPut, resilientDelete } from "@/lib/utils/resilient-fetch";
 import type { CustomComfyUIInput, CustomComfyUIOutput, CustomComfyUIWorkflow } from "@/lib/comfyui/custom/types";
-
-const INPUT_TYPES: CustomComfyUIInput["type"][] = [
-  "string",
-  "number",
-  "boolean",
-  "image",
-  "mask",
-  "video",
-  "json",
-  "file",
-];
-
-const OUTPUT_TYPES: CustomComfyUIOutput["type"][] = ["image", "video", "file"];
-
-function formatDefaultValue(value: unknown): string {
-  if (value === undefined || value === null) return "";
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function coerceDefaultValue(value: string, type: CustomComfyUIInput["type"]): unknown {
-  if (value.trim().length === 0) return undefined;
-  if (type === "number") {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? undefined : parsed;
-  }
-  if (type === "boolean") {
-    return value === "true";
-  }
-  if (type === "json") {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-  return value;
-}
-
-function createInput(): CustomComfyUIInput {
-  return {
-    id: `new-${Date.now()}`,
-    name: "",
-    type: "string",
-    nodeId: "",
-    inputField: "",
-    required: false,
-    enabled: true,
-  };
-}
-
-function createOutput(): CustomComfyUIOutput {
-  return {
-    id: `new-${Date.now()}`,
-    name: "",
-    type: "image",
-    nodeId: "",
-  };
-}
-
-interface CustomWorkflowsManagerProps {
-  connectionBaseUrl: string;
-  connectionHost: string;
-  connectionPort: number;
-  connectionUseHttps: boolean;
-  connectionAutoDetect: boolean;
-  onConnectionBaseUrlChange: (value: string) => void;
-  onConnectionHostChange: (value: string) => void;
-  onConnectionPortChange: (value: number) => void;
-  onConnectionUseHttpsChange: (value: boolean) => void;
-  onConnectionAutoDetectChange: (value: boolean) => void;
-}
+import {
+  INPUT_TYPES,
+  OUTPUT_TYPES,
+  coerceDefaultValue,
+  createInput,
+  createOutput,
+  formatDefaultValue,
+} from "@/components/comfyui/custom-workflow-form-utils";
+import type { CustomWorkflowsManagerProps } from "@/components/comfyui/custom-workflow-types";
 
 export function CustomWorkflowsManager({
   connectionBaseUrl,

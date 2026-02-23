@@ -10,23 +10,19 @@
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { EmbeddingModel, LanguageModel } from "ai";
-import { existsSync } from "fs";
-import { createLocalEmbeddingModel, DEFAULT_LOCAL_EMBEDDING_MODEL } from "@/lib/ai/local-embeddings";
+import type { LanguageModel } from "ai";
 import { loadSettings, invalidateSettingsCache } from "@/lib/settings/settings-manager";
 import {
   isAntigravityAuthenticated,
   needsTokenRefresh,
   refreshAntigravityToken,
   getAntigravityToken,
-  ANTIGRAVITY_CONFIG,
   fetchAntigravityProjectId,
   invalidateAntigravityAuthCache,
 } from "@/lib/auth/antigravity-auth";
 import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
-import { KIMI_MODEL_IDS, KIMI_CONFIG } from "@/lib/auth/kimi-models";
+import { KIMI_MODEL_IDS } from "@/lib/auth/kimi-models";
 import {
   isClaudeCodeAuthenticated,
   needsClaudeCodeTokenRefresh,
@@ -35,49 +31,60 @@ import {
   invalidateClaudeCodeAuthCache,
 } from "@/lib/auth/claudecode-auth";
 import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
+import { ANTIGRAVITY_CONFIG } from "@/lib/auth/antigravity-auth";
 import { createAntigravityProvider } from "@/lib/ai/providers/antigravity-provider";
 import { createCodexProvider } from "@/lib/ai/providers/codex-provider";
 import { createClaudeCodeProvider } from "@/lib/ai/providers/claudecode-provider";
 import {
   isModelCompatibleWithProvider as isModelCompatible,
 } from "@/lib/ai/model-validation";
+import {
+  getOpenRouterClient,
+  getOpenRouterApiKey,
+  invalidateOpenRouterClient,
+} from "@/lib/ai/providers/openrouter-client";
+import {
+  getKimiClient,
+  getKimiApiKey,
+  invalidateKimiClient,
+} from "@/lib/ai/providers/kimi-client";
+import {
+  getOllamaClient,
+  invalidateOllamaClient,
+} from "@/lib/ai/providers/ollama-client";
 
-// Provider types
-export type LLMProvider = "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
-export type EmbeddingProvider = "openrouter" | "local";
+// Re-export embedding helpers so callers don't need to change their imports
+export {
+  getEmbeddingModel,
+  getEmbeddingModelId,
+  type EmbeddingProvider,
+} from "@/lib/ai/providers/embedding-provider";
 
-// Provider configuration
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1";
-const DEFAULT_EMBEDDING_PROVIDER: EmbeddingProvider = "openrouter";
+// Re-export client-level helpers that other modules may use directly
+export { getOpenRouterApiKey, getOpenRouterClient } from "@/lib/ai/providers/openrouter-client";
+export { getKimiApiKey, getKimiClient } from "@/lib/ai/providers/kimi-client";
+export { getOllamaClient, getOllamaBaseUrl } from "@/lib/ai/providers/ollama-client";
 
-/**
- * Get the correct app URL for HTTP-Referer headers
- * Handles both development and production Electron environments
- */
-function getAppUrl(): string {
-  // Detect Electron production environment
-  const isElectronProduction =
-    (process.env.SELINE_PRODUCTION_BUILD === "1" ||
-     !!(process as any).resourcesPath ||
-     !!process.env.ELECTRON_RESOURCES_PATH) &&
-    process.env.ELECTRON_IS_DEV !== "1" &&
-    process.env.NODE_ENV !== "development";
+// ---- Types -------------------------------------------------------------------
 
-  return isElectronProduction
-    ? "http://localhost:3456"
-    : "http://localhost:3000";
-}
+export type LLMProvider =
+  | "anthropic"
+  | "openrouter"
+  | "antigravity"
+  | "codex"
+  | "kimi"
+  | "ollama"
+  | "claudecode";
 
-// Helper to get OpenRouter API key dynamically (allows settings to set it after module load)
-function getOpenRouterApiKey(): string | undefined {
-  return process.env.OPENROUTER_API_KEY;
-}
+// ---- Model Sets & Defaults ---------------------------------------------------
 
-// Default embedding model
-const DEFAULT_EMBEDDING_MODEL = "qwen/qwen3-embedding-4b";
-const LOCAL_MODEL_PREFIX = "local:";
-const OPENROUTER_MODEL_PREFIX = "openrouter:";
+// Claude model prefixes - models that should use Anthropic provider
+const CLAUDE_MODEL_PREFIXES = ["claude-", "claude-3", "claude-2", "claude-instant"];
+// Per-provider model ID sets for routing
+const ANTIGRAVITY_MODEL_ID_SET = new Set(ANTIGRAVITY_CONFIG.AVAILABLE_MODELS.map((m) => m.toLowerCase()));
+const CODEX_MODEL_ID_SET = new Set(CODEX_MODEL_IDS.map((m) => m.toLowerCase()));
+const KIMI_MODEL_ID_SET = new Set(KIMI_MODEL_IDS.map((m) => m.toLowerCase()));
+const CLAUDECODE_MODEL_ID_SET = new Set(CLAUDECODE_MODEL_IDS.map((m) => m.toLowerCase()));
 
 // Default models for each provider
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
@@ -90,7 +97,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   ollama: "llama3.1:8b",
 };
 
-// Utility models - fast/cheap models for background tasks (compaction, memory extraction)
+// Utility models - fast/cheap models for background tasks
 export const UTILITY_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   openrouter: "google/gemini-2.5-flash",
@@ -101,184 +108,17 @@ export const UTILITY_MODELS: Record<LLMProvider, string> = {
   ollama: "llama3.1:8b",
 };
 
-// Claude model prefixes - models that should use Anthropic provider
-const CLAUDE_MODEL_PREFIXES = ["claude-", "claude-3", "claude-2", "claude-instant"];
+// ---- Lazy provider singletons ------------------------------------------------
 
-// Antigravity models - route only known IDs to avoid false positives
-const ANTIGRAVITY_MODEL_ID_SET = new Set(
-  ANTIGRAVITY_CONFIG.AVAILABLE_MODELS.map((modelId) => modelId.toLowerCase())
-);
-
-const CODEX_MODEL_ID_SET = new Set(
-  CODEX_MODEL_IDS.map((modelId) => modelId.toLowerCase())
-);
-
-// Kimi model ID set for routing
-const KIMI_MODEL_ID_SET = new Set(
-  KIMI_MODEL_IDS.map((modelId) => modelId.toLowerCase())
-);
-
-// Claude Code model ID set for routing
-const CLAUDECODE_MODEL_ID_SET = new Set(
-  CLAUDECODE_MODEL_IDS.map((modelId) => modelId.toLowerCase())
-);
-
-// Lazy-initialized OpenRouter client (created on first use to pick up API key from settings)
-let _openrouterClient: ReturnType<typeof createOpenAICompatible> | null = null;
-let _openrouterClientApiKey: string | undefined = undefined;
-
-// Lazy-initialized Antigravity provider
 let _antigravityProvider: ReturnType<typeof createAntigravityProvider> | null = null;
 let _antigravityProviderToken: string | undefined = undefined;
 
-// Lazy-initialized Codex provider
 let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
 
-// Lazy-initialized Claude Code provider
 let _claudecodeProvider: ReturnType<typeof createClaudeCodeProvider> | null = null;
 let _claudecodeProviderToken: string | undefined = undefined;
 
-// Lazy-initialized Kimi client (OpenAI-compatible)
-let _kimiClient: ReturnType<typeof createOpenAICompatible> | null = null;
-let _kimiClientApiKey: string | undefined = undefined;
-
-// Lazy-initialized Ollama client (OpenAI-compatible)
-let _ollamaClient: ReturnType<typeof createOpenAICompatible> | null = null;
-let _ollamaClientBaseUrl: string | undefined = undefined;
-
-// Cache for local embedding model instance
-let _localEmbeddingModel: EmbeddingModel | null = null;
-let _localEmbeddingModelId: string | null = null;
-let _localEmbeddingModelDir: string | undefined = undefined;
-
-function getOpenRouterClient() {
-  const apiKey = getOpenRouterApiKey();
-  const settings = loadSettings();
-
-  // Recreate client if API key changed (e.g., settings were updated)
-  if (_openrouterClient && _openrouterClientApiKey !== apiKey) {
-    _openrouterClient = null;
-  }
-
-  // Create client lazily so it picks up API key after settings are initialized
-  if (!_openrouterClient) {
-    _openrouterClientApiKey = apiKey;
-
-    // Parse OpenRouter args from settings (with validation)
-    let providerOptions = {};
-    if (settings.openrouterArgs) {
-      try {
-        const args = JSON.parse(settings.openrouterArgs);
-        // Extract quantization suffix for model name
-        const quant = args.quant;
-        // Pass other options to providerOptions
-        providerOptions = { ...args };
-        console.log("[PROVIDERS] OpenRouter args applied:", providerOptions);
-      } catch (error) {
-        console.warn("[PROVIDERS] Invalid OpenRouter args JSON, ignoring:", error);
-      }
-    }
-
-    _openrouterClient = createOpenAICompatible({
-      name: "openrouter",
-      baseURL: OPENROUTER_BASE_URL,
-      apiKey: apiKey || "",
-      headers: {
-        "HTTP-Referer": getAppUrl(),
-        "X-Title": "STYLY Agent",
-      },
-      // Add provider options for request body customization
-      ...providerOptions,
-    });
-  }
-  return _openrouterClient;
-}
-
-// Helper to get Kimi API key dynamically
-function getKimiApiKey(): string | undefined {
-  return process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY;
-}
-
-/**
- * Custom fetch wrapper for Kimi API.
- * Disables thinking mode and enforces required parameter values
- * per Kimi K2.5 docs (non-thinking mode requires specific fixed values).
- */
-async function kimiCustomFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (init?.body && typeof init.body === "string") {
-    try {
-      const body = JSON.parse(init.body);
-      // Disable thinking mode — reasoning outputs should not persist in history
-      body.thinking = { type: "disabled" };
-      // Non-thinking mode requires these fixed values per Kimi K2.5 docs
-      body.temperature = 0.6;
-      body.top_p = 0.95;
-      body.n = 1;
-      body.presence_penalty = 0.0;
-      body.frequency_penalty = 0.0;
-      init = { ...init, body: JSON.stringify(body) };
-    } catch {
-      // Not JSON, pass through unchanged
-    }
-  }
-  return globalThis.fetch(url, init);
-}
-
-function getKimiClient() {
-  const apiKey = getKimiApiKey();
-
-  // Recreate client if API key changed
-  if (_kimiClient && _kimiClientApiKey !== apiKey) {
-    _kimiClient = null;
-  }
-
-  if (!_kimiClient) {
-    _kimiClientApiKey = apiKey;
-    _kimiClient = createOpenAICompatible({
-      name: "kimi",
-      baseURL: KIMI_CONFIG.BASE_URL,
-      apiKey: apiKey || "",
-      headers: {
-        "HTTP-Referer": getAppUrl(),
-        "X-Title": "Seline Agent",
-      },
-      fetch: kimiCustomFetch,
-    });
-  }
-  return _kimiClient;
-}
-
-function getOllamaBaseUrl(): string {
-  const settings = loadSettings();
-  return (
-    settings.ollamaBaseUrl ||
-    process.env.OLLAMA_BASE_URL ||
-    OLLAMA_DEFAULT_BASE_URL
-  );
-}
-
-function getOllamaClient() {
-  const baseURL = getOllamaBaseUrl();
-
-  if (!baseURL) {
-    throw new Error("Ollama base URL is not configured. Set ollamaBaseUrl or OLLAMA_BASE_URL.");
-  }
-
-  if (_ollamaClient && _ollamaClientBaseUrl !== baseURL) {
-    _ollamaClient = null;
-  }
-
-  if (!_ollamaClient) {
-    _ollamaClientBaseUrl = baseURL;
-    _ollamaClient = createOpenAICompatible({
-      name: "ollama",
-      baseURL,
-      apiKey: "",
-    });
-  }
-
-  return _ollamaClient;
-}
+// ---- Token management --------------------------------------------------------
 
 /**
  * Ensure Antigravity token is valid, refreshing if needed.
@@ -287,8 +127,7 @@ function getOllamaClient() {
  * Exported so it can be called from API routes before streaming.
  */
 export async function ensureAntigravityTokenValid(): Promise<boolean> {
-  // CRITICAL: Invalidate caches first to ensure we read fresh token state from disk
-  // This prevents issues where cached stale token data causes auth failures
+  // Invalidate caches first to ensure we read fresh token state from disk
   invalidateSettingsCache();
   invalidateAntigravityAuthCache();
 
@@ -340,31 +179,6 @@ export async function ensureAntigravityTokenValid(): Promise<boolean> {
 }
 
 /**
- * Get Antigravity provider instance
- * Uses Google Generative AI SDK with custom fetch wrapper for Antigravity API
- */
-function getAntigravityProvider(): ((modelId: string) => LanguageModel) {
-  const token = getAntigravityToken();
-  const currentToken = token?.access_token;
-
-  // Recreate provider if token changed
-  if (_antigravityProvider && _antigravityProviderToken !== currentToken) {
-    _antigravityProvider = null;
-  }
-
-  if (!_antigravityProvider) {
-    _antigravityProviderToken = currentToken;
-    _antigravityProvider = createAntigravityProvider();
-  }
-
-  if (!_antigravityProvider) {
-    throw new Error("Antigravity provider not available - not authenticated");
-  }
-
-  return _antigravityProvider;
-}
-
-/**
  * Ensure Claude Code token is valid, refreshing if needed.
  * This should be called before making API requests with Claude Code.
  */
@@ -404,10 +218,37 @@ export async function ensureClaudeCodeTokenValid(): Promise<boolean> {
   return true;
 }
 
+// ---- Provider instance getters -----------------------------------------------
+
 /**
- * Get Claude Code provider instance
+ * Get Antigravity provider instance.
+ * Uses Google Generative AI SDK with custom fetch wrapper for Antigravity API.
  */
-function getClaudeCodeProviderInstance(): ((modelId: string) => LanguageModel) {
+function getAntigravityProvider(): (modelId: string) => LanguageModel {
+  const token = getAntigravityToken();
+  const currentToken = token?.access_token;
+
+  // Recreate provider if token changed
+  if (_antigravityProvider && _antigravityProviderToken !== currentToken) {
+    _antigravityProvider = null;
+  }
+
+  if (!_antigravityProvider) {
+    _antigravityProviderToken = currentToken;
+    _antigravityProvider = createAntigravityProvider();
+  }
+
+  if (!_antigravityProvider) {
+    throw new Error("Antigravity provider not available - not authenticated");
+  }
+
+  return _antigravityProvider;
+}
+
+/**
+ * Get Claude Code provider instance.
+ */
+function getClaudeCodeProviderInstance(): (modelId: string) => LanguageModel {
   const token = getClaudeCodeToken();
   const currentToken = token?.access_token;
 
@@ -428,58 +269,73 @@ function getClaudeCodeProviderInstance(): ((modelId: string) => LanguageModel) {
   return _claudecodeProvider;
 }
 
-/**
- * Check if a model ID is a Claude Code model
- */
+// ---- Model classification ----------------------------------------------------
+
 function isClaudeCodeOAuthModel(modelId: string): boolean {
-  const lowerModel = modelId.toLowerCase();
-  return CLAUDECODE_MODEL_ID_SET.has(lowerModel);
+  return CLAUDECODE_MODEL_ID_SET.has(modelId.toLowerCase());
 }
 
-/**
- * Check if a model ID is an Antigravity model
- */
 function isAntigravityModel(modelId: string): boolean {
-  const lowerModel = modelId.toLowerCase();
-  return ANTIGRAVITY_MODEL_ID_SET.has(lowerModel);
+  return ANTIGRAVITY_MODEL_ID_SET.has(modelId.toLowerCase());
 }
 
 function isCodexModel(modelId: string): boolean {
   const baseModel = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
   const lower = baseModel.toLowerCase();
-  if (CODEX_MODEL_ID_SET.has(lower)) {
-    return true;
-  }
+  if (CODEX_MODEL_ID_SET.has(lower)) return true;
   return lower.includes("codex") || lower.includes("gpt-5");
 }
 
-/**
- * Check if a model ID is a Kimi model (should use Moonshot provider)
- */
 function isKimiModel(modelId: string): boolean {
   const lowerModel = modelId.toLowerCase();
-  return KIMI_MODEL_ID_SET.has(lowerModel) ||
-         lowerModel.startsWith("kimi-") ||
-         lowerModel.startsWith("moonshot-");
+  return (
+    KIMI_MODEL_ID_SET.has(lowerModel) ||
+    lowerModel.startsWith("kimi-") ||
+    lowerModel.startsWith("moonshot-")
+  );
+}
+
+function isClaudeModel(modelId: string): boolean {
+  const lowerModel = modelId.toLowerCase();
+  return CLAUDE_MODEL_PREFIXES.some((prefix) => lowerModel.startsWith(prefix));
+}
+
+// ---- Model validation --------------------------------------------------------
+
+function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
+  return isModelCompatible(model, provider);
 }
 
 /**
- * Get the appropriate temperature for the current provider
- * Kimi K2.5 models require temperature=1 (fixed value)
+ * Validate that a model is compatible with the current provider.
+ * If incompatible, logs a single warning and returns the fallback.
+ * If the model is empty/null, returns null (caller decides the fallback behavior).
+ *
+ * NOTE: This is a runtime guard for the model resolution path.
+ * The primary validation should happen at the API boundary (settings PUT,
+ * session model-config PUT) via model-validation.ts.
  */
-export function getProviderTemperature(requestedTemp: number): number {
-  const provider = getConfiguredProvider();
-  if (provider === "kimi") {
-    return 1; // Kimi K2.5 fixed value; custom fetch overrides to 0.6 for non-thinking mode
-  }
-  return requestedTemp;
+function validateModelForProvider(
+  model: string | null | undefined,
+  provider: LLMProvider,
+  fallback: string,
+  fieldName: string
+): string | null {
+  if (!model) return null;
+  if (isModelCompatibleWithProvider(model, provider)) return model;
+
+  console.warn(
+    `[PROVIDERS] ${provider} selected but ${fieldName} "${model}" is incompatible, using ${fallback}`
+  );
+  return fallback;
 }
+
+// ---- Provider cache invalidation ---------------------------------------------
 
 function invalidateProviderClient(provider: LLMProvider): void {
   switch (provider) {
     case "openrouter":
-      _openrouterClient = null;
-      _openrouterClientApiKey = undefined;
+      invalidateOpenRouterClient();
       break;
     case "antigravity":
       _antigravityProvider = null;
@@ -493,12 +349,10 @@ function invalidateProviderClient(provider: LLMProvider): void {
       _claudecodeProviderToken = undefined;
       break;
     case "kimi":
-      _kimiClient = null;
-      _kimiClientApiKey = undefined;
+      invalidateKimiClient();
       break;
     case "ollama":
-      _ollamaClient = null;
-      _ollamaClientBaseUrl = undefined;
+      invalidateOllamaClient();
       break;
     case "anthropic":
       // Anthropic is stateless in this module (no cached client instance).
@@ -509,7 +363,9 @@ function invalidateProviderClient(provider: LLMProvider): void {
 /**
  * Invalidate cached provider clients for one or more providers.
  */
-export function invalidateProviderCacheFor(providers: LLMProvider | LLMProvider[]): void {
+export function invalidateProviderCacheFor(
+  providers: LLMProvider | LLMProvider[]
+): void {
   const providerList = Array.isArray(providers) ? providers : [providers];
   for (const provider of providerList) {
     invalidateProviderClient(provider);
@@ -520,19 +376,17 @@ export function invalidateProviderCacheFor(providers: LLMProvider | LLMProvider[
  * Invalidate all cached provider clients (call when settings change globally).
  */
 export function invalidateProviderCache(): void {
-  invalidateProviderCacheFor(["openrouter", "antigravity", "codex", "claudecode", "kimi", "ollama"]);
+  invalidateProviderCacheFor([
+    "openrouter",
+    "antigravity",
+    "codex",
+    "claudecode",
+    "kimi",
+    "ollama",
+  ]);
 }
 
-/**
- * Get the embedding model identifier to use for document indexing.
- * Reads directly from settings file to ensure latest configuration is used.
- * Defaults to OpenRouter unless local embeddings are configured.
- */
-export function getEmbeddingModelId(): string {
-  const settings = loadSettings();
-  const resolved = resolveEmbeddingModelConfig(settings);
-  return resolved.storageId;
-}
+// ---- Provider selection ------------------------------------------------------
 
 /**
  * Get the configured LLM provider.
@@ -544,7 +398,9 @@ export function getConfiguredProvider(): LLMProvider {
 
   if (provider === "antigravity") {
     if (!isAntigravityAuthenticated()) {
-      console.warn("[PROVIDERS] Antigravity selected but not authenticated, falling back to anthropic");
+      console.warn(
+        "[PROVIDERS] Antigravity selected but not authenticated, falling back to anthropic"
+      );
       return "anthropic";
     }
     return "antigravity";
@@ -552,7 +408,9 @@ export function getConfiguredProvider(): LLMProvider {
 
   if (provider === "codex") {
     if (!isCodexAuthenticated()) {
-      console.warn("[PROVIDERS] Codex selected but not authenticated, falling back to anthropic");
+      console.warn(
+        "[PROVIDERS] Codex selected but not authenticated, falling back to anthropic"
+      );
       return "anthropic";
     }
     return "codex";
@@ -560,7 +418,9 @@ export function getConfiguredProvider(): LLMProvider {
 
   if (provider === "claudecode") {
     if (!isClaudeCodeAuthenticated()) {
-      console.warn("[PROVIDERS] Claude Code selected but not authenticated, falling back to anthropic");
+      console.warn(
+        "[PROVIDERS] Claude Code selected but not authenticated, falling back to anthropic"
+      );
       return "anthropic";
     }
     return "claudecode";
@@ -569,7 +429,9 @@ export function getConfiguredProvider(): LLMProvider {
   if (provider === "openrouter") {
     const apiKey = getOpenRouterApiKey();
     if (!apiKey) {
-      console.warn("[PROVIDERS] OpenRouter selected but OPENROUTER_API_KEY is not set, falling back to anthropic");
+      console.warn(
+        "[PROVIDERS] OpenRouter selected but OPENROUTER_API_KEY is not set, falling back to anthropic"
+      );
       return "anthropic";
     }
     return "openrouter";
@@ -578,7 +440,9 @@ export function getConfiguredProvider(): LLMProvider {
   if (provider === "kimi") {
     const apiKey = getKimiApiKey();
     if (!apiKey) {
-      console.warn("[PROVIDERS] Kimi selected but KIMI_API_KEY is not set, falling back to anthropic");
+      console.warn(
+        "[PROVIDERS] Kimi selected but KIMI_API_KEY is not set, falling back to anthropic"
+      );
       return "anthropic";
     }
     return "kimi";
@@ -588,7 +452,6 @@ export function getConfiguredProvider(): LLMProvider {
     return "ollama";
   }
 
-  // Default to anthropic
   return "anthropic";
 }
 
@@ -601,23 +464,39 @@ export function getConfiguredModel(): string {
   const provider = getConfiguredProvider();
   const envModel = settings.chatModel || process.env.LLM_MODEL;
 
-  // Use environment model if set, otherwise use default for provider
   const model = envModel || DEFAULT_MODELS[provider];
-
-  return validateModelForProvider(model, provider, DEFAULT_MODELS[provider], "model") || DEFAULT_MODELS[provider];
+  return (
+    validateModelForProvider(model, provider, DEFAULT_MODELS[provider], "model") ||
+    DEFAULT_MODELS[provider]
+  );
 }
 
 /**
- * Get a language model instance for the configured provider and model
+ * Get the appropriate temperature for the current provider.
+ * Kimi K2.5 models require temperature=1 (fixed value).
+ */
+export function getProviderTemperature(requestedTemp: number): number {
+  const provider = getConfiguredProvider();
+  if (provider === "kimi") {
+    return 1; // Kimi K2.5 fixed value; custom fetch overrides to 0.6 for non-thinking mode
+  }
+  return requestedTemp;
+}
+
+// ---- Model instance routing --------------------------------------------------
+
+/**
+ * Get a language model instance for the configured provider and model.
  */
 export function getLanguageModel(modelOverride?: string): LanguageModel {
   const provider = getConfiguredProvider();
-  const model = validateModelForProvider(
-    modelOverride || getConfiguredModel(),
-    provider,
-    DEFAULT_MODELS[provider],
-    "model",
-  ) || DEFAULT_MODELS[provider];
+  const model =
+    validateModelForProvider(
+      modelOverride || getConfiguredModel(),
+      provider,
+      DEFAULT_MODELS[provider],
+      "model"
+    ) || DEFAULT_MODELS[provider];
 
   console.log(`[PROVIDERS] Using provider: ${provider}, model: ${model}`);
 
@@ -654,9 +533,8 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
       return getKimiClient()(model);
     }
 
-    case "ollama": {
+    case "ollama":
       return getOllamaClient()(model);
-    }
 
     case "openrouter": {
       const apiKey = getOpenRouterApiKey();
@@ -673,47 +551,6 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
 }
 
 /**
- * Check if a model ID is a Claude model (should use Anthropic provider)
- */
-function isClaudeModel(modelId: string): boolean {
-  const lowerModel = modelId.toLowerCase();
-  return CLAUDE_MODEL_PREFIXES.some(prefix => lowerModel.startsWith(prefix));
-}
-
-/**
- * Check if a model is compatible with the given provider.
- * Delegates to the shared model-validation utility for a single source of truth.
- */
-function isModelCompatibleWithProvider(model: string, provider: LLMProvider): boolean {
-  return isModelCompatible(model, provider);
-}
-
-/**
- * Validate that a model is compatible with the current provider.
- * If incompatible, logs a single warning and returns the fallback.
- * If the model is empty/null, returns null (caller decides the fallback behavior).
- *
- * NOTE: This is a runtime guard for the model resolution path.
- * The primary validation should happen at the API boundary (settings PUT,
- * session model-config PUT) via model-validation.ts.
- * This guard exists as a safety net to prevent runtime crashes.
- */
-function validateModelForProvider(
-  model: string | null | undefined,
-  provider: LLMProvider,
-  fallback: string,
-  fieldName: string,
-): string | null {
-  if (!model) return null;
-  if (isModelCompatibleWithProvider(model, provider)) return model;
-
-  console.warn(
-    `[PROVIDERS] ${provider} selected but ${fieldName} "${model}" is incompatible, using ${fallback}`
-  );
-  return fallback;
-}
-
-/**
  * Get a language model instance for a specific model ID.
  * Automatically routes to the correct provider based on model ID:
  * - Antigravity models (gemini-3-*, claude-sonnet-4-5, etc.) -> Antigravity provider (if authenticated)
@@ -721,7 +558,6 @@ function validateModelForProvider(
  * - Other models (provider/model format) -> OpenRouter provider
  */
 export function getModelByName(modelId: string): LanguageModel {
-  // Check if model should use Antigravity (and user is authenticated)
   if (isAntigravityModel(modelId) && isAntigravityAuthenticated()) {
     console.log(`[PROVIDERS] Using Antigravity for model: ${modelId}`);
     return getAntigravityProvider()(modelId);
@@ -735,13 +571,11 @@ export function getModelByName(modelId: string): LanguageModel {
     return _codexProvider(modelId);
   }
 
-  // Check if model should use Claude Code OAuth
   if (isClaudeCodeOAuthModel(modelId) && isClaudeCodeAuthenticated()) {
     console.log(`[PROVIDERS] Using Claude Code for model: ${modelId}`);
     return getClaudeCodeProviderInstance()(modelId);
   }
 
-  // Check if model should use Kimi (Moonshot)
   if (isKimiModel(modelId)) {
     const apiKey = getKimiApiKey();
     if (apiKey) {
@@ -756,7 +590,6 @@ export function getModelByName(modelId: string): LanguageModel {
     return anthropic(modelId);
   }
 
-  // For OpenRouter models (format: provider/model-name)
   const apiKey = getOpenRouterApiKey();
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY environment variable is not configured");
@@ -765,13 +598,10 @@ export function getModelByName(modelId: string): LanguageModel {
   return getOpenRouterClient()(modelId);
 }
 
+// ---- Convenience model getters -----------------------------------------------
+
 /**
  * Get the chat model for conversations.
- * Reads directly from settings file to ensure latest configuration is used.
- * Falls back to provider default if no chat model is configured.
- *
- * IMPORTANT: When using a specific provider (e.g., Antigravity), validates that
- * the saved model is compatible with that provider. If not, falls back to provider default.
  */
 export function getChatModel(): LanguageModel {
   const settings = loadSettings();
@@ -780,7 +610,7 @@ export function getChatModel(): LanguageModel {
     settings.chatModel || process.env.LLM_MODEL,
     provider,
     DEFAULT_MODELS[provider],
-    "chatModel",
+    "chatModel"
   );
 
   if (chatModel) {
@@ -788,16 +618,11 @@ export function getChatModel(): LanguageModel {
     return provider === "ollama" ? getLanguageModel(chatModel) : getModelByName(chatModel);
   }
 
-  // Fall back to default provider behavior
   return getLanguageModel();
 }
 
 /**
  * Get the research model for Deep Research mode.
- * Reads directly from settings file to ensure latest configuration is used.
- * Falls back to chat model if no research model is configured.
- *
- * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getResearchModel(): LanguageModel {
   const settings = loadSettings();
@@ -806,25 +631,21 @@ export function getResearchModel(): LanguageModel {
     settings.researchModel || process.env.RESEARCH_MODEL,
     provider,
     DEFAULT_MODELS[provider],
-    "researchModel",
+    "researchModel"
   );
 
   if (researchModel) {
     console.log(`[PROVIDERS] Using configured research model: ${researchModel}`);
-    return provider === "ollama" ? getLanguageModel(researchModel) : getModelByName(researchModel);
+    return provider === "ollama"
+      ? getLanguageModel(researchModel)
+      : getModelByName(researchModel);
   }
 
-  // Fall back to chat model
   return getChatModel();
 }
 
 /**
  * Get the vision model for image analysis.
- * Reads directly from settings file to ensure latest configuration is used.
- * Falls back to chat model if no vision model is configured.
- * Note: The fallback chat model (Claude) has native vision support.
- *
- * IMPORTANT: Validates that the saved model is compatible with the configured provider.
  */
 export function getVisionModel(): LanguageModel {
   const settings = loadSettings();
@@ -833,7 +654,7 @@ export function getVisionModel(): LanguageModel {
     settings.visionModel || process.env.VISION_MODEL,
     provider,
     DEFAULT_MODELS[provider],
-    "visionModel",
+    "visionModel"
   );
 
   if (visionModel) {
@@ -841,7 +662,6 @@ export function getVisionModel(): LanguageModel {
     return provider === "ollama" ? getLanguageModel(visionModel) : getModelByName(visionModel);
   }
 
-  // Fall back to chat model - Claude has native vision support
   console.log(`[PROVIDERS] Using chat model for vision (has native vision support)`);
   return getChatModel();
 }
@@ -852,8 +672,6 @@ export function getVisionModel(): LanguageModel {
  * - Anthropic: Claude Haiku 4.5
  * - OpenRouter: Gemini 2.5 Flash
  * - Antigravity: Gemini 3 Flash (free)
- *
- * IMPORTANT: Validates that any override model is compatible with the configured provider.
  */
 export function getUtilityModel(): LanguageModel {
   const settings = loadSettings();
@@ -862,209 +680,27 @@ export function getUtilityModel(): LanguageModel {
     settings.utilityModel || process.env.UTILITY_MODEL,
     provider,
     UTILITY_MODELS[provider],
-    "utilityModel",
+    "utilityModel"
   );
 
   if (overrideModel) {
     console.log(`[PROVIDERS] Using configured utility model: ${overrideModel}`);
-    return provider === "ollama" ? getLanguageModel(overrideModel) : getModelByName(overrideModel);
+    return provider === "ollama"
+      ? getLanguageModel(overrideModel)
+      : getModelByName(overrideModel);
   }
+
   const model = UTILITY_MODELS[provider];
-
   console.log(`[PROVIDERS] Using utility model: ${model} (provider: ${provider})`);
-
-  switch (provider) {
-    case "antigravity": {
-      if (!isAntigravityAuthenticated()) {
-        throw new Error("Antigravity authentication required. Please login via Settings.");
-      }
-      return getAntigravityProvider()(model);
-    }
-
-    case "codex": {
-      if (!isCodexAuthenticated()) {
-        throw new Error("Codex authentication required. Please login via Settings.");
-      }
-      if (!_codexProvider) {
-        _codexProvider = createCodexProvider();
-      }
-      return _codexProvider(model);
-    }
-
-    case "claudecode": {
-      if (!isClaudeCodeAuthenticated()) {
-        throw new Error("Claude Code authentication required. Please login via Settings.");
-      }
-      return getClaudeCodeProviderInstance()(model);
-    }
-
-    case "kimi": {
-      const apiKey = getKimiApiKey();
-      if (!apiKey) {
-        throw new Error("KIMI_API_KEY environment variable is not configured");
-      }
-      return getKimiClient()(model);
-    }
-
-    case "ollama": {
-      return getOllamaClient()(model);
-    }
-
-    case "openrouter": {
-      const apiKey = getOpenRouterApiKey();
-      if (!apiKey) {
-        throw new Error("OPENROUTER_API_KEY environment variable is not configured");
-      }
-      return getOpenRouterClient()(model);
-    }
-
-    case "anthropic":
-    default:
-      return anthropic(model);
-  }
+  // Delegate to getLanguageModel with the provider-specific utility model as override.
+  // The routing logic is identical; getLanguageModel handles auth checks and client init.
+  return getLanguageModel(model);
 }
+
+// ---- Metadata / feature queries ----------------------------------------------
 
 /**
- * Get an embedding model instance.
- *
- * Embeddings can be served via OpenRouter or a local Transformers.js model,
- * depending on settings and environment availability.
- */
-export function getEmbeddingModel(modelOverride?: string): EmbeddingModel {
-  const settings = loadSettings();
-  const resolved = resolveEmbeddingModelConfig(settings, modelOverride);
-
-  if (resolved.provider === "local") {
-    try {
-      // Use EMBEDDING_MODEL_DIR set by Electron main process
-      // The local-embeddings module handles path resolution internally
-      const modelDir = process.env.EMBEDDING_MODEL_DIR;
-
-      // Return cached instance if it exists and configuration matches
-      if (
-        _localEmbeddingModel &&
-        _localEmbeddingModelId === resolved.modelId &&
-        _localEmbeddingModelDir === modelDir
-      ) {
-        return _localEmbeddingModel;
-      }
-
-      console.log(`[PROVIDERS] Using local embedding model: ${resolved.modelId}`);
-      const model = createLocalEmbeddingModel({
-        modelId: resolved.modelId,
-      });
-
-      // Update cache
-      _localEmbeddingModel = model;
-      _localEmbeddingModelId = resolved.modelId;
-      _localEmbeddingModelDir = modelDir;
-
-      return model;
-    } catch (error) {
-      console.warn("[PROVIDERS] Local embedding model failed, falling back to OpenRouter:", error);
-    }
-  }
-
-  return getOpenRouterEmbeddingModel(resolved.openRouterModelId);
-}
-
-function getOpenRouterEmbeddingModel(model: string): EmbeddingModel {
-  const apiKey = getOpenRouterApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "OPENROUTER_API_KEY environment variable is not configured. Embeddings currently require OpenRouter."
-    );
-  }
-
-  console.log(`[PROVIDERS] Using OpenRouter embedding model: ${model}`);
-  return getOpenRouterClient().embeddingModel(model);
-}
-
-function normalizeEmbeddingProvider(provider?: string): EmbeddingProvider {
-  if (provider === "local") return "local";
-  return DEFAULT_EMBEDDING_PROVIDER;
-}
-
-function resolveEmbeddingModelConfig(
-  settings: { embeddingProvider?: string; embeddingModel?: string },
-  modelOverride?: string,
-): {
-  provider: EmbeddingProvider;
-  modelId: string;
-  storageId: string;
-  openRouterModelId: string;
-} {
-  let provider = normalizeEmbeddingProvider(settings.embeddingProvider || process.env.EMBEDDING_PROVIDER);
-  let modelId = (modelOverride ?? settings.embeddingModel ?? process.env.EMBEDDING_MODEL ?? "").trim();
-
-  if (modelId.startsWith(LOCAL_MODEL_PREFIX)) {
-    provider = "local";
-    modelId = modelId.slice(LOCAL_MODEL_PREFIX.length);
-  } else if (modelId.startsWith(OPENROUTER_MODEL_PREFIX)) {
-    provider = "openrouter";
-    modelId = modelId.slice(OPENROUTER_MODEL_PREFIX.length);
-  }
-
-  if (!modelId) {
-    modelId = provider === "local" ? DEFAULT_LOCAL_EMBEDDING_MODEL : DEFAULT_EMBEDDING_MODEL;
-  }
-
-  const openRouterModelId = provider === "openrouter" ? modelId : DEFAULT_EMBEDDING_MODEL;
-  const storageId = provider === "local" ? `${LOCAL_MODEL_PREFIX}${modelId}` : modelId;
-
-  if (provider === "local" && !canUseLocalEmbeddings()) {
-    console.warn("[PROVIDERS] Local embeddings not available, falling back to OpenRouter");
-    return {
-      provider: "openrouter",
-      modelId: openRouterModelId,
-      storageId: openRouterModelId,
-      openRouterModelId,
-    };
-  }
-
-  return { provider, modelId, storageId, openRouterModelId };
-}
-
-/**
- * Check if local embeddings can be used.
- * Local embeddings are available when:
- * 1. Running in Electron (ELECTRON_USER_DATA_PATH is set by electron/main.ts)
- * 2. Or ALLOW_LOCAL_EMBEDDINGS=true is set for development
- * 3. Or EMBEDDING_MODEL_DIR is set and exists (user configured a model path)
- *
- * The model directory (EMBEDDING_MODEL_DIR) can be set by:
- * - User via environment variable
- */
-let _hasLoggedLocalEmbeddings = false;
-
-function canUseLocalEmbeddings(): boolean {
-  const isElectronRuntime = Boolean(process.versions.electron || process.env.ELECTRON_USER_DATA_PATH);
-  const allowLocalOverride = process.env.ALLOW_LOCAL_EMBEDDINGS === "true" || process.env.NODE_ENV === "development";
-  const modelDir = process.env.EMBEDDING_MODEL_DIR;
-
-  // If model directory is set and exists, allow local embeddings
-  if (modelDir && existsSync(modelDir)) {
-    if (!_hasLoggedLocalEmbeddings) {
-      console.log(`[PROVIDERS] Local embeddings enabled via EMBEDDING_MODEL_DIR: ${modelDir}`);
-      _hasLoggedLocalEmbeddings = true;
-    }
-    return true;
-  }
-
-  // Otherwise, require Electron runtime or development mode or explicit override
-  if (!isElectronRuntime && !allowLocalOverride) {
-    if (!_hasLoggedLocalEmbeddings) {
-      console.log(`[PROVIDERS] Local embeddings not available (not in Electron, no ALLOW_LOCAL_EMBEDDINGS, no development mode)`);
-      _hasLoggedLocalEmbeddings = true;
-    }
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Get provider display name for logging
+ * Get provider display name for logging.
  */
 export function getProviderDisplayName(): string {
   const provider = getConfiguredProvider();
@@ -1090,12 +726,13 @@ export function getProviderDisplayName(): string {
 }
 
 /**
- * Check if the current provider supports a specific feature
+ * Check if the current provider supports a specific feature.
  */
-export function providerSupportsFeature(feature: "tools" | "streaming" | "images"): boolean {
+export function providerSupportsFeature(
+  feature: "tools" | "streaming" | "images"
+): boolean {
   const provider = getConfiguredProvider();
 
-  // All supported providers currently support these features
   const featureSupport: Record<LLMProvider, Record<string, boolean>> = {
     anthropic: { tools: true, streaming: true, images: true },
     openrouter: { tools: true, streaming: true, images: true },
