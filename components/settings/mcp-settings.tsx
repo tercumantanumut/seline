@@ -86,7 +86,7 @@ const PREBUILT_TEMPLATES: MCPTemplate[] = [
         description: "Inspect and debug pages in Chrome",
         config: {
             command: "npx",
-            args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics"]
+            args: ["-y", "chrome-devtools-mcp@latest", "--no-usage-statistics", "--isolated=true"]
         },
         requiredEnv: []
     },

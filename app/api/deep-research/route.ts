@@ -14,12 +14,49 @@ import { loadSettings } from '@/lib/settings/settings-manager';
 import {
   createAgentRun,
   completeAgentRun,
+  updateAgentRunMetadata,
   withRunContext,
   appendRunEvent,
 } from "@/lib/observability";
+import { taskRegistry } from "@/lib/background-tasks/registry";
+import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
 import { buildInterruptionMessage, buildInterruptionMetadata } from "@/lib/messages/interruption";
+import type { ChatTask } from "@/lib/background-tasks/types";
+import type { FinalReport, ResearchFinding, ResearchPhase } from "@/lib/ai/deep-research/types";
 
 export const maxDuration = 300; // 5 minutes for deep research
+
+type DeepResearchProgress = {
+  completed: number;
+  total: number;
+  currentQuery: string;
+} | null;
+
+interface PersistedDeepResearchState {
+  runId: string;
+  query: string;
+  phase: ResearchPhase;
+  phaseMessage: string;
+  progress: DeepResearchProgress;
+  findings: ResearchFinding[];
+  finalReport: FinalReport | null;
+  error: string | null;
+  updatedAt: string;
+}
+
+function createInitialPersistedState(runId: string, query: string): PersistedDeepResearchState {
+  return {
+    runId,
+    query,
+    phase: "idle",
+    phaseMessage: "",
+    progress: null,
+    findings: [],
+    finalReport: null,
+    error: null,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 export async function POST(req: Request) {
   try {
@@ -76,6 +113,38 @@ export async function POST(req: Request) {
 
     // Create abort controller for cancellation
     const abortController = new AbortController();
+    registerChatAbortController(agentRun.id, abortController);
+
+    const deepResearchTask: ChatTask = {
+      runId: agentRun.id,
+      type: "chat",
+      status: "running",
+      userId: dbUser.id,
+      sessionId,
+      pipelineName: "deep-research",
+      triggerType: "api",
+      startedAt: agentRun.startedAt,
+      metadata: {
+        deepResearch: true,
+        query,
+      },
+    };
+    taskRegistry.register(deepResearchTask);
+
+    let persistedState = createInitialPersistedState(agentRun.id, query.trim());
+
+    const persistState = async (partial: Partial<PersistedDeepResearchState>) => {
+      persistedState = {
+        ...persistedState,
+        ...partial,
+        updatedAt: new Date().toISOString(),
+      };
+      await updateAgentRunMetadata(agentRun.id, {
+        deepResearchState: persistedState,
+      });
+    };
+
+    await persistState({ phase: "planning", phaseMessage: "Creating research plan..." });
 
     // Create SSE stream
     const encoder = new TextEncoder();
@@ -113,6 +182,62 @@ export async function POST(req: Request) {
           safeEnqueue(encoder.encode(`data: ${data}\n\n`));
         };
 
+        let eventPersistenceQueue: Promise<void> = Promise.resolve();
+
+        const persistEventState = async (event: DeepResearchEvent) => {
+          switch (event.type) {
+            case "phase_change":
+              await persistState({ phase: event.phase, phaseMessage: event.message, error: null });
+              taskRegistry.emitProgress(agentRun.id, event.message, undefined, {
+                sessionId,
+                userId: dbUser.id,
+                type: "chat",
+                startedAt: agentRun.startedAt,
+              });
+              break;
+            case "search_progress":
+              await persistState({
+                phase: "searching",
+                progress: {
+                  completed: event.completed,
+                  total: event.total,
+                  currentQuery: event.currentQuery,
+                },
+                error: null,
+              });
+              taskRegistry.emitProgress(agentRun.id, `Research search progress ${event.completed}/${event.total}`, undefined, {
+                sessionId,
+                userId: dbUser.id,
+                type: "chat",
+                startedAt: agentRun.startedAt,
+              });
+              break;
+            case "search_result":
+              await persistState({ findings: [...persistedState.findings, event.finding], error: null });
+              break;
+            case "final_report":
+              await persistState({ phase: "complete", finalReport: event.report, error: null });
+              break;
+            case "error":
+              await persistState({ phase: "error", error: event.error });
+              break;
+            case "complete":
+              await persistState({ phase: "complete", error: null });
+              break;
+            default:
+              break;
+          }
+        };
+
+        const queueEventHandling = (event: DeepResearchEvent) => {
+          sendEvent(event);
+          eventPersistenceQueue = eventPersistenceQueue
+            .then(() => persistEventState(event))
+            .catch((persistError) => {
+              console.error("[DEEP-RESEARCH API] Failed to persist event state:", persistError);
+            });
+        };
+
         // Wrap stream logic with run context
         await withRunContext(
           { runId: agentRun.id, sessionId, pipelineName: "deep-research" },
@@ -121,7 +246,9 @@ export async function POST(req: Request) {
               // Run deep research with event streaming and abort signal
               const finalState = await runDeepResearch(
                 query.trim(),
-                sendEvent,
+                (event) => {
+                  queueEventHandling(event);
+                },
                 { ...userConfig, abortSignal: abortController.signal }
               );
 
@@ -141,16 +268,28 @@ export async function POST(req: Request) {
                 });
               }
 
+              await eventPersistenceQueue;
+
               // Complete agent run successfully
               await completeAgentRun(agentRun.id, "succeeded", {
                 hasReport: !!finalState.finalReport,
                 citationCount: finalState.finalReport?.citations?.length || 0,
+                deepResearchState: {
+                  ...persistedState,
+                  phase: "complete",
+                  finalReport: finalState.finalReport ?? persistedState.finalReport,
+                  error: null,
+                  updatedAt: new Date().toISOString(),
+                },
               });
+              taskRegistry.updateStatus(agentRun.id, "succeeded");
+              removeChatAbortController(agentRun.id);
 
               // Send done event
               safeEnqueue(encoder.encode('data: [DONE]\n\n'));
               safeClose();
             } catch (error) {
+              await eventPersistenceQueue;
               const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
               // Don't log cancellation as an error - it's expected behavior
@@ -163,7 +302,16 @@ export async function POST(req: Request) {
                   timestamp: new Date(),
                 });
                 // Complete agent run as failed
-                await completeAgentRun(agentRun.id, "failed", { error: errorMessage });
+                await completeAgentRun(agentRun.id, "failed", {
+                  error: errorMessage,
+                  deepResearchState: {
+                    ...persistedState,
+                    phase: "error",
+                    error: errorMessage,
+                    updatedAt: new Date().toISOString(),
+                  },
+                });
+                taskRegistry.updateStatus(agentRun.id, "failed", { error: errorMessage });
               } else {
                 console.log('[DEEP-RESEARCH API] Research cancelled by user');
                 const interruptionTimestamp = new Date();
@@ -180,7 +328,17 @@ export async function POST(req: Request) {
                   orderingIndex: await nextOrderingIndex(sessionId),
                 });
                 // Complete agent run as cancelled
-                await completeAgentRun(agentRun.id, "cancelled", { reason: "user_cancelled" });
+                await completeAgentRun(agentRun.id, "cancelled", {
+                  reason: "user_cancelled",
+                  deepResearchState: {
+                    ...persistedState,
+                    phase: "idle",
+                    phaseMessage: "Research cancelled",
+                    error: null,
+                    updatedAt: new Date().toISOString(),
+                  },
+                });
+                taskRegistry.updateStatus(agentRun.id, "cancelled");
                 await appendRunEvent({
                   runId: agentRun.id,
                   eventType: "run_completed",
@@ -190,6 +348,7 @@ export async function POST(req: Request) {
                 });
               }
 
+              removeChatAbortController(agentRun.id);
               safeEnqueue(encoder.encode('data: [DONE]\n\n'));
               safeClose();
             }
@@ -197,10 +356,9 @@ export async function POST(req: Request) {
         );
       },
       cancel() {
-        // Called when the client aborts the request
+        // Client disconnected: keep processing in background and rely on polling.
         isClosed = true;
-        abortController.abort(); // Signal the research to stop
-        console.log('[DEEP-RESEARCH API] Stream cancelled by client');
+        console.log('[DEEP-RESEARCH API] Stream closed by client, continuing in background');
       },
     });
 
@@ -211,6 +369,7 @@ export async function POST(req: Request) {
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
         'X-Session-Id': sessionId,
+        'X-Run-Id': agentRun.id,
       },
     });
   } catch (error) {
