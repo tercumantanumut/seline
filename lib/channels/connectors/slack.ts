@@ -116,6 +116,17 @@ export class SlackConnector implements ChannelConnector {
     });
     return { externalMessageId: String(sent.ts || `${payload.peerId}:${Date.now()}`) };
   }
+
+  async sendTyping(peerId: string): Promise<void> {
+    try {
+      await (this.app.client as { apiCall: (method: string, options?: Record<string, unknown>) => Promise<unknown> }).apiCall(
+        "chat.typing",
+        { channel: peerId }
+      );
+    } catch (error) {
+      console.warn("[Slack] Failed to send typing status:", error);
+    }
+  }
 }
 
 async function resolveSlackPeerName(client: any, channelId: string, userId?: string | null) {
