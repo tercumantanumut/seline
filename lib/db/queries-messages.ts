@@ -254,6 +254,19 @@ export async function deleteMessagesNotIn(
   return totalDeleted;
 }
 
+// Returns IDs of all messages in a session that were injected via the live-prompt
+// queue (i.e. persisted server-side during prepareStep, unknown to the frontend).
+export async function getInjectedMessageIds(sessionId: string): Promise<string[]> {
+  const rows = await db.query.messages.findMany({
+    where: and(
+      eq(messages.sessionId, sessionId),
+      sql`json_extract(${messages.metadata}, '$.livePromptInjected') IS NOT NULL`
+    ),
+    columns: { id: true },
+  });
+  return rows.map(r => r.id);
+}
+
 // Tool Runs
 export async function createToolRun(data: NewToolRun) {
   const [toolRun] = await db.insert(toolRuns).values(data).returning();
