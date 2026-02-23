@@ -57,7 +57,12 @@ export async function getSessionWithMessages(id: string) {
 
   const msgs = await db.query.messages.findMany({
     where: eq(messages.sessionId, id),
-    orderBy: asc(messages.createdAt),
+    orderBy: [
+      // Keep message history stable even when multiple rows share createdAt.
+      asc(sql`case when ${messages.orderingIndex} is null then 1 else 0 end`),
+      asc(messages.orderingIndex),
+      asc(messages.createdAt),
+    ],
   });
 
   return { session, messages: msgs };
