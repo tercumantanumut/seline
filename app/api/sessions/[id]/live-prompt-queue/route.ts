@@ -1,0 +1,94 @@
+import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/local-auth";
+import { getOrCreateLocalUser, createMessage } from "@/lib/db/queries";
+import { loadSettings } from "@/lib/settings/settings-manager";
+import { nextOrderingIndex } from "@/lib/session/message-ordering";
+import {
+  appendToLivePromptQueueBySession,
+} from "@/lib/background-tasks/live-prompt-queue-registry";
+import {
+  hasStopIntent,
+  sanitizeLivePromptContent,
+} from "@/lib/background-tasks/live-prompt-helpers";
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+/**
+ * POST - Enqueue a user message into the live prompt queue for an active run.
+ *
+ * Body: { content: string }
+ *
+ * Returns 200 { queued: true, stopIntent } if successfully enqueued.
+ * Returns 409 { queued: false, reason: "no_active_run" } if no active run for this session.
+ * Returns 400 if the body is malformed.
+ */
+export async function POST(req: Request, { params }: RouteParams) {
+  try {
+    const userId = await requireAuth(req);
+    const settings = loadSettings();
+    const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
+    const { id: sessionId } = await params;
+
+    // Suppress unused variable warning — dbUser validates the user exists
+    void dbUser;
+
+    let body: { content?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const { content } = body;
+
+    if (!content || typeof content !== "string" || !content.trim()) {
+      return NextResponse.json({ error: "content is required" }, { status: 400 });
+    }
+
+    const sanitized = sanitizeLivePromptContent(content);
+    const stopIntent = hasStopIntent(sanitized);
+    const entryId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // appendToLivePromptQueueBySession resolves the active runId from the session index.
+    // Returns false when no active run exists for this session — O(1), no DB round-trip.
+    const queued = appendToLivePromptQueueBySession(sessionId, {
+      id: entryId,
+      content: sanitized,
+      stopIntent,
+    });
+
+    if (!queued) {
+      return NextResponse.json(
+        { queued: false, reason: "no_active_run" },
+        { status: 409 }
+      );
+    }
+
+    // Persist the user message to DB for conversation history continuity.
+    // Best-effort — the live injection already happened; a DB failure doesn't roll it back.
+    try {
+      const orderingIndex = await nextOrderingIndex(sessionId);
+      await createMessage({
+        sessionId,
+        role: "user",
+        content: [{ type: "text", text: sanitized }],
+        orderingIndex,
+        metadata: {
+          livePromptInjected: true,
+        },
+      });
+    } catch (dbError) {
+      console.warn("[LivePromptQueue] Failed to persist message to DB:", dbError);
+    }
+
+    console.log(
+      `[LivePromptQueue] Enqueued for session ${sessionId} ` +
+      `(stopIntent=${stopIntent}, length=${sanitized.length})`
+    );
+
+    return NextResponse.json({ queued: true, stopIntent });
+  } catch (error) {
+    console.error("[LivePromptQueue] Error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

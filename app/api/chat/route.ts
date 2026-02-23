@@ -40,6 +40,15 @@ import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import { limitProgressContent } from "@/lib/background-tasks/progress-content-limiter";
 import { registerChatAbortController, removeChatAbortController } from "@/lib/background-tasks/chat-abort-registry";
+import {
+  createLivePromptQueue,
+  drainLivePromptQueue,
+  removeLivePromptQueue,
+} from "@/lib/background-tasks/live-prompt-queue-registry";
+import {
+  buildUserInjectionContent,
+  buildStopSystemMessage,
+} from "@/lib/background-tasks/live-prompt-helpers";
 import { combineAbortSignals } from "@/lib/utils/abort";
 import {
   classifyRecoverability,
@@ -2457,6 +2466,7 @@ export async function POST(req: Request) {
     });
     const chatAbortController = new AbortController();
     registerChatAbortController(agentRun.id, chatAbortController);
+    createLivePromptQueue(agentRun.id, sessionId);
 
     const isDelegation = sessionMetadata?.isDelegation === true;
 
@@ -3510,6 +3520,7 @@ export async function POST(req: Request) {
 
           const runStatus = shouldCancel ? "cancelled" : "failed";
           removeChatAbortController(agentRun.id);
+          removeLivePromptQueue(agentRun.id, sessionId);
           await completeAgentRun(agentRun.id, runStatus, shouldCancel
             ? { reason: "stream_interrupted" }
             : { error: isCreditError ? "Insufficient credits" : errorMessage });
@@ -3588,7 +3599,7 @@ export async function POST(req: Request) {
         //
         // The discoveredTools Set is initialized with previouslyDiscoveredTools, so spreading it
         // is sufficient to include both. But we explicitly deduplicate for safety.
-        prepareStep: async ({ stepNumber }) => {
+        prepareStep: async ({ stepNumber, messages: stepMessages }) => {
           // Build the active tools list by combining all sources
           // Use a Set to deduplicate in case tools appear in multiple sources
           let activeToolSet: Set<string>;
@@ -3626,6 +3637,37 @@ export async function POST(req: Request) {
             if (newlyDiscovered.length > 0) {
               console.log(`[CHAT API] Step ${stepNumber}: Active tools now include newly discovered: ${newlyDiscovered.join(", ")}`);
             }
+          }
+
+          // Drain any mid-run user messages from the in-memory queue.
+          // drainLivePromptQueue is atomic (splice-based) — no seenIds tracking needed.
+          const pendingPrompts = drainLivePromptQueue(runId);
+          if (pendingPrompts.length > 0) {
+            const stopRequested = pendingPrompts.some(e => e.stopIntent);
+            console.log(
+              `[CHAT API] Step ${stepNumber}: Injecting ${pendingPrompts.length} live prompt(s) (stopIntent=${stopRequested})`
+            );
+
+            if (stopRequested) {
+              // Graceful stop: disable tools + inject system-level stop instruction.
+              // We don't hard-abort here — this lets the model acknowledge the stop request
+              // before the run ends naturally at the next step boundary.
+              return {
+                activeTools: [] as (keyof typeof allToolsWithMCP)[],
+                system: buildStopSystemMessage(pendingPrompts),
+              };
+            }
+
+            // Inject as real user messages — correct conversation semantics vs system hacks.
+            // The SDK's prepareStep `messages` return overrides the full message list for this step.
+            const injectedUserMessage: UserModelMessage = {
+              role: "user",
+              content: buildUserInjectionContent(pendingPrompts),
+            };
+            return {
+              activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[],
+              messages: [...stepMessages, injectedUserMessage],
+            };
           }
 
           return {
@@ -3682,6 +3724,7 @@ export async function POST(req: Request) {
           }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
+            removeLivePromptQueue(agentRun.id, sessionId);
           }
           // Finalize any tool calls that were streamed via deltas (OpenAI format)
           if (streamingState) {
@@ -3951,6 +3994,7 @@ export async function POST(req: Request) {
           }
           if (agentRun?.id) {
             removeChatAbortController(agentRun.id);
+            removeLivePromptQueue(agentRun.id, sessionId);
           }
           try {
             const interruptionTimestamp = new Date();
