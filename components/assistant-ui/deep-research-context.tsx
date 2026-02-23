@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode, type FC } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode, type FC } from "react";
 import { useDeepResearch, type UseDeepResearchReturn } from "@/lib/hooks/use-deep-research";
 
 interface DeepResearchContextValue extends UseDeepResearchReturn {
@@ -48,6 +48,13 @@ export const DeepResearchProvider: FC<DeepResearchProviderProps> = ({ children, 
     deepResearch.cancelResearch();
     setIsDeepResearchMode(false);
   }, [deepResearch]);
+
+  // Keep mode enabled while background polling is active so users can return to live progress.
+  useEffect(() => {
+    if (deepResearch.isBackgroundPolling) {
+      setIsDeepResearchMode(true);
+    }
+  }, [deepResearch.isBackgroundPolling]);
 
   // When research is reset, disable deep research mode
   const handleReset = useCallback(() => {

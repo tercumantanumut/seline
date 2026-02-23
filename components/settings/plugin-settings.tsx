@@ -17,14 +17,6 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Loader2,
   Plug,
   Trash2,
@@ -49,41 +41,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MarketplaceBrowser } from "@/components/plugins/marketplace-browser";
 import { useTranslations } from "next-intl";
-
-interface InstalledPlugin {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  scope: string;
-  status: "active" | "disabled" | "error";
-  marketplaceName?: string;
-  installedAt: string;
-  updatedAt: string;
-  lastError?: string;
-  manifest: {
-    author?: { name: string; email?: string };
-    homepage?: string;
-    repository?: string;
-    license?: string;
-    keywords?: string[];
-    category?: string;
-  };
-  components: {
-    skills: Array<{ name: string; namespacedName?: string; description: string }>;
-    agents: Array<{ name: string; description: string }>;
-    hooks: { hooks: Record<string, unknown[]> } | null;
-    mcpServers: Record<string, unknown> | null;
-    lspServers: Record<string, unknown> | null;
-  };
-}
-
-interface CharacterOption {
-  id: string;
-  name: string;
-  displayName?: string | null;
-  status: string;
-}
+import type { CharacterOption, InstalledPlugin } from "@/components/settings/plugin-settings-types";
+import { PluginInstallDialog } from "@/components/settings/plugin-install-dialog";
 
 export function PluginSettings() {
   const t = useTranslations("plugins");
@@ -203,7 +162,11 @@ export function PluginSettings() {
       const formData = new FormData();
       formData.append("characterId", selectedTargetCharacterId);
       if (pendingUploadFiles.length === 1) {
-        formData.append("file", pendingUploadFiles[0]);
+        const single = pendingUploadFiles[0];
+        const relativePath = single.webkitRelativePath || single.name;
+        // Directory picker can return a single file with webkitRelativePath set.
+        // Preserve that path so folder imports keep their plugin root structure.
+        formData.append("file", single, relativePath);
       } else {
         for (const file of pendingUploadFiles) {
           formData.append("files", file, file.webkitRelativePath || file.name);
@@ -350,87 +313,26 @@ export function PluginSettings() {
         <MarketplaceBrowser onInstallComplete={loadPlugins} />
       )}
 
-      <Dialog
+      <PluginInstallDialog
         open={confirmInstallOpen}
+        uploading={uploading}
+        pendingUploadFiles={pendingUploadFiles}
+        characters={characters}
+        selectedTargetCharacterId={selectedTargetCharacterId}
         onOpenChange={(open) => {
           setConfirmInstallOpen(open);
           if (!open && !uploading) {
             setPendingUploadFiles([]);
           }
         }}
-      >
-        <DialogContent className="bg-terminal-cream sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="font-mono text-terminal-dark">
-              {t("confirmInstallTitle")}
-            </DialogTitle>
-            <DialogDescription className="font-mono text-terminal-muted">
-              {t("confirmInstallDesc")}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="rounded border border-terminal-border/50 bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-3">
-              <p className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                {t("filesLabel")}
-              </p>
-              <p className="mt-1 font-mono text-sm text-terminal-dark">
-                {t("filesSelected", { count: pendingUploadFiles.length })}
-              </p>
-              <p className="mt-1 line-clamp-2 font-mono text-xs text-terminal-muted">
-                {pendingUploadFiles.slice(0, 2).map((file) => file.name).join(", ")}
-                {pendingUploadFiles.length > 2 ? t("moreFiles", { count: pendingUploadFiles.length - 2 }) : ""}
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-mono text-xs text-terminal-muted uppercase tracking-wider">
-                {t("mainAgentLabel")}
-              </label>
-              <select
-                value={selectedTargetCharacterId}
-                onChange={(event) => setSelectedTargetCharacterId(event.target.value)}
-                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-                disabled={uploading}
-              >
-                {characters.map((character) => (
-                  <option key={character.id} value={character.id}>
-                    {character.displayName || character.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="font-mono"
-              onClick={() => {
-                setConfirmInstallOpen(false);
-                setPendingUploadFiles([]);
-              }}
-              disabled={uploading}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              className="font-mono bg-terminal-green text-white hover:bg-terminal-green/90"
-              onClick={installPendingPluginFiles}
-              disabled={uploading || pendingUploadFiles.length === 0 || !selectedTargetCharacterId}
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  {t("installing")}
-                </>
-              ) : (
-                t("installAndAssign")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onTargetCharacterChange={setSelectedTargetCharacterId}
+        onCancel={() => {
+          setConfirmInstallOpen(false);
+          setPendingUploadFiles([]);
+        }}
+        onInstall={installPendingPluginFiles}
+        t={t}
+      />
 
       {/* Empty state */}
       {plugins.length === 0 && (

@@ -30,12 +30,21 @@ export async function GET(req: Request, { params }: RouteParams) {
       || !taskRegistry.get(runId)
     );
 
+    const metadata = (run.metadata && typeof run.metadata === "object")
+      ? run.metadata as Record<string, unknown>
+      : {};
+    const deepResearchState = run.pipelineName === "deep-research"
+      ? (metadata.deepResearchState ?? null)
+      : null;
+
     return NextResponse.json({
       status: run.status,
+      pipelineName: run.pipelineName,
       completedAt: run.completedAt,
       durationMs: run.durationMs,
       updatedAt: run.updatedAt,
       isZombie,
+      deepResearchState,
     });
   } catch (error) {
     console.error("Get run status error:", error);

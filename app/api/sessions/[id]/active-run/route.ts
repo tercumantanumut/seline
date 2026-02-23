@@ -31,10 +31,20 @@ export async function GET(req: Request, { params }: RouteParams) {
       }
     }
 
+    const latestDeepResearchRun = runs.find((run) => run.pipelineName === "deep-research");
+    const latestDeepResearchMetadata = (
+      latestDeepResearchRun?.metadata && typeof latestDeepResearchRun.metadata === "object"
+    )
+      ? latestDeepResearchRun.metadata as Record<string, unknown>
+      : {};
+
     if (!activeRun) {
       return NextResponse.json({
         hasActiveRun: false,
         runId: null,
+        latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
+        latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
+        latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
       });
     }
 
@@ -43,6 +53,9 @@ export async function GET(req: Request, { params }: RouteParams) {
       runId: activeRun.id,
       pipelineName: activeRun.pipelineName,
       startedAt: activeRun.startedAt,
+      latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
+      latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
+      latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
     });
   } catch (error) {
     console.error("Check active run error:", error);
