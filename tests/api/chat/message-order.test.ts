@@ -5,7 +5,13 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createSession, createMessage, getMessages, getOrCreateLocalUser } from "@/lib/db/queries";
+import {
+  createSession,
+  createMessage,
+  getMessages,
+  getOrCreateLocalUser,
+  deleteMessagesNotIn,
+} from "@/lib/db/queries";
 import { nextOrderingIndex, allocateOrderingIndices, validateSessionOrdering } from "@/lib/session/message-ordering";
 
 describe("Message Ordering", () => {
@@ -155,5 +161,78 @@ describe("Message Ordering", () => {
     const errors = await validateSessionOrdering(session.id);
     expect(errors.length).toBeGreaterThan(0);
     expect(errors.some((e) => e.includes("Duplicate"))).toBe(true);
+  });
+
+  it("should delete stale user/assistant messages while preserving tool/system messages", async () => {
+    const session = await createSession({ title: "Test", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      id: "11111111-1111-1111-1111-111111111111",
+      sessionId: session.id,
+      role: "user",
+      content: [{ type: "text", text: "Keep user" }],
+      orderingIndex: 1,
+    });
+
+    await createMessage({
+      id: "22222222-2222-2222-2222-222222222222",
+      sessionId: session.id,
+      role: "assistant",
+      content: [{ type: "text", text: "Keep assistant" }],
+      orderingIndex: 2,
+    });
+
+    await createMessage({
+      id: "33333333-3333-3333-3333-333333333333",
+      sessionId: session.id,
+      role: "user",
+      content: [{ type: "text", text: "Delete me" }],
+      orderingIndex: 3,
+    });
+
+    await createMessage({
+      id: "44444444-4444-4444-4444-444444444444",
+      sessionId: session.id,
+      role: "assistant",
+      content: [{ type: "text", text: "Delete me too" }],
+      orderingIndex: 4,
+    });
+
+    await createMessage({
+      id: "55555555-5555-5555-5555-555555555555",
+      sessionId: session.id,
+      role: "tool",
+      content: [{ type: "tool-result", toolCallId: "t1", result: { ok: true } }],
+      orderingIndex: 5,
+    });
+
+    await createMessage({
+      id: "66666666-6666-6666-6666-666666666666",
+      sessionId: session.id,
+      role: "system",
+      content: [{ type: "text", text: "System note" }],
+      orderingIndex: 6,
+    });
+
+    const deleted = await deleteMessagesNotIn(
+      session.id,
+      new Set([
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+      ])
+    );
+
+    expect(deleted).toBe(2);
+
+    const remaining = await getMessages(session.id);
+    const remainingIds = new Set(remaining.map((m) => m.id));
+
+    expect(remainingIds.has("11111111-1111-1111-1111-111111111111")).toBe(true);
+    expect(remainingIds.has("22222222-2222-2222-2222-222222222222")).toBe(true);
+    expect(remainingIds.has("33333333-3333-3333-3333-333333333333")).toBe(false);
+    expect(remainingIds.has("44444444-4444-4444-4444-444444444444")).toBe(false);
+    expect(remainingIds.has("55555555-5555-5555-5555-555555555555")).toBe(true);
+    expect(remainingIds.has("66666666-6666-6666-6666-666666666666")).toBe(true);
   });
 });

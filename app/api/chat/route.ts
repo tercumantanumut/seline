@@ -7,7 +7,7 @@ import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/messa
 import { ContextWindowManager } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession } from "@/lib/db/queries";
+import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
@@ -98,6 +98,7 @@ export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
   let configuredProvider: string | undefined;
+  let activeSessionId: string | undefined;
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const isInternalAuth = req.headers.get("X-Internal-Auth") === INTERNAL_API_SECRET;
@@ -205,7 +206,8 @@ export async function POST(req: Request) {
       isNewSession = true;
       sessionMetadata = (session.metadata as Record<string, unknown>) || {};
     } else {
-      const session = await getSession(sessionId);
+      activeSessionId = sessionId;
+    const session = await getSession(sessionId);
       if (!session) {
         const newSession = await createSession({
           id: sessionId,
@@ -369,6 +371,25 @@ export async function POST(req: Request) {
       }
     }
 
+    // ── Edit/Reload truncation cleanup ──────────────────────────────────────
+    // When the user edits a message or clicks reload, assistant-ui sends a
+    // truncated message list (everything up to the edited message + the new
+    // version). DB messages beyond that list are stale and must be removed,
+    // otherwise they reappear when the session is reloaded from DB.
+    if (!isNewSession && !isScheduledRun) {
+      const frontendIds = new Set(
+        messages
+          .filter(m => m.id && uuidRegex.test(m.id))
+          .map(m => m.id!)
+      );
+      if (frontendIds.size > 0) {
+        const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
+        if (deleted > 0) {
+          console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
+        }
+      }
+    }
+
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────
     console.log(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
     const { coreMessages, enhancedMessages } = await prepareMessagesForRequest({
@@ -510,7 +531,9 @@ export async function POST(req: Request) {
           });
           const runStatus = shouldCancel ? "cancelled" : "failed";
           removeChatAbortController(agentRun.id);
-          removeLivePromptQueue(agentRun.id, sessionId);
+          if (activeSessionId) {
+            removeLivePromptQueue(agentRun.id, activeSessionId);
+          }
           await completeAgentRun(agentRun.id, runStatus, shouldCancel
             ? { reason: "stream_interrupted" }
             : { error: isCreditError ? "Insufficient credits" : errorMessage });
@@ -623,6 +646,41 @@ export async function POST(req: Request) {
                 };
               }
 
+              // Split the streaming assistant message at the injection boundary so the
+              // user's message is stored between the pre-injection and post-injection
+              // assistant content rather than after the entire run.
+              if (syncStreamingMessage && streamingState) {
+                // Flush current assistant content to DB before splitting.
+                await syncStreamingMessage(true);
+                // Reset streaming state so post-injection content starts a new DB record.
+                streamingState.messageId = undefined;
+                streamingState.parts = [];
+                streamingState.toolCallParts = new Map();
+                streamingState.loggedIncompleteToolCalls = new Set();
+                streamingState.lastBroadcastAt = 0;
+                streamingState.lastBroadcastSignature = "";
+                streamingState.pendingBroadcast = false;
+                streamingState.isCreating = false;
+                streamingState.stepOffset = stepNumber;
+              }
+
+              // Persist each injected user message with the correct ordering index
+              // (allocated after the now-sealed pre-injection assistant message).
+              for (const prompt of pendingPrompts) {
+                try {
+                  const orderingIndex = await nextOrderingIndex(sessionId);
+                  await createMessage({
+                    sessionId,
+                    role: "user",
+                    content: [{ type: "text", text: prompt.content }],
+                    orderingIndex,
+                    metadata: { livePromptInjected: true },
+                  });
+                } catch (dbError) {
+                  console.warn("[CHAT API] Failed to persist injected user message:", dbError);
+                }
+              }
+
               // Inject as real user messages — correct conversation semantics vs system hacks.
               // The SDK's prepareStep `messages` return overrides the full message list for this step.
               const injectedUserMessage: UserModelMessage = {
@@ -635,7 +693,7 @@ export async function POST(req: Request) {
               };
             }
 
-            return { activeTools: currentActiveTools as (keyof typeof tools)[] };
+            return { activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[] };
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -741,7 +799,9 @@ export async function POST(req: Request) {
         });
         const runStatus = shouldCancel ? "cancelled" : "failed";
         removeChatAbortController(agentRun.id);
-        removeLivePromptQueue(agentRun.id, sessionId);
+        if (activeSessionId) {
+          removeLivePromptQueue(agentRun.id, activeSessionId);
+        }
         await completeAgentRun(agentRun.id, runStatus, shouldCancel
           ? { reason: "stream_interrupted" }
           : { error: isCreditError ? "Insufficient credits" : errorMessage });
