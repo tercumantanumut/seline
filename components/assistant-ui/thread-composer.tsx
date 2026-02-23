@@ -14,7 +14,9 @@ import {
   FlaskConicalIcon,
   Loader2Icon,
   CircleStopIcon,
+  CheckCircleIcon,
 } from "lucide-react";
+import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,12 +48,18 @@ interface QueuedMessage {
   id: string;
   content: string;
   mode: "chat" | "deep-research";
+  // "queued-classic": waiting for run to end before replaying
+  // "queued-live": currently being submitted to the live queue API
+  // "injected-live": successfully delivered to the running model
+  // "fallback": live injection failed, will replay after run ends
+  status: "queued-classic" | "queued-live" | "injected-live" | "fallback";
 }
 
 export const Composer: FC<{
   isBackgroundTaskRunning?: boolean;
   isProcessingInBackground?: boolean;
   sessionId?: string;
+  activeRunId?: string | null;
   sttEnabled?: boolean;
   onCancelBackgroundRun?: () => void;
   isCancellingBackgroundRun?: boolean;
@@ -65,6 +73,7 @@ export const Composer: FC<{
   isBackgroundTaskRunning = false,
   isProcessingInBackground = false,
   sessionId,
+  activeRunId,
   sttEnabled = false,
   onCancelBackgroundRun,
   isCancellingBackgroundRun = false,
@@ -83,6 +92,48 @@ export const Composer: FC<{
   const prefersReducedMotion = useReducedMotion();
 
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+
+  // Attempt to inject a message into the currently active run's live prompt queue.
+  // The server resolves the active runId from the session index — no runId needed on the client.
+  // Uses exponential backoff (200, 400, 800, 1600, 3200ms) with a max of 5 attempts.
+  // Returns true if successfully queued, false if no active run or all retries failed.
+  const queueLivePromptForActiveRun = useCallback(
+    async (content: string): Promise<boolean> => {
+      const MAX_RETRIES = 5;
+      const BASE_DELAY_MS = 200;
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>(resolve =>
+            setTimeout(resolve, BASE_DELAY_MS * Math.pow(2, attempt - 1))
+          );
+        }
+
+        try {
+          const { data, status } = await resilientPost<{ queued: boolean; reason?: string }>(
+            `/api/sessions/${sessionId}/live-prompt-queue`,
+            { content },
+            { timeout: 5_000, retries: 0 }
+          );
+
+          if (status === 409) {
+            // No active run — no point retrying
+            return false;
+          }
+
+          if (data?.queued) {
+            return true;
+          }
+        } catch {
+          // Network error — retry
+        }
+      }
+
+      return false;
+    },
+    [sessionId]
+  );
+
   const [isCancelling, setIsCancelling] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
 
@@ -124,7 +175,8 @@ export const Composer: FC<{
   const isDeepResearchMode = deepResearch?.isDeepResearchMode ?? false;
   const isDeepResearchActive = deepResearch?.isActive ?? false;
   const isDeepResearchLoading = deepResearch?.isLoading ?? false;
-  const isOperationRunning = isRunning || isDeepResearchLoading;
+  const isDeepResearchBackgroundPolling = deepResearch?.isBackgroundPolling ?? false;
+  const isOperationRunning = isRunning || isDeepResearchLoading || isDeepResearchBackgroundPolling;
   const isQueueBlocked = isOperationRunning || isBackgroundTaskRunning;
 
   const isProcessingQueue = useRef(false);
@@ -217,12 +269,17 @@ export const Composer: FC<{
       isProcessingQueue.current = false;
     }
 
-    if (!isQueueBlocked && queuedMessages.length > 0 && !isProcessingQueue.current) {
+    // Only process classic or fallback chips — injected-live ones are already delivered
+    const replayable = queuedMessages.filter(
+      m => m.status === "queued-classic" || m.status === "fallback"
+    );
+
+    if (!isQueueBlocked && replayable.length > 0 && !isProcessingQueue.current) {
       isProcessingQueue.current = true;
       isAwaitingRunStart.current = true;
 
-      const nextMessage = queuedMessages[0];
-      setQueuedMessages((prev) => prev.slice(1));
+      const nextMessage = replayable[0];
+      setQueuedMessages((prev) => prev.filter(m => m.id !== nextMessage.id));
 
       setTimeout(() => {
         if (nextMessage.mode === "deep-research" && deepResearch) {
@@ -256,14 +313,43 @@ export const Composer: FC<{
 
       if (isQueueBlocked) {
         if (hasText) {
-          setQueuedMessages((prev) => [
-            ...prev,
-            {
-              id: `queued-${Date.now()}`,
+          const msgId = `queued-${Date.now()}`;
+
+          if (sessionId && !isDeepResearchMode) {
+            // Live injection path: server resolves the active runId from the session index
+            setQueuedMessages(prev => [...prev, {
+              id: msgId,
+              content: expandedMessage,
+              mode: "chat",
+              status: "queued-live",
+            }]);
+
+            // Fire injection in the background; chip lifecycle driven by result
+            void queueLivePromptForActiveRun(expandedMessage).then(injected => {
+              if (injected) {
+                // Successfully delivered — show brief confirmation then remove chip
+                setQueuedMessages(prev =>
+                  prev.map(m => m.id === msgId ? { ...m, status: "injected-live" as const } : m)
+                );
+                setTimeout(() => {
+                  setQueuedMessages(prev => prev.filter(m => m.id !== msgId));
+                }, 1500);
+              } else {
+                // No active run — fall back to classic replay after run
+                setQueuedMessages(prev =>
+                  prev.map(m => m.id === msgId ? { ...m, status: "fallback" as const } : m)
+                );
+              }
+            });
+          } else {
+            // Classic queue: replay when run ends
+            setQueuedMessages(prev => [...prev, {
+              id: msgId,
               content: expandedMessage,
               mode: isDeepResearchMode ? "deep-research" : "chat",
-            },
-          ]);
+              status: "queued-classic",
+            }]);
+          }
         }
         clearDraft();
         updateCursorPosition(0);
@@ -476,10 +562,21 @@ export const Composer: FC<{
   };
 
   const statusMessage = getStatusMessage();
+  const shouldShowDeepResearchPanel = Boolean(
+    deepResearch
+    && (
+      isDeepResearchActive
+      || isDeepResearchLoading
+      || isDeepResearchBackgroundPolling
+      || deepResearch.phase === "error"
+    )
+  );
+  const isBackgroundProcessingVisible = isProcessingInBackground || isDeepResearchBackgroundPolling;
 
   return (
     <div className="relative w-full">
-      {deepResearch && isDeepResearchActive && (
+      {/* Deep Research Panel - includes active and resumed background states */}
+      {deepResearch && shouldShowDeepResearchPanel && (
         <DeepResearchPanel
           phase={deepResearch.phase}
           phaseMessage={deepResearch.phaseMessage}
@@ -492,8 +589,8 @@ export const Composer: FC<{
         />
       )}
 
-      {/* Background Processing Indicator */}
-      {isProcessingInBackground && (
+      {/* Background Processing Indicator - compact inline version */}
+      {isBackgroundProcessingVisible && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-terminal-green/30 bg-terminal-green/5 px-3 py-2">
           <div className="flex items-center gap-2 flex-1">
             <div className="flex gap-1">
@@ -540,11 +637,31 @@ export const Composer: FC<{
           )}
           <div className="flex flex-wrap gap-1">
             {queuedMessages.map((msg) => (
-              <div key={msg.id} className="flex items-center gap-1 bg-terminal-dark/10 rounded px-2 py-1 text-xs font-mono text-terminal-dark">
+              <div
+                key={msg.id}
+                className={cn(
+                  "flex items-center gap-1 rounded px-2 py-1 text-xs font-mono",
+                  msg.status === "injected-live"
+                    ? "bg-green-100/30 text-green-700 border border-green-300/40"
+                    : msg.status === "queued-live"
+                    ? "bg-yellow-50/30 text-yellow-700 border border-yellow-300/40"
+                    : msg.status === "fallback"
+                    ? "bg-orange-50/30 text-orange-700 border border-orange-300/40"
+                    : "bg-terminal-dark/10 text-terminal-dark"
+                )}
+              >
+                {msg.status === "injected-live" && (
+                  <CheckCircleIcon className="size-3 shrink-0 text-green-600" />
+                )}
+                {msg.status === "queued-live" && (
+                  <Loader2Icon className="size-3 shrink-0 animate-spin" />
+                )}
                 <span className="max-w-32 truncate">{msg.content}</span>
-                <button onClick={() => removeFromQueue(msg.id)} className="text-terminal-muted hover:text-red-500 transition-colors">
-                  <XIcon className="size-3" />
-                </button>
+                {msg.status !== "injected-live" && msg.status !== "queued-live" && (
+                  <button onClick={() => removeFromQueue(msg.id)} className="text-terminal-muted hover:text-red-500 transition-colors">
+                    <XIcon className="size-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
