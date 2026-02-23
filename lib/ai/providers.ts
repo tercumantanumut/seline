@@ -24,10 +24,8 @@ import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
 import { KIMI_MODEL_IDS } from "@/lib/auth/kimi-models";
 import {
+  getClaudeCodeAuthState,
   isClaudeCodeAuthenticated,
-  needsClaudeCodeTokenRefresh,
-  refreshClaudeCodeToken,
-  getClaudeCodeToken,
   invalidateClaudeCodeAuthCache,
 } from "@/lib/auth/claudecode-auth";
 import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
@@ -116,7 +114,6 @@ let _antigravityProviderToken: string | undefined = undefined;
 let _codexProvider: ReturnType<typeof createCodexProvider> | null = null;
 
 let _claudecodeProvider: ReturnType<typeof createClaudeCodeProvider> | null = null;
-let _claudecodeProviderToken: string | undefined = undefined;
 
 // ---- Token management --------------------------------------------------------
 
@@ -179,41 +176,19 @@ export async function ensureAntigravityTokenValid(): Promise<boolean> {
 }
 
 /**
- * Ensure Claude Code token is valid, refreshing if needed.
- * This should be called before making API requests with Claude Code.
+ * Ensure Claude Code auth is valid via official Agent SDK status checks.
  */
 export async function ensureClaudeCodeTokenValid(): Promise<boolean> {
   invalidateSettingsCache();
   invalidateClaudeCodeAuthCache();
 
-  let token = getClaudeCodeToken();
-  if (!token) {
+  const authenticated = await isClaudeCodeAuthenticated();
+  if (!authenticated) {
     return false;
   }
 
-  const isExpired = token.expires_at <= Date.now();
-  const needsRefresh = needsClaudeCodeTokenRefresh() || isExpired;
-
-  if (needsRefresh) {
-    if (!token.refresh_token) {
-      return false;
-    }
-
-    console.log("[PROVIDERS] Claude Code token needs refresh, attempting...");
-    const refreshed = await refreshClaudeCodeToken();
-    if (!refreshed) {
-      return false;
-    }
-
-    // Invalidate provider so it picks up new token
-    _claudecodeProvider = null;
-    _claudecodeProviderToken = undefined;
-
-    token = getClaudeCodeToken();
-    if (!token) {
-      return false;
-    }
-  }
+  // Invalidate provider so the next request uses fresh SDK auth state.
+  _claudecodeProvider = null;
 
   return true;
 }
@@ -249,16 +224,7 @@ function getAntigravityProvider(): (modelId: string) => LanguageModel {
  * Get Claude Code provider instance.
  */
 function getClaudeCodeProviderInstance(): (modelId: string) => LanguageModel {
-  const token = getClaudeCodeToken();
-  const currentToken = token?.access_token;
-
-  // Recreate provider if token changed
-  if (_claudecodeProvider && _claudecodeProviderToken !== currentToken) {
-    _claudecodeProvider = null;
-  }
-
   if (!_claudecodeProvider) {
-    _claudecodeProviderToken = currentToken;
     _claudecodeProvider = createClaudeCodeProvider();
   }
 
@@ -346,7 +312,6 @@ function invalidateProviderClient(provider: LLMProvider): void {
       break;
     case "claudecode":
       _claudecodeProvider = null;
-      _claudecodeProviderToken = undefined;
       break;
     case "kimi":
       invalidateKimiClient();
@@ -417,7 +382,8 @@ export function getConfiguredProvider(): LLMProvider {
   }
 
   if (provider === "claudecode") {
-    if (!isClaudeCodeAuthenticated()) {
+    const state = getClaudeCodeAuthState();
+    if (!state.isAuthenticated) {
       console.warn(
         "[PROVIDERS] Claude Code selected but not authenticated, falling back to anthropic"
       );
@@ -519,9 +485,6 @@ export function getLanguageModel(modelOverride?: string): LanguageModel {
     }
 
     case "claudecode": {
-      if (!isClaudeCodeAuthenticated()) {
-        throw new Error("Claude Code authentication required. Please login via Settings.");
-      }
       return getClaudeCodeProviderInstance()(model);
     }
 
@@ -571,7 +534,7 @@ export function getModelByName(modelId: string): LanguageModel {
     return _codexProvider(modelId);
   }
 
-  if (isClaudeCodeOAuthModel(modelId) && isClaudeCodeAuthenticated()) {
+  if (isClaudeCodeOAuthModel(modelId)) {
     console.log(`[PROVIDERS] Using Claude Code for model: ${modelId}`);
     return getClaudeCodeProviderInstance()(modelId);
   }

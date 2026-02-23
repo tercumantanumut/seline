@@ -85,7 +85,7 @@ export function ClaudeCodePasteInput({
         </button>
         <button
           onClick={() => onSubmit(code)}
-          disabled={loading || !code.trim()}
+          disabled={loading}
           className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
         >
           {loading ? t("verifying") : t("submitCode")}

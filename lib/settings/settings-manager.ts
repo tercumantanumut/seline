@@ -75,6 +75,11 @@ export interface AppSettings {
         email?: string;
         expiresAt?: number;
         lastRefresh?: number;
+        tokenSource?: string;
+        apiKeySource?: string;
+        authUrl?: string;
+        output?: string[];
+        error?: string;
     };
     claudecodeToken?: {
         type: "oauth";
