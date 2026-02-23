@@ -52,11 +52,21 @@ export default function ChatInterface({
         ? activeTasks.find((task) => task.sessionId === sessionId && task.type === "scheduled")
         : undefined;
 
+    // Stable ref-based wrappers to break the circular dependency between
+    // useBackgroundProcessing (needs sm callbacks) and useSessionManager (needs bg state).
+    // Using refs ensures the callbacks passed to useBackgroundProcessing never change
+    // identity, keeping startPollingForCompletion stable and preventing checkActiveRun
+    // from firing on every render.
+    const refreshSessionTimestampRef = useRef<(id: string) => void>(() => {});
+    const notifySessionUpdateRef = useRef<(id: string, data: Record<string, unknown>) => void>(() => {});
+    const stableRefreshSessionTimestamp = useCallback((id: string) => refreshSessionTimestampRef.current(id), []);
+    const stableNotifySessionUpdate = useCallback((id: string, data: Record<string, unknown>) => notifySessionUpdateRef.current(id, data), []);
+
     // ── Background processing (polling, refresh, cancel) ──
     const bg = useBackgroundProcessing({
         sessionId,
-        refreshSessionTimestamp: () => { /* filled in after sessionManager */ },
-        notifySessionUpdate: () => { /* filled in after sessionManager */ },
+        refreshSessionTimestamp: stableRefreshSessionTimestamp,
+        notifySessionUpdate: stableNotifySessionUpdate,
         setSessionState,
         setBackgroundRefreshCounter,
     });
@@ -74,6 +84,10 @@ export default function ChatInterface({
         setIsZombieRun: bg.setIsZombieRun,
         setIsCancellingBackgroundRun: bg.setIsCancellingBackgroundRun,
     });
+
+    // Wire up refs to real implementations now that sm is initialized
+    refreshSessionTimestampRef.current = sm.refreshSessionTimestamp;
+    notifySessionUpdateRef.current = sm.notifySessionUpdate;
 
     const isChannelSession = Boolean(
         useMemo(
