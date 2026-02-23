@@ -29,6 +29,9 @@ export function useCharacterActions(
   const [characterToDelete, setCharacterToDelete] = useState<CharacterSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Duplicate state
+  const [isDuplicating, setIsDuplicating] = useState(false);
+
   // Folder manager state
   const [folderManagerOpen, setFolderManagerOpen] = useState(false);
   const [folderManagerCharacter, setFolderManagerCharacter] = useState<CharacterSummary | null>(null);
@@ -255,11 +258,15 @@ export function useCharacterActions(
 
   // Duplicate action
   const handleDuplicate = async (characterId: string) => {
+    if (isDuplicating) return;
+
+    setIsDuplicating(true);
     try {
       const { data, error } = await resilientPost<{ character: { id: string } }>(
         `/api/characters/${characterId}/duplicate`,
         {},
-        { retries: 0 }
+        // Duplication can copy folders, plugins, and images; default 10s is too short for larger agents.
+        { retries: 0, timeout: 60000 }
       );
       if (error || !data?.character) throw new Error(error || "Unknown error");
       await loadCharacters();
@@ -267,6 +274,8 @@ export function useCharacterActions(
     } catch (error) {
       console.error("Failed to duplicate agent:", error);
       toast.error(t("workflows.duplicateFailed"));
+    } finally {
+      setIsDuplicating(false);
     }
   };
 
@@ -327,6 +336,7 @@ export function useCharacterActions(
     toggleAgentPlugin,
 
     // Duplicate
+    isDuplicating,
     handleDuplicate,
   };
 }
