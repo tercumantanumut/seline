@@ -33,6 +33,7 @@ export type AgentOverflowMenuProps = {
   onEditPlugins: (c: CharacterSummary) => void;
   onNavigateDashboard: () => void;
   onDuplicate: (characterId: string) => void;
+  isDuplicating?: boolean;
   addToWorkflowLabel?: string;
   onAddToWorkflow?: (c: CharacterSummary) => void;
   showAddToWorkflow?: boolean;
@@ -51,6 +52,7 @@ export function AgentOverflowMenu({
   onEditPlugins,
   onNavigateDashboard,
   onDuplicate,
+  isDuplicating = false,
   addToWorkflowLabel,
   onAddToWorkflow,
   showAddToWorkflow = true,
@@ -103,7 +105,7 @@ export function AgentOverflowMenu({
           {t("menu.dashboard")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onDuplicate(character.id)}>
+        <DropdownMenuItem disabled={isDuplicating} onSelect={() => onDuplicate(character.id)}>
           <Copy className="w-3.5 h-3.5 mr-2" />
           {t("menu.duplicate")}
         </DropdownMenuItem>

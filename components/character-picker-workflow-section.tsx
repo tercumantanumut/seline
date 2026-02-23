@@ -49,6 +49,7 @@ export function WorkflowCard({
   onEditMcp,
   onEditPlugins,
   onDuplicate,
+  isDuplicating,
   onDeleteCharacter,
   onOpenFolderManager,
 }: {
@@ -75,6 +76,7 @@ export function WorkflowCard({
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
   onDuplicate: (id: string) => void;
+  isDuplicating: boolean;
   onDeleteCharacter: (c: CharacterSummary) => void;
   onOpenFolderManager: (c: CharacterSummary) => void;
 }) {
@@ -298,6 +300,7 @@ export function WorkflowCard({
                     onEditMcp={onEditMcp}
                     onEditPlugins={onEditPlugins}
                     onDuplicate={onDuplicate}
+                    isDuplicating={isDuplicating}
                     onDelete={onDeleteCharacter}
                     router={router}
                   />
@@ -335,6 +338,7 @@ export function WorkflowCard({
                         onEditMcp={onEditMcp}
                         onEditPlugins={onEditPlugins}
                         onDuplicate={onDuplicate}
+                        isDuplicating={isDuplicating}
                         onDelete={onDeleteCharacter}
                         onRemoveFromWorkflow={() => {
                           onSetPendingMemberRemoval({ workflowId: wf.id, agentId: agent.id });
@@ -385,6 +389,7 @@ export function WorkflowSection({
   onEditMcp,
   onEditPlugins,
   onDuplicate,
+  isDuplicating,
   onDeleteCharacter,
   onOpenFolderManager,
 }: {
@@ -414,6 +419,7 @@ export function WorkflowSection({
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
   onDuplicate: (id: string) => void;
+  isDuplicating: boolean;
   onDeleteCharacter: (c: CharacterSummary) => void;
   onOpenFolderManager: (c: CharacterSummary) => void;
 }) {
@@ -477,6 +483,7 @@ export function WorkflowSection({
               onEditMcp={onEditMcp}
               onEditPlugins={onEditPlugins}
               onDuplicate={onDuplicate}
+              isDuplicating={isDuplicating}
               onDeleteCharacter={onDeleteCharacter}
               onOpenFolderManager={onOpenFolderManager}
             />

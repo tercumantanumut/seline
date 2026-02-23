@@ -23,6 +23,7 @@ import type { ChannelInboundMessage } from "./types";
 import { buildConversationKey, normalizeChannelText } from "./utils";
 import { getChannelManager } from "./manager";
 import { taskRegistry } from "@/lib/background-tasks/registry";
+import { abortChatRun } from "@/lib/background-tasks/chat-abort-registry";
 import type { ChannelTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
 import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/lib/audio/transcription";
@@ -30,6 +31,18 @@ import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/li
 const conversationQueues = new Map<string, Promise<void>>();
 
 export async function handleInboundMessage(message: ChannelInboundMessage): Promise<void> {
+  const normalizedText = normalizeChannelText(message.text);
+
+  // Allow /stop to interrupt an ongoing run immediately instead of waiting in the conversation queue.
+  if (isStopCommand(normalizedText)) {
+    try {
+      await handleChannelCommand({ name: "stop", args: "" }, message);
+    } catch (error) {
+      console.error("[Channels] Failed to process immediate /stop command:", error);
+    }
+    return;
+  }
+
   const key = buildConversationKey({
     connectionId: message.connectionId,
     peerId: message.peerId,
@@ -105,7 +118,7 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
 
   const normalizedText = normalizeChannelText(message.text);
 
-  // Handle slash commands (/status, /tts, /compact)
+  // Handle slash commands (/status, /tts, /compact, /stop)
   const commandResult = parseChannelCommand(normalizedText);
   if (commandResult) {
     await handleChannelCommand(commandResult, message);
@@ -199,62 +212,71 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
 
     taskRegistry.updateStatus(runId, "running", { sessionId });
 
-    if (conversation) {
-      await touchChannelConversation(conversation.id, message.timestamp);
-    }
+    const stopTyping = startChannelTypingKeepalive({
+      connectionId: message.connectionId,
+      peerId: message.peerId,
+    });
 
-    const contentParts = await buildMessageContent(sessionId, message);
-    if (contentParts.length === 0) {
-      taskRegistry.updateStatus(runId, "cancelled", {
-        durationMs: Date.now() - new Date(startedAt).getTime(),
+    try {
+      if (conversation) {
+        await touchChannelConversation(conversation.id, message.timestamp);
+      }
+
+      const contentParts = await buildMessageContent(sessionId, message);
+      if (contentParts.length === 0) {
+        taskRegistry.updateStatus(runId, "cancelled", {
+          durationMs: Date.now() - new Date(startedAt).getTime(),
+        });
+        return;
+      }
+
+      // Allocate ordering index for bullet-proof message ordering
+      const userMessageIndex = await nextOrderingIndex(sessionId);
+
+      const createdMessage = await createMessage({
+        sessionId,
+        role: "user",
+        content: contentParts,
+        orderingIndex: userMessageIndex,
+        metadata: {
+          channel: {
+            connectionId: message.connectionId,
+            channelType: message.channelType,
+            peerId: message.peerId,
+            threadId: message.threadId,
+            externalMessageId: message.messageId,
+            fromSelf: message.fromSelf ?? false,
+          },
+        },
       });
-      return;
-    }
 
-    // Allocate ordering index for bullet-proof message ordering
-    const userMessageIndex = await nextOrderingIndex(sessionId);
-
-    const createdMessage = await createMessage({
-      sessionId,
-      role: "user",
-      content: contentParts,
-      orderingIndex: userMessageIndex,
-      metadata: {
-        channel: {
+      if (createdMessage?.id) {
+        await createChannelMessage({
           connectionId: message.connectionId,
           channelType: message.channelType,
-          peerId: message.peerId,
-          threadId: message.threadId,
           externalMessageId: message.messageId,
-          fromSelf: message.fromSelf ?? false,
-        },
-      },
-    });
+          sessionId,
+          messageId: createdMessage.id,
+          direction: "inbound",
+        });
+      }
 
-    if (createdMessage?.id) {
-      await createChannelMessage({
-        connectionId: message.connectionId,
-        channelType: message.channelType,
-        externalMessageId: message.messageId,
+      const dbMessages = await getMessages(sessionId);
+      const uiMessages = convertDBMessagesToUIMessages(dbMessages);
+
+      await invokeChatApi({
+        userId: connection.userId,
         sessionId,
-        messageId: createdMessage.id,
-        direction: "inbound",
+        characterId: character.id,
+        messages: uiMessages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          parts: msg.parts,
+        })),
       });
+    } finally {
+      stopTyping();
     }
-
-    const dbMessages = await getMessages(sessionId);
-    const uiMessages = convertDBMessagesToUIMessages(dbMessages);
-
-    await invokeChatApi({
-      userId: connection.userId,
-      sessionId,
-      characterId: character.id,
-      messages: uiMessages.map((msg) => ({
-        id: msg.id,
-        role: msg.role,
-        parts: msg.parts,
-      })),
-    });
 
     taskRegistry.updateStatus(runId, "succeeded", {
       durationMs: Date.now() - new Date(startedAt).getTime(),
@@ -321,6 +343,44 @@ function buildConversationTitle(channelType: string, peerName?: string | null, p
     return `${label}: ${peerId}`;
   }
   return `${label} conversation`;
+}
+
+function startChannelTypingKeepalive(params: {
+  connectionId: string;
+  peerId: string;
+  intervalMs?: number;
+}): () => void {
+  const manager = getChannelManager();
+  const intervalMs = params.intervalMs ?? 4000;
+  let cancelled = false;
+  let timer: NodeJS.Timeout | null = null;
+
+  const tick = async () => {
+    if (cancelled) return;
+    try {
+      await manager.sendTyping(params.connectionId, params.peerId);
+    } catch (error) {
+      console.warn("[Channels] Failed to send typing heartbeat:", error);
+    }
+    if (cancelled) return;
+    timer = setTimeout(() => {
+      void tick();
+    }, intervalMs);
+  };
+
+  void tick();
+
+  return () => {
+    cancelled = true;
+    if (timer) {
+      clearTimeout(timer);
+    }
+  };
+}
+
+function isStopCommand(text: string): boolean {
+  if (!text) return false;
+  return /^(?:\/|!)stop(?:@[\w_]+)?$/i.test(text.trim());
 }
 
 function isNewSessionCommand(text: string): boolean {
@@ -502,7 +562,7 @@ function parseChannelCommand(text: string): ChannelCommand | null {
   if (!text) return null;
   const trimmed = text.trim();
   // Match /command or !command (with optional @botname suffix)
-  const match = trimmed.match(/^[/!](status|tts|compact)(?:@[\w_]+)?(?:\s+(.*))?$/i);
+  const match = trimmed.match(/^[/!](status|tts|compact|stop)(?:@[\w_]+)?(?:\s+(.*))?$/i);
   if (!match) return null;
   return { name: match[1].toLowerCase(), args: (match[2] || "").trim() };
 }
@@ -555,6 +615,39 @@ async function handleChannelCommand(
 
     case "compact": {
       responseText = "Session compaction is not yet available. Use /new to start a fresh session.";
+      break;
+    }
+
+    case "stop": {
+      const conversation = await findChannelConversation({
+        connectionId: message.connectionId,
+        peerId: message.peerId,
+        threadId: message.threadId,
+      });
+      if (!conversation) {
+        responseText = "No active session found for this conversation.";
+        break;
+      }
+
+      const activeRuns = taskRegistry.list({
+        type: "chat",
+        sessionId: conversation.sessionId,
+      }).tasks;
+
+      let stoppedRuns = 0;
+      for (const task of activeRuns) {
+        if (abortChatRun(task.runId, "channel_stop_command")) {
+          stoppedRuns += 1;
+        }
+      }
+
+      if (stoppedRuns > 0) {
+        responseText = `Stopping ${stoppedRuns} active run${stoppedRuns === 1 ? "" : "s"}.`;
+      } else if (activeRuns.length > 0) {
+        responseText = "Run found but not cancellable right now. Try /stop again.";
+      } else {
+        responseText = "No active run is in progress for this session.";
+      }
       break;
     }
 

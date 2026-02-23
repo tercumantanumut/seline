@@ -378,6 +378,7 @@ export function CharacterPicker() {
             onEditMcp={charActions.openMcpToolEditor}
             onEditPlugins={charActions.openPluginEditor}
             onDuplicate={charActions.handleDuplicate}
+            isDuplicating={charActions.isDuplicating}
             onDeleteCharacter={charActions.openDeleteDialog}
             onOpenFolderManager={charActions.openFolderManager}
           />
@@ -439,6 +440,7 @@ export function CharacterPicker() {
               onEditMcp={charActions.openMcpToolEditor}
               onEditPlugins={charActions.openPluginEditor}
               onDuplicate={charActions.handleDuplicate}
+              isDuplicating={charActions.isDuplicating}
               addToWorkflowLabel={t("workflows.addToWorkflow")}
               onAddToWorkflow={openAddToWorkflowDialog}
               canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
