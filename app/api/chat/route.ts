@@ -7,7 +7,7 @@ import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/messa
 import { ContextWindowManager } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
-import { createSession, createMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn } from "@/lib/db/queries";
+import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { sessionHasTruncatedContent } from "@/lib/ai/truncated-content-store";
@@ -18,6 +18,7 @@ import {
   drainLivePromptQueue,
   removeLivePromptQueue,
 } from "@/lib/background-tasks/live-prompt-queue-registry";
+import { signalUndrainedMessages } from "@/lib/background-tasks/undrained-signal";
 import {
   buildUserInjectionContent,
   buildStopSystemMessage,
@@ -89,6 +90,19 @@ registerAllTools();
 
 // Check if Styly AI API is configured (for tool discovery instructions)
 const hasStylyApiKey = () => !!process.env.STYLY_AI_API_KEY;
+
+/**
+ * Drain any messages that were queued for live-prompt injection but never
+ * processed by prepareStep. Rather than persisting them as dangling DB
+ * messages, we set a per-session signal so the frontend can convert the
+ * injected-live chips to "fallback" and replay them as a new run.
+ */
+function handleUndrainedQueueMessages(runId: string, sessionId: string): void {
+  const undrained = drainLivePromptQueue(runId);
+  if (undrained.length > 0) {
+    signalUndrainedMessages(sessionId);
+  }
+}
 
 // Feature-flagged safety projection for task progress SSE payloads.
 const ENABLE_PROGRESS_CONTENT_LIMITER = process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
@@ -390,6 +404,15 @@ export async function POST(req: Request) {
         frontendIds.add(persistedUserMessageId);
       }
       if (frontendIds.size > 0) {
+        // Protect all messages created server-side during live-prompt injection.
+        // Both the injected user messages and the pre-injection split assistant
+        // message are tagged with livePromptInjected:true in the DB so they
+        // survive across run boundaries (a registry would be cleared before the
+        // next request).
+        const injectedIds = await getInjectedMessageIds(sessionId);
+        for (const id of injectedIds) {
+          frontendIds.add(id);
+        }
         const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
         if (deleted > 0) {
           console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
@@ -539,6 +562,7 @@ export async function POST(req: Request) {
           const runStatus = shouldCancel ? "cancelled" : "failed";
           removeChatAbortController(agentRun.id);
           if (activeSessionId) {
+            handleUndrainedQueueMessages(agentRun.id, activeSessionId);
             removeLivePromptQueue(agentRun.id, activeSessionId);
           }
           await completeAgentRun(agentRun.id, runStatus, shouldCancel
@@ -659,6 +683,13 @@ export async function POST(req: Request) {
               if (syncStreamingMessage && streamingState) {
                 // Flush current assistant content to DB before splitting.
                 await syncStreamingMessage(true);
+                // Tag the pre-injection assistant message so deleteMessagesNotIn
+                // protects it on the next request (it was created server-side and
+                // is unknown to the frontend).
+                if (streamingState.messageId) {
+                  const preId = streamingState.messageId;
+                  void updateMessage(preId, { metadata: { livePromptInjected: true } }).catch(() => {});
+                }
                 // Reset streaming state so post-injection content starts a new DB record.
                 streamingState.messageId = undefined;
                 streamingState.parts = [];
@@ -676,7 +707,7 @@ export async function POST(req: Request) {
               for (const prompt of pendingPrompts) {
                 try {
                   const orderingIndex = await nextOrderingIndex(sessionId);
-                  await createMessage({
+                  const injected = await createMessage({
                     sessionId,
                     role: "user",
                     content: [{ type: "text", text: prompt.content }],
