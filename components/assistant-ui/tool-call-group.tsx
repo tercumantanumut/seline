@@ -3,7 +3,7 @@
 import type { FC, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useAssistantState } from "@assistant-ui/react";
+import { useAssistantState, useMessage } from "@assistant-ui/react";
 import type { MessagePartState } from "@assistant-ui/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,9 @@ interface ToolCallGroupProps {
   endIndex: number;
   children?: ReactNode;
 }
+
+const toolGroupExpansionState = new Map<string, boolean>();
+const COLLAPSED_BADGE_LIMIT = 10;
 
 function getResultCount(result: unknown): number | null {
   if (!result || typeof result !== "object") return null;
@@ -80,13 +83,28 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
 }) => {
   const t = useTranslations("assistantUi.tools");
   const messageParts = useAssistantState((state) => state.message.parts);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const message = useMessage();
 
   const toolParts = useMemo(() => {
     return messageParts
       .slice(startIndex, endIndex + 1)
       .filter((part): part is ToolCallPart => part?.type === "tool-call");
   }, [messageParts, startIndex, endIndex]);
+
+  const fallbackKey = useMemo(() => {
+    return toolParts
+      .map((part, index) => `${part.toolName}:${index}`)
+      .join("|");
+  }, [toolParts]);
+
+  const expansionKey = useMemo(() => {
+    const messageId = typeof message?.id === "string" ? message.id : fallbackKey || "unknown-message";
+    return `${messageId}:${startIndex}`;
+  }, [fallbackKey, message?.id, startIndex]);
+
+  const [isExpanded, setIsExpanded] = useState<boolean>(
+    () => toolGroupExpansionState.get(expansionKey) ?? false
+  );
 
   const hasError = useMemo(() => {
     return toolParts.some((part) => getStatus(part) === "error");
@@ -108,8 +126,34 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   const hasMedia = mediaPreviews.length > 0;
 
   useEffect(() => {
-    if (hasError || hasMedia) setIsExpanded(true);
-  }, [hasError, hasMedia]);
+    if (toolGroupExpansionState.has(expansionKey)) {
+      setIsExpanded(Boolean(toolGroupExpansionState.get(expansionKey)));
+      return;
+    }
+    setIsExpanded(false);
+  }, [expansionKey]);
+
+  useEffect(() => {
+    if ((hasError || hasMedia) && !toolGroupExpansionState.has(expansionKey)) {
+      setIsExpanded(true);
+      toolGroupExpansionState.set(expansionKey, true);
+    }
+  }, [expansionKey, hasError, hasMedia]);
+
+  const visibleToolParts = useMemo(
+    () => (isExpanded ? toolParts : toolParts.slice(0, COLLAPSED_BADGE_LIMIT)),
+    [isExpanded, toolParts]
+  );
+
+  const hiddenBadgeCount = toolParts.length - visibleToolParts.length;
+
+  const handleToggleExpanded = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      toolGroupExpansionState.set(expansionKey, next);
+      return next;
+    });
+  };
 
   if (toolParts.length === 0) {
     return <>{children}</>;
@@ -122,9 +166,9 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         isExpanded && "max-h-[800px] overflow-y-auto"
       )}
     >
-      {/* Badges area remains fully visible so live tool activity is always apparent */}
-      <div className="flex flex-wrap items-center gap-2">
-        {toolParts.map((part, index) => {
+      {/* Keep badges visible and horizontally scrollable so large tool runs stay navigable. */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {visibleToolParts.map((part, index) => {
           const label = t.has(part.toolName) ? t(part.toolName) : part.toolName;
           const status = getStatus(part);
           const count = getResultCount(part.result);
@@ -137,6 +181,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
             />
           );
         })}
+        {hiddenBadgeCount > 0 && (
+          <span className="inline-flex shrink-0 items-center rounded-full bg-terminal-dark/10 px-2 py-0.5 text-xs font-mono text-terminal-muted">
+            +{hiddenBadgeCount}
+          </span>
+        )}
       </div>
 
       {!isExpanded && mediaPreviews.length > 0 && (
@@ -168,13 +217,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         </div>
       )}
 
-      {/* Button always visible */}
-      <div className="flex justify-end mt-2">
+      <div className="mt-2 flex justify-end">
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setIsExpanded((prev) => !prev)}
+          onClick={handleToggleExpanded}
           className="h-7 px-2 text-xs font-mono text-terminal-muted hover:text-terminal-dark"
         >
           {isExpanded ? t("hide") : t("details")}
