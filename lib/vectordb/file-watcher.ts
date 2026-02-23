@@ -6,8 +6,7 @@
  */
 
 import chokidar, { FSWatcher } from "chokidar";
-import { extname, relative, join, resolve } from "path";
-import { access } from "fs/promises";
+import { extname, relative, resolve } from "path";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, and } from "drizzle-orm";
@@ -16,7 +15,13 @@ import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher, createAggressiveIgnore } 
 import { taskRegistry } from "@/lib/background-tasks/registry";
 import { resolveChunkingOverrides, resolveFolderSyncBehavior, shouldRunForTrigger } from "./sync-mode-resolver";
 import type { TaskEvent } from "@/lib/background-tasks/types";
-import { loadSettings } from "@/lib/settings/settings-manager";
+import {
+  getMaxConcurrency,
+  parseJsonArray,
+  normalizeExtensions,
+  isProjectRootDirectory,
+  processWithConcurrency,
+} from "./file-watcher-utils";
 
 // Global state that persists across hot reloads (dev mode)
 const globalForWatchers = globalThis as unknown as {
@@ -79,13 +84,6 @@ let registryListenerInitialized = false;
 const folderTimers = new Map<string, NodeJS.Timeout>();
 const DEBOUNCE_MS = 1000; // Wait 1 second after last change before processing batch
 
-function getMaxConcurrency(): number {
-  const settings = loadSettings();
-  const isLocalEmbeddingProvider = settings.embeddingProvider === "local";
-  // Reduce parallelism for local embeddings to avoid overwhelming ONNX runtime.
-  return isLocalEmbeddingProvider ? 2 : 5;
-}
-
 interface WatcherConfig {
   folderId: string;
   characterId: string;
@@ -94,27 +92,6 @@ interface WatcherConfig {
   includeExtensions: string[];
   excludePatterns: string[];
   forcePolling?: boolean;
-}
-
-function parseJsonArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string");
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((item): item is string => typeof item === "string");
-      }
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-function normalizeExtensions(extensions: string[]): string[] {
-  return extensions.map((ext) => ext.startsWith(".") ? ext.slice(1).toLowerCase() : ext.toLowerCase());
 }
 
 // Track EMFILE retry attempts per folder to prevent infinite restart loops
@@ -135,40 +112,6 @@ async function safeCloseWatcher(folderId: string): Promise<void> {
     console.error(`[FileWatcher] Error closing watcher for ${folderId}, force-removing:`, err);
   }
   watchers.delete(folderId);
-}
-
-/**
- * Check if a directory is a project root (contains package.json, Cargo.toml, etc.)
- * Project roots are typically large codebases that should use polling mode.
- */
-async function isProjectRootDirectory(folderPath: string): Promise<boolean> {
-  // Check if it's the current working directory
-  if (folderPath === process.cwd()) {
-    return true;
-  }
-
-  // Check for common project markers
-  const projectMarkers = [
-    'package.json',
-    'Cargo.toml',
-    'go.mod',
-    'pom.xml',
-    'build.gradle',
-    'composer.json',
-    'requirements.txt',
-    'pyproject.toml',
-  ];
-
-  for (const marker of projectMarkers) {
-    try {
-      await access(join(folderPath, marker));
-      return true; // Found a project marker
-    } catch {
-      // File doesn't exist, continue checking
-    }
-  }
-
-  return false;
 }
 
 function seedActiveChatRuns(): void {
@@ -241,52 +184,6 @@ async function flushDeferredForFolder(folderId: string): Promise<void> {
 
   console.log(`[FileWatcher] Flushing ${count} deferred file(s) for ${processor.folderPath}`);
   await processor.processBatch();
-}
-
-/**
- * Simple concurrency limiter
- */
-async function processWithConcurrency<T>(
-  items: T[],
-  concurrency: number,
-  handler: (item: T) => Promise<void>
-): Promise<void> {
-  const queue = [...items];
-  const active: Promise<void>[] = [];
-
-  while (queue.length > 0 || active.length > 0) {
-    while (queue.length > 0 && active.length < concurrency) {
-      const item = queue.shift()!;
-
-      const promise = handler(item);
-
-      // Add to active set
-      active.push(promise);
-
-      // Ensure we remove it from active set when done (success or fail)
-      // Use .finally() so it runs regardless of outcome
-      // We don't await here to not block the loop
-      promise.finally(() => {
-        const index = active.indexOf(promise);
-        if (index > -1) active.splice(index, 1);
-      }).catch(() => {
-        // Catch any unhandled rejection in the handler to prevent UnhandledPromiseRejectionWarning
-        // The error should ideally be handled inside the handler or logged there
-      });
-    }
-
-    if (active.length > 0) {
-      // Wait for at least one to finish before checking queue again
-      // We use Promise.race to proceed as soon as one slot opens up
-      try {
-        await Promise.race(active);
-      } catch (e) {
-        // If a handler fails, Promise.race might reject. 
-        // We still want to continue processing others.
-        // The .finally block above ensures the failed promise is removed.
-      }
-    }
-  }
 }
 
 /**
