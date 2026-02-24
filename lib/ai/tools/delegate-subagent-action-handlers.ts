@@ -242,6 +242,7 @@ async function handleStart(
     abortController: new AbortController(),
     streamPromise: Promise.resolve(),
     settled: false,
+    executionId: 0,
   };
 
   startBackgroundExecution(delegation, userMessage);
