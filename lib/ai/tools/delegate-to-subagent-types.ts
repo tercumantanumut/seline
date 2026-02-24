@@ -90,6 +90,7 @@ export interface ActiveDelegation {
   abortController: AbortController;
   streamPromise: Promise<void>;
   settled: boolean;
+  executionId: number;
   error?: string;
 }
 
