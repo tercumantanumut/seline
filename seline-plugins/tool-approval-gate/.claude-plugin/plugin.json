@@ -1,0 +1,6 @@
+{
+  "name": "tool-approval-gate",
+  "description": "Prompts macOS user to allow or deny each tool call before execution.",
+  "version": "1.0.0",
+  "hooks": "hooks/hooks.json"
+}

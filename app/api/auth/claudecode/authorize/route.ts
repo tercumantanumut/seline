@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getClaudeCodeAuthStatus } from "@/lib/auth/claudecode-auth";
+import { startClaudeLoginProcess } from "@/lib/auth/claude-login-process";
 
 /**
  * GET /api/auth/claudecode/authorize
  *
- * With the official Agent SDK, authentication is initiated by the SDK/CLI.
- * This endpoint returns latest auth status and any login URL surfaced by SDK output.
+ * First checks if already authenticated via the Agent SDK.
+ * If not, spawns `claude login` as a persistent subprocess (stdin piped) so the
+ * user can paste the authorization code back via POST /api/auth/claudecode/exchange.
  */
 export async function GET() {
   try {
@@ -19,19 +21,20 @@ export async function GET() {
       });
     }
 
+    // Start the login subprocess and wait for the URL to appear in its output.
+    const { url, output } = await startClaudeLoginProcess();
+
     return NextResponse.json({
       success: true,
       authenticated: false,
-      url: status.authUrl || null,
-      output: status.output,
-      error: status.error,
-      message:
-        status.authUrl
-          ? "Open the provided URL to authenticate Claude Agent SDK"
-          : "Authenticate Claude Agent SDK via your terminal if no URL is provided",
+      url: url ?? status.authUrl ?? null,
+      output,
+      message: url
+        ? "Open the provided URL to authenticate, then paste the code below."
+        : "Authenticate Claude Agent SDK via your terminal if no URL is provided",
     });
   } catch (error) {
-    console.error("[ClaudeCodeAuthorize] Failed to read Agent SDK auth status:", error);
+    console.error("[ClaudeCodeAuthorize] Failed:", error);
     return NextResponse.json(
       { success: false, error: "Failed to prepare authentication" },
       { status: 500 },

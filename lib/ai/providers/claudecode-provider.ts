@@ -16,6 +16,7 @@ import {
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
 import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
+import { isElectronProduction } from "@/lib/utils/environment";
 import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
 import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
 
@@ -444,6 +445,8 @@ async function runClaudeAgentQuery(options: {
     options: {
       abortController,
       cwd: process.cwd(),
+      // Keep SDK subprocess on system Node to match Claude CLI runtime behavior.
+      executable: "node",
       includePartialMessages: true,
       // Allow multi-step agentic work (read → plan → write → verify).
       maxTurns: sdk?.maxTurns ?? 1000,
@@ -454,6 +457,9 @@ async function runClaudeAgentQuery(options: {
       // asking clarifying questions instead of executing.
       permissionMode: sdk?.permissionMode ?? "bypassPermissions",
       allowDangerouslySkipPermissions: true,
+      // In Electron production, process.execPath is the Electron binary;
+      // ELECTRON_RUN_AS_NODE=1 makes SDK child processes run as plain Node.js.
+      ...(isElectronProduction() ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {}),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       // Seline platform tools exposed via in-process MCP server
       ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
