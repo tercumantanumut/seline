@@ -349,8 +349,12 @@ export function startBackgroundExecution(
   userMessage: string,
 ): void {
   const abortController = new AbortController();
+  const executionId = delegation.executionId + 1;
+
   delegation.abortController = abortController;
+  delegation.executionId = executionId;
   delegation.settled = false;
+  delegation.error = undefined;
 
   const streamPromise = executeDelegation(
     delegation.id,
@@ -360,10 +364,21 @@ export function startBackgroundExecution(
     abortController,
   )
     .then(() => {
+      if (delegation.executionId !== executionId) return;
       delegation.settled = true;
     })
     .catch((err) => {
+      if (delegation.executionId !== executionId) return;
       delegation.settled = true;
+
+      const isAbortError =
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && err.name === "AbortError");
+
+      if (isAbortError) {
+        return;
+      }
+
       delegation.error = err instanceof Error ? err.message : String(err);
       console.error(`[Delegation] ${delegation.id} failed:`, delegation.error);
     });

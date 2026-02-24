@@ -254,6 +254,55 @@ describe("delegate-to-subagent-tool", () => {
     expect(String(resumed.message || "")).toContain("Follow-up message sent");
   });
 
+  it("continue aborts previous run without surfacing an abort failure", async () => {
+    let readCount = 0;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (readCount === 0) {
+              readCount += 1;
+              await delay(150);
+              return { done: false, value: new Uint8Array([1]) };
+            }
+            return { done: true, value: undefined };
+          },
+        }),
+      },
+      text: async () => "",
+    });
+
+    const tool = makeTool();
+    const started = await (tool as any).execute({
+      action: "start",
+      agentName: "Research Analyst",
+      task: "Initial analysis",
+    });
+
+    await delay(10);
+
+    const resumed = await (tool as any).execute({
+      action: "continue",
+      delegationId: started.delegationId,
+      followUpMessage: "Focus only on regressions",
+    });
+
+    expect(resumed.success).toBe(true);
+
+    await delay(300);
+
+    const observed = await (tool as any).execute({
+      action: "observe",
+      delegationId: started.delegationId,
+    });
+
+    expect(observed.success).toBe(true);
+    expect(observed.completed).toBe(true);
+    expect(observed.running).toBe(false);
+    expect(String(observed.error || "")).toBe("");
+  });
+
   it("start validates advisory max_turns alias range", async () => {
     const tool = makeTool();
     const result = await (tool as any).execute({
