@@ -16,19 +16,16 @@
   "onboarding": {
     "welcome": {
       "title": "Seline'e hoş geldiniz",
-      "subtitle": "Yapay zeka destekli yaratıcı yardımcınız. Sizi birkaç adımda kurulumdan geçirelim.",
+      "subtitle": "AI ajan platformunuz. Sohbet edin, oluşturun, araştırın ve otomatikleştirin — her yerde.",
       "features": {
         "agents": {
-          "title": "Özel AI Ajanları",
-          "desc": "Benzersiz kişilik ve yeteneklere sahip uzman asistanlar oluşturun"
+          "title": "Paralel Ajanlar"
         },
         "tools": {
-          "title": "Güçlü Araçlar",
-          "desc": "Görsel üretin, webde arayın, kod analiz edin ve daha fazlasını yapın"
+          "title": "Uzun Süreli Hafıza"
         },
         "memory": {
-          "title": "Kalıcı Hafıza",
-          "desc": "Ajanlarınız tercihleri hatırlar ve iş akışınızı öğrenir"
+          "title": "Akıllı Araç Arama"
         }
       },
       "cta": "Başlayalım"
@@ -38,9 +35,9 @@
       "subtitle": "AI ajanlarınızı nasıl güçlendirmek istediğinizi seçin",
       "options": {
         "antigravity": {
-          "title": "Antigravity (Ücretsiz)",
-          "desc": "Ücretsiz erişim için Antigravity hesabınızla giriş yapın",
-          "badge": "Önerilen"
+          "title": "Antigravity",
+          "desc": "Antigravity hesabınızla giriş yapın — hesap yasaklanma riski, kendi sorumluluğunuzda",
+          "badge": "⚠ Risk altında"
         },
         "anthropic": {
           "title": "Anthropic",
@@ -55,8 +52,9 @@
           "desc": "ChatGPT Plus/Pro aboneliğinizi GPT-4o ve o1 için kullanın"
         },
         "claudecode": {
-          "title": "Claude Code (Pro / MAX)",
-          "desc": "Claude Pro veya MAX aboneliğinizi Opus 4.6, Sonnet 4.5 ve Haiku 4.5 için kullanın"
+          "title": "Claude Code (Agent SDK)",
+          "desc": "Claude Pro veya MAX aboneliğinizi kullanın — yalnızca kişisel kullanım, ticari kullanım için değil",
+          "badge": "Kişisel kullanım"
         },
         "kimi": {
           "title": "Moonshot Kimi",
@@ -145,6 +143,76 @@
       "back": "Geri",
       "continue": "Devam"
     },
+    "features": {
+      "title": "Seline'in Tüm Yetenekleri",
+      "subtitle": "Eksiksiz bir AI platformu — birçok özellik hazır çalışır, diğerleri API anahtarıyla etkinleşir.",
+      "legend": {
+        "ready": "Hazır çalışır",
+        "configurable": "Ayarlardan yapılandır"
+      },
+      "categories": {
+        "llmProviders": "LLM Sağlayıcılar",
+        "voiceSpeech": "Ses & Konuşma",
+        "webSearch": "Web Araması",
+        "webScraping": "Web Kazıma",
+        "contextChain": "Bağlam & Gömme",
+        "channels": "İletişim Kanalları",
+        "imageGeneration": "Görsel & Video",
+        "mcpIntegration": "MCP Entegrasyonu",
+        "skillsPlugins": "Beceriler & Eklentiler",
+        "memory": "Hafıza Sistemi",
+        "scheduling": "Zamanlama",
+        "languages": "Diller",
+        "enhancement": "Geliştirme Hattı",
+        "aiTools": "AI Araçları"
+      },
+      "items": {
+        "anthropic": "Anthropic Claude",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama",
+        "kimi": "Moonshot Kimi",
+        "codex": "OpenAI Codex",
+        "claudeCode": "Claude Code",
+        "antigravity": "Antigravity",
+        "whisperCloud": "Whisper (Bulut)",
+        "whisperLocal": "Whisper.cpp",
+        "edgeTts": "Edge TTS",
+        "elevenlabs": "ElevenLabs",
+        "openaiTts": "OpenAI TTS",
+        "duckduckgo": "DuckDuckGo",
+        "tavily": "Tavily",
+        "puppeteer": "Puppeteer",
+        "firecrawl": "Firecrawl",
+        "lancedb": "LanceDB",
+        "localEmbeddings": "Yerel Gömme",
+        "cloudEmbeddings": "Bulut Gömme",
+        "syncEngine": "Senkron Motoru",
+        "semanticSearch": "Anlamsal Arama",
+        "slack": "Slack",
+        "telegram": "Telegram",
+        "discord": "Discord",
+        "whatsapp": "WhatsApp",
+        "comfyui": "ComfyUI + FLUX",
+        "openrouterImage": "OpenRouter Görsel",
+        "mcpServers": "MCP Sunucuları",
+        "customSkills": "Özel Beceriler",
+        "pluginSystem": "Eklenti Sistemi",
+        "codeHooks": "Kod Kancaları",
+        "agentMemory": "Ajan Hafızası",
+        "cronJobs": "Zamanlanmış Görevler",
+        "english": "İngilizce",
+        "turkish": "Türkçe",
+        "promptEnhancement": "İstem Geliştirme",
+        "deepResearch": "Derin Araştırma",
+        "dynamicContext": "Dinamik Bağlam",
+        "remotionVideo": "Remotion Video",
+        "subagents": "Alt Ajanlar",
+        "gitWorktrees": "Git Worktrees",
+        "toolSearch": "Araç Keşfi"
+      },
+      "back": "Geri",
+      "continue": "Devam"
+    },
     "complete": {
       "title": "Her şey hazır!",
       "subtitle": "Çalışma alanınız hazır. Şimdi şunları yapabilirsiniz:",
@@ -159,9 +227,7 @@
       "stepWelcome": "Hoş Geldiniz",
       "stepProvider": "Sağlayıcı",
       "stepConnect": "Bağlan",
-      "stepSearch": "Arama",
-      "stepWebSearch": "Web Araması",
-      "stepWebScraping": "Web Kazıma",
+      "stepFeatures": "Özellikler",
       "stepReady": "Hazır"
     },
     "webSearch": {

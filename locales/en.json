@@ -16,19 +16,16 @@
   "onboarding": {
     "welcome": {
       "title": "Welcome to Seline",
-      "subtitle": "Your AI-powered creative companion. Let's get you set up in just a few steps.",
+      "subtitle": "Your AI agents platform. Chat, create, research, and automate — everywhere.",
       "features": {
         "agents": {
-          "title": "Custom AI Agents",
-          "desc": "Create specialized assistants with unique personalities and capabilities"
+          "title": "Parallel Agents"
         },
         "tools": {
-          "title": "Powerful Tools",
-          "desc": "Generate images, search the web, analyze code, and more"
+          "title": "Long-term Memory"
         },
         "memory": {
-          "title": "Persistent Memory",
-          "desc": "Your agents remember preferences and learn your workflow"
+          "title": "Smart Tool Search"
         }
       },
       "cta": "Get Started"
@@ -38,9 +35,9 @@
       "subtitle": "Select how you want to power your AI agents",
       "options": {
         "antigravity": {
-          "title": "Antigravity (Free)",
-          "desc": "Sign in with your Antigravity account for free access",
-          "badge": "Recommended"
+          "title": "Antigravity",
+          "desc": "Sign in with your Antigravity account — risk of account ban, use at your own risk",
+          "badge": "⚠ Use at own risk"
         },
         "anthropic": {
           "title": "Anthropic",
@@ -55,8 +52,9 @@
           "desc": "Use your ChatGPT Plus/Pro subscription for GPT-4o and o1"
         },
         "claudecode": {
-          "title": "Claude Code (Pro / MAX)",
-          "desc": "Use your Claude Pro or MAX subscription for Opus 4.6, Sonnet 4.5, and Haiku 4.5"
+          "title": "Claude Code (Agent SDK)",
+          "desc": "Use your Claude Pro or MAX subscription — personal use only, not for commercial use",
+          "badge": "Personal use only"
         },
         "kimi": {
           "title": "Moonshot Kimi",
@@ -145,6 +143,76 @@
       "back": "Back",
       "continue": "Continue"
     },
+    "features": {
+      "title": "Everything Seline Can Do",
+      "subtitle": "A complete AI platform — many features work out of the box, others unlock with an API key.",
+      "legend": {
+        "ready": "Works out of the box",
+        "configurable": "Configure in Settings"
+      },
+      "categories": {
+        "llmProviders": "LLM Providers",
+        "voiceSpeech": "Voice & Speech",
+        "webSearch": "Web Search",
+        "webScraping": "Web Scraping",
+        "contextChain": "Context & Embeddings",
+        "channels": "Communication Channels",
+        "imageGeneration": "Image & Video",
+        "mcpIntegration": "MCP Integration",
+        "skillsPlugins": "Skills & Plugins",
+        "memory": "Memory System",
+        "scheduling": "Scheduling",
+        "languages": "Languages",
+        "enhancement": "Enhancement Pipeline",
+        "aiTools": "AI Tools"
+      },
+      "items": {
+        "anthropic": "Anthropic Claude",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama",
+        "kimi": "Moonshot Kimi",
+        "codex": "OpenAI Codex",
+        "claudeCode": "Claude Code",
+        "antigravity": "Antigravity",
+        "whisperCloud": "Whisper (Cloud)",
+        "whisperLocal": "Whisper.cpp",
+        "edgeTts": "Edge TTS",
+        "elevenlabs": "ElevenLabs",
+        "openaiTts": "OpenAI TTS",
+        "duckduckgo": "DuckDuckGo",
+        "tavily": "Tavily",
+        "puppeteer": "Puppeteer",
+        "firecrawl": "Firecrawl",
+        "lancedb": "LanceDB",
+        "localEmbeddings": "Local Embeddings",
+        "cloudEmbeddings": "Cloud Embeddings",
+        "syncEngine": "Sync Engine",
+        "semanticSearch": "Semantic Search",
+        "slack": "Slack",
+        "telegram": "Telegram",
+        "discord": "Discord",
+        "whatsapp": "WhatsApp",
+        "comfyui": "ComfyUI + FLUX",
+        "openrouterImage": "OpenRouter Image",
+        "mcpServers": "MCP Servers",
+        "customSkills": "Custom Skills",
+        "pluginSystem": "Plugin System",
+        "codeHooks": "Code Hooks",
+        "agentMemory": "Agent Memory",
+        "cronJobs": "Cron Jobs",
+        "english": "English",
+        "turkish": "Turkish",
+        "promptEnhancement": "Prompt Enhancement",
+        "deepResearch": "Deep Research",
+        "dynamicContext": "Dynamic Context",
+        "remotionVideo": "Remotion Video",
+        "subagents": "Sub-agents",
+        "gitWorktrees": "Git Worktrees",
+        "toolSearch": "Tool Discovery"
+      },
+      "back": "Back",
+      "continue": "Continue"
+    },
     "complete": {
       "title": "You're All Set!",
       "subtitle": "Your workspace is ready. Here's what you can do next:",
@@ -159,9 +227,7 @@
       "stepWelcome": "Welcome",
       "stepProvider": "Provider",
       "stepConnect": "Connect",
-      "stepSearch": "Search",
-      "stepWebSearch": "Web Search",
-      "stepWebScraping": "Web Scraping",
+      "stepFeatures": "Features",
       "stepReady": "Ready"
     },
     "webSearch": {
@@ -1806,12 +1872,14 @@
         "signedIn": "Signed in: {email}",
         "antigravityTitle": "Antigravity models",
         "antigravityDesc": "Use your Antigravity subscription to access supported premium models.",
+        "antigravityWarning": "Risk of account ban — use at your own risk",
         "signInGoogle": "Sign in with Google",
         "codexTitle": "OpenAI Codex",
         "codexDesc": "Connect your OpenAI account to use Codex models.",
         "signInOpenAI": "Sign in with OpenAI",
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Connect your Anthropic account to use Claude Code models.",
+        "claudecodeWarning": "Personal use only — not for commercial use",
         "signInAnthropic": "Sign in with Anthropic"
       },
       "fields": {
