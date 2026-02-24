@@ -1,6 +1,6 @@
 import { generateText } from "ai";
-import { getUtilityModel, getProviderTemperature } from "@/lib/ai/providers";
-import { updateSession } from "@/lib/db/queries";
+import { resolveSessionUtilityModel, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
+import { getSession, updateSession } from "@/lib/db/queries";
 
 const MAX_PROMPT_SNIPPET = 400;
 const MAX_TITLE_LENGTH = 80;
@@ -41,10 +41,16 @@ export async function generateSessionTitle(sessionId: string, firstMessageConten
   }
 
   try {
+    const session = await getSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    const sessionMetadata = (session.metadata as Record<string, unknown> | null) ?? null;
     const { text } = await generateText({
-      model: getUtilityModel(),
+      model: resolveSessionUtilityModel(sessionMetadata),
       prompt: buildPrompt(firstMessageContent),
-      temperature: getProviderTemperature(0.4),
+      temperature: getSessionProviderTemperature(sessionMetadata, 0.4),
       maxOutputTokens: 60,
     });
 

@@ -6,7 +6,8 @@
  */
 
 import { generateText } from 'ai';
-import { getResearchModel, getProviderTemperature } from '../providers';
+import { getModelByName, getResearchModel } from '../providers';
+import { getSessionProviderTemperature } from '../session-model-resolver';
 import { executeSearches, isSearchAvailable } from './search';
 import {
   RESEARCH_PLANNER_PROMPT,
@@ -27,6 +28,27 @@ import type {
 } from './types';
 
 export type EventEmitter = (event: DeepResearchEvent) => void;
+
+function resolveResearchGenerationConfig(config: Partial<DeepResearchConfig>) {
+  let model = getResearchModel();
+  if (config.researchModel) {
+    try {
+      model = getModelByName(config.researchModel);
+    } catch (error) {
+      console.warn(`[DEEP-RESEARCH] Failed to load session research model "${config.researchModel}", falling back to global:`, error);
+    }
+  }
+
+  const requestedTemperature = getSessionProviderTemperature(
+    config.sessionProvider ? { sessionProvider: config.sessionProvider } : null,
+    0.7
+  );
+
+  return {
+    model,
+    temperature: requestedTemperature,
+  };
+}
 
 /**
  * Create initial research state
@@ -78,6 +100,7 @@ function parseJsonResponse<T>(text: string): T {
 async function planResearch(
   state: DeepResearchState,
   emit: EventEmitter,
+  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
   abortSignal?: AbortSignal
 ): Promise<ResearchPlan> {
   emitPhaseChange(emit, 'planning', 'Creating research plan...');
@@ -87,10 +110,10 @@ async function planResearch(
   const systemPrompt = `${temporalContext}\n\n${RESEARCH_PLANNER_PROMPT}`;
 
   const { text } = await generateText({
-    model: getResearchModel(),
+    model: generationConfig.model,
     system: systemPrompt,
     prompt: `User Query: ${state.userQuery}\n\nCreate a comprehensive research plan.`,
-    temperature: getProviderTemperature(0.7),
+    temperature: generationConfig.temperature,
     abortSignal,
   });
 
@@ -108,6 +131,7 @@ async function planResearch(
 async function generateSearchQueries(
   plan: ResearchPlan,
   emit: EventEmitter,
+  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
   abortSignal?: AbortSignal
 ): Promise<string[]> {
   emit({
@@ -125,10 +149,10 @@ async function generateSearchQueries(
   for (const question of plan.researchQuestions) {
     checkAborted(abortSignal);
     const { text } = await generateText({
-      model: getResearchModel(),
+      model: generationConfig.model,
       system: systemPrompt,
       prompt: `Research Question: ${question}\n\nGenerate optimized search queries.`,
-      temperature: getProviderTemperature(0.5),
+      temperature: generationConfig.temperature,
       abortSignal,
     });
 
@@ -185,6 +209,7 @@ async function generateDraftReport(
   plan: ResearchPlan,
   findings: ResearchFinding[],
   emit: EventEmitter,
+  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
   abortSignal?: AbortSignal
 ): Promise<DraftReport> {
   emitPhaseChange(emit, 'drafting', 'Writing draft report...');
@@ -204,7 +229,7 @@ async function generateDraftReport(
     .join('\n\n---\n\n');
 
   const { text } = await generateText({
-    model: getResearchModel(),
+    model: generationConfig.model,
     system: systemPrompt,
     prompt: `Research Plan:
 Original Query: ${plan.originalQuery}
@@ -216,7 +241,7 @@ Research Findings:
 ${findingsContext}
 
 Write a comprehensive draft report based on these findings.`,
-    temperature: getProviderTemperature(0.7),
+    temperature: generationConfig.temperature,
     abortSignal,
   });
 
@@ -235,6 +260,7 @@ async function refineDraft(
   draft: DraftReport,
   plan: ResearchPlan,
   emit: EventEmitter,
+  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
   abortSignal?: AbortSignal
 ): Promise<{ gaps: string[]; searches: string[] }> {
   emitPhaseChange(emit, 'refining', `Refining report (iteration ${draft.iteration})...`);
@@ -244,7 +270,7 @@ async function refineDraft(
   const systemPrompt = `${temporalContext}\n\n${REPORT_REFINEMENT_PROMPT}`;
 
   const { text } = await generateText({
-    model: getResearchModel(),
+    model: generationConfig.model,
     system: systemPrompt,
     prompt: `Original Query: ${plan.originalQuery}
 Expected Sections: ${plan.expectedSections.join(', ')}
@@ -253,7 +279,7 @@ Draft Report:
 ${draft.content}
 
 Analyze this draft and identify gaps and areas for improvement.`,
-    temperature: getProviderTemperature(0.5),
+    temperature: generationConfig.temperature,
     abortSignal,
   });
 
@@ -284,6 +310,7 @@ async function generateFinalReport(
   plan: ResearchPlan,
   findings: ResearchFinding[],
   emit: EventEmitter,
+  generationConfig: ReturnType<typeof resolveResearchGenerationConfig>,
   abortSignal?: AbortSignal
 ): Promise<FinalReport> {
   emitPhaseChange(emit, 'finalizing', 'Generating final report...');
@@ -299,7 +326,7 @@ async function generateFinalReport(
   );
 
   const { text } = await generateText({
-    model: getResearchModel(),
+    model: generationConfig.model,
     system: systemPrompt,
     prompt: `Original Query: ${plan.originalQuery}
 Clarified Query: ${plan.clarifiedQuery}
@@ -311,7 +338,7 @@ Available Sources:
 ${uniqueSources.map((s) => `- [${s.title}](${s.url})`).join('\n')}
 
 Create the final, polished version of this research report.`,
-    temperature: getProviderTemperature(0.7),
+    temperature: generationConfig.temperature,
     abortSignal,
   });
 
@@ -355,6 +382,7 @@ export async function runDeepResearch(
   const state = createInitialState(userQuery, config);
   const maxIterations = config.maxIterations ?? 3;
   const abortSignal = config.abortSignal;
+  const generationConfig = resolveResearchGenerationConfig(config);
 
   try {
     // Check if search is available
@@ -365,11 +393,11 @@ export async function runDeepResearch(
     // Phase 1: Planning
     checkAborted(abortSignal);
     state.currentPhase = 'planning';
-    state.plan = await planResearch(state, emit, abortSignal);
+    state.plan = await planResearch(state, emit, generationConfig, abortSignal);
 
     // Phase 2: Generate search queries
     checkAborted(abortSignal);
-    const searchQueries = await generateSearchQueries(state.plan, emit, abortSignal);
+    const searchQueries = await generateSearchQueries(state.plan, emit, generationConfig, abortSignal);
     state.totalSearches = searchQueries.length;
 
     // Phase 3: Execute searches
@@ -381,7 +409,7 @@ export async function runDeepResearch(
     // Phase 4: Generate initial draft
     checkAborted(abortSignal);
     state.currentPhase = 'drafting';
-    state.draftReport = await generateDraftReport(state.plan, state.findings, emit, abortSignal);
+    state.draftReport = await generateDraftReport(state.plan, state.findings, emit, generationConfig, abortSignal);
 
     // Phase 5: Iterative refinement loop
     for (let i = 0; i < maxIterations - 1; i++) {
@@ -389,7 +417,7 @@ export async function runDeepResearch(
       state.iteration = i + 1;
       state.currentPhase = 'refining';
 
-      const { gaps, searches } = await refineDraft(state.draftReport, state.plan, emit, abortSignal);
+      const { gaps, searches } = await refineDraft(state.draftReport, state.plan, emit, generationConfig, abortSignal);
 
       // If no significant gaps, break early
       if (gaps.length === 0 || searches.length === 0) {
@@ -412,7 +440,7 @@ export async function runDeepResearch(
 
       // Regenerate draft with new findings
       checkAborted(abortSignal);
-      state.draftReport = await generateDraftReport(state.plan, state.findings, emit, abortSignal);
+      state.draftReport = await generateDraftReport(state.plan, state.findings, emit, generationConfig, abortSignal);
       state.draftReport.iteration = i + 2;
       state.draftReport.informationGaps = gaps;
     }
@@ -425,6 +453,7 @@ export async function runDeepResearch(
       state.plan,
       state.findings,
       emit,
+      generationConfig,
       abortSignal
     );
 

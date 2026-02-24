@@ -506,8 +506,11 @@ interface UsePromptEnhancementOptions {
   inputValue: string;
   setInputValue: (value: string) => void;
   characterId: string | undefined;
+  sessionId?: string;
   /** Recent thread messages for conversation context */
   recentMessages: Array<{ role: string; content: string }>;
+  /** Expands composer placeholders (e.g. pasted text blocks) before sending to enhancement API */
+  expandInput?: (input: string) => string;
 }
 
 export interface UsePromptEnhancementReturn {
@@ -522,7 +525,9 @@ export function usePromptEnhancement({
   inputValue,
   setInputValue,
   characterId,
+  sessionId,
   recentMessages,
+  expandInput,
 }: UsePromptEnhancementOptions): UsePromptEnhancementReturn {
   const t = useTranslations("assistantUi");
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -549,6 +554,12 @@ export function usePromptEnhancement({
       return;
     }
 
+    const enhancementInput = (expandInput ? expandInput(trimmedInput) : trimmedInput).trim();
+    if (!enhancementInput || enhancementInput.length < 3) {
+      toast.error(t("enhance.minChars"));
+      return;
+    }
+
     setIsEnhancing(true);
     setEnhancementInfo(null);
 
@@ -564,8 +575,9 @@ export function usePromptEnhancement({
       }>(
         "/api/enhance-prompt",
         {
-          input: trimmedInput,
+          input: enhancementInput,
           characterId,
+          sessionId,
           useLLM: true,
           conversationContext: recentMessages,
         },
@@ -599,7 +611,7 @@ export function usePromptEnhancement({
     } finally {
       setIsEnhancing(false);
     }
-  }, [inputValue, characterId, recentMessages, setInputValue, t]);
+  }, [inputValue, characterId, sessionId, recentMessages, expandInput, setInputValue, t]);
 
   return { isEnhancing, enhancedContext, enhancementInfo, clearEnhancement, handleEnhance };
 }

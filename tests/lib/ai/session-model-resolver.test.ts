@@ -25,6 +25,7 @@ import {
   clearSessionModelMetadata,
   extractSessionModelConfig,
   getSessionProviderTemperature,
+  resolveSessionResearchModel,
   resolveSessionUtilityModel,
 } from "@/lib/ai/session-model-resolver";
 
@@ -54,6 +55,19 @@ describe("session-model-resolver", () => {
     expect(model).toEqual({ id: "global-utility" });
   });
 
+  it("resolves session research override when metadata has sessionResearchModel", () => {
+    const sessionMetadata = {
+      sessionProvider: "codex",
+      sessionResearchModel: "gpt-5.1-codex-mini",
+    };
+
+    const model = resolveSessionResearchModel(sessionMetadata);
+
+    expect(providerMocks.getModelByName).toHaveBeenCalledWith("gpt-5.1-codex-mini");
+    expect(model).toEqual({ id: "gpt-5.1-codex-mini" });
+    expect(providerMocks.getResearchModel).not.toHaveBeenCalled();
+  });
+
   it("falls back to global utility model for invalid session model id", () => {
     providerMocks.getModelByName.mockImplementationOnce(() => {
       throw new Error("invalid model");
@@ -66,6 +80,20 @@ describe("session-model-resolver", () => {
 
     expect(providerMocks.getUtilityModel).toHaveBeenCalledTimes(1);
     expect(model).toEqual({ id: "global-utility" });
+  });
+
+  it("falls back to global research model for invalid session research model id", () => {
+    providerMocks.getModelByName.mockImplementationOnce(() => {
+      throw new Error("invalid model");
+    });
+
+    const model = resolveSessionResearchModel({
+      sessionProvider: "codex",
+      sessionResearchModel: "bad-model-id",
+    });
+
+    expect(providerMocks.getResearchModel).toHaveBeenCalledTimes(1);
+    expect(model).toEqual({ id: "global-research" });
   });
 
   it("uses session provider temperature rules (kimi fixed value)", () => {
