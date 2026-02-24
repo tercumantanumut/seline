@@ -313,7 +313,7 @@ export function SessionItem({
                 </a>
               )}
             </div>
-            <div className="min-h-[20px] pt-0.5">
+            <div className="min-h-[20px] pt-0.5 overflow-hidden">
               <SessionActivityBubble
                 activity={sessionActivity}
                 contextStatus={contextStatus}

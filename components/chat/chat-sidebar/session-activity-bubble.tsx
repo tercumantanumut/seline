@@ -42,44 +42,44 @@ interface VisualBubbleModel extends ResolvedBubbleModel {
 }
 
 const STATUS_SWAP_COOLDOWN_MS = 700;
-const SETTLING_PHASE_MS = 2800;
+const SETTLING_PHASE_MS = 4000;
 const ARCHIVED_HIDE_MS = 18000;
+// Grace period after hasActiveRun drops before clearing the bubble.
+// task:completed arrives via a second SSE stream (/api/tasks/events) which has
+// extra network RTT vs the chat stream — without this, the bubble clears before
+// the completion indicator arrives and "Completed" is never shown.
+const RUN_ENDED_GRACE_MS = 2500;
 
-function toneClasses(tone: BubbleTone): { bubble: string; tail: string; dot: string } {
+function toneClasses(tone: BubbleTone): { bubble: string; dot: string } {
   switch (tone) {
     case "success":
       return {
         bubble:
           "border-emerald-500/45 bg-emerald-500/12 text-emerald-200 shadow-[0_1px_2px_rgba(16,185,129,0.2)]",
-        tail: "after:border-emerald-500/45 after:bg-emerald-500/12",
         dot: "bg-emerald-300",
       };
     case "warning":
       return {
         bubble:
           "border-amber-500/50 bg-amber-500/12 text-amber-200 shadow-[0_1px_2px_rgba(245,158,11,0.2)]",
-        tail: "after:border-amber-500/50 after:bg-amber-500/12",
         dot: "bg-amber-300",
       };
     case "critical":
       return {
         bubble:
           "border-red-500/50 bg-red-500/12 text-red-200 shadow-[0_1px_2px_rgba(239,68,68,0.24)]",
-        tail: "after:border-red-500/50 after:bg-red-500/12",
         dot: "bg-red-300",
       };
     case "info":
       return {
         bubble:
           "border-sky-500/40 bg-sky-500/10 text-sky-200 shadow-[0_1px_2px_rgba(14,165,233,0.2)]",
-        tail: "after:border-sky-500/40 after:bg-sky-500/10",
         dot: "bg-sky-300",
       };
     default:
       return {
         bubble:
           "border-terminal-border/70 bg-terminal-dark/35 text-terminal-muted shadow-[0_1px_2px_rgba(0,0,0,0.25)]",
-        tail: "after:border-terminal-border/70 after:bg-terminal-dark/35",
         dot: "bg-terminal-muted",
       };
   }
@@ -231,9 +231,32 @@ export function SessionActivityBubble({
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const archiveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Grace period: when hasActiveRun drops to false, keep a brief window open so
+  // the task:completed SSE event (which travels via a separate stream) can arrive
+  // and set the completion indicator before we clear the bubble.
+  const [graceActive, setGraceActive] = useState(false);
+  const prevHasActiveRunRef = useRef(hasActiveRun);
+  const graceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const wasActive = prevHasActiveRunRef.current;
+    prevHasActiveRunRef.current = hasActiveRun;
+    if (wasActive && !hasActiveRun) {
+      setGraceActive(true);
+      if (graceTimeoutRef.current) clearTimeout(graceTimeoutRef.current);
+      graceTimeoutRef.current = setTimeout(() => {
+        setGraceActive(false);
+        graceTimeoutRef.current = null;
+      }, RUN_ENDED_GRACE_MS);
+    }
+    return () => {
+      if (graceTimeoutRef.current) clearTimeout(graceTimeoutRef.current);
+    };
+  }, [hasActiveRun]);
+
   const incoming = useMemo(
-    () => resolveIncomingModel(activity, contextStatus, hasActiveRun),
-    [activity, contextStatus, hasActiveRun]
+    () => resolveIncomingModel(activity, contextStatus, hasActiveRun || graceActive),
+    [activity, contextStatus, hasActiveRun, graceActive]
   );
 
   const [visualModel, setVisualModel] = useState<VisualBubbleModel | null>(null);
@@ -363,25 +386,23 @@ export function SessionActivityBubble({
       aria-label={formatAccessibilityLabel(visualModel)}
       title={formatTitle(visualModel)}
       className={cn(
-        "relative inline-flex max-w-full items-center gap-1.5 rounded-[12px] border px-2.5 py-[5px] text-[10px] font-mono leading-none",
+        "inline-flex w-full min-w-0 items-center gap-1.5 rounded-md border px-2 py-[4px] text-[10px] font-mono leading-none overflow-hidden",
         "transition-all duration-200 ease-out",
-        "after:absolute after:left-4 after:top-full after:h-2 after:w-2 after:-translate-y-1/2 after:rotate-45 after:border-b after:border-r",
         tone.bubble,
-        tone.tail,
         visualModel.phase === "entering" && "translate-y-1 opacity-0",
         visualModel.phase === "live" && "translate-y-0 opacity-100",
         visualModel.phase === "settling" && "translate-y-0 opacity-95",
-        visualModel.phase === "archived" && "translate-y-0 opacity-65 saturate-75",
+        visualModel.phase === "archived" && "translate-y-0 opacity-60 saturate-50",
         isCurrent && "ring-1 ring-current/20"
       )}
     >
       <Icon className={cn("h-3 w-3 shrink-0", shouldSpin ? "animate-spin" : "")} />
-      <span className="max-w-[11rem] truncate">{primary.label}</span>
+      <span className="truncate flex-1 min-w-0">{primary.label}</span>
       {secondary ? (
-        <span className="max-w-[9rem] truncate text-[9px] opacity-80">- {secondary.label}</span>
+        <span className="truncate shrink-0 max-w-[5rem] text-[9px] opacity-70">· {secondary.label}</span>
       ) : null}
       {visualModel.isRunning ? (
-        <span className={cn("h-1.5 w-1.5 rounded-full animate-pulse", tone.dot)} />
+        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", tone.dot)} />
       ) : null}
     </div>
   );
