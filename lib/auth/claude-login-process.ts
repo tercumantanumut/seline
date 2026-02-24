@@ -3,7 +3,19 @@ import path from "path";
 import { isElectronProduction } from "@/lib/utils/environment";
 
 // Resolved lazily so process.cwd() is evaluated at runtime, not build time.
+// In production Electron builds, node_modules live under resourcesPath/standalone/.
 function getCliPath(): string {
+  const resourcesPath =
+    (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath ||
+    process.env.ELECTRON_RESOURCES_PATH;
+
+  if (resourcesPath) {
+    // Production Electron: modules are bundled under standalone/
+    const prodPath = path.join(resourcesPath, "standalone", "node_modules", "@anthropic-ai", "claude-agent-sdk", "cli.js");
+    const fs = require("fs") as typeof import("fs");
+    if (fs.existsSync(prodPath)) return prodPath;
+  }
+
   return path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
 }
 
@@ -45,7 +57,7 @@ function getSystemNodeBinary(nodeName: string): string | null {
  *   3. process.cwd()/node_modules/.bin/node (standalone server cwd)
  *   4. process.execPath fallback
  */
-function getNodeBinary(): string {
+export function getNodeBinary(): string {
   const nodeName = process.platform === "win32" ? "node.exe" : "node";
 
   const systemNode = getSystemNodeBinary(nodeName);
@@ -110,6 +122,7 @@ export async function startClaudeLoginProcess(
       stdio: ["pipe", "pipe", "pipe"],
       env: {
         ...process.env,
+        CLAUDECODE: undefined, // prevent "nested session" detection
         ...(useElectronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       },
     }),

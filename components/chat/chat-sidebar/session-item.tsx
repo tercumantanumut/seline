@@ -313,13 +313,15 @@ export function SessionItem({
                 </a>
               )}
             </div>
-            <div className="min-h-[20px] pt-0.5 overflow-hidden">
-              <SessionActivityBubble
-                activity={sessionActivity}
-                contextStatus={contextStatus}
-                hasActiveRun={hasActiveRun}
-                isCurrent={isCurrent}
-              />
+            <div className="relative min-h-[6px]">
+              <div className="absolute left-full ml-1.5 top-1/2 -translate-y-1/2 z-10">
+                <SessionActivityBubble
+                  activity={sessionActivity}
+                  contextStatus={contextStatus}
+                  hasActiveRun={hasActiveRun}
+                  isCurrent={isCurrent}
+                />
+              </div>
             </div>
           </>
         )}

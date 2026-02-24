@@ -42,11 +42,10 @@ export {
 // Model aliases - map display names to Antigravity API model IDs
 // Verified working 2026-01-05: All models work directly without prefix
 const MODEL_ALIASES: Record<string, string> = {
-  "gemini-3-pro-high": "gemini-3-pro-high",
-  "gemini-3-pro-low": "gemini-3-pro-low",
+  "gemini-3.1-pro-high": "gemini-3.1-pro-high",
+  "gemini-3.1-pro-low": "gemini-3.1-pro-low",
   "gemini-3-flash": "gemini-3-flash",
-  "claude-sonnet-4-5": "claude-sonnet-4-5",
-  "claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
+  "claude-sonnet-4-6": "claude-sonnet-4-6",
   "claude-opus-4-6-thinking": "claude-opus-4-6-thinking",
   "gpt-oss-120b-medium": "gpt-oss-120b-medium",
 };
@@ -62,7 +61,7 @@ function resolveModelName(modelId: string): string {
 
   // Antigravity API: gemini-3-pro requires tier suffix (gemini-3-pro-low/high)
   if (model.toLowerCase() === "gemini-3-pro") {
-    return "gemini-3-pro-low";
+    return "gemini-3.1-pro-low";
   }
   return model;
 }

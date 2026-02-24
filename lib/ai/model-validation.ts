@@ -18,13 +18,12 @@ import type { LLMProvider } from "@/components/model-bag/model-bag.types";
 // ---------------------------------------------------------------------------
 
 // Antigravity uses exact model ID matching to avoid ambiguity with Anthropic's
-// "claude-" prefix (Antigravity has short IDs like "claude-sonnet-4-5")
+// "claude-" prefix (Antigravity has short IDs like "claude-sonnet-4-6")
 const ANTIGRAVITY_EXACT_MODELS = new Set([
-  "gemini-3-pro-high",
-  "gemini-3-pro-low",
+  "gemini-3.1-pro-high",
+  "gemini-3.1-pro-low",
   "gemini-3-flash",
-  "claude-sonnet-4-5",
-  "claude-sonnet-4-5-thinking",
+  "claude-sonnet-4-6",
   "claude-opus-4-6-thinking",
   "gpt-oss-120b-medium",
 ]);

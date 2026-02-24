@@ -88,7 +88,7 @@ const CLAUDECODE_MODEL_ID_SET = new Set(CLAUDECODE_MODEL_IDS.map((m) => m.toLowe
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "openrouter/auto",
-  antigravity: "claude-sonnet-4-5", // Free via Antigravity
+  antigravity: "claude-sonnet-4-6", // Free via Antigravity
   codex: "gpt-5.1-codex",
   claudecode: "claude-sonnet-4-5-20250929", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
