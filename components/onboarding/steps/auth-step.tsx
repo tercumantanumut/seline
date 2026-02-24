@@ -262,21 +262,22 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         const isElectron = !!electronAPI?.isElectron;
 
         try {
-            // Get the OAuth authorization URL from our backend
-            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url: string; error?: string }>("/api/auth/claudecode/authorize", { retries: 1 });
+            // Fetch Agent SDK auth status and any login URL surfaced by the SDK.
+            const { data: authData, error: authError } = await resilientFetch<{ success: boolean; url?: string | null; error?: string }>("/api/auth/claudecode/authorize", { retries: 1 });
 
-            if (authError || !authData?.success || !authData?.url) {
-                throw new Error(authData?.error || authError || "Failed to get authorization URL");
+            if (authError || !authData?.success) {
+                throw new Error(authData?.error || authError || "Failed to initialize authentication");
             }
 
-            // Open the Anthropic authorization page
-            if (isElectron && electronAPI?.shell?.openExternal) {
-                await electronAPI.shell.openExternal(authData.url);
-            } else {
-                window.open(authData.url, "_blank");
+            if (authData.url) {
+                if (isElectron && electronAPI?.shell?.openExternal) {
+                    await electronAPI.shell.openExternal(authData.url);
+                } else {
+                    window.open(authData.url, "_blank");
+                }
             }
 
-            // Switch to paste mode so the user can enter the code from the console page
+            // Keep existing UI flow: user confirms completion via submit action.
             setClaudeCodePasteMode(true);
             setLoading(false);
         } catch (err) {
@@ -286,27 +287,22 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
         }
     };
 
-    const handleClaudeCodePasteSubmit = async () => {
-        if (!claudeCodePasteValue.trim()) {
-            setError(t("pasteCodeRequired"));
-            return;
-        }
-
+    const handleClaudeCodeAuthCheck = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const { data, error: fetchError } = await resilientPost<{ success: boolean; error?: string }>("/api/auth/claudecode/exchange", { code: claudeCodePasteValue.trim() });
+            const { data, error: fetchError } = await resilientPost<{ success: boolean; error?: string }>("/api/auth/claudecode/exchange", {});
 
             if (fetchError || !data?.success) {
-                throw new Error(data?.error || fetchError || "Failed to exchange authorization code");
+                throw new Error(data?.error || fetchError || "Claude Agent SDK is not authenticated yet");
             }
 
             setIsAuthenticated(true);
             setClaudeCodePasteMode(false);
             setClaudeCodePasteValue("");
         } catch (err) {
-            console.error("Claude Code code exchange failed:", err);
+            console.error("Claude Code auth verification failed:", err);
             setError(err instanceof Error ? err.message : "Code exchange failed");
         } finally {
             setLoading(false);
@@ -426,10 +422,13 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") {
-                                                void handleClaudeCodePasteSubmit();
+                                                void handleClaudeCodeAuthCheck();
                                             }
                                         }}
                                     />
+                                    <p className="text-xs text-terminal-muted font-mono">
+                                        {t("pasteInstruction")}
+                                    </p>
                                 </div>
 
                                 {error && (
@@ -453,8 +452,8 @@ export function AuthStep({ provider, onAuthenticated, onBack, onSkip }: AuthStep
                                         {t("cancel")}
                                     </Button>
                                     <Button
-                                        onClick={handleClaudeCodePasteSubmit}
-                                        disabled={loading || !claudeCodePasteValue.trim()}
+                                        onClick={handleClaudeCodeAuthCheck}
+                                        disabled={loading}
                                         className="flex-1 gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
                                     >
                                         {loading ? (

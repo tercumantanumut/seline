@@ -10,7 +10,7 @@
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders, agentSyncFiles, characters } from "@/lib/db/sqlite-character-schema";
 import { eq, and, sql, or } from "drizzle-orm";
-import { removeFileFromVectorDB } from "./indexing";
+import { removeFileFromVectorDB, removeFolderFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
 import { deleteAgentTable, listAgentTables } from "./collections";
 import { startWatching, isWatching, stopWatching } from "./file-watcher";
@@ -116,32 +116,27 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     stopWatching(folderId);
   }
 
-  const files = await db
-    .select()
-    .from(agentSyncFiles)
-    .where(eq(agentSyncFiles.folderId, folderId));
-
-  for (const file of files) {
-    const pointIds = parseJsonArray(file.vectorPointIds);
-    if (pointIds.length > 0) {
-      await removeFileFromVectorDB({ characterId: file.characterId, pointIds });
-    }
-  }
-
   const wasPrimary = folder.isPrimary;
   const characterId = folder.characterId;
+
+  // Check remaining folders BEFORE deletion to decide cleanup strategy
+  const allFolders = await getSyncFolders(characterId);
+  const remainingFolders = allFolders.filter(f => f.id !== folderId);
+
+  if (remainingFolders.length === 0) {
+    // Last folder: drop the entire table instantly instead of per-file deletions
+    await deleteAgentTable(characterId);
+  } else {
+    // Multiple folders: one bulk delete by folderId instead of per-file queries
+    await removeFolderFromVectorDB({ characterId, folderId });
+  }
 
   await db.delete(agentSyncFolders).where(eq(agentSyncFolders.id, folderId));
   console.log(`[SyncService] Removed sync folder: ${folderId}`);
 
-  const remainingFolders = await getSyncFolders(characterId);
   if (wasPrimary && remainingFolders.length > 0) {
     await setPrimaryFolder(remainingFolders[0].id, characterId);
     console.log(`[SyncService] Promoted folder ${remainingFolders[0].id} to primary`);
-  }
-
-  if (remainingFolders.length === 0) {
-    await deleteAgentTable(characterId);
   }
 
   notifyFolderChange(characterId, { type: "removed", folderId, wasPrimary });

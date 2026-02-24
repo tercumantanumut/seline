@@ -65,6 +65,7 @@ export interface WorkflowResourceContext {
     allowSharedHooks: boolean;
   };
   promptContext: string;
+  promptContextInput: WorkflowPromptContextInput;
 }
 
 export interface WorkflowPromptContextDelegation {

@@ -17,6 +17,7 @@ export {
 export {
   indexFileToVectorDB,
   removeFileFromVectorDB,
+  removeFolderFromVectorDB,
   indexTextToVectorDB,
   type IndexFileResult
 } from "./indexing";

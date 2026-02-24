@@ -1,36 +1,23 @@
 import { NextResponse } from "next/server";
-import {
-  getClaudeCodeToken,
-  needsClaudeCodeTokenRefresh,
-  refreshClaudeCodeToken,
-} from "@/lib/auth/claudecode-auth";
+import { getClaudeCodeAuthStatus } from "@/lib/auth/claudecode-auth";
 
 export async function POST() {
   try {
-    const token = getClaudeCodeToken();
+    const status = await getClaudeCodeAuthStatus();
 
-    if (!token) {
-      return NextResponse.json({ refreshed: false, reason: "no_token" });
-    }
-
-    const now = Date.now();
-    const isExpired = token.expires_at <= now;
-    const needsRefresh = needsClaudeCodeTokenRefresh() || isExpired;
-
-    if (needsRefresh && token.refresh_token) {
-      const success = await refreshClaudeCodeToken();
-      return NextResponse.json({
-        refreshed: success,
-        reason: success ? "refreshed" : "refresh_failed",
-      });
-    }
-
-    return NextResponse.json({ refreshed: false, reason: "not_needed" });
+    return NextResponse.json({
+      refreshed: status.authenticated,
+      authenticated: status.authenticated,
+      reason: status.authenticated ? "authenticated" : "not_authenticated",
+      output: status.output,
+      url: status.authUrl || null,
+      error: status.error,
+    });
   } catch (error) {
     console.error("[ClaudeCodeRefresh] Error:", error);
     return NextResponse.json(
       { refreshed: false, reason: "error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -75,6 +75,7 @@ import { prepareMessagesForRequest } from "./message-prep";
 import { createOnFinishCallback, createOnAbortCallback } from "./stream-callbacks";
 import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
+import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -113,6 +114,7 @@ export async function POST(req: Request) {
   let chatTaskRegistered = false;
   let configuredProvider: string | undefined;
   let activeSessionId: string | undefined;
+  let sessionId = "";
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const isInternalAuth = req.headers.get("X-Internal-Auth") === INTERNAL_API_SECRET;
@@ -204,7 +206,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let sessionId = providedSessionId;
+    sessionId = providedSessionId ?? "";
     let isNewSession = false;
     let sessionMetadata: Record<string, unknown> = {};
 
@@ -441,6 +443,7 @@ export async function POST(req: Request) {
     }
 
     let workflowPromptContext: string | null = null;
+    let workflowPromptContextInput: import("@/lib/agents/workflows").WorkflowPromptContextInput | null = null;
     if (characterId) {
       try {
         const workflowCtx = await getWorkflowByAgentId(characterId);
@@ -458,6 +461,7 @@ export async function POST(req: Request) {
               }
             }
             workflowPromptContext = resources.promptContext;
+            workflowPromptContextInput = resources.promptContextInput;
             console.log(`[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`);
           }
         }
@@ -512,6 +516,7 @@ export async function POST(req: Request) {
       streamToolResultBudgetTokens,
       pluginRoots,
       allowedPluginNames,
+      workflowPromptContextInput,
     });
 
     const {
@@ -523,6 +528,18 @@ export async function POST(req: Request) {
     } = toolsResult;
 
     const useDeferredLoading = toolLoadingMode !== "always";
+
+    // ── Seline MCP context for SDK agent tool exposure ─────────────────────────
+    // Stored in AsyncLocalStorage so the Claude Agent SDK fetch interceptor can
+    // read it without needing changes to every function signature in between.
+    // Must be set AFTER buildToolsForRequest() so MCP servers are already
+    // connected and their tools are registered in ToolRegistry.
+    const mcpCtx: SelineMcpContext = {
+      userId: dbUser.id,
+      sessionId,
+      characterId: characterId ?? null,
+      enabledTools: enabledTools ?? undefined,
+    };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
     const cachedMessages = useCaching ? applyCacheToMessages(coreMessages) : coreMessages;
@@ -619,8 +636,10 @@ export async function POST(req: Request) {
       streamAbortSignal,
     };
 
-    const createStreamResult = async () =>
-      withRunContext(
+    const createStreamResult = () =>
+      mcpContextStore.run(
+        mcpCtx,
+        () => withRunContext(
         { runId, sessionId, pipelineName: "chat", characterId: characterId || undefined },
         async () => streamText({
           model: resolveSessionLanguageModel(sessionMetadata),
@@ -672,7 +691,7 @@ export async function POST(req: Request) {
                 // We don't hard-abort here — this lets the model acknowledge the stop request
                 // before the run ends naturally at the next step boundary.
                 return {
-                  activeTools: [] as (keyof typeof allToolsWithMCP)[],
+                  activeTools: [] as string[],
                   system: buildStopSystemMessage(pendingPrompts),
                 };
               }
@@ -726,12 +745,18 @@ export async function POST(req: Request) {
                 content: buildUserInjectionContent(pendingPrompts),
               };
               return {
-                activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[],
+                activeTools: currentActiveTools as string[],
                 messages: [...stepMessages, injectedUserMessage],
               };
             }
 
             return { activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[] };
+          },
+          experimental_repairToolCall: async ({ error, toolCall }) => {
+            // Return null to let the SDK inject the error as a tool result so the model can recover.
+            // Previously this was automatic in older AI SDK versions; v6 requires it explicitly.
+            console.warn(`[CHAT API] Tool call repair triggered for "${toolCall.toolName}": ${error.message}`);
+            return null;
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -758,7 +783,8 @@ export async function POST(req: Request) {
           onFinish: createOnFinishCallback(callbackCtx),
           onAbort: createOnAbortCallback(callbackCtx) as any,
         })
-      );
+      )
+    );
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof createStreamResult>>;

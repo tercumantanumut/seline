@@ -72,6 +72,8 @@ export interface ToolsBuildContext {
   pluginRoots: Map<string, string>;
   /** Pre-resolved scoped plugin names for hook filtering */
   allowedPluginNames: Set<string>;
+  /** Workflow context input for subagent discovery in searchTools */
+  workflowPromptContextInput: import("@/lib/agents/workflows").WorkflowPromptContextInput | null;
 }
 
 export interface ToolsBuildResult {
@@ -104,6 +106,7 @@ export async function buildToolsForRequest(
     streamToolResultBudgetTokens,
     pluginRoots,
     allowedPluginNames,
+    workflowPromptContextInput,
   } = ctx;
 
   const useDeferredLoading = toolLoadingMode !== "always";
@@ -153,6 +156,7 @@ export async function buildToolsForRequest(
     initialActiveTools,
     discoveredTools,
     enabledTools: enabledTools ? new Set(enabledTools) : undefined,
+    subagentDirectory: workflowPromptContextInput?.subagentDirectory,
   };
 
   // Build tools object with context-aware overrides.
