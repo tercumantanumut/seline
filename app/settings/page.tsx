@@ -433,11 +433,13 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClaudeCodePasteSubmit = async (_code: string) => {
+  const handleClaudeCodePasteSubmit = async (code: string) => {
     setClaudecodeLoading(true);
     try {
       const response = await fetch("/api/auth/claudecode/exchange", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
       });
 
       const data = await response.json();

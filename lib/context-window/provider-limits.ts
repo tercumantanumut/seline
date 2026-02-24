@@ -102,6 +102,10 @@ export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
 export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>> = {
   // Anthropic Direct — 200K standard context window per Anthropic docs
   // (1M available only via opt-in beta header "context-1m-2025-08-07")
+  "claude-sonnet-4-6": {
+    maxTokens: 200000,
+    supportsStreaming: true,
+  },
   "claude-sonnet-4-5-20250929": {
     maxTokens: 200000,
     supportsStreaming: true,
@@ -112,14 +116,6 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
   },
 
   // Antigravity (Claude-based) — 200K standard context window
-  "claude-sonnet-4-5": {
-    maxTokens: 200000,
-    supportsStreaming: true,
-  },
-  "claude-sonnet-4-5-thinking": {
-    maxTokens: 200000,
-    supportsStreaming: true,
-  },
   "claude-opus-4-6": {
     maxTokens: 200000,
     supportsStreaming: true,
@@ -130,14 +126,14 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
   },
 
   // Antigravity (Gemini-based) - Large context windows
-  "gemini-3-pro-high": {
+  "gemini-3.1-pro-high": {
     maxTokens: 1000000, // 1M tokens
     supportsStreaming: true,
     warningThreshold: 0.80, // Higher threshold for large context
     criticalThreshold: 0.92,
     hardLimit: 0.97,
   },
-  "gemini-3-pro-low": {
+  "gemini-3.1-pro-low": {
     maxTokens: 1000000,
     supportsStreaming: true,
     warningThreshold: 0.80,

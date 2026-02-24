@@ -59,20 +59,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const validCharacterId = characterId && typeof characterId === "string" ? characterId : null;
 
     // Prefer the current chat session when provided so enhancement uses the same session model overrides.
-    let sessionRecord: Awaited<ReturnType<typeof createSession>>;
+    // If the session doesn't exist yet (e.g. enhance triggered before first chat message),
+    // fall through to character-based or anonymous session creation.
+    let sessionRecord!: Awaited<ReturnType<typeof createSession>>;
+    let resolvedFromProvidedSession = false;
     if (typeof providedSessionId === "string" && providedSessionId.trim().length > 0) {
       const existingSession = await getSession(providedSessionId);
-      if (!existingSession || existingSession.userId !== userId) {
-        return NextResponse.json(
-          { error: "Session not found" },
-          { status: 404 }
-        );
+      if (existingSession && existingSession.userId === userId) {
+        sessionRecord = existingSession;
+        resolvedFromProvidedSession = true;
       }
-      sessionRecord = existingSession;
-    } else if (validCharacterId) {
+      // If session not found or belongs to another user, fall through to create one
+    }
+
+    if (!resolvedFromProvidedSession && validCharacterId) {
       const { session } = await getOrCreateCharacterSession(userId, validCharacterId, "Prompt Enhancement");
       sessionRecord = session;
-    } else {
+    } else if (!resolvedFromProvidedSession) {
       const metadataKey = `prompt-enhancement:${userId}`;
       const existingSession = await getSessionByMetadataKey(
         userId,

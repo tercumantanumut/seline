@@ -42,6 +42,10 @@ export const MODEL_METADATA: Record<
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
   },
+  "claude-sonnet-4-6": {
+    tier: "flagship",
+    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
+  },
   "claude-sonnet-4-5-20250929": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "standard" },
@@ -86,19 +90,11 @@ export const MODEL_METADATA: Record<
 
 
   // Antigravity
-  "claude-sonnet-4-5": {
-    tier: "flagship",
-    capabilities: { vision: true, contextWindow: "200K", speed: "standard" },
-  },
-  "claude-sonnet-4-5-thinking": {
-    tier: "flagship",
-    capabilities: { vision: true, thinking: true, contextWindow: "200K", speed: "slow" },
-  },
-  "gemini-3-pro-high": {
+  "gemini-3.1-pro-high": {
     tier: "flagship",
     capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "standard" },
   },
-  "gemini-3-pro-low": {
+  "gemini-3.1-pro-low": {
     tier: "standard",
     capabilities: { vision: true, contextWindow: "1M", speed: "fast" },
   },
@@ -171,7 +167,7 @@ export const MODEL_METADATA: Record<
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "openrouter/auto",
-  antigravity: "claude-sonnet-4-5",
+  antigravity: "claude-sonnet-4-6",
   codex: "gpt-5.1-codex",
   claudecode: "claude-sonnet-4-5-20250929",
   kimi: "kimi-k2.5",
@@ -201,6 +197,7 @@ export function buildModelCatalog(
   const anthropicModels = [
     // 4.6 / 4.5 Series
     { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
+    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
     { id: "claude-sonnet-4-5-20250929", name: "Claude Sonnet 4.5" },
     { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5" },
     

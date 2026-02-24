@@ -329,7 +329,9 @@ export class AgentMemoryManager {
     };
 
     for (const memory of approvedMemories) {
-      byCategory[memory.category].push(memory);
+      if (byCategory[memory.category]) {
+        byCategory[memory.category].push(memory);
+      }
     }
 
     // Build markdown
