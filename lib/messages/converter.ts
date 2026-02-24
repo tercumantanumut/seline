@@ -393,6 +393,16 @@ function convertUIMessageToThreadMessageLike(msg: UIMessage): ThreadMessageLike 
         args: toolPart.input as any,
         result: toolPart.output,
       });
+    } else if (part.type.startsWith("tool-") && "toolCallId" in part) {
+      // Static tool parts (AI SDK v6): type is "tool-{name}"
+      const toolPart = part as { type: string; toolCallId: string; input: unknown; output: unknown };
+      content.push({
+        type: "tool-call",
+        toolCallId: toolPart.toolCallId,
+        toolName: part.type.slice(5), // strip "tool-" prefix
+        args: toolPart.input as any,
+        result: toolPart.output,
+      });
     }
   }
 

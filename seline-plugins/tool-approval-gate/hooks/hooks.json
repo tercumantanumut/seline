@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/approve-tool-use.sh",
+            "timeout": 120,
+            "statusMessage": "Waiting for user approval..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { getClaudeCodeAuthStatus } from "@/lib/auth/claudecode-auth";
+import { killLoginProcess } from "@/lib/auth/claude-login-process";
 
 export async function POST() {
   try {
+    // Kill any hanging login subprocess before running the Agent SDK check.
+    // A stale `claude login` process interferes with the Agent SDK query.
+    killLoginProcess();
+
     const status = await getClaudeCodeAuthStatus();
 
     return NextResponse.json({

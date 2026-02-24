@@ -1,6 +1,36 @@
+import path from "path";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
+import { isElectronProduction } from "@/lib/utils/environment";
+import { getNodeBinary } from "@/lib/auth/claude-login-process";
 
 const DEFAULT_CLAUDE_AGENT_MODEL = "claude-sonnet-4-5-20250929";
+
+/**
+ * Returns env overrides for the Agent SDK subprocess.
+ * In Electron production builds, process.execPath is the Electron binary,
+ * so ELECTRON_RUN_AS_NODE=1 makes the SDK's child process run as plain Node.js.
+ */
+function getSdkEnv(): Record<string, string | undefined> {
+  // Always strip CLAUDECODE to prevent "cannot be launched inside another
+  // Claude Code session" errors when the server inherits the env from a
+  // Claude Code terminal session or similar wrapper.
+  const env: Record<string, string | undefined> = { ...process.env };
+  delete env.CLAUDECODE;
+
+  if (isElectronProduction()) {
+    env.ELECTRON_RUN_AS_NODE = "1";
+
+    // Ensure the resolved node binary's directory is in PATH so the SDK
+    // can find "node" even when the user has no system-wide Node install.
+    const nodeBin = getNodeBinary();
+    const nodeDir = path.dirname(nodeBin);
+    if (!env.PATH?.includes(nodeDir)) {
+      env.PATH = `${nodeDir}${path.delimiter}${env.PATH || ""}`;
+    }
+  }
+
+  return env;
+}
 const URL_PATTERN = /https?:\/\/[^\s"')]+/i;
 
 export interface ClaudeAgentSdkAuthStatus {
@@ -72,10 +102,12 @@ export async function readClaudeAgentSdkAuthStatus(
     options: {
       abortController,
       cwd: process.cwd(),
+      executable: "node",
       includePartialMessages: true,
       maxTurns: 1,
       model: options.model || DEFAULT_CLAUDE_AGENT_MODEL,
       permissionMode: "plan",
+      env: getSdkEnv(),
     },
   });
 
@@ -152,9 +184,11 @@ export async function attemptClaudeAgentSdkLogout(timeoutMs = 20_000): Promise<b
     options: {
       abortController,
       cwd: process.cwd(),
+      executable: "node",
       includePartialMessages: false,
       maxTurns: 1,
       permissionMode: "plan",
+      env: getSdkEnv(),
     },
   });
 
