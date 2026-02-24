@@ -191,11 +191,11 @@ export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
     const t = useTranslations("onboarding.features");
 
     return (
-        <div className="flex flex-col items-center min-h-full px-6 py-12">
+        <div className="flex flex-col items-center min-h-full px-[5%] py-12">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center max-w-4xl w-full"
+                className="text-center w-full"
             >
                 {/* Section label */}
                 <p className="font-mono text-[11px] tracking-[0.3em] uppercase text-terminal-muted mb-3">
