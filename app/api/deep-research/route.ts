@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     }
 
     // Get or create session
-    let sessionId = providedSessionId;
+    let sessionId = typeof providedSessionId === 'string' ? providedSessionId.trim() : providedSessionId;
     let sessionMetadata: Record<string, unknown> | null = null;
 
     if (sessionId) {
