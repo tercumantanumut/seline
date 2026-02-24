@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -24,6 +25,7 @@ interface SessionActivityBubbleProps {
   contextStatus?: SessionContextStatusState;
   hasActiveRun: boolean;
   isCurrent: boolean;
+  anchorRef: RefObject<HTMLDivElement | null>;
 }
 
 type BubbleTone = "neutral" | "info" | "warning" | "critical" | "success";
@@ -50,33 +52,37 @@ const ARCHIVED_HIDE_MS = 18000;
 // the completion indicator arrives and "Completed" is never shown.
 const RUN_ENDED_GRACE_MS = 2500;
 
-function toneClasses(tone: BubbleTone): { bubble: string; dot: string } {
-  const base = "bg-terminal-cream dark:bg-terminal-bg border shadow-sm";
+function toneClasses(tone: BubbleTone): { bubble: string; dot: string; tail: string } {
   switch (tone) {
     case "success":
       return {
-        bubble: `${base} border-emerald-400/50 text-emerald-700 dark:text-emerald-300`,
+        bubble: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
         dot: "bg-emerald-500",
+        tail: "before:border-r-emerald-50 dark:before:border-r-emerald-950/50",
       };
     case "warning":
       return {
-        bubble: `${base} border-amber-400/50 text-amber-700 dark:text-amber-300`,
+        bubble: "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300",
         dot: "bg-amber-500",
+        tail: "before:border-r-amber-50 dark:before:border-r-amber-950/50",
       };
     case "critical":
       return {
-        bubble: `${base} border-red-400/50 text-red-700 dark:text-red-300`,
+        bubble: "bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300",
         dot: "bg-red-500",
+        tail: "before:border-r-red-50 dark:before:border-r-red-950/50",
       };
     case "info":
       return {
-        bubble: `${base} border-sky-400/40 text-sky-700 dark:text-sky-300`,
+        bubble: "bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300",
         dot: "bg-sky-500",
+        tail: "before:border-r-sky-50 dark:before:border-r-sky-950/50",
       };
     default:
       return {
-        bubble: `${base} border-terminal-border/50 text-terminal-dark dark:text-terminal-muted`,
+        bubble: "bg-terminal-cream dark:bg-terminal-bg text-terminal-dark dark:text-terminal-muted",
         dot: "bg-terminal-muted",
+        tail: "before:border-r-terminal-cream dark:before:border-r-[hsl(var(--terminal-bg))]",
       };
   }
 }
@@ -222,6 +228,7 @@ export function SessionActivityBubble({
   contextStatus,
   hasActiveRun,
   isCurrent,
+  anchorRef,
 }: SessionActivityBubbleProps) {
   const swapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,7 +372,49 @@ export function SessionActivityBubble({
     }
   }, [visualModel]);
 
-  if (!visualModel) {
+  // --- Portal positioning ---
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor || !visualModel) {
+      setPos(null);
+      return;
+    }
+
+    const update = () => {
+      const rect = anchor.getBoundingClientRect();
+      const scrollContainer = anchor.closest("[data-radix-scroll-area-viewport]");
+      const sidebarRect = scrollContainer?.getBoundingClientRect();
+
+      // Hide bubble if session item is scrolled out of sidebar viewport
+      if (sidebarRect) {
+        const visible = rect.bottom > sidebarRect.top && rect.top < sidebarRect.bottom;
+        if (!visible) {
+          setPos(null);
+          return;
+        }
+      }
+
+      setPos({
+        top: rect.top + rect.height / 2 - 14, // vertically centered on the session item
+        left: rect.right + 8, // 8px to the right of the session item (into chat area)
+      });
+    };
+
+    update();
+
+    const scrollContainer = anchor.closest("[data-radix-scroll-area-viewport]");
+    scrollContainer?.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
+
+    return () => {
+      scrollContainer?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [anchorRef, visualModel]);
+
+  if (!visualModel || !pos) {
     return null;
   }
 
@@ -376,39 +425,53 @@ export function SessionActivityBubble({
     visualModel.isRunning &&
     (primary.kind === "run" || primary.kind === "tool" || primary.kind === "workspace");
 
-  return (
+  const bubble = (
     <div
-      role="status"
-      aria-label={formatAccessibilityLabel(visualModel)}
-      title={formatTitle(visualModel)}
-      className={cn(
-        // RPG speech bubble
-        "relative inline-flex items-center gap-1.5",
-        "rounded-lg border px-2.5 py-1 text-[10px] font-mono leading-tight",
-        "max-w-[180px]",
-        // Speech tail — small triangle pointing left
-        "before:absolute before:left-[-5px] before:top-1/2 before:-translate-y-1/2",
-        "before:border-y-[5px] before:border-r-[5px] before:border-y-transparent",
-        "before:border-r-terminal-cream dark:before:border-r-terminal-bg",
-        // Transitions
-        "transition-all duration-300 ease-out",
-        tone.bubble,
-        // Phase animations — slide from right + fade
-        visualModel.phase === "entering" && "translate-x-2 opacity-0 scale-95",
-        visualModel.phase === "live" && "translate-x-0 opacity-100 scale-100",
-        visualModel.phase === "settling" && "translate-x-0 opacity-80 scale-100",
-        visualModel.phase === "archived" && "translate-x-0 opacity-50 scale-100",
-        isCurrent && "ring-1 ring-terminal-green/20"
-      )}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        zIndex: 50,
+        pointerEvents: "none",
+      }}
     >
-      <Icon className={cn("h-3 w-3 shrink-0", shouldSpin ? "animate-spin" : "")} />
-      <span className="truncate">{primary.label}</span>
-      {secondary ? (
-        <span className="truncate shrink-0 max-w-[4rem] text-[9px] opacity-60">· {secondary.label}</span>
-      ) : null}
-      {visualModel.isRunning ? (
-        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", tone.dot)} />
-      ) : null}
+      <div
+        role="status"
+        aria-label={formatAccessibilityLabel(visualModel)}
+        title={formatTitle(visualModel)}
+        className={cn(
+          // Flat RPG speech bubble
+          "relative inline-flex items-center gap-1.5 pointer-events-auto",
+          "rounded-xl px-3 py-1.5 text-[10px] font-mono leading-tight",
+          "max-w-[200px]",
+          "shadow-md backdrop-blur-sm",
+          // Left-pointing tail toward session item
+          "before:absolute before:top-1/2 before:-translate-y-1/2 before:-left-[6px]",
+          "before:border-y-[6px] before:border-r-[6px] before:border-y-transparent",
+          tone.tail,
+          // Smooth calm transitions
+          "transition-all duration-500 ease-out",
+          tone.bubble,
+          // Phase animations
+          visualModel.phase === "entering" && "translate-y-1 opacity-0 scale-95",
+          visualModel.phase === "live" && "translate-y-0 opacity-100 scale-100",
+          visualModel.phase === "settling" && "translate-y-0 opacity-75 scale-100",
+          visualModel.phase === "archived" && "translate-y-0 opacity-40 scale-100",
+        )}
+      >
+        <Icon className={cn("h-3 w-3 shrink-0", shouldSpin ? "animate-spin" : "")} />
+        <span className="truncate">{primary.label}</span>
+        {secondary ? (
+          <span className="truncate shrink-0 max-w-[4rem] text-[9px] opacity-60">
+            · {secondary.label}
+          </span>
+        ) : null}
+        {visualModel.isRunning ? (
+          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", tone.dot)} />
+        ) : null}
+      </div>
     </div>
   );
+
+  return createPortal(bubble, document.body);
 }
