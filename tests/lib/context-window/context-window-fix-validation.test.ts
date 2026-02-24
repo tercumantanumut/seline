@@ -42,8 +42,7 @@ describe("Context Window Fix Validation", () => {
     const claudeModels = [
       "claude-sonnet-4-5-20250929",
       "claude-haiku-4-5-20251001",
-      "claude-sonnet-4-5",
-      "claude-sonnet-4-5-thinking",
+      "claude-sonnet-4-6",
       "claude-opus-4-6",
       "claude-opus-4-6-thinking",
     ];
@@ -76,8 +75,8 @@ describe("Context Window Fix Validation", () => {
   });
 
   describe("Token Thresholds (based on 200K for Claude)", () => {
-    it("should calculate correct thresholds for claude-sonnet-4-5", () => {
-      const thresholds = getTokenThresholds("claude-sonnet-4-5");
+    it("should calculate correct thresholds for claude-sonnet-4-6", () => {
+      const thresholds = getTokenThresholds("claude-sonnet-4-6");
       
       expect(thresholds.maxTokens).toBe(200000);
       expect(thresholds.warningTokens).toBe(150000); // 75% of 200K
@@ -102,13 +101,13 @@ describe("Context Window Fix Validation", () => {
     });
 
     it("should allow compaction with as few as 3 messages", () => {
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       expect(config.minMessagesForCompaction).toBeLessThanOrEqual(3);
     });
 
     it("should support sparse long-running sessions", () => {
       // A session with 5 messages should now be eligible for compaction
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       const sparseSessionMessageCount = 5;
       
       expect(sparseSessionMessageCount).toBeGreaterThanOrEqual(
@@ -119,12 +118,12 @@ describe("Context Window Fix Validation", () => {
 
   describe("Configuration Consistency", () => {
     it("should maintain keepRecentMessages at 6", () => {
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       expect(config.keepRecentMessages).toBe(6);
     });
 
     it("should maintain threshold percentages", () => {
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       
       expect(config.warningThreshold).toBe(0.75); // 75%
       expect(config.criticalThreshold).toBe(0.90); // 90%
@@ -132,7 +131,7 @@ describe("Context Window Fix Validation", () => {
     });
 
     it("should enable streaming for Claude models", () => {
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       expect(config.supportsStreaming).toBe(true);
     });
   });
@@ -156,9 +155,8 @@ describe("Context Window Fix Validation", () => {
       const claudeModels = [
         "claude-sonnet-4-5-20250929",
         "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4-5-thinking",
-        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+          "claude-opus-4-6",
         "claude-opus-4-6-thinking",
       ];
 
@@ -171,14 +169,14 @@ describe("Context Window Fix Validation", () => {
 
   describe("Real-World Scenario: Long-Running Task", () => {
     it("should allow session to grow to 150K before warning", () => {
-      const thresholds = getTokenThresholds("claude-sonnet-4-5");
+      const thresholds = getTokenThresholds("claude-sonnet-4-6");
       const longRunningSessionTokens = 140000; // 140K tokens
       
       expect(longRunningSessionTokens).toBeLessThan(thresholds.warningTokens);
     });
 
     it("should handle sparse sessions with large tool outputs", () => {
-      const config = getContextWindowConfig("claude-sonnet-4-5");
+      const config = getContextWindowConfig("claude-sonnet-4-6");
       
       // Scenario: 5 messages with 25K tokens each = 125K total
       const messageCount = 5;
@@ -189,12 +187,12 @@ describe("Context Window Fix Validation", () => {
       expect(messageCount).toBeGreaterThanOrEqual(config.minMessagesForCompaction);
       
       // Should still be below warning threshold (150K)
-      const thresholds = getTokenThresholds("claude-sonnet-4-5");
+      const thresholds = getTokenThresholds("claude-sonnet-4-6");
       expect(totalTokens).toBeLessThan(thresholds.warningTokens);
     });
 
     it("should provide adequate headroom for complex tasks", () => {
-      const thresholds = getTokenThresholds("claude-sonnet-4-5");
+      const thresholds = getTokenThresholds("claude-sonnet-4-6");
       
       // A complex codebase analysis might use 100K tokens
       const complexTaskTokens = 100000;

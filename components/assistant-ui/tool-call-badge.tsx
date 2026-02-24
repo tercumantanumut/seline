@@ -29,14 +29,16 @@ export const ToolCallBadge: FC<ToolCallBadgeProps> = ({ label, status, count }) 
   return (
     <span
       className={cn(
-        "inline-flex max-w-[180px] items-center gap-1 rounded-full px-2 py-0.5 text-xs font-mono",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-terminal-dark/10 px-2.5 py-1 text-xs font-mono shadow-sm",
         statusStyles[status]
       )}
     >
-      <Icon className={cn("size-3", status === "running" && "animate-spin")} />
-      <span className="truncate">{label}</span>
+      <Icon className={cn("size-3 shrink-0", status === "running" && "animate-spin")} />
+      <span className="whitespace-nowrap">{label}</span>
       {typeof count === "number" && (
-        <span className="text-terminal-muted">({count})</span>
+        <span className="rounded-full bg-terminal-dark/10 px-1.5 py-0.5 text-[10px] leading-none text-terminal-muted tabular-nums">
+          {count}
+        </span>
       )}
     </span>
   );

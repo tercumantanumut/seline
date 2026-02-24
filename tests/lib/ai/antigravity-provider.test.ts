@@ -55,7 +55,7 @@ describe("Antigravity Provider", () => {
 
         const callArgs = vi.mocked(global.fetch).mock.calls[0];
         expect(callArgs[0]).toBe("https://api.test/v1beta:generateContent");
-        expect(callArgs[1]?.body).toEqual(expect.stringContaining('"model":"gemini-3-pro-low"'));
+        expect(callArgs[1]?.body).toEqual(expect.stringContaining('"model":"gemini-3.1-pro-low"'));
     });
 
     it("should inject 'requestType: agent' in the wrapped body", async () => {
