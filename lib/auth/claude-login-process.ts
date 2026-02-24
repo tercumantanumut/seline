@@ -117,14 +117,16 @@ export async function startClaudeLoginProcess(
   const nodeBinary = getNodeBinary();
   const useElectronRunAsNode = isElectronProduction() && nodeBinary === process.execPath;
 
+  const spawnEnv = { ...process.env };
+  delete spawnEnv.CLAUDECODE; // prevent "nested session" detection
+  if (useElectronRunAsNode) {
+    spawnEnv.ELECTRON_RUN_AS_NODE = "1";
+  }
+
   const state: LoginProcessState = {
     process: spawn(nodeBinary, [getCliPath(), "login"], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        CLAUDECODE: undefined, // prevent "nested session" detection
-        ...(useElectronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
-      },
+      env: spawnEnv,
     }),
     url: null,
     outputLines: [],
@@ -132,6 +134,12 @@ export async function startClaudeLoginProcess(
   };
 
   setActive(state);
+
+  // Handle spawn errors to prevent unhandled crashes
+  state.process.once("error", (err) => {
+    console.error("[claude-login] spawn error:", err.message);
+    state.resolved = true;
+  });
 
   function onData(chunk: Buffer) {
     const text = chunk.toString();
@@ -150,7 +158,7 @@ export async function startClaudeLoginProcess(
 
   // Wait until URL appears or timeout
   const deadline = Date.now() + urlTimeoutMs;
-  while (Date.now() < deadline && !state.url) {
+  while (Date.now() < deadline && !state.url && !state.resolved) {
     await new Promise((r) => setTimeout(r, 150));
     if (state.process.exitCode !== null) break; // process exited early
   }

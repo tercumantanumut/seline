@@ -14,7 +14,9 @@ export async function POST(req: Request) {
     let code: string | undefined;
     try {
       const body = await req.json();
-      code = body?.code;
+      if (typeof body?.code === "string") {
+        code = body.code;
+      }
     } catch {
       // body may be empty for backwards-compat callers
     }

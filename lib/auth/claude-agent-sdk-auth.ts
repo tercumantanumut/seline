@@ -1,3 +1,4 @@
+import path from "path";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import { isElectronProduction } from "@/lib/utils/environment";
 import { getNodeBinary } from "@/lib/auth/claude-login-process";
@@ -22,9 +23,9 @@ function getSdkEnv(): Record<string, string | undefined> {
     // Ensure the resolved node binary's directory is in PATH so the SDK
     // can find "node" even when the user has no system-wide Node install.
     const nodeBin = getNodeBinary();
-    const nodeDir = require("path").dirname(nodeBin);
+    const nodeDir = path.dirname(nodeBin);
     if (!env.PATH?.includes(nodeDir)) {
-      env.PATH = `${nodeDir}:${env.PATH || ""}`;
+      env.PATH = `${nodeDir}${path.delimiter}${env.PATH || ""}`;
     }
   }
 
