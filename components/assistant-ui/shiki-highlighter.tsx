@@ -6,6 +6,8 @@ import ShikiHighlighter, { type ShikiHighlighterProps } from "react-shiki";
 import type { SyntaxHighlighterProps as AUIProps } from "@assistant-ui/react-markdown";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme/theme-provider";
+import { getGenerativeUISpecFromResult } from "@/lib/ai/generative-ui/payload";
+import { OpenJsonUIRenderer } from "./open-json-ui-renderer";
 
 /**
  * Props for the SyntaxHighlighter component
@@ -20,6 +22,15 @@ export type HighlighterProps = Omit<
 // Base styles for code blocks
 const baseCodeStyles =
   "overflow-x-auto rounded-lg p-4 text-sm font-mono whitespace-pre";
+
+function extractJsonCodeFence(rawCode: string): string {
+  const trimmed = rawCode.trim();
+  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (match) {
+    return match[1].trim();
+  }
+  return trimmed;
+}
 
 // Minimum code length for syntax highlighting (skip tiny snippets)
 const MIN_HIGHLIGHT_LENGTH = 100;
@@ -62,6 +73,43 @@ const StreamingCodeHighlighter: FC<StreamingHighlighterProps> = memo(
 
     const trimmedCode = useMemo(() => code.trim(), [code]);
     const skipHighlighting = trimmedCode.length < MIN_HIGHLIGHT_LENGTH;
+
+    // Optional assistant JSON uiSpec parser: if assistant text emits a JSON code block
+    // containing a valid Open-JSON-UI spec, render visual UI directly.
+    const maybeParsedJsonSpec = useMemo(() => {
+      const normalizedLanguage = (language || "").toLowerCase();
+      if (normalizedLanguage !== "json") return undefined;
+
+      const candidate = extractJsonCodeFence(code);
+      if (!candidate) return undefined;
+
+      try {
+        const parsed = JSON.parse(candidate);
+        const extracted = getGenerativeUISpecFromResult(parsed);
+        if (extracted.spec) {
+          return {
+            spec: extracted.spec,
+            meta: extracted.meta,
+          };
+        }
+      } catch {
+        // Keep normal code rendering when JSON parse fails.
+      }
+
+      return undefined;
+    }, [code, language]);
+
+    if (maybeParsedJsonSpec) {
+      return (
+        <div className={cn("my-1", className)}>
+          <OpenJsonUIRenderer
+            toolName="assistant-json"
+            spec={maybeParsedJsonSpec.spec}
+            meta={maybeParsedJsonSpec.meta}
+          />
+        </div>
+      );
+    }
 
     // Check if Shiki has rendered content - stable callback
     const checkRendered = useCallback((): boolean => {

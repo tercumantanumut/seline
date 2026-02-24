@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import { getToolIcon } from "@/components/ui/tool-icon-map";
+import { getGenerativeUISpecFromResult } from "@/lib/ai/generative-ui/payload";
+import { OpenJsonUIRenderer } from "./open-json-ui-renderer";
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -86,6 +88,41 @@ function hasVisualMedia(result?: unknown): boolean {
 const TOOL_RESULT_TEXT_CLASS = "text-sm text-terminal-muted font-mono transition-opacity duration-150 [overflow-wrap:anywhere]";
 const TOOL_RESULT_PRE_CLASS = "overflow-x-auto rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark";
 const TOOL_RESULT_ERROR_PRE_CLASS = "overflow-x-auto rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-red-600";
+
+function stripUiSpecForRawDisplay(result: ToolResult): ToolResult {
+  const clone: Record<string, unknown> = { ...(result as unknown as Record<string, unknown>) };
+  delete clone.uiSpec;
+  delete clone.uiSpecMeta;
+  return clone as unknown as ToolResult;
+}
+
+function looksLikeJsonBlock(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    return true;
+  }
+
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (!fencedMatch) return false;
+  const body = fencedMatch[1].trim();
+  return (
+    (body.startsWith("{") && body.endsWith("}")) ||
+    (body.startsWith("[") && body.endsWith("]"))
+  );
+}
+
+function parseJsonBlock(text: string): unknown | undefined {
+  const trimmed = text.trim();
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return undefined;
+  }
+}
 
 // Memoized Icon Component with Phosphor Icons
 const ToolIcon: FC<{
@@ -652,18 +689,57 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
       )}
 
       {/* Show result in collapsible section */}
-      {parsedResult && (
-        hasVisualMedia(parsedResult) ? (
+      {parsedResult && (() => {
+        const { spec, meta } = getGenerativeUISpecFromResult(parsedResult);
+
+        if (spec) {
+          return (
+            <div className="space-y-2">
+              <OpenJsonUIRenderer toolName={toolName} spec={spec} meta={meta} />
+              <details className="text-xs text-terminal-muted">
+                <summary className="cursor-pointer hover:text-terminal-dark">
+                  View raw output
+                </summary>
+                <ToolResultDisplay toolName={toolName} result={stripUiSpecForRawDisplay(parsedResult)} />
+              </details>
+            </div>
+          );
+        }
+
+        // Optional parser: if a tool returns JSON text that embeds an Open-JSON-UI
+        // spec, render it visually before falling back to plain text.
+        const textContent = parsedResult.text || (parsedResult as { content?: string }).content;
+        if (typeof textContent === "string" && looksLikeJsonBlock(textContent)) {
+          const parsedJson = parseJsonBlock(textContent);
+          if (parsedJson) {
+            const extracted = getGenerativeUISpecFromResult(parsedJson);
+            if (extracted.spec) {
+              return (
+                <div className="space-y-2">
+                  <OpenJsonUIRenderer toolName={toolName} spec={extracted.spec} meta={extracted.meta ?? meta} />
+                  <details className="text-xs text-terminal-muted">
+                    <summary className="cursor-pointer hover:text-terminal-dark">
+                      View raw output
+                    </summary>
+                    <ToolResultDisplay toolName={toolName} result={parsedResult} />
+                  </details>
+                </div>
+              );
+            }
+          }
+        }
+
+        return hasVisualMedia(parsedResult) ? (
           <ToolResultDisplay toolName={toolName} result={parsedResult} />
         ) : (
-          <details className="text-xs text-terminal-muted">
+          <details className="text-xs text-terminal-muted" open={false}>
             <summary className="cursor-pointer hover:text-terminal-dark">
               View output
             </summary>
             <ToolResultDisplay toolName={toolName} result={parsedResult} />
           </details>
-        )
-      )}
+        );
+      })()}
     </div>
   );
 });

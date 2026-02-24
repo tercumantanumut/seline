@@ -1,11 +1,21 @@
 import { limitToolOutput } from "./output-limiter";
 import { getRunContext } from "@/lib/observability/run-context";
+import {
+  providerSupportsFeature,
+  providerSupportsFeatureForProvider,
+  type LLMProvider,
+} from "@/lib/ai/providers";
+import { buildAutoGenerativeUISpec } from "@/lib/ai/generative-ui/auto-spec";
+import { countGenerativeUINodes, extractGenerativeUISpec } from "@/lib/ai/generative-ui/spec";
+import type { GenerativeUISpecMetadata } from "@/lib/ai/generative-ui/payload";
 
 type ToolResultNormalization = {
   output: Record<string, unknown>;
   summary: string;
   status: string;
   error?: string;
+  uiSpecGenerated: boolean;
+  uiSpecValid: boolean;
 };
 
 export type ToolResultNormalizationMode = "canonical" | "projection";
@@ -16,6 +26,10 @@ export interface NormalizeToolResultOptions {
    * `projection`: for model input / transport shaping. May apply truncation.
    */
   mode: ToolResultNormalizationMode;
+  /**
+   * Optional provider override for request-level provider routing.
+   */
+  provider?: LLMProvider;
 }
 
 const MAX_TOOL_SUMMARY_LENGTH = 280;
@@ -232,6 +246,121 @@ function hasProjectionTruncationMarker(value: unknown): boolean {
   return false;
 }
 
+function removeUiSpecFields(result: Record<string, unknown>): Record<string, unknown> {
+  const { uiSpec: _uiSpec, uiSpecMeta: _uiSpecMeta, ...rest } = result;
+  return rest;
+}
+
+function normalizeUiSpecMetadata(meta: GenerativeUISpecMetadata): GenerativeUISpecMetadata {
+  const maxErrors = 5;
+  return {
+    ...meta,
+    ...(Array.isArray(meta.errors) && meta.errors.length > maxErrors
+      ? { errors: meta.errors.slice(0, maxErrors) }
+      : {}),
+  };
+}
+
+function attachGenerativeUiSpec(
+  toolName: string,
+  result: Record<string, unknown>,
+  options: NormalizeToolResultOptions
+): {
+  output: Record<string, unknown>;
+  generated: boolean;
+  valid: boolean;
+} {
+  const providerAllowsGenerativeUi = options.provider
+    ? providerSupportsFeatureForProvider(options.provider, "generativeUi")
+    : providerSupportsFeature("generativeUi");
+
+  if (!providerAllowsGenerativeUi) {
+    return {
+      output: {
+        ...removeUiSpecFields(result),
+        uiSpecMeta: normalizeUiSpecMetadata({
+          valid: false,
+          source: "model",
+          generatedAt: new Date().toISOString(),
+          provider: options.provider,
+          errors: ["Provider does not support generative UI specs."],
+        }),
+      },
+      generated: false,
+      valid: false,
+    };
+  }
+
+  const extraction = extractGenerativeUISpec(result);
+  if (extraction.valid && extraction.spec) {
+    const existingMeta = getRecord(result.uiSpecMeta);
+    const normalizedMeta = normalizeUiSpecMetadata({
+      valid: true,
+      source: "model",
+      sourcePath: extraction.sourcePath,
+      nodeCount: countGenerativeUINodes(extraction.spec.root),
+      generatedAt: typeof existingMeta?.generatedAt === "string"
+        ? existingMeta.generatedAt
+        : new Date().toISOString(),
+      provider: typeof existingMeta?.provider === "string"
+        ? existingMeta.provider
+        : options.provider,
+      errors: extraction.errors,
+    });
+
+    return {
+      output: {
+        ...removeUiSpecFields(result),
+        uiSpec: extraction.spec,
+        uiSpecMeta: normalizedMeta,
+      },
+      generated: true,
+      valid: true,
+    };
+  }
+
+  const generatedSpec = buildAutoGenerativeUISpec(toolName, result);
+  if (!generatedSpec) {
+    const errors = extraction.hasCandidate ? extraction.errors : undefined;
+    return {
+      output: {
+        ...removeUiSpecFields(result),
+        ...(errors && errors.length > 0
+          ? {
+              uiSpecMeta: normalizeUiSpecMetadata({
+                valid: false,
+                source: "model",
+                generatedAt: new Date().toISOString(),
+                errors,
+              }),
+            }
+          : {}),
+      },
+      generated: false,
+      valid: false,
+    };
+  }
+
+  const autoMeta = normalizeUiSpecMetadata({
+    valid: true,
+    source: "auto",
+    nodeCount: countGenerativeUINodes(generatedSpec.root),
+    generatedAt: new Date().toISOString(),
+    provider: options.provider,
+    errors: extraction.hasCandidate ? extraction.errors : undefined,
+  });
+
+  return {
+    output: {
+      ...removeUiSpecFields(result),
+      uiSpec: generatedSpec,
+      uiSpecMeta: autoMeta,
+    },
+    generated: true,
+    valid: true,
+  };
+}
+
 export function getToolSummaryFromOutput(toolName: string, output?: unknown, input?: unknown): string {
   const resultObj = getRecord(output);
   const summary = getString(resultObj?.summary);
@@ -313,20 +442,28 @@ export function normalizeToolResultOutput(
   if (normalizedOutput === null || normalizedOutput === undefined) {
     const error = "Tool returned no output.";
     const summary = truncateSummary(buildToolSummary(toolName, input, { status: "error", error }));
+    const baseOutput = { status: "error", error, summary };
+    const withUiSpec = attachGenerativeUiSpec(toolName, baseOutput, options);
     return {
-      output: { status: "error", error, summary },
+      output: withUiSpec.output,
       summary,
       status: "error",
       error,
+      uiSpecGenerated: withUiSpec.generated,
+      uiSpecValid: withUiSpec.valid,
     };
   }
 
   if (typeof normalizedOutput !== "object" || Array.isArray(normalizedOutput)) {
     const summary = truncateSummary(buildToolSummary(toolName, input, normalizedOutput));
+    const baseOutput = { status: "success", content: normalizedOutput, summary };
+    const withUiSpec = attachGenerativeUiSpec(toolName, baseOutput, options);
     return {
-      output: { status: "success", content: normalizedOutput, summary },
+      output: withUiSpec.output,
       summary,
       status: "success",
+      uiSpecGenerated: withUiSpec.generated,
+      uiSpecValid: withUiSpec.valid,
     };
   }
 
@@ -344,11 +481,15 @@ export function normalizeToolResultOutput(
     result.status = error ? "error" : "success";
   }
 
+  const withUiSpec = attachGenerativeUiSpec(toolName, result, options);
+
   return {
-    output: result,
+    output: withUiSpec.output,
     summary,
-    status: String(result.status ?? (error ? "error" : "success")),
+    status: String(withUiSpec.output.status ?? (error ? "error" : "success")),
     error,
+    uiSpecGenerated: withUiSpec.generated,
+    uiSpecValid: withUiSpec.valid,
   };
 }
 

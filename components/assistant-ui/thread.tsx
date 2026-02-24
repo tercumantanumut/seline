@@ -54,14 +54,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MarkdownText, UserMarkdownText } from "./markdown-text";
 import { ToolFallback } from "./tool-fallback";
 import { ToolCallGroup } from "./tool-call-group";
-import { VectorSearchToolUI } from "./vector-search-inline";
-import { ProductGalleryToolUI } from "./product-gallery-inline";
-import { ExecuteCommandToolUI } from "./execute-command-tool-ui";
-import { EditFileToolUI } from "./edit-file-tool-ui";
-import { PatchFileToolUI } from "./patch-file-tool-ui";
-import { CalculatorToolUI } from "./calculator-tool-ui";
-import { PlanToolUI } from "./plan-tool-ui";
-import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
+import { ASSISTANT_TOOL_RENDERERS_BY_NAME } from "./tool-renderers";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
@@ -3032,18 +3025,7 @@ const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = false }) 
               Text: MarkdownText,
               ToolGroup: ToolCallGroup,
               tools: {
-                by_name: {
-                  vectorSearch: VectorSearchToolUI,
-                  showProductImages: ProductGalleryToolUI,
-                  executeCommand: ExecuteCommandToolUI,
-                  editFile: EditFileToolUI,
-                  writeFile: EditFileToolUI,
-                  patchFile: PatchFileToolUI,
-                  calculator: CalculatorToolUI,
-                  updatePlan: PlanToolUI,
-                  speakAloud: SpeakAloudToolUI,
-                  transcribe: TranscribeToolUI,
-                },
+                by_name: ASSISTANT_TOOL_RENDERERS_BY_NAME,
                 Fallback: ToolFallback,
               },
             }}

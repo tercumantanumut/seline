@@ -1,5 +1,9 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
-import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
+import {
+  ensureAntigravityTokenValid,
+  ensureClaudeCodeTokenValid,
+  providerSupportsFeatureForProvider,
+} from "@/lib/ai/providers";
 import { createDocsSearchTool, createRetrieveFullContentTool } from "@/lib/ai/tools";
 import { createWebSearchTool } from "@/lib/ai/web-search";
 import { createWebBrowseTool, createWebQueryTool } from "@/lib/ai/web-browse";
@@ -111,6 +115,14 @@ interface DiscoveredToolsMetadata {
   toolNames: string[];
   /** When the tools were last discovered */
   lastUpdatedAt?: string;
+}
+
+interface GenerativeUiSessionMetadata {
+  provider: string;
+  validSpecCount: number;
+  invalidSpecCount: number;
+  toolCallIds: string[];
+  lastUpdatedAt: string;
 }
 
 /**
@@ -556,6 +568,7 @@ async function extractContent(
   includeUrlHelpers = false,
   convertUserImagesToBase64 = false,
   sessionId?: string,
+  provider?: ReturnType<typeof getSessionProvider>,
 ): Promise<string | Array<{
   type: string;
   text?: string;
@@ -689,7 +702,7 @@ async function extractContent(
             toolName,
             output,
             normalizedInput,
-            { mode: "projection" }
+            { mode: "projection", provider }
           ).output;
           contentParts.push({
             type: "tool-result",
@@ -810,7 +823,7 @@ async function extractContent(
             part.toolName,
             rawOutput,
             normalizedInput,
-            { mode: "projection" }
+            { mode: "projection", provider }
           ).output;
           contentParts.push({
             type: "tool-result",
@@ -826,7 +839,7 @@ async function extractContent(
           part.toolName,
           rawOutput,
           normalizedInput,
-          { mode: "projection" }
+          { mode: "projection", provider }
         ).output;
         contentParts.push({
           type: "tool-result",
@@ -863,7 +876,7 @@ async function extractContent(
             toolName,
             toolOutput,
             normalizedInput,
-            { mode: "projection" }
+            { mode: "projection", provider }
           ).output;
           contentParts.push({
             type: "tool-result",
@@ -1489,6 +1502,7 @@ interface StreamingMessageState {
   parts: DBContentPart[];
   toolCallParts: Map<string, DBToolCallPart>;
   loggedIncompleteToolCalls: Set<string>;
+  provider: ReturnType<typeof getSessionProvider>;
   messageId?: string;
   lastBroadcastAt: number;
   lastBroadcastSignature: string;
@@ -1679,7 +1693,7 @@ function recordToolResultChunk(
     normalizedName,
     output,
     callPart.args,
-    { mode: "canonical" }
+    { mode: "canonical", provider: state.provider }
   );
   const status = normalized.status.toLowerCase();
   const isErrorStatus = status === "error" || status === "failed";
@@ -1732,7 +1746,8 @@ interface StepLike {
 
 function buildCanonicalAssistantContentFromSteps(
   steps: StepLike[] | undefined,
-  fallbackText?: string
+  fallbackText?: string,
+  provider?: ReturnType<typeof getSessionProvider>
 ): DBContentPart[] {
   const content: DBContentPart[] = [];
   const toolCallMetadata = new Map<string, { toolName: string; input?: unknown }>();
@@ -1773,6 +1788,7 @@ function buildCanonicalAssistantContentFromSteps(
           const toolName = res.toolName || meta?.toolName || "tool";
           const normalized = normalizeToolResultOutput(toolName, res.output, meta?.input, {
             mode: "canonical",
+            provider,
           });
           const status = normalized.status.toLowerCase();
           const state =
@@ -2018,7 +2034,7 @@ function shouldTreatStreamErrorAsCancellation(args: {
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
-  let configuredProvider: string | undefined;
+  let configuredProvider: ReturnType<typeof getSessionProvider> | undefined;
   try {
     // Check for internal scheduled task execution
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -2198,6 +2214,11 @@ export async function POST(req: Request) {
 
     const appSettings = loadSettings();
     const toolLoadingMode = appSettings.toolLoadingMode ?? "deferred";
+    const sessionProvider = getSessionProvider(sessionMetadata);
+    const generativeUiEnabledForProvider = providerSupportsFeatureForProvider(
+      sessionProvider,
+      "generativeUi"
+    );
     const eventCharacterId =
       characterId ||
       ((sessionMetadata?.characterId as string | undefined) ?? "");
@@ -2207,6 +2228,7 @@ export async function POST(req: Request) {
         parts: [],
         toolCallParts: new Map<string, DBToolCallPart>(),
         loggedIncompleteToolCalls: new Set<string>(),
+        provider: sessionProvider,
         messageId: undefined,
         lastBroadcastAt: 0,
         lastBroadcastSignature: "",
@@ -2542,7 +2564,7 @@ export async function POST(req: Request) {
       // Strip paste content delimiters first so only the compact placeholder is stored —
       // pasted text is ephemeral (sent to AI for this request only, not persisted in history).
       const messageForDB = stripPasteFromMessageForDB(lastMessage);
-      const extractedContent = await extractContent(messageForDB);
+      const extractedContent = await extractContent(messageForDB, false, false, undefined, sessionProvider);
 
       // Normalize content to array format for JSONB storage
       let normalizedContent: unknown[];
@@ -2661,6 +2683,7 @@ export async function POST(req: Request) {
       {
         refetchTools,
         maxRefetch: MAX_TOOL_REFETCH,
+        provider: sessionProvider,
       }
     );
 
@@ -2678,6 +2701,7 @@ export async function POST(req: Request) {
           true,   // includeUrlHelpers - Claude needs URL text for tool calls
           true,   // convertUserImagesToBase64 - send actual image data so Claude can see it
           sessionId,  // sessionId - enables smart truncation with full content retrieval
+          sessionProvider,
         );
         // DEBUG: Log what we're sending to Claude (avoid logging full content to prevent log spam)
         console.log(`[CHAT API] Message ${idx} (${msg.role}):`, JSON.stringify({
@@ -3349,7 +3373,12 @@ export async function POST(req: Request) {
                 );
                 webSearchDisableLogged = true;
               }
-              return buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active");
+              return normalizeToolResultOutput(
+                toolId,
+                buildWebSearchLoopGuardResult(normalizedQuery, webSearchDisableReason ?? "loop guard active"),
+                normalizedArgs,
+                { mode: "projection", provider: sessionProvider }
+              ).output;
             }
 
             if (normalizedQuery) {
@@ -3359,7 +3388,12 @@ export async function POST(req: Request) {
                 webSearchDisabledByLoopGuard = true;
                 webSearchDisableReason = reason;
                 console.warn(`[CHAT API] webSearch loop guard triggered (${reason}) for query: ${normalizedQuery}`);
-                return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+                return normalizeToolResultOutput(
+                  toolId,
+                  buildWebSearchLoopGuardResult(normalizedQuery, reason),
+                  normalizedArgs,
+                  { mode: "projection", provider: sessionProvider }
+                ).output;
               }
             }
 
@@ -3368,7 +3402,12 @@ export async function POST(req: Request) {
               webSearchDisabledByLoopGuard = true;
               webSearchDisableReason = reason;
               console.warn(`[CHAT API] webSearch loop guard triggered (${reason})`);
-              return buildWebSearchLoopGuardResult(normalizedQuery, reason);
+              return normalizeToolResultOutput(
+                toolId,
+                buildWebSearchLoopGuardResult(normalizedQuery, reason),
+                normalizedArgs,
+                { mode: "projection", provider: sessionProvider }
+              ).output;
             }
           }
 
@@ -3389,7 +3428,13 @@ export async function POST(req: Request) {
 
           try {
             const rawResult = await origExecute(args, options as any);
-            const guardedResult = guardToolResultForStreaming(toolId, rawResult, {
+            const normalizedResult = normalizeToolResultOutput(
+              toolId,
+              rawResult,
+              normalizedArgs,
+              { mode: "projection", provider: sessionProvider }
+            ).output;
+            const guardedResult = guardToolResultForStreaming(toolId, normalizedResult, {
               maxTokens: streamToolResultBudgetTokens,
               metadata: {
                 sourceFileName: "app/api/chat/route.ts",
@@ -3515,7 +3560,6 @@ export async function POST(req: Request) {
     // that must be present for the AI to actually invoke them. Without tools, AI just outputs fake tool calls.
     //
     // Use session-aware provider resolution: session override > global settings > default
-    const sessionProvider = getSessionProvider(sessionMetadata);
     const provider = sessionProvider;
     configuredProvider = provider;
     const sessionDisplayName = getSessionDisplayName(sessionMetadata);
@@ -3737,7 +3781,8 @@ export async function POST(req: Request) {
           // Streaming state is canonical-first; step data only fills gaps.
           const stepContent = buildCanonicalAssistantContentFromSteps(
             steps as StepLike[] | undefined,
-            text
+            text,
+            sessionProvider
           );
           const content = mergeCanonicalAssistantContent(streamingState?.parts, stepContent);
           const canonicalTruncationCount = countCanonicalTruncationMarkers(content);
@@ -3960,17 +4005,43 @@ export async function POST(req: Request) {
             };
           }
 
+          let generativeUiMetadata: GenerativeUiSessionMetadata | undefined;
+          if (generativeUiEnabledForProvider) {
+            const toolResultParts = content.filter(
+              (part): part is DBToolResultPart => part.type === "tool-result"
+            );
+            const validSpecParts = toolResultParts.filter((part) => {
+              const r = part.result as Record<string, unknown> | undefined;
+              const meta = r?.uiSpecMeta as Record<string, unknown> | undefined;
+              return meta?.valid === true;
+            });
+            const invalidSpecParts = toolResultParts.filter((part) => {
+              const r = part.result as Record<string, unknown> | undefined;
+              const meta = r?.uiSpecMeta as Record<string, unknown> | undefined;
+              return meta?.valid === false;
+            });
+
+            generativeUiMetadata = {
+              provider: sessionProvider,
+              validSpecCount: validSpecParts.length,
+              invalidSpecCount: invalidSpecParts.length,
+              toolCallIds: validSpecParts.map((part) => part.toolCallId),
+              lastUpdatedAt: new Date().toISOString(),
+            };
+          }
+
           // Re-read session metadata from DB to avoid overwriting changes made mid-stream
           // (e.g. workspace tool writes workspaceInfo during tool execution)
           const freshSession = await getSession(sessionId);
           const freshMetadata = (freshSession?.metadata as Record<string, unknown>) || {};
 
-          // Update session metadata with tracking and discovered tools
+          // Update session metadata with tracking, discovered tools, and generative UI stats
           const updatedSession = await updateSession(sessionId, {
             metadata: {
               ...freshMetadata,
               contextInjectionTracking: newTracking,
               ...(discoveredToolsMetadata && { discoveredTools: discoveredToolsMetadata }),
+              ...(generativeUiMetadata && { generativeUi: generativeUiMetadata }),
             },
           });
 
@@ -4004,7 +4075,9 @@ export async function POST(req: Request) {
             // === SAVE PARTIAL ASSISTANT MESSAGE (FIX) ===
             // Build canonical content from the partial stream and completed steps.
             const stepContent = buildCanonicalAssistantContentFromSteps(
-              steps as StepLike[] | undefined
+              steps as StepLike[] | undefined,
+              undefined,
+              configuredProvider
             );
             const content = mergeCanonicalAssistantContent(streamingState?.parts, stepContent);
             const canonicalTruncationCount = countCanonicalTruncationMarkers(content);
