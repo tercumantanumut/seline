@@ -18,7 +18,7 @@ import { tool, jsonSchema } from "ai";
 
 // Re-export all types and registry items for backward compatibility
 export type { DelegateToSubagentToolOptions } from "./delegate-to-subagent-types";
-export { MAX_OBSERVE_WAIT_SECONDS, MAX_ADVISORY_MAX_TURNS } from "./delegate-to-subagent-types";
+export { MAX_OBSERVE_WAIT_SECONDS } from "./delegate-to-subagent-types";
 
 // Re-export the external accessor used by API routes and system prompt builders
 export { getActiveDelegationsForCharacter } from "./delegate-to-subagent-handlers";
@@ -35,7 +35,6 @@ import {
 
 import {
   MAX_OBSERVE_WAIT_SECONDS,
-  MAX_ADVISORY_MAX_TURNS,
   type DelegateToSubagentToolOptions,
   type DelegateToSubagentInput,
   type DelegateResult,
@@ -49,7 +48,7 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
   type: "object",
   title: "DelegateToSubagentInput",
   description:
-    "Delegate work to workflow sub-agents. Core flow: list -> start -> observe(waitSeconds) -> continue/stop. Supports compatibility options for run_in_background, resume, and advisory max_turns.",
+    "Delegate work to workflow sub-agents. Core flow: list -> start -> observe(waitSeconds) -> continue/stop.",
   properties: {
     action: {
       type: "string",
@@ -97,31 +96,12 @@ const delegateSchema = jsonSchema<DelegateToSubagentInput>({
     runInBackground: {
       type: "boolean",
       description:
-        "Optional compatibility flag. For action='start', true (default) returns immediately; false performs a start then observe wait window before returning.",
-    },
-    run_in_background: {
-      type: "boolean",
-      description:
-        "Snake_case compatibility alias for runInBackground.",
+        "Optional flag. For action='start', true (default) returns immediately; false performs a start then observe wait window before returning.",
     },
     resume: {
       type: "string",
       description:
         "Optional compatibility alias for delegationId. With action='start', resume maps to continue using this delegationId and task as the follow-up message.",
-    },
-    maxTurns: {
-      type: "number",
-      minimum: 1,
-      maximum: MAX_ADVISORY_MAX_TURNS,
-      description:
-        "Optional advisory execution cap for subagent turns (not a strict runtime enforcement). The cap is forwarded as instruction text to the delegated task.",
-    },
-    max_turns: {
-      type: "number",
-      minimum: 1,
-      maximum: MAX_ADVISORY_MAX_TURNS,
-      description:
-        "Snake_case compatibility alias for maxTurns.",
     },
   },
   required: ["action"],

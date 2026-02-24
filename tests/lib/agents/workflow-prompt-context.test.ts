@@ -26,9 +26,11 @@ describe("buildWorkflowPromptContext", () => {
     expect(prompt).toContain("Role: initiator");
     expect(prompt).toContain("## Initiator / Orchestrator Contract");
     expect(prompt).toContain("list -> start -> observe(waitSeconds) -> continue or stop");
-    expect(prompt).toContain("run_in_background");
-    expect(prompt).toContain("resume(agent_id)");
-    expect(prompt).toContain("max_turns");
+    expect(prompt).toContain("runInBackground");
+    expect(prompt).toContain("- resume: map to continue using delegationId");
+    expect(prompt).not.toContain("run_in_background");
+    expect(prompt).not.toContain("resume(agent_id)");
+    expect(prompt).not.toContain("max_turns");
     expect(prompt).toContain("prefer background: true");
     expect(prompt).toContain("sleep 45");
     expect(prompt).toContain("Active delegations");

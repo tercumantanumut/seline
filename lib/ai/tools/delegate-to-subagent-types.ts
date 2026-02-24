@@ -29,10 +29,7 @@ export interface DelegateToSubagentInput {
   followUpMessage?: string;
   waitSeconds?: number;
   runInBackground?: boolean;
-  run_in_background?: boolean;
   resume?: string;
-  maxTurns?: number;
-  max_turns?: number;
 }
 
 export interface AvailableSubagent {
@@ -109,7 +106,6 @@ export const MAX_OBSERVE_WAIT_SECONDS = 10 * 60;
 export const MAX_OBSERVE_PREVIEW_RESPONSES = 6;
 export const MAX_OBSERVE_PREVIEW_CHARS = 1_200;
 export const OBSERVE_RESPONSE_TRUNCATION_SUFFIX = "\n\n[Response truncated]";
-export const MAX_ADVISORY_MAX_TURNS = 100;
 
 // ---------------------------------------------------------------------------
 // In-memory delegation registry
