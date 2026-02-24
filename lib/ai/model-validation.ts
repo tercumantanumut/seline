@@ -70,15 +70,13 @@ export function isModelCompatibleWithProvider(
     return ANTIGRAVITY_EXACT_MODELS.has(lowerModel);
   }
 
-  // Anthropic: must match claude-* prefix but NOT be an Antigravity exact model
+  // Anthropic: must match claude-* prefix
   if (provider === "anthropic") {
-    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) return false;
     return MODEL_PREFIXES.anthropic.some((p) => lowerModel.startsWith(p));
   }
 
   // Claude Code: accepts Claude Code OAuth models + generic claude-* models
   if (provider === "claudecode") {
-    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) return false;
     // Check Claude Code specific prefixes first, then fall back to generic claude-*
     return (
       MODEL_PREFIXES.claudecode.some((p) => lowerModel.startsWith(p)) ||

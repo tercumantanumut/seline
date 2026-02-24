@@ -456,9 +456,17 @@ async function runClaudeAgentQuery(options: {
       // asking clarifying questions instead of executing.
       permissionMode: sdk?.permissionMode ?? "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      // In Electron production, process.execPath is the Electron binary;
-      // ELECTRON_RUN_AS_NODE=1 makes SDK child processes run as plain Node.js.
-      ...(isElectronProduction() ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {}),
+      // Always provide a sanitized env:
+      // - Strip ANTHROPIC_API_KEY so the SDK uses OAuth, not the app-level key
+      // - Strip CLAUDECODE to avoid "nested session" errors
+      // - In Electron production, set ELECTRON_RUN_AS_NODE=1 (Electron binary → Node mode)
+      env: (() => {
+        const e: Record<string, string | undefined> = { ...process.env };
+        delete e.ANTHROPIC_API_KEY;
+        delete e.CLAUDECODE;
+        if (isElectronProduction()) e.ELECTRON_RUN_AS_NODE = "1";
+        return e;
+      })(),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       // Seline platform tools exposed via in-process MCP server
       ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
