@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight, Filter, Loader2, Pin, PlusCircle, Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useContextStatus } from "@/lib/hooks/use-context-status";
+import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
 import { cn } from "@/lib/utils";
 import { SessionItem } from "./session-item";
 import type { SessionInfo, SessionChannelType } from "./types";
@@ -97,6 +99,29 @@ export function SessionList({
   const shouldGroupSessions = sessions.length > 5 && !searchQuery.trim();
   const activeFilterCount =
     Number(channelFilter !== "all") + Number(dateRange !== "all");
+
+  const { status: contextStatus } = useContextStatus({ sessionId: currentSessionId });
+  const setSessionContextStatus = useSessionSyncStore((state) => state.setSessionContextStatus);
+
+  useEffect(() => {
+    if (!currentSessionId) return;
+
+    if (!contextStatus || contextStatus.status === "safe") {
+      setSessionContextStatus(currentSessionId, null);
+      return;
+    }
+
+    setSessionContextStatus(currentSessionId, {
+      status: contextStatus.status,
+      percentage: contextStatus.percentage,
+      updatedAt: Date.now(),
+    });
+  }, [
+    currentSessionId,
+    contextStatus?.status,
+    contextStatus?.percentage,
+    setSessionContextStatus,
+  ]);
 
   const renderSessionGroup = (values: SessionInfo[], label?: string) => {
     if (values.length === 0) return null;

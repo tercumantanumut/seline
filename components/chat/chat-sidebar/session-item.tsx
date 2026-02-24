@@ -12,7 +12,6 @@ import {
   ExternalLink,
   GitBranch,
   Link2,
-  Loader2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
@@ -32,8 +31,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSessionData, useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
+import {
+  useSessionActivity,
+  useSessionContextStatus,
+  useSessionData,
+  useSessionHasActiveRun,
+} from "@/lib/stores/session-sync-store";
 import { CHANNEL_TYPE_ICONS } from "./constants";
+import { SessionActivityBubble } from "./session-activity-bubble";
 import type { SessionInfo } from "./types";
 
 interface SessionItemProps {
@@ -88,6 +93,8 @@ export function SessionItem({
   // Sync with global store for real-time updates
   const syncedSession = useSessionData(initialSession.id);
   const hasActiveRun = useSessionHasActiveRun(initialSession.id);
+  const sessionActivity = useSessionActivity(initialSession.id);
+  const contextStatus = useSessionContextStatus(initialSession.id);
 
   // Merge initial session with synced data
   // Only override fields that are present in syncedSession and relevant for display
@@ -187,13 +194,14 @@ export function SessionItem({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-md cursor-pointer",
+        "group relative flex items-start gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border border-transparent",
         "transition-all duration-200 ease-out",
         isCurrent
-          ? "bg-terminal-green/15 border-l-2 border-terminal-green shadow-sm"
-          : "hover:bg-terminal-dark/8 border-l-2 border-transparent"
+          ? "bg-terminal-green/10 border-terminal-green/35 shadow-[0_1px_2px_rgba(0,0,0,0.22)]"
+          : "hover:bg-terminal-dark/8 hover:border-terminal-border/40"
       )}
       role="button"
+      aria-current={isCurrent ? "page" : undefined}
       tabIndex={0}
       onClick={() => {
         if (!isEditing) {
@@ -207,13 +215,7 @@ export function SessionItem({
         }
       }}
     >
-      {hasActiveRun ? (
-        <Loader2
-          className={cn(
-            "h-4 w-4 flex-shrink-0 animate-spin text-terminal-green transition-colors duration-200"
-          )}
-        />
-      ) : isPinned ? (
+      {isPinned ? (
         <Pin className="h-4 w-4 flex-shrink-0 text-terminal-amber" />
       ) : (
         <MessageCircle
@@ -223,7 +225,7 @@ export function SessionItem({
           )}
         />
       )}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 space-y-1">
         {isEditing ? (
           <div className="space-y-2" onClick={(event) => event.stopPropagation()}>
             <Input
@@ -269,7 +271,7 @@ export function SessionItem({
             >
               {session.title || t("session.untitled")}
             </p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70">
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70 min-h-[16px]">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {formatSessionDate(session.updatedAt)}
@@ -310,6 +312,14 @@ export function SessionItem({
                   PR #{session.metadata.workspaceInfo.prNumber}
                 </a>
               )}
+            </div>
+            <div className="min-h-[20px] pt-0.5">
+              <SessionActivityBubble
+                activity={sessionActivity}
+                contextStatus={contextStatus}
+                hasActiveRun={hasActiveRun}
+                isCurrent={isCurrent}
+              />
             </div>
           </>
         )}
