@@ -114,6 +114,7 @@ export async function POST(req: Request) {
   let chatTaskRegistered = false;
   let configuredProvider: string | undefined;
   let activeSessionId: string | undefined;
+  let sessionId = "";
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const isInternalAuth = req.headers.get("X-Internal-Auth") === INTERNAL_API_SECRET;
