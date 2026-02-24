@@ -5,4 +5,5 @@ export { EmbeddingStep } from "./embedding-step";
 export { PersonalizationStep } from "./personalization-step";
 export { WebSearchStep } from "./web-search-step";
 export { WebScrapingStep } from "./web-scraping-step";
+export { FeaturesStep } from "./features-step";
 export { CompleteStep } from "./complete-step";

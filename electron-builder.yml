@@ -125,7 +125,7 @@ extraResources:
 asar: true
 compression: "normal"
 
-# afterSign: "scripts/notarize.js"
+afterSign: "scripts/notarize.js"
 
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
@@ -133,9 +133,10 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
-  identity: null
+  entitlements: "build-resources/entitlements.mac.plist"
+  entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
   # Build only for current architecture by default (use CLI flags to override)
   target:
     - target: "dmg"

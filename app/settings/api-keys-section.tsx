@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { AlertTriangle, Info } from "lucide-react";
 import { settingsSectionShellClassName } from "@/components/settings/settings-form-layout";
 import type { FormState } from "./settings-types";
 import { ClaudeCodePasteInput } from "./settings-panel";
@@ -214,6 +215,10 @@ export function ApiKeysSection({
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("api.auth.antigravityDesc")}
             </p>
+            <p className="mt-1 font-mono text-xs text-terminal-amber inline-flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              {t("api.auth.antigravityWarning")}
+            </p>
             {antigravityAuth?.isAuthenticated && antigravityAuth.email && (
               <p className="mt-1 font-mono text-xs text-terminal-green">
                 {t("api.auth.signedIn", { email: antigravityAuth.email })}
@@ -289,6 +294,10 @@ export function ApiKeysSection({
             </h3>
             <p className="mt-1 font-mono text-xs text-terminal-muted">
               {t("api.auth.claudecodeDesc")}
+            </p>
+            <p className="mt-1 font-mono text-xs text-terminal-blue inline-flex items-center gap-1">
+              <Info className="w-3 h-3" />
+              {t("api.auth.claudecodeWarning")}
             </p>
             {claudecodeAuth?.isAuthenticated && claudecodeAuth.email && (
               <p className="mt-1 font-mono text-xs text-terminal-green">
