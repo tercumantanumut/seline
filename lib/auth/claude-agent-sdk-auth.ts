@@ -16,6 +16,10 @@ function getSdkEnv(): Record<string, string | undefined> {
   // Claude Code terminal session or similar wrapper.
   const env: Record<string, string | undefined> = { ...process.env };
   delete env.CLAUDECODE;
+  // The settings manager may inject ANTHROPIC_API_KEY into process.env (e.g.
+  // a stale placeholder like "123"). The SDK must use its own OAuth flow, so
+  // strip any app-level API key to prevent it from overriding OAuth auth.
+  delete env.ANTHROPIC_API_KEY;
 
   if (isElectronProduction()) {
     env.ELECTRON_RUN_AS_NODE = "1";
