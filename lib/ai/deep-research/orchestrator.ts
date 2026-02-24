@@ -6,7 +6,8 @@
  */
 
 import { generateText } from 'ai';
-import { getModelByName, getProviderTemperature, getResearchModel } from '../providers';
+import { getModelByName, getResearchModel } from '../providers';
+import { getSessionProviderTemperature } from '../session-model-resolver';
 import { executeSearches, isSearchAvailable } from './search';
 import {
   RESEARCH_PLANNER_PROMPT,
@@ -38,9 +39,10 @@ function resolveResearchGenerationConfig(config: Partial<DeepResearchConfig>) {
     }
   }
 
-  const requestedTemperature = config.sessionProvider === 'kimi'
-    ? 1
-    : getProviderTemperature(0.7);
+  const requestedTemperature = getSessionProviderTemperature(
+    config.sessionProvider ? { sessionProvider: config.sessionProvider } : null,
+    0.7
+  );
 
   return {
     model,
