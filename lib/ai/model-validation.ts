@@ -18,13 +18,12 @@ import type { LLMProvider } from "@/components/model-bag/model-bag.types";
 // ---------------------------------------------------------------------------
 
 // Antigravity uses exact model ID matching to avoid ambiguity with Anthropic's
-// "claude-" prefix (Antigravity has short IDs like "claude-sonnet-4-5")
+// "claude-" prefix (Antigravity has short IDs like "claude-sonnet-4-6")
 const ANTIGRAVITY_EXACT_MODELS = new Set([
-  "gemini-3-pro-high",
-  "gemini-3-pro-low",
+  "gemini-3.1-pro-high",
+  "gemini-3.1-pro-low",
   "gemini-3-flash",
-  "claude-sonnet-4-5",
-  "claude-sonnet-4-5-thinking",
+  "claude-sonnet-4-6",
   "claude-opus-4-6-thinking",
   "gpt-oss-120b-medium",
 ]);
@@ -71,15 +70,13 @@ export function isModelCompatibleWithProvider(
     return ANTIGRAVITY_EXACT_MODELS.has(lowerModel);
   }
 
-  // Anthropic: must match claude-* prefix but NOT be an Antigravity exact model
+  // Anthropic: must match claude-* prefix
   if (provider === "anthropic") {
-    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) return false;
     return MODEL_PREFIXES.anthropic.some((p) => lowerModel.startsWith(p));
   }
 
   // Claude Code: accepts Claude Code OAuth models + generic claude-* models
   if (provider === "claudecode") {
-    if (ANTIGRAVITY_EXACT_MODELS.has(lowerModel)) return false;
     // Check Claude Code specific prefixes first, then fall back to generic claude-*
     return (
       MODEL_PREFIXES.claudecode.some((p) => lowerModel.startsWith(p)) ||

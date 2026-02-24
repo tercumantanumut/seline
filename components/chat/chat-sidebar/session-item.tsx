@@ -87,6 +87,7 @@ export function SessionItem({
   const t = useTranslations("chat");
   const tChannels = useTranslations("channels");
   const formatter = useFormatter();
+  const itemRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const skipBlurRef = useRef(false);
 
@@ -193,6 +194,7 @@ export function SessionItem({
 
   return (
     <div
+      ref={itemRef}
       className={cn(
         "group relative flex items-start gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border border-transparent",
         "transition-all duration-200 ease-out",
@@ -313,14 +315,6 @@ export function SessionItem({
                 </a>
               )}
             </div>
-            <div className="min-h-[20px] pt-0.5 overflow-hidden">
-              <SessionActivityBubble
-                activity={sessionActivity}
-                contextStatus={contextStatus}
-                hasActiveRun={hasActiveRun}
-                isCurrent={isCurrent}
-              />
-            </div>
           </>
         )}
       </div>
@@ -394,6 +388,13 @@ export function SessionItem({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
+      <SessionActivityBubble
+        activity={sessionActivity}
+        contextStatus={contextStatus}
+        hasActiveRun={hasActiveRun}
+        isCurrent={isCurrent}
+        anchorRef={itemRef}
+      />
     </div>
   );
 }

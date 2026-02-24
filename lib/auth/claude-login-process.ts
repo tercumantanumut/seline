@@ -3,7 +3,19 @@ import path from "path";
 import { isElectronProduction } from "@/lib/utils/environment";
 
 // Resolved lazily so process.cwd() is evaluated at runtime, not build time.
+// In production Electron builds, node_modules live under resourcesPath/standalone/.
 function getCliPath(): string {
+  const resourcesPath =
+    (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath ||
+    process.env.ELECTRON_RESOURCES_PATH;
+
+  if (resourcesPath) {
+    // Production Electron: modules are bundled under standalone/
+    const prodPath = path.join(resourcesPath, "standalone", "node_modules", "@anthropic-ai", "claude-agent-sdk", "cli.js");
+    const fs = require("fs") as typeof import("fs");
+    if (fs.existsSync(prodPath)) return prodPath;
+  }
+
   return path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
 }
 
@@ -34,6 +46,48 @@ function getSystemNodeBinary(nodeName: string): string | null {
     if (fileExistsAndExecutable(candidate)) return candidate;
   }
 
+  // Check versioned homebrew installs (e.g. node@22, node@20)
+  // These don't get symlinked to /opt/homebrew/bin when installed as node@XX
+  const fs = require("fs") as typeof import("fs");
+  for (const prefix of ["/opt/homebrew/opt", "/usr/local/opt"]) {
+    try {
+      const entries = fs.readdirSync(prefix);
+      for (const entry of entries) {
+        if (entry.startsWith("node")) {
+          const candidate = path.join(prefix, entry, "bin", nodeName);
+          if (fileExistsAndExecutable(candidate)) return candidate;
+        }
+      }
+    } catch {
+      // directory doesn't exist
+    }
+  }
+
+  // Check common version manager paths
+  const home = process.env.HOME;
+  if (home) {
+    const versionManagerPaths = [
+      path.join(home, ".volta", "bin"),
+      path.join(home, ".fnm", "aliases", "default", "bin"),
+    ];
+    for (const dir of versionManagerPaths) {
+      const candidate = path.join(dir, nodeName);
+      if (fileExistsAndExecutable(candidate)) return candidate;
+    }
+
+    // nvm: check for any installed version
+    try {
+      const nvmDir = path.join(home, ".nvm", "versions", "node");
+      const versions = fs.readdirSync(nvmDir).sort().reverse();
+      for (const ver of versions) {
+        const candidate = path.join(nvmDir, ver, "bin", nodeName);
+        if (fileExistsAndExecutable(candidate)) return candidate;
+      }
+    } catch {
+      // nvm not installed
+    }
+  }
+
   return null;
 }
 
@@ -45,7 +99,7 @@ function getSystemNodeBinary(nodeName: string): string | null {
  *   3. process.cwd()/node_modules/.bin/node (standalone server cwd)
  *   4. process.execPath fallback
  */
-function getNodeBinary(): string {
+export function getNodeBinary(): string {
   const nodeName = process.platform === "win32" ? "node.exe" : "node";
 
   const systemNode = getSystemNodeBinary(nodeName);
@@ -105,13 +159,16 @@ export async function startClaudeLoginProcess(
   const nodeBinary = getNodeBinary();
   const useElectronRunAsNode = isElectronProduction() && nodeBinary === process.execPath;
 
+  const spawnEnv = { ...process.env };
+  delete spawnEnv.CLAUDECODE; // prevent "nested session" detection
+  if (useElectronRunAsNode) {
+    spawnEnv.ELECTRON_RUN_AS_NODE = "1";
+  }
+
   const state: LoginProcessState = {
     process: spawn(nodeBinary, [getCliPath(), "login"], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        ...(useElectronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
-      },
+      env: spawnEnv,
     }),
     url: null,
     outputLines: [],
@@ -119,6 +176,12 @@ export async function startClaudeLoginProcess(
   };
 
   setActive(state);
+
+  // Handle spawn errors to prevent unhandled crashes
+  state.process.once("error", (err) => {
+    console.error("[claude-login] spawn error:", err.message);
+    state.resolved = true;
+  });
 
   function onData(chunk: Buffer) {
     const text = chunk.toString();
@@ -137,7 +200,7 @@ export async function startClaudeLoginProcess(
 
   // Wait until URL appears or timeout
   const deadline = Date.now() + urlTimeoutMs;
-  while (Date.now() < deadline && !state.url) {
+  while (Date.now() < deadline && !state.url && !state.resolved) {
     await new Promise((r) => setTimeout(r, 150));
     if (state.process.exitCode !== null) break; // process exited early
   }

@@ -26,7 +26,6 @@ import {
   MAX_OBSERVE_PREVIEW_RESPONSES,
   MAX_OBSERVE_PREVIEW_CHARS,
   OBSERVE_RESPONSE_TRUNCATION_SUFFIX,
-  MAX_ADVISORY_MAX_TURNS,
   type ActiveDelegation,
   type DelegateToSubagentInput,
   type DelegateResult,
@@ -180,11 +179,7 @@ export function normalizeLookup(value: string): string {
 }
 
 export function normalizeCompatibilityInput(input: DelegateToSubagentInput): DelegateToSubagentInput {
-  return {
-    ...input,
-    runInBackground: input.runInBackground ?? input.run_in_background,
-    maxTurns: input.maxTurns ?? input.max_turns,
-  };
+  return input;
 }
 
 export function sleep(ms: number): Promise<void> {

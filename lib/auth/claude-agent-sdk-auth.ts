@@ -1,5 +1,7 @@
+import path from "path";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import { isElectronProduction } from "@/lib/utils/environment";
+import { getNodeBinary } from "@/lib/auth/claude-login-process";
 
 const DEFAULT_CLAUDE_AGENT_MODEL = "claude-sonnet-4-5-20250929";
 
@@ -8,9 +10,38 @@ const DEFAULT_CLAUDE_AGENT_MODEL = "claude-sonnet-4-5-20250929";
  * In Electron production builds, process.execPath is the Electron binary,
  * so ELECTRON_RUN_AS_NODE=1 makes the SDK's child process run as plain Node.js.
  */
-function getSdkEnv(): Record<string, string | undefined> | undefined {
-  if (!isElectronProduction()) return undefined;
-  return { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
+function getSdkEnv(): Record<string, string | undefined> {
+  // Always strip CLAUDECODE to prevent "cannot be launched inside another
+  // Claude Code session" errors when the server inherits the env from a
+  // Claude Code terminal session or similar wrapper.
+  const env: Record<string, string | undefined> = { ...process.env };
+  delete env.CLAUDECODE;
+  // The settings manager may inject ANTHROPIC_API_KEY into process.env (e.g.
+  // a stale placeholder like "123"). The SDK must use its own OAuth flow, so
+  // strip any app-level API key to prevent it from overriding OAuth auth.
+  delete env.ANTHROPIC_API_KEY;
+
+  if (isElectronProduction()) {
+    env.ELECTRON_RUN_AS_NODE = "1";
+
+    // Ensure the resolved node binary's directory is in PATH so the SDK
+    // can find "node" even when the user has no system-wide Node install.
+    // DMG apps launched from Finder get a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin)
+    // that excludes homebrew, nvm, volta, etc.
+    const nodeBin = getNodeBinary();
+    const nodeDir = path.dirname(nodeBin);
+    if (!env.PATH?.includes(nodeDir)) {
+      env.PATH = `${nodeDir}${path.delimiter}${env.PATH || ""}`;
+    }
+    // Also update the current process PATH so the SDK's spawn() can resolve
+    // "node" — spawn resolves executables using the parent's PATH, not the
+    // child env's PATH.
+    if (!process.env.PATH?.includes(nodeDir)) {
+      process.env.PATH = `${nodeDir}${path.delimiter}${process.env.PATH || ""}`;
+    }
+  }
+
+  return env;
 }
 const URL_PATTERN = /https?:\/\/[^\s"')]+/i;
 

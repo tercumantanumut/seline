@@ -85,6 +85,9 @@ const nextConfig: NextConfig = {
   // These packages contain native binaries and platform-specific code
   // that should not be processed by the bundler
   serverExternalPackages: [
+    // Claude Agent SDK resolves cli.js via import.meta.url at runtime —
+    // bundling it breaks that path resolution, causing auth to fail in production.
+    "@anthropic-ai/claude-agent-sdk",
     "@remotion/bundler",
     "@remotion/renderer",
     "@remotion/cli",
