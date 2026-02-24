@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type FC, type ReactNode } from "react";
+import { createContext, useContext, type FC, type ReactNode, type HTMLAttributes } from "react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import { SyntaxHighlighter, UserSyntaxHighlighter } from "./shiki-highlighter";
@@ -8,6 +8,56 @@ import { ImageLinkPreview } from "./image-link-preview";
 
 // Context to track if we're inside an anchor tag (prevents nested <a> tags)
 const InsideAnchorContext = createContext(false);
+
+function extractTextContent(node: ReactNode): string | null {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (!Array.isArray(node)) return null;
+
+  const parts: string[] = [];
+  for (const part of node) {
+    const text = extractTextContent(part);
+    if (text === null) return null;
+    parts.push(text);
+  }
+
+  return parts.join("");
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const SmartInlineCode: FC<{
+  children?: ReactNode;
+  codeClassName: string;
+  linkClassName: string;
+  codeProps?: HTMLAttributes<HTMLElement>;
+}> = ({ children, codeClassName, linkClassName, codeProps }) => {
+  const isInsideAnchor = useContext(InsideAnchorContext);
+  const maybeUrl = extractTextContent(children)?.trim();
+
+  if (!isInsideAnchor && maybeUrl && isHttpUrl(maybeUrl)) {
+    return (
+      <AnchorWithContext href={maybeUrl} className={linkClassName}>
+        <code className={codeClassName} {...codeProps}>
+          {children}
+        </code>
+      </AnchorWithContext>
+    );
+  }
+
+  return (
+    <code className={codeClassName} {...codeProps}>
+      {children}
+    </code>
+  );
+};
 
 // Wrapper component for anchor tags that provides context
 const AnchorWithContext: FC<{
@@ -91,12 +141,12 @@ export const MarkdownText: FC<{ text: string }> = () => {
         ),
         // Inline code (not code blocks - those use SyntaxHighlighter)
         code: ({ children, ...props }) => (
-          <code
-            className="rounded bg-terminal-dark/10 px-1.5 py-0.5 text-sm font-mono text-terminal-dark"
-            {...props}
-          >
-            {children}
-          </code>
+          <SmartInlineCode
+            children={children}
+            codeClassName="rounded bg-terminal-dark/10 px-1.5 py-0.5 text-sm font-mono text-terminal-dark"
+            linkClassName="inline-flex items-center text-terminal-green underline underline-offset-4 hover:text-terminal-green/80"
+            codeProps={props as HTMLAttributes<HTMLElement>}
+          />
         ),
         // Lists
         ul: ({ children, ...props }) => (
@@ -197,12 +247,12 @@ export const UserMarkdownText: FC<{ text: string }> = () => {
         ),
         // Inline code - light text on slightly lighter dark background
         code: ({ children, ...props }) => (
-          <code
-            className="rounded bg-terminal-cream/10 px-1.5 py-0.5 text-sm font-mono text-terminal-cream"
-            {...props}
-          >
-            {children}
-          </code>
+          <SmartInlineCode
+            children={children}
+            codeClassName="rounded bg-terminal-cream/10 px-1.5 py-0.5 text-sm font-mono text-terminal-cream"
+            linkClassName="inline-flex items-center text-terminal-amber underline underline-offset-4 hover:text-terminal-amber/80"
+            codeProps={props as HTMLAttributes<HTMLElement>}
+          />
         ),
         // Lists - inherit text color (terminal-cream from parent)
         ul: ({ children, ...props }) => (
