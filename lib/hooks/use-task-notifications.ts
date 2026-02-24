@@ -13,8 +13,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUnifiedTasksStore } from "@/lib/stores/unified-tasks-store";
-import { useSessionSyncStore } from "@/lib/stores/session-sync-store";
-import type { TaskEvent, UnifiedTask } from "@/lib/background-tasks/types";
+import {
+  useSessionSyncStore,
+  type SessionActivityIndicator,
+  type SessionActivityState,
+} from "@/lib/stores/session-sync-store";
+import type {
+  TaskEvent,
+  TaskProgressEvent,
+  UnifiedTask,
+} from "@/lib/background-tasks/types";
 import { formatDuration } from "@/lib/utils/timestamp";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 
@@ -22,6 +30,354 @@ interface SSEMessage {
   type: "connected" | "heartbeat" | "task:started" | "task:completed" | "task:progress";
   data?: TaskEvent;
   timestamp?: string;
+}
+
+const MAX_ACTIVITY_LABEL_LENGTH = 64;
+
+function trimLabel(value: string, maxLength = MAX_ACTIVITY_LABEL_LENGTH): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
+}
+
+function uniqueIndicators(items: SessionActivityIndicator[]): SessionActivityIndicator[] {
+  const byKey = new Map<string, SessionActivityIndicator>();
+  for (const item of items) {
+    byKey.set(item.key, item);
+  }
+  return Array.from(byKey.values());
+}
+
+function stableIndicatorSort(items: SessionActivityIndicator[]): SessionActivityIndicator[] {
+  return [...items].sort((a, b) => {
+    const aPriority = a.tone === "critical" ? 4 : a.tone === "warning" ? 3 : a.tone === "info" ? 2 : a.tone === "success" ? 1 : 0;
+    const bPriority = b.tone === "critical" ? 4 : b.tone === "warning" ? 3 : b.tone === "info" ? 2 : b.tone === "success" ? 1 : 0;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function buildActivityState(
+  sessionId: string,
+  runId: string,
+  indicators: SessionActivityIndicator[],
+  options: {
+    isRunning: boolean;
+    progressText?: string;
+    previous?: SessionActivityState;
+  }
+): SessionActivityState {
+  const sortedIndicators = stableIndicatorSort(uniqueIndicators(indicators));
+  const signature = sortedIndicators
+    .map((item) => `${item.key}:${item.kind}:${item.tone}:${item.label}:${item.detail ?? ""}`)
+    .join("|");
+
+  const previous = options.previous;
+  if (
+    previous &&
+    previous.runId === runId &&
+    previous.isRunning === options.isRunning &&
+    previous.progressText === options.progressText
+  ) {
+    const previousSignature = previous.indicators
+      .map((item) => `${item.key}:${item.kind}:${item.tone}:${item.label}:${item.detail ?? ""}`)
+      .join("|");
+    if (previousSignature === signature) {
+      return previous;
+    }
+  }
+
+  return {
+    sessionId,
+    runId,
+    indicators: sortedIndicators,
+    progressText: options.progressText,
+    isRunning: options.isRunning,
+    updatedAt: Date.now(),
+  };
+}
+
+function deriveTaskIndicators(task: UnifiedTask, progressText?: string): SessionActivityIndicator[] {
+  const indicators: SessionActivityIndicator[] = [
+    {
+      key: "run",
+      kind: "run",
+      label: "Running",
+      tone: "info",
+    },
+  ];
+
+  if (task.type === "scheduled") {
+    indicators.push({
+      key: "scheduled-task",
+      kind: "skill",
+      label: trimLabel(task.taskName || "Scheduled task"),
+      detail: task.attemptNumber ? `Attempt ${task.attemptNumber}` : undefined,
+      tone: "neutral",
+    });
+    if (progressText) {
+      indicators.push({
+        key: "scheduled-progress",
+        kind: "tool",
+        label: trimLabel(progressText),
+        tone: "info",
+      });
+    }
+  }
+
+  if (task.type === "chat") {
+    const metadata = (task.metadata && typeof task.metadata === "object")
+      ? (task.metadata as Record<string, unknown>)
+      : {};
+
+    if (task.pipelineName === "deep-research") {
+      indicators.push({
+        key: "deep-research",
+        kind: "skill",
+        label: "Deep research",
+        tone: "info",
+      });
+    }
+
+    if (metadata.isDelegation === true) {
+      indicators.push({
+        key: "delegation",
+        kind: "delegation",
+        label: "Delegating",
+        tone: "info",
+      });
+    }
+
+    if (metadata.scheduledRunId) {
+      indicators.push({
+        key: "scheduled-origin",
+        kind: "skill",
+        label: "Scheduled run",
+        tone: "neutral",
+      });
+    }
+
+    const toolName = typeof metadata.toolName === "string" ? metadata.toolName : undefined;
+    if (toolName) {
+      indicators.push({
+        key: "tool-name",
+        kind: "tool",
+        label: `Using ${trimLabel(toolName, 46)}`,
+        tone: "info",
+      });
+    }
+
+    const hookName = typeof metadata.hookName === "string" ? metadata.hookName : undefined;
+    if (hookName) {
+      indicators.push({
+        key: "hook",
+        kind: "hook",
+        label: `Running hook ${trimLabel(hookName, 44)}`,
+        tone: "info",
+      });
+    }
+
+    const skillName = typeof metadata.skillName === "string" ? metadata.skillName : undefined;
+    if (skillName) {
+      indicators.push({
+        key: "skill",
+        kind: "skill",
+        label: `Executing ${trimLabel(skillName, 44)}`,
+        tone: "info",
+      });
+    }
+
+    if (progressText) {
+      indicators.push({
+        key: "chat-progress",
+        kind: "tool",
+        label: trimLabel(progressText),
+        tone: "info",
+      });
+    }
+  }
+
+  if (task.type === "channel") {
+    indicators.push({
+      key: "channel",
+      kind: "run",
+      label: `Channel ${task.channelType}`,
+      tone: "neutral",
+    });
+  }
+
+  return uniqueIndicators(indicators);
+}
+
+function deriveProgressIndicators(event: TaskProgressEvent): SessionActivityIndicator[] {
+  const indicators: SessionActivityIndicator[] = [
+    {
+      key: "run",
+      kind: "run",
+      label: "Working",
+      tone: "info",
+    },
+  ];
+
+  if (event.taskName) {
+    indicators.push({
+      key: "task-name",
+      kind: "skill",
+      label: trimLabel(event.taskName),
+      tone: "neutral",
+    });
+  }
+
+  if (event.progressText) {
+    indicators.push({
+      key: "progress",
+      kind: "tool",
+      label: trimLabel(event.progressText),
+      tone: "info",
+    });
+
+    const lower = event.progressText.toLowerCase();
+    if (lower.includes("hook")) {
+      indicators.push({
+        key: "progress-hook",
+        kind: "hook",
+        label: "Hook running",
+        tone: "info",
+      });
+    }
+    if (lower.includes("skill")) {
+      indicators.push({
+        key: "progress-skill",
+        kind: "skill",
+        label: "Skill running",
+        tone: "info",
+      });
+    }
+    if (lower.includes("workspace")) {
+      indicators.push({
+        key: "progress-workspace",
+        kind: "workspace",
+        label: "Workspace updated",
+        tone: "neutral",
+      });
+    }
+    if (lower.includes("pull request") || /\bpr\b/.test(lower)) {
+      indicators.push({
+        key: "progress-pr",
+        kind: "pr",
+        label: "PR updated",
+        tone: "info",
+      });
+    }
+  }
+
+  const parts = Array.isArray(event.progressContent) ? event.progressContent : [];
+  const toolCall = parts.find((part) => {
+    if (!part || typeof part !== "object") return false;
+    return (part as Record<string, unknown>).type === "tool-call";
+  }) as Record<string, unknown> | undefined;
+
+  if (toolCall && typeof toolCall.toolName === "string") {
+    indicators.push({
+      key: "tool-call",
+      kind: "tool",
+      label: `Using ${trimLabel(toolCall.toolName, 46)}`,
+      tone: "info",
+    });
+  }
+
+  const toolResult = parts.find((part) => {
+    if (!part || typeof part !== "object") return false;
+    return (part as Record<string, unknown>).type === "tool-result";
+  }) as Record<string, unknown> | undefined;
+
+  if (toolResult && typeof toolResult.toolName === "string") {
+    indicators.push({
+      key: "tool-result",
+      kind: "tool",
+      label: `Result from ${trimLabel(toolResult.toolName, 40)}`,
+      tone: "neutral",
+    });
+  }
+
+  return uniqueIndicators(indicators);
+}
+
+function deriveCompletionIndicators(task: UnifiedTask): SessionActivityIndicator[] {
+  const indicators: SessionActivityIndicator[] = [];
+
+  if (task.status === "succeeded") {
+    indicators.push({
+      key: "completed",
+      kind: "success",
+      label: "Completed",
+      tone: "success",
+    });
+  } else if (task.status === "stale") {
+    indicators.push({
+      key: "stale",
+      kind: "error",
+      label: "Needs attention",
+      tone: "warning",
+    });
+  } else if (task.status === "cancelled") {
+    indicators.push({
+      key: "cancelled",
+      kind: "error",
+      label: "Cancelled",
+      tone: "warning",
+    });
+  } else {
+    indicators.push({
+      key: "failed",
+      kind: "error",
+      label: "Failed",
+      tone: "critical",
+    });
+  }
+
+  if (task.type === "scheduled") {
+    indicators.push({
+      key: "scheduled-task",
+      kind: "skill",
+      label: trimLabel(task.taskName || "Scheduled task"),
+      tone: "neutral",
+    });
+  }
+
+  if (task.type === "chat") {
+    const metadata = (task.metadata && typeof task.metadata === "object")
+      ? (task.metadata as Record<string, unknown>)
+      : {};
+
+    if (metadata.isDelegation === true) {
+      indicators.push({
+        key: "delegation",
+        kind: "delegation",
+        label: task.status === "succeeded" ? "Delegation done" : "Delegation issue",
+        tone: task.status === "succeeded" ? "success" : "warning",
+      });
+    }
+
+    const resultSummary = typeof metadata.resultSummary === "string" ? metadata.resultSummary : "";
+    if (/\bworkspace\b/i.test(resultSummary)) {
+      indicators.push({
+        key: "workspace",
+        kind: "workspace",
+        label: "Workspace updated",
+        tone: "neutral",
+      });
+    }
+
+    if (/\bPR\b|pull request/i.test(resultSummary)) {
+      indicators.push({
+        key: "pr",
+        kind: "pr",
+        label: "PR updated",
+        tone: "info",
+      });
+    }
+  }
+
+  return uniqueIndicators(indicators);
 }
 
 export function useTaskNotifications() {
@@ -97,13 +453,20 @@ export function useTaskNotifications() {
       console.log("[TaskNotifications] Task started:", displayName, task.runId);
 
       addTask(task);
-      // Bridge to session-sync-store for sidebar/character picker indicators
       if (task.sessionId) {
-        useSessionSyncStore.getState().setActiveRun(task.sessionId, task.runId);
+        const sessionSyncState = useSessionSyncStore.getState();
+        sessionSyncState.setActiveRun(task.sessionId, task.runId);
+        const previous = sessionSyncState.getSessionActivity(task.sessionId);
+        sessionSyncState.setSessionActivity(
+          task.sessionId,
+          buildActivityState(task.sessionId, task.runId, deriveTaskIndicators(task), {
+            isRunning: true,
+            previous,
+          })
+        );
       }
       dispatchLifecycleEvent("background-task-started", event);
 
-      // Suppress toasts for delegation tasks — the initiator agent reports status
       if (isDelegationChat) return;
 
       const runningKey =
@@ -158,22 +521,30 @@ export function useTaskNotifications() {
       console.log("[TaskNotifications] Task completed:", displayName, task.status);
 
       completeTask(task);
-      // Bridge to session-sync-store for sidebar/character picker indicators
       if (task.sessionId) {
-        useSessionSyncStore.getState().setActiveRun(task.sessionId, null);
+        const sessionSyncState = useSessionSyncStore.getState();
+        sessionSyncState.setActiveRun(task.sessionId, null);
+        const previous = sessionSyncState.getSessionActivity(task.sessionId);
+        sessionSyncState.setSessionActivity(
+          task.sessionId,
+          buildActivityState(task.sessionId, task.runId, deriveCompletionIndicators(task), {
+            isRunning: false,
+            previous,
+          })
+        );
       }
       dispatchLifecycleEvent("background-task-completed", event);
 
-      // Suppress toasts for delegation tasks — the initiator agent reports status
       if (isDelegationChat) return;
 
       if (task.status === "succeeded") {
         const completedKey = task.type === "chat" ? "chatCompleted" : "taskCompleted";
         if (shouldShowChatToast(task)) {
           toast.success(t(completedKey, { taskName: displayName }), {
-            description: task.metadata && typeof task.metadata === "object"
-              ? (task.metadata as { resultSummary?: string }).resultSummary?.slice(0, 100)
-              : undefined,
+            description:
+              task.metadata && typeof task.metadata === "object"
+                ? (task.metadata as { resultSummary?: string }).resultSummary?.slice(0, 100)
+                : undefined,
             action: buildSessionUrl(task)
               ? {
                   label: t("viewTask"),
@@ -230,12 +601,41 @@ export function useTaskNotifications() {
             ...(event.characterId ? { characterId: event.characterId } : {}),
           });
         }
+
+        if (event.sessionId) {
+          const sessionSyncState = useSessionSyncStore.getState();
+          sessionSyncState.setActiveRun(event.sessionId, event.runId);
+          const previous = sessionSyncState.getSessionActivity(event.sessionId);
+          sessionSyncState.setSessionActivity(
+            event.sessionId,
+            buildActivityState(
+              event.sessionId,
+              event.runId,
+              deriveProgressIndicators(event),
+              {
+                isRunning: true,
+                progressText: event.progressText,
+                previous,
+              }
+            )
+          );
+        }
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("background-task-progress", { detail: event }));
       }
     };
-  }, [addTask, updateTask, completeTask, t, router, buildSessionUrl, buildScheduleUrl, dispatchLifecycleEvent]);
+  }, [
+    addTask,
+    updateTask,
+    completeTask,
+    t,
+    router,
+    buildSessionUrl,
+    buildScheduleUrl,
+    dispatchLifecycleEvent,
+    shouldShowChatToast,
+  ]);
 
   // Connect to SSE endpoint
   useEffect(() => {
@@ -284,11 +684,16 @@ export function useTaskNotifications() {
 
         const currentTasks = useUnifiedTasksStore.getState().tasks;
         const serverRunIds = new Set(tasks.map((task) => task.runId));
+        const sessionSyncState = useSessionSyncStore.getState();
 
         for (const task of currentTasks) {
           if (!serverRunIds.has(task.runId)) {
             console.log(`[TaskNotifications] Removing stale task: ${task.runId}`);
             completeTask(task);
+            if (task.sessionId) {
+              sessionSyncState.setActiveRun(task.sessionId, null);
+              sessionSyncState.setSessionActivity(task.sessionId, null);
+            }
           }
         }
 
@@ -300,19 +705,26 @@ export function useTaskNotifications() {
             console.log(`[TaskNotifications] Adding missing task: ${task.runId}`);
             addTask(task);
           }
+
+          if (task.sessionId) {
+            sessionSyncState.setActiveRun(task.sessionId, task.runId);
+            const previous = sessionSyncState.getSessionActivity(task.sessionId);
+            sessionSyncState.setSessionActivity(
+              task.sessionId,
+              buildActivityState(task.sessionId, task.runId, deriveTaskIndicators(task), {
+                isRunning: true,
+                previous,
+              })
+            );
+          }
         }
 
         // Sync active runs to session-sync-store for sidebar/character indicators
-        const sessionSyncState = useSessionSyncStore.getState();
         const currentActiveRuns = sessionSyncState.activeRuns;
         for (const [sessionId] of currentActiveRuns) {
-          if (!tasks.some(t => t.sessionId === sessionId)) {
+          if (!tasks.some((t) => t.sessionId === sessionId)) {
             sessionSyncState.setActiveRun(sessionId, null);
-          }
-        }
-        for (const task of tasks) {
-          if (task.sessionId) {
-            sessionSyncState.setActiveRun(task.sessionId, task.runId);
+            sessionSyncState.setSessionActivity(sessionId, null);
           }
         }
 
@@ -328,12 +740,10 @@ export function useTaskNotifications() {
     };
 
     const connect = () => {
-      // Close existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
 
-      // Create new SSE connection
       const eventSource = new EventSource("/api/tasks/events");
       eventSourceRef.current = eventSource;
       connectedUserIdRef.current = user.id;
@@ -358,17 +768,13 @@ export function useTaskNotifications() {
             case "connected":
               console.log("[TaskNotifications] Connected to event stream");
               break;
-
             case "heartbeat":
-              // Keep-alive, no action needed
               break;
-
             case "task:started":
               if (message.data) {
                 handleTaskStartedRef.current(message.data);
               }
               break;
-
             case "task:completed":
               if (message.data) {
                 handleTaskCompletedRef.current(message.data);
@@ -400,7 +806,6 @@ export function useTaskNotifications() {
         eventSource.close();
         wasDisconnectedRef.current = true;
 
-        // Clear ref
         if (eventSourceRef.current === eventSource) {
           eventSourceRef.current = null;
         }
