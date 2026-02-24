@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -13,6 +12,7 @@ import { useSessionSync } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncNotifier } from "@/lib/hooks/use-session-sync";
 import { useSessionSyncStore, sessionInfoArrayToSyncData } from "@/lib/stores/session-sync-store";
 import type { SessionInfo } from "@/components/chat/chat-sidebar/types";
+import type { UIMessage } from "ai";
 import type { DBMessage, ActiveRunState, SessionState, ChannelFilter, DateRangeFilter } from "@/components/chat/chat-interface-types";
 import {
     sortSessionsByUpdatedAt,
@@ -31,7 +31,7 @@ interface UseBackgroundProcessingOptions {
     refreshSessionTimestamp: (id: string) => void;
     notifySessionUpdate: (id: string, data: Record<string, unknown>) => void;
     setSessionState: React.Dispatch<React.SetStateAction<SessionState>>;
-    setBackgroundRefreshCounter: React.Dispatch<React.SetStateAction<number>>;
+    chatSetMessagesRef: React.MutableRefObject<((msgs: UIMessage[]) => void) | null>;
 }
 
 export function useBackgroundProcessing({
@@ -39,7 +39,7 @@ export function useBackgroundProcessing({
     refreshSessionTimestamp,
     notifySessionUpdate,
     setSessionState,
-    setBackgroundRefreshCounter,
+    chatSetMessagesRef,
 }: UseBackgroundProcessingOptions) {
     const t = useTranslations("chat");
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,9 +47,9 @@ export function useBackgroundProcessing({
     const [processingRunId, setProcessingRunId] = useState<string | null>(null);
     const [isZombieRun, setIsZombieRun] = useState(false);
     const [isCancellingBackgroundRun, setIsCancellingBackgroundRun] = useState(false);
+    const lastMessageSigRef = useRef<string>("");
 
     const refreshMessages = useCallback(async () => {
-        console.log("[Background Processing] Fetching updated messages for session:", sessionId);
         const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
             `/api/sessions/${sessionId}/messages`,
             { retries: 0 }
@@ -58,7 +58,14 @@ export function useBackgroundProcessing({
             console.error("[Background Processing] Failed to fetch messages:", status, error);
             return;
         }
-        console.log("[Background Processing] Received messages:", data.messages?.length || 0);
+
+        // Skip update if messages haven't changed (avoids unnecessary remount)
+        const sig = data.messages
+            .map((m: any) => `${m.id}:${m.parts?.length ?? 0}:${JSON.stringify(m.parts?.at(-1)?.type ?? "")}`)
+            .join("|");
+        if (sig === lastMessageSigRef.current) return;
+        lastMessageSigRef.current = sig;
+
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
 
         refreshSessionTimestamp(sessionId);
@@ -67,16 +74,14 @@ export function useBackgroundProcessing({
             messageCount: data.messages?.length || 0
         });
 
-        flushSync(() => setIsChatFading(true));
-        await new Promise<void>(resolve => setTimeout(resolve, 150));
-        flushSync(() => {
-            setSessionState(prev => ({ ...prev, messages: uiMessages }));
-            setBackgroundRefreshCounter(prev => prev + 1);
-        });
-        requestAnimationFrame(() => setIsChatFading(false));
+        // Update session state for sidebar / session switching
+        setSessionState(prev => ({ ...prev, messages: uiMessages }));
 
-        console.log("[Background Processing] Messages updated successfully, triggering UI refresh");
-    }, [sessionId, refreshSessionTimestamp, notifySessionUpdate, setSessionState, setBackgroundRefreshCounter]);
+        // Update the thread in-place via AI SDK — no remount, no scroll reset!
+        if (chatSetMessagesRef.current) {
+            chatSetMessagesRef.current(uiMessages);
+        }
+    }, [sessionId, refreshSessionTimestamp, notifySessionUpdate, setSessionState, chatSetMessagesRef]);
 
     // isChatFading is local to this hook's refreshMessages but needs to be surfaced
     // back to the component. We keep a state for it here too.
@@ -108,6 +113,8 @@ export function useBackgroundProcessing({
                         }
                         return;
                     }
+                    // Fetch intermediate messages while still running for live updates
+                    await refreshMessages();
                     return;
                 }
                 console.log("[Background Processing] Run completed with status:", data.status);

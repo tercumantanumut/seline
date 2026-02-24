@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== "production") {
   };
 }
 
-import { Component, type ErrorInfo, type FC, type ReactNode, useMemo } from "react";
+import { Component, createContext, type ErrorInfo, type FC, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
 import {
   AssistantRuntimeProvider,
   type AttachmentAdapter,
@@ -21,9 +21,10 @@ import {
   type CompleteAttachment,
 } from "@assistant-ui/react";
 import {
-  useChatRuntime,
+  useAISDKRuntime,
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
+import { useChat } from "@ai-sdk/react";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { DeepResearchProvider } from "./assistant-ui/deep-research-context";
 import { VoiceProvider } from "./assistant-ui/voice-context";
@@ -122,6 +123,30 @@ class ChatErrorBoundary extends Component<
 
     return this.props.children;
   }
+}
+
+// ============================================================================
+// Chat setMessages context — allows background polling to update the thread
+// in-place without remounting the ChatProvider.
+// ============================================================================
+
+type SetMessagesFn = (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
+const ChatSetMessagesContext = createContext<SetMessagesFn | null>(null);
+export const useChatSetMessages = () => useContext(ChatSetMessagesContext);
+
+// ============================================================================
+// Dynamic transport proxy (same as useChatRuntime does internally)
+// ============================================================================
+
+function useDynamicChatTransport<T extends AssistantChatTransport<UIMessage>>(transport: T): T {
+  const transportRef = useRef(transport);
+  useEffect(() => { transportRef.current = transport; });
+  return useMemo(() => new Proxy(transportRef.current, {
+    get(_, prop) {
+      const res = (transportRef.current as any)[prop];
+      return typeof res === "function" ? res.bind(transportRef.current) : res;
+    },
+  }) as T, []);
 }
 
 // ============================================================================
@@ -379,17 +404,34 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     // Ignore timezone detection failures in constrained runtimes.
   }
 
-  const runtime = useChatRuntime({
+  const transport = useDynamicChatTransport(
+    useMemo(
+      () =>
+        new BufferedAssistantChatTransport({
+          api: "/api/chat",
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
+        }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [sessionId, characterId],
+    ),
+  );
+
+  const chat = useChat({
     id: sessionId,
-    transport: new BufferedAssistantChatTransport({
-      api: "/api/chat",
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
-    }),
+    transport,
     messages: initialMessages,
-    adapters: {
-      attachments: attachmentAdapter,
-    },
   });
+
+  const runtime = useAISDKRuntime(chat, {
+    adapters: { attachments: attachmentAdapter },
+  });
+
+  // Connect transport ↔ runtime (same as useChatRuntime does internally)
+  useEffect(() => {
+    if (transport instanceof AssistantChatTransport) {
+      (transport as AssistantChatTransport<UIMessage>).setRuntime(runtime);
+    }
+  }, [transport, runtime]);
 
   return (
     <ChatErrorBoundary
@@ -397,11 +439,13 @@ export const ChatProvider: FC<ChatProviderProps> = ({
       genericError={tErrors("genericRefresh")}
     >
       <AssistantRuntimeProvider runtime={runtime}>
-        <VoiceProvider>
-          <DeepResearchProvider sessionId={sessionId}>
-            {children}
-          </DeepResearchProvider>
-        </VoiceProvider>
+        <ChatSetMessagesContext.Provider value={chat.setMessages}>
+          <VoiceProvider>
+            <DeepResearchProvider sessionId={sessionId}>
+              {children}
+            </DeepResearchProvider>
+          </VoiceProvider>
+        </ChatSetMessagesContext.Provider>
       </AssistantRuntimeProvider>
     </ChatErrorBoundary>
   );

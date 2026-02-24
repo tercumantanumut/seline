@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
 import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
-import { ChatProvider } from "@/components/chat-provider";
+import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -15,7 +15,15 @@ import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
+
+/** Bridge component: lives inside ChatProvider to pipe setMessages out via ref */
+const ChatSetMessagesBridge: FC<{ setMessagesRef: MutableRefObject<((msgs: UIMessage[]) => void) | null> }> = ({ setMessagesRef }) => {
+    const setMessages = useChatSetMessages();
+    useEffect(() => { setMessagesRef.current = setMessages; }, [setMessages, setMessagesRef]);
+    return null;
+};
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
 import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
 import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
@@ -40,7 +48,7 @@ export default function ChatInterface({
         messages: initialMessages,
     }));
     const { sessionId, messages } = sessionState;
-    const [backgroundRefreshCounter, setBackgroundRefreshCounter] = useState(0);
+    const chatSetMessagesRef = useRef<((msgs: UIMessage[]) => void) | null>(null);
     const [characterDisplay, setCharacterDisplay] = useState<CharacterDisplayData>(initialCharacterDisplay);
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
@@ -68,7 +76,7 @@ export default function ChatInterface({
         refreshSessionTimestamp: stableRefreshSessionTimestamp,
         notifySessionUpdate: stableNotifySessionUpdate,
         setSessionState,
-        setBackgroundRefreshCounter,
+        chatSetMessagesRef,
     });
 
     // ── Session CRUD & list management ──
@@ -132,8 +140,9 @@ export default function ChatInterface({
             if (prev.sessionId !== targetSessionId) return prev;
             return { sessionId: targetSessionId, messages: uiMessages };
         });
-        if (options?.remount) {
-            setBackgroundRefreshCounter((prev) => prev + 1);
+        // Update thread in-place via AI SDK setMessages (no remount needed)
+        if (chatSetMessagesRef.current) {
+            chatSetMessagesRef.current(uiMessages);
         }
         lastSessionSignatureRef.current = nextSignature;
         sm.refreshSessionTimestamp(targetSessionId);
@@ -406,7 +415,9 @@ export default function ChatInterface({
         }));
     }, []);
 
-    const chatProviderKey = `${sessionId || "no-session"}-${backgroundRefreshCounter}`;
+    // Re-key only on session change. Background polling now updates the thread
+    // in-place via chat.setMessages (no remount needed).
+    const chatProviderKey = sessionId || "no-session";
 
     useEffect(() => {
         lastSessionSignatureRef.current = getMessagesSignature(messages);
@@ -481,6 +492,7 @@ export default function ChatInterface({
                         characterId={character.id}
                         initialMessages={messages}
                     >
+                        <ChatSetMessagesBridge setMessagesRef={chatSetMessagesRef} />
                         <div className="flex h-full flex-col gap-3">
                             {currentWorkspaceInfo && (
                                 <div className="flex items-center justify-end px-4 pt-2">
