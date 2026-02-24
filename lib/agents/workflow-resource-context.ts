@@ -18,6 +18,7 @@ import {
   mapWorkflowMemberRow,
   buildWorkflowPromptContext,
   type WorkflowResourceContext,
+  type WorkflowPromptContextInput,
 } from "./workflow-types";
 
 export async function getWorkflowResources(
@@ -114,14 +115,16 @@ export async function getWorkflowResources(
   const activeDelegations =
     member.role === "initiator" ? getActiveDelegationsForCharacter(agentId) : [];
 
-  const promptContext = buildWorkflowPromptContext({
+  const promptContextInput: WorkflowPromptContextInput = {
     workflowName: workflow.name,
     role: member.role,
     sharedPluginCount: sharedResources.pluginIds.length,
     sharedFolderCount: sharedResources.syncFolderIds.length,
     subagentDirectory,
     activeDelegations,
-  });
+  };
+
+  const promptContext = buildWorkflowPromptContext(promptContextInput);
 
   return {
     workflowId,
@@ -129,5 +132,6 @@ export async function getWorkflowResources(
     sharedResources,
     policy,
     promptContext,
+    promptContextInput,
   };
 }

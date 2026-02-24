@@ -1,18 +1,123 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  AgentDefinition,
+  HookEvent,
+  HookCallbackMatcher,
+  SdkPluginConfig,
+  OutputFormat,
+  ThinkingConfig,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { LanguageModel } from "ai";
-import {
-  CLAUDECODE_CONFIG,
-  ensureValidClaudeCodeToken,
-  getClaudeCodeAccessToken,
-} from "@/lib/auth/claudecode-auth";
 import {
   classifyRecoverability,
   getBackoffDelayMs,
   shouldRetry,
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
+import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
+import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
+import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
+const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+
+/**
+ * SDK-native options that extend a basic Claude Agent SDK query.
+ * These are forwarded directly to the SDK's query() call, enabling full
+ * SDK capabilities: multi-agent delegation, lifecycle hooks, plugin loading,
+ * session continuation, structured output, and thinking controls.
+ *
+ * Use these when you need capabilities beyond the basic prompt→text path
+ * provided by the fetch interceptor (e.g. background tasks, direct SDK calls).
+ */
+export type ClaudeAgentSdkQueryOptions = {
+  /**
+   * Custom subagent definitions for SDK-native Task tool delegation.
+   * Keys are agent names; values define the subagent's prompt, tools, and model.
+   */
+  agents?: Record<string, AgentDefinition>;
+  /**
+   * Tool names auto-allowed without permission prompts.
+   * Does not restrict; use `disallowedTools` to remove tools entirely.
+   */
+  allowedTools?: string[];
+  /**
+   * Tool names to explicitly disallow. These are removed from the model's
+   * context and cannot be used even if otherwise allowed.
+   */
+  disallowedTools?: string[];
+  /**
+   * Lifecycle hook callbacks (PreToolUse, PostToolUse, Notification, etc.).
+   * Enables programmatic observability and control over tool execution.
+   */
+  hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+  /**
+   * Local plugins to load for this session.
+   * Plugins provide custom commands, agents, skills, and hooks.
+   * Currently only `{ type: 'local', path: string }` is supported.
+   */
+  plugins?: SdkPluginConfig[];
+  /**
+   * Resume a prior session by its session ID.
+   * Loads conversation history so the agent can continue where it left off.
+   */
+  resume?: string;
+  /**
+   * Pin a specific session ID for this query (must be a valid UUID).
+   * Mutually exclusive with `resume` unless `forkSession` is used.
+   */
+  sessionId?: string;
+  /**
+   * Structured output format.
+   * When set, the agent returns data matching the provided JSON schema.
+   */
+  outputFormat?: OutputFormat;
+  /**
+   * Extended thinking / reasoning configuration.
+   * - `{ type: 'adaptive' }` — Claude decides when and how much to think (Opus 4.6+)
+   * - `{ type: 'enabled', budgetTokens: number }` — fixed token budget
+   * - `{ type: 'disabled' }` — no extended thinking
+   */
+  thinking?: ThinkingConfig;
+  /**
+   * Response effort level (guides thinking depth).
+   * - 'low' — fastest, minimal thinking
+   * - 'medium' — moderate
+   * - 'high' — deep reasoning (default)
+   * - 'max' — maximum (Opus 4.6 only)
+   */
+  effort?: "low" | "medium" | "high" | "max";
+  /**
+   * Whether to persist the session to ~/.claude/projects/.
+   * Set to `false` for ephemeral or automated workflows that don't need history.
+   * @default true
+   */
+  persistSession?: boolean;
+  /**
+   * Maximum number of conversation turns before stopping.
+   * Defaults to 1000 to allow arbitrarily long agentic work.
+   * @default 1000
+   */
+  maxTurns?: number;
+  /**
+   * Override the permission mode for this specific query.
+   * Defaults to "bypassPermissions" (server context has no interactive TTY).
+   * Use "acceptEdits" for slightly stricter control (auto-accepts file edits,
+   * still gates on arbitrary bash commands).
+   */
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
+  /**
+   * Per-request Seline platform context used to build an in-process MCP server
+   * that exposes ToolRegistry tools and per-agent MCP tools to the SDK agent.
+   *
+   * When provided here (for `queryWithSdkOptions` callers) or propagated via
+   * `mcpContextStore` (for the fetch-interceptor / chat-route path), the SDK
+   * agent can call vectorSearch, memorize, runSkill, scheduleTask, and any
+   * MCP server tools configured for the active agent.
+   */
+  mcpContext?: SelineMcpContext;
+};
 
 function sanitizeLoneSurrogates(input: string): { value: string; changed: boolean } {
   let changed = false;
@@ -79,6 +184,28 @@ function isDictionary(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeToolUseInput(input: unknown): Record<string, unknown> {
+  if (isDictionary(input)) {
+    return input;
+  }
+
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input);
+      if (isDictionary(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Fall through to placeholder object.
+    }
+  }
+
+  return {
+    _recoveredInvalidToolUseInput: true,
+    _inputType: input === null ? "null" : Array.isArray(input) ? "array" : typeof input,
+  };
+}
+
 export function normalizeAnthropicToolUseInputs(body: Record<string, unknown>): {
   body: Record<string, unknown>;
   fixedCount: number;
@@ -99,30 +226,14 @@ export function normalizeAnthropicToolUseInputs(body: Record<string, unknown>): 
         return part;
       }
 
-      const input = part.input;
-      if (isDictionary(input)) {
-        return part;
+      const normalizedInput = normalizeToolUseInput(part.input);
+      if (normalizedInput !== part.input) {
+        fixedCount += 1;
       }
 
-      if (typeof input === "string") {
-        try {
-          const parsed = JSON.parse(input);
-          if (isDictionary(parsed)) {
-            fixedCount += 1;
-            return { ...part, input: parsed };
-          }
-        } catch {
-          // Fall through to placeholder object.
-        }
-      }
-
-      fixedCount += 1;
       return {
         ...part,
-        input: {
-          _recoveredInvalidToolUseInput: true,
-          _inputType: input === null ? "null" : Array.isArray(input) ? "array" : typeof input,
-        },
+        input: normalizedInput,
       };
     });
 
@@ -132,11 +243,408 @@ export function normalizeAnthropicToolUseInputs(body: Record<string, unknown>): 
   return { body: { ...body, messages: normalizedMessages }, fixedCount };
 }
 
-async function readErrorPreview(response: Response): Promise<string> {
+function buildSystemPrompt(system: unknown): string | undefined {
+  if (typeof system === "string" && system.trim().length > 0) {
+    return system;
+  }
+
+  if (Array.isArray(system)) {
+    const text = system
+      .map((entry) => {
+        if (isDictionary(entry) && typeof entry.text === "string") {
+          return entry.text;
+        }
+        return "";
+      })
+      .filter((line) => line.length > 0)
+      .join("\n\n")
+      .trim();
+
+    if (text.length > 0) {
+      return text;
+    }
+  }
+
+  return undefined;
+}
+
+function buildPromptFromMessages(messages: unknown): string {
+  if (!Array.isArray(messages)) {
+    return "USER: Continue.";
+  }
+
+  const lines: string[] = [];
+
+  for (const message of messages) {
+    if (!isDictionary(message)) {
+      continue;
+    }
+
+    const role = message.role === "assistant" ? "ASSISTANT" : "USER";
+    const content = message.content;
+
+    if (typeof content === "string" && content.trim().length > 0) {
+      lines.push(`${role}: ${content}`);
+      continue;
+    }
+
+    if (Array.isArray(content)) {
+      const fragments: string[] = [];
+      for (const part of content) {
+        if (!isDictionary(part) || typeof part.type !== "string") {
+          continue;
+        }
+
+        if (part.type === "text" && typeof part.text === "string") {
+          fragments.push(part.text);
+        } else if (part.type === "tool_use") {
+          const toolName = typeof part.name === "string" ? part.name : "tool";
+          fragments.push(`[tool_use:${toolName}]`);
+        } else if (part.type === "tool_result") {
+          fragments.push("[tool_result]");
+        }
+      }
+
+      if (fragments.length > 0) {
+        lines.push(`${role}: ${fragments.join("\n")}`);
+      }
+    }
+  }
+
+  if (lines.length === 0) {
+    return "USER: Continue.";
+  }
+
+  return lines.join("\n\n");
+}
+
+function isAuthError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("authentication") ||
+    lower.includes("authentication_failed") ||
+    lower.includes("auth") ||
+    lower.includes("oauth") ||
+    lower.includes("login")
+  );
+}
+
+function createAnthropicMessageResponse(text: string, model: string): Response {
+  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
+
+  return new Response(
+    JSON.stringify({
+      id: `msg_${crypto.randomUUID()}`,
+      type: "message",
+      role: "assistant",
+      model,
+      content: [{ type: "text", text }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: {
+        input_tokens: 0,
+        output_tokens: outputTokens,
+      },
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  );
+}
+
+function createAnthropicStreamResponse(text: string, model: string): Response {
+  const messageId = `msg_${crypto.randomUUID()}`;
+  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
+  const chunks = text.length > 0 ? text.match(/.{1,800}/gs) ?? [text] : [""];
+
+  const events: string[] = [];
+  events.push(`event: message_start\ndata: ${JSON.stringify({
+    type: "message_start",
+    message: {
+      id: messageId,
+      type: "message",
+      role: "assistant",
+      model,
+      content: [],
+      stop_reason: null,
+      stop_sequence: null,
+      usage: { input_tokens: 0, output_tokens: 0 },
+    },
+  })}\n\n`);
+
+  events.push(`event: content_block_start\ndata: ${JSON.stringify({
+    type: "content_block_start",
+    index: 0,
+    content_block: { type: "text", text: "" },
+  })}\n\n`);
+
+  for (const chunk of chunks) {
+    events.push(`event: content_block_delta\ndata: ${JSON.stringify({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text: chunk },
+    })}\n\n`);
+  }
+
+  events.push("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+  events.push(`event: message_delta\ndata: ${JSON.stringify({
+    type: "message_delta",
+    delta: { stop_reason: "end_turn", stop_sequence: null },
+    usage: { output_tokens: outputTokens },
+  })}\n\n`);
+  events.push("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
+
+  return new Response(events.join(""), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+async function runClaudeAgentQuery(options: {
+  prompt: string;
+  model: string;
+  systemPrompt?: string;
+  signal?: AbortSignal;
+  sdkOptions?: ClaudeAgentSdkQueryOptions;
+}): Promise<string> {
+  const abortController = new AbortController();
+  const signal = options.signal;
+
+  const onAbort = () => abortController.abort();
+  if (signal) {
+    if (signal.aborted) {
+      abortController.abort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  }
+
+  const sdk = options.sdkOptions;
+
+  // Resolve per-request Seline MCP context: explicit sdkOptions take precedence,
+  // then fall back to AsyncLocalStorage (set by the chat route before streamText).
+  const mcpCtx: SelineMcpContext | undefined =
+    sdk?.mcpContext ?? mcpContextStore.getStore();
+
+  // Build an in-process MCP server that exposes Seline platform tools to the
+  // SDK agent when context is available.
+  const selineMcpServers = mcpCtx
+    ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
+    : undefined;
+
+  const query = claudeAgentQuery({
+    prompt: options.prompt,
+    options: {
+      abortController,
+      cwd: process.cwd(),
+      includePartialMessages: true,
+      // Allow multi-step agentic work (read → plan → write → verify).
+      maxTurns: sdk?.maxTurns ?? 1000,
+      model: options.model,
+      // bypassPermissions is the correct default for a headless server context:
+      // there is no interactive TTY to approve permission prompts, so "default"
+      // mode causes the agent to stall on every write/bash and fall back to
+      // asking clarifying questions instead of executing.
+      permissionMode: sdk?.permissionMode ?? "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
+      ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+      // Seline platform tools exposed via in-process MCP server
+      ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
+      // SDK-native passthrough options
+      ...(sdk?.agents ? { agents: sdk.agents } : {}),
+      ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
+      ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
+      ...(sdk?.hooks ? { hooks: sdk.hooks } : {}),
+      ...(sdk?.plugins ? { plugins: sdk.plugins } : {}),
+      ...(sdk?.resume ? { resume: sdk.resume } : {}),
+      ...(sdk?.sessionId ? { sessionId: sdk.sessionId } : {}),
+      ...(sdk?.outputFormat ? { outputFormat: sdk.outputFormat } : {}),
+      ...(sdk?.thinking ? { thinking: sdk.thinking } : {}),
+      ...(sdk?.effort ? { effort: sdk.effort } : {}),
+      ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
+    },
+  });
+
+  let text = "";
+  let sawStreamText = false;
+
   try {
-    return await response.clone().text();
-  } catch {
-    return "";
+    for await (const message of query) {
+      if (message.type === "stream_event") {
+        const event = (message as { event?: unknown }).event;
+        if (
+          isDictionary(event) &&
+          event.type === "content_block_delta" &&
+          isDictionary(event.delta) &&
+          event.delta.type === "text_delta" &&
+          typeof event.delta.text === "string"
+        ) {
+          sawStreamText = true;
+          text += event.delta.text;
+        }
+        continue;
+      }
+
+      if (message.type === "assistant") {
+        const assistant = message as {
+          message?: {
+            content?: Array<{ type?: string; text?: string }>;
+          };
+          error?: string;
+        };
+
+        // Surface auth and billing errors immediately so the retry handler can act.
+        if (
+          assistant.error === "authentication_failed" ||
+          assistant.error === "billing_error"
+        ) {
+          throw new Error(assistant.error);
+        }
+
+        // Agent SDK emits both stream deltas and a finalized assistant payload.
+        // If we already consumed deltas, skip assistant text to avoid duplicate output.
+        if (!sawStreamText) {
+          const content = assistant.message?.content;
+          if (Array.isArray(content)) {
+            for (const part of content) {
+              if (part?.type === "text" && typeof part.text === "string") {
+                text += part.text;
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      if (message.type === "result") {
+        const result = message as {
+          is_error?: boolean;
+          subtype?: string;
+          result?: string;
+          errors?: string[];
+        };
+
+        // Some SDK versions include a final textual result summary; only use it
+        // when no stream/assistant text was captured.
+        if (
+          !sawStreamText &&
+          text.trim().length === 0 &&
+          typeof result.result === "string" &&
+          result.result.length > 0
+        ) {
+          text = result.result;
+        }
+
+        if (Array.isArray(result.errors) && result.errors.length > 0) {
+          text = `${text}\n${result.errors.join("\n")}`.trim();
+        }
+
+        if (result.is_error) {
+          throw new Error(result.subtype || "error_during_execution");
+        }
+        continue;
+      }
+
+      // The SDK emits additional informational messages (system subtypes like
+      // hook_started/hook_response/files_persisted, tool_progress, task_notification,
+      // status, etc.). These don't affect the text output but should not cause errors.
+      // We intentionally fall through without handling them.
+    }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
+
+  return text.trim();
+}
+
+/**
+ * Execute a Claude Agent SDK query with full SDK capabilities.
+ *
+ * Unlike the fetch-interceptor path (`createClaudeCodeProvider`), this API
+ * accepts native SDK options such as agent definitions, lifecycle hooks, plugin
+ * loading, session continuation, structured output, and thinking controls.
+ *
+ * Includes the same retry-with-exponential-backoff and auth-check behaviour as
+ * the fetch interceptor, making it safe to use from background tasks, prompt
+ * enhancement pipelines, and direct SDK integrations.
+ *
+ * @example
+ * ```ts
+ * const result = await queryWithSdkOptions({
+ *   prompt: "Summarise the changes in the last commit",
+ *   model: "claude-sonnet-4-6",
+ *   sdkOptions: {
+ *     persistSession: false,
+ *     maxTurns: 3,
+ *     allowedTools: ["Bash", "Read"],
+ *   },
+ * });
+ * ```
+ */
+export async function queryWithSdkOptions(options: {
+  prompt: string;
+  model?: string;
+  systemPrompt?: string;
+  signal?: AbortSignal;
+  sdkOptions?: ClaudeAgentSdkQueryOptions;
+}): Promise<string> {
+  const model = options.model ?? DEFAULT_MODEL;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await runClaudeAgentQuery({
+        prompt: options.prompt,
+        model,
+        systemPrompt: options.systemPrompt,
+        signal: options.signal,
+        sdkOptions: options.sdkOptions,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (isAuthError(message)) {
+        const authStatus = await readClaudeAgentSdkAuthStatus({ timeoutMs: 20_000, model });
+        if (!authStatus.authenticated) {
+          const err = new Error("Claude Agent SDK authentication required") as Error & {
+            auth: { required: boolean; url: string | undefined; output: string[] | undefined };
+          };
+          err.auth = { required: true, url: authStatus.authUrl, output: authStatus.output };
+          throw err;
+        }
+      }
+
+      const classification = classifyRecoverability({
+        provider: "claudecode",
+        error,
+        message,
+      });
+
+      const retry = shouldRetry({
+        classification,
+        attempt,
+        maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
+        aborted: options.signal?.aborted ?? false,
+      });
+
+      if (!retry) {
+        throw error;
+      }
+
+      const delay = getBackoffDelayMs(attempt);
+      console.log("[ClaudeCode] Retrying Agent SDK query", {
+        attempt: attempt + 1,
+        reason: classification.reason,
+        delayMs: delay,
+      });
+      await sleepWithAbort(delay, options.signal ?? undefined);
+    }
   }
 }
 
@@ -144,153 +652,110 @@ function createClaudeCodeFetch(): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
-    // Only intercept Anthropic API calls
+    // Only intercept Anthropic API calls.
     if (!url.includes("api.anthropic.com")) {
       return fetch(input, init);
     }
 
-    const tokenValid = await ensureValidClaudeCodeToken();
-    if (!tokenValid) {
-      throw new Error("Claude Code authentication required");
+    if (!init?.body || typeof init.body !== "string") {
+      return fetch(input, init);
     }
 
-    const accessToken = getClaudeCodeAccessToken();
-    if (!accessToken) {
-      throw new Error("Claude Code access token missing");
+    let parsedBody: Record<string, unknown>;
+    try {
+      parsedBody = JSON.parse(init.body) as Record<string, unknown>;
+    } catch {
+      return fetch(input, init);
     }
 
-    const headers = new Headers(init?.headers ?? {});
-    // Replace API key auth with OAuth Bearer token
-    headers.delete("x-api-key");
-    headers.set("Authorization", `Bearer ${accessToken}`);
-    headers.set("anthropic-version", CLAUDECODE_CONFIG.ANTHROPIC_VERSION);
-    headers.set("anthropic-beta", CLAUDECODE_CONFIG.BETA_HEADERS.join(","));
-    headers.set("User-Agent", "seline-agent/1.0.0");
+    const normalizedToolInputs = normalizeAnthropicToolUseInputs(parsedBody);
+    if (normalizedToolInputs.fixedCount > 0) {
+      console.warn(
+        `[ClaudeCode] Normalized ${normalizedToolInputs.fixedCount} invalid tool_use.input payload(s) before Agent SDK call`,
+      );
+    }
 
-    // Inject required system prompt prefix into request body
-    let updatedInit = init;
-    if (init?.body && typeof init.body === "string") {
+    const sanitizedBody = sanitizeJsonStringValues(normalizedToolInputs.body);
+    if (sanitizedBody.changed) {
+      console.warn("[ClaudeCode] Replaced lone surrogate characters in request body before Agent SDK call");
+    }
+
+    const requestBody = sanitizedBody.value as Record<string, unknown>;
+    const prompt = buildPromptFromMessages(requestBody.messages);
+    const model = typeof requestBody.model === "string" ? requestBody.model : DEFAULT_MODEL;
+    const systemPrompt = buildSystemPrompt(requestBody.system);
+    const stream = requestBody.stream === true;
+
+    for (let attempt = 0; ; attempt += 1) {
       try {
-        const body = JSON.parse(init.body) as Record<string, unknown>;
+        const output = await runClaudeAgentQuery({
+          prompt,
+          model,
+          systemPrompt,
+          signal: init.signal ?? undefined,
+        });
 
-        // Prepend required system prompt for Claude Code OAuth
-        const existingSystem = body.system;
-        if (typeof existingSystem === "string") {
-          body.system = `${CLAUDECODE_CONFIG.REQUIRED_SYSTEM_PREFIX}\n\n${existingSystem}`;
-        } else if (Array.isArray(existingSystem)) {
-          body.system = [
-            { type: "text", text: CLAUDECODE_CONFIG.REQUIRED_SYSTEM_PREFIX },
-            ...existingSystem,
-          ];
-        } else {
-          body.system = CLAUDECODE_CONFIG.REQUIRED_SYSTEM_PREFIX;
-        }
+        return stream
+          ? createAnthropicStreamResponse(output, model)
+          : createAnthropicMessageResponse(output, model);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
 
-        // Log the actual messages being sent to Anthropic API for debugging tool_use/tool_result issues
-        const apiMessages = body.messages as Array<{ role: string; content: unknown }>;
-        if (Array.isArray(apiMessages)) {
-          console.log(`[ClaudeCode] Sending ${apiMessages.length} messages to Anthropic API:`);
-          for (let i = 0; i < apiMessages.length; i++) {
-            const msg = apiMessages[i];
-            const content = msg.content;
-            if (typeof content === "string") {
-              console.log(`  [${i}] role=${msg.role}, content=string(${content.length})`);
-            } else if (Array.isArray(content)) {
-              const types = (content as Array<{ type: string; id?: string; tool_use_id?: string }>).map(
-                (p) => p.type + (p.id ? `:${p.id}` : "") + (p.tool_use_id ? `:${p.tool_use_id}` : "")
-              );
-              console.log(`  [${i}] role=${msg.role}, parts=[${types.join(", ")}]`);
-            }
+        if (isAuthError(message)) {
+          const authStatus = await readClaudeAgentSdkAuthStatus({ timeoutMs: 20_000, model });
+          if (!authStatus.authenticated) {
+            return new Response(
+              JSON.stringify({
+                error: "Claude Agent SDK authentication required",
+                auth: {
+                  required: true,
+                  url: authStatus.authUrl,
+                  output: authStatus.output,
+                },
+              }),
+              {
+                status: 401,
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            );
           }
         }
 
-        const normalizedToolInputs = normalizeAnthropicToolUseInputs(body);
-        if (normalizedToolInputs.fixedCount > 0) {
-          console.warn(
-            `[ClaudeCode] Normalized ${normalizedToolInputs.fixedCount} invalid tool_use.input payload(s) before API call`
-          );
-        }
-
-        const sanitizedBody = sanitizeJsonStringValues(normalizedToolInputs.body);
-        if (sanitizedBody.changed) {
-          console.warn("[ClaudeCode] Replaced lone surrogate characters in request body before API call");
-        }
-
-        updatedInit = { ...init, body: JSON.stringify(sanitizedBody.value) };
-      } catch {
-        // Not JSON, pass through unchanged
-      }
-    }
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      try {
-        response = await fetch(input, {
-          ...updatedInit,
-          headers,
-        });
-      } catch (error) {
         const classification = classifyRecoverability({
           provider: "claudecode",
           error,
-          message: error instanceof Error ? error.message : String(error),
+          message,
         });
+
         const retry = shouldRetry({
           classification,
           attempt,
           maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
-          aborted: init?.signal?.aborted ?? false,
+          aborted: init.signal?.aborted ?? false,
         });
+
         if (!retry) {
           throw error;
         }
+
         const delay = getBackoffDelayMs(attempt);
-        console.log("[ClaudeCode] Retrying after transport failure", {
+        console.log("[ClaudeCode] Retrying Agent SDK request", {
           attempt: attempt + 1,
           reason: classification.reason,
           delayMs: delay,
           outcome: "scheduled",
         });
-        await sleepWithAbort(delay, init?.signal ?? undefined);
-        continue;
+        await sleepWithAbort(delay, init.signal ?? undefined);
       }
-
-      if (!response.ok) {
-        const errorText = await readErrorPreview(response);
-        console.error(`[ClaudeCode] API error ${response.status}:`, errorText.substring(0, 500));
-        const classification = classifyRecoverability({
-          provider: "claudecode",
-          statusCode: response.status,
-          message: errorText,
-        });
-        const retry = shouldRetry({
-          classification,
-          attempt,
-          maxAttempts: CLAUDECODE_MAX_RETRY_ATTEMPTS,
-          aborted: init?.signal?.aborted ?? false,
-        });
-        if (retry) {
-          const delay = getBackoffDelayMs(attempt);
-          console.log("[ClaudeCode] Retrying after recoverable HTTP response", {
-            attempt: attempt + 1,
-            reason: classification.reason,
-            delayMs: delay,
-            statusCode: response.status,
-            outcome: "scheduled",
-          });
-          await sleepWithAbort(delay, init?.signal ?? undefined);
-          continue;
-        }
-      }
-
-      return response;
     }
   };
 }
 
 export function createClaudeCodeProvider(): (modelId: string) => LanguageModel {
   const provider = createAnthropic({
-    apiKey: "claudecode-oauth",
+    apiKey: "claude-agent-sdk",
     fetch: createClaudeCodeFetch(),
   });
 

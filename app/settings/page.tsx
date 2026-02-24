@@ -411,17 +411,19 @@ export default function SettingsPage() {
       const authResponse = await fetch("/api/auth/claudecode/authorize");
       const authData = await authResponse.json();
 
-      if (!authData.success || !authData.url) {
+      if (!authData.success) {
         throw new Error(authData.error || t("errors.authUrlFailed"));
       }
 
-      if (isElectron && electronAPI?.shell?.openExternal) {
-        await electronAPI.shell.openExternal(authData.url);
-      } else {
-        window.open(authData.url, "_blank");
+      if (authData.url) {
+        if (isElectron && electronAPI?.shell?.openExternal) {
+          await electronAPI.shell.openExternal(authData.url);
+        } else {
+          window.open(authData.url, "_blank");
+        }
       }
 
-      // Switch to paste mode
+      // Show the verification panel while auth is completed via Agent SDK.
       setClaudeCodePasteMode(true);
     } catch (err) {
       console.error("Claude Code login failed:", err);
@@ -431,25 +433,23 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClaudeCodePasteSubmit = async (code: string) => {
+  const handleClaudeCodePasteSubmit = async (_code: string) => {
     setClaudecodeLoading(true);
     try {
       const response = await fetch("/api/auth/claudecode/exchange", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim() }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || "Failed to exchange authorization code");
+        throw new Error(data.error || "Claude Agent SDK is not authenticated yet");
       }
 
       await loadClaudeCodeAuth();
       setClaudeCodePasteMode(false);
     } catch (err) {
-      console.error("Claude Code code exchange failed:", err);
+      console.error("Claude Code auth verification failed:", err);
       toast.error(err instanceof Error ? err.message : t("errors.codeExchangeFailed"));
     } finally {
       setClaudecodeLoading(false);
