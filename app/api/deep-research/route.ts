@@ -8,9 +8,10 @@
 import { runDeepResearch, type DeepResearchEvent, type DeepResearchConfig } from '@/lib/ai/deep-research';
 import { getWebSearchProviderStatus } from '@/lib/ai/web-search/providers';
 import { requireAuth } from '@/lib/auth/local-auth';
-import { createSession, createMessage, getOrCreateLocalUser } from '@/lib/db/queries';
+import { createSession, createMessage, getOrCreateLocalUser, getSession } from '@/lib/db/queries';
 import { nextOrderingIndex } from '@/lib/session/message-ordering';
 import { loadSettings } from '@/lib/settings/settings-manager';
+import { extractSessionModelConfig } from '@/lib/ai/session-model-resolver';
 import {
   createAgentRun,
   completeAgentRun,
@@ -81,15 +82,34 @@ export async function POST(req: Request) {
     }
 
     // Get or create session
-    let sessionId = providedSessionId;
-    if (!sessionId) {
+    let sessionId = typeof providedSessionId === 'string' ? providedSessionId.trim() : providedSessionId;
+    let sessionMetadata: Record<string, unknown> | null = null;
+
+    if (sessionId) {
+      const existingSession = await getSession(sessionId);
+      if (!existingSession || existingSession.userId !== dbUser.id) {
+        return new Response(
+          JSON.stringify({ error: 'Session not found' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      sessionMetadata = (existingSession.metadata as Record<string, unknown> | null) ?? null;
+    } else {
       const session = await createSession({
         title: `Research: ${query.slice(0, 50)}...`,
         userId: dbUser.id,
         metadata: { type: 'deep-research' },
       });
       sessionId = session.id;
+      sessionMetadata = (session.metadata as Record<string, unknown> | null) ?? null;
     }
+
+    const sessionModelConfig = extractSessionModelConfig(sessionMetadata);
+    const deepResearchConfig: Partial<DeepResearchConfig> = {
+      ...userConfig,
+      ...(sessionModelConfig?.sessionResearchModel ? { researchModel: sessionModelConfig.sessionResearchModel } : {}),
+      ...(sessionModelConfig?.sessionProvider ? { sessionProvider: sessionModelConfig.sessionProvider } : {}),
+    };
 
     // Save user query as a message
     await createMessage({
@@ -249,7 +269,7 @@ export async function POST(req: Request) {
                 (event) => {
                   queueEventHandling(event);
                 },
-                { ...userConfig, abortSignal: abortController.signal }
+                { ...deepResearchConfig, abortSignal: abortController.signal }
               );
 
               // Save final report as assistant message

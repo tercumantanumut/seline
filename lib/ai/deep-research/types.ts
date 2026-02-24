@@ -171,6 +171,8 @@ export interface DeepResearchConfig {
   maxConcurrentSearches: number;
   searchProvider: 'tavily' | 'duckduckgo' | 'serper' | 'mock';
   modelProvider: 'anthropic' | 'openrouter' | 'codex';
+  researchModel?: string;
+  sessionProvider?: 'anthropic' | 'openrouter' | 'codex' | 'claudecode' | 'antigravity' | 'kimi' | 'ollama';
   abortSignal?: AbortSignal;
 }
 

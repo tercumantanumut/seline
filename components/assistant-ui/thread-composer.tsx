@@ -238,7 +238,9 @@ export const Composer: FC<{
     inputValue,
     setInputValue,
     characterId: character?.id,
+    sessionId,
     recentMessages,
+    expandInput: expandPlaceholders,
   });
 
   // Voice recording

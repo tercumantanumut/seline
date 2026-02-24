@@ -22,11 +22,13 @@ import {
   getOrCreateCharacterSession,
   createSession,
   getSessionByMetadataKey,
+  getSession,
 } from "@/lib/db/queries";
 
 interface EnhancePromptRequestBody {
   input?: string;
   characterId?: string;
+  sessionId?: string;
   /** Use LLM-driven enhancement (default: true) */
   useLLM?: boolean;
   /** Recent conversation messages for context */
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const userId = user.id;
 
     const body = await req.json() as EnhancePromptRequestBody;
-    const { input, characterId, useLLM = true, conversationContext, options } = body;
+    const { input, characterId, sessionId: providedSessionId, useLLM = true, conversationContext, options } = body;
 
     // Validate required fields
     if (!input || typeof input !== "string") {
@@ -56,9 +58,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // characterId is now optional - we can enhance prompts without agent context
     const validCharacterId = characterId && typeof characterId === "string" ? characterId : null;
 
-    // Get or create a session for observability and session-scoped enhancement state
+    // Prefer the current chat session when provided so enhancement uses the same session model overrides.
     let sessionRecord: Awaited<ReturnType<typeof createSession>>;
-    if (validCharacterId) {
+    if (typeof providedSessionId === "string" && providedSessionId.trim().length > 0) {
+      const existingSession = await getSession(providedSessionId);
+      if (!existingSession || existingSession.userId !== userId) {
+        return NextResponse.json(
+          { error: "Session not found" },
+          { status: 404 }
+        );
+      }
+      sessionRecord = existingSession;
+    } else if (validCharacterId) {
       const { session } = await getOrCreateCharacterSession(userId, validCharacterId, "Prompt Enhancement");
       sessionRecord = session;
     } else {
