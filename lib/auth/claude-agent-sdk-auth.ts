@@ -22,10 +22,18 @@ function getSdkEnv(): Record<string, string | undefined> {
 
     // Ensure the resolved node binary's directory is in PATH so the SDK
     // can find "node" even when the user has no system-wide Node install.
+    // DMG apps launched from Finder get a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin)
+    // that excludes homebrew, nvm, volta, etc.
     const nodeBin = getNodeBinary();
     const nodeDir = path.dirname(nodeBin);
     if (!env.PATH?.includes(nodeDir)) {
       env.PATH = `${nodeDir}${path.delimiter}${env.PATH || ""}`;
+    }
+    // Also update the current process PATH so the SDK's spawn() can resolve
+    // "node" — spawn resolves executables using the parent's PATH, not the
+    // child env's PATH.
+    if (!process.env.PATH?.includes(nodeDir)) {
+      process.env.PATH = `${nodeDir}${path.delimiter}${process.env.PATH || ""}`;
     }
   }
 

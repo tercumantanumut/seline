@@ -46,6 +46,48 @@ function getSystemNodeBinary(nodeName: string): string | null {
     if (fileExistsAndExecutable(candidate)) return candidate;
   }
 
+  // Check versioned homebrew installs (e.g. node@22, node@20)
+  // These don't get symlinked to /opt/homebrew/bin when installed as node@XX
+  const fs = require("fs") as typeof import("fs");
+  for (const prefix of ["/opt/homebrew/opt", "/usr/local/opt"]) {
+    try {
+      const entries = fs.readdirSync(prefix);
+      for (const entry of entries) {
+        if (entry.startsWith("node")) {
+          const candidate = path.join(prefix, entry, "bin", nodeName);
+          if (fileExistsAndExecutable(candidate)) return candidate;
+        }
+      }
+    } catch {
+      // directory doesn't exist
+    }
+  }
+
+  // Check common version manager paths
+  const home = process.env.HOME;
+  if (home) {
+    const versionManagerPaths = [
+      path.join(home, ".volta", "bin"),
+      path.join(home, ".fnm", "aliases", "default", "bin"),
+    ];
+    for (const dir of versionManagerPaths) {
+      const candidate = path.join(dir, nodeName);
+      if (fileExistsAndExecutable(candidate)) return candidate;
+    }
+
+    // nvm: check for any installed version
+    try {
+      const nvmDir = path.join(home, ".nvm", "versions", "node");
+      const versions = fs.readdirSync(nvmDir).sort().reverse();
+      for (const ver of versions) {
+        const candidate = path.join(nvmDir, ver, "bin", nodeName);
+        if (fileExistsAndExecutable(candidate)) return candidate;
+      }
+    } catch {
+      // nvm not installed
+    }
+  }
+
   return null;
 }
 
