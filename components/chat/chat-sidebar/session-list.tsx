@@ -97,6 +97,7 @@ export function SessionList({
   const loadedCount = sessions.length;
   const hasNoResults = !loadingSessions && loadedCount === 0;
   const shouldGroupSessions = sessions.length > 5 && !searchQuery.trim();
+  const pinnedIds = new Set(pinnedSessions.map((s) => s.id));
   const activeFilterCount =
     Number(channelFilter !== "all") + Number(dateRange !== "all");
 
@@ -340,12 +341,12 @@ export function SessionList({
               ) : null}
               {shouldGroupSessions ? (
                 <>
-                  {renderSessionGroup(groupedSessions.today, t("sidebar.groups.today"))}
-                  {renderSessionGroup(groupedSessions.week, t("sidebar.groups.week"))}
-                  {renderSessionGroup(groupedSessions.older, t("sidebar.groups.older"))}
+                  {renderSessionGroup(groupedSessions.today.filter((s) => !pinnedIds.has(s.id)), t("sidebar.groups.today"))}
+                  {renderSessionGroup(groupedSessions.week.filter((s) => !pinnedIds.has(s.id)), t("sidebar.groups.week"))}
+                  {renderSessionGroup(groupedSessions.older.filter((s) => !pinnedIds.has(s.id)), t("sidebar.groups.older"))}
                 </>
               ) : (
-                renderSessionGroup(orderedSessions)
+                renderSessionGroup(orderedSessions.filter((s) => !pinnedIds.has(s.id)))
               )}
             </>
           )}
