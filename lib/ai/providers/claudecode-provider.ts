@@ -445,7 +445,6 @@ async function runClaudeAgentQuery(options: {
     options: {
       abortController,
       cwd: process.cwd(),
-      // Keep SDK subprocess on system Node to match Claude CLI runtime behavior.
       executable: "node",
       includePartialMessages: true,
       // Allow multi-step agentic work (read → plan → write → verify).
