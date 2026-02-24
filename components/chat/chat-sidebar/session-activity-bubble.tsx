@@ -51,35 +51,31 @@ const ARCHIVED_HIDE_MS = 18000;
 const RUN_ENDED_GRACE_MS = 2500;
 
 function toneClasses(tone: BubbleTone): { bubble: string; dot: string } {
+  const base = "bg-terminal-cream dark:bg-terminal-bg border shadow-sm";
   switch (tone) {
     case "success":
       return {
-        bubble:
-          "border-emerald-500/45 bg-emerald-500/12 text-emerald-200 shadow-[0_1px_2px_rgba(16,185,129,0.2)]",
-        dot: "bg-emerald-300",
+        bubble: `${base} border-emerald-400/50 text-emerald-700 dark:text-emerald-300`,
+        dot: "bg-emerald-500",
       };
     case "warning":
       return {
-        bubble:
-          "border-amber-500/50 bg-amber-500/12 text-amber-200 shadow-[0_1px_2px_rgba(245,158,11,0.2)]",
-        dot: "bg-amber-300",
+        bubble: `${base} border-amber-400/50 text-amber-700 dark:text-amber-300`,
+        dot: "bg-amber-500",
       };
     case "critical":
       return {
-        bubble:
-          "border-red-500/50 bg-red-500/12 text-red-200 shadow-[0_1px_2px_rgba(239,68,68,0.24)]",
-        dot: "bg-red-300",
+        bubble: `${base} border-red-400/50 text-red-700 dark:text-red-300`,
+        dot: "bg-red-500",
       };
     case "info":
       return {
-        bubble:
-          "border-sky-500/40 bg-sky-500/10 text-sky-200 shadow-[0_1px_2px_rgba(14,165,233,0.2)]",
-        dot: "bg-sky-300",
+        bubble: `${base} border-sky-400/40 text-sky-700 dark:text-sky-300`,
+        dot: "bg-sky-500",
       };
     default:
       return {
-        bubble:
-          "border-terminal-border/70 bg-terminal-dark/35 text-terminal-muted shadow-[0_1px_2px_rgba(0,0,0,0.25)]",
+        bubble: `${base} border-terminal-border/50 text-terminal-dark dark:text-terminal-muted`,
         dot: "bg-terminal-muted",
       };
   }
@@ -386,20 +382,29 @@ export function SessionActivityBubble({
       aria-label={formatAccessibilityLabel(visualModel)}
       title={formatTitle(visualModel)}
       className={cn(
-        "inline-flex w-full min-w-0 items-center gap-1.5 rounded-md border px-2 py-[4px] text-[10px] font-mono leading-none overflow-hidden",
-        "transition-all duration-200 ease-out",
+        // RPG speech bubble
+        "relative inline-flex items-center gap-1.5",
+        "rounded-lg border px-2.5 py-1 text-[10px] font-mono leading-tight",
+        "max-w-[180px]",
+        // Speech tail — small triangle pointing left
+        "before:absolute before:left-[-5px] before:top-1/2 before:-translate-y-1/2",
+        "before:border-y-[5px] before:border-r-[5px] before:border-y-transparent",
+        "before:border-r-terminal-cream dark:before:border-r-terminal-bg",
+        // Transitions
+        "transition-all duration-300 ease-out",
         tone.bubble,
-        visualModel.phase === "entering" && "translate-y-1 opacity-0",
-        visualModel.phase === "live" && "translate-y-0 opacity-100",
-        visualModel.phase === "settling" && "translate-y-0 opacity-95",
-        visualModel.phase === "archived" && "translate-y-0 opacity-60 saturate-50",
-        isCurrent && "ring-1 ring-current/20"
+        // Phase animations — slide from right + fade
+        visualModel.phase === "entering" && "translate-x-2 opacity-0 scale-95",
+        visualModel.phase === "live" && "translate-x-0 opacity-100 scale-100",
+        visualModel.phase === "settling" && "translate-x-0 opacity-80 scale-100",
+        visualModel.phase === "archived" && "translate-x-0 opacity-50 scale-100",
+        isCurrent && "ring-1 ring-terminal-green/20"
       )}
     >
       <Icon className={cn("h-3 w-3 shrink-0", shouldSpin ? "animate-spin" : "")} />
-      <span className="truncate flex-1 min-w-0">{primary.label}</span>
+      <span className="truncate">{primary.label}</span>
       {secondary ? (
-        <span className="truncate shrink-0 max-w-[5rem] text-[9px] opacity-70">· {secondary.label}</span>
+        <span className="truncate shrink-0 max-w-[4rem] text-[9px] opacity-60">· {secondary.label}</span>
       ) : null}
       {visualModel.isRunning ? (
         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0 animate-pulse", tone.dot)} />
