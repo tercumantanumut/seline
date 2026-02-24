@@ -77,7 +77,7 @@
     "@ai-sdk/google": "^3.0.2",
     "@ai-sdk/openai": "^3.0.2",
     "@ai-sdk/openai-compatible": "^2.0.2",
-    "@anthropic-ai/claude-agent-sdk": "^0.2.50",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.51",
     "@assistant-ui/react": "0.11.53",
     "@assistant-ui/react-ai-sdk": "1.1.20",
     "@assistant-ui/react-markdown": "^0.11.5",
