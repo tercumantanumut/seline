@@ -18,10 +18,14 @@ describe("isModelCompatibleWithProvider", () => {
       expect(isModelCompatibleWithProvider("claude-3-opus-20240229", "anthropic")).toBe(true);
     });
 
-    it("rejects Antigravity exact models (short IDs without date suffix)", () => {
-      expect(isModelCompatibleWithProvider("claude-sonnet-4-5", "anthropic")).toBe(false);
-      expect(isModelCompatibleWithProvider("claude-sonnet-4-5-thinking", "anthropic")).toBe(false);
+    it("accepts short Claude IDs (shared with Antigravity)", () => {
+      expect(isModelCompatibleWithProvider("claude-sonnet-4-6", "anthropic")).toBe(true);
+      expect(isModelCompatibleWithProvider("claude-opus-4-6-thinking", "anthropic")).toBe(true);
+    });
+
+    it("rejects non-claude Antigravity models", () => {
       expect(isModelCompatibleWithProvider("gemini-3-flash", "anthropic")).toBe(false);
+      expect(isModelCompatibleWithProvider("gpt-oss-120b-medium", "anthropic")).toBe(false);
     });
 
     it("rejects non-claude models", () => {
@@ -56,7 +60,7 @@ describe("isModelCompatibleWithProvider", () => {
   describe("antigravity", () => {
     it("accepts exact Antigravity model IDs", () => {
       expect(isModelCompatibleWithProvider("gemini-3-flash", "antigravity")).toBe(true);
-      expect(isModelCompatibleWithProvider("claude-sonnet-4-5", "antigravity")).toBe(true);
+      expect(isModelCompatibleWithProvider("claude-sonnet-4-6", "antigravity")).toBe(true);
       expect(isModelCompatibleWithProvider("gpt-oss-120b-medium", "antigravity")).toBe(true);
     });
 
@@ -90,8 +94,8 @@ describe("isModelCompatibleWithProvider", () => {
       expect(isModelCompatibleWithProvider("claude-opus-4-20250929", "claudecode")).toBe(true);
     });
 
-    it("rejects Antigravity exact models", () => {
-      expect(isModelCompatibleWithProvider("claude-sonnet-4-5", "claudecode")).toBe(false);
+    it("accepts shared Antigravity Claude models", () => {
+      expect(isModelCompatibleWithProvider("claude-sonnet-4-6", "claudecode")).toBe(true);
     });
 
     it("rejects non-claude models", () => {

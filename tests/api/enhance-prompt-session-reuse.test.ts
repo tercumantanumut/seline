@@ -147,11 +147,15 @@ describe("POST /api/enhance-prompt session reuse", () => {
     });
   });
 
-  it("returns 404 when provided sessionId is missing or not owned by user", async () => {
+  it("falls through to metadata-keyed session when provided sessionId is not owned by user", async () => {
     dbMocks.getSession.mockResolvedValue({
       id: "chat-session-1",
       userId: "someone-else",
       metadata: {},
+    });
+    dbMocks.getSessionByMetadataKey.mockResolvedValue({
+      id: "fallback-session",
+      metadata: { type: "prompt-enhancement", key: "prompt-enhancement:user-123" },
     });
 
     const req = new Request("http://localhost/api/enhance-prompt", {
@@ -166,7 +170,9 @@ describe("POST /api/enhance-prompt session reuse", () => {
 
     const res = await POST(req as never);
 
-    expect(res.status).toBe(404);
-    expect(enhancementMocks.enhancePromptWithLLM).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(enhancementMocks.enhancePromptWithLLM).toHaveBeenCalled();
+    const llmOptions = enhancementMocks.enhancePromptWithLLM.mock.calls[0][2];
+    expect(llmOptions.sessionId).toBe("fallback-session");
   });
 });
