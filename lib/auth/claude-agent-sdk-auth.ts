@@ -1,6 +1,17 @@
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
+import { isElectronProduction } from "@/lib/utils/environment";
 
 const DEFAULT_CLAUDE_AGENT_MODEL = "claude-sonnet-4-5-20250929";
+
+/**
+ * Returns env overrides for the Agent SDK subprocess.
+ * In Electron production builds, process.execPath is the Electron binary,
+ * so ELECTRON_RUN_AS_NODE=1 makes the SDK's child process run as plain Node.js.
+ */
+function getSdkEnv(): Record<string, string | undefined> | undefined {
+  if (!isElectronProduction()) return undefined;
+  return { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
+}
 const URL_PATTERN = /https?:\/\/[^\s"')]+/i;
 
 export interface ClaudeAgentSdkAuthStatus {
@@ -72,10 +83,12 @@ export async function readClaudeAgentSdkAuthStatus(
     options: {
       abortController,
       cwd: process.cwd(),
+      executable: "node",
       includePartialMessages: true,
       maxTurns: 1,
       model: options.model || DEFAULT_CLAUDE_AGENT_MODEL,
       permissionMode: "plan",
+      env: getSdkEnv(),
     },
   });
 
@@ -152,9 +165,11 @@ export async function attemptClaudeAgentSdkLogout(timeoutMs = 20_000): Promise<b
     options: {
       abortController,
       cwd: process.cwd(),
+      executable: "node",
       includePartialMessages: false,
       maxTurns: 1,
       permissionMode: "plan",
+      env: getSdkEnv(),
     },
   });
 

@@ -163,11 +163,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     <div
       className={cn(
         "my-2 rounded-lg bg-terminal-cream/80 p-2 shadow-sm transition-all duration-150 ease-in-out",
-        isExpanded && "max-h-[800px] overflow-y-auto"
+        isExpanded && "max-h-none"
       )}
     >
-      {/* Keep badges visible and horizontally scrollable so large tool runs stay navigable. */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {/* Wrap badges so large tool runs don't create horizontal overflow. */}
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
         {visibleToolParts.map((part, index) => {
           const label = t.has(part.toolName) ? t(part.toolName) : part.toolName;
           const status = getStatus(part);
