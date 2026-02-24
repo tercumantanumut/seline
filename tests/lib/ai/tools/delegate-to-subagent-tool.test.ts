@@ -218,13 +218,13 @@ describe("delegate-to-subagent-tool", () => {
     expect((waitedObserve.waitedMs as number) >= 150).toBe(true);
   });
 
-  it("start supports run_in_background=false alias by performing start+observe wait", async () => {
+  it("start supports runInBackground=false by performing start+observe wait", async () => {
     const tool = makeTool();
     const result = await (tool as any).execute({
       action: "start",
       agentName: "Research Analyst",
       task: "Investigate flaky tests",
-      run_in_background: false,
+      runInBackground: false,
       waitSeconds: 0.2,
     });
 
@@ -303,17 +303,20 @@ describe("delegate-to-subagent-tool", () => {
     expect(String(observed.error || "")).toBe("");
   });
 
-  it("start validates advisory max_turns alias range", async () => {
+  it("start ignores maxTurns and does not inject execution constraints", async () => {
     const tool = makeTool();
     const result = await (tool as any).execute({
       action: "start",
       agentName: "Research Analyst",
       task: "Analyze module",
-      max_turns: 999,
+      maxTurns: 999,
     });
 
-    expect(result.success).toBe(false);
-    expect(String(result.error || "")).toContain("maxTurns");
+    expect(result.success).toBe(true);
+
+    const fetchBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const delegatedPrompt = String(fetchBody.messages?.[0]?.content || "");
+    expect(delegatedPrompt).not.toContain("Execution constraint from initiator");
   });
 
   it("observe rejects waitSeconds over the max limit", async () => {
