@@ -468,9 +468,8 @@ Rules:
 - Include constraints and expected output format in task text.
 
 Compatibility options:
-- \`runInBackground\` (or \`run_in_background\`): default true. If false on \`start\`, tool performs start + observe wait in one call.
+- \`runInBackground\`: default true. If false on \`start\`, tool performs start + observe wait in one call.
 - \`resume\`: compatibility alias for existing \`delegationId\` (maps to \`continue\` semantics).
-- \`maxTurns\` (or \`max_turns\`): advisory cap forwarded into task instructions (not strict runtime enforcement).
 
 Examples:
 - \`{ action: "start", agentName: "Research Analyst", task: "Summarize API docs changes with risks and next actions." }\`

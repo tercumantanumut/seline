@@ -18,7 +18,6 @@ import {
   MAX_OBSERVE_WAIT_SECONDS,
   MAX_OBSERVE_PREVIEW_RESPONSES,
   MAX_OBSERVE_PREVIEW_CHARS,
-  MAX_ADVISORY_MAX_TURNS,
   type ActiveDelegation,
   type DelegateToSubagentInput,
   type DelegateResult,
@@ -36,6 +35,11 @@ import {
 } from "./delegate-to-subagent-handlers";
 import { getCharacterFull } from "@/lib/characters/queries";
 import { getMessages } from "@/lib/db/sqlite-queries";
+import { appendToLivePromptQueueBySession } from "@/lib/background-tasks/live-prompt-queue-registry";
+import {
+  hasStopIntent,
+  sanitizeLivePromptContent,
+} from "@/lib/background-tasks/live-prompt-helpers";
 
 // ---------------------------------------------------------------------------
 // Action handlers
@@ -98,23 +102,12 @@ async function handleStart(
   userId: string,
   characterId: string,
 ): Promise<DelegateResult> {
-  const { agentId, agentName, task, context: extraContext, maxTurns } = input;
+  const { agentId, agentName, task, context: extraContext } = input;
 
   if (!task) {
     return {
       success: false,
       error: "'task' is required for the 'start' action.",
-      delegations: buildDelegationsSummary(characterId),
-    };
-  }
-
-  if (
-    maxTurns !== undefined &&
-    (!Number.isFinite(maxTurns) || maxTurns < 1 || maxTurns > MAX_ADVISORY_MAX_TURNS)
-  ) {
-    return {
-      success: false,
-      error: `'maxTurns' must be between 1 and ${MAX_ADVISORY_MAX_TURNS}.`,
       delegations: buildDelegationsSummary(characterId),
     };
   }
@@ -216,14 +209,9 @@ async function handleStart(
   });
 
   // 6. Build the user message
-  const advisoryTurnConstraint =
-    maxTurns !== undefined
-      ? `\n\nExecution constraint from initiator: target completion in at most ${Math.floor(maxTurns)} assistant turns. If unresolved, return partial findings plus blockers.`
-      : "";
-
   const userMessage = extraContext
-    ? `${task}\n\nAdditional context:\n${extraContext}${advisoryTurnConstraint}`
-    : `${task}${advisoryTurnConstraint}`;
+    ? `${task}\n\nAdditional context:\n${extraContext}`
+    : task;
 
   // 7. Fire-and-forget: call internal chat API
   // The chat API handles user message persistence, agent run creation,
@@ -396,6 +384,15 @@ export async function handleContinue(
     };
   }
 
+  const sanitizedFollowUpMessage = sanitizeLivePromptContent(followUpMessage);
+  if (!sanitizedFollowUpMessage) {
+    return {
+      success: false,
+      error: "'followUpMessage' cannot be empty after sanitization.",
+      delegations: buildDelegationsSummary(characterId),
+    };
+  }
+
   const delegation = activeDelegations.get(delegationId);
   if (!delegation) {
     return {
@@ -405,16 +402,32 @@ export async function handleContinue(
     };
   }
 
-  // If previous stream is still running, abort it first
+  // If previous stream is still running, enqueue a live prompt injection so the
+  // active sub-agent stream continues uninterrupted.
   if (!delegation.settled) {
-    delegation.abortController.abort();
-    // Give it a moment to settle
-    await new Promise((r) => setTimeout(r, 100));
+    const queued = appendToLivePromptQueueBySession(delegation.sessionId, {
+      id: `deleg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      content: sanitizedFollowUpMessage,
+      stopIntent: hasStopIntent(sanitizedFollowUpMessage),
+    });
+
+    if (queued) {
+      return {
+        success: true,
+        delegationId,
+        sessionId: delegation.sessionId,
+        delegateAgent: delegation.delegateName,
+        message:
+          "Follow-up message queued for live injection. The active sub-agent stream continues without interruption. " +
+          "Use 'observe' to check progress and response updates.",
+        delegations: buildDelegationsSummary(characterId),
+      };
+    }
   }
 
-  // Fire new chat API call with the follow-up message
+  // No active stream to inject into (or queue unavailable): start a new run.
   // The chat route handles message persistence automatically.
-  startBackgroundExecution(delegation, followUpMessage);
+  startBackgroundExecution(delegation, sanitizedFollowUpMessage);
 
   return {
     success: true,
