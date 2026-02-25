@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { expandAgentConcept } from "@/lib/ai/quick-create";
 import { z } from "zod";
 
+export const maxDuration = 60;
+
 const inputSchema = z.object({
     concept: z.string().min(3),
 });
