@@ -1,18 +1,24 @@
 /**
- * Unified Web Tool
+ * Unified Web Search Tool
  *
- * Single web entrypoint that can:
- * - Search the web for relevant URLs
- * - Fetch page content
- * - Synthesize a grounded answer from fetched content
- *
- * This replaces the old multi-tool web flow.
+ * Single web entrypoint that supports action-based workflows:
+ * - search: find relevant URLs and snippets
+ * - browse: fetch full page content for specific URLs
+ * - synthesize: fetch URLs and synthesize an answer from fetched content
  */
 
 import { tool, jsonSchema, type ToolExecutionOptions } from "ai";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import { browseAndSynthesize } from "@/lib/ai/web-browse";
-import { getSearchProvider, getWebSearchProviderStatus, isAnySearchProviderAvailable } from "./providers";
+import {
+  createFirecrawlScrapeTool,
+  type FirecrawlScrapeResult,
+} from "@/lib/ai/firecrawl";
+import {
+  getSearchProvider,
+  getWebSearchProviderStatus,
+  isAnySearchProviderAvailable,
+} from "./providers";
 
 // ============================================================================
 // Types
@@ -25,10 +31,23 @@ export interface WebSearchSource {
   relevanceScore: number;
 }
 
+export type WebSearchAction = "search" | "browse" | "synthesize";
+
+export interface WebSearchPage {
+  url: string;
+  title: string;
+  markdown: string;
+  contentLength: number;
+  images?: string[];
+  ogImage?: string;
+}
+
 export interface WebSearchResult {
   status: "success" | "error" | "no_provider";
+  action: WebSearchAction;
   query: string;
   sources: WebSearchSource[];
+  pages?: WebSearchPage[];
   answer?: string;
   message?: string;
   iterationPerformed: boolean;
@@ -55,6 +74,19 @@ function formatSearchResults(sources: WebSearchSource[], answer?: string): strin
   });
 
   return formatted.trim();
+}
+
+function formatBrowseResults(pages: WebSearchPage[]): string {
+  if (pages.length === 0) {
+    return "No pages fetched.";
+  }
+
+  return pages
+    .map(
+      (page, index) =>
+        `${index + 1}. ${page.title} - ${page.url} (${Math.round(page.contentLength / 1024)}KB)`
+    )
+    .join("\n");
 }
 
 function normalizeProvidedUrls(urls?: string[] | string): string[] {
@@ -94,12 +126,54 @@ function hostAsTitle(url: string): string {
   }
 }
 
+function snippetFromMarkdown(markdown: string, maxLength: number = 320): string {
+  const flattened = markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!flattened) return "";
+  if (flattened.length <= maxLength) return flattened;
+  return `${flattened.slice(0, maxLength - 3)}...`;
+}
+
+function buildSourcesFromPages(pages: WebSearchPage[]): WebSearchSource[] {
+  return pages.map((page, index) => ({
+    url: page.url,
+    title: page.title,
+    snippet: snippetFromMarkdown(page.markdown),
+    relevanceScore: Math.max(0.5, 1 - index * 0.1),
+  }));
+}
+
+function normalizeAction(action?: string, hasUrls: boolean = false): WebSearchAction {
+  if (action === "search" || action === "browse" || action === "synthesize") {
+    return action;
+  }
+
+  // Preserve legacy direct-URL behavior for callers that do not provide action.
+  if (hasUrls) {
+    return "synthesize";
+  }
+
+  return "search";
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    const error = new Error("Operation cancelled");
+    error.name = "AbortError";
+    throw error;
+  }
+}
+
 // ============================================================================
 // Tool Schema
 // ============================================================================
 
 const webSearchSchema = jsonSchema<{
-  query: string;
+  action?: WebSearchAction;
+  query?: string;
   maxResults?: number;
   includeAnswer?: boolean;
   iterateIfLowQuality?: boolean;
@@ -108,11 +182,18 @@ const webSearchSchema = jsonSchema<{
 }>({
   type: "object",
   title: "WebSearchInput",
-  description: "Input schema for unified web search and browsing",
+  description: "Input schema for action-based web search and browsing",
   properties: {
+    action: {
+      type: "string",
+      enum: ["search", "browse", "synthesize"],
+      description:
+        "Action to run: search (find URLs/snippets), browse (fetch full pages), synthesize (fetch pages and produce an AI synthesis). Default: search unless urls are provided.",
+    },
     query: {
       type: "string",
-      description: "What you need from the web content",
+      description:
+        "Search query or question. Required for search and synthesize actions.",
     },
     maxResults: {
       type: "number",
@@ -122,11 +203,13 @@ const webSearchSchema = jsonSchema<{
     },
     includeAnswer: {
       type: "boolean",
-      description: "Whether provider-level summary should be requested when available",
+      description:
+        "Whether provider-level summary should be requested when available (search action only)",
     },
     iterateIfLowQuality: {
       type: "boolean",
-      description: "Whether to run one refinement pass if initial search quality is low",
+      description:
+        "Whether to run one refinement pass if initial search quality is low (search action only)",
     },
     urls: {
       oneOf: [
@@ -135,20 +218,22 @@ const webSearchSchema = jsonSchema<{
           items: { type: "string", format: "uri" },
           minItems: 1,
           maxItems: 5,
-          description: "Optional direct URLs to browse (skips search step)",
+          description:
+            "URLs to browse/synthesize (required for browse and synthesize actions)",
         },
         {
           type: "string",
-          description: "Optional comma-separated URLs to browse",
+          description: "Comma-separated URLs to browse/synthesize",
         },
       ],
     },
     includeMarkdown: {
       type: ["boolean", "string"],
-      description: "Ignored for compatibility with legacy callers",
+      description:
+        "Compatibility flag. Kept for legacy callers; browse action always returns markdown.",
     },
   },
-  required: ["query"],
+  required: [],
   additionalProperties: false,
 });
 
@@ -166,7 +251,8 @@ export interface WebSearchToolOptions {
 }
 
 interface WebSearchArgs {
-  query: string;
+  action?: WebSearchAction;
+  query?: string;
   maxResults?: number;
   includeAnswer?: boolean;
   iterateIfLowQuality?: boolean;
@@ -174,69 +260,154 @@ interface WebSearchArgs {
   includeMarkdown?: boolean | string;
 }
 
-async function executeWebSearch(
+async function executeBrowseAction(
   options: WebSearchToolOptions,
-  args: WebSearchArgs,
+  query: string,
+  urls: string[],
   toolCallOptions?: ToolExecutionOptions
 ): Promise<WebSearchResult> {
-  const { sessionId, userId, characterId } = options;
-  const { query, maxResults = 5, includeAnswer = true, iterateIfLowQuality = false } = args;
+  const scrapeTool = createFirecrawlScrapeTool(options);
+  const pages: WebSearchPage[] = [];
+  const failedUrls: string[] = [];
+  let failureMessage: string | undefined;
 
-  const browseOptions = {
-    sessionId: sessionId || "UNSCOPED",
-    userId: userId || "UNSCOPED",
-    characterId: characterId || null,
-  };
+  for (const url of urls) {
+    throwIfAborted(toolCallOptions?.abortSignal);
 
-  // 1) Optional direct browse mode (single tool, explicit URLs)
-  const providedUrls = normalizeProvidedUrls(args.urls).slice(0, MAX_BROWSE_URLS);
-  if (providedUrls.length > 0) {
-    const browseResult = await browseAndSynthesize({
-      urls: providedUrls,
-      query,
-      options: browseOptions,
-      abortSignal: toolCallOptions?.abortSignal,
-    });
+    const result = (await (scrapeTool.execute as any)(
+      {
+        url,
+        onlyMainContent: true,
+        extractImages: true,
+      },
+      toolCallOptions
+    )) as FirecrawlScrapeResult;
 
-    const syntheticSources: WebSearchSource[] = providedUrls.map((url, idx) => ({
-      url,
-      title: hostAsTitle(url),
-      snippet: "",
-      relevanceScore: Math.max(0.5, 1 - idx * 0.1),
-    }));
-
-    if (!browseResult.success) {
-      return {
-        status: "error",
-        query,
-        sources: syntheticSources,
-        message: browseResult.error || "Failed to browse provided URLs",
-        iterationPerformed: false,
-        fetchedUrls: browseResult.fetchedUrls,
-        failedUrls: browseResult.failedUrls,
-      };
+    if (result.status === "success") {
+      const markdown = result.markdown || "";
+      pages.push({
+        url: result.url,
+        title: result.title || hostAsTitle(result.url),
+        markdown,
+        contentLength: markdown.length,
+        images: result.images,
+        ogImage: result.ogImage,
+      });
+      continue;
     }
 
+    failedUrls.push(url);
+    if (!failureMessage && result.message) {
+      failureMessage = result.message;
+    }
+  }
+
+  const sources = buildSourcesFromPages(pages);
+
+  if (pages.length === 0) {
     return {
-      status: "success",
+      status: "error",
+      action: "browse",
       query,
-      sources: syntheticSources,
-      answer: browseResult.synthesis,
+      sources: [],
+      pages: [],
+      message: failureMessage || "Failed to fetch any of the requested URLs",
       iterationPerformed: false,
-      formattedResults: browseResult.synthesis,
-      provider: "direct-urls",
-      fetchedUrls: browseResult.fetchedUrls,
-      failedUrls: browseResult.failedUrls.length > 0 ? browseResult.failedUrls : undefined,
+      formattedResults: "No pages fetched.",
+      provider: "browse",
+      fetchedUrls: [],
+      failedUrls,
     };
   }
 
-  // 2) Search phase
+  const warning =
+    failedUrls.length > 0
+      ? `Fetched ${pages.length} page(s); failed to fetch ${failedUrls.length} URL(s).`
+      : undefined;
+
+  return {
+    status: "success",
+    action: "browse",
+    query,
+    sources,
+    pages,
+    message: warning,
+    iterationPerformed: false,
+    formattedResults: formatBrowseResults(pages),
+    provider: "browse",
+    fetchedUrls: pages.map((page) => page.url),
+    failedUrls: failedUrls.length > 0 ? failedUrls : undefined,
+  };
+}
+
+async function executeSynthesizeAction(
+  options: WebSearchToolOptions,
+  query: string,
+  urls: string[],
+  toolCallOptions?: ToolExecutionOptions
+): Promise<WebSearchResult> {
+  const browseOptions = {
+    sessionId: options.sessionId || "UNSCOPED",
+    userId: options.userId || "UNSCOPED",
+    characterId: options.characterId || null,
+  };
+
+  const browseResult = await browseAndSynthesize({
+    urls,
+    query,
+    options: browseOptions,
+    abortSignal: toolCallOptions?.abortSignal,
+  });
+
+  const syntheticSources: WebSearchSource[] = urls.map((url, idx) => ({
+    url,
+    title: hostAsTitle(url),
+    snippet: "",
+    relevanceScore: Math.max(0.5, 1 - idx * 0.1),
+  }));
+
+  if (!browseResult.success) {
+    return {
+      status: "error",
+      action: "synthesize",
+      query,
+      sources: syntheticSources,
+      message: browseResult.error || "Failed to browse and synthesize content",
+      iterationPerformed: false,
+      provider: "synthesize",
+      fetchedUrls: browseResult.fetchedUrls,
+      failedUrls: browseResult.failedUrls,
+    };
+  }
+
+  return {
+    status: "success",
+    action: "synthesize",
+    query,
+    sources: syntheticSources,
+    answer: browseResult.synthesis,
+    iterationPerformed: false,
+    formattedResults: browseResult.synthesis,
+    provider: "synthesize",
+    fetchedUrls: browseResult.fetchedUrls,
+    failedUrls:
+      browseResult.failedUrls.length > 0 ? browseResult.failedUrls : undefined,
+  };
+}
+
+async function executeSearchAction(
+  query: string,
+  maxResults: number,
+  includeAnswer: boolean,
+  iterateIfLowQuality: boolean
+): Promise<WebSearchResult> {
   const providerStatus = getWebSearchProviderStatus();
   const provider = getSearchProvider();
 
   if (!provider.isAvailable()) {
     return {
       status: "no_provider",
+      action: "search",
       query,
       sources: [],
       message:
@@ -261,7 +432,9 @@ async function executeWebSearch(
     finalSources.length === 0 &&
     finalResult.error
   ) {
-    console.warn(`[WEB] Auto fallback to DuckDuckGo after Tavily failure: ${finalResult.error}`);
+    console.warn(
+      `[WEB] Auto fallback to DuckDuckGo after Tavily failure: ${finalResult.error}`
+    );
     const fallbackProvider = getSearchProvider("duckduckgo");
     const fallbackResult = await fallbackProvider.search(query, {
       maxResults,
@@ -282,7 +455,7 @@ async function executeWebSearch(
     finalResult.sources.length > 0
   ) {
     const avgScore =
-      finalResult.sources.reduce((sum, s) => sum + s.relevanceScore, 0) /
+      finalResult.sources.reduce((sum, source) => sum + source.relevanceScore, 0) /
       finalResult.sources.length;
 
     if (avgScore < MIN_QUALITY_THRESHOLD) {
@@ -295,7 +468,7 @@ async function executeWebSearch(
 
       const allSources = [...finalResult.sources, ...refinedResult.sources];
       const uniqueSources = allSources.reduce((acc, source) => {
-        if (!acc.find((s) => s.url === source.url)) {
+        if (!acc.find((existing) => existing.url === source.url)) {
           acc.push(source);
         }
         return acc;
@@ -312,6 +485,7 @@ async function executeWebSearch(
   if (finalSources.length === 0) {
     return {
       status: "success",
+      action: "search",
       query,
       sources: [],
       answer: finalResult.answer,
@@ -322,41 +496,75 @@ async function executeWebSearch(
     };
   }
 
-  // 3) Browse + synthesize phase (single-tool behavior)
-  const urlsToBrowse = finalSources.slice(0, Math.min(maxResults, MAX_BROWSE_URLS)).map((s) => s.url);
-  const browseResult = await browseAndSynthesize({
-    urls: urlsToBrowse,
+  return {
+    status: "success",
+    action: "search",
     query,
-    options: browseOptions,
-    abortSignal: toolCallOptions?.abortSignal,
-  });
+    sources: finalSources,
+    answer: finalResult.answer,
+    iterationPerformed,
+    formattedResults: formatSearchResults(finalSources, finalResult.answer),
+    provider: finalResult.providerUsed ?? provider.name,
+    message:
+      "Use action='browse' with selected URLs when you need full-page content, or action='synthesize' to get an analyzed answer from specific URLs.",
+  };
+}
 
-  if (!browseResult.success) {
+async function executeWebSearch(
+  options: WebSearchToolOptions,
+  args: WebSearchArgs,
+  toolCallOptions?: ToolExecutionOptions
+): Promise<WebSearchResult> {
+  const providedUrls = normalizeProvidedUrls(args.urls).slice(0, MAX_BROWSE_URLS);
+  const action = normalizeAction(args.action, providedUrls.length > 0);
+  const query = typeof args.query === "string" ? args.query.trim() : "";
+  const maxResults = args.maxResults ?? 5;
+  const includeAnswer = args.includeAnswer ?? true;
+  const iterateIfLowQuality = args.iterateIfLowQuality ?? false;
+
+  if (action === "search") {
+    if (!query) {
+      return {
+        status: "error",
+        action,
+        query,
+        sources: [],
+        message: "query is required when action is 'search'.",
+        iterationPerformed: false,
+      };
+    }
+
+    return executeSearchAction(query, maxResults, includeAnswer, iterateIfLowQuality);
+  }
+
+  if (providedUrls.length === 0) {
     return {
-      status: "success",
+      status: "error",
+      action,
       query,
-      sources: finalSources,
-      answer: finalResult.answer,
-      iterationPerformed,
-      formattedResults: formatSearchResults(finalSources, finalResult.answer),
-      provider: finalResult.providerUsed ?? provider.name,
-      message: browseResult.error || "Search succeeded but browsing failed",
-      fetchedUrls: browseResult.fetchedUrls,
-      failedUrls: browseResult.failedUrls,
+      sources: [],
+      message: "urls is required when action is 'browse' or 'synthesize'.",
+      iterationPerformed: false,
     };
   }
 
-  return {
-    status: "success",
-    query,
-    sources: finalSources,
-    answer: browseResult.synthesis,
-    iterationPerformed,
-    formattedResults: browseResult.synthesis,
-    provider: finalResult.providerUsed ?? provider.name,
-    fetchedUrls: browseResult.fetchedUrls,
-    failedUrls: browseResult.failedUrls.length > 0 ? browseResult.failedUrls : undefined,
-  };
+  if (action === "browse") {
+    return executeBrowseAction(options, query, providedUrls, toolCallOptions);
+  }
+
+  if (!query) {
+    return {
+      status: "error",
+      action,
+      query,
+      sources: [],
+      message: "query is required when action is 'synthesize'.",
+      iterationPerformed: false,
+    };
+  }
+
+  throwIfAborted(toolCallOptions?.abortSignal);
+  return executeSynthesizeAction(options, query, providedUrls, toolCallOptions);
 }
 
 export function createWebSearchTool(options: WebSearchToolOptions = {}) {
@@ -370,16 +578,17 @@ export function createWebSearchTool(options: WebSearchToolOptions = {}) {
   );
 
   return tool({
-    description: `Unified web tool for finding and reading web content in one call.
+    description: `Unified Web Search tool with action-based behavior.
 
-Use for:
-- searching current information
-- reading specific URLs
-- getting a synthesized answer grounded in fetched pages
+Use actions:
+- search: find web results (URLs + snippets)
+- browse: fetch full markdown content from specific URLs
+- synthesize: fetch URLs and return a consolidated analysis
 
-Behavior:
-- if urls are provided: fetch + synthesize those URLs
-- if urls are omitted: search first, then fetch top results, then synthesize`,
+Recommended workflow:
+1) search to discover relevant URLs
+2) browse selected URLs for full page content
+3) synthesize only when you need an analyzed summary`,
     inputSchema: webSearchSchema,
     execute: executeWithLogging,
   });

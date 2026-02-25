@@ -167,8 +167,7 @@ export function buildToolSummary(toolName: string, input?: unknown, output?: unk
       const answerText = answer ? `; answer: ${truncateSummary(answer, 120)}` : "";
       return `Web search "${query}": ${sources} sources${answerText}`;
     }
-    case "webBrowse":
-    case "webQuery": {
+    case "webBrowse": {
       const fetched =
         (Array.isArray(result.fetchedUrls) ? result.fetchedUrls.length : 0) ||
         (Array.isArray(result.sourcesUsed) ? result.sourcesUsed.length : 0);
@@ -258,10 +257,10 @@ export function normalizeToolResultOutput(
   const sessionId = getRunContext()?.sessionId;
 
   if (mode === "projection") {
-    // Exempt readFile from universal output limiting
-    // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
-    // and users explicitly request specific line ranges — truncating defeats the purpose
-    const EXEMPT_TOOLS = new Set(["readFile", "runSkill"]);
+    // Exempt tools that intentionally return full content payloads.
+    // readFile has built-in limits; runSkill and webSearch browse mode may return
+    // richer content that should not be utility-truncated here.
+    const EXEMPT_TOOLS = new Set(["readFile", "runSkill", "webSearch"]);
 
     // Apply token limit (universal safety net) — UNLESS tool is exempt
     // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.

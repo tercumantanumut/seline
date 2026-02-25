@@ -22,8 +22,6 @@ const TOOL_CATEGORIES: Record<string, string> = {
   vectorSearch: "knowledge",
   readFile: "knowledge",
   webSearch: "search",
-  webBrowse: "search",
-  webQuery: "search",
   firecrawlCrawl: "search",
   generateImageFlux2: "image-generation",
   generateImageWan22: "image-generation",
