@@ -18,6 +18,14 @@ import { getWorkspaceInfo } from "@/lib/workspace/types";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 
+/** A task qualifies as "background" if it's scheduled or a delegation. Plain
+ *  foreground chat tasks (user typing in the active session) should NOT trigger
+ *  the background-processing indicator. */
+function isBackgroundTask(task: { type: string; metadata?: unknown }): boolean {
+    return task.type === "scheduled" ||
+        (task.type === "chat" && task.metadata != null && typeof task.metadata === "object" && "isDelegation" in task.metadata);
+}
+
 /** Bridge component: lives inside ChatProvider to pipe setMessages out via ref */
 const ChatSetMessagesBridge: FC<{ setMessagesRef: MutableRefObject<((msgs: UIMessage[]) => void) | null> }> = ({ setMessagesRef }) => {
     const setMessages = useChatSetMessages();
@@ -240,7 +248,7 @@ export default function ChatInterface({
     useEffect(() => {
         if (!sessionId || bg.processingRunId) return;
         const activeTask = activeTasks.find(
-            (t) => t.sessionId === sessionId && t.status === "running"
+            (t) => t.sessionId === sessionId && t.status === "running" && isBackgroundTask(t)
         );
         if (!activeTask) return;
         // Debounce to avoid racing with foreground useChat streams that also
@@ -330,10 +338,6 @@ export default function ChatInterface({
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-
-        const isBackgroundTask = (task: Parameters<typeof bg.setIsProcessingInBackground>[0] extends boolean ? never : any) =>
-            task.type === "scheduled" ||
-            (task.type === "chat" && task.metadata && typeof task.metadata === "object" && "isDelegation" in task.metadata);
 
         const handleTaskCompleted = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
