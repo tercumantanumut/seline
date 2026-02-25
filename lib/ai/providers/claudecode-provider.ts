@@ -529,9 +529,9 @@ function createStreamingClaudeCodeResponse(options: {
 
         let contentIndex = 0;
         let outputTokens = 0;
-        // Track streamed block indices to avoid double-emitting from assistant messages
-        const streamedBlockIndices = new Set<number>();
-        // Track the current stream_event block index (SDK's own index, not ours)
+        // When stream_events were seen for a turn, the assistant message is
+        // redundant — skip it entirely (mirrors sawStreamText in runClaudeAgentQuery).
+        let sawStreamEventsThisTurn = false;
         let inStreamBlock = false;
 
         for await (const message of query) {
@@ -549,7 +549,7 @@ function createStreamingClaudeCodeResponse(options: {
                   content_block: { type: "text", text: "" },
                 });
                 inStreamBlock = true;
-                streamedBlockIndices.add(contentIndex);
+                sawStreamEventsThisTurn = true;
               } else if (blockType === "tool_use") {
                 emit("content_block_start", {
                   type: "content_block_start",
@@ -561,7 +561,7 @@ function createStreamingClaudeCodeResponse(options: {
                   },
                 });
                 inStreamBlock = true;
-                streamedBlockIndices.add(contentIndex);
+                sawStreamEventsThisTurn = true;
               }
               continue;
             }
@@ -619,13 +619,20 @@ function createStreamingClaudeCodeResponse(options: {
               throw new Error(assistant.error);
             }
 
-            // Emit content blocks that weren't already streamed via stream_event.
+            // If we already streamed this turn's content via stream_events,
+            // the assistant message is redundant — skip it to avoid duplicate
+            // tool_use blocks that crash the UI with "argsText can only be appended".
+            // This mirrors how runClaudeAgentQuery uses sawStreamText.
+            if (sawStreamEventsThisTurn) {
+              sawStreamEventsThisTurn = false;
+              continue;
+            }
+
+            // Fallback: emit content blocks from assistant message when no
+            // stream_events were received (e.g. older SDK versions).
             const content = assistant.message?.content;
             if (Array.isArray(content)) {
-              for (let blockIdx = 0; blockIdx < content.length; blockIdx++) {
-                if (streamedBlockIndices.has(blockIdx)) continue;
-
-                const block = content[blockIdx];
+              for (const block of content) {
                 if (!block?.type) continue;
 
                 if (block.type === "tool_use" && block.id && block.name) {
@@ -659,9 +666,6 @@ function createStreamingClaudeCodeResponse(options: {
                 }
               }
             }
-
-            // Reset streamed indices for the next turn's assistant message
-            streamedBlockIndices.clear();
             continue;
           }
 
