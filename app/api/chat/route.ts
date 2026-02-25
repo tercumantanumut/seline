@@ -544,12 +544,20 @@ export async function POST(req: Request) {
       }
     }
 
+    const pluginPaths = scopedPlugins
+      .map((p) => p.cachePath)
+      .filter((p): p is string => Boolean(p));
+
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
       characterId: characterId ?? null,
       enabledTools: enabledTools ?? undefined,
       cwd: agentCwd,
+      pluginPaths: pluginPaths.length > 0 ? pluginPaths : undefined,
+      hookContext: scopedPlugins.length > 0
+        ? { allowedPluginNames, pluginRoots }
+        : undefined,
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────

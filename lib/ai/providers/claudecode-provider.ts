@@ -19,6 +19,7 @@ import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
 import { isElectronProduction } from "@/lib/utils/environment";
 import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
 import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
+import { buildSdkHooksFromSeline, mergeHooks } from "@/lib/plugins/sdk-hook-adapter";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
@@ -413,6 +414,345 @@ function createAnthropicStreamResponse(text: string, model: string): Response {
   });
 }
 
+/**
+ * Create a real-time streaming Response that pipes Claude Agent SDK events
+ * as Anthropic-compatible SSE content blocks.
+ *
+ * Unlike `runClaudeAgentQuery` (which collects text then builds a batch response),
+ * this streams tool_use and text blocks to the client as they arrive, enabling the
+ * chat UI to show intermediate tool steps in real-time.
+ */
+function createStreamingClaudeCodeResponse(options: {
+  prompt: string;
+  model: string;
+  systemPrompt?: string;
+  signal?: AbortSignal;
+  sdkOptions?: ClaudeAgentSdkQueryOptions;
+}): Response {
+  const messageId = `msg_${crypto.randomUUID()}`;
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const emit = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
+      const abortController = new AbortController();
+      const onAbort = () => abortController.abort();
+      if (options.signal) {
+        if (options.signal.aborted) {
+          abortController.abort();
+        } else {
+          options.signal.addEventListener("abort", onAbort, { once: true });
+        }
+      }
+
+      try {
+        const sdk = options.sdkOptions;
+        const mcpCtx: SelineMcpContext | undefined =
+          sdk?.mcpContext ?? mcpContextStore.getStore();
+
+        const selineMcpServers = mcpCtx
+          ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
+          : undefined;
+
+        const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+
+        // Bridge Seline plugin cache paths → SDK plugin configs
+        const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
+          .map((p) => ({ type: "local" as const, path: p }));
+        const mergedPlugins = selinePluginConfigs.length > 0 || sdk?.plugins
+          ? [...selinePluginConfigs, ...(sdk?.plugins ?? [])]
+          : undefined;
+
+        // Bridge Seline hooks → SDK hook callbacks
+        const selineHooks = mcpCtx?.hookContext
+          ? buildSdkHooksFromSeline(
+              mcpCtx.sessionId,
+              mcpCtx.hookContext.allowedPluginNames,
+              mcpCtx.hookContext.pluginRoots,
+            )
+          : undefined;
+        const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
+
+        const query = claudeAgentQuery({
+          prompt: options.prompt,
+          options: {
+            abortController,
+            cwd: resolvedCwd,
+            ...(resolvedCwd !== process.cwd() ? { additionalDirectories: [resolvedCwd] } : {}),
+            executable: "node",
+            includePartialMessages: true,
+            settingSources: ["project"] as ("user" | "project" | "local")[],
+            maxTurns: sdk?.maxTurns ?? 1000,
+            model: options.model,
+            permissionMode: sdk?.permissionMode ?? "bypassPermissions",
+            allowDangerouslySkipPermissions: true,
+            env: (() => {
+              const e: Record<string, string | undefined> = { ...process.env };
+              delete e.ANTHROPIC_API_KEY;
+              delete e.CLAUDECODE;
+              if (isElectronProduction()) e.ELECTRON_RUN_AS_NODE = "1";
+              return e;
+            })(),
+            ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+            ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
+            ...(sdk?.agents ? { agents: sdk.agents } : {}),
+            ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
+            ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
+            ...(mergedHookMap ? { hooks: mergedHookMap } : {}),
+            ...(mergedPlugins ? { plugins: mergedPlugins } : {}),
+            ...(sdk?.resume ? { resume: sdk.resume } : {}),
+            ...(sdk?.sessionId ? { sessionId: sdk.sessionId } : {}),
+            ...(sdk?.outputFormat ? { outputFormat: sdk.outputFormat } : {}),
+            ...(sdk?.thinking ? { thinking: sdk.thinking } : {}),
+            ...(sdk?.effort ? { effort: sdk.effort } : {}),
+            ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
+          },
+        });
+
+        // Emit message_start
+        emit("message_start", {
+          type: "message_start",
+          message: {
+            id: messageId,
+            type: "message",
+            role: "assistant",
+            model: options.model,
+            content: [],
+            stop_reason: null,
+            stop_sequence: null,
+            usage: { input_tokens: 0, output_tokens: 0 },
+          },
+        });
+
+        let contentIndex = 0;
+        let outputTokens = 0;
+        // Track streamed block indices to avoid double-emitting from assistant messages
+        const streamedBlockIndices = new Set<number>();
+        // Track the current stream_event block index (SDK's own index, not ours)
+        let inStreamBlock = false;
+
+        for await (const message of query) {
+          // ── stream_event: real-time deltas (text + tool_use) ──────────────
+          if (message.type === "stream_event") {
+            const event = (message as { event?: unknown }).event;
+            if (!isDictionary(event) || typeof event.type !== "string") continue;
+
+            if (event.type === "content_block_start" && isDictionary(event.content_block)) {
+              const blockType = event.content_block.type;
+              if (blockType === "text") {
+                emit("content_block_start", {
+                  type: "content_block_start",
+                  index: contentIndex,
+                  content_block: { type: "text", text: "" },
+                });
+                inStreamBlock = true;
+                streamedBlockIndices.add(contentIndex);
+              } else if (blockType === "tool_use") {
+                emit("content_block_start", {
+                  type: "content_block_start",
+                  index: contentIndex,
+                  content_block: {
+                    type: "tool_use",
+                    id: event.content_block.id ?? `toolu_${crypto.randomUUID()}`,
+                    name: event.content_block.name ?? "unknown",
+                  },
+                });
+                inStreamBlock = true;
+                streamedBlockIndices.add(contentIndex);
+              }
+              continue;
+            }
+
+            if (event.type === "content_block_delta" && isDictionary(event.delta)) {
+              if (event.delta.type === "text_delta" && typeof event.delta.text === "string") {
+                emit("content_block_delta", {
+                  type: "content_block_delta",
+                  index: contentIndex,
+                  delta: { type: "text_delta", text: event.delta.text },
+                });
+                outputTokens += Math.max(1, Math.ceil(String(event.delta.text).length / 4));
+              } else if (event.delta.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
+                emit("content_block_delta", {
+                  type: "content_block_delta",
+                  index: contentIndex,
+                  delta: { type: "input_json_delta", partial_json: event.delta.partial_json },
+                });
+              }
+              continue;
+            }
+
+            if (event.type === "content_block_stop") {
+              if (inStreamBlock) {
+                emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
+                contentIndex++;
+                inStreamBlock = false;
+              }
+              continue;
+            }
+
+            // Pass through any other stream events we don't handle
+            continue;
+          }
+
+          // ── assistant: finalized message with content blocks ──────────────
+          if (message.type === "assistant") {
+            const assistant = message as {
+              message?: {
+                content?: Array<{
+                  type?: string;
+                  text?: string;
+                  id?: string;
+                  name?: string;
+                  input?: unknown;
+                }>;
+              };
+              error?: string;
+            };
+
+            if (
+              assistant.error === "authentication_failed" ||
+              assistant.error === "billing_error"
+            ) {
+              throw new Error(assistant.error);
+            }
+
+            // Emit content blocks that weren't already streamed via stream_event.
+            const content = assistant.message?.content;
+            if (Array.isArray(content)) {
+              for (let blockIdx = 0; blockIdx < content.length; blockIdx++) {
+                if (streamedBlockIndices.has(blockIdx)) continue;
+
+                const block = content[blockIdx];
+                if (!block?.type) continue;
+
+                if (block.type === "tool_use" && block.id && block.name) {
+                  emit("content_block_start", {
+                    type: "content_block_start",
+                    index: contentIndex,
+                    content_block: { type: "tool_use", id: block.id, name: block.name },
+                  });
+                  const inputJson = JSON.stringify(block.input ?? {});
+                  emit("content_block_delta", {
+                    type: "content_block_delta",
+                    index: contentIndex,
+                    delta: { type: "input_json_delta", partial_json: inputJson },
+                  });
+                  emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
+                  contentIndex++;
+                } else if (block.type === "text" && block.text) {
+                  emit("content_block_start", {
+                    type: "content_block_start",
+                    index: contentIndex,
+                    content_block: { type: "text", text: "" },
+                  });
+                  emit("content_block_delta", {
+                    type: "content_block_delta",
+                    index: contentIndex,
+                    delta: { type: "text_delta", text: block.text },
+                  });
+                  emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
+                  outputTokens += Math.max(1, Math.ceil(block.text.length / 4));
+                  contentIndex++;
+                }
+              }
+            }
+
+            // Reset streamed indices for the next turn's assistant message
+            streamedBlockIndices.clear();
+            continue;
+          }
+
+          // ── result: final message ─────────────────────────────────────────
+          if (message.type === "result") {
+            const result = message as {
+              is_error?: boolean;
+              subtype?: string;
+              result?: string;
+              errors?: string[];
+            };
+
+            if (Array.isArray(result.errors) && result.errors.length > 0) {
+              const errorText = result.errors.join("\n");
+              emit("content_block_start", {
+                type: "content_block_start",
+                index: contentIndex,
+                content_block: { type: "text", text: "" },
+              });
+              emit("content_block_delta", {
+                type: "content_block_delta",
+                index: contentIndex,
+                delta: { type: "text_delta", text: errorText },
+              });
+              emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
+              contentIndex++;
+            }
+
+            if (
+              contentIndex === 0 &&
+              typeof result.result === "string" &&
+              result.result.length > 0
+            ) {
+              emit("content_block_start", {
+                type: "content_block_start",
+                index: 0,
+                content_block: { type: "text", text: "" },
+              });
+              emit("content_block_delta", {
+                type: "content_block_delta",
+                index: 0,
+                delta: { type: "text_delta", text: result.result },
+              });
+              emit("content_block_stop", { type: "content_block_stop", index: 0 });
+            }
+
+            if (result.is_error) {
+              console.error("[ClaudeCode] SDK query error:", result.subtype);
+            }
+            continue;
+          }
+        }
+
+        // Close the message
+        emit("message_delta", {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: outputTokens },
+        });
+        emit("message_stop", { type: "message_stop" });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("[ClaudeCode] Streaming error:", errorMessage);
+
+        try {
+          const errorEvent = `event: error\ndata: ${JSON.stringify({ type: "error", error: { type: "api_error", message: errorMessage } })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+        } catch {
+          // Controller may already be closed
+        }
+      } finally {
+        options.signal?.removeEventListener("abort", onAbort);
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
 async function runClaudeAgentQuery(options: {
   prompt: string;
   model: string;
@@ -447,6 +787,23 @@ async function runClaudeAgentQuery(options: {
 
   // Resolve working directory: explicit SDK option > MCP context > process.cwd()
   const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+
+  // Bridge Seline plugin cache paths → SDK plugin configs
+  const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
+    .map((p) => ({ type: "local" as const, path: p }));
+  const mergedPlugins = selinePluginConfigs.length > 0 || sdk?.plugins
+    ? [...selinePluginConfigs, ...(sdk?.plugins ?? [])]
+    : undefined;
+
+  // Bridge Seline hooks → SDK hook callbacks
+  const selineHooks = mcpCtx?.hookContext
+    ? buildSdkHooksFromSeline(
+        mcpCtx.sessionId,
+        mcpCtx.hookContext.allowedPluginNames,
+        mcpCtx.hookContext.pluginRoots,
+      )
+    : undefined;
+  const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
 
   const query = claudeAgentQuery({
     prompt: options.prompt,
@@ -483,8 +840,8 @@ async function runClaudeAgentQuery(options: {
       ...(sdk?.agents ? { agents: sdk.agents } : {}),
       ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
       ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
-      ...(sdk?.hooks ? { hooks: sdk.hooks } : {}),
-      ...(sdk?.plugins ? { plugins: sdk.plugins } : {}),
+      ...(mergedHookMap ? { hooks: mergedHookMap } : {}),
+      ...(mergedPlugins ? { plugins: mergedPlugins } : {}),
       ...(sdk?.resume ? { resume: sdk.resume } : {}),
       ...(sdk?.sessionId ? { sessionId: sdk.sessionId } : {}),
       ...(sdk?.outputFormat ? { outputFormat: sdk.outputFormat } : {}),
@@ -706,7 +1063,18 @@ function createClaudeCodeFetch(): typeof fetch {
     const prompt = buildPromptFromMessages(requestBody.messages);
     const model = typeof requestBody.model === "string" ? requestBody.model : DEFAULT_MODEL;
     const systemPrompt = buildSystemPrompt(requestBody.system);
-    const stream = requestBody.stream === true;
+    const isStream = requestBody.stream === true;
+
+    // For streaming requests, use the real-time streaming path that pipes SDK
+    // events (including tool_use blocks) directly to the client as SSE.
+    if (isStream) {
+      return createStreamingClaudeCodeResponse({
+        prompt,
+        model,
+        systemPrompt,
+        signal: init.signal ?? undefined,
+      });
+    }
 
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -717,9 +1085,7 @@ function createClaudeCodeFetch(): typeof fetch {
           signal: init.signal ?? undefined,
         });
 
-        return stream
-          ? createAnthropicStreamResponse(output, model)
-          : createAnthropicMessageResponse(output, model);
+        return createAnthropicMessageResponse(output, model);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
