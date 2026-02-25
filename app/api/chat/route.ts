@@ -357,8 +357,33 @@ export async function POST(req: Request) {
     }
     chatTaskRegistered = true;
 
-    // ── Save new user message ──────────────────────────────────────────────────
+    // ── Edit/Reload truncation cleanup ──────────────────────────────────────
+    // IMPORTANT: This must run BEFORE saving the new user message. When a user
+    // edits a message, assistant-ui sends a truncated list (everything up to the
+    // edit point + the new version). If we created the new message first, it
+    // would be appended at the end with the highest orderingIndex, making it the
+    // maxKeptPosition in deleteMessagesNotIn — which would prevent deletion of
+    // the old messages between the edit point and the new message.
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!isNewSession && !isScheduledRun) {
+      const frontendIds = new Set(
+        messages
+          .filter(m => m.id && uuidRegex.test(m.id))
+          .map(m => m.id!)
+      );
+      if (frontendIds.size > 0) {
+        const injectedIds = await getInjectedMessageIds(sessionId);
+        for (const id of injectedIds) {
+          frontendIds.add(id);
+        }
+        const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
+        if (deleted > 0) {
+          console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
+        }
+      }
+    }
+
+    // ── Save new user message ──────────────────────────────────────────────────
     const lastMessage = messages[messages.length - 1];
     let persistedUserMessageId: string | undefined;
     const userMessageCount = messages.filter((msg) => msg.role === "user").length;
@@ -380,46 +405,27 @@ export async function POST(req: Request) {
         orderingIndex: userMessageIndex,
         metadata: {},
       });
-      const savedUserMessageId = result?.id;
+      let savedUserMessageId = result?.id;
+
+      // Handle same-UUID edit: if createMessage hit a UNIQUE constraint (the user
+      // edited a message and assistant-ui preserved the original message ID),
+      // update the existing message's content and ordering instead.
+      if (!savedUserMessageId && isValidUUID && lastMessage.id) {
+        await updateMessage(lastMessage.id, {
+          content: normalizedContent,
+        });
+        savedUserMessageId = lastMessage.id;
+        console.log(`[CHAT API] Updated existing user message (edit): ${lastMessage.id}`);
+      }
+
       persistedUserMessageId = savedUserMessageId;
-      console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
+      if (!isValidUUID || result) {
+        console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
+      }
 
       const plainTextContent = getPlainTextFromContent(extractedContent);
       if ((isNewSession || userMessageCount === 1) && plainTextContent.length > 0) {
         void generateSessionTitle(sessionId, plainTextContent);
-      }
-    }
-
-    // ── Edit/Reload truncation cleanup ──────────────────────────────────────
-    // When the user edits a message or clicks reload, assistant-ui sends a
-    // truncated message list (everything up to the edited message + the new
-    // version). DB messages beyond that list are stale and must be removed,
-    // otherwise they reappear when the session is reloaded from DB.
-    if (!isNewSession && !isScheduledRun) {
-      const frontendIds = new Set(
-        messages
-          .filter(m => m.id && uuidRegex.test(m.id))
-          .map(m => m.id!)
-      );
-      if (persistedUserMessageId) {
-        // If the client sent a non-UUID message id, keep the DB-generated id too.
-        // Without this, normal sends can be mistaken for edit/reload truncation.
-        frontendIds.add(persistedUserMessageId);
-      }
-      if (frontendIds.size > 0) {
-        // Protect all messages created server-side during live-prompt injection.
-        // Both the injected user messages and the pre-injection split assistant
-        // message are tagged with livePromptInjected:true in the DB so they
-        // survive across run boundaries (a registry would be cleared before the
-        // next request).
-        const injectedIds = await getInjectedMessageIds(sessionId);
-        for (const id of injectedIds) {
-          frontendIds.add(id);
-        }
-        const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
-        if (deleted > 0) {
-          console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
-        }
       }
     }
 

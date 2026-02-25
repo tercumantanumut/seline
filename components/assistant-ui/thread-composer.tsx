@@ -66,6 +66,7 @@ export const Composer: FC<{
   canCancelBackgroundRun?: boolean;
   isZombieBackgroundRun?: boolean;
   onLivePromptInjected?: () => void | Promise<void | boolean>;
+  onPostCancel?: () => void;
   contextStatus?: import("@/lib/hooks/use-context-status").ContextWindowStatus | null;
   contextLoading?: boolean;
   onCompact?: () => Promise<{ success: boolean; compacted: boolean }>;
@@ -81,6 +82,7 @@ export const Composer: FC<{
   canCancelBackgroundRun = false,
   isZombieBackgroundRun = false,
   onLivePromptInjected,
+  onPostCancel,
   contextStatus = null,
   contextLoading = false,
   onCompact,
@@ -510,9 +512,23 @@ export const Composer: FC<{
     }
   }, [deepResearch, isCancelling, isDeepResearchActive, isDeepResearchLoading, isOperationRunning, isRunning, threadRuntime]);
 
+  // When the operation stops after a cancel, refresh messages from DB to
+  // restore any messages the AI SDK discarded from its optimistic state
+  // (e.g. user pressed Stop very quickly after sending).
+  const wasCancellingRef = useRef(false);
   useEffect(() => {
-    if (!isOperationRunning) setIsCancelling(false);
-  }, [isOperationRunning]);
+    if (isCancelling) {
+      wasCancellingRef.current = true;
+    }
+    if (!isOperationRunning) {
+      const wasCancelling = wasCancellingRef.current;
+      setIsCancelling(false);
+      wasCancellingRef.current = false;
+      if (wasCancelling && onPostCancel) {
+        setTimeout(onPostCancel, 500);
+      }
+    }
+  }, [isOperationRunning, isCancelling, onPostCancel]);
 
   // When the run ends: reload messages and determine whether injected-live chips
   // were processed by prepareStep (normal injection) or not (undrained — run ended
