@@ -105,7 +105,11 @@ function indicatorPriority(indicator: SessionActivityIndicator, isRunning: boole
   if (indicator.tone === "critical") return 500;
   if (indicator.tone === "warning") return 400;
 
-  const liveKinds = new Set(["run", "tool", "hook", "skill", "delegation", "workspace", "pr"]);
+  // Keep the generic run indicator available as fallback, but deprioritize it
+  // so concrete tool/skill/hook updates become the primary bubble label.
+  if (isRunning && indicator.kind === "run") return 140;
+
+  const liveKinds = new Set(["tool", "hook", "skill", "delegation", "workspace", "pr"]);
   if (isRunning && liveKinds.has(indicator.kind)) return 300;
 
   if (indicator.tone === "success") return 200;
