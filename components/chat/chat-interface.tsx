@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
@@ -46,6 +46,7 @@ export default function ChatInterface({
     characterDisplay: initialCharacterDisplay,
 }: ChatInterfaceProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const t = useTranslations("chat");
     const tc = useTranslations("common");
 
@@ -155,6 +156,21 @@ export default function ChatInterface({
         lastSessionSignatureRef.current = nextSignature;
         sm.refreshSessionTimestamp(targetSessionId);
     }, [sm.fetchSessionMessages, sm.refreshSessionTimestamp, sessionId]);
+
+    // ── Pathname-triggered refresh ──────────────────────────────────────────
+    // When navigating away (e.g. to /settings) and back, the Next.js Router
+    // Cache may serve a stale RSC payload. Using `pathname` as a dependency
+    // ensures this effect fires whenever the route changes — even if the
+    // component wasn't fully unmounted (React fiber reuse). The signature
+    // check inside reloadSessionMessages prevents unnecessary UI updates
+    // when data hasn't changed.
+    useEffect(() => {
+        if (!sessionId || !pathname.startsWith('/chat/')) return;
+        const timer = setTimeout(() => {
+            void reloadSessionMessages(sessionId);
+        }, 200);
+        return () => clearTimeout(timer);
+    }, [pathname, sessionId, reloadSessionMessages]);
 
     // ── Reusable active-run checker ──────────────────────────────────────────
     // Extracted so it can be called on mount, visibility change, AND SSE reconnect.
@@ -492,6 +508,11 @@ export default function ChatInterface({
         sm.refreshSessionTimestamp(sessionId);
     }, [sm.refreshSessionTimestamp, sessionId]);
 
+    const handlePostCancel = useCallback(() => {
+        if (!sessionId) return;
+        void reloadSessionMessages(sessionId);
+    }, [sessionId, reloadSessionMessages]);
+
     if (sm.isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -582,6 +603,7 @@ export default function ChatInterface({
                                 isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
                                 canCancelBackgroundRun={Boolean(bg.processingRunId)}
                                 isZombieBackgroundRun={bg.isZombieRun}
+                                onPostCancel={handlePostCancel}
                                 onLivePromptInjected={async () => {
                                     // remount:true so ChatProvider reinitialises from DB (same as background mode).
                                     // Safe here: the run has ended before this callback fires (isQueueBlocked=false).
