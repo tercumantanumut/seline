@@ -102,10 +102,8 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     return;
   }
 
-  await db
-    .update(agentSyncFolders)
-    .set({ status: "paused", lastError: "Removing folder...", updatedAt: new Date().toISOString() })
-    .where(eq(agentSyncFolders.id, folderId));
+  const wasPrimary = folder.isPrimary;
+  const characterId = folder.characterId;
 
   if (isSyncingPath(folder.folderPath)) {
     console.log(`[SyncService] Cancelling running sync for folder: ${folder.folderPath}`);
@@ -116,23 +114,25 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     stopWatching(folderId);
   }
 
-  const wasPrimary = folder.isPrimary;
-  const characterId = folder.characterId;
-
-  // Check remaining folders BEFORE deletion to decide cleanup strategy
-  const allFolders = await getSyncFolders(characterId);
-  const remainingFolders = allFolders.filter(f => f.id !== folderId);
-
-  if (remainingFolders.length === 0) {
-    // Last folder: drop the entire table instantly instead of per-file deletions
-    await deleteAgentTable(characterId);
-  } else {
-    // Multiple folders: one bulk delete by folderId instead of per-file queries
-    await removeFolderFromVectorDB({ characterId, folderId });
-  }
-
+  // Delete folder row first so UI is unblocked even if vector cleanup fails.
   await db.delete(agentSyncFolders).where(eq(agentSyncFolders.id, folderId));
   console.log(`[SyncService] Removed sync folder: ${folderId}`);
+
+  // Check remaining folders AFTER deletion to decide cleanup strategy.
+  const remainingFolders = await getSyncFolders(characterId);
+
+  try {
+    if (remainingFolders.length === 0) {
+      // Last folder: drop table (if present).
+      await deleteAgentTable(characterId);
+    } else {
+      // Multiple folders: delete vectors for this folder only.
+      await removeFolderFromVectorDB({ characterId, folderId });
+    }
+  } catch (cleanupError) {
+    // Non-fatal cleanup error: keep deletion successful to avoid HTTP 500 loops.
+    console.error(`[SyncService] Non-fatal vector cleanup failure for folder ${folderId}:`, cleanupError);
+  }
 
   if (wasPrimary && remainingFolders.length > 0) {
     await setPrimaryFolder(remainingFolders[0].id, characterId);
