@@ -109,6 +109,11 @@ export type ClaudeAgentSdkQueryOptions = {
    */
   permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "dontAsk";
   /**
+   * Working directory for the SDK agent session.
+   * Defaults to the agent's primary sync folder (resolved from DB) or `process.cwd()`.
+   */
+  cwd?: string;
+  /**
    * Per-request Seline platform context used to build an in-process MCP server
    * that exposes ToolRegistry tools and per-agent MCP tools to the SDK agent.
    *
@@ -440,11 +445,15 @@ async function runClaudeAgentQuery(options: {
     ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
     : undefined;
 
+  // Resolve working directory: explicit SDK option > MCP context > process.cwd()
+  const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+
   const query = claudeAgentQuery({
     prompt: options.prompt,
     options: {
       abortController,
-      cwd: process.cwd(),
+      cwd: resolvedCwd,
+      ...(resolvedCwd !== process.cwd() ? { additionalDirectories: [resolvedCwd] } : {}),
       executable: "node",
       includePartialMessages: true,
       // Allow multi-step agentic work (read → plan → write → verify).

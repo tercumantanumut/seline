@@ -2,6 +2,7 @@ import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, t
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
 import { registerAllTools } from "@/lib/ai/tool-registry";
 import { AI_CONFIG } from "@/lib/ai/config";
+import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
 import { shouldUseCache } from "@/lib/ai/cache/config";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
 import { ContextWindowManager } from "@/lib/context-window";
@@ -534,11 +535,21 @@ export async function POST(req: Request) {
     // read it without needing changes to every function signature in between.
     // Must be set AFTER buildToolsForRequest() so MCP servers are already
     // connected and their tools are registered in ToolRegistry.
+    // Resolve agent's primary sync folder as the working directory for SDK agents
+    let agentCwd: string | undefined;
+    if (characterId) {
+      const primaryFolder = await getPrimarySyncFolder(characterId);
+      if (primaryFolder?.folderPath) {
+        agentCwd = primaryFolder.folderPath;
+      }
+    }
+
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
       characterId: characterId ?? null,
       enabledTools: enabledTools ?? undefined,
+      cwd: agentCwd,
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
