@@ -138,13 +138,13 @@ export default function ChatInterface({
 
     const reloadSessionMessages = useCallback(async (
         targetSessionId: string,
-        options?: { remount?: boolean }
+        options?: { force?: boolean }
     ) => {
         const uiMessages = await sm.fetchSessionMessages(targetSessionId);
         if (!uiMessages) return;
         if (sessionId && sessionId !== targetSessionId) return;
         const nextSignature = getMessagesSignature(uiMessages);
-        if (nextSignature === lastSessionSignatureRef.current) return;
+        if (!options?.force && nextSignature === lastSessionSignatureRef.current) return;
         setSessionState((prev) => {
             if (prev.sessionId !== targetSessionId) return prev;
             return { sessionId: targetSessionId, messages: uiMessages };
@@ -198,7 +198,7 @@ export default function ChatInterface({
                 bg.setIsProcessingInBackground(true);
                 bg.setProcessingRunId(backgroundRunId);
                 bg.startPollingForCompletion(backgroundRunId);
-                void reloadSessionMessages(sessionId, { remount: true });
+                void reloadSessionMessages(sessionId, { force: true });
             } else {
                 bg.setIsProcessingInBackground(false);
                 bg.setProcessingRunId(null);
@@ -235,7 +235,7 @@ export default function ChatInterface({
             if (bg.processingRunId) {
                 // Already tracking a run — restart polling + refresh messages
                 bg.startPollingForCompletion(bg.processingRunId);
-                void reloadSessionMessages(sessionId, { remount: true });
+                void reloadSessionMessages(sessionId, { force: true });
             } else {
                 // No known run — check server for any active run we missed
                 void checkActiveRunRef.current();
@@ -361,7 +361,7 @@ export default function ChatInterface({
             if (detail.eventType === "task:completed" && isBackgroundTask(detail.task) && detail.task.sessionId === sessionId) {
                 if (reloadDebounceRef.current) clearTimeout(reloadDebounceRef.current);
                 reloadDebounceRef.current = setTimeout(() => {
-                    void reloadSessionMessages(sessionId, { remount: true });
+                    void reloadSessionMessages(sessionId, { force: true });
                     reloadDebounceRef.current = null;
                 }, 150);
                 setActiveRun((current) => {
@@ -383,7 +383,7 @@ export default function ChatInterface({
                     taskName: "taskName" in detail.task ? detail.task.taskName : undefined,
                     startedAt: detail.task.startedAt,
                 });
-                void reloadSessionMessages(sessionId, { remount: true });
+                void reloadSessionMessages(sessionId, { force: true });
             }
             if (detail.eventType === "task:started" && detail.task.characterId === character.id) {
                 void sm.loadSessions();
@@ -408,7 +408,7 @@ export default function ChatInterface({
             const interval = setInterval(() => {
                 if (document.visibilityState !== "visible") return;
                 void sm.loadSessions({ silent: true, overrideCursor: null, preserveExtra: sm.userLoadedMoreRef.current });
-                void reloadSessionMessages(sessionId, { remount: true });
+                void reloadSessionMessages(sessionId);
             }, 2500);
             return () => clearInterval(interval);
         }
@@ -462,7 +462,7 @@ export default function ChatInterface({
             const now = Date.now();
             if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) return;
             lastProgressTimeRef.current = now;
-            void reloadSessionMessages(sessionId, { remount: true });
+            void reloadSessionMessages(sessionId, { force: true });
             if (detail.sessionId) sm.refreshSessionTimestamp(detail.sessionId);
         };
         window.addEventListener("background-task-progress", handleTaskProgress);
@@ -510,7 +510,7 @@ export default function ChatInterface({
 
     const handlePostCancel = useCallback(() => {
         if (!sessionId) return;
-        void reloadSessionMessages(sessionId);
+        void reloadSessionMessages(sessionId, { force: true });
     }, [sessionId, reloadSessionMessages]);
 
     if (sm.isLoading) {
@@ -607,7 +607,7 @@ export default function ChatInterface({
                                 onLivePromptInjected={async () => {
                                     // remount:true so ChatProvider reinitialises from DB (same as background mode).
                                     // Safe here: the run has ended before this callback fires (isQueueBlocked=false).
-                                    await reloadSessionMessages(sessionId ?? "", { remount: true });
+                                    await reloadSessionMessages(sessionId ?? "", { force: true });
                                     // Check if the run had undrained queue messages that need a new run.
                                     // Returns true → thread-composer converts injected-live chips to fallback.
                                     try {

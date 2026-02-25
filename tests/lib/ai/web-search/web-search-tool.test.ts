@@ -48,6 +48,20 @@ vi.mock("@/lib/ai/web-browse", () => ({
   browseAndSynthesize: browseMocks.browseAndSynthesize,
 }));
 
+const firecrawlMocks = vi.hoisted(() => {
+  const scrapeExecute = vi.fn();
+  return {
+    scrapeExecute,
+    createFirecrawlScrapeTool: vi.fn(() => ({
+      execute: scrapeExecute,
+    })),
+  };
+});
+
+vi.mock("@/lib/ai/firecrawl", () => ({
+  createFirecrawlScrapeTool: firecrawlMocks.createFirecrawlScrapeTool,
+}));
+
 import { createWebSearchTool } from "@/lib/ai/web-search";
 
 describe("createWebSearchTool", () => {
@@ -88,15 +102,24 @@ describe("createWebSearchTool", () => {
       fetchedUrls: ["https://www.fenerbahce.org/"],
       failedUrls: [],
     });
+
+    firecrawlMocks.scrapeExecute.mockResolvedValue({
+      status: "success",
+      url: "https://example.com/page",
+      markdown: "# Example\n\nfull page content",
+      title: "Example",
+      images: ["https://example.com/image.jpg"],
+      ogImage: "https://example.com/og.jpg",
+    });
   });
 
   it("falls back to DuckDuckGo in auto mode when Tavily fails", async () => {
     const tool = createWebSearchTool();
 
-    const result = await tool.execute(
-      { query: "Fenerbahce", maxResults: 5, includeAnswer: true },
+    const result = (await tool.execute(
+      { action: "search", query: "Fenerbahce", maxResults: 5, includeAnswer: true },
       { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
-    ) as any;
+    )) as any;
 
     expect(providerMocks.tavilyProvider.search).toHaveBeenCalledTimes(1);
     expect(providerMocks.duckduckgoProvider.search).toHaveBeenCalledTimes(1);
@@ -106,10 +129,10 @@ describe("createWebSearchTool", () => {
     );
 
     expect(result.status).toBe("success");
+    expect(result.action).toBe("search");
     expect(result.provider).toBe("duckduckgo");
     expect(result.sources).toHaveLength(1);
-    expect(browseMocks.browseAndSynthesize).toHaveBeenCalledTimes(1);
-    expect(result.answer).toBe("Synthesis");
+    expect(browseMocks.browseAndSynthesize).not.toHaveBeenCalled();
   });
 
   it("does not fallback when Tavily is explicitly selected", async () => {
@@ -124,31 +147,66 @@ describe("createWebSearchTool", () => {
     });
 
     const tool = createWebSearchTool();
-    const result = await tool.execute(
+    const result = (await tool.execute(
       { query: "Fenerbahce" },
       { toolCallId: "tc-2", messages: [], abortSignal: new AbortController().signal }
-    ) as any;
+    )) as any;
 
     expect(providerMocks.tavilyProvider.search).toHaveBeenCalledTimes(1);
     expect(providerMocks.duckduckgoProvider.search).not.toHaveBeenCalled();
     expect(result.provider).toBe("tavily");
+    expect(result.action).toBe("search");
     expect(result.sources).toHaveLength(0);
     expect(browseMocks.browseAndSynthesize).not.toHaveBeenCalled();
   });
 
   it("supports direct URL mode without running search providers", async () => {
-    const tool = createWebSearchTool({ sessionId: "session-1", userId: "user-1", characterId: null });
+    const tool = createWebSearchTool({
+      sessionId: "session-1",
+      userId: "user-1",
+      characterId: null,
+    });
 
-    const result = await tool.execute(
+    const result = (await tool.execute(
       { query: "Summarize this", urls: ["https://example.com/page"] },
       { toolCallId: "tc-3", messages: [], abortSignal: new AbortController().signal }
-    ) as any;
+    )) as any;
 
     expect(providerMocks.tavilyProvider.search).not.toHaveBeenCalled();
     expect(providerMocks.duckduckgoProvider.search).not.toHaveBeenCalled();
     expect(browseMocks.browseAndSynthesize).toHaveBeenCalledTimes(1);
-    expect(result.provider).toBe("direct-urls");
+    expect(result.action).toBe("synthesize");
+    expect(result.provider).toBe("synthesize");
     expect(result.sources).toHaveLength(1);
     expect(result.answer).toBe("Synthesis");
+  });
+
+  it("supports browse action for full-page fetches without utility synthesis", async () => {
+    const tool = createWebSearchTool({
+      sessionId: "session-1",
+      userId: "user-1",
+      characterId: null,
+    });
+
+    const result = (await tool.execute(
+      {
+        action: "browse",
+        query: "Inspect page",
+        urls: ["https://example.com/page"],
+      },
+      { toolCallId: "tc-4", messages: [], abortSignal: new AbortController().signal }
+    )) as any;
+
+    expect(providerMocks.tavilyProvider.search).not.toHaveBeenCalled();
+    expect(providerMocks.duckduckgoProvider.search).not.toHaveBeenCalled();
+    expect(browseMocks.browseAndSynthesize).not.toHaveBeenCalled();
+    expect(firecrawlMocks.createFirecrawlScrapeTool).toHaveBeenCalledTimes(1);
+    expect(firecrawlMocks.scrapeExecute).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("success");
+    expect(result.action).toBe("browse");
+    expect(result.provider).toBe("browse");
+    expect(result.pages).toHaveLength(1);
+    expect(result.sources).toHaveLength(1);
+    expect(result.fetchedUrls).toEqual(["https://example.com/page"]);
   });
 });
