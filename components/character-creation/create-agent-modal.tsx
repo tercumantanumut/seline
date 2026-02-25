@@ -105,7 +105,7 @@ export function CreateAgentModal({ open, onOpenChange, onCreated }: CreateAgentM
       const { data: expandData, error: expandErr, status: expandStatus } = await resilientPost<{
         success: boolean;
         agent: { name: string; tagline: string; purpose: string };
-      }>("/api/characters/quick-create", { concept: inputValue.trim() }, { retries: 0, timeout: 30000 });
+      }>("/api/characters/quick-create", { concept: inputValue.trim() }, { retries: 0, timeout: 60000 });
 
       if (expandStatus === 401 || expandErr === "HTTP 401") {
         throw new Error("SESSION_EXPIRED");
