@@ -75,7 +75,11 @@ export function initCoreTablesWith(sqlite: Database.Database): void {
       UPDATE sessions
       SET
         character_id = COALESCE(character_id, json_extract(metadata, '$.characterId')),
-        channel_type = COALESCE(channel_type, json_extract(metadata, '$.channelType'))
+        channel_type = CASE
+          WHEN COALESCE(channel_type, json_extract(metadata, '$.channelType')) IN ('whatsapp', 'telegram', 'slack', 'discord')
+            THEN COALESCE(channel_type, json_extract(metadata, '$.channelType'))
+          ELSE NULL
+        END
       WHERE character_id IS NULL OR channel_type IS NULL
     `);
   } catch (error) {

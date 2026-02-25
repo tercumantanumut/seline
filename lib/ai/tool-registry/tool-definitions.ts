@@ -159,7 +159,7 @@ export function registerAllTools(): void {
 
 Search and filter past conversations. Returns metadata and summaries — not message content.
 
-**Filters:** query (title search), characterName, channelType (whatsapp/telegram/slack), dateRange (today/week/month/all).
+**Filters:** query (title search), characterName, channelType (whatsapp/telegram/slack/discord), dateRange (today/week/month/all).
 **Use when:** user asks "what did we discuss about X?", "find my Telegram chats", "recent sessions with agent Y".
 **Limit:** Max 50 results per call. Default 20.`,
       loading: { deferLoading: true },

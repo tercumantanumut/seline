@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { resilientFetch, resilientPost, resilientPatch, resilientDelete } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
-import { Hash, Loader2, MessageCircle, Phone, RefreshCw, Send, Trash2, Plug, Pencil } from "lucide-react";
+import { Hash, Loader2, MessageCircle, MessageSquare, Phone, RefreshCw, Send, Trash2, Plug, Pencil } from "lucide-react";
 
-type ChannelType = "whatsapp" | "telegram" | "slack";
+type ChannelType = "whatsapp" | "telegram" | "slack" | "discord";
 type ChannelStatus = "disconnected" | "connecting" | "connected" | "error";
 
 type ChannelConnection = {
@@ -39,6 +39,7 @@ const CHANNEL_ICONS: Record<ChannelType, typeof Phone> = {
   whatsapp: Phone,
   telegram: Send,
   slack: Hash,
+  discord: MessageSquare,
 };
 
 const STATUS_STYLES: Record<ChannelStatus, string> = {
@@ -80,6 +81,7 @@ export function ChannelConnectionsDialog({
   const [slackBotToken, setSlackBotToken] = useState("");
   const [slackAppToken, setSlackAppToken] = useState("");
   const [slackSigningSecret, setSlackSigningSecret] = useState("");
+  const [discordBotToken, setDiscordBotToken] = useState("");
   const [whatsappSelfChat, setWhatsappSelfChat] = useState(false);
   const [qrCodes, setQrCodes] = useState<Record<string, string | null>>({});
 
@@ -93,6 +95,7 @@ export function ChannelConnectionsDialog({
     setSlackBotToken("");
     setSlackAppToken("");
     setSlackSigningSecret("");
+    setDiscordBotToken("");
     setWhatsappSelfChat(false);
   }, []);
 
@@ -174,6 +177,7 @@ export function ChannelConnectionsDialog({
     setSlackBotToken("");
     setSlackAppToken("");
     setSlackSigningSecret("");
+    setDiscordBotToken("");
     setWhatsappSelfChat(normalizeBool(connection.config?.selfChatMode));
   }, []);
 
@@ -188,6 +192,9 @@ export function ChannelConnectionsDialog({
         if (slackBotToken.trim()) config.botToken = slackBotToken.trim();
         if (slackAppToken.trim()) config.appToken = slackAppToken.trim();
         if (slackSigningSecret.trim()) config.signingSecret = slackSigningSecret.trim();
+      }
+      if (formType === "discord" && discordBotToken.trim()) {
+        config.botToken = discordBotToken.trim();
       }
       if (isEditing && editingConnection) {
         const { error } = await resilientPatch(
@@ -228,6 +235,9 @@ export function ChannelConnectionsDialog({
         if (formType === "slack") {
           toast.warning(t("notices.slackScopesHint"), { duration: 8000 });
         }
+        if (formType === "discord") {
+          toast.message(t("notices.discordSetupHint"), { duration: 10000 });
+        }
       }
 
       resetForm();
@@ -249,6 +259,7 @@ export function ChannelConnectionsDialog({
     slackAppToken,
     slackBotToken,
     slackSigningSecret,
+    discordBotToken,
     t,
     telegramToken,
   ]);
@@ -427,6 +438,7 @@ export function ChannelConnectionsDialog({
                       <SelectItem value="whatsapp">{t("types.whatsapp")}</SelectItem>
                       <SelectItem value="telegram">{t("types.telegram")}</SelectItem>
                       <SelectItem value="slack">{t("types.slack")}</SelectItem>
+                      <SelectItem value="discord">{t("types.discord")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -498,6 +510,23 @@ export function ChannelConnectionsDialog({
                         <p className="text-xs font-mono text-terminal-muted">{t("form.keepExisting")}</p>
                       ) : null}
                     </div>
+                  </div>
+                )}
+
+                {formType === "discord" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-mono text-terminal-dark">{t("form.discordBotToken")}</Label>
+                    <Input
+                      value={discordBotToken}
+                      onChange={(event) => setDiscordBotToken(event.target.value)}
+                      placeholder={t("form.discordBotTokenPlaceholder")}
+                      type="password"
+                      className="font-mono"
+                    />
+                    {isEditing ? (
+                      <p className="text-xs font-mono text-terminal-muted">{t("form.keepExisting")}</p>
+                    ) : null}
+                    <p className="text-xs font-mono text-terminal-muted">{t("discord.setupHint")}</p>
                   </div>
                 )}
 

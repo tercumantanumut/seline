@@ -5,7 +5,7 @@ import { eq, desc, asc, and, lt, sql, like, inArray } from "drizzle-orm";
 
 export type SessionMetadataShape = {
   characterId?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
 };
 
 export interface ListSessionsPaginatedParams {
@@ -14,7 +14,7 @@ export interface ListSessionsPaginatedParams {
   cursor?: string;
   limit?: number;
   search?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
   dateRange?: "today" | "week" | "month" | "all";
   status?: "active" | "archived";
 }

@@ -10,7 +10,7 @@ interface SearchSessionsToolOptions {
 interface SearchSessionsArgs {
   query?: string;
   characterName?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
   dateRange?: "today" | "week" | "month" | "all";
   limit?: number;
 }
@@ -32,7 +32,7 @@ const searchSessionsSchema = jsonSchema<SearchSessionsArgs>({
     },
     channelType: {
       type: "string",
-      enum: ["whatsapp", "telegram", "slack"],
+      enum: ["whatsapp", "telegram", "slack", "discord"],
       description: "Filter by the channel where the conversation happened",
     },
     dateRange: {

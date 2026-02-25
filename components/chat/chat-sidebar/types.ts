@@ -1,4 +1,4 @@
-export type SessionChannelType = "whatsapp" | "telegram" | "slack";
+export type SessionChannelType = "whatsapp" | "telegram" | "slack" | "discord";
 
 export interface SessionInfo {
   id: string;

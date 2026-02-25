@@ -94,6 +94,7 @@ const FEATURE_CATEGORIES: FeatureCategory[] = [
         features: [
             { nameKey: "slack", icon: "slack.svg", status: "configurable" },
             { nameKey: "telegram", icon: "telegram.svg", status: "configurable" },
+            { nameKey: "discord", icon: "discord.svg", status: "configurable" },
             { nameKey: "whatsapp", icon: "whatsapp.svg", status: "configurable" },
         ],
     },
