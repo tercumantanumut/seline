@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -36,6 +36,7 @@ import {
   useSessionContextStatus,
   useSessionData,
   useSessionHasActiveRun,
+  useSessionSyncStore,
 } from "@/lib/stores/session-sync-store";
 import { CHANNEL_TYPE_ICONS } from "./constants";
 import { SessionActivityBubble } from "./session-activity-bubble";
@@ -96,6 +97,18 @@ export function SessionItem({
   const hasActiveRun = useSessionHasActiveRun(initialSession.id);
   const sessionActivity = useSessionActivity(initialSession.id);
   const contextStatus = useSessionContextStatus(initialSession.id);
+
+  // Clear completed activity when navigating away so stale "Completed" bubbles
+  // don't reappear if the user returns to this session before the store is cleared.
+  useEffect(() => {
+    if (!isCurrent && sessionActivity && !sessionActivity.isRunning) {
+      useSessionSyncStore.getState().setSessionActivity(initialSession.id, null);
+    }
+  }, [isCurrent, initialSession.id, sessionActivity]);
+
+  const handleBubbleDismissed = useCallback(() => {
+    useSessionSyncStore.getState().setSessionActivity(initialSession.id, null);
+  }, [initialSession.id]);
 
   // Merge initial session with synced data
   // Only override fields that are present in syncedSession and relevant for display
@@ -394,6 +407,7 @@ export function SessionItem({
         hasActiveRun={hasActiveRun}
         isCurrent={isCurrent}
         anchorRef={itemRef}
+        onDismissed={handleBubbleDismissed}
       />
     </div>
   );

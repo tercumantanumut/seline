@@ -26,6 +26,7 @@ interface SessionActivityBubbleProps {
   hasActiveRun: boolean;
   isCurrent: boolean;
   anchorRef: RefObject<HTMLDivElement | null>;
+  onDismissed?: () => void;
 }
 
 type BubbleTone = "neutral" | "info" | "warning" | "critical" | "success";
@@ -45,7 +46,7 @@ interface VisualBubbleModel extends ResolvedBubbleModel {
 
 const STATUS_SWAP_COOLDOWN_MS = 700;
 const SETTLING_PHASE_MS = 4000;
-const ARCHIVED_HIDE_MS = 18000;
+const ARCHIVED_HIDE_MS = 5000;
 // Grace period after hasActiveRun drops before clearing the bubble.
 // task:completed arrives via a second SSE stream (/api/tasks/events) which has
 // extra network RTT vs the chat stream — without this, the bubble clears before
@@ -229,6 +230,7 @@ export function SessionActivityBubble({
   hasActiveRun,
   isCurrent,
   anchorRef,
+  onDismissed,
 }: SessionActivityBubbleProps) {
   const swapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,12 +367,16 @@ export function SessionActivityBubble({
     if (visualModel.phase === "archived") {
       if (archiveTimeoutRef.current) clearTimeout(archiveTimeoutRef.current);
       archiveTimeoutRef.current = setTimeout(() => {
-        setVisualModel((current) =>
-          current && current.signature === visualModel.signature ? null : current
-        );
+        setVisualModel((current) => {
+          if (current && current.signature === visualModel.signature) {
+            onDismissed?.();
+            return null;
+          }
+          return current;
+        });
       }, ARCHIVED_HIDE_MS);
     }
-  }, [visualModel]);
+  }, [visualModel, onDismissed]);
 
   // --- Portal positioning ---
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
