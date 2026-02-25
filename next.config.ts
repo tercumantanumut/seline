@@ -154,6 +154,8 @@ const nextConfig: NextConfig = {
     "zlib-sync",
     // Static ffmpeg binary for audio conversion
     "ffmpeg-static",
+    // Vosk - offline speech recognition with native bindings (optional)
+    "vosk",
     // MCP SDK - uses Node.js child_process and should never run in browser
     "@modelcontextprotocol/sdk",
     "cross-spawn",

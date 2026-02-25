@@ -1,6 +1,9 @@
 # Seline marketing website (standalone, excluded from main repo)
 seline-web/
 
+# Feature spotlight prototype
+feature-spotlight.html
+
 # Dependencies
 node_modules
 .pnpm-store

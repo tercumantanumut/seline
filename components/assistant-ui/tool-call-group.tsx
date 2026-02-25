@@ -19,7 +19,6 @@ interface ToolCallGroupProps {
 }
 
 const toolGroupExpansionState = new Map<string, boolean>();
-const COLLAPSED_BADGE_LIMIT = 10;
 
 function getResultCount(result: unknown): number | null {
   if (!result || typeof result !== "object") return null;
@@ -83,7 +82,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
 }) => {
   const t = useTranslations("assistantUi.tools");
   const messageParts = useAssistantState((state) => state.message.parts);
-  const message = useMessage();
+  const messageId = useMessage((state) => state.id);
 
   const toolParts = useMemo(() => {
     return messageParts
@@ -98,9 +97,10 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [toolParts]);
 
   const expansionKey = useMemo(() => {
-    const messageId = typeof message?.id === "string" ? message.id : fallbackKey || "unknown-message";
-    return `${messageId}:${startIndex}`;
-  }, [fallbackKey, message?.id, startIndex]);
+    const resolvedMessageId =
+      typeof messageId === "string" ? messageId : fallbackKey || "unknown-message";
+    return `${resolvedMessageId}:${startIndex}`;
+  }, [fallbackKey, messageId, startIndex]);
 
   const [isExpanded, setIsExpanded] = useState<boolean>(
     () => toolGroupExpansionState.get(expansionKey) ?? false
@@ -140,13 +140,6 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     }
   }, [expansionKey, hasError, hasMedia]);
 
-  const visibleToolParts = useMemo(
-    () => (isExpanded ? toolParts : toolParts.slice(0, COLLAPSED_BADGE_LIMIT)),
-    [isExpanded, toolParts]
-  );
-
-  const hiddenBadgeCount = toolParts.length - visibleToolParts.length;
-
   const handleToggleExpanded = () => {
     setIsExpanded((prev) => {
       const next = !prev;
@@ -162,13 +155,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   return (
     <div
       className={cn(
-        "my-2 rounded-lg bg-terminal-cream/80 p-2 shadow-sm transition-all duration-150 ease-in-out",
-        isExpanded && "max-h-none"
+        "my-2 rounded-lg bg-terminal-cream/80 p-2 shadow-sm transition-all duration-150 ease-in-out"
       )}
     >
-      {/* Wrap badges so large tool runs don't create horizontal overflow. */}
-      <div className="flex flex-wrap items-center gap-1.5 pb-1">
-        {visibleToolParts.map((part, index) => {
+      <div className="flex flex-wrap items-center gap-2 pb-1">
+        {toolParts.map((part, index) => {
           const label = t.has(part.toolName) ? t(part.toolName) : part.toolName;
           const status = getStatus(part);
           const count = getResultCount(part.result);
@@ -181,11 +172,6 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
             />
           );
         })}
-        {hiddenBadgeCount > 0 && (
-          <span className="inline-flex shrink-0 items-center rounded-full bg-terminal-dark/10 px-2 py-0.5 text-xs font-mono text-terminal-muted">
-            +{hiddenBadgeCount}
-          </span>
-        )}
       </div>
 
       {!isExpanded && mediaPreviews.length > 0 && (

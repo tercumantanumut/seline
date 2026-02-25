@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Key, Globe, Zap, MessageSquare, Terminal } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Info, Sparkles, Key, Globe, Zap, MessageSquare, Terminal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
@@ -19,32 +19,32 @@ const providers = [
     {
         id: "antigravity" as const,
         icon: Sparkles,
-        recommended: true,
+        badgeType: "warning" as const,
     },
     {
         id: "codex" as const,
         icon: Zap,
-        recommended: false,
+        badgeType: null as null,
     },
     {
         id: "claudecode" as const,
         icon: Terminal,
-        recommended: false,
+        badgeType: "info" as const,
     },
     {
         id: "anthropic" as const,
         icon: Key,
-        recommended: false,
+        badgeType: null as null,
     },
     {
         id: "openrouter" as const,
         icon: Globe,
-        recommended: false,
+        badgeType: null as null,
     },
     {
         id: "kimi" as const,
         icon: MessageSquare,
-        recommended: false,
+        badgeType: null as null,
     },
 ];
 
@@ -95,8 +95,15 @@ export function ProviderStep({ selectedProvider, onSelect, onContinue, onBack }:
                                     <span className="font-semibold text-terminal-dark font-mono">
                                         {t(`options.${provider.id}.title`)}
                                     </span>
-                                    {provider.recommended && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-terminal-green/10 text-terminal-green font-mono">
+                                    {provider.badgeType === "warning" && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-terminal-amber/10 text-terminal-amber border border-terminal-amber/20 font-mono inline-flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            {t(`options.${provider.id}.badge`)}
+                                        </span>
+                                    )}
+                                    {provider.badgeType === "info" && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-terminal-blue/10 text-terminal-blue border border-terminal-blue/20 font-mono inline-flex items-center gap-1">
+                                            <Info className="w-3 h-3" />
                                             {t(`options.${provider.id}.badge`)}
                                         </span>
                                     )}

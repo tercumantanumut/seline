@@ -718,6 +718,11 @@ export function useTaskNotifications() {
           if (task.sessionId) {
             sessionSyncState.setActiveRun(task.sessionId, task.runId);
             const previous = sessionSyncState.getSessionActivity(task.sessionId);
+            // Don't overwrite a completed/settling bubble for the same run —
+            // let it finish its natural lifecycle instead of resetting to running.
+            if (previous && !previous.isRunning && previous.runId === task.runId) {
+              continue;
+            }
             sessionSyncState.setSessionActivity(
               task.sessionId,
               buildActivityState(task.sessionId, task.runId, deriveTaskIndicators(task), {
