@@ -35,7 +35,6 @@ export function SidebarQuickLinks({
     { href: `/agents/${characterId}/memory`, label: t("sidebar.agentMemoryShort") },
     { href: `/agents/${characterId}/schedules`, label: t("sidebar.schedulesShort") },
     { href: `/agents/${characterId}/skills`, label: t("sidebar.skillsShort") },
-    { href: "/skills/library", label: t("sidebar.libraryShort") },
     { href: "/dashboard", label: t("sidebar.dashboardShort") },
     { href: "/usage", label: t("sidebar.usageShort") },
   ];

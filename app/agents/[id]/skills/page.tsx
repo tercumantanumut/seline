@@ -2,13 +2,16 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, Plus, Library, ExternalLink, Upload, Trash2, MoreVertical } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, AlertCircle, Plus, ExternalLink, Upload, Trash2, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SkillImportDropzone } from "@/components/skills/skill-import-dropzone";
+import { SkillLibrary } from "@/components/skills/skill-library";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -49,6 +52,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   const { id: characterId } = use(params);
   const t = useTranslations("skills");
   const tc = useTranslations("common");
+  const router = useRouter();
 
   const [character, setCharacter] = useState<CharacterBasic | null>(null);
   const [skills, setSkills] = useState<SkillItem[]>([]);
@@ -94,15 +98,20 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
     };
   }, [characterId, tc]);
 
+  const reloadSkills = async () => {
+    const res = await fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}`);
+    if (res.ok) {
+      const data = await res.json();
+      setSkills(Array.isArray(data.skills) ? data.skills : []);
+    }
+  };
+
   const handleDeleteSkill = async () => {
     if (!skillToDelete) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/skills/${skillToDelete}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/skills/${skillToDelete}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete skill");
-      
       setSkills((prev) => prev.filter((s) => s.id !== skillToDelete));
       toast.success(t("delete.success"));
     } catch (err) {
@@ -115,7 +124,13 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
   };
 
   if (isLoading) {
-    return <Shell><div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-terminal-green" /></div></Shell>;
+    return (
+      <Shell>
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-terminal-green" />
+        </div>
+      </Shell>
+    );
   }
 
   if (error) {
@@ -138,106 +153,108 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
     <Shell>
       <ScrollArea className="h-full">
         <div className="px-6 py-8 space-y-6">
-          <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-mono font-bold text-terminal-dark">{t("title")}</h1>
-              <p className="mt-1 text-sm text-terminal-muted">{t("pageDescription", { name: agentName })}</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" className="gap-2 font-mono">
-                <Link href="/skills/library"><Library className="h-4 w-4" />{t("library")}</Link>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowImport(!showImport)}
-                className="gap-2 font-mono"
-              >
-                <Upload className="h-4 w-4" />
-                {showImport ? t("hideImport") : t("importPackage")}
-              </Button>
-              <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
-                <Link href={`/agents/${characterId}/skills/new`}><Plus className="h-4 w-4" />{tc("create")}</Link>
-              </Button>
-            </div>
+          <header>
+            <h1 className="text-2xl font-mono font-bold text-terminal-dark">{t("title")}</h1>
+            <p className="mt-1 text-sm text-terminal-muted">{t("pageDescription", { name: agentName })}</p>
           </header>
 
-          {/* Import Section */}
-          {showImport && character && (
-            <div className="mb-6">
-              <SkillImportDropzone
-                characterId={character.id}
-                onImportSuccess={(skillId) => {
-                  toast.success(t("importSuccess"), {
-                    description: t("importSuccessDesc", { skillId }),
-                  });
-                  setShowImport(false);
-                  // Reload skills
-                  const loadSkills = async () => {
-                    const res = await fetch(`/api/skills?characterId=${encodeURIComponent(characterId)}`);
-                    if (res.ok) {
-                      const data = await res.json();
-                      setSkills(Array.isArray(data.skills) ? data.skills : []);
-                    }
-                  };
-                  loadSkills();
-                }}
-                onImportError={(error) => {
-                  toast.error(t("importFailed"), {
-                    description: error,
-                  });
-                }}
-              />
-            </div>
-          )}
+          <Tabs defaultValue="mySkills">
+            <TabsList className="font-mono">
+              <TabsTrigger value="mySkills">{t("mySkills")}</TabsTrigger>
+              <TabsTrigger value="library">{t("library")}</TabsTrigger>
+            </TabsList>
 
-          {skills.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/50 p-8 text-center">
-              <p className="text-base font-mono text-terminal-dark">{t("emptyTitle")}</p>
-              <p className="mt-2 text-sm text-terminal-muted">{t("emptyDescription")}</p>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {skills.map((skill) => (
-                <article key={skill.id} className="rounded-lg border border-terminal-border bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-mono text-terminal-dark font-semibold truncate">{skill.name}</h2>
-                    <Badge variant="outline" className="font-mono text-xs">{t(`status.${skill.status}`)}</Badge>
-                  </div>
-                  {skill.description ? <p className="mt-2 text-sm text-terminal-muted">{skill.description}</p> : null}
-                  <div className="mt-3 flex flex-wrap gap-4 text-xs font-mono text-terminal-muted">
-                    <span>{t("stats.runs")}: {skill.runCount}</span>
-                    <span>{t("stats.success")}: {skill.successCount}</span>
-                    <span>{t("stats.lastRun")}: {skill.lastRunAt ? new Date(skill.lastRunAt).toLocaleString() : t("stats.never")}</span>
-                    <span>{t("stats.category")}: {skill.category || t("library.categoryGeneral")}</span>
-                    <span>{t("stats.version")}: {skill.version}</span>
-                  </div>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4" />
+            {/* My Skills Tab */}
+            <TabsContent value="mySkills" className="mt-6 space-y-6">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowImport(!showImport)}
+                  className="gap-2 font-mono"
+                >
+                  <Upload className="h-4 w-4" />
+                  {showImport ? t("hideImport") : t("importPackage")}
+                </Button>
+                <Button asChild className="gap-2 bg-terminal-green hover:bg-terminal-green/90 text-white font-mono">
+                  <Link href={`/agents/${characterId}/skills/new`}>
+                    <Plus className="h-4 w-4" />{tc("create")}
+                  </Link>
+                </Button>
+              </div>
+
+              {showImport && character && (
+                <SkillImportDropzone
+                  characterId={character.id}
+                  onImportSuccess={(skillId) => {
+                    toast.success(t("importSuccess"), {
+                      description: t("importSuccessDesc", { skillId }),
+                    });
+                    setShowImport(false);
+                    reloadSkills();
+                  }}
+                  onImportError={(importError) => {
+                    toast.error(t("importFailed"), { description: importError });
+                  }}
+                />
+              )}
+
+              {skills.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-terminal-border bg-terminal-cream/50 p-8 text-center">
+                  <p className="text-base font-mono text-terminal-dark">{t("emptyTitle")}</p>
+                  <p className="mt-2 text-sm text-terminal-muted">{t("emptyDescription")}</p>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {skills.map((skill) => (
+                    <article key={skill.id} className="rounded-lg border border-terminal-border bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <h2 className="font-mono text-terminal-dark font-semibold truncate">{skill.name}</h2>
+                        <Badge variant="outline" className="font-mono text-xs">{t(`status.${skill.status}`)}</Badge>
+                      </div>
+                      {skill.description ? <p className="mt-2 text-sm text-terminal-muted">{skill.description}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-4 text-xs font-mono text-terminal-muted">
+                        <span>{t("stats.runs")}: {skill.runCount}</span>
+                        <span>{t("stats.success")}: {skill.successCount}</span>
+                        <span>{t("stats.lastRun")}: {skill.lastRunAt ? new Date(skill.lastRunAt).toLocaleString() : t("stats.never")}</span>
+                        <span>{t("stats.category")}: {skill.category || t("library.categoryGeneral")}</span>
+                        <span>{t("stats.version")}: {skill.version}</span>
+                      </div>
+                      <div className="mt-3 flex justify-end gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setSkillToDelete(skill.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {t("delete.action")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button asChild variant="outline" size="sm" className="font-mono">
+                          <Link href={`/agents/${characterId}/skills/${skill.id}`}>
+                            {t("library.open")} <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                          </Link>
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setSkillToDelete(skill.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t("delete.action")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button asChild variant="outline" size="sm" className="font-mono">
-                      <Link href={`/agents/${characterId}/skills/${skill.id}`}>
-                        {t("library.open")} <ExternalLink className="ml-1 h-3.5 w-3.5" />
-                      </Link>
-                    </Button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Library Tab */}
+            <TabsContent value="library" className="mt-6">
+              <SkillLibrary
+                onOpenSkill={(skillId, charId) => router.push(`/agents/${charId}/skills/${skillId}`)}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </ScrollArea>
 
@@ -245,9 +262,7 @@ export default function AgentSkillsPage({ params }: { params: Promise<{ id: stri
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("delete.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("delete.description")}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("delete.description")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{tc("cancel")}</AlertDialogCancel>

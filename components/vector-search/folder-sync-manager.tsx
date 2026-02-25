@@ -2,6 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FolderIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -33,6 +43,8 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
   const [updatingFolderId, setUpdatingFolderId] = useState<string | null>(null);
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
+  const [confirmRemoveFolder, setConfirmRemoveFolder] = useState<SyncFolder | null>(null);
+  const [confirmRemoveWorkspaceFolders, setConfirmRemoveWorkspaceFolders] = useState<SyncFolder[] | null>(null);
 
   // New folder form state
   const [newFolderPath, setNewFolderPath] = useState("");
@@ -281,7 +293,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     }
   };
 
-  const handleRemoveFolder = async (folderId: string) => {
+  const executeRemoveFolder = async (folderId: string) => {
     setRemovingFolderId(folderId);
     try {
       const { error } = await resilientDelete<{ error?: string }>(
@@ -294,6 +306,50 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     } finally {
       setRemovingFolderId(null);
     }
+  };
+
+  const isWorkspaceFolder = (folder: SyncFolder) =>
+    (folder.displayName?.startsWith("Workspace:") ?? false) || /[/\\]worktrees[/\\]/.test(folder.folderPath);
+
+  const handleRemoveFolder = (folderId: string) => {
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder) return;
+    setConfirmRemoveFolder(folder);
+  };
+
+  const executeRemoveWorkspaceFolders = async () => {
+    const workspaceFolders = folders.filter(isWorkspaceFolder);
+    if (workspaceFolders.length === 0) return;
+
+    setRemovingFolderId("__bulk_workspace__");
+    setError(null);
+
+    try {
+      const results = await Promise.allSettled(
+        workspaceFolders.map((folder) =>
+          resilientDelete<{ error?: string }>(`/api/vector-sync?folderId=${folder.id}`)
+        )
+      );
+
+      const failures = results.filter((result) => {
+        if (result.status === "rejected") return true;
+        return Boolean(result.value.error);
+      });
+
+      if (failures.length > 0) {
+        setError(t("errorRemoveWorkspaceFolders", { failed: failures.length, total: workspaceFolders.length }));
+      }
+
+      await loadFolders();
+    } finally {
+      setRemovingFolderId(null);
+    }
+  };
+
+  const handleRemoveWorkspaceFolders = () => {
+    const workspaceFolders = folders.filter(isWorkspaceFolder);
+    if (workspaceFolders.length === 0) return;
+    setConfirmRemoveWorkspaceFolders(workspaceFolders);
   };
 
   const handleSyncFolder = async (folderId: string) => {
@@ -393,6 +449,21 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           <span className="font-mono text-xs text-terminal-muted">
             {t("transparencyHint")}
           </span>
+          {folders.some(isWorkspaceFolder) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRemoveWorkspaceFolders}
+              disabled={removingFolderId === "__bulk_workspace__"}
+              className="ml-auto h-7 px-2 font-mono text-[10px]"
+            >
+              {removingFolderId === "__bulk_workspace__" ? (
+                <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                t("removeWorkspaceFolders")
+              )}
+            </Button>
+          )}
         </div>
       )}
 
@@ -491,6 +562,71 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
           {t("addFolderToIndex")}
         </Button>
       )}
+
+      <AlertDialog
+        open={confirmRemoveFolder !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRemoveFolder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("removeFolderTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("removeFolderDescription", {
+                name:
+                  confirmRemoveFolder?.displayName ||
+                  confirmRemoveFolder?.folderPath.split(/[/\\]/).pop() ||
+                  confirmRemoveFolder?.folderPath ||
+                  "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!confirmRemoveFolder) return;
+                await executeRemoveFolder(confirmRemoveFolder.id);
+                setConfirmRemoveFolder(null);
+              }}
+            >
+              {t("confirmRemoveFolder")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(confirmRemoveWorkspaceFolders)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRemoveWorkspaceFolders(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("removeWorkspaceFoldersTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("removeWorkspaceFoldersDescription", {
+                count: confirmRemoveWorkspaceFolders?.length ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await executeRemoveWorkspaceFolders();
+                setConfirmRemoveWorkspaceFolders(null);
+              }}
+            >
+              {t("confirmRemoveWorkspaceFolders")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
