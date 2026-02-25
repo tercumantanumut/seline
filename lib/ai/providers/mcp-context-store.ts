@@ -26,6 +26,8 @@ export interface SelineMcpContext {
    * When undefined, all environment-enabled tools are exposed.
    */
   enabledTools?: string[];
+  /** Agent working directory (primary sync folder path) */
+  cwd?: string;
 }
 
 export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();
