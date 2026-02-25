@@ -296,6 +296,82 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
   }
 }
 
+/**
+ * Sanitize initial messages to prevent client-side crashes from incomplete
+ * tool calls that were persisted during streaming interruptions.
+ *
+ * When an Agent SDK stream is interrupted (user navigates away), the last
+ * assistant message may contain tool-call parts in "input-available" state
+ * with no matching result. The @assistant-ui/react runtime can throw when
+ * it encounters these during initialization.
+ */
+function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
+  if (!messages || messages.length === 0) return messages;
+
+  return messages.map((msg) => {
+    if (msg.role !== "assistant" || !msg.parts || msg.parts.length === 0) {
+      return msg;
+    }
+
+    // Check if any tool parts have problematic state
+    let needsSanitization = false;
+    for (const part of msg.parts) {
+      if (!part || typeof part !== "object") continue;
+      const p = part as Record<string, unknown>;
+      // Tool parts have type starting with "tool-" or "dynamic-tool"
+      const isToolPart =
+        (typeof p.type === "string" && p.type.startsWith("tool-")) ||
+        p.type === "dynamic-tool";
+      if (!isToolPart) continue;
+
+      const state = p.state as string | undefined;
+      // input-streaming = incomplete streaming, input-available without output = pending
+      if (state === "input-streaming") {
+        needsSanitization = true;
+        break;
+      }
+      if (state === "input-available" && p.output === undefined) {
+        // Tool call with args but no result — mark as needing sanitization
+        // only if this is the LAST assistant message (active streaming context)
+        needsSanitization = true;
+        break;
+      }
+    }
+
+    if (!needsSanitization) return msg;
+
+    // Filter out problematic tool parts
+    const sanitizedParts = msg.parts.filter((part) => {
+      if (!part || typeof part !== "object") return true;
+      const p = part as Record<string, unknown>;
+      const isToolPart =
+        (typeof p.type === "string" && p.type.startsWith("tool-")) ||
+        p.type === "dynamic-tool";
+      if (!isToolPart) return true;
+
+      const state = p.state as string | undefined;
+      if (state === "input-streaming") {
+        console.warn("[ChatProvider] Removing input-streaming tool part:", p.toolCallId);
+        return false;
+      }
+      // Keep all other parts (including input-available with output)
+      return true;
+    });
+
+    // Ensure we have at least one part
+    if (sanitizedParts.length === 0) {
+      return {
+        ...msg,
+        parts: [{ type: "text" as const, text: "" }],
+      };
+    }
+
+    return sanitizedParts.length !== msg.parts.length
+      ? { ...msg, parts: sanitizedParts as UIMessage["parts"] }
+      : msg;
+  });
+}
+
 export const ChatProvider: FC<ChatProviderProps> = ({
   children,
   sessionId,
@@ -416,10 +492,15 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     ),
   );
 
+  // Sanitize initial messages to prevent crashes from incomplete tool calls
+  // persisted during Agent SDK streaming interruptions.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const safeMessages = useMemo(() => sanitizeMessagesForInit(initialMessages ?? []), [initialMessages]);
+
   const chat = useChat({
     id: sessionId,
     transport,
-    messages: initialMessages,
+    messages: safeMessages,
   });
 
   const runtime = useAISDKRuntime(chat, {

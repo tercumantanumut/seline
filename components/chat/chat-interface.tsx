@@ -148,20 +148,22 @@ export default function ChatInterface({
         sm.refreshSessionTimestamp(targetSessionId);
     }, [sm.fetchSessionMessages, sm.refreshSessionTimestamp, sessionId]);
 
-    // Check for active run on mount and when sessionId changes
+    // ── Reusable active-run checker ──────────────────────────────────────────
+    // Extracted so it can be called on mount, visibility change, AND SSE reconnect.
+    const checkActiveRunRef = useRef<() => Promise<void>>(() => Promise.resolve());
+    const checkActiveRunCancelledRef = useRef(false);
+
     useEffect(() => {
-        let cancelled = false;
-        async function checkActiveRun() {
+        checkActiveRunRef.current = async () => {
             const { data, error } = await resilientFetch<ActiveRunLookupResponse>(
                 `/api/sessions/${sessionId}/active-run`,
                 { retries: 0 }
             );
-            if (cancelled) return;
+            if (checkActiveRunCancelledRef.current) return;
             if (error || !data) {
                 if (error) console.error("[Background Processing] Failed to check active run:", error);
                 return;
             }
-            if (cancelled) return;
 
             const backgroundRunId = data.hasActiveRun
                 ? data.runId ?? null
@@ -178,10 +180,15 @@ export default function ChatInterface({
                 bg.setProcessingRunId(null);
                 bg.setIsZombieRun(false);
             }
-        }
-        if (sessionId) checkActiveRun();
+        };
+    });
+
+    // Check for active run on mount and when sessionId changes
+    useEffect(() => {
+        checkActiveRunCancelledRef.current = false;
+        if (sessionId) void checkActiveRunRef.current();
         return () => {
-            cancelled = true;
+            checkActiveRunCancelledRef.current = true;
             if (bg.pollingIntervalRef.current) {
                 clearInterval(bg.pollingIntervalRef.current);
                 bg.pollingIntervalRef.current = null;
@@ -196,18 +203,67 @@ export default function ChatInterface({
         }
     }, [bg.processingRunId, sessionId, bg.startPollingForCompletion]);
 
+    // ── Visibility change: re-check active run (not just restart existing polling) ──
     useEffect(() => {
         if (typeof window === "undefined") return;
         const handleVisibility = () => {
-            if (document.visibilityState !== "visible") return;
-            if (bg.processingRunId && sessionId) {
+            if (document.visibilityState !== "visible" || !sessionId) return;
+            if (bg.processingRunId) {
+                // Already tracking a run — restart polling + refresh messages
                 bg.startPollingForCompletion(bg.processingRunId);
                 void reloadSessionMessages(sessionId, { remount: true });
+            } else {
+                // No known run — check server for any active run we missed
+                void checkActiveRunRef.current();
             }
         };
         document.addEventListener("visibilitychange", handleVisibility);
         return () => document.removeEventListener("visibilitychange", handleVisibility);
     }, [bg.processingRunId, reloadSessionMessages, sessionId, bg.startPollingForCompletion]);
+
+    // ── SSE reconnect bridge: re-check when task store reconciles ──
+    useEffect(() => {
+        if (typeof window === "undefined" || !sessionId) return;
+        const handleReconciled = () => {
+            if (!bg.processingRunId) {
+                void checkActiveRunRef.current();
+            }
+        };
+        window.addEventListener("sse-tasks-reconciled", handleReconciled);
+        return () => window.removeEventListener("sse-tasks-reconciled", handleReconciled);
+    }, [sessionId, bg.processingRunId]);
+
+    // ── Zustand task store bridge: catch tasks that arrived via SSE ──
+    // If the unified store has a running task for this session but we don't
+    // know about it yet (processingRunId is null), trigger a server check.
+    const storeCheckDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        if (!sessionId || bg.processingRunId) return;
+        const activeTask = activeTasks.find(
+            (t) => t.sessionId === sessionId && t.status === "running"
+        );
+        if (!activeTask) return;
+        // Debounce to avoid racing with foreground useChat streams that also
+        // register tasks momentarily. If the task persists for >1.5s, it's background.
+        if (storeCheckDebounceRef.current) clearTimeout(storeCheckDebounceRef.current);
+        storeCheckDebounceRef.current = setTimeout(() => {
+            storeCheckDebounceRef.current = null;
+            // Re-check: task might have completed during the debounce window
+            const stillActive = useUnifiedTasksStore.getState().tasks.find(
+                (t) => t.sessionId === sessionId && t.status === "running"
+            );
+            if (stillActive && !bg.processingRunId) {
+                console.log("[Background Processing] Detected active task from store:", stillActive.runId);
+                void checkActiveRunRef.current();
+            }
+        }, 1500);
+        return () => {
+            if (storeCheckDebounceRef.current) {
+                clearTimeout(storeCheckDebounceRef.current);
+                storeCheckDebounceRef.current = null;
+            }
+        };
+    }, [activeTasks, sessionId, bg.processingRunId]);
 
     useEffect(() => {
         if (activeTaskForSession?.type === "scheduled") {
