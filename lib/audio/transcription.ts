@@ -689,6 +689,7 @@ function getElectronUserDataModelsDir(): string | null {
 }
 
 function getExtensionForMimeType(mimeType: string): string {
+  const base = mimeType.split(";")[0].trim();
   const map: Record<string, string> = {
     "audio/ogg": "ogg",
     "audio/mpeg": "mp3",
@@ -700,7 +701,7 @@ function getExtensionForMimeType(mimeType: string): string {
     "audio/aac": "aac",
     "audio/flac": "flac",
   };
-  return map[mimeType] || "ogg";
+  return map[base] || "webm";
 }
 
 /**
