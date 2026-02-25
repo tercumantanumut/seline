@@ -739,6 +739,12 @@ export function useTaskNotifications() {
             duration: 5000,
           });
         }
+
+        // Notify chat-interface that task store has been reconciled so it can
+        // re-check for active runs it might have missed during SSE disconnect.
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("sse-tasks-reconciled"));
+        }
       } catch (error) {
         console.error("[TaskNotifications] Failed to reconcile state:", error);
       }
