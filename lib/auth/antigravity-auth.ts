@@ -51,7 +51,7 @@ export const ANTIGRAVITY_OAUTH = {
 } as const;
 
 // Antigravity API configuration
-const ANTIGRAVITY_VERSION = "1.15.8";
+const ANTIGRAVITY_VERSION = "1.18.3";
 
 export const ANTIGRAVITY_CONFIG = {
   // API endpoints in fallback order (daily → autopush → prod)

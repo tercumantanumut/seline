@@ -23,6 +23,10 @@ import { normalizeAntigravityToolSchemas } from "./antigravity-schema";
 
 const ANTIGRAVITY_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 
+// thoughtSignature sanitization constants (ported from opencode-antigravity-auth v1.6.0)
+const MIN_SIGNATURE_LENGTH = 50;
+const SKIP_THOUGHT_SIGNATURE = "skip_thought_signature_validator";
+
 // Retry configuration for Antigravity quota/resource exhaustion errors
 const ANTIGRAVITY_RETRY_CONFIG = {
   maxRetries: 3,
@@ -160,6 +164,92 @@ export function ensureClaudeFunctionPartIds(contents: unknown): void {
       }
       if (matchedId) {
         responseRecord.id = matchedId;
+      }
+    }
+  }
+}
+
+// ---- Request payload sanitization (ported from opencode-antigravity-auth v1.6.0) ---
+
+function isValidRequestPart(part: unknown): boolean {
+  if (!part || typeof part !== "object") {
+    return false;
+  }
+
+  const record = part as Record<string, unknown>;
+
+  return (
+    Object.prototype.hasOwnProperty.call(record, "text") ||
+    Object.prototype.hasOwnProperty.call(record, "functionCall") ||
+    Object.prototype.hasOwnProperty.call(record, "functionResponse") ||
+    Object.prototype.hasOwnProperty.call(record, "inlineData") ||
+    Object.prototype.hasOwnProperty.call(record, "fileData") ||
+    Object.prototype.hasOwnProperty.call(record, "executableCode") ||
+    Object.prototype.hasOwnProperty.call(record, "codeExecutionResult") ||
+    Object.prototype.hasOwnProperty.call(record, "thought")
+  );
+}
+
+function sanitizeRequestPayloadForAntigravity(payload: Record<string, unknown>): void {
+  const anyPayload = payload as any;
+
+  if (Array.isArray(anyPayload.contents)) {
+    anyPayload.contents = anyPayload.contents
+      .map((content: unknown) => {
+        if (!content || typeof content !== "object") {
+          return null;
+        }
+
+        const contentRecord = content as Record<string, unknown>;
+        const rawParts = Array.isArray(contentRecord.parts) ? contentRecord.parts : [];
+        let foundFirstFunctionCall = false;
+
+        const sanitizedParts = rawParts.filter(isValidRequestPart).map((part: any) => {
+          if (part && typeof part === "object" && part.functionCall) {
+            let sig = part.thoughtSignature || part.thought_signature;
+
+            if (!foundFirstFunctionCall) {
+              foundFirstFunctionCall = true;
+              if (!sig || sig.length < MIN_SIGNATURE_LENGTH) {
+                sig = SKIP_THOUGHT_SIGNATURE;
+              }
+            } else {
+              sig = undefined;
+            }
+
+            if (sig) {
+              return { ...part, thought_signature: sig, thoughtSignature: sig };
+            }
+
+            const newPart = { ...part };
+            delete newPart.thoughtSignature;
+            delete newPart.thought_signature;
+            return newPart;
+          }
+          return part;
+        });
+
+        if (sanitizedParts.length === 0) {
+          return null;
+        }
+
+        return {
+          ...contentRecord,
+          parts: sanitizedParts,
+        };
+      })
+      .filter((content: unknown): content is Record<string, unknown> => content !== null);
+  }
+
+  const systemInstruction = anyPayload.systemInstruction;
+  if (systemInstruction && typeof systemInstruction === "object" && !Array.isArray(systemInstruction)) {
+    const sys = systemInstruction as Record<string, unknown>;
+    if (Array.isArray(sys.parts)) {
+      const sanitizedSystemParts = sys.parts.filter(isValidRequestPart);
+      if (sanitizedSystemParts.length > 0) {
+        sys.parts = sanitizedSystemParts;
+      } else {
+        delete anyPayload.systemInstruction;
       }
     }
   }
@@ -466,6 +556,9 @@ export function createAntigravityFetch(
         if (isClaudeModel) {
           ensureClaudeFunctionPartIds(parsedBody.contents);
         }
+
+        // Sanitize request: filter invalid parts, handle thoughtSignature for Gemini 3.1
+        sanitizeRequestPayloadForAntigravity(parsedBody);
 
         // Wrap request in Antigravity's expected format
         const wrappedBody = {
