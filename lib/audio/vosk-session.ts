@@ -91,10 +91,8 @@ export function createSession(sessionId: string): void {
 
   const model = getOrLoadModel(getDefaultModelId());
 
-  // Dynamic require to prevent Turbopack from statically resolving the optional dependency
   // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-  const name = "vosk";
-  const vosk = require(/* webpackIgnore: true */ name) as any;
+  const vosk = require("vosk") as any;
   const recognizer = new vosk.Recognizer({ model, sampleRate: 16000 });
 
   // ffmpeg: read webm from stdin, output raw PCM to stdout

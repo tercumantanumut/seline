@@ -96,10 +96,8 @@ export function getOrLoadModel(modelId: string = DEFAULT_MODEL): any {
 
   if (!voskModule) {
     try {
-      // Dynamic require to prevent Turbopack from statically resolving the optional dependency
       // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-      const name = "vosk";
-      voskModule = require(/* webpackIgnore: true */ name) as any;
+      voskModule = require("vosk") as any;
       voskModule.setLogLevel(-1); // Suppress Vosk logs
     } catch {
       throw new Error(
