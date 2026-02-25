@@ -28,6 +28,13 @@ export interface SelineMcpContext {
   enabledTools?: string[];
   /** Agent working directory (primary sync folder path) */
   cwd?: string;
+  /** Filesystem paths to cached Seline plugins (for SDK plugin loading) */
+  pluginPaths?: string[];
+  /** Hook execution context for bridging Seline hooks into SDK callbacks */
+  hookContext?: {
+    allowedPluginNames: Set<string>;
+    pluginRoots: Map<string, string>;
+  };
 }
 
 export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();
