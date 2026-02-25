@@ -15,7 +15,6 @@ import {
   Loader2Icon,
   CircleStopIcon,
   CheckCircleIcon,
-  MicIcon,
 } from "lucide-react";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
@@ -245,7 +244,7 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, voiceTranscript, handleVoiceInput, cancelVoiceInput } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput } = useVoiceRecording({
     sttEnabled,
     onTranscript: (transcript) => {
       setInputValue((prev) => {
@@ -264,19 +263,6 @@ export const Composer: FC<{
       });
     },
   });
-
-  // Escape to cancel voice recording
-  useEffect(() => {
-    if (!isRecordingVoice) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        cancelVoiceInput();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isRecordingVoice, cancelVoiceInput]);
 
   // Process queued messages when AI finishes
   useEffect(() => {
@@ -760,14 +746,6 @@ export const Composer: FC<{
                 (~{Math.ceil(mcpStatus.estimatedTimeRemaining / 1000)}s remaining)
               </span>
             )}
-          </div>
-        )}
-
-        {isRecordingVoice && voiceTranscript && (
-          <div className="px-3 py-1.5 text-sm font-mono text-terminal-muted/70 italic border-b border-terminal-dark/10">
-            <MicIcon className="inline size-3 mr-1.5 text-red-500 animate-pulse" />
-            {voiceTranscript}
-            <span className="animate-pulse">&#9613;</span>
           </div>
         )}
 

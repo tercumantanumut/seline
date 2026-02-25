@@ -26,9 +26,7 @@ interface UseVoiceRecordingOptions {
 export interface UseVoiceRecordingReturn {
   isRecordingVoice: boolean;
   isTranscribingVoice: boolean;
-  voiceTranscript: string;
   handleVoiceInput: () => Promise<void>;
-  cancelVoiceInput: () => void;
 }
 
 export function useVoiceRecording({
@@ -39,16 +37,9 @@ export function useVoiceRecording({
   const t = useTranslations("assistantUi");
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingStreamRef = useRef<MediaStream | null>(null);
-  const streamSessionIdRef = useRef<string>("");
-  const isFirstChunkRef = useRef(true);
-  const inflightRef = useRef(false);
-  const useStreamingRef = useRef(false);
-  const cancelledRef = useRef(false);
-  const accumulatedTextRef = useRef("");
 
   const stopRecordingStream = useCallback(() => {
     if (recordingStreamRef.current) {
@@ -58,31 +49,6 @@ export function useVoiceRecording({
       recordingStreamRef.current = null;
     }
   }, []);
-
-  const cancelVoiceInput = useCallback(() => {
-    cancelledRef.current = true;
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
-    stopRecordingStream();
-    setIsRecordingVoice(false);
-    setIsTranscribingVoice(false);
-    setVoiceTranscript("");
-    accumulatedTextRef.current = "";
-    mediaRecorderRef.current = null;
-    recordingChunksRef.current = [];
-
-    // Cancel server session if streaming
-    if (streamSessionIdRef.current && useStreamingRef.current) {
-      fetch("/api/voice/stream-end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: streamSessionIdRef.current }),
-      }).catch(() => {});
-    }
-    streamSessionIdRef.current = "";
-  }, [stopRecordingStream]);
 
   useEffect(() => {
     return () => {
@@ -120,8 +86,6 @@ export function useVoiceRecording({
       return;
     }
 
-    cancelledRef.current = false;
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const preferredMimeTypes = [
@@ -140,90 +104,15 @@ export function useVoiceRecording({
       recordingChunksRef.current = [];
       mediaRecorderRef.current = recorder;
 
-      // Generate a session ID for streaming
-      streamSessionIdRef.current = `vosk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      isFirstChunkRef.current = true;
-      inflightRef.current = false;
-      useStreamingRef.current = false;
-      accumulatedTextRef.current = "";
-      setVoiceTranscript("");
-
-      // Check if Vosk streaming is available by sending a probe
-      // If the first chunk fails, we fall back to batch transcription
-      let streamingChecked = false;
-      let streamingAvailable = false;
-
-      recorder.ondataavailable = async (event: BlobEvent) => {
-        if (!event.data || event.data.size === 0) return;
-
-        // Always collect chunks for batch fallback
-        recordingChunksRef.current.push(event.data);
-
-        // Skip streaming if cancelled
-        if (cancelledRef.current) return;
-
-        // Skip if previous chunk still processing
-        if (inflightRef.current) return;
-
-        // If we already checked and streaming is not available, just collect chunks
-        if (streamingChecked && !streamingAvailable) return;
-
-        inflightRef.current = true;
-        try {
-          const formData = new FormData();
-          formData.append("chunk", event.data);
-          formData.append("sessionId", streamSessionIdRef.current);
-          formData.append("isFirst", String(isFirstChunkRef.current));
-          isFirstChunkRef.current = false;
-
-          const res = await fetch("/api/voice/stream-chunk", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!streamingChecked) {
-            streamingChecked = true;
-            if (!res.ok) {
-              // Vosk not available — fall back to batch
-              streamingAvailable = false;
-              useStreamingRef.current = false;
-              return;
-            }
-            streamingAvailable = true;
-            useStreamingRef.current = true;
-          }
-
-          if (res.ok) {
-            const data = await res.json();
-            if (cancelledRef.current) return;
-            if (data.text) {
-              accumulatedTextRef.current = (accumulatedTextRef.current + " " + data.text).trim();
-              setVoiceTranscript(accumulatedTextRef.current);
-            } else if (data.partial) {
-              setVoiceTranscript(
-                accumulatedTextRef.current
-                  ? accumulatedTextRef.current + " " + data.partial
-                  : data.partial
-              );
-            }
-          }
-        } catch {
-          // Network error — continue collecting chunks for batch fallback
-          if (!streamingChecked) {
-            streamingChecked = true;
-            streamingAvailable = false;
-            useStreamingRef.current = false;
-          }
-        } finally {
-          inflightRef.current = false;
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
         }
       };
 
       recorder.onerror = () => {
         setIsRecordingVoice(false);
         setIsTranscribingVoice(false);
-        setVoiceTranscript("");
-        accumulatedTextRef.current = "";
         mediaRecorderRef.current = null;
         recordingChunksRef.current = [];
         stopRecordingStream();
@@ -238,60 +127,13 @@ export function useVoiceRecording({
         mediaRecorderRef.current = null;
         stopRecordingStream();
 
-        // If cancelled, don't process
-        if (cancelledRef.current) {
-          setVoiceTranscript("");
-          accumulatedTextRef.current = "";
-          return;
-        }
-
         if (chunks.length === 0) {
-          setVoiceTranscript("");
-          accumulatedTextRef.current = "";
           toast.error(t("audio.noAudioCaptured"));
           return;
         }
 
-        // If streaming was used, get final result from Vosk
-        if (useStreamingRef.current && streamSessionIdRef.current) {
-          setIsTranscribingVoice(true);
-          try {
-            const res = await fetch("/api/voice/stream-end", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId: streamSessionIdRef.current }),
-            });
-            const data = await res.json();
-            const finalText = data.text?.trim() || accumulatedTextRef.current.trim();
-            if (finalText) {
-              onTranscript(finalText);
-              onTranscriptInserted?.();
-            } else {
-              toast.error(t("toast.noSpeechDetected"));
-            }
-          } catch {
-            // Fall back to accumulated text
-            const fallbackText = accumulatedTextRef.current.trim();
-            if (fallbackText) {
-              onTranscript(fallbackText);
-              onTranscriptInserted?.();
-            } else {
-              toast.error(t("toast.transcriptionFailed"));
-            }
-          } finally {
-            setIsTranscribingVoice(false);
-            setVoiceTranscript("");
-            accumulatedTextRef.current = "";
-            streamSessionIdRef.current = "";
-          }
-          return;
-        }
-
-        // Batch fallback (Whisper)
         const audioBlob = new Blob(chunks, { type: mimeType });
         if (audioBlob.size === 0) {
-          setVoiceTranscript("");
-          accumulatedTextRef.current = "";
           toast.error(t("audio.noAudioCaptured"));
           return;
         }
@@ -332,12 +174,10 @@ export function useVoiceRecording({
           toast.error(errorMessage);
         } finally {
           setIsTranscribingVoice(false);
-          setVoiceTranscript("");
-          accumulatedTextRef.current = "";
         }
       };
 
-      recorder.start(1000); // 1s chunks for streaming
+      recorder.start(250);
       setIsRecordingVoice(true);
     } catch (error) {
       const errorMessage =
@@ -345,15 +185,13 @@ export function useVoiceRecording({
       toast.error(errorMessage);
       setIsRecordingVoice(false);
       setIsTranscribingVoice(false);
-      setVoiceTranscript("");
-      accumulatedTextRef.current = "";
       mediaRecorderRef.current = null;
       recordingChunksRef.current = [];
       stopRecordingStream();
     }
   }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, t]);
 
-  return { isRecordingVoice, isTranscribingVoice, voiceTranscript, handleVoiceInput, cancelVoiceInput };
+  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput };
 }
 
 // ---------------------------------------------------------------------------
