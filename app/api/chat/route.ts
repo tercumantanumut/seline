@@ -524,6 +524,7 @@ export async function POST(req: Request) {
       pluginRoots,
       allowedPluginNames,
       workflowPromptContextInput,
+      provider: getSessionProvider(sessionMetadata),
     });
 
     const {
@@ -673,7 +674,10 @@ export async function POST(req: Request) {
           tools: allToolsWithMCP,
           activeTools: initialActiveToolNames as (keyof typeof allToolsWithMCP)[],
           abortSignal: streamAbortSignal,
-          stopWhen: stepCountIs(AI_CONFIG.maxSteps),
+          // For claudecode: stop after step 0 to prevent the passthrough tool
+          // execute results from triggering a new SDK query (infinite loop).
+          // The SDK agent's entire multi-turn work happens inside step 0's fetch.
+          stopWhen: stepCountIs(provider === "claudecode" ? 1 : AI_CONFIG.maxSteps),
           temperature: getSessionProviderTemperature(sessionMetadata, initialActiveToolNames.length > 0 ? AI_CONFIG.toolTemperature : AI_CONFIG.temperature),
           toolChoice: AI_CONFIG.toolChoice,
           prepareStep: async ({ stepNumber, messages: stepMessages }) => {

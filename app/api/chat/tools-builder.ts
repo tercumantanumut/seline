@@ -15,7 +15,7 @@
  * resolved `scopedPlugins` and `pluginRoots`.
  */
 
-import type { Tool } from "ai";
+import { tool, jsonSchema, type Tool } from "ai";
 import {
   createDocsSearchTool,
   createRetrieveFullContentTool,
@@ -74,6 +74,8 @@ export interface ToolsBuildContext {
   allowedPluginNames: Set<string>;
   /** Workflow context input for subagent discovery in searchTools */
   workflowPromptContextInput: import("@/lib/agents/workflows").WorkflowPromptContextInput | null;
+  /** LLM provider name — used to register SDK agent passthrough tools for claudecode */
+  provider?: string;
 }
 
 export interface ToolsBuildResult {
@@ -381,6 +383,57 @@ export async function buildToolsForRequest(
     ...customComfyUIToolResult.allTools,
   };
 
+  // ── Claude Agent SDK passthrough tools ─────────────────────────────────────
+  // When using the claudecode provider, the SDK agent streams back tool_use
+  // blocks for its built-in tools (Bash, Read, Write, etc.) and Seline MCP
+  // tools (prefixed as mcp__seline-platform__<name>). The Vercel AI SDK
+  // validates tool names against the tools map and rejects unknown ones.
+  // These passthrough tools have an immediate no-op execute so the tool
+  // lifecycle completes (UI shows "completed"). Loop prevention is handled
+  // in route.ts via stopWhen(1) for claudecode provider.
+  const sdkPassthroughNames = new Set<string>();
+
+  if (ctx.provider === "claudecode") {
+    const sdkPassthroughTool = tool({
+      description: "Claude Agent SDK passthrough tool (executed internally by the SDK agent)",
+      inputSchema: jsonSchema<Record<string, unknown>>({
+        type: "object",
+        additionalProperties: true,
+      }),
+      // Immediate no-op execute so the Vercel AI SDK completes the tool lifecycle
+      // (showing "completed" status in the UI). The actual execution already happened
+      // inside the SDK agent. Loop prevention: route.ts uses stopWhen(1) for claudecode.
+      execute: async () => ({ _sdkPassthrough: true }),
+    });
+
+    // (a) SDK built-in tools (Bash, Read, Write, etc.)
+    const SDK_AGENT_TOOLS = [
+      "Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep",
+      "Task", "WebFetch", "WebSearch", "NotebookEdit", "TodoRead",
+      "TodoWrite", "AskFollowupQuestion",
+    ] as const;
+
+    for (const name of SDK_AGENT_TOOLS) {
+      if (!allToolsWithMCP[name]) {
+        allToolsWithMCP[name] = sdkPassthroughTool;
+        sdkPassthroughNames.add(name);
+      }
+    }
+
+    // (b) Seline platform MCP tools — the SDK prefixes them as
+    // mcp__seline-platform__<toolName>. Register prefixed variants so
+    // the Vercel AI SDK accepts tool_use blocks from the SDK agent.
+    const MCP_SERVER_NAME = "seline-platform";
+    const existingToolNames = Object.keys(allToolsWithMCP);
+    for (const name of existingToolNames) {
+      const prefixed = `mcp__${MCP_SERVER_NAME}__${name}`;
+      if (!allToolsWithMCP[prefixed]) {
+        allToolsWithMCP[prefixed] = sdkPassthroughTool;
+        sdkPassthroughNames.add(prefixed);
+      }
+    }
+  }
+
   // Wrap tools with plugin hooks and streaming guardrails.
   const hasPreHooks = getRegisteredHooks("PreToolUse").length > 0;
   const hasPostHooks = getRegisteredHooks("PostToolUse").length > 0;
@@ -566,6 +619,12 @@ export async function buildToolsForRequest(
   );
 
   // Build the initial activeTools array.
+  // SDK agent passthrough tools must always be active so the Vercel AI SDK
+  // accepts tool_use blocks from the SDK agent on any step.
+  const sdkPassthroughToolNames = ctx.provider === "claudecode"
+    ? Object.keys(allToolsWithMCP).filter((name) => sdkPassthroughNames.has(name))
+    : [];
+
   const initialActiveToolNames = useDeferredLoading
     ? [
         ...new Set([
@@ -573,6 +632,7 @@ export async function buildToolsForRequest(
           ...previouslyDiscoveredTools,
           ...mcpToolResult.alwaysLoadToolIds,
           ...customComfyUIToolResult.alwaysLoadToolIds,
+          ...sdkPassthroughToolNames,
         ]),
       ]
     : Object.keys(allToolsWithMCP);

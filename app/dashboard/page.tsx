@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations, useFormatter } from "next-intl";
+import { useTranslations, useFormatter, useNow } from "next-intl";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,9 +148,10 @@ function SessionCard({
   msgLabel: (count: number) => string;
 }) {
   const formatter = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
   const dateStr = session.lastMessageAt ?? session.updatedAt;
   const formattedTime = dateStr
-    ? formatter.relativeTime(parseAsUTC(dateStr))
+    ? formatter.relativeTime(parseAsUTC(dateStr), { now })
     : "–";
 
   return (
