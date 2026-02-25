@@ -84,10 +84,8 @@ export async function ensureDefaultAgentExists(userId: string): Promise<string |
     // First check if default already exists (fast path)
     const existingDefault = await getUserDefaultCharacter(userId);
     if (existingDefault) {
-      // Fire-and-forget: ensure system agents are provisioned (idempotent)
-      ensureSystemAgentsExist(userId, existingDefault.id).catch((err) => {
-        console.error("[SystemAgents] Background provisioning failed:", err);
-      });
+      // Ensure sub-agents/workflow are ready before first characters response.
+      await ensureSystemAgentsExist(userId, existingDefault.id);
       return existingDefault.id;
     }
 
