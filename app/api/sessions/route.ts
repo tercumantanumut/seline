@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const cursor = searchParams.get("cursor") ?? undefined;
     const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
     const search = searchParams.get("search")?.trim() || undefined;
-    const channelType = (searchParams.get("channelType") as "whatsapp" | "telegram" | "slack" | null) ?? undefined;
+    const channelType = (searchParams.get("channelType") as "app" | "whatsapp" | "telegram" | "slack" | "discord" | null) ?? undefined;
     const dateRange = (searchParams.get("dateRange") as "today" | "week" | "month" | "all" | null) ?? undefined;
     const statusParam = (searchParams.get("status") as "active" | "archived" | null) ?? undefined;
     const wantsPagination =
