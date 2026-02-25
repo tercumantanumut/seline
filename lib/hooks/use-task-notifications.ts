@@ -465,7 +465,13 @@ export function useTaskNotifications() {
           })
         );
       }
-      dispatchLifecycleEvent("background-task-started", event);
+      // Only dispatch background lifecycle event for actual background tasks
+      // (scheduled runs, delegations). Plain foreground chat tasks should NOT
+      // trigger the background-processing indicator in the active session.
+      const isActualBackgroundTask = task.type === "scheduled" || isDelegationChat;
+      if (isActualBackgroundTask) {
+        dispatchLifecycleEvent("background-task-started", event);
+      }
 
       if (isDelegationChat) return;
 
@@ -533,7 +539,10 @@ export function useTaskNotifications() {
           })
         );
       }
-      dispatchLifecycleEvent("background-task-completed", event);
+      const isActualBackgroundCompleted = task.type === "scheduled" || isDelegationChat;
+      if (isActualBackgroundCompleted) {
+        dispatchLifecycleEvent("background-task-completed", event);
+      }
 
       if (isDelegationChat) return;
 
