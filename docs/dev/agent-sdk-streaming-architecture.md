@@ -188,7 +188,9 @@ The `taskRegistry` is an in-memory store that:
 - `updateStatus(runId, status, task)` — updates and emits `task:progress`
 - `complete(runId, status, task)` — completes and emits `task:completed`
 
-The SSE endpoint (`/api/tasks/events`) subscribes to these events and streams them to all connected clients for that user. Events larger than 1MB are dropped. A heartbeat fires every 30 seconds.
+The SSE endpoint (`/api/tasks/events`) subscribes to these events and streams them to all connected clients for that user. A heartbeat fires every 30 seconds to keep the connection alive through proxies/load balancers.
+
+**Size safety**: Events are lightweight metadata (~500 bytes for start/complete). The only potentially large event is `task:progress` which includes `progressContent` — but this is guarded by a 3-pass truncation pipeline (`lib/background-tasks/progress-content-limiter.ts`): individual tool results capped at 50K chars → total capped at 20K tokens → hard-cap fallback to a summary string. The 1MB SSE message guard is a last-resort safety net that sends a stripped placeholder instead of dropping silently.
 
 ### Client Side: Event Processing
 
