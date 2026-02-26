@@ -34,12 +34,10 @@ import { ActiveModelIndicator } from "./active-model-indicator";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 import FileMentionAutocomplete from "./file-mention-autocomplete";
 import { ComposerAttachment } from "./thread-message-components";
-import { ComposerSkillPicker } from "./composer-skill-picker";
 import { ComposerActionBar } from "./composer-action-bar";
 import {
   useVoiceRecording,
   usePastedTexts,
-  useSkillPickerState,
   usePromptEnhancement,
 } from "./composer-hooks";
 
@@ -90,8 +88,6 @@ export const Composer: FC<{
 }) => {
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const skillPickerRef = useRef<HTMLDivElement>(null);
-  const skillSearchInputRef = useRef<HTMLInputElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
@@ -185,32 +181,6 @@ export const Composer: FC<{
 
   const isProcessingQueue = useRef(false);
   const isAwaitingRunStart = useRef(false);
-
-  // Skill picker — all state and effects managed by the hook
-  const {
-    skills,
-    filteredSkills,
-    isLoadingSkills,
-    showSkillPicker,
-    skillPickerQuery,
-    selectedSkillIndex,
-    skillPickerMode,
-    spotlightShortcutHint,
-    openSpotlightSkillPicker,
-    selectSkill,
-    closeSkillPicker,
-    setSkillPickerQuery,
-    setSelectedSkillIndex,
-  } = useSkillPickerState({
-    characterId: character?.id,
-    inputValue,
-    cursorPosition,
-    inputRef,
-    skillPickerRef,
-    skillSearchInputRef,
-    setInputValue,
-    updateCursorPosition,
-  });
 
   // Recent messages for enhancement context
   const threadMessages = useThread((th) => th.messages);
@@ -418,37 +388,12 @@ export const Composer: FC<{
         if (handler && handler(e)) return;
       }
 
-      if (showSkillPicker) {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          if (filteredSkills.length > 0)
-            setSelectedSkillIndex((i) => Math.min(i + 1, filteredSkills.length - 1));
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          if (filteredSkills.length > 0)
-            setSelectedSkillIndex((i) => Math.max(i - 1, 0));
-          return;
-        }
-        if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault();
-          if (filteredSkills[selectedSkillIndex]) selectSkill(filteredSkills[selectedSkillIndex]);
-          return;
-        }
-        if (e.key === "Escape") {
-          e.preventDefault();
-          closeSkillPicker();
-          return;
-        }
-      }
-
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [filteredSkills, handleSubmit, selectSkill, selectedSkillIndex, showSkillPicker, closeSkillPicker, setSelectedSkillIndex]
+    [handleSubmit]
   );
 
   const handlePaste = useCallback(
@@ -724,25 +669,6 @@ export const Composer: FC<{
         onInsertMention={handleInsertMention}
       />
 
-      {showSkillPicker && (
-        <ComposerSkillPicker
-          skills={skills}
-          filteredSkills={filteredSkills}
-          isLoadingSkills={isLoadingSkills}
-          skillPickerMode={skillPickerMode}
-          skillPickerQuery={skillPickerQuery}
-          selectedSkillIndex={selectedSkillIndex}
-          spotlightShortcutHint={spotlightShortcutHint}
-          onSelectSkill={selectSkill}
-          onQueryChange={setSkillPickerQuery}
-          onSelectedIndexChange={setSelectedSkillIndex}
-          onClose={closeSkillPicker}
-          searchInputRef={skillSearchInputRef}
-          pickerRef={skillPickerRef}
-          composerInputRef={inputRef}
-        />
-      )}
-
       <ComposerPrimitive.Root
         ref={composerRef}
         className={cn(
@@ -827,10 +753,6 @@ export const Composer: FC<{
             isDeepResearchLoading={isDeepResearchLoading}
             mcpIsReloading={mcpStatus.isReloading}
             mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-            isLoadingSkills={isLoadingSkills}
-            skillsAvailable={skills.length > 0}
-            spotlightShortcutHint={spotlightShortcutHint}
-            onOpenSkillPicker={openSpotlightSkillPicker}
             sessionId={sessionId}
             onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
             sttEnabled={sttEnabled}

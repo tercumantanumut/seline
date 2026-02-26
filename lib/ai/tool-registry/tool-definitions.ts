@@ -29,6 +29,7 @@ import {
   createRetrieveFullContentTool,
 } from "../tools";
 import { createWebSearchTool } from "../web-search";
+import { createFirecrawlCrawlTool } from "../firecrawl";
 import { createVectorSearchToolV2 } from "../vector-search";
 import { createReadFileTool } from "../tools/read-file-tool";
 import { createLocalGrepTool } from "../ripgrep";
@@ -154,13 +155,13 @@ export function registerAllTools(): void {
         "find", "search", "chat", "thread", "recall", "context",
       ],
       shortDescription:
-        "Search past conversation sessions by title, channel, agent, or date range",
+        "Search past sessions by title, message content, channel, agent, or date range",
       fullInstructions: `## Search Sessions
 
-Search and filter past conversations. Returns metadata and summaries — not message content.
+Search and filter past conversations. Returns session metadata and summaries (no full message dump).
 
-**Filters:** query (title search), characterName, channelType (whatsapp/telegram/slack/discord), dateRange (today/week/month/all).
-**Use when:** user asks "what did we discuss about X?", "find my Telegram chats", "recent sessions with agent Y".
+**Filters:** query (title + message-content search by default), characterName, channelType (app/whatsapp/telegram/slack/discord), dateRange (today/week/month/all), includeMessageContent (default true).
+**Use when:** user asks "what did we discuss about X?", "find my Telegram chats", "recent sessions with agent Y", or "search what we did yesterday".
 **Limit:** Max 50 results per call. Default 20.`,
       loading: { deferLoading: true },
       requiresSession: true,
@@ -519,11 +520,11 @@ Skipping → wrong gender/body assumptions → poor edit results.
     (context) => createDescribeImageTool(context.sessionId)
   );
 
-  // Unified Web Tool (single entrypoint for search + browse + synthesis)
+  // Unified Web Search Tool (action-based: search + browse + synthesize)
   registry.register(
     "webSearch",
     {
-      displayName: "Web",
+      displayName: "Web Search",
       category: "search",
       keywords: [
         "web",
@@ -538,20 +539,46 @@ Skipping → wrong gender/body assumptions → poor edit results.
         "news",
         "facts",
       ],
-      shortDescription: "Single web tool: search, fetch URLs, and synthesize in one call",
-      fullInstructions: `## Web
+      shortDescription: "Search and browse web content with action modes",
+      fullInstructions: `## Web Search
 
-Single web tool for both discovery and reading.
+Use one tool with explicit actions:
 
-- If you have URLs: pass them in \`urls\` to fetch + synthesize directly.
-- If you do not have URLs: provide \`query\`; the tool searches first, then fetches top pages and synthesizes.
+- \`action: "search"\` → find URLs/snippets
+- \`action: "browse"\` + \`urls\` → fetch full page content
+- \`action: "synthesize"\` + \`urls\` + \`query\` → analyze fetched pages
 
-Use this as the default web workflow.`,
+Recommended flow: search once, then browse selected URLs. Use crawl tool only for whole-site traversal.`,
       loading: { deferLoading: true },
       requiresSession: false,
       // No enableEnvVar — DuckDuckGo + local scraper fallback keeps it available
     } satisfies ToolMetadata,
     () => createWebSearchTool()
+  );
+
+  // Crawl Website Tool (standalone for multi-page crawling)
+  registry.register(
+    "firecrawlCrawl",
+    {
+      displayName: "Crawl Website",
+      category: "search",
+      keywords: [
+        "crawl",
+        "website",
+        "site map",
+        "multiple pages",
+        "docs crawl",
+        "traverse",
+      ],
+      shortDescription: "Crawl multiple pages from a website",
+      fullInstructions: `## Crawl Website
+
+Use this only when you need to traverse many pages from a site section.
+For normal query-driven discovery and reading, use Web Search actions first.`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createFirecrawlCrawlTool(sessionId)
   );
 
   // Image + video generation/editing registrations

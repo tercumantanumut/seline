@@ -604,15 +604,7 @@
       },
       "webSearch": {
         "name": "Web Arama",
-        "description": "URL'ler için webde arama yapın"
-      },
-      "webBrowse": {
-        "name": "Web Gezinme",
-        "description": "Sayfaları getirip analiz edin"
-      },
-      "webQuery": {
-        "name": "Web Sorgu",
-        "description": "Önceden getirilen web içeriklerini sorgulayın"
+        "description": "Aksiyon modlarıyla webde arama yapın ve sayfaları gezin (search, browse, synthesize)"
       },
       "firecrawlCrawl": {
         "name": "Siteyi Tara",
@@ -946,8 +938,6 @@
       "searchTools": "Araç Arama",
       "listAllTools": "Araçları Listele",
       "webSearch": "Web Arama",
-      "webBrowse": "Web Gezinme",
-      "webQuery": "Web Sorgusu",
       "firecrawlCrawl": "Web Sitesini Tara",
       "vectorSearch": "Vektör Arama",
       "docsSearch": "Belge Arama",
@@ -1558,11 +1548,7 @@
         "patchFile": "Toplu Düzenleme",
         "patchFileDesc": "Birden fazla dosyayı atomik olarak toplu oluştur, güncelle veya sil",
         "webSearch": "Web Araması",
-        "webSearchDesc": "Web'de URL ve bilgi ara",
-        "webBrowse": "Web Gezintisi",
-        "webBrowseDesc": "Web sayfalarını AI sentezi ile getir ve analiz et",
-        "webQuery": "Web Sorgusu",
-        "webQueryDesc": "Daha önce getirilen web içeriğini sorgula",
+        "webSearchDesc": "Aksiyon modlarıyla webde arama yap ve sayfaları gezin (search, browse, synthesize)",
         "firecrawlCrawl": "Web Sitesi Tarama",
         "firecrawlCrawlDesc": "Bir web sitesinden birden fazla sayfa tara",
         "generateImageFlux2": "Görsel Oluşturma (Flux2)",
@@ -3267,11 +3253,11 @@
       "delivery": {
         "label": "Teslimat",
         "session": "Uygulama içi oturum",
-        "channel": "Slack veya Telegram kanalı",
+        "channel": "Slack, Telegram veya Discord kanalı",
         "hint": "Sonuçları bağlı bir kanala gönderin veya uygulamada tutun.",
         "target": "Kanal Hedefi",
         "targetPlaceholder": "Bir kanal konuşması seçin",
-        "empty": "Henüz Slack/Telegram konuşması yok",
+        "empty": "Henüz Slack/Telegram/Discord konuşması yok",
         "loadError": "Kanal hedefleri yüklenemedi",
         "thread": "Konu"
       },

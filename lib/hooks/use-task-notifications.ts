@@ -17,6 +17,7 @@ import {
   useSessionSyncStore,
   type SessionActivityIndicator,
   type SessionActivityState,
+  type SessionActivityTone,
 } from "@/lib/stores/session-sync-store";
 import type {
   TaskEvent,
@@ -95,12 +96,156 @@ function buildActivityState(
   };
 }
 
+function compactToolName(value: string, maxLength = 26): string {
+  const candidate = value.replace(/^functions\./i, "").replace(/^mcp_?/i, "").replace(/^tool_?/i, "");
+  return trimLabel(candidate, maxLength);
+}
+
+function normalizeProgressLabel(value: string): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+
+  const patterns: Array<{ regex: RegExp; label: string }> = [
+    { regex: /\b(result from|tool result)\b/i, label: "Tool result" },
+    { regex: /\brunning\b/i, label: "Working" },
+    { regex: /\bexecuting\b/i, label: "Executing" },
+    { regex: /\bworkspace\b/i, label: "Workspace" },
+    { regex: /\bpull request\b|\bpr\b/i, label: "PR" },
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.regex.test(compact)) {
+      return pattern.label;
+    }
+  }
+
+  if (/\bcomplete(d)?\b/i.test(compact)) {
+    return "Complete";
+  }
+
+  return trimLabel(compact, 34);
+}
+
+function isToolLikePart(part: unknown, type: "tool-call" | "tool-result"): part is Record<string, unknown> {
+  return Boolean(part) && typeof part === "object" && (part as Record<string, unknown>).type === type;
+}
+
+function getLatestToolPart(
+  parts: unknown[]
+): { type: "tool-call" | "tool-result"; part: Record<string, unknown> } | null {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index];
+    if (isToolLikePart(part, "tool-result")) {
+      return { type: "tool-result", part };
+    }
+    if (isToolLikePart(part, "tool-call")) {
+      return { type: "tool-call", part };
+    }
+  }
+  return null;
+}
+
+function deriveProgressSummary(event: TaskProgressEvent): {
+  label: string;
+  kind: SessionActivityIndicator["kind"];
+  tone: SessionActivityTone;
+  detail?: string;
+  progressText?: string;
+} {
+  const parts = Array.isArray(event.progressContent) ? event.progressContent : [];
+  const latestToolPart = getLatestToolPart(parts);
+
+  if (latestToolPart?.type === "tool-result") {
+    const { part } = latestToolPart;
+    if (typeof part.toolName === "string") {
+      const detail = compactToolName(part.toolName);
+      const statusRaw = typeof part.status === "string" ? part.status.toLowerCase() : "";
+      const isError = statusRaw === "error" || statusRaw === "failed" || statusRaw === "denied";
+
+      const label = `${isError ? "Tool failed" : "Tool done"}: ${detail}`;
+      return {
+        label,
+        kind: "tool",
+        tone: isError ? "warning" : "success",
+        progressText: label,
+      };
+    }
+  }
+
+  if (latestToolPart?.type === "tool-call") {
+    const { part } = latestToolPart;
+    if (typeof part.toolName === "string") {
+      const detail = compactToolName(part.toolName);
+      const state = typeof part.state === "string" ? part.state : "";
+
+      if (state === "input-streaming" || state === "input-available") {
+        const label = `Preparing ${detail}`;
+        return {
+          label,
+          kind: "tool",
+          tone: "info",
+          progressText: label,
+        };
+      }
+
+      const label = `Calling ${detail}`;
+      return {
+        label,
+        kind: "tool",
+        tone: "info",
+        progressText: label,
+      };
+    }
+  }
+
+  const progressText = event.progressText?.trim();
+  if (progressText) {
+    const lower = progressText.toLowerCase();
+
+    if (lower.includes("hook")) {
+      return { label: "Hook", kind: "hook", tone: "info", progressText: "Hook" };
+    }
+    if (lower.includes("skill")) {
+      return { label: "Skill", kind: "skill", tone: "info", progressText: "Skill" };
+    }
+    if (lower.includes("workspace")) {
+      return { label: "Workspace", kind: "workspace", tone: "neutral", progressText: "Workspace" };
+    }
+    if (lower.includes("pull request") || /\bpr\b/.test(lower)) {
+      return { label: "PR", kind: "pr", tone: "info", progressText: "PR" };
+    }
+
+    const normalized = normalizeProgressLabel(progressText);
+    return {
+      label: normalized,
+      kind: "tool",
+      tone: "info",
+      progressText: normalized,
+    };
+  }
+
+  if (event.taskName) {
+    return {
+      label: trimLabel(event.taskName, 28),
+      kind: "skill",
+      tone: "neutral",
+      progressText: trimLabel(event.taskName, 28),
+    };
+  }
+
+  return {
+    label: "Working",
+    kind: "run",
+    tone: "info",
+    progressText: "Working",
+  };
+}
+
 function deriveTaskIndicators(task: UnifiedTask, progressText?: string): SessionActivityIndicator[] {
   const indicators: SessionActivityIndicator[] = [
     {
       key: "run",
       kind: "run",
-      label: "Running",
+      label: "Working",
       tone: "info",
     },
   ];
@@ -109,7 +254,7 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
     indicators.push({
       key: "scheduled-task",
       kind: "skill",
-      label: trimLabel(task.taskName || "Scheduled task"),
+      label: trimLabel(task.taskName || "Scheduled task", 28),
       detail: task.attemptNumber ? `Attempt ${task.attemptNumber}` : undefined,
       tone: "neutral",
     });
@@ -117,7 +262,7 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
       indicators.push({
         key: "scheduled-progress",
         kind: "tool",
-        label: trimLabel(progressText),
+        label: normalizeProgressLabel(progressText),
         tone: "info",
       });
     }
@@ -160,7 +305,8 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
       indicators.push({
         key: "tool-name",
         kind: "tool",
-        label: `Using ${trimLabel(toolName, 46)}`,
+        label: "Calling tool",
+        detail: compactToolName(toolName),
         tone: "info",
       });
     }
@@ -170,7 +316,8 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
       indicators.push({
         key: "hook",
         kind: "hook",
-        label: `Running hook ${trimLabel(hookName, 44)}`,
+        label: "Hook",
+        detail: trimLabel(hookName, 24),
         tone: "info",
       });
     }
@@ -180,7 +327,8 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
       indicators.push({
         key: "skill",
         kind: "skill",
-        label: `Executing ${trimLabel(skillName, 44)}`,
+        label: "Skill",
+        detail: trimLabel(skillName, 24),
         tone: "info",
       });
     }
@@ -189,7 +337,7 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
       indicators.push({
         key: "chat-progress",
         kind: "tool",
-        label: trimLabel(progressText),
+        label: normalizeProgressLabel(progressText),
         tone: "info",
       });
     }
@@ -207,7 +355,11 @@ function deriveTaskIndicators(task: UnifiedTask, progressText?: string): Session
   return uniqueIndicators(indicators);
 }
 
-function deriveProgressIndicators(event: TaskProgressEvent): SessionActivityIndicator[] {
+function deriveProgressIndicators(event: TaskProgressEvent): {
+  indicators: SessionActivityIndicator[];
+  progressText?: string;
+} {
+  const summary = deriveProgressSummary(event);
   const indicators: SessionActivityIndicator[] = [
     {
       key: "run",
@@ -215,90 +367,28 @@ function deriveProgressIndicators(event: TaskProgressEvent): SessionActivityIndi
       label: "Working",
       tone: "info",
     },
+    {
+      key: "progress-summary",
+      kind: summary.kind,
+      label: summary.label,
+      detail: summary.detail,
+      tone: summary.tone,
+    },
   ];
 
-  if (event.taskName) {
+  if (event.taskName && summary.kind !== "skill") {
     indicators.push({
       key: "task-name",
       kind: "skill",
-      label: trimLabel(event.taskName),
+      label: trimLabel(event.taskName, 28),
       tone: "neutral",
     });
   }
 
-  if (event.progressText) {
-    indicators.push({
-      key: "progress",
-      kind: "tool",
-      label: trimLabel(event.progressText),
-      tone: "info",
-    });
-
-    const lower = event.progressText.toLowerCase();
-    if (lower.includes("hook")) {
-      indicators.push({
-        key: "progress-hook",
-        kind: "hook",
-        label: "Hook running",
-        tone: "info",
-      });
-    }
-    if (lower.includes("skill")) {
-      indicators.push({
-        key: "progress-skill",
-        kind: "skill",
-        label: "Skill running",
-        tone: "info",
-      });
-    }
-    if (lower.includes("workspace")) {
-      indicators.push({
-        key: "progress-workspace",
-        kind: "workspace",
-        label: "Workspace updated",
-        tone: "neutral",
-      });
-    }
-    if (lower.includes("pull request") || /\bpr\b/.test(lower)) {
-      indicators.push({
-        key: "progress-pr",
-        kind: "pr",
-        label: "PR updated",
-        tone: "info",
-      });
-    }
-  }
-
-  const parts = Array.isArray(event.progressContent) ? event.progressContent : [];
-  const toolCall = parts.find((part) => {
-    if (!part || typeof part !== "object") return false;
-    return (part as Record<string, unknown>).type === "tool-call";
-  }) as Record<string, unknown> | undefined;
-
-  if (toolCall && typeof toolCall.toolName === "string") {
-    indicators.push({
-      key: "tool-call",
-      kind: "tool",
-      label: `Using ${trimLabel(toolCall.toolName, 46)}`,
-      tone: "info",
-    });
-  }
-
-  const toolResult = parts.find((part) => {
-    if (!part || typeof part !== "object") return false;
-    return (part as Record<string, unknown>).type === "tool-result";
-  }) as Record<string, unknown> | undefined;
-
-  if (toolResult && typeof toolResult.toolName === "string") {
-    indicators.push({
-      key: "tool-result",
-      kind: "tool",
-      label: `Result from ${trimLabel(toolResult.toolName, 40)}`,
-      tone: "neutral",
-    });
-  }
-
-  return uniqueIndicators(indicators);
+  return {
+    indicators: uniqueIndicators(indicators),
+    progressText: summary.progressText,
+  };
 }
 
 function deriveCompletionIndicators(task: UnifiedTask): SessionActivityIndicator[] {
@@ -615,15 +705,16 @@ export function useTaskNotifications() {
           const sessionSyncState = useSessionSyncStore.getState();
           sessionSyncState.setActiveRun(event.sessionId, event.runId);
           const previous = sessionSyncState.getSessionActivity(event.sessionId);
+          const progressState = deriveProgressIndicators(event);
           sessionSyncState.setSessionActivity(
             event.sessionId,
             buildActivityState(
               event.sessionId,
               event.runId,
-              deriveProgressIndicators(event),
+              progressState.indicators,
               {
                 isRunning: true,
-                progressText: event.progressText,
+                progressText: progressState.progressText ?? event.progressText,
                 previous,
               }
             )

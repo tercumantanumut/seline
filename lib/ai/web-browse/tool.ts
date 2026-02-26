@@ -2,22 +2,10 @@
  * Web Browse Tool
  *
  * AI tool that fetches web content and synthesizes answers in a single operation.
- * Replaces the old pattern of multiple visible tool calls (fetchWebpage → docsSearch).
- *
- * Features:
- * - Fetches one or more URLs
- * - Stores content in session-scoped cache (not permanent embeddings)
- * - Uses secondary LLM to synthesize consolidated answer
- * - Single response returned to primary agent
  */
 
 import { tool, jsonSchema, type ToolExecutionOptions } from "ai";
-import {
-  browseAndSynthesize,
-  querySessionContent,
-  getSessionContent,
-  getSessionRecentUrls,
-} from "./index";
+import { browseAndSynthesize } from "./index";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
 import type { WebBrowseOptions } from "./types";
 import { getWebScraperProvider } from "@/lib/ai/web-scraper/provider";
@@ -53,7 +41,8 @@ const webBrowseSchema = jsonSchema<{
     },
     query: {
       type: "string",
-      description: "The question or information you want to extract from the web pages. Be specific about what you're looking for.",
+      description:
+        "The question or information you want to extract from the web pages. Be specific about what you're looking for.",
     },
     includeMarkdown: {
       type: ["boolean", "string"],
@@ -65,28 +54,12 @@ const webBrowseSchema = jsonSchema<{
   additionalProperties: false,
 });
 
-const webQuerySchema = jsonSchema<{
-  query: string;
-}>({
-  type: "object",
-  title: "WebQueryInput",
-  description: "Input schema for querying previously fetched web content",
-  properties: {
-    query: {
-      type: "string",
-      description: "Question to answer using previously fetched web content in this session. Use when you've already fetched URLs and need more information from them.",
-    },
-  },
-  required: ["query"],
-  additionalProperties: false,
-});
-
 // ============================================================================
 // Result Types
 // ============================================================================
 
 interface WebBrowseToolResult {
-  status: "success" | "error" | "no_content" | "no_api_key";
+  status: "success" | "error" | "no_api_key";
   synthesis?: string;
   fetchedUrls?: string[];
   failedUrls?: string[];
@@ -97,16 +70,10 @@ interface WebBrowseToolResult {
 // Tool Factory
 // ============================================================================
 
-// Input args type for webBrowse
 interface WebBrowseArgs {
   urls: string[] | string;
   query: string;
   includeMarkdown?: boolean | string;
-}
-
-// Input args type for webQuery
-interface WebQueryArgs {
-  query: string;
 }
 
 /**
@@ -117,7 +84,6 @@ async function executeWebBrowse(
   args: WebBrowseArgs,
   toolCallOptions?: ToolExecutionOptions
 ): Promise<WebBrowseToolResult> {
-  const { sessionId } = options;
   const { urls, query } = args;
   const normalizedUrls = Array.isArray(urls)
     ? urls
@@ -161,56 +127,11 @@ async function executeWebBrowse(
 }
 
 /**
- * Core webQuery execution logic (extracted for logging wrapper)
- */
-async function executeWebQuery(
-  options: WebBrowseOptions,
-  args: WebQueryArgs,
-  toolCallOptions?: ToolExecutionOptions
-): Promise<WebBrowseToolResult> {
-  const { sessionId, sessionMetadata } = options;
-  const { query } = args;
-
-  // Check if there's any content in the session
-  const content = await getSessionContent(sessionId);
-  if (content.length === 0) {
-    return {
-      status: "no_content",
-      message:
-        "No web content has been fetched in this conversation. Use webBrowse to fetch URLs first.",
-    };
-  }
-
-  const recentUrls = await getSessionRecentUrls(sessionId);
-  const result = await querySessionContent(
-    sessionId,
-    query,
-    recentUrls.length > 0 ? recentUrls : undefined,
-    toolCallOptions?.abortSignal,
-    sessionMetadata
-  );
-
-  if (!result.success) {
-    return {
-      status: "error",
-      message: result.error || "Failed to query session content",
-    };
-  }
-
-  return {
-    status: "success",
-    synthesis: result.synthesis,
-    fetchedUrls: result.fetchedUrls,
-  };
-}
-
-/**
  * Create the webBrowse tool for fetching and synthesizing web content.
  */
 export function createWebBrowseTool(options: WebBrowseOptions) {
   const { sessionId } = options;
 
-  // Wrap the execute function with logging
   const executeWithLogging = withToolLogging(
     "webBrowse",
     sessionId,
@@ -237,38 +158,8 @@ export function createWebBrowseTool(options: WebBrowseOptions) {
 
 **Important:**
 - Content is stored temporarily for this conversation only
-- For general web search (finding URLs), use webSearch instead
-- For follow-up questions about already-fetched content, use webQuery`,
+- For general web search (finding URLs), use webSearch instead`,
     inputSchema: webBrowseSchema,
-    execute: executeWithLogging,
-  });
-}
-
-/**
- * Create the webQuery tool for querying previously fetched content.
- */
-export function createWebQueryTool(options: WebBrowseOptions) {
-  const { sessionId } = options;
-
-  // Wrap the execute function with logging
-  const executeWithLogging = withToolLogging(
-    "webQuery",
-    sessionId,
-    (args: WebQueryArgs, toolCallOptions?: ToolExecutionOptions) =>
-      executeWebQuery(options, args, toolCallOptions)
-  );
-
-  return tool({
-    description: `Query previously fetched web content from this conversation.
-
-**Use this tool when:**
-- You've already used webBrowse to fetch URLs
-- You have follow-up questions about the same content
-- You want to extract different information from already-fetched pages
-
-**Note:** This only works with content fetched in the current conversation.
-If you need new pages, use webBrowse instead.`,
-    inputSchema: webQuerySchema,
     execute: executeWithLogging,
   });
 }

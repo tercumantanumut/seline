@@ -10,8 +10,9 @@ interface SearchSessionsToolOptions {
 interface SearchSessionsArgs {
   query?: string;
   characterName?: string;
-  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
+  channelType?: "app" | "whatsapp" | "telegram" | "slack" | "discord";
   dateRange?: "today" | "week" | "month" | "all";
+  includeMessageContent?: boolean;
   limit?: number;
 }
 
@@ -23,7 +24,7 @@ const searchSessionsSchema = jsonSchema<SearchSessionsArgs>({
     query: {
       type: "string",
       description:
-        "Search term to match against session titles (e.g., 'authentication', 'deploy')",
+        "Search term to match against session titles and recent message content (e.g., 'authentication', 'deploy')",
     },
     characterName: {
       type: "string",
@@ -32,13 +33,18 @@ const searchSessionsSchema = jsonSchema<SearchSessionsArgs>({
     },
     channelType: {
       type: "string",
-      enum: ["whatsapp", "telegram", "slack", "discord"],
+      enum: ["app", "whatsapp", "telegram", "slack", "discord"],
       description: "Filter by the channel where the conversation happened",
     },
     dateRange: {
       type: "string",
       enum: ["today", "week", "month", "all"],
       description: "Filter by recency. Defaults to 'all'.",
+    },
+    includeMessageContent: {
+      type: "boolean",
+      description:
+        "Also match the query against non-compacted user/assistant message content. Defaults to true.",
     },
     limit: {
       type: "number",
@@ -80,7 +86,10 @@ async function executeSearchSessions(
 
   const result = await listSessionsPaginated({
     userId: options.userId,
+    characterName: args.characterName,
     search: args.query,
+    // Default to message-content matching so "what we did yesterday" finds non-title sessions.
+    searchInMessages: args.includeMessageContent ?? true,
     channelType: args.channelType,
     dateRange: args.dateRange ?? "all",
     limit: safeLimit,
@@ -107,7 +116,7 @@ export function createSearchSessionsTool(options: SearchSessionsToolOptions) {
   );
 
   return tool({
-    description: `Search past conversation sessions by title, channel, agent, or date range. Returns session metadata and summaries — not message content.`,
+    description: `Search past conversation sessions by title, message content, channel, agent, or date range. Returns session metadata and summaries — not message dumps.`,
     inputSchema: searchSessionsSchema,
     execute: executeWithLogging,
   });

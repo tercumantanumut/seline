@@ -76,11 +76,15 @@ export function initCoreTablesWith(sqlite: Database.Database): void {
       SET
         character_id = COALESCE(character_id, json_extract(metadata, '$.characterId')),
         channel_type = CASE
-          WHEN COALESCE(channel_type, json_extract(metadata, '$.channelType')) IN ('whatsapp', 'telegram', 'slack', 'discord')
-            THEN COALESCE(channel_type, json_extract(metadata, '$.channelType'))
+          WHEN channel_type IN ('whatsapp', 'telegram', 'slack', 'discord')
+            THEN channel_type
+          WHEN json_extract(metadata, '$.channelType') IN ('whatsapp', 'telegram', 'slack', 'discord')
+            THEN json_extract(metadata, '$.channelType')
           ELSE NULL
         END
-      WHERE character_id IS NULL OR channel_type IS NULL
+      WHERE character_id IS NULL
+        OR channel_type IS NULL
+        OR channel_type NOT IN ('whatsapp', 'telegram', 'slack', 'discord')
     `);
   } catch (error) {
     console.warn("[SQLite Migration] Failed to backfill sessions metadata columns:", error);

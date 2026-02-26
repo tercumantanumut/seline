@@ -165,6 +165,7 @@ function migrateChannelTablesToSupportDiscord(sqlite: Database.Database): void {
     }
 
     console.warn("[SQLite Migration] Channel table Discord migration failed:", error);
+    throw error instanceof Error ? error : new Error(String(error));
   } finally {
     sqlite.exec("PRAGMA foreign_keys=ON");
   }
