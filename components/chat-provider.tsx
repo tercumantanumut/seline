@@ -501,6 +501,11 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     id: sessionId,
     transport,
     messages: safeMessages,
+    // Generate UUIDs so client message IDs match the DB format.
+    // Without this, AI SDK generates 16-char base62 IDs that fail the server's
+    // uuidRegex check, causing the server to assign new UUIDs — the resulting
+    // ID mismatch creates phantom branches in assistant-ui's MessageRepository.
+    generateId: () => crypto.randomUUID(),
   });
 
   const runtime = useAISDKRuntime(chat, {
