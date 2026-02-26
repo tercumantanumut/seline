@@ -70,8 +70,15 @@ export function wrapWithRTK(
     options: { forceDirect?: boolean } = {}
 ): { command: string; args: string[]; usingRTK: boolean; env: NodeJS.ProcessEnv } {
     const direct = { command, args, usingRTK: false, env: baseEnv };
+    const normalizedCommand = normalizeExecutable(command);
 
     if (options.forceDirect) {
+        return direct;
+    }
+
+    // RTK can rewrite package-manager verbs (for example `npm install` -> `npm run install`).
+    // Preserve exact npm/pnpm/npx semantics by executing them directly.
+    if (normalizedCommand === "npm" || normalizedCommand === "pnpm" || normalizedCommand === "npx") {
         return direct;
     }
 
