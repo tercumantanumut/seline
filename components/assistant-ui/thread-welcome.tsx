@@ -193,7 +193,7 @@ export const ThreadWelcome: FC = () => {
                       <Button
                         variant="ghost"
                         onClick={handlePromptClick}
-                        className="group h-auto w-full justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
+                        className="group h-auto min-h-[180px] w-full justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
                       >
                         <div className="w-full whitespace-normal">
                           <div className="mb-2 flex items-center justify-between gap-3">
