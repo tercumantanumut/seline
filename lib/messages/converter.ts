@@ -383,7 +383,10 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
       continue;
     }
 
-    const inlineParts = buildUIPartsFromDBContent(content, globalToolResults);
+    const inlineParts = buildUIPartsFromDBContent(
+      content,
+      dbMsg.role === "assistant" ? globalToolResults : undefined
+    );
 
     if (inlineParts.length === 0) {
       continue;
