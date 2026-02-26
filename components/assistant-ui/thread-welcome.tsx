@@ -195,13 +195,13 @@ export const ThreadWelcome: FC = () => {
                         onClick={handlePromptClick}
                         className="group h-auto w-full justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
                       >
-                        <div className="w-full">
+                        <div className="w-full whitespace-normal">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
                             <ArrowRight className="h-3 w-3 flex-shrink-0 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5" />
                           </div>
                           {prompt.description && (
-                            <p className="font-mono text-[11px] leading-relaxed text-terminal-muted/70">{prompt.description}</p>
+                            <p className="font-mono text-[11px] leading-relaxed text-terminal-muted/70 whitespace-normal">{prompt.description}</p>
                           )}
                           {setupHints.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-1">
