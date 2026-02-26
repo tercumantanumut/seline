@@ -213,6 +213,18 @@ export async function createAgentFromTemplate(
 
     if (template.syncFolders && template.syncFolders.length > 0) {
       await configureSyncFolders(userId, characterId, template.syncFolders);
+    } else if (!template.isSystemAgent) {
+      // Non-system agents without explicit sync folders get the default workspace,
+      // so "Quick Create – From Template" agents also have the workspace available.
+      await configureSyncFolders(userId, characterId, [
+        {
+          pathVariable: "${USER_WORKSPACE}",
+          displayName: "My Workspace",
+          isPrimary: true,
+          includeExtensions: ["md", "txt", "pdf", "html", "json", "csv", "yaml", "yml"],
+          excludePatterns: [],
+        },
+      ]);
     }
 
     return characterId;

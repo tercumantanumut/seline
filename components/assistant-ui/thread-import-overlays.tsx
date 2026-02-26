@@ -243,14 +243,14 @@ export const ComfyImportDialog: FC<ComfyImportDialogProps> = ({
 
         <div className="space-y-3 max-h-[62vh] overflow-y-auto pr-1">
           {loading && (
-            <div className="flex items-center gap-2 rounded border border-terminal-border/70 bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
+            <div className="flex items-center gap-2 rounded border border-terminal-border/70 bg-terminal-cream/50 dark:bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
               <Loader2Icon className="size-4 animate-spin" />
               <span>{t("comfyuiImport.analyzing")}</span>
             </div>
           )}
 
           {!loading && previews.length === 0 && (
-            <p className="rounded border border-terminal-border/70 bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
+            <p className="rounded border border-terminal-border/70 bg-terminal-cream/50 dark:bg-terminal-bg/40 p-3 text-sm font-mono text-terminal-muted">
               {t("comfyuiImport.noWorkflowsFound")}
             </p>
           )}
@@ -286,7 +286,7 @@ export const ComfyImportDialog: FC<ComfyImportDialogProps> = ({
                   "rounded border p-3 space-y-3",
                   disableRow
                     ? "border-red-300/50 bg-red-50/50"
-                    : "border-terminal-border/70 bg-terminal-bg/40"
+                    : "border-terminal-border/70 bg-terminal-cream/30 dark:bg-terminal-bg/40"
                 )}
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
