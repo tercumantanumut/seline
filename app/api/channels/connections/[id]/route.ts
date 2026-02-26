@@ -55,6 +55,18 @@ function buildConfig(
     };
   }
 
+  if (channelType === "discord") {
+    const botToken = typeof config?.botToken === "string" ? config.botToken.trim() : "";
+    if (!botToken) {
+      throw new Error("Discord bot token is required");
+    }
+    return {
+      type: "discord",
+      botToken,
+      label: typeof label === "string" ? label : undefined,
+    };
+  }
+
   const botToken = typeof config?.botToken === "string" ? config.botToken.trim() : "";
   const appToken = typeof config?.appToken === "string" ? config.appToken.trim() : "";
   const signingSecret = typeof config?.signingSecret === "string" ? config.signingSecret.trim() : "";

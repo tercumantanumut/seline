@@ -238,7 +238,7 @@ export function SessionList({
           <div className="space-y-2 rounded-md border border-terminal-border/40 bg-terminal-cream/40 p-2.5">
             {connectedCount > 0 || channelFilter !== "all" ? (
               <div className="flex flex-wrap gap-1.5">
-                {(["all", "whatsapp", "telegram", "slack"] as const).map(
+                {(["all", "whatsapp", "telegram", "slack", "discord"] as const).map(
                   (option) => (
                     <Button
                       key={option}

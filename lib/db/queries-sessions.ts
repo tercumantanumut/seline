@@ -5,7 +5,7 @@ import { eq, desc, asc, and, lt, sql, inArray, type SQL } from "drizzle-orm";
 
 export type SessionMetadataShape = {
   characterId?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
 };
 
 export interface ListSessionsPaginatedParams {

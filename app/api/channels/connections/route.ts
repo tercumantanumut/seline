@@ -12,7 +12,7 @@ import type { ChannelConnectionConfig, ChannelType } from "@/lib/channels/types"
 
 const createSchema = z.object({
   characterId: z.string().min(1),
-  channelType: z.enum(["whatsapp", "telegram", "slack"]),
+  channelType: z.enum(["whatsapp", "telegram", "slack", "discord"]),
   displayName: z.string().trim().min(1).max(100).optional().nullable(),
   config: z.record(z.any()).optional(),
 });
@@ -51,6 +51,18 @@ function buildConfig(
     }
     return {
       type: "telegram",
+      botToken,
+      label: typeof label === "string" ? label : undefined,
+    };
+  }
+
+  if (channelType === "discord") {
+    const botToken = typeof config?.botToken === "string" ? config.botToken.trim() : "";
+    if (!botToken) {
+      throw new Error("Discord bot token is required");
+    }
+    return {
+      type: "discord",
       botToken,
       label: typeof label === "string" ? label : undefined,
     };
