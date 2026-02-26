@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { AnimatedButton } from "@/components/ui/animated-button";
@@ -49,6 +49,7 @@ import { useCharacterActions } from "@/components/character-picker-character-act
 
 export function CharacterPicker() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -59,6 +60,7 @@ export function CharacterPicker() {
   const gridRef = useRef<HTMLDivElement>(null);
   const prefersReducedMotion = useReducedMotion();
   const hasAnimated = useRef(false);
+  const handledFolderManagerOpenRef = useRef<string | null>(null);
 
   const t = useTranslations("picker");
   const tDeps = useTranslations("picker.toolEditor.dependencyWarnings");
@@ -199,6 +201,32 @@ export function CharacterPicker() {
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
+
+  useEffect(() => {
+    if (searchParams.get("openFolderManager") !== "1") {
+      handledFolderManagerOpenRef.current = null;
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const shouldOpenPicker = searchParams.get("openCharacterPicker") === "1";
+    const shouldOpenFolders = searchParams.get("openFolderManager") === "1";
+    const requestedCharacterId = searchParams.get("characterId");
+
+    if (!shouldOpenPicker || !shouldOpenFolders || !requestedCharacterId || characters.length === 0) {
+      return;
+    }
+
+    if (handledFolderManagerOpenRef.current === requestedCharacterId) {
+      return;
+    }
+
+    const targetCharacter = characters.find((character) => character.id === requestedCharacterId);
+    if (targetCharacter) {
+      handledFolderManagerOpenRef.current = requestedCharacterId;
+      charActions.openFolderManager(targetCharacter);
+    }
+  }, [charActions, characters, searchParams]);
 
   useEffect(() => {
     resilientFetch<{ vectorDBEnabled?: boolean; devWorkspaceEnabled?: boolean; workspaceOnboardingSeen?: boolean }>("/api/settings").then(({ data }) => {

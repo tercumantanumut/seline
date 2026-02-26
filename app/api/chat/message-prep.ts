@@ -19,7 +19,7 @@ import { createVectorSearchToolV2 } from "@/lib/ai/vector-search";
 import { createReadFileTool } from "@/lib/ai/tools/read-file-tool";
 import { createLocalGrepTool } from "@/lib/ai/ripgrep";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
-import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
+import { createGetSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
 import {
   enhanceFrontendMessagesWithToolResults,
@@ -93,7 +93,13 @@ export async function prepareMessagesForRequest(
       characterId: characterId || null,
     }),
     retrieveFullContent: createRetrieveFullContentTool({ sessionId }),
-    runSkill: createRunSkillTool({
+    getSkill: createGetSkillTool({
+      sessionId,
+      userId,
+      characterId: characterId || "",
+    }),
+    // Backward-compatible alias for older persisted tool-call records.
+    runSkill: createGetSkillTool({
       sessionId,
       userId,
       characterId: characterId || "",

@@ -258,9 +258,10 @@ export function normalizeToolResultOutput(
 
   if (mode === "projection") {
     // Exempt tools that intentionally return full content payloads.
-    // readFile has built-in limits; runSkill and webSearch browse mode may return
-    // richer content that should not be utility-truncated here.
-    const EXEMPT_TOOLS = new Set(["readFile", "runSkill", "webSearch"]);
+    // readFile has built-in limits; getSkill responses include full skill content
+    // where truncation would break inspect/run usability; webSearch browse mode may
+    // return richer content that should not be utility-truncated here.
+    const EXEMPT_TOOLS = new Set(["readFile", "runSkill", "getSkill", "webSearch"]);
 
     // Apply token limit (universal safety net) — UNLESS tool is exempt
     // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.

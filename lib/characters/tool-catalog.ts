@@ -43,7 +43,7 @@ export const CHARACTER_TOOL_CATALOG: CharacterToolCatalogItem[] = [
   { id: "showProductImages", category: "utility" },
   { id: "executeCommand", category: "utility", dependencies: ["syncedFolders"] },
   { id: "scheduleTask", category: "utility" },
-  { id: "runSkill", category: "utility" },
+  { id: "getSkill", category: "utility" },
   { id: "updateSkill", category: "utility" },
   { id: "memorize", category: "utility" },
   { id: "calculator", category: "utility" },

@@ -46,7 +46,7 @@ export const ALWAYS_ENABLED_TOOLS = [
 export const UTILITY_TOOLS = [
   "calculator",
   "memorize",
-  "runSkill",
+  "getSkill",
   "scheduleTask",
   "sendMessageToChannel",
   "showProductImages",
