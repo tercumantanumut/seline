@@ -196,17 +196,15 @@ export const ThreadWelcome: FC = () => {
                       <Button
                         variant="ghost"
                         onClick={handlePromptClick}
-                        className="group h-full w-full flex flex-col items-start justify-between rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
+                        className="group relative h-full w-full flex flex-col items-start justify-between rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
                       >
-                        <div className="flex w-full items-start gap-3">
-                          <div className="flex flex-col gap-1 flex-1 min-w-0">
-                            <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
-                            {prompt.description && (
-                              <p className="font-mono text-[11px] text-terminal-muted/70 break-words">{prompt.description}</p>
-                            )}
-                          </div>
-                          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5 mt-0.5" />
+                        <div className="flex flex-col gap-1 flex-1 min-w-0 pr-6">
+                          <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
+                          {prompt.description && (
+                            <p className="font-mono text-[11px] text-terminal-muted/70">{prompt.description}</p>
+                          )}
                         </div>
+                        <ArrowRight className="absolute top-4 right-4 h-3.5 w-3.5 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5" />
                         {setupHints.length > 0 && (
                           <div className="flex flex-wrap gap-1 w-full">
                             {setupHints.map((hint) => (
