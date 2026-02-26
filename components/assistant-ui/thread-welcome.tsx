@@ -190,20 +190,25 @@ export const ThreadWelcome: FC = () => {
                       cardsRef.current[index] = el;
                     }}
                     onMouseEnter={() => setActiveLane(prompt.lane)}
-                    className="h-28 transition-all duration-150"
+                    className="h-36 transition-all duration-150"
                   >
                     <ThreadPrimitive.Suggestion prompt={prompt.cleanText} autoSend asChild>
                       <Button
                         variant="ghost"
                         onClick={handlePromptClick}
-                        className="group h-full w-full flex flex-col items-start justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
+                        className="group h-full w-full flex flex-col items-start justify-between rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
                       >
                         <div className="flex w-full items-start justify-between gap-2">
-                          <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
-                          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5" />
+                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                            <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
+                            {prompt.description && (
+                              <p className="font-mono text-[11px] text-terminal-muted/70">{prompt.description}</p>
+                            )}
+                          </div>
+                          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 ml-2 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5" />
                         </div>
                         {setupHints.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-auto mt-auto">
+                          <div className="flex flex-wrap gap-1 w-full">
                             {setupHints.map((hint) => (
                               <Badge
                                 key={`${prompt.id}-${hint}`}
