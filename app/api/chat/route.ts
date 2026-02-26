@@ -533,6 +533,9 @@ export async function POST(req: Request) {
       hasStopHooks,
       discoveredTools,
       initialActiveTools,
+      enabledMcpServers,
+      enabledMcpTools,
+      alwaysLoadMcpToolIds,
     } = toolsResult;
 
     const useDeferredLoading = toolLoadingMode !== "always";
@@ -565,6 +568,26 @@ export async function POST(req: Request) {
       hookContext: scopedPlugins.length > 0
         ? { allowedPluginNames, pluginRoots }
         : undefined,
+      // SDK tool-loading isolation fields
+      toolLoadingMode: toolLoadingMode === "always" ? "always" : "deferred",
+      previouslyDiscoveredTools: previouslyDiscoveredTools.size > 0
+        ? [...previouslyDiscoveredTools]
+        : undefined,
+      enabledMcpServers,
+      enabledMcpTools,
+      alwaysLoadMcpToolIds,
+      // Rich output callback: fires when an SDK MCP tool produces an image/video/etc.
+      // Wires the result into Seline's streaming state so the UI renders media chips.
+      // Capture non-null references in locals so the closure has definite types.
+      onRichOutput: (() => {
+        const _state = streamingState;
+        const _sync = syncStreamingMessage;
+        if (!_state || !_sync) return undefined;
+        return (toolCallId: string, toolName: string, output: unknown) => {
+          recordToolResultChunk(_state, toolCallId, toolName, output, false);
+          void _sync();
+        };
+      })(),
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────

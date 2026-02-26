@@ -87,6 +87,12 @@ export interface ToolsBuildResult {
   hasFailureHooks: boolean;
   discoveredTools: Set<string>;
   initialActiveTools: Set<string>;
+  /** MCP server names enabled for the current agent (forwarded to SelineMcpContext) */
+  enabledMcpServers?: string[];
+  /** Specific MCP tool IDs enabled for the current agent (forwarded to SelineMcpContext) */
+  enabledMcpTools?: string[];
+  /** MCP tool IDs that are alwaysLoad (forwarded to SelineMcpContext for deferred gating) */
+  alwaysLoadMcpToolIds: string[];
 }
 
 // ─── Main builder ────────────────────────────────────────────────────────────
@@ -277,6 +283,8 @@ export async function buildToolsForRequest(
     allTools: Record<string, Tool>;
     alwaysLoadToolIds: string[];
     deferredToolIds: string[];
+    enabledMcpServers?: string[];
+    enabledMcpTools?: string[];
   } = { allTools: {}, alwaysLoadToolIds: [], deferredToolIds: [] };
 
   try {
@@ -667,5 +675,8 @@ export async function buildToolsForRequest(
     hasFailureHooks,
     discoveredTools,
     initialActiveTools,
+    enabledMcpServers: mcpToolResult.enabledMcpServers,
+    enabledMcpTools: mcpToolResult.enabledMcpTools,
+    alwaysLoadMcpToolIds: mcpToolResult.alwaysLoadToolIds,
   };
 }
