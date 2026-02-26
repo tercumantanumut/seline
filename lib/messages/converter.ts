@@ -101,8 +101,6 @@ function buildUIPartsFromDBContent(
     }
   }
 
-  const seenToolCallIds = new Set<string>();
-
   for (const part of content) {
     if (part.type === "tool-result") {
       toolResults.set(part.toolCallId, {
@@ -116,6 +114,7 @@ function buildUIPartsFromDBContent(
   }
 
   const parts: SimplePart[] = [];
+  const renderedToolCallIds = new Set<string>();
 
   for (const part of content) {
     if (part.type === "text" && part.text?.trim()) {
@@ -127,10 +126,9 @@ function buildUIPartsFromDBContent(
         url: part.image,
       });
     } else if (part.type === "tool-call") {
-      if (seenToolCallIds.has(part.toolCallId)) {
+      if (renderedToolCallIds.has(part.toolCallId)) {
         continue;
       }
-      seenToolCallIds.add(part.toolCallId);
       const toolResult = toolResults.get(part.toolCallId);
       const inferredState: ToolInvocationState =
         toolResult?.state ||
@@ -147,12 +145,12 @@ function buildUIPartsFromDBContent(
         if (typeof part.args === "string") {
           try {
             validInput = JSON.parse(part.args);
-          } catch (e) {
+          } catch {
             console.warn(
               `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid args JSON. ` +
               `State: ${part.state}, args preview: ${part.args.substring(0, 50)}...`
             );
-            continue; // Skip invalid tool call input
+            continue; // Skip invalid tool call input; synthetic fallback may still render from tool-result
           }
         } else {
           validInput = part.args;
@@ -161,13 +159,13 @@ function buildUIPartsFromDBContent(
         // Fallback to argsText, but validate it's complete JSON first
         try {
           validInput = JSON.parse(part.argsText);
-        } catch (e) {
+        } catch {
           // argsText is incomplete or malformed JSON - skip this tool call
           console.warn(
             `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) with invalid argsText. ` +
             `State: ${part.state}, argsText preview: ${part.argsText?.substring(0, 50)}...`
           );
-          continue; // Skip this tool call entirely
+          continue; // Skip this tool call entirely; synthetic fallback may still render from tool-result
         }
       } else if (part.state === "input-streaming") {
         // Tool call is still streaming (should not happen in persisted messages)
@@ -189,21 +187,44 @@ function buildUIPartsFromDBContent(
 
       // Only add tool call if we have valid input
       if (isValidInputObject) {
+        const hasFinalOutput = inferredState.startsWith("output") || toolResult?.result !== undefined;
         parts.push({
           type: `tool-${part.toolName}` as `tool-${string}`,
           toolCallId: part.toolCallId,
           state: inferredState,
           input: validInput,
-          output: inferredState === "output-available" ? toolResult?.result ?? null : undefined,
+          output: hasFinalOutput ? toolResult?.result ?? null : undefined,
           errorText: toolResult?.errorText,
           preliminary: toolResult?.preliminary,
         });
+        renderedToolCallIds.add(part.toolCallId);
       } else {
         console.warn(
           `[CONVERTER] Skipping tool call ${part.toolCallId} (${part.toolName}) - invalid tool input`
         );
       }
     }
+  }
+
+  // Preserve standalone tool results (or calls skipped due malformed args) by
+  // synthesizing a minimal tool UI part so history remains visible after reload.
+  for (const [toolCallId, toolResult] of toolResults) {
+    if (renderedToolCallIds.has(toolCallId)) continue;
+
+    const toolName = toolResult.toolName || "tool";
+    const state: ToolInvocationState =
+      toolResult.state ||
+      (toolResult.errorText ? "output-error" : "output-available");
+
+    parts.push({
+      type: `tool-${toolName}` as `tool-${string}`,
+      toolCallId,
+      state,
+      input: {},
+      output: toolResult.result ?? null,
+      errorText: toolResult.errorText,
+      preliminary: toolResult.preliminary,
+    });
   }
 
   return parts;

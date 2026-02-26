@@ -326,4 +326,52 @@ describe("Message Ordering", () => {
     expect(uiMessages.map((msg) => msg.id)).toContain(olderUser!.id);
     expect(uiMessages.map((msg) => msg.id)).toContain(latestAssistant!.id);
   });
+
+  it("should preserve tool results in UI history when tool-call args are malformed", async () => {
+    const session = await createSession({ title: "Malformed tool args", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 1,
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "malformed-tool-1",
+          toolName: "localGrep",
+          argsText: '{"pattern":"unterminated"',
+          state: "input-available",
+        },
+        {
+          type: "tool-result",
+          toolCallId: "malformed-tool-1",
+          toolName: "localGrep",
+          result: {
+            status: "error",
+            error: "Pattern parse failed",
+          },
+          status: "error",
+          state: "output-error",
+        },
+      ],
+    });
+
+    const persisted = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(persisted as any);
+
+    expect(uiMessages).toHaveLength(1);
+    const assistant = uiMessages[0];
+    const toolParts = (assistant.parts || []).filter(
+      (part) => typeof part.type === "string" && part.type.startsWith("tool-")
+    ) as Array<{ type: string; toolCallId: string; state: string; output?: unknown }>;
+
+    expect(toolParts).toHaveLength(1);
+    expect(toolParts[0].toolCallId).toBe("malformed-tool-1");
+    expect(toolParts[0].state).toBe("output-error");
+    expect(toolParts[0].output).toMatchObject({
+      status: "error",
+      error: "Pattern parse failed",
+    });
+  });
 });
