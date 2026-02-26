@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { settingsSectionShellClassName } from "@/components/settings/settings-form-layout";
 import { getAntigravityModels } from "@/lib/auth/antigravity-models";
@@ -7,7 +8,6 @@ import { getCodexModels } from "@/lib/auth/codex-models";
 import { getClaudeCodeModels } from "@/lib/auth/claudecode-models";
 import { getKimiModels } from "@/lib/auth/kimi-models";
 import type { FormState } from "./settings-types";
-import { LocalEmbeddingModelSelector } from "./embedding-model-selector";
 
 const ANTIGRAVITY_MODELS = getAntigravityModels();
 const CODEX_MODELS = getCodexModels();
@@ -113,8 +113,42 @@ function ModelSelect({
   );
 }
 
+// Provider model sets keyed by provider name (for validation)
+const PROVIDER_MODEL_SETS: Partial<Record<FormState["llmProvider"], Set<string>>> = {
+  antigravity: new Set(ANTIGRAVITY_MODELS.map((m) => m.id)),
+  codex: new Set(CODEX_MODELS.map((m) => m.id)),
+  claudecode: new Set(CLAUDECODE_MODELS.map((m) => m.id)),
+  kimi: new Set(KIMI_MODELS.map((m) => m.id)),
+};
+
+const MODEL_FIELDS = ["chatModel", "researchModel", "visionModel", "utilityModel"] as const;
+
 export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
   const t = useTranslations("settings");
+  const prevProviderRef = useRef<FormState["llmProvider"]>(formState.llmProvider);
+
+  // Clear model fields that don't belong to the newly selected provider.
+  // This prevents stale Codex/Antigravity model IDs from persisting when the
+  // user switches providers, which caused wrong options to appear in selects.
+  useEffect(() => {
+    const prev = prevProviderRef.current;
+    const next = formState.llmProvider;
+    if (prev === next) return;
+    prevProviderRef.current = next;
+
+    const validModels = PROVIDER_MODEL_SETS[next];
+    if (!validModels) {
+      // For text-input providers (anthropic, openrouter, ollama) we don't
+      // pre-validate model IDs — they accept any string.
+      return;
+    }
+    for (const field of MODEL_FIELDS) {
+      const current = formState[field];
+      if (current && !validModels.has(current)) {
+        updateField(field, "");
+      }
+    }
+  }, [formState.llmProvider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={settingsSectionShellClassName}>
@@ -196,47 +230,6 @@ export function ModelsSection({ formState, updateField }: ModelsSectionProps) {
           ollamaPlaceholder="llama3.1:8b"
           openrouterPlaceholder="google/gemini-2.0-flash-lite-001"
           helperKey="models.fields.utility.helper"
-          t={t}
-        />
-
-        <div>
-          <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("models.fields.embeddingProvider.label")}</label>
-          <div className="space-y-2">
-            <label className="flex items-center gap-3">
-              <input
-                type="radio"
-                name="embeddingProvider"
-                value="openrouter"
-                checked={formState.embeddingProvider === "openrouter"}
-                onChange={(e) => updateField("embeddingProvider", e.target.value as FormState["embeddingProvider"])}
-                className="size-4 accent-terminal-green"
-              />
-              <span className="font-mono text-terminal-dark">
-                {t("models.fields.embeddingProvider.options.openrouter")}
-              </span>
-            </label>
-            <label className="flex items-center gap-3">
-              <input
-                type="radio"
-                name="embeddingProvider"
-                value="local"
-                checked={formState.embeddingProvider === "local"}
-                onChange={(e) => updateField("embeddingProvider", e.target.value as FormState["embeddingProvider"])}
-                className="size-4 accent-terminal-green"
-              />
-              <span className="font-mono text-terminal-dark">
-                {t("models.fields.embeddingProvider.options.local")}
-              </span>
-            </label>
-          </div>
-          <p className="mt-1 font-mono text-xs text-terminal-muted">
-            {t("models.fields.embeddingProvider.helper")}
-          </p>
-        </div>
-
-        <LocalEmbeddingModelSelector
-          formState={formState}
-          updateField={updateField}
           t={t}
         />
 

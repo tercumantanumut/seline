@@ -241,14 +241,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserId: crypto.randomUUID(),
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
-    toolLoadingMode: "always",  // Default to always-load for better onboarding UX
+    toolLoadingMode: "deferred",  // Default to deferred loading to save tokens
     postEditHooksPreset: "off",
     postEditHooksEnabled: false,
     postEditTypecheckEnabled: false,
     postEditLintEnabled: false,
     postEditTypecheckScope: "auto",
     postEditRunInPatchTool: false,
-    webScraperProvider: "firecrawl",
+    webScraperProvider: "local",
     webSearchProvider: "auto",
     embeddingProvider: "openrouter",
     vectorDBEnabled: false,
@@ -297,7 +297,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     flux2Klein9bModelsDownloaded: false,
     flux2Klein9bBackendPath: "",
     // TTS defaults
-    ttsEnabled: false,
+    ttsEnabled: true,
     ttsProvider: "edge",
     ttsAutoMode: "off",
     ttsSummarizeThreshold: 1500,
@@ -305,7 +305,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     openaiTtsModel: "gpt-4o-mini-tts",
     // STT defaults
     sttEnabled: true,
-    sttProvider: "openai",
+    sttProvider: "local",
     sttLocalModel: "ggml-tiny.en",
     // RTK defaults
     rtkEnabled: false,

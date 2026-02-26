@@ -7,6 +7,31 @@ import type {
   CustomComfyUIWorkflow,
 } from "./types";
 
+// Media types that always merit a schema parameter (the LLM must supply them)
+const ESSENTIAL_TYPES = new Set<string>(["image", "mask", "video", "file"]);
+
+// Name substrings that make a non-required input essential for the LLM
+const ESSENTIAL_NAME_PATTERNS = [
+  "prompt", "text", "caption", "negative",
+  "image", "mask", "video",
+  "seed", "steps", "cfg",
+  "width", "height",
+];
+
+/**
+ * Returns true for inputs that should be exposed in the AI tool schema.
+ * Required inputs are always included. Non-required inputs are included only
+ * if they are user-facing parameters (prompt, image, dimensions, etc.).
+ * Advanced node internals (schedulers, samplers, LoRA weights …) are hidden
+ * from the schema but retained in the stored workflow for execution defaults.
+ */
+function isEssentialInput(input: CustomComfyUIInput): boolean {
+  if (input.required) return true;
+  if (ESSENTIAL_TYPES.has(input.type)) return true;
+  const lowerName = input.name.toLowerCase();
+  return ESSENTIAL_NAME_PATTERNS.some((p) => lowerName.includes(p));
+}
+
 function mapInputToSchema(input: CustomComfyUIInput): JSONSchema7Definition {
   const base: Record<string, unknown> = {
     description: input.description || `Workflow input for ${input.name}`,
@@ -56,6 +81,9 @@ function buildInputSchema(inputs: CustomComfyUIInput[]) {
 
   for (const input of inputs) {
     if (input.enabled === false) continue;
+    // Only expose essential inputs in the AI schema; advanced node internals
+    // stay in the stored workflow and use their defaults during execution.
+    if (!isEssentialInput(input)) continue;
     properties[input.name] = mapInputToSchema(input);
     if (input.required) {
       required.push(input.name);

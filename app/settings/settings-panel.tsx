@@ -23,6 +23,7 @@ import { PreferencesSection } from "./preferences-section";
 import { MemorySection } from "./memory-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { ModelsSection } from "./models-section";
+import { LocalEmbeddingModelSelector } from "./embedding-model-selector";
 
 export interface SettingsPanelProps {
   section: SettingsSection;
@@ -166,6 +167,51 @@ export function SettingsPanel({
             </p>
           </div>
         )}
+
+        {/* Embedding Source — always visible so users can configure it before enabling vectorDB */}
+        <div className="space-y-3 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+          <div>
+            <label className="mb-1 block font-mono text-sm font-medium text-terminal-dark">
+              {t("models.fields.embeddingProvider.label")}
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="embeddingProvider"
+                  value="openrouter"
+                  checked={formState.embeddingProvider === "openrouter"}
+                  onChange={(e) => updateField("embeddingProvider", e.target.value as FormState["embeddingProvider"])}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-sm text-terminal-dark">
+                  {t("models.fields.embeddingProvider.options.openrouter")}
+                </span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="embeddingProvider"
+                  value="local"
+                  checked={formState.embeddingProvider === "local"}
+                  onChange={(e) => updateField("embeddingProvider", e.target.value as FormState["embeddingProvider"])}
+                  className="size-4 accent-terminal-green"
+                />
+                <span className="font-mono text-sm text-terminal-dark">
+                  {t("models.fields.embeddingProvider.options.local")}
+                </span>
+              </label>
+            </div>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              {t("models.fields.embeddingProvider.helper")}
+            </p>
+          </div>
+          <LocalEmbeddingModelSelector
+            formState={formState}
+            updateField={updateField}
+            t={t}
+          />
+        </div>
 
         <div className="flex items-center gap-3">
           <input
