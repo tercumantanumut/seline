@@ -145,7 +145,7 @@ export const ThreadWelcome: FC = () => {
                 disabled={hardPrompts.length === 0}
               >
                 <Zap className="mr-1 h-3.5 w-3.5" />
-                Hard Tasks
+                In-Depth
               </Button>
               <span className="text-terminal-muted/30">•</span>
               <Button
@@ -184,23 +184,26 @@ export const ThreadWelcome: FC = () => {
                 };
 
                 return (
-                  <ThreadPrimitive.Suggestion key={prompt.id} prompt={prompt.cleanText} autoSend asChild>
-                    <Button
-                      ref={(el) => {
-                        cardsRef.current[index] = el;
-                      }}
-                      variant="ghost"
-                      onClick={handlePromptClick}
-                      onMouseEnter={() => setActiveLane(prompt.lane)}
-                      className="group h-auto w-full justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
-                    >
-                      <div className="flex w-full flex-col gap-2">
-                        <div className="flex items-start justify-between gap-2">
+                  <div
+                    key={prompt.id}
+                    ref={(el) => {
+                      cardsRef.current[index] = el;
+                    }}
+                    onMouseEnter={() => setActiveLane(prompt.lane)}
+                    className="h-28 transition-all duration-150"
+                  >
+                    <ThreadPrimitive.Suggestion prompt={prompt.cleanText} autoSend asChild>
+                      <Button
+                        variant="ghost"
+                        onClick={handlePromptClick}
+                        className="group h-full w-full flex flex-col items-start justify-start rounded-xl border border-terminal-border/30 bg-white/50 px-4 py-4 text-left transition-all duration-150 hover:border-l-2 hover:border-l-terminal-green/50 hover:bg-white/70"
+                      >
+                        <div className="flex w-full items-start justify-between gap-2">
                           <span className="font-mono text-sm font-semibold text-terminal-dark">{prompt.titleText}</span>
                           <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-terminal-muted/30 transition-all duration-150 group-hover:text-terminal-dark group-hover:translate-x-0.5" />
                         </div>
                         {setupHints.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
+                          <div className="flex flex-wrap gap-1 pt-auto mt-auto">
                             {setupHints.map((hint) => (
                               <Badge
                                 key={`${prompt.id}-${hint}`}
@@ -212,9 +215,9 @@ export const ThreadWelcome: FC = () => {
                             ))}
                           </div>
                         )}
-                      </div>
-                    </Button>
-                  </ThreadPrimitive.Suggestion>
+                      </Button>
+                    </ThreadPrimitive.Suggestion>
+                  </div>
                 );
               })}
             </div>
