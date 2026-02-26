@@ -196,14 +196,14 @@ Search and filter past conversations. Returns session metadata and summaries (no
       // Requires an agent/user context to be meaningful, but can exist without a session
       requiresSession: false,
     } satisfies ToolMetadata,
-    // NOTE: This factory creates a placeholder instance without user/agent context.
-    // The chat route instantiates a fully scoped docsSearch tool with userId/characterId
-    // for actual use. Here we only need a concrete tool instance so it appears in
-    // the registry and can be discovered via searchTools/listAllTools.
-    () =>
+    // NOTE: The chat route also creates a fully scoped docsSearch tool with
+    // userId/characterId for regular chat use. This factory ensures the Claude Code
+    // SDK MCP bridge can also create a properly scoped instance when characterId
+    // is available via factory opts.
+    ({ userId, characterId }) =>
       createDocsSearchTool({
-        userId: "UNSCOPED",
-        characterId: null,
+        userId: userId || "UNSCOPED",
+        characterId: characterId ?? null,
       })
   );
 
@@ -259,11 +259,11 @@ Semantic + keyword hybrid search with AI synthesis. Finds code by concept, not j
       loading: { deferLoading: true },
       requiresSession: true,  // Needs session for LLM synthesis
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createVectorSearchToolV2({
         sessionId: sessionId || "UNSCOPED",
         userId: "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
@@ -305,11 +305,11 @@ Read full file content or line ranges from Knowledge Base docs or synced folders
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createReadFileTool({
         sessionId: sessionId || "UNSCOPED",
         userId: "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
@@ -355,10 +355,10 @@ Start narrow to avoid noisy output: set specific \`paths\`/\`fileTypes\`, keep \
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
-    ({ sessionId }) =>
+    ({ sessionId, characterId }) =>
       createLocalGrepTool({
         sessionId: sessionId || "UNSCOPED",
-        characterId: null,
+        characterId: characterId ?? null,
       })
   );
 
