@@ -81,7 +81,7 @@ const toolSearchSchema = jsonSchema<{
   limit?: number;
 }>({
   type: "object",
-  title: "ToolSearchInput",
+  title: "searchToolsInput",
   description: "Input schema for searching available tools",
   properties: {
     query: {

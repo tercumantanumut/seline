@@ -793,10 +793,24 @@ export async function POST(req: Request) {
 
             return { activeTools: currentActiveTools as (keyof typeof allToolsWithMCP)[] };
           },
-          experimental_repairToolCall: async ({ error, toolCall }) => {
-            // Return null to let the SDK inject the error as a tool result so the model can recover.
-            // Previously this was automatic in older AI SDK versions; v6 requires it explicitly.
+          experimental_repairToolCall: async ({ error, toolCall, tools }) => {
             console.warn(`[CHAT API] Tool call repair triggered for "${toolCall.toolName}": ${error.message}`);
+
+            // Common model hallucination: "ToolSearch" instead of "searchTools"
+            // (caused by schema title leaking into model's tool name guess)
+            const TOOL_NAME_ALIASES: Record<string, string> = {
+              ToolSearch: "searchTools",
+              toolSearch: "searchTools",
+              tool_search: "searchTools",
+            };
+
+            const correctedName = TOOL_NAME_ALIASES[toolCall.toolName];
+            if (correctedName && correctedName in tools) {
+              console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" → "${correctedName}"`);
+              return { ...toolCall, toolName: correctedName };
+            }
+
+            // For anything else, return null to inject error as tool result so the model can self-correct
             return null;
           },
           onError: async ({ error }) => {
