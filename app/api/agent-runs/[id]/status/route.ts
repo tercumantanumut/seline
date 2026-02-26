@@ -25,10 +25,8 @@ export async function GET(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const isZombie = run.status === "running" && (
-      isStale(run.updatedAt ?? run.startedAt, 5 * 60 * 1000)
-      || !taskRegistry.get(runId)
-    );
+    const isZombie = run.status === "running" &&
+      isStale(run.updatedAt ?? run.startedAt, 30 * 60 * 1000);
 
     const metadata = (run.metadata && typeof run.metadata === "object")
       ? run.metadata as Record<string, unknown>

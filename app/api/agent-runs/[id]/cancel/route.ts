@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     const aborted = abortChatRun(runId, "user_cancelled");
     if (!aborted) {
       const hasRegistryTask = Boolean(registryTask);
-      const isZombie = isStale(run.updatedAt ?? run.startedAt, 5 * 60 * 1000);
+      const isZombie = isStale(run.updatedAt ?? run.startedAt, 30 * 60 * 1000);
       if (hasRegistryTask && !isZombie) {
         return NextResponse.json({ error: "Run is not cancellable" }, { status: 409 });
       }
