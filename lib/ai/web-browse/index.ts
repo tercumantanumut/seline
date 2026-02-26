@@ -67,5 +67,5 @@ export {
 } from "./orchestrator";
 
 // Export tools
-export { createWebBrowseTool, createWebQueryTool } from "./tool";
+export { createWebBrowseTool } from "./tool";
 

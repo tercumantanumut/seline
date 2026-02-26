@@ -612,15 +612,7 @@
       },
       "webSearch": {
         "name": "Web Search",
-        "description": "Search the web for URLs"
-      },
-      "webBrowse": {
-        "name": "Web Browse",
-        "description": "Fetch and analyze web pages with AI synthesis"
-      },
-      "webQuery": {
-        "name": "Web Query",
-        "description": "Query previously fetched web content"
+        "description": "Search and browse the web with action-based modes (search, browse, synthesize)"
       },
       "firecrawlCrawl": {
         "name": "Crawl Website",
@@ -950,8 +942,6 @@
       "searchTools": "Tool Search",
       "listAllTools": "List Tools",
       "webSearch": "Web Search",
-      "webBrowse": "Web Browse",
-      "webQuery": "Web Query",
       "firecrawlCrawl": "Crawl Website",
       "vectorSearch": "Vector Search",
       "docsSearch": "Document Search",
@@ -1565,11 +1555,7 @@
         "localGrep": "Local Grep",
         "localGrepDesc": "Fast exact/regex pattern search using ripgrep",
         "webSearch": "Web Search",
-        "webSearchDesc": "Search the web for URLs and information",
-        "webBrowse": "Web Browse",
-        "webBrowseDesc": "Fetch and analyze web pages with AI synthesis",
-        "webQuery": "Web Query",
-        "webQueryDesc": "Query previously fetched web content",
+        "webSearchDesc": "Search and browse the web via action modes (search, browse, synthesize)",
         "firecrawlCrawl": "Crawl Website",
         "firecrawlCrawlDesc": "Crawl multiple pages from a website",
         "generateImageFlux2": "Image Generation (Flux2)",

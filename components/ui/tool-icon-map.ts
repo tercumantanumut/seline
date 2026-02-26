@@ -80,8 +80,6 @@ export const TOOL_ICON_MAP: Record<string, ToolIconConfig> = {
   // Search & Discovery
   vectorSearch: { icon: Database, weight: "duotone" },
   webSearch: { icon: Globe, weight: "duotone" },
-  webBrowse: { icon: Globe, weight: "regular" },
-  webQuery: { icon: Globe, weight: "regular" },
   searchTools: { icon: Binoculars, weight: "duotone" },
   listAllTools: { icon: ListBullets, weight: "regular" },
   localGrep: { icon: MagnifyingGlass, weight: "bold" },

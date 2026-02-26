@@ -39,7 +39,7 @@ interface WebSearchSource {
 }
 
 interface ToolResult {
-  status: "completed" | "processing" | "error" | "success" | "no_results" | "no_api_key" | "no_paths" | "disabled";
+  status: "completed" | "processing" | "error" | "success" | "no_results" | "no_api_key" | "no_paths" | "disabled" | "no_provider";
   images?: ImageResult[];
   videos?: VideoResult[];
   results?: Array<{
@@ -221,8 +221,12 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
 
   // Handle webSearch results
   if (toolName === "webSearch") {
-    // Handle error/no_api_key states
-    if (result.status === "no_api_key" || result.message) {
+    const action = typeof (result as { action?: unknown }).action === "string"
+      ? ((result as { action?: string }).action ?? "search")
+      : "search";
+
+    // Handle provider/configuration errors
+    if (result.status === "no_provider" || result.status === "no_api_key") {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
           {result.message || tResults("webSearchUnavailable")}
@@ -230,12 +234,71 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       );
     }
 
-    // Display search results with links
+    // Handle browse action with full-page payloads
+    if (action === "browse") {
+      const pages = Array.isArray((result as { pages?: unknown[] }).pages)
+        ? ((result as { pages?: Array<{ title?: string; url?: string; contentLength?: number }> }).pages ?? [])
+        : [];
+
+      if (pages.length === 0) {
+        return (
+          <div className={TOOL_RESULT_TEXT_CLASS}>
+            {result.message || tResults("noWebResults", { query: result.query ?? "" })}
+          </div>
+        );
+      }
+
+      return (
+        <div className={cn("space-y-3", TOOL_RESULT_TEXT_CLASS)}>
+          {result.message && (
+            <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
+              {result.message}
+            </div>
+          )}
+          <div className="space-y-2">
+            <span className="text-terminal-muted text-xs">
+              {tResults("sourcesFound", { count: pages.length })}
+            </span>
+            {pages.map((page, idx) => (
+              <div key={idx} className="pl-2 border-l-2 border-terminal-green/30">
+                <a
+                  href={page.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-terminal-green hover:underline font-medium block"
+                >
+                  {idx + 1}. {page.title || page.url}
+                </a>
+                {typeof page.contentLength === "number" && (
+                  <p className="text-xs text-terminal-muted mt-0.5">
+                    {Math.round(page.contentLength / 1024)}KB fetched
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // For disabled/no_paths statuses, show message when no sources available
+    if (result.status === "disabled" || result.status === "no_paths") {
+      const hasSources = Array.isArray(result.sources) && result.sources.length > 0;
+      if (!hasSources) {
+        return (
+          <div className={TOOL_RESULT_TEXT_CLASS}>
+            {result.message || tResults("webSearchUnavailable")}
+          </div>
+        );
+      }
+    }
+
+    // Display search-style sources with links
     const sources = result.sources || [];
     if (sources.length === 0) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {tResults("noWebResults", { query: result.query ?? "" })}
+          {result.message || tResults("noWebResults", { query: result.query ?? "" })}
         </div>
       );
     }
@@ -246,6 +309,12 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
         {result.answer && (
           <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
             <span className="font-medium">{tResults("webSearchSummary")}:</span> {result.answer}
+          </div>
+        )}
+
+        {result.message && (
+          <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
+            {result.message}
           </div>
         )}
 

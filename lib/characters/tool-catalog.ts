@@ -37,8 +37,6 @@ export const CHARACTER_TOOL_CATALOG: CharacterToolCatalogItem[] = [
   { id: "patchFile", category: "knowledge", dependencies: ["syncedFolders"] },
   { id: "localGrep", category: "knowledge", dependencies: ["syncedFolders", "localGrepEnabled"] },
   { id: "webSearch", category: "search" },
-  { id: "webBrowse", category: "search", dependencies: ["webScraper"] },
-  { id: "webQuery", category: "search", dependencies: ["webScraper"] },
   { id: "firecrawlCrawl", category: "search", dependencies: ["webScraper"] },
   { id: "assembleVideo", category: "video-generation" },
   { id: "describeImage", category: "analysis" },

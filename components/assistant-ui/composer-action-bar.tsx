@@ -35,11 +35,6 @@ interface ComposerActionBarProps {
   isDeepResearchLoading: boolean;
   mcpIsReloading: boolean;
   mcpEstimatedTimeRemaining: number;
-  // Skill picker
-  isLoadingSkills: boolean;
-  skillsAvailable: boolean;
-  spotlightShortcutHint: string;
-  onOpenSkillPicker: () => void;
   // Session / model
   sessionId?: string;
   // Deep research
@@ -73,10 +68,6 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
   isDeepResearchLoading,
   mcpIsReloading,
   mcpEstimatedTimeRemaining: _mcpEstimatedTimeRemaining,
-  isLoadingSkills,
-  skillsAvailable,
-  spotlightShortcutHint,
-  onOpenSkillPicker,
   sessionId,
   onToggleDeepResearch,
   sttEnabled,
@@ -121,25 +112,6 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
           </TooltipContent>
         </Tooltip>
       )}
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onOpenSkillPicker}
-            disabled={isLoadingSkills || !skillsAvailable || mcpIsReloading}
-            className="size-8 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
-            aria-label={`Open skill picker (${spotlightShortcutHint})`}
-          >
-            <SparklesIcon className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
-          {`Open skills (${spotlightShortcutHint})`}
-        </TooltipContent>
-      </Tooltip>
 
       {sessionId && <ModelBagPopover sessionId={sessionId} />}
 
