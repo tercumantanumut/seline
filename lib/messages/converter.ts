@@ -25,7 +25,9 @@ export interface DBToolResultPart {
   type: "tool-result";
   toolCallId: string;
   toolName?: string;
-  result: unknown;
+  result?: unknown;
+  // Legacy rows used `output` instead of `result`.
+  output?: unknown;
   state?: Extract<ToolInvocationState, "output-available" | "output-error" | "output-denied">;
   errorText?: string;
   preliminary?: boolean;
@@ -103,9 +105,16 @@ function buildUIPartsFromDBContent(
 
   for (const part of content) {
     if (part.type === "tool-result") {
+      const toolOutput = part.result !== undefined ? part.result : part.output;
+      const inferredResultState: ToolInvocationState =
+        part.state ??
+        (part.errorText || String(part.status || "").toLowerCase() === "error"
+          ? "output-error"
+          : "output-available");
+
       toolResults.set(part.toolCallId, {
-        result: part.result,
-        state: part.state ?? (part.errorText ? "output-error" : "output-available"),
+        result: toolOutput,
+        state: inferredResultState,
         errorText: part.errorText,
         toolName: part.toolName,
         preliminary: part.preliminary,
@@ -188,10 +197,18 @@ function buildUIPartsFromDBContent(
       // Only add tool call if we have valid input
       if (isValidInputObject) {
         const hasFinalOutput = inferredState.startsWith("output") || toolResult?.result !== undefined;
+        // Always emit as "output-available" when we have a result, even for errors.
+        // The AISDKMessageConverter maps "output-error" → result={error: errorText},
+        // which discards the full result object. Using "output-available" preserves
+        // the complete result so tool UIs can render error details (stdout, stderr, etc.).
+        const emitState: ToolInvocationState =
+          hasFinalOutput && inferredState === "output-error" && toolResult?.result !== undefined
+            ? "output-available"
+            : inferredState;
         parts.push({
           type: `tool-${part.toolName}` as `tool-${string}`,
           toolCallId: part.toolCallId,
-          state: inferredState,
+          state: emitState,
           input: validInput,
           output: hasFinalOutput ? toolResult?.result ?? null : undefined,
           errorText: toolResult?.errorText,
@@ -212,9 +229,15 @@ function buildUIPartsFromDBContent(
     if (renderedToolCallIds.has(toolCallId)) continue;
 
     const toolName = toolResult.toolName || "tool";
-    const state: ToolInvocationState =
+    const rawState: ToolInvocationState =
       toolResult.state ||
       (toolResult.errorText ? "output-error" : "output-available");
+    // Same as above: emit "output-available" when we have a result to preserve
+    // the full result through the AISDKMessageConverter.
+    const state: ToolInvocationState =
+      rawState === "output-error" && toolResult.result !== undefined
+        ? "output-available"
+        : rawState;
 
     parts.push({
       type: `tool-${toolName}` as `tool-${string}`,
@@ -305,9 +328,16 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
       if (Array.isArray(content)) {
         for (const part of content) {
           if (part.type === "tool-result" && part.toolCallId) {
+            const toolOutput = part.result !== undefined ? part.result : part.output;
+            const inferredState: ToolInvocationState =
+              part.state ??
+              (part.errorText || String(part.status || "").toLowerCase() === "error"
+                ? "output-error"
+                : "output-available");
+
             globalToolResults.set(part.toolCallId, {
-              result: part.result,
-              state: part.state,
+              result: toolOutput,
+              state: inferredState,
               errorText: part.errorText,
               toolName: part.toolName,
               preliminary: part.preliminary,
@@ -319,9 +349,16 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
       if (dbMsg.toolCallId && Array.isArray(content) && content.length > 0) {
         const firstPart = content[0];
         if (firstPart.type === "tool-result") {
+          const toolOutput = firstPart.result !== undefined ? firstPart.result : firstPart.output;
+          const inferredState: ToolInvocationState =
+            firstPart.state ??
+            (firstPart.errorText || String(firstPart.status || "").toLowerCase() === "error"
+              ? "output-error"
+              : "output-available");
+
           globalToolResults.set(dbMsg.toolCallId, {
-            result: firstPart.result,
-            state: firstPart.state,
+            result: toolOutput,
+            state: inferredState,
             errorText: firstPart.errorText,
             toolName: firstPart.toolName,
             preliminary: firstPart.preliminary,

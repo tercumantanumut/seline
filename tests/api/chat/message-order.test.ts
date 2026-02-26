@@ -368,10 +368,62 @@ describe("Message Ordering", () => {
 
     expect(toolParts).toHaveLength(1);
     expect(toolParts[0].toolCallId).toBe("malformed-tool-1");
-    expect(toolParts[0].state).toBe("output-error");
+    // Remapped from "output-error" to "output-available" so AISDKMessageConverter
+    // preserves the full result object instead of replacing it with {error: errorText}.
+    expect(toolParts[0].state).toBe("output-available");
     expect(toolParts[0].output).toMatchObject({
       status: "error",
       error: "Pattern parse failed",
+    });
+  });
+
+  it("should load legacy tool-result output fields as final output-error state", async () => {
+    const session = await createSession({ title: "Legacy tool-result output", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 1,
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "legacy-tool-1",
+          toolName: "executeCommand",
+          argsText: '{"command":"dir","args":["/s","C:\\\\Windows"]}',
+          state: "input-available",
+        },
+        {
+          type: "tool-result",
+          toolCallId: "legacy-tool-1",
+          toolName: "executeCommand",
+          output: {
+            status: "error",
+            error: "spawn dir ENOENT",
+            stderr: "spawn dir ENOENT",
+            exitCode: 127,
+          },
+          status: "error",
+        },
+      ] as any,
+    });
+
+    const persisted = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(persisted as any);
+
+    expect(uiMessages).toHaveLength(1);
+    const assistant = uiMessages[0];
+    const toolPart = (assistant.parts || []).find(
+      (part) => typeof part.type === "string" && part.type === "tool-executeCommand"
+    ) as { type: string; toolCallId: string; state: string; output?: { status?: string; error?: string } } | undefined;
+
+    expect(toolPart).toBeDefined();
+    expect(toolPart?.toolCallId).toBe("legacy-tool-1");
+    // Remapped to "output-available" so AISDKMessageConverter preserves the full result.
+    expect(toolPart?.state).toBe("output-available");
+    expect(toolPart?.output).toMatchObject({
+      status: "error",
+      error: "spawn dir ENOENT",
     });
   });
 });
