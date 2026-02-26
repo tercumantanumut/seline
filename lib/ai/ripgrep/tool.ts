@@ -8,6 +8,7 @@
 import { tool, jsonSchema } from "ai";
 import { searchWithRipgrep, isRipgrepAvailable, type RipgrepMatch, type RipgrepSearchResult } from "./ripgrep";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { validateSyncFolderPath } from "@/lib/vectordb/path-validation";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { logToolEvent } from "@/lib/ai/tool-registry";
 
@@ -311,16 +312,35 @@ Respects .gitignore and skips binary files by default.`,
 
             // Determine search paths
             let searchPaths = paths || [];
+            let skippedSyncedFolderCount = 0;
 
             if (searchPaths.length === 0 && characterId) {
                 // Default to synced folders for this agent
                 try {
                     const folders = await getSyncFolders(characterId);
-                    searchPaths = folders.map((f) => f.folderPath);
+                    const validatedFolders = await Promise.all(
+                        folders.map(async (folder) => {
+                            const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath, {
+                                requireReadable: false,
+                            });
+
+                            return {
+                                path: normalizedPath,
+                                error,
+                            };
+                        })
+                    );
+
+                    skippedSyncedFolderCount = validatedFolders.filter((folder) => folder.error).length;
+                    searchPaths = validatedFolders
+                        .filter((folder) => !folder.error)
+                        .map((folder) => folder.path);
 
                     if (searchPaths.length === 0) {
                         const message =
-                            "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.";
+                            skippedSyncedFolderCount > 0
+                                ? "No valid synced folders are currently available for this agent. Synced folder entries may point to deleted or inaccessible paths. Remove stale folders in agent settings or pass explicit paths."
+                                : "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.";
                         logToolEvent({
                             level: "warn",
                             toolName: "localGrep",
@@ -388,6 +408,7 @@ Respects .gitignore and skips binary files by default.`,
                         pattern,
                         regex: isRegex,
                         matchCount: searchResult.matches.length,
+                        skippedSyncedFolderCount,
                     },
                 });
 
@@ -400,6 +421,10 @@ Respects .gitignore and skips binary files by default.`,
                     regex: isRegex,
                     searchedPaths: searchPaths,
                     results: formattedOutput,
+                    message:
+                        skippedSyncedFolderCount > 0
+                            ? `Skipped ${skippedSyncedFolderCount} unavailable synced folder path(s) before searching.`
+                            : undefined,
                     // Also include structured data for potential further processing
                     matches: searchResult.matches.slice(0, 20).map((m: RipgrepMatch) => ({
                         file: m.file,

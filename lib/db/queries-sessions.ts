@@ -1,20 +1,22 @@
 import { db } from "./sqlite-client";
 import { sessions, agentRuns, messages } from "./sqlite-schema";
 import type { NewSession, Session } from "./sqlite-schema";
-import { eq, desc, asc, and, lt, sql, like, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, lt, sql, inArray, type SQL } from "drizzle-orm";
 
 export type SessionMetadataShape = {
   characterId?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  channelType?: "whatsapp" | "telegram" | "slack" | "discord";
 };
 
 export interface ListSessionsPaginatedParams {
   userId: string;
   characterId?: string;
+  characterName?: string;
   cursor?: string;
   limit?: number;
   search?: string;
-  channelType?: "whatsapp" | "telegram" | "slack";
+  searchInMessages?: boolean;
+  channelType?: "app" | "whatsapp" | "telegram" | "slack" | "discord";
   dateRange?: "today" | "week" | "month" | "all";
   status?: "active" | "archived";
 }
@@ -187,16 +189,44 @@ export async function listSessionsPaginated(
 ): Promise<ListSessionsPaginatedResult> {
   const pageSize = Math.min(Math.max(params.limit ?? 20, 1), 100);
   const statusFilter = params.status ?? "active";
-  const baseConditions = [eq(sessions.userId, params.userId), eq(sessions.status, statusFilter)];
+  const baseConditions: SQL[] = [eq(sessions.userId, params.userId), eq(sessions.status, statusFilter)];
 
   if (params.characterId) {
     baseConditions.push(eq(sessions.characterId, params.characterId));
   }
-  if (params.search) {
-    baseConditions.push(like(sessions.title, `%${params.search}%`));
+  if (params.characterName) {
+    const escapedCharacterName = params.characterName.replace(/[\\%_]/g, "\\$&");
+    baseConditions.push(sql`json_extract(${sessions.metadata}, '$.characterName') LIKE ${`%${escapedCharacterName}%`} ESCAPE '\\'`);
   }
-  if (params.channelType) {
-    baseConditions.push(eq(sessions.channelType, params.channelType));
+  if (params.search) {
+    const escapedSearch = params.search.replace(/[\\%_]/g, "\\$&");
+    const likePattern = `%${escapedSearch}%`;
+    const titleSearch = sql`${sessions.title} LIKE ${likePattern} ESCAPE '\\'`;
+    const messageSearch = sql`EXISTS (
+      SELECT 1
+      FROM ${messages}
+      WHERE ${messages.sessionId} = ${sessions.id}
+        AND (${messages.isCompacted} IS NULL OR ${messages.isCompacted} = 0)
+        AND ${messages.role} IN ('user', 'assistant')
+        AND CAST(${messages.content} AS TEXT) LIKE ${likePattern} ESCAPE '\\'
+    )`;
+
+    baseConditions.push(
+      params.searchInMessages
+        ? sql`(${titleSearch}) OR (${messageSearch})`
+        : titleSearch
+    );
+  }
+  if (params.channelType === "app") {
+    baseConditions.push(
+      sql`(${sessions.channelType} IS NULL OR json_extract(${sessions.metadata}, '$.channelType') = 'app')`
+    );
+  } else if (params.channelType === "discord") {
+    baseConditions.push(
+      sql`json_extract(${sessions.metadata}, '$.channelType') = 'discord'`
+    );
+  } else if (params.channelType) {
+    baseConditions.push(eq(sessions.channelType, params.channelType as "whatsapp" | "telegram" | "slack"));
   }
 
   if (params.dateRange && params.dateRange !== "all") {

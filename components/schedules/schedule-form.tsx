@@ -34,13 +34,13 @@ type DeliveryMethodOption = "session" | "channel";
 interface ChannelConversationOption {
   id: string;
   connectionId: string;
-  channelType: "whatsapp" | "telegram" | "slack";
+  channelType: "whatsapp" | "telegram" | "slack" | "discord";
   peerId: string;
   peerName?: string | null;
   threadId?: string | null;
   connection?: {
     id: string;
-    channelType: "whatsapp" | "telegram" | "slack";
+    channelType: "whatsapp" | "telegram" | "slack" | "discord";
     displayName?: string | null;
   } | null;
 }

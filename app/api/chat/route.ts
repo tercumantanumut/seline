@@ -592,6 +592,18 @@ export async function POST(req: Request) {
     ) => {
       if (runFinalized.value) return;
       runFinalized.value = true;
+
+      // Flush any pending streaming state (tool-result parts) to DB before
+      // marking the run as failed — syncStreamingMessage is throttled, so
+      // a final forced sync ensures error results are persisted.
+      if (streamingState && syncStreamingMessage) {
+        try {
+          await syncStreamingMessage(true);
+        } catch (syncError) {
+          console.error("[CHAT API] Failed to sync streaming message during error finalization:", syncError);
+        }
+      }
+
       if (chatTaskRegistered && agentRun?.id) {
         try {
           const classification = classifyRecoverability({ provider, error: options?.sourceError, message: errorMessage });

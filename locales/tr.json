@@ -2724,7 +2724,8 @@
     "types": {
       "whatsapp": "WhatsApp",
       "telegram": "Telegram",
-      "slack": "Slack"
+      "slack": "Slack",
+      "discord": "Discord"
     },
     "status": {
       "connected": "Bağlı",
@@ -2759,9 +2760,14 @@
       "slackAppTokenPlaceholder": "xapp-...",
       "slackSigningSecret": "Slack imza sırrı",
       "slackSigningSecretPlaceholder": "İmza sırrınız",
+      "discordBotToken": "Discord bot tokenı",
+      "discordBotTokenPlaceholder": "Discord bot tokenınızı yapıştırın",
       "keepExisting": "Boş bırakırsanız mevcut bilgiler korunur.",
       "create": "Oluştur ve bağlan",
       "update": "Güncelle"
+    },
+    "discord": {
+      "setupHint": "Bağlamadan önce Message Content Intent'ı açın ve botu bot + applications.commands kapsamları ile sunucunuza ekleyin."
     },
     "whatsapp": {
       "connectHint": "WhatsApp QR ile giriş yapar. Bağlanın ve QR kodunu WhatsApp mobil uygulamasıyla tarayın.",
@@ -2780,7 +2786,8 @@
       "created": "Kanal bağlandı.",
       "updated": "Bağlantı güncellendi.",
       "deleted": "Bağlantı kaldırıldı.",
-      "slackScopesHint": "Slack uygulamanız tam işlevsellik için şu bot kapsamlarına ihtiyaç duyar: messages:read, messages:write, channels:read, files:read. Resimler gelmediyse api.slack.com'daki uygulamanızı kontrol edin."
+      "slackScopesHint": "Slack uygulamanız tam işlevsellik için şu bot kapsamlarına ihtiyaç duyar: messages:read, messages:write, channels:read, files:read. Resimler gelmediyse api.slack.com'daki uygulamanızı kontrol edin.",
+      "discordSetupHint": "Discord bağlandı. Sunucu mesajları görünmüyorsa Discord Developer Portal'da Message Content Intent ve kanal izinlerini doğrulayın."
     }
   },
   "usage": {
@@ -3201,6 +3208,9 @@
       "runNow": "Şimdi Çalıştır",
       "copySkill": "Beceriyi Kopyala",
       "copyToAgent": "Ajana Kopyala",
+      "export": "Dışa Aktar",
+      "exportSuccess": "Beceri başarıyla dışa aktarıldı.",
+      "exportFailed": "Beceri dışa aktarılamadı",
       "runHistory": "Çalıştırma Geçmişi",
       "versionHistory": "Versiyon Geçmişi",
       "noRuns": "Henüz çalıştırma yok.",
@@ -3253,11 +3263,11 @@
       "delivery": {
         "label": "Teslimat",
         "session": "Uygulama içi oturum",
-        "channel": "Slack veya Telegram kanalı",
+        "channel": "Slack, Telegram veya Discord kanalı",
         "hint": "Sonuçları bağlı bir kanala gönderin veya uygulamada tutun.",
         "target": "Kanal Hedefi",
         "targetPlaceholder": "Bir kanal konuşması seçin",
-        "empty": "Henüz Slack/Telegram konuşması yok",
+        "empty": "Henüz Slack/Telegram/Discord konuşması yok",
         "loadError": "Kanal hedefleri yüklenemedi",
         "thread": "Konu"
       },

@@ -46,7 +46,7 @@ export const sessions = sqliteTable(
     lastMessageAt: text("last_message_at"),
     // NEW: Atomic ordering index counter for bullet-proof message ordering
     lastOrderingIndex: integer("last_ordering_index").default(0).notNull(),
-    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack"] }),
+    channelType: text("channel_type", { enum: ["whatsapp", "telegram", "slack", "discord"] }),
     createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
     updatedAt: text("updated_at").default(sql`(datetime('now'))`).notNull(),
     metadata: text("metadata", { mode: "json" }).default("{}").notNull(),

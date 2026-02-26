@@ -2726,7 +2726,8 @@
     "types": {
       "whatsapp": "WhatsApp",
       "telegram": "Telegram",
-      "slack": "Slack"
+      "slack": "Slack",
+      "discord": "Discord"
     },
     "status": {
       "connected": "Connected",
@@ -2761,9 +2762,14 @@
       "slackAppTokenPlaceholder": "xapp-...",
       "slackSigningSecret": "Slack signing secret",
       "slackSigningSecretPlaceholder": "Your signing secret",
+      "discordBotToken": "Discord bot token",
+      "discordBotTokenPlaceholder": "Paste your Discord bot token",
       "keepExisting": "Leave blank to keep existing credentials.",
       "create": "Create & connect",
       "update": "Update"
+    },
+    "discord": {
+      "setupHint": "Enable Message Content Intent and invite the bot with bot + applications.commands scopes before connecting."
     },
     "whatsapp": {
       "connectHint": "WhatsApp uses QR login. Connect, then scan the QR code with the WhatsApp mobile app.",
@@ -2782,7 +2788,8 @@
       "created": "Channel connected.",
       "updated": "Connection updated.",
       "deleted": "Connection removed.",
-      "slackScopesHint": "Slack app needs these bot scopes for full functionality: messages:read, messages:write, channels:read, files:read. Check your app at api.slack.com if images aren't coming through."
+      "slackScopesHint": "Slack app needs these bot scopes for full functionality: messages:read, messages:write, channels:read, files:read. Check your app at api.slack.com if images aren't coming through.",
+      "discordSetupHint": "Discord connected. If guild messages do not appear, verify Message Content Intent and channel permissions in Discord Developer Portal."
     }
   },
   "usage": {
@@ -3204,6 +3211,9 @@
       "runNow": "Run Now",
       "copySkill": "Copy Skill",
       "copyToAgent": "Copy to Agent",
+      "export": "Export",
+      "exportSuccess": "Skill exported successfully.",
+      "exportFailed": "Failed to export skill",
       "runHistory": "Run History",
       "versionHistory": "Version History",
       "noRuns": "No runs yet.",
@@ -3351,11 +3361,11 @@
       "delivery": {
         "label": "Delivery",
         "session": "In-app session",
-        "channel": "Slack or Telegram channel",
+        "channel": "Slack, Telegram, or Discord channel",
         "hint": "Send results to a connected channel or keep them in the app.",
         "target": "Channel Target",
         "targetPlaceholder": "Select a channel conversation",
-        "empty": "No Slack/Telegram conversations yet",
+        "empty": "No Slack/Telegram/Discord conversations yet",
         "loadError": "Failed to load channel targets",
         "thread": "Thread"
       },

@@ -8,8 +8,11 @@ import type { ExecuteCommandToolResult } from "@/lib/command-execution/types";
 type ToolCallContentPartComponent = FC<{
     toolName: string;
     argsText?: string;
-    args: { command?: string; args?: string[]; cwd?: string; timeout?: number; processId?: string; background?: boolean };
+    args?: { command?: string; args?: string[]; cwd?: string; timeout?: number; processId?: string; background?: boolean };
     result?: ExecuteCommandToolResult;
+    state?: "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
+    output?: ExecuteCommandToolResult;
+    errorText?: string;
 }>;
 
 /**
@@ -29,31 +32,50 @@ function getCommandLabel(args: { command?: string; args?: string[]; processId?: 
 export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
     args,
     result,
+    output,
+    state,
+    errorText,
 }) => {
-    // Guard against missing or incomplete args (can happen when streaming
-    // is interrupted and argsText was malformed/truncated JSON)
-    if (!args || !args.command) {
-        const fallbackCommand = args ? getCommandLabel(args) : "(unknown command)";
-        const isNonErrorStatus = result?.status === "success" || result?.status === "background_started" || result?.status === "running";
+    const resolvedResult = result ?? output;
+    const fallbackCommand = args ? getCommandLabel(args) : "(unknown command)";
 
-        if (result) {
-            // We have a result but no valid command - show result with descriptive label
+    const isFailureState =
+        state === "output-error" ||
+        resolvedResult?.status === "error" ||
+        resolvedResult?.status === "blocked" ||
+        resolvedResult?.status === "no_folders";
+
+    const resolvedError =
+        errorText ||
+        (isFailureState
+            ? (resolvedResult?.error || resolvedResult?.message || "Command execution failed")
+            : undefined);
+
+    const isNonErrorStatus =
+        resolvedResult?.status === "success" ||
+        resolvedResult?.status === "background_started" ||
+        resolvedResult?.status === "running";
+
+    // If args are malformed/missing but we have a persisted output/error, still render final state.
+    if (!args || !args.command) {
+        if (resolvedResult || resolvedError) {
             return (
                 <CommandOutput
                     command={fallbackCommand}
-                    stdout={result.stdout}
-                    stderr={result.stderr}
-                    exitCode={result.exitCode}
-                    executionTime={result.executionTime}
+                    stdout={resolvedResult?.stdout}
+                    stderr={resolvedResult?.stderr}
+                    exitCode={resolvedResult?.exitCode}
+                    executionTime={resolvedResult?.executionTime}
                     success={isNonErrorStatus}
-                    error={result.status === "error" || result.status === "blocked" || result.status === "no_folders" ? result.error || result.message : undefined}
-                    logId={result.logId}
-                    isTruncated={result.isTruncated}
+                    error={resolvedError}
+                    logId={resolvedResult?.logId}
+                    isTruncated={resolvedResult?.isTruncated}
                     defaultCollapsed={false}
                 />
             );
         }
-        // No result and no valid command - don't render anything unless we have a processId
+
+        // No args and no output/error means this is genuinely pending.
         if (!args?.processId && !args?.command) return null;
         return (
             <CommandOutput
@@ -64,8 +86,8 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
         );
     }
 
-    // If no result yet, show running state
-    if (!result) {
+    // Render running only when there is truly no final output and no explicit output state.
+    if (!resolvedResult && !resolvedError && !state?.startsWith("output")) {
         return (
             <CommandOutput
                 command={args.command}
@@ -82,16 +104,16 @@ export const ExecuteCommandToolUI: ToolCallContentPartComponent = ({
             command={args.command}
             args={args.args}
             cwd={args.cwd}
-            stdout={result.stdout}
-            stderr={result.stderr}
-            exitCode={result.exitCode}
-            executionTime={result.executionTime}
-            success={result.status === "success"}
-            error={result.status === "error" || result.status === "blocked" || result.status === "no_folders" ? result.error || result.message : undefined}
-            logId={result.logId}
-            isTruncated={result.isTruncated}
-            // Auto-collapse if successful and not too much output
-            defaultCollapsed={result.status === "success" && (!result.stderr) && (result.stdout?.length || 0) < 500}
+            stdout={resolvedResult?.stdout}
+            stderr={resolvedResult?.stderr}
+            exitCode={resolvedResult?.exitCode}
+            executionTime={resolvedResult?.executionTime}
+            success={isNonErrorStatus}
+            error={resolvedError}
+            logId={resolvedResult?.logId}
+            isTruncated={resolvedResult?.isTruncated}
+            // Auto-collapse only for successful completed foreground commands.
+            defaultCollapsed={resolvedResult?.status === "success" && (!resolvedResult?.stderr) && (resolvedResult?.stdout?.length || 0) < 500}
         />
     );
 };

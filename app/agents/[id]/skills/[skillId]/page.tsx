@@ -8,7 +8,7 @@ import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Play } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Play } from "lucide-react";
 
 type SkillStatus = "draft" | "active" | "archived";
 
@@ -61,6 +61,7 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -219,6 +220,47 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const onExportSkill = async () => {
+    if (!skill || exporting) return;
+    setExporting(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/skills/${skill.id}/export`);
+      if (!response.ok) {
+        let errorMessage = t("exportFailed");
+        try {
+          const payload = await response.json();
+          errorMessage = payload?.error || errorMessage;
+        } catch {
+          // Keep default export error when response is not JSON.
+        }
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition") || "";
+      const filenameMatch = contentDisposition.match(/filename="([^"]+)"/i);
+      const fileName = filenameMatch?.[1] || "skill.zip";
+
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+
+      setMessage(t("exportSuccess"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("exportFailed"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Shell>
       <div className="mx-auto w-full max-w-6xl space-y-4 px-6 py-8">
@@ -297,6 +339,10 @@ export default function SkillDetailPage({ params }: { params: Promise<{ id: stri
                   <Button variant="outline" onClick={onRunNow} disabled={running} className="font-mono">
                     {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                     {t("runNow")}
+                  </Button>
+                  <Button variant="outline" onClick={onExportSkill} disabled={exporting} className="font-mono">
+                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    {t("export")}
                   </Button>
                 </div>
               </CardContent>
