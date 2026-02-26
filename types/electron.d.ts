@@ -33,6 +33,7 @@ interface ElectronAPI {
 
     shell: {
         openExternal: (url: string) => Promise<void>;
+        openPath: (targetPath: string) => Promise<string>;
     };
 
     dialog: {

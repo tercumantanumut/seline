@@ -35,7 +35,7 @@ import { SYSTEM_AGENT_TEMPLATES } from "./system-agents";
  * Seline has its own tool registry with camelCase names. SDK built-in tools
  * use PascalCase and come from the Claude Code CLI tool set.
  *
- * Custom Seline tools (vectorSearch, memorize, runSkill, scheduleTask, etc.)
+ * Custom Seline tools (vectorSearch, memorize, getSkill, scheduleTask, etc.)
  * have no direct SDK equivalent and are omitted; the SDK will fall back to its
  * own tool-use rules for those capabilities.
  */

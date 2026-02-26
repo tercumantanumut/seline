@@ -17,6 +17,7 @@ export interface ElectronAppAPI {
 
 export interface ElectronShellAPI {
   openExternal: (url: string) => Promise<void>;
+  openPath: (targetPath: string) => Promise<string>;
 }
 
 export interface ElectronIpcAPI {

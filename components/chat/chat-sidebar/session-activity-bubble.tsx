@@ -367,13 +367,17 @@ export function SessionActivityBubble({
     if (visualModel.phase === "archived") {
       if (archiveTimeoutRef.current) clearTimeout(archiveTimeoutRef.current);
       archiveTimeoutRef.current = setTimeout(() => {
+        let shouldDismiss = false;
         setVisualModel((current) => {
           if (current && current.signature === visualModel.signature) {
-            onDismissed?.();
+            shouldDismiss = true;
             return null;
           }
           return current;
         });
+        if (shouldDismiss) {
+          onDismissed?.();
+        }
       }, ARCHIVED_HIDE_MS);
     }
   }, [visualModel, onDismissed]);

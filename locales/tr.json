@@ -666,9 +666,13 @@
         "name": "Yetenekleri Listele",
         "description": "Aktif ajan için kaydedilmiş yetenekleri listele"
       },
+      "getSkill": {
+        "name": "Yeteneği Getir",
+        "description": "Bir yeteneği kimlik veya tam ad ile keşfet, incele veya talimatlarını üret"
+      },
       "runSkill": {
-        "name": "Yetenek Çalıştır",
-        "description": "Bir yeteneği kimlik veya tam ad ile çalıştır"
+        "name": "Yeteneği Getir",
+        "description": "Bir yeteneği kimlik veya tam ad ile keşfet, incele veya talimatlarını üret"
       },
       "updateSkill": {
         "name": "Yetenek Güncelle",
@@ -1397,6 +1401,7 @@
     "removeWorkspaceFoldersTitle": "Çalışma alanı klasörleri kaldırılsın mı?",
     "removeWorkspaceFoldersDescription": "Bu işlem, çalışma alanı tarafından oluşturulan {count} senkronize klasörü kaldırır. Ana deponuz silinmez.",
     "confirmRemoveWorkspaceFolders": "Çalışma alanı klasörlerini kaldır",
+    "openFolderInFileManager": "Klasörü aç",
     "primaryBadge": "Birincil",
     "workflowBadge": "İş Akışı",
     "sharedFromWorkflow": "Bu klasör bir iş akışından paylaşılıyor",
@@ -1589,8 +1594,10 @@
         "createSkillDesc": "Mevcut iş akışından tekrar kullanılabilir bir yetenek kaydet",
         "listSkills": "Yetenekleri Listele",
         "listSkillsDesc": "Aktif ajan için kaydedilmiş yetenekleri listele",
-        "runSkill": "Yetenek Çalıştır",
-        "runSkillDesc": "Bir yeteneği kimlik veya tam ad ile çalıştır",
+        "getSkill": "Yeteneği Getir",
+        "getSkillDesc": "Bir yeteneği kimlik veya tam ad ile keşfet, incele veya talimatlarını üret",
+        "runSkill": "Yeteneği Getir",
+        "runSkillDesc": "Bir yeteneği kimlik veya tam ad ile keşfet, incele veya talimatlarını üret",
         "updateSkill": "Yetenek Güncelle",
         "updateSkillDesc": "Geri bildirimle yeteneği sürüm çakışması kontrolüyle güncelle",
         "copySkill": "Yetenek Kopyala",

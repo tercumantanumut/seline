@@ -5,7 +5,7 @@ import { createEditFileTool } from "../tools/edit-file-tool";
 import { createWriteFileTool } from "../tools/write-file-tool";
 import { createPatchFileTool } from "../tools/patch-file-tool";
 import { createScheduleTaskTool } from "../tools/schedule-task-tool";
-import { createRunSkillTool } from "../tools/run-skill-tool";
+import { createGetSkillTool } from "../tools/run-skill-tool";
 import { createUpdateSkillTool } from "../tools/update-skill-tool";
 import { createMemorizeTool } from "../tools/memorize-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
@@ -242,17 +242,36 @@ Schedule future tasks (cron/interval/once). Task runs with agent's full context 
 
   // Skills runtime: unified discovery/inspect/run for DB + plugin skills
   registry.register(
-    "runSkill",
+    "getSkill",
     {
-      displayName: "Run Skill",
+      displayName: "Get Skill",
       category: "utility",
       keywords: ["run skill", "inspect skill", "list skills", "execute skill", "skill by id", "skill by name"],
-      shortDescription: "Unified skill runtime: list, inspect full content, and run DB/plugin skills",
+      shortDescription: "Unified skill runtime: list, inspect full content, and render DB/plugin skill instructions",
       loading: { deferLoading: true },
       requiresSession: true,
     } satisfies ToolMetadata,
     ({ sessionId, userId, characterId }) =>
-      createRunSkillTool({
+      createGetSkillTool({
+        sessionId: sessionId || "UNSCOPED",
+        userId: userId || "UNSCOPED",
+        characterId: characterId || "UNSCOPED",
+      })
+  );
+
+  // Backward-compatible alias until all prompts and templates fully migrate to getSkill.
+  registry.register(
+    "runSkill",
+    {
+      displayName: "Get Skill",
+      category: "utility",
+      keywords: ["run skill", "inspect skill", "list skills", "execute skill", "skill by id", "skill by name"],
+      shortDescription: "Compatibility alias for getSkill. Prefer getSkill in prompts and tool calls.",
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, userId, characterId }) =>
+      createGetSkillTool({
         sessionId: sessionId || "UNSCOPED",
         userId: userId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",

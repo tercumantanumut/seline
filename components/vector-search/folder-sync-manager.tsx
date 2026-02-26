@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -35,6 +36,7 @@ import { FolderSyncAddForm } from "./folder-sync-add-form";
 
 export function FolderSyncManager({ characterId, className, compact = false }: FolderSyncManagerProps) {
   const t = useTranslations("folderSync");
+  const router = useRouter();
   const [folders, setFolders] = useState<SyncFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
   const [syncingFolderId, setSyncingFolderId] = useState<string | null>(null);
   const [removingFolderId, setRemovingFolderId] = useState<string | null>(null);
   const [updatingFolderId, setUpdatingFolderId] = useState<string | null>(null);
+  const [openingFolderId, setOpeningFolderId] = useState<string | null>(null);
   const [expandedFolderId, setExpandedFolderId] = useState<string | null>(null);
   const [confirmRemoveFolder, setConfirmRemoveFolder] = useState<SyncFolder | null>(null);
   const [confirmRemoveWorkspaceFolders, setConfirmRemoveWorkspaceFolders] = useState<SyncFolder[] | null>(null);
@@ -415,6 +418,34 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
     await handleUpdateFolder(folder.id, { syncMode: nextSyncMode });
   };
 
+  const handleOpenFolder = async (folder: SyncFolder) => {
+    const targetPath = folder.folderPath;
+    if (!targetPath) {
+      return;
+    }
+
+    setOpeningFolderId(folder.id);
+    try {
+      const electronShell = window.electronAPI?.shell;
+      if (window.electronAPI?.isElectron && electronShell?.openPath) {
+        const openError = await electronShell.openPath(targetPath);
+        if (openError) {
+          setError(openError);
+        }
+        return;
+      }
+
+      const params = new URLSearchParams({
+        openCharacterPicker: "1",
+        openFolderManager: "1",
+        characterId,
+      });
+      router.push(`/?${params.toString()}`);
+    } finally {
+      setOpeningFolderId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center p-4", className)}>
@@ -479,6 +510,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
               syncingFolderId={syncingFolderId}
               removingFolderId={removingFolderId}
               updatingFolderId={updatingFolderId}
+              openingFolderId={openingFolderId}
               onToggleExpand={(id) => setExpandedFolderId(expandedFolderId === id ? null : id)}
               onSync={handleSyncFolder}
               onCancelSync={handleCancelSync}
@@ -486,6 +518,7 @@ export function FolderSyncManager({ characterId, className, compact = false }: F
               onSetPrimary={handleSetPrimary}
               onToggleAutoUpdates={handleToggleAutoUpdates}
               onApplySimpleDefaults={handleApplySimpleDefaults}
+              onOpenFolder={handleOpenFolder}
             />
           ))}
         </div>

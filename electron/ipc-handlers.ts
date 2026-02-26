@@ -135,6 +135,10 @@ export function setupIpcHandlers(ctx: IpcHandlerContext): void {
     await shell.openExternal(url);
   });
 
+  ipcMain.handle("shell:openPath", async (_event, targetPath: string) => {
+    return shell.openPath(targetPath);
+  });
+
   ipcMain.handle("dialog:selectFolder", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory"],

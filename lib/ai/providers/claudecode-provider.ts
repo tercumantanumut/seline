@@ -120,7 +120,7 @@ export type ClaudeAgentSdkQueryOptions = {
    *
    * When provided here (for `queryWithSdkOptions` callers) or propagated via
    * `mcpContextStore` (for the fetch-interceptor / chat-route path), the SDK
-   * agent can call vectorSearch, memorize, runSkill, scheduleTask, and any
+   * agent can call vectorSearch, memorize, getSkill, scheduleTask, and any
    * MCP server tools configured for the active agent.
    */
   mcpContext?: SelineMcpContext;

@@ -258,10 +258,10 @@ export function normalizeToolResultOutput(
   const sessionId = getRunContext()?.sessionId;
 
   if (mode === "projection") {
-    // Exempt readFile from universal output limiting
-    // readFile has its own built-in limits (MAX_FILE_SIZE_BYTES, MAX_LINE_COUNT, MAX_LINE_WIDTH)
-    // and users explicitly request specific line ranges — truncating defeats the purpose
-    const EXEMPT_TOOLS = new Set(["readFile", "runSkill"]);
+    // Exempt readFile/getSkill(+legacy runSkill) from universal output limiting.
+    // readFile has built-in limits; getSkill responses can include full skill content
+    // where truncation would break inspect/run usability.
+    const EXEMPT_TOOLS = new Set(["readFile", "runSkill", "getSkill"]);
 
     // Apply token limit (universal safety net) — UNLESS tool is exempt
     // This prevents context bloat from massive outputs like ls -R, pip freeze, etc.

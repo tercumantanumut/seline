@@ -14,11 +14,14 @@ import { Shell } from "@/components/layout/shell";
 import { type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { getCharacterInitials } from "@/lib/utils";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import { listChannelConnections } from "@/lib/db/sqlite-queries";
+import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { headers } from "next/headers";
+import { getGroundedQuickStarts } from "@/components/chat/chat-quick-starts";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -116,9 +119,30 @@ export default async function CharacterChatPage({ params, searchParams }: Props)
     }
 
     // 4. Prepare Client Data
+    const [channels, syncFolders] = await Promise.all([
+      listChannelConnections({ userId: dbUser.id, characterId: charData.id }),
+      getSyncFolders(charData.id),
+    ]);
+
+    const hasConnectedChannel = channels.some((connection) => connection.status === "connected");
+    const hasSyncedFolder = syncFolders.length > 0;
+
     const primaryImage = charData.images?.find((img) => img.isPrimary);
     const avatarImage = charData.images?.find((img) => img.imageType === "avatar");
     const anyImage = charData.images?.[0];
+
+    const quickStarts = getGroundedQuickStarts()
+      .filter((prompt) => !(prompt.hideWhenHasSyncFolder && hasSyncedFolder))
+      .map((prompt) => {
+        const needsChannelsSetup = Boolean(prompt.requiresChannels && !hasConnectedChannel);
+        const needsSyncFolderSetup = Boolean(prompt.requiresSyncFolder && !hasSyncedFolder);
+
+        return {
+          ...prompt,
+          needsChannelsSetup,
+          needsSyncFolderSetup,
+        };
+      });
 
     const characterDisplay: CharacterDisplayData = {
       id: charData.id,
@@ -128,7 +152,7 @@ export default async function CharacterChatPage({ params, searchParams }: Props)
       avatarUrl: avatarImage?.url || primaryImage?.url || anyImage?.url || null,
       primaryImageUrl: primaryImage?.url || anyImage?.url || null,
       initials: getCharacterInitials(charData.name),
-      suggestedPrompts: [],
+      suggestedPrompts: quickStarts,
     };
 
     // Fetch initial session page for history sidebar

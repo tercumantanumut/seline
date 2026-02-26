@@ -133,7 +133,7 @@ export async function buildSystemPromptForRequest(
   systemPromptValue = appendBlock(
     systemPromptValue,
     "\n\n[Skills Runtime]\n" +
-      "Use runSkill for action=list|inspect|run (DB + plugin skills).\n" +
+      "Use getSkill for action=list|inspect|run (DB + plugin skills).\n" +
       "Use updateSkill for action=create|patch|replace|metadata|copy|archive.\n" +
       "Prefer tool-first skill discovery instead of relying on static prompt catalogs."
   );

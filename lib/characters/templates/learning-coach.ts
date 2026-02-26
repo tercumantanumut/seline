@@ -7,7 +7,7 @@ export const LEARNING_COACH_TEMPLATE: AgentTemplate = {
   purpose: "Creates study plans, practice checkpoints, and review loops for sustained progress.",
   category: "education",
   version: "1.0.0",
-  enabledTools: ["webSearch", "runSkill", "updateSkill", "updatePlan"],
+  enabledTools: ["webSearch", "getSkill", "updateSkill", "updatePlan"],
   memories: [
     { category: "workflow_patterns", content: "Break learning plans into short cycles with visible milestones and recap prompts.", reasoning: "Improves consistency and retention." },
   ],

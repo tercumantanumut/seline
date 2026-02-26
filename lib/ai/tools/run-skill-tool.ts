@@ -158,10 +158,10 @@ function getInspectContent(
   };
 }
 
-export function createRunSkillTool(options: RunSkillToolOptions) {
+export function createGetSkillTool(options: RunSkillToolOptions) {
   return tool({
     description:
-      "Unified skill runtime tool. Use action='list' to discover skills, action='inspect' to read full skill content, and action='run' to render runnable instructions.",
+      "Unified getSkill runtime tool. Use action='list' to discover skills, action='inspect' to read full skill content, and action='run' to render runnable instructions.",
     inputSchema: schema,
     execute: async (input: RunSkillInput) => {
       if (!options.characterId) {
@@ -185,7 +185,7 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
           count: skills.length,
           skills: skills.map(toSkillListItem),
           message:
-            "Use runSkill action='inspect' with skillId to view full skill content, or action='run' to render runnable instructions.",
+            "Use getSkill action='inspect' with skillId to view full skill content, or action='run' to render runnable instructions.",
         };
       }
 
@@ -331,3 +331,5 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
     },
   });
 }
+
+export const createRunSkillTool = createGetSkillTool;
