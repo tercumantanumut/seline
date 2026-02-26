@@ -11,8 +11,18 @@
  * Tool exposure rules:
  *  - Built-in ToolRegistry tools: exposed if env-enabled + passes enabledTools filter
  *  - alwaysLoad utility tools (searchTools, listAllTools): always exposed
- *  - MCP tools: exposed as registered by loadMCPToolsForCharacter() (already filtered
- *    by per-agent enabledMcpServers / enabledMcpTools / mcpToolPreferences)
+ *  - MCP tools: scoped to the active agent's enabledMcpServers / enabledMcpTools
+ *    (uses getMCPToolsForAgent, NOT getAllTools — prevents cross-agent tool leakage)
+ *
+ * Deferred loading (when ctx.toolLoadingMode === "deferred"):
+ *  - Non-alwaysLoad tools require searchTools discovery before they can be called.
+ *  - A session-scoped `activatedTools` Set tracks which tools have been discovered.
+ *  - searchTools execution auto-activates tools by scanning the result for tool names.
+ *  - Previously discovered tools (from session metadata) are pre-seeded.
+ *
+ * Rich outputs (images, videos, files):
+ *  - When a tool result contains image/video URLs, ctx.onRichOutput is called.
+ *  - Route.ts wires this into the streaming state so media chips appear in the UI.
  */
 
 import {
@@ -22,8 +32,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
-import { MCPClientManager } from "@/lib/mcp/client-manager";
-import { getMCPToolId } from "@/lib/ai/tool-registry/mcp-tool-adapter";
+import { getMCPToolsForAgent, getMCPToolId } from "@/lib/ai/tool-registry/mcp-tool-adapter";
 import type { SelineMcpContext } from "./mcp-context-store";
 
 // ---------------------------------------------------------------------------
@@ -155,6 +164,34 @@ function toCallToolError(
   return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
 }
 
+/**
+ * Detect whether a tool result contains rich media outputs (image/video URLs).
+ * Looks for common patterns: data URIs, URL fields pointing to media, etc.
+ */
+function extractRichOutputs(result: unknown): string[] {
+  const urls: string[] = [];
+
+  function scan(value: unknown) {
+    if (typeof value === "string") {
+      // data URIs (e.g. data:image/png;base64,...)
+      if (value.startsWith("data:image/") || value.startsWith("data:video/")) {
+        urls.push(value);
+      }
+      // Common URL field values ending in media extensions
+      if (/\.(png|jpg|jpeg|gif|webp|mp4|webm|mov)(\?.*)?$/i.test(value) && value.startsWith("http")) {
+        urls.push(value);
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) scan(item);
+    } else if (value && typeof value === "object") {
+      for (const v of Object.values(value as Record<string, unknown>)) scan(v);
+    }
+  }
+
+  scan(result);
+  return urls;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -163,6 +200,14 @@ function toCallToolError(
  * Build an in-process MCP server that exposes all Seline platform tools
  * available for the current agent to the Claude Agent SDK.
  *
+ * Fixes applied vs previous version:
+ *  1. MCP ISOLATION: uses getMCPToolsForAgent(enabledMcpServers, enabledMcpTools)
+ *     instead of mcpManager.getAllTools(), preventing cross-agent tool leakage.
+ *  2. DEFERRED LOADING: tools with alwaysLoad=false require searchTools discovery
+ *     before execution when toolLoadingMode === "deferred".
+ *  3. RICH OUTPUTS: image/video URLs in tool results are forwarded to
+ *     ctx.onRichOutput so the Seline UI renders media chips.
+ *
  * Call this once per SDK query — the underlying MCP server is lightweight
  * (no subprocess, no network) and is garbage-collected when the query ends.
  */
@@ -170,7 +215,6 @@ export function createSelineSdkMcpServer(
   ctx: SelineMcpContext
 ): McpSdkServerConfigWithInstance {
   const registry = ToolRegistry.getInstance();
-  const mcpManager = MCPClientManager.getInstance();
 
   const enabledSet = ctx.enabledTools ? new Set(ctx.enabledTools) : null;
   const factoryOpts = {
@@ -179,6 +223,22 @@ export function createSelineSdkMcpServer(
     characterId: ctx.characterId ?? undefined,
   };
 
+  const useDeferredMode = ctx.toolLoadingMode === "deferred";
+
+  // ── Session-scoped activation state for deferred loading ──────────────────
+  // Tools in this Set are callable immediately. All alwaysLoad tools are
+  // pre-seeded. Non-alwaysLoad tools must be discovered via searchTools first.
+  // Previously discovered tools (from session metadata) are also pre-seeded
+  // so that multi-turn conversations carry forward prior discoveries.
+  const alwaysLoadMcpSet = new Set(ctx.alwaysLoadMcpToolIds ?? []);
+  const activatedTools = new Set<string>([
+    ...(ctx.previouslyDiscoveredTools ?? []),
+  ]);
+
+  // We'll add alwaysLoad tool names after we know which registry tools are alwaysLoad.
+  // Track all known tool names for searchTools result scanning.
+  const allKnownToolNames = new Set<string>();
+
   const sdkTools: SdkMcpToolDefinition<any>[] = [];
 
   // ── 1. Built-in ToolRegistry tools (non-MCP) ────────────────────────────
@@ -186,7 +246,7 @@ export function createSelineSdkMcpServer(
     const registeredTool = registry.get(name);
     if (!registeredTool) continue;
 
-    // Skip MCP tools — they are handled separately below
+    // Skip MCP tools — handled separately below with proper agent scoping
     if (registeredTool.metadata.category === "mcp") continue;
 
     // Skip tools disabled by environment variable
@@ -196,6 +256,13 @@ export function createSelineSdkMcpServer(
     const isAlwaysLoad = registeredTool.metadata.loading.alwaysLoad === true;
     if (enabledSet && !isAlwaysLoad && !enabledSet.has(name)) continue;
 
+    // Pre-seed alwaysLoad tools into the activated set
+    if (isAlwaysLoad) {
+      activatedTools.add(name);
+    }
+
+    allKnownToolNames.add(name);
+
     try {
       const toolInstance = registeredTool.factory(factoryOpts);
       const inputSchema = zodShapeFromInputSchema(toolInstance.inputSchema);
@@ -203,13 +270,49 @@ export function createSelineSdkMcpServer(
         toolInstance.description ??
         registeredTool.metadata.shortDescription;
 
+      const isSearchTools = name === "searchTools" || name === "listAllTools";
+
       sdkTools.push({
         name,
         description,
         inputSchema,
         handler: async (args: Record<string, unknown>) => {
+          // Deferred gate: block non-activated tools until searchTools discovers them
+          if (useDeferredMode && !isAlwaysLoad && !activatedTools.has(name)) {
+            return toCallToolResult(
+              `Tool "${name}" requires discovery first. ` +
+              `Call searchTools("${name}") to activate it, then retry.`
+            );
+          }
+
           try {
             const result = await (toolInstance as any).execute?.(args, {});
+
+            // searchTools/listAllTools: scan result for tool names and auto-activate them
+            if (isSearchTools && result != null) {
+              const resultText = typeof result === "string"
+                ? result
+                : JSON.stringify(result);
+              for (const toolName of allKnownToolNames) {
+                if (resultText.includes(toolName)) {
+                  activatedTools.add(toolName);
+                }
+              }
+              // Also activate any MCP tool names mentioned
+              for (const mcpName of alwaysLoadMcpSet) {
+                activatedTools.add(mcpName);
+              }
+            }
+
+            // Rich output detection
+            if (ctx.onRichOutput) {
+              const richUrls = extractRichOutputs(result);
+              if (richUrls.length > 0) {
+                const toolCallId = `sdk_${name}_${Date.now()}`;
+                ctx.onRichOutput(toolCallId, name, result);
+              }
+            }
+
             return toCallToolResult(result);
           } catch (err) {
             return toCallToolError(err);
@@ -221,8 +324,19 @@ export function createSelineSdkMcpServer(
     }
   }
 
-  // ── 2. Per-agent MCP tools (already loaded by loadMCPToolsForCharacter) ─
-  const mcpTools = mcpManager.getAllTools();
+  // ── 2. Per-agent MCP tools (scoped via getMCPToolsForAgent) ───────────────
+  //
+  // FIX: Previously used mcpManager.getAllTools() which returns ALL tools from
+  // ALL connected agents' MCP servers. Now uses getMCPToolsForAgent() with the
+  // agent's enabledMcpServers + enabledMcpTools from character metadata, so
+  // each agent only sees its own configured MCP tools.
+  let mcpTools: ReturnType<typeof getMCPToolsForAgent> = [];
+  try {
+    mcpTools = getMCPToolsForAgent(ctx.enabledMcpServers, ctx.enabledMcpTools);
+  } catch (err) {
+    console.warn("[SelineMcpServer] getMCPToolsForAgent failed, no MCP tools exposed:", err);
+  }
+
   for (const mcpTool of mcpTools) {
     const toolId = getMCPToolId(mcpTool.serverName, mcpTool.name);
     const inputSchema = jsonSchemaToZodShape(
@@ -231,17 +345,46 @@ export function createSelineSdkMcpServer(
     const description =
       mcpTool.description ?? `MCP tool from ${mcpTool.serverName}`;
 
+    // Determine if this MCP tool is alwaysLoad based on what was resolved in loadMCPToolsForCharacter
+    const isMcpAlwaysLoad = alwaysLoadMcpSet.has(toolId);
+    if (isMcpAlwaysLoad) {
+      activatedTools.add(toolId);
+    }
+
+    allKnownToolNames.add(toolId);
+
     sdkTools.push({
       name: toolId,
       description,
       inputSchema,
       handler: async (args: Record<string, unknown>) => {
+        // Deferred gate for MCP tools (same as ToolRegistry tools)
+        if (useDeferredMode && !isMcpAlwaysLoad && !activatedTools.has(toolId)) {
+          return toCallToolResult(
+            `MCP tool "${toolId}" requires discovery first. ` +
+            `Call searchTools("${mcpTool.name}") to activate it, then retry.`
+          );
+        }
+
         try {
+          // Import MCPClientManager lazily to avoid circular deps
+          const { MCPClientManager } = await import("@/lib/mcp/client-manager");
+          const mcpManager = MCPClientManager.getInstance();
           const result = await mcpManager.executeTool(
             mcpTool.serverName,
             mcpTool.name,
             args
           );
+
+          // Rich output detection
+          if (ctx.onRichOutput) {
+            const richUrls = extractRichOutputs(result);
+            if (richUrls.length > 0) {
+              const toolCallId = `sdk_${toolId}_${Date.now()}`;
+              ctx.onRichOutput(toolCallId, toolId, result);
+            }
+          }
+
           return toCallToolResult(result);
         } catch (err) {
           return toCallToolError(err);
@@ -250,9 +393,13 @@ export function createSelineSdkMcpServer(
     });
   }
 
+  const builtInCount = sdkTools.length - mcpTools.length;
   console.log(
-    `[SelineMcpServer] Exposing ${sdkTools.length} platform tools to SDK agent` +
-      ` (${sdkTools.length - mcpTools.length} built-in, ${mcpTools.length} MCP)`
+    `[SelineMcpServer] Exposing ${sdkTools.length} tools to SDK agent` +
+    ` (${builtInCount} built-in, ${mcpTools.length} MCP)` +
+    (useDeferredMode
+      ? `, deferred mode: ${activatedTools.size} pre-activated`
+      : ", always mode: all tools active")
   );
 
   return createSdkMcpServer({

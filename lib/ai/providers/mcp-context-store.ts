@@ -35,6 +35,49 @@ export interface SelineMcpContext {
     allowedPluginNames: Set<string>;
     pluginRoots: Map<string, string>;
   };
+
+  // ── SDK-specific tool loading and isolation fields ─────────────────────────
+
+  /**
+   * Tool loading mode for the Agent SDK — mirrors the app-level setting.
+   * When "deferred", non-alwaysLoad tools require searchTools discovery first.
+   * When "always", all enabled tools are active immediately.
+   */
+  toolLoadingMode?: "deferred" | "always";
+
+  /**
+   * Tool names previously discovered via searchTools in earlier turns.
+   * Seeds the SDK session's activated-tools set so discoveries from prior
+   * requests persist (Agent SDK runs one full session per request).
+   */
+  previouslyDiscoveredTools?: string[];
+
+  /**
+   * MCP server names enabled for this agent (from character metadata).
+   * Scopes MCPClientManager tool exposure to only this agent's servers.
+   * When undefined + no enabledMcpTools, all connected servers are accessible.
+   */
+  enabledMcpServers?: string[];
+
+  /**
+   * Specific MCP tool IDs (format: "serverName:toolName") enabled for this agent.
+   * Takes precedence over enabledMcpServers when set.
+   */
+  enabledMcpTools?: string[];
+
+  /**
+   * MCP tool IDs (in getMCPToolId format, e.g. "mcp_server_tool") that are
+   * alwaysLoad (active immediately without searchTools). Populated from
+   * mcpToolPreferences in character metadata.
+   */
+  alwaysLoadMcpToolIds?: string[];
+
+  /**
+   * Callback fired when an SDK MCP tool produces rich output (image URL, video URL, etc.).
+   * Route.ts wires this into the Seline streaming state so image/video chips
+   * appear in the UI even when using the Agent SDK provider.
+   */
+  onRichOutput?: (toolCallId: string, toolName: string, output: unknown) => void;
 }
 
 export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();

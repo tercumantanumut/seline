@@ -22,6 +22,17 @@ export interface MCPToolLoadResult {
     alwaysLoadToolIds: string[];
     /** Tool IDs that are deferred (discoverable via searchTools) */
     deferredToolIds: string[];
+    /**
+     * MCP server names enabled for this agent (from character metadata).
+     * Forwarded to SelineMcpContext so the SDK MCP server can scope
+     * MCPClientManager.getAllTools() to only this agent's servers.
+     */
+    enabledMcpServers?: string[];
+    /**
+     * Specific MCP tool IDs (format: "serverName:toolName") enabled for this agent.
+     * Forwarded to SelineMcpContext for per-tool isolation in the SDK bridge.
+     */
+    enabledMcpTools?: string[];
 }
 
 /**
@@ -196,5 +207,11 @@ export async function loadMCPToolsForCharacter(
         console.log(`[MCP] Loaded ${Object.keys(allTools).length} MCP tools (${alwaysLoadToolIds.length} always-load, ${deferredToolIds.length} deferred)`);
     }
 
-    return { allTools, alwaysLoadToolIds, deferredToolIds };
+    return {
+        allTools,
+        alwaysLoadToolIds,
+        deferredToolIds,
+        enabledMcpServers: enabledServers,
+        enabledMcpTools: enabledTools,
+    };
 }
