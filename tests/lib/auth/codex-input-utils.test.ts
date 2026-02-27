@@ -18,6 +18,24 @@ describe("codex-input-utils", () => {
     expect(filtered).toEqual([{ type: "message", role: "user", content: "hello" }]);
   });
 
+  it("strips leaked internal tool-history fallback assistant messages", () => {
+    const input: CodexInputItem[] = [
+      {
+        type: "message",
+        role: "assistant",
+        content:
+          '[Previous tool result; call_id=call_legacy]: {"status":"success","stdout":"..."}',
+      },
+      { type: "message", role: "assistant", content: "real assistant text" },
+    ];
+
+    const filtered = filterCodexInput(input);
+
+    expect(filtered).toEqual([
+      { type: "message", role: "assistant", content: "real assistant text" },
+    ]);
+  });
+
   it("keeps matched function call and output pairs", () => {
     const input: CodexInputItem[] = [
       { type: "function_call", call_id: "call_1", name: "executeCommand", arguments: "{\"command\":\"pwd\"}" },
@@ -29,7 +47,7 @@ describe("codex-input-utils", () => {
     expect(normalized).toEqual(input);
   });
 
-  it("converts orphaned function calls into assistant messages", () => {
+  it("reconstructs missing output for orphaned calls without converting to assistant text", () => {
     const input: CodexInputItem[] = [
       { type: "function_call", call_id: "call_1", name: "executeCommand", arguments: "{\"command\":\"ls\"}" },
       { type: "message", role: "user", content: "next prompt" },
@@ -37,22 +55,55 @@ describe("codex-input-utils", () => {
 
     const normalized = normalizeOrphanedToolOutputs(input);
 
-    expect(normalized[0].type).toBe("message");
-    expect(normalized[0].role).toBe("assistant");
-    expect(String(normalized[0].content)).toContain("missing output");
-    expect(String(normalized[0].content)).toContain("call_1");
+    expect(normalized[0]).toMatchObject({
+      type: "function_call",
+      call_id: "call_1",
+      name: "executeCommand",
+    });
+    expect(normalized[1]).toMatchObject({
+      type: "message",
+      role: "user",
+    });
+    expect(normalized[2]).toMatchObject({
+      type: "function_call_output",
+      call_id: "call_1",
+      name: "executeCommand",
+      output: {
+        status: "error",
+        reconstructed: true,
+      },
+    });
+    expect(normalized.some((item) => item.type === "message" && String(item.content).includes("[Previous"))).toBe(false);
   });
 
-  it("converts orphaned function outputs into assistant messages", () => {
+  it("reconstructs missing call before orphaned outputs", () => {
     const input: CodexInputItem[] = [
       { type: "function_call_output", call_id: "call_2", name: "executeCommand", output: { status: "success" } },
     ];
 
     const normalized = normalizeOrphanedToolOutputs(input);
 
-    expect(normalized[0].type).toBe("message");
-    expect(normalized[0].role).toBe("assistant");
-    expect(String(normalized[0].content)).toContain("result");
-    expect(String(normalized[0].content)).toContain("call_2");
+    expect(normalized).toHaveLength(2);
+    expect(normalized[0]).toMatchObject({
+      type: "function_call",
+      call_id: "call_2",
+      name: "executeCommand",
+    });
+    expect(normalized[1]).toEqual(input[0]);
+  });
+
+  it("drops duplicate tool call/output events by call_id", () => {
+    const input: CodexInputItem[] = [
+      { type: "function_call", call_id: "call_dup", name: "executeCommand", arguments: "{\"command\":\"pwd\"}" },
+      { type: "function_call", call_id: "call_dup", name: "executeCommand", arguments: "{\"command\":\"pwd\"}" },
+      { type: "function_call_output", call_id: "call_dup", name: "executeCommand", output: { status: "success" } },
+      { type: "function_call_output", call_id: "call_dup", name: "executeCommand", output: { status: "success" } },
+    ];
+
+    const normalized = normalizeOrphanedToolOutputs(input);
+
+    expect(normalized).toHaveLength(2);
+    expect(normalized[0].type).toBe("function_call");
+    expect(normalized[1].type).toBe("function_call_output");
   });
 });
