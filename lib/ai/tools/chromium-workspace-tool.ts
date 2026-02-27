@@ -53,8 +53,8 @@ interface ChromiumWorkspaceInput {
   expression?: string;
   /** Timeout in ms for navigation/element waits (default: 30000) */
   timeout?: number;
-  /** Execution history to replay (replay action) */
-  history?: ReplayHistoryInput;
+  /** JSON-stringified execution history to replay (replay action) */
+  history?: string;
 }
 
 interface ReplayHistoryInput {
@@ -146,18 +146,8 @@ export function createChromiumWorkspaceTool(options: {
           description: "Timeout in milliseconds (default: 30000)",
         },
         history: {
-          type: "object",
-          description: "Execution history to replay (required for replay action)",
-          properties: {
-            actions: {
-              type: "array",
-              description: "Array of { action, input, expectedOutput } from a previous session close",
-            },
-            maxRetries: { type: "number", description: "Max retries per failed action (default: 1)" },
-            skipFailures: { type: "boolean", description: "Skip failed actions instead of aborting (default: false)" },
-            delayBetweenActions: { type: "number", description: "Delay between actions in ms (default: 500)" },
-            verifyOutputs: { type: "boolean", description: "Verify outputs match expected (default: false)" },
-          },
+          type: "string",
+          description: "JSON-stringified execution history for replay. Shape: { actions: [{ action, input, expectedOutput? }], maxRetries?: number, skipFailures?: boolean, delayBetweenActions?: number, verifyOutputs?: boolean }. Get this from a previous 'close' action result.",
         },
       },
       required: ["action"],
@@ -453,7 +443,18 @@ async function handleReplay(
   timeout: number,
   agentId?: string
 ): Promise<ActionResult> {
-  if (!input.history?.actions?.length) {
+  if (!input.history) {
+    throw new Error("'history' JSON string is required for the 'replay' action");
+  }
+
+  let parsed: ReplayHistoryInput;
+  try {
+    parsed = JSON.parse(input.history);
+  } catch {
+    throw new Error("'history' must be a valid JSON string");
+  }
+
+  if (!parsed.actions?.length) {
     throw new Error("'history.actions' array is required for the 'replay' action");
   }
 
@@ -463,7 +464,7 @@ async function handleReplay(
     skipFailures = false,
     delayBetweenActions = 500,
     verifyOutputs = false,
-  } = input.history;
+  } = parsed;
 
   const results: ReplayResult[] = [];
   let aborted = false;
