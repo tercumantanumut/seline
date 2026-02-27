@@ -15,7 +15,6 @@
  */
 
 import type { Browser, BrowserContext, Page } from "playwright-core";
-import { execSync } from "child_process";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,43 +78,53 @@ async function ensureBrowser(): Promise<Browser> {
       // Dynamic import — playwright-core is optional at build time
       const { chromium } = await import("playwright-core");
 
-      const launchBrowser = async () => {
-        return chromium.launch({
-          headless: true,
-          args: [
-            "--disable-gpu",
-            "--disable-dev-shm-usage",
-            "--disable-extensions",
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-          ],
-        });
-      };
+      const launchArgs = [
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--disable-extensions",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+      ];
 
       let browser: Browser;
-      try {
-        browser = await launchBrowser();
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("Executable doesn't exist") || msg.includes("npx playwright install")) {
-          console.log("[ChromiumManager] Chromium not found — auto-installing...");
-          try {
-            execSync("npx playwright install chromium", {
-              stdio: "pipe",
-              timeout: 120_000,
-            });
-            console.log("[ChromiumManager] Chromium installed successfully, retrying launch...");
-            browser = await launchBrowser();
-          } catch (installErr) {
-            throw new Error(
-              `Chromium browser not found and auto-install failed. ` +
-              `Please run manually: npx playwright install chromium\n` +
-              `Install error: ${installErr instanceof Error ? installErr.message : String(installErr)}`
-            );
-          }
-        } else {
-          throw err;
+
+      // Strategy: try system Chrome first (zero download), then fall back
+      // to Playwright's bundled Chromium (only if already installed).
+      // This avoids the 300MB download of chromium_headless_shell.
+      const strategies: Array<{ label: string; opts: Parameters<typeof chromium.launch>[0] }> = [
+        {
+          label: "system Chrome",
+          opts: { channel: "chrome", headless: true, args: launchArgs },
+        },
+        {
+          label: "system Chromium",
+          opts: { channel: "chromium", headless: true, args: launchArgs },
+        },
+        {
+          label: "Playwright bundled Chromium",
+          opts: { headless: true, args: launchArgs },
+        },
+      ];
+
+      let lastError: Error | null = null;
+      browser = null as unknown as Browser;
+
+      for (const { label, opts } of strategies) {
+        try {
+          browser = await chromium.launch(opts);
+          console.log(`[ChromiumManager] Launched using ${label}`);
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          console.log(`[ChromiumManager] ${label} not available: ${lastError.message.split("\n")[0]}`);
         }
+      }
+
+      if (!browser) {
+        throw new Error(
+          `No Chrome/Chromium browser found. Install Google Chrome or run: npx playwright install chromium\n` +
+          `Last error: ${lastError?.message ?? "unknown"}`
+        );
       }
 
       // Clean up on unexpected disconnect
