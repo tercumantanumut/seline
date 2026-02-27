@@ -32,6 +32,7 @@ interface UseBackgroundProcessingOptions {
     notifySessionUpdate: (id: string, data: Record<string, unknown>) => void;
     setSessionState: React.Dispatch<React.SetStateAction<SessionState>>;
     chatSetMessagesRef: React.MutableRefObject<((msgs: UIMessage[]) => void) | null>;
+    shouldSkipBackgroundRefresh?: () => boolean;
 }
 
 export function useBackgroundProcessing({
@@ -40,6 +41,7 @@ export function useBackgroundProcessing({
     notifySessionUpdate,
     setSessionState,
     chatSetMessagesRef,
+    shouldSkipBackgroundRefresh,
 }: UseBackgroundProcessingOptions) {
     const t = useTranslations("chat");
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,6 +52,10 @@ export function useBackgroundProcessing({
     const lastMessageSigRef = useRef<string>("");
 
     const refreshMessages = useCallback(async () => {
+        if (shouldSkipBackgroundRefresh?.()) {
+            return;
+        }
+
         const { data, error, status } = await resilientFetch<{ messages: DBMessage[] }>(
             `/api/sessions/${sessionId}/messages`,
             { retries: 0 }
@@ -81,7 +87,7 @@ export function useBackgroundProcessing({
         if (chatSetMessagesRef.current) {
             chatSetMessagesRef.current(uiMessages);
         }
-    }, [sessionId, refreshSessionTimestamp, notifySessionUpdate, setSessionState, chatSetMessagesRef]);
+    }, [sessionId, refreshSessionTimestamp, notifySessionUpdate, setSessionState, chatSetMessagesRef, shouldSkipBackgroundRefresh]);
 
     // isChatFading is local to this hook's refreshMessages but needs to be surfaced
     // back to the component. We keep a state for it here too.

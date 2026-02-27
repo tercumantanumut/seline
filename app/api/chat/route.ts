@@ -25,6 +25,7 @@ import {
   buildStopSystemMessage,
 } from "@/lib/background-tasks/live-prompt-helpers";
 import { combineAbortSignals } from "@/lib/utils/abort";
+import { createHeartbeatStream } from "@/lib/utils/heartbeat-stream";
 import {
   classifyRecoverability,
   getBackoffDelayMs,
@@ -82,7 +83,7 @@ import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-c
 initializeToolEventHandler();
 
 // Maximum request duration in seconds
-export const maxDuration = 300;
+export const maxDuration = 3600;
 
 // Ensure settings are loaded (syncs provider selection to process.env)
 loadSettings();
@@ -922,7 +923,14 @@ export async function POST(req: Request) {
       },
     });
     response.headers.set("X-Session-Id", sessionId);
-    return response;
+
+    // Pipe through a heartbeat stream that sends SSE comments every 30s
+    // during silence to prevent TCP timeouts on long-running models (e.g. codex-high).
+    const heartbeatBody = response.body!.pipeThrough(createHeartbeatStream(30_000));
+    return new Response(heartbeatBody, {
+      status: response.status,
+      headers: response.headers,
+    });
   } catch (error) {
     console.error("Chat API error:", error);
 

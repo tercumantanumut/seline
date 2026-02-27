@@ -125,7 +125,7 @@ extraResources:
 asar: true
 compression: "normal"
 
-afterSign: "scripts/notarize.js"
+# afterSign: "scripts/notarize.js"
 
 # Disable npm rebuild - we handle this in electron:rebuild-standalone
 npmRebuild: false
@@ -139,8 +139,8 @@ mac:
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"
   # Build only for current architecture by default (use CLI flags to override)
   target:
-    - target: "dmg"
     - target: "dir"
+    - target: "dmg"
   extendInfo:
     NSCameraUsageDescription: "This app requires access to your camera for image capture."
     NSMicrophoneUsageDescription: "This app requires access to your microphone for audio capture."
@@ -167,6 +167,7 @@ nsis:
 
 # DMG settings for macOS
 dmg:
+  title: "Seline"
   sign: false
   contents:
     - x: 130
