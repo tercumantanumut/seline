@@ -15,6 +15,7 @@
  */
 
 import type { Browser, BrowserContext, Page } from "playwright-core";
+import { startScreencast, stopScreencast } from "./screencast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,11 @@ export async function getOrCreateSession(sessionId: string): Promise<BrowserSess
   state.sessions.set(sessionId, session);
   console.log(`[ChromiumManager] Session created: ${sessionId} (active: ${state.sessions.size})`);
 
+  // Start live screencast for the backdrop
+  startScreencast(sessionId, page).catch((err) => {
+    console.warn(`[ChromiumManager] Screencast auto-start failed:`, err);
+  });
+
   return session;
 }
 
@@ -205,6 +211,9 @@ export async function closeSession(sessionId: string): Promise<void> {
   const state = getState();
   const session = state.sessions.get(sessionId);
   if (!session) return;
+
+  // Stop screencast before closing context
+  await stopScreencast(sessionId);
 
   state.sessions.delete(sessionId);
 
@@ -228,6 +237,10 @@ export async function closeSession(sessionId: string): Promise<void> {
  */
 export async function shutdownAll(): Promise<void> {
   const state = getState();
+
+  // Stop all screencasts first
+  const { stopAllScreencasts } = await import("./screencast");
+  await stopAllScreencasts();
 
   // Close all contexts
   const closePromises = Array.from(state.sessions.values()).map(async (session) => {
