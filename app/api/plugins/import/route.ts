@@ -230,7 +230,7 @@ async function linkPluginAuxiliaryFilesToWorkspace(
     return { linkedPath: null, auxiliaryFileCount: 0, workspaceRegistered: false };
   }
 
-  // Destination: ~/Documents/Seline/Workspace/plugins/{plugin-name}/
+  // Destination: ~/.seline/workspace/plugins/{plugin-name}/
   // plugin.name is already kebab-case from the manifest (enforced by sanitizePluginName)
   const workspaceBase = getUserWorkspacePath();
   const pluginWorkspaceDir = path.join(workspaceBase, "plugins", plugin.name);

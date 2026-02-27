@@ -75,9 +75,9 @@ function isToolResultPart(part: unknown): part is {
   return obj.type === "tool-result" && "result" in obj;
 }
 
-function isGetSkillToolResult(part: unknown): boolean {
+function isRunSkillToolResult(part: unknown): boolean {
   if (!isToolResultPart(part)) return false;
-  return part.toolName === "runSkill" || part.toolName === "getSkill";
+  return part.toolName === "runSkill";
 }
 
 /**
@@ -161,9 +161,9 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
   const originalTokens = estimateTokens(content);
   const originalBytes = Buffer.byteLength(JSON.stringify(content), "utf8");
 
-  // Preserve full getSkill payloads in progress projection to avoid silently
+  // Preserve full runSkill payloads in progress projection to avoid silently
   // clipping skill content returned by action=inspect/action=run.
-  if (content.some(isGetSkillToolResult)) {
+  if (content.some(isRunSkillToolResult)) {
     return {
       content,
       wasTruncated: false,

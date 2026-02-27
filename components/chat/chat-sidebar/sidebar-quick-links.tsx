@@ -11,7 +11,6 @@ interface SidebarQuickLinksProps {
   characterName: string;
   resourcesOpen: boolean;
   docsOpen: boolean;
-
   onToggleResources: () => void;
   onToggleDocs: () => void;
 }
@@ -35,11 +34,10 @@ export function SidebarQuickLinks({
   const quickLinks = [
     { href: `/agents/${characterId}/memory`, label: t("sidebar.agentMemoryShort") },
     { href: `/agents/${characterId}/schedules`, label: t("sidebar.schedulesShort") },
+    { href: `/agents/${characterId}/skills`, label: t("sidebar.skillsShort") },
     { href: "/dashboard", label: t("sidebar.dashboardShort") },
     { href: "/usage", label: t("sidebar.usageShort") },
   ];
-
-  quickLinks.unshift({ href: `/agents/${characterId}/skills`, label: t("sidebar.skillsShort") });
 
   return (
     <div className="shrink-0 space-y-1.5 px-4 pb-4">

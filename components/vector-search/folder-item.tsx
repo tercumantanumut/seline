@@ -13,7 +13,6 @@ import {
   StarIcon,
   XCircleIcon,
   TrashIcon,
-  FolderOpenIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -28,7 +27,6 @@ interface FolderItemProps {
   syncingFolderId: string | null;
   removingFolderId: string | null;
   updatingFolderId: string | null;
-  openingFolderId?: string | null;
   onToggleExpand: (id: string) => void;
   onSync: (id: string) => void;
   onCancelSync: (id: string) => void;
@@ -36,7 +34,6 @@ interface FolderItemProps {
   onSetPrimary: (id: string) => void;
   onToggleAutoUpdates: (folder: SyncFolder) => void;
   onApplySimpleDefaults: (folder: SyncFolder) => void;
-  onOpenFolder?: (folder: SyncFolder) => void;
 }
 
 function getStatusIcon(status: SyncFolder["status"]) {
@@ -57,7 +54,6 @@ export function FolderItem({
   syncingFolderId,
   removingFolderId,
   updatingFolderId,
-  openingFolderId,
   onToggleExpand,
   onSync,
   onCancelSync,
@@ -65,7 +61,6 @@ export function FolderItem({
   onSetPrimary,
   onToggleAutoUpdates,
   onApplySimpleDefaults,
-  onOpenFolder,
 }: FolderItemProps) {
   const t = useTranslations("folderSync");
   const syncMode = folder.syncMode ?? "auto";
@@ -207,23 +202,6 @@ export function FolderItem({
               <RefreshCwIcon className={cn("w-4 h-4", syncingFolderId === folder.id && "animate-spin")} />
             </Button>
           )}
-          {onOpenFolder ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenFolder(folder)}
-              disabled={openingFolderId === folder.id}
-              title={t("openFolderInFileManager")}
-              aria-label={t("openFolderInFileManager")}
-              className="h-8 w-8 shrink-0"
-            >
-              {openingFolderId === folder.id ? (
-                <Loader2Icon className="w-4 h-4 animate-spin" />
-              ) : (
-                <FolderOpenIcon className="w-4 h-4" />
-              )}
-            </Button>
-          ) : null}
           <Button
             variant="outline"
             size="sm"

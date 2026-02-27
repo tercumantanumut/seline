@@ -1,4 +1,4 @@
-import { createGetSkillTool, type RunSkillToolOptions } from "./run-skill-tool";
+import { createRunSkillTool, type RunSkillToolOptions } from "./run-skill-tool";
 
 export type ListSkillsToolOptions = RunSkillToolOptions;
 
@@ -8,11 +8,11 @@ type LegacyListSkillsInput = {
 };
 
 /**
- * Backward-compatible wrapper that maps legacy listSkills usage to getSkill(action="list").
- * Intentionally not registered in tool discovery; getSkill is the single public surface.
+ * Backward-compatible wrapper that maps legacy listSkills usage to runSkill(action="list").
+ * Intentionally not registered in tool discovery; runSkill is the single public surface.
  */
 export function createListSkillsTool(options: ListSkillsToolOptions) {
-  const getSkillTool = createGetSkillTool(options) as {
+  const runSkillTool = createRunSkillTool(options) as {
     inputSchema: unknown;
     execute: (input: {
       action?: "list" | "inspect" | "run";
@@ -22,11 +22,11 @@ export function createListSkillsTool(options: ListSkillsToolOptions) {
 
   return {
     description:
-      "Legacy alias for getSkill(action='list'). Prefer getSkill as the public interface.",
-    inputSchema: getSkillTool.inputSchema,
+      "Legacy alias for runSkill(action='list'). Prefer runSkill as the public interface.",
+    inputSchema: runSkillTool.inputSchema,
     execute: async (input: LegacyListSkillsInput = {}) => {
       const query = input.status ? `status:${input.status}` : undefined;
-      return getSkillTool.execute({ action: "list", query });
+      return runSkillTool.execute({ action: "list", query });
     },
   };
 }

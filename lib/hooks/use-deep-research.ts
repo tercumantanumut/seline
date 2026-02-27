@@ -31,7 +31,8 @@ interface PersistedDeepResearchState {
 interface ActiveRunLookupResponse {
   hasActiveRun: boolean;
   runId?: string | null;
-  pipelineName?: string;
+  pipelineName?: string | null;
+  startedAt?: string | null;
   latestDeepResearchRunId?: string | null;
   latestDeepResearchStatus?: string | null;
   latestDeepResearchState?: PersistedDeepResearchState | null;

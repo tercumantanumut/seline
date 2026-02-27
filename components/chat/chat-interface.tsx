@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useThread } from "@assistant-ui/react";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
@@ -17,6 +18,9 @@ import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
+import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
+import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
+import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
 
 /** A task qualifies as "background" if it's scheduled or a delegation. Plain
  *  foreground chat tasks (user typing in the active session) should NOT trigger
@@ -27,14 +31,28 @@ function isBackgroundTask(task: { type: string; metadata?: unknown }): boolean {
 }
 
 /** Bridge component: lives inside ChatProvider to pipe setMessages out via ref */
-const ChatSetMessagesBridge: FC<{ setMessagesRef: MutableRefObject<((msgs: UIMessage[]) => void) | null> }> = ({ setMessagesRef }) => {
+const ChatSetMessagesBridge: FC<{
+    setMessagesRef: MutableRefObject<((msgs: UIMessage[]) => void) | null>;
+}> = ({ setMessagesRef }) => {
     const setMessages = useChatSetMessages();
     useEffect(() => { setMessagesRef.current = setMessages; }, [setMessages, setMessagesRef]);
     return null;
 };
-import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
-import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
-import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
+
+const ForegroundStreamingBridge: FC<{ isForegroundStreamingRef: MutableRefObject<boolean> }> = ({
+    isForegroundStreamingRef,
+}) => {
+    const isRunning = useThread((thread) => thread.isRunning);
+
+    useEffect(() => {
+        isForegroundStreamingRef.current = Boolean(isRunning);
+        return () => {
+            isForegroundStreamingRef.current = false;
+        };
+    }, [isRunning, isForegroundStreamingRef]);
+
+    return null;
+};
 
 export default function ChatInterface({
     character,
@@ -62,6 +80,7 @@ export default function ChatInterface({
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
+    const isForegroundStreamingRef = useRef(false);
 
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -86,6 +105,7 @@ export default function ChatInterface({
         notifySessionUpdate: stableNotifySessionUpdate,
         setSessionState,
         chatSetMessagesRef,
+        shouldSkipBackgroundRefresh: () => isForegroundStreamingRef.current,
     });
 
     // ── Session CRUD & list management ──
@@ -189,9 +209,16 @@ export default function ChatInterface({
                 return;
             }
 
-            const backgroundRunId = data.hasActiveRun
-                ? data.runId ?? null
-                : (data.latestDeepResearchStatus === "running" ? data.latestDeepResearchRunId ?? null : null);
+            const resumedForegroundRunId =
+                !isForegroundStreamingRef.current && data.hasActiveRun
+                    ? data.runId ?? null
+                    : null;
+
+            const deepResearchRunId = data.latestDeepResearchStatus === "running"
+                ? data.latestDeepResearchRunId ?? null
+                : null;
+
+            const backgroundRunId = resumedForegroundRunId ?? deepResearchRunId;
 
             if (backgroundRunId) {
                 console.log("[Background Processing] Detected active run:", backgroundRunId);
@@ -574,6 +601,7 @@ export default function ChatInterface({
                         initialMessages={messages}
                     >
                         <ChatSetMessagesBridge setMessagesRef={chatSetMessagesRef} />
+                        <ForegroundStreamingBridge isForegroundStreamingRef={isForegroundStreamingRef} />
                         <div className="flex h-full flex-col gap-3">
                             {currentWorkspaceInfo && (
                                 <div className="flex items-center justify-end px-4 pt-2">

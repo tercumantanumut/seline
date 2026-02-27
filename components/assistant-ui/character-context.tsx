@@ -1,24 +1,11 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 /**
  * Character data for display in the chat UI
  * This is a subset of CharacterFull focused on display needs
  */
-export interface CharacterDisplayPrompt {
-  id: string;
-  text: string;
-  title?: string;
-  description?: string;
-  lane?: "hard" | "simple";
-  requiresChannels?: boolean;
-  requiresSyncFolder?: boolean;
-  hideWhenHasSyncFolder?: boolean;
-  needsChannelsSetup?: boolean;
-  needsSyncFolderSetup?: boolean;
-}
-
 export interface CharacterDisplayData {
   id: string;
   name: string;
@@ -31,7 +18,7 @@ export interface CharacterDisplayData {
   exampleGreeting?: string | null;
 
   // For suggested prompts
-  suggestedPrompts?: CharacterDisplayPrompt[];
+  suggestedPrompts?: string[];
 
   // Initials for avatar fallback
   initials?: string;
@@ -55,8 +42,9 @@ interface CharacterProviderProps {
 }
 
 export function CharacterProvider({ children, character }: CharacterProviderProps) {
+  const value = useMemo(() => ({ character }), [character]);
   return (
-    <CharacterContext.Provider value={{ character }}>
+    <CharacterContext.Provider value={value}>
       {children}
     </CharacterContext.Provider>
   );
@@ -77,18 +65,9 @@ export const DEFAULT_CHARACTER: CharacterDisplayData = {
   tagline: "I help you think, write, and build faster—using tools when they’re useful.",
   initials: "WA",
   suggestedPrompts: [
-    {
-      id: "default-risk-audit",
-      text: "Run a practical risk audit of this codebase: identify auth/session/regression hotspots with file references and a concrete patch plan.",
-    },
-    {
-      id: "default-launch-plan",
-      text: "Build a launch readiness plan with checklist, risk scoring, go/no-go criteria, and reminders for owners.",
-    },
-    {
-      id: "default-memory-style",
-      text: "Memorize my working style for future chats: concise, risk-first, and actionable responses.",
-    },
+    "Summarize this document and highlight key risks.",
+    "Draft a product update email for our SaaS customers.",
+    "Help me break down this project into milestones and tasks.",
   ],
 };
 

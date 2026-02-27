@@ -60,7 +60,7 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
     expect(resultOutput.truncatedContentId).toBeUndefined();
   });
 
-  it("does not truncate getSkill output with large content fields", async () => {
+  it("does not truncate runSkill output with large content fields", async () => {
     const { limitToolOutput } = await import("@/lib/ai/output-limiter");
     vi.mocked(limitToolOutput).mockClear();
 
@@ -73,7 +73,7 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
       contentWithLineNumbers: hugeContent,
     };
 
-    const result = normalizeToolResultOutput("getSkill", output, undefined, {
+    const result = normalizeToolResultOutput("runSkill", output, undefined, {
       mode: "projection",
     });
 

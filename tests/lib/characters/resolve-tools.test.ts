@@ -68,7 +68,7 @@ describe("resolveSelineTemplateTools", () => {
       const utilityTools = [
         "calculator",
         "memorize",
-        "getSkill",
+        "runSkill",
         "scheduleTask",
         "sendMessageToChannel",
         "showProductImages",

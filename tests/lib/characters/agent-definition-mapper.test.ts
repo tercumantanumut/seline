@@ -26,7 +26,7 @@ describe("mapSelineToolsToSdk", () => {
 
   it("returns undefined when no tools have an SDK mapping", () => {
     // Custom Seline tools with no SDK equivalent
-    const result = mapSelineToolsToSdk(["vectorSearch", "memorize", "getSkill", "scheduleTask"]);
+    const result = mapSelineToolsToSdk(["vectorSearch", "memorize", "runSkill", "scheduleTask"]);
     expect(result).toBeUndefined();
   });
 

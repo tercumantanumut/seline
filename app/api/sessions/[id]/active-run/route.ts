@@ -5,6 +5,20 @@ import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { isStale } from "@/lib/utils/timestamp";
 
+function isBackgroundChatRun(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+  const meta = metadata as Record<string, unknown>;
+
+  return (
+    meta.deepResearch === true ||
+    meta.suppressFromUI === true ||
+    meta.isDelegation === true ||
+    meta.taskSource === "channel" ||
+    typeof meta.scheduledRunId === "string" ||
+    typeof meta.scheduledTaskId === "string"
+  );
+}
+
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
@@ -20,28 +34,37 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     // Get all runs for this session
     const runs = await listAgentRunsBySession(sessionId);
-    let activeRun = runs.find(r => r.status === "running");
+    const THIRTY_MINUTES = 30 * 60 * 1000;
+    const staleRunIds = new Set<string>();
 
-    // Auto-expire stale runs (>30 min with no activity) as a safety net
-    if (activeRun) {
-      const THIRTY_MINUTES = 30 * 60 * 1000;
-      if (isStale(activeRun.updatedAt ?? activeRun.startedAt, THIRTY_MINUTES)) {
-        await completeAgentRun(activeRun.id, "failed", { error: "stale_run_cleanup" });
-        activeRun = undefined;
-      }
+    for (const run of runs) {
+      if (run.status !== "running") continue;
+      if (!isStale(run.updatedAt ?? run.startedAt, THIRTY_MINUTES)) continue;
+      staleRunIds.add(run.id);
+      await completeAgentRun(run.id, "failed", { error: "stale_run_cleanup" });
     }
 
-    const latestDeepResearchRun = runs.find((run) => run.pipelineName === "deep-research");
+    const nonStaleRuns = runs.filter((run) => !staleRunIds.has(run.id));
+
+    const activeForegroundChatRun = nonStaleRuns.find((run) =>
+      run.status === "running" &&
+      run.pipelineName === "chat" &&
+      !isBackgroundChatRun(run.metadata)
+    );
+
+    const latestDeepResearchRun = nonStaleRuns.find((run) => run.pipelineName === "deep-research");
     const latestDeepResearchMetadata = (
       latestDeepResearchRun?.metadata && typeof latestDeepResearchRun.metadata === "object"
     )
       ? latestDeepResearchRun.metadata as Record<string, unknown>
       : {};
 
-    if (!activeRun) {
+    if (!activeForegroundChatRun) {
       return NextResponse.json({
         hasActiveRun: false,
         runId: null,
+        pipelineName: null,
+        startedAt: null,
         latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
         latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
         latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
@@ -50,9 +73,9 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     return NextResponse.json({
       hasActiveRun: true,
-      runId: activeRun.id,
-      pipelineName: activeRun.pipelineName,
-      startedAt: activeRun.startedAt,
+      runId: activeForegroundChatRun.id,
+      pipelineName: activeForegroundChatRun.pipelineName,
+      startedAt: activeForegroundChatRun.startedAt,
       latestDeepResearchRunId: latestDeepResearchRun?.id ?? null,
       latestDeepResearchStatus: latestDeepResearchRun?.status ?? null,
       latestDeepResearchState: latestDeepResearchMetadata.deepResearchState ?? null,
