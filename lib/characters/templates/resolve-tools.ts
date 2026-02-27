@@ -64,6 +64,7 @@ export const DEFAULT_ENABLED_TOOLS: string[] = [
   ...ALWAYS_ENABLED_TOOLS,
   ...UTILITY_TOOLS,
   "webSearch",
+  "chromiumWorkspace",
 ];
 
 /** Tools that are EXCLUDED from the Seline template by design */
@@ -121,7 +122,11 @@ export function resolveSelineTemplateTools(settings: AppSettings): ToolResolutio
     console.log("[SelineTemplate] Web enabled: DuckDuckGo/local fallback active (provider: " + webSearchProvider + ")");
   }
 
-  // 5. Log excluded tools
+  // 5. Chromium Workspace (always enabled — embedded browser, no external deps)
+  enabledTools.push("chromiumWorkspace");
+  console.log("[SelineTemplate] Chromium Workspace enabled: embedded browser automation");
+
+  // 6. Log excluded tools
   for (const toolId of EXCLUDED_TOOLS) {
     console.log(`[SelineTemplate] ${toolId} excluded by design (not in Seline default template)`);
   }

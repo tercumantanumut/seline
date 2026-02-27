@@ -36,6 +36,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
   analysis: "\u{1F52C}",
   utility: "\u{1F6E0}\uFE0F",
   "custom-comfyui": "CUI",
+  browser: "\u{1F310}",
 };
 
 type ToolDefinition = CharacterToolCatalogItem;

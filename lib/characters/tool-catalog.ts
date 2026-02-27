@@ -51,6 +51,7 @@ export const CHARACTER_TOOL_CATALOG: CharacterToolCatalogItem[] = [
   { id: "sendMessageToChannel", category: "utility" },
   { id: "delegateToSubagent", category: "utility" },
   { id: "workspace", category: "utility", dependencies: ["devWorkspaceEnabled"] },
+  { id: "chromiumWorkspace", category: "browser" },
   { id: "generateImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
   { id: "editImageFlux2Flex", category: "image-editing", dependencies: ["openrouterKey"] },
   { id: "referenceImageFlux2Flex", category: "image-generation", dependencies: ["openrouterKey"] },
