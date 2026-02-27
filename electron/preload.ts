@@ -50,9 +50,6 @@ const electronAPI = {
     openExternal: (url: string): Promise<void> => {
       return ipcRenderer.invoke("shell:openExternal", url);
     },
-    openPath: (targetPath: string): Promise<string> => {
-      return ipcRenderer.invoke("shell:openPath", targetPath);
-    },
   },
 
   // Dialog operations

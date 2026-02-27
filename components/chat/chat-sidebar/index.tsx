@@ -13,11 +13,6 @@ import { SidebarDeleteDialog } from "./sidebar-delete-dialog";
 import { SessionList } from "./session-list";
 import { SidebarArchived } from "./sidebar-archived";
 import { SidebarQuickLinks } from "./sidebar-quick-links";
-import {
-  OPEN_CHANNELS_DIALOG_EVENT,
-  OPEN_SYNC_FOLDERS_DIALOG_EVENT,
-  type ChatModalEventDetail,
-} from "@/components/chat/quick-start-events";
 
 interface CharacterFullData {
   id: string;
@@ -236,43 +231,6 @@ export function CharacterSidebar({
   useEffect(() => {
     void loadChannelConnections();
   }, [loadChannelConnections]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleOpenChannels = (event: Event) => {
-      const detail = (event as CustomEvent<ChatModalEventDetail>).detail;
-      if (detail?.characterId && detail.characterId !== character.id) {
-        return;
-      }
-      setChannelsOpen(true);
-    };
-
-    const handleOpenSyncFolders = (event: Event) => {
-      const detail = (event as CustomEvent<ChatModalEventDetail>).detail;
-      if (detail?.characterId && detail.characterId !== character.id) {
-        return;
-      }
-      sessionStorage.setItem("seline-return-url", window.location.href);
-
-      const params = new URLSearchParams({
-        openCharacterPicker: "1",
-        openFolderManager: "1",
-        characterId: character.id,
-      });
-      window.location.href = `/?${params.toString()}`;
-    };
-
-    window.addEventListener(OPEN_CHANNELS_DIALOG_EVENT, handleOpenChannels);
-    window.addEventListener(OPEN_SYNC_FOLDERS_DIALOG_EVENT, handleOpenSyncFolders);
-
-    return () => {
-      window.removeEventListener(OPEN_CHANNELS_DIALOG_EVENT, handleOpenChannels);
-      window.removeEventListener(OPEN_SYNC_FOLDERS_DIALOG_EVENT, handleOpenSyncFolders);
-    };
-  }, [character.id]);
 
   const connectedCount = channelConnections.filter(
     (connection) => connection.status === "connected",

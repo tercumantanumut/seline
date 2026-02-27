@@ -30,7 +30,7 @@ import { createWriteFileTool } from "@/lib/ai/tools/write-file-tool";
 import { createPatchFileTool } from "@/lib/ai/tools/patch-file-tool";
 import { createUpdatePlanTool } from "@/lib/ai/tools/update-plan-tool";
 import { createSendMessageToChannelTool } from "@/lib/ai/tools/channel-tools";
-import { createGetSkillTool } from "@/lib/ai/tools/run-skill-tool";
+import { createRunSkillTool } from "@/lib/ai/tools/run-skill-tool";
 import { createUpdateSkillTool } from "@/lib/ai/tools/update-skill-tool";
 import { createCompactSessionTool } from "@/lib/ai/tools/compact-session-tool";
 import { createWorkspaceTool } from "@/lib/ai/tools/workspace-tool";
@@ -243,22 +243,13 @@ export async function buildToolsForRequest(
     ...(allTools.updatePlan && {
       updatePlan: createUpdatePlanTool({ sessionId }),
     }),
-    ...(allTools.getSkill && {
-      getSkill: createGetSkillTool({
+    ...(allTools.runSkill && {
+      runSkill: createRunSkillTool({
         sessionId,
         userId,
         characterId: characterId || "",
       }),
     }),
-    ...(!allTools.getSkill && allTools.runSkill
-      ? {
-          runSkill: createGetSkillTool({
-            sessionId,
-            userId,
-            characterId: characterId || "",
-          }),
-        }
-      : {}),
     ...(allTools.updateSkill && {
       updateSkill: createUpdateSkillTool({
         userId,

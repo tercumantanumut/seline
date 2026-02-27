@@ -666,13 +666,9 @@
         "name": "List Skills",
         "description": "List saved skills for the active agent"
       },
-      "getSkill": {
-        "name": "Get Skill",
-        "description": "Discover, inspect, or render a saved skill by ID or exact name"
-      },
       "runSkill": {
-        "name": "Get Skill",
-        "description": "Discover, inspect, or render a saved skill by ID or exact name"
+        "name": "Run Skill",
+        "description": "Run a saved skill by ID or exact name"
       },
       "updateSkill": {
         "name": "Update Skill",
@@ -1391,7 +1387,6 @@
     "removeWorkspaceFoldersTitle": "Remove workspace folders?",
     "removeWorkspaceFoldersDescription": "This will remove {count} workspace-generated synced folder(s). This does not delete your main repository.",
     "confirmRemoveWorkspaceFolders": "Remove workspace folders",
-    "openFolderInFileManager": "Open folder",
     "primaryBadge": "Primary",
     "workflowBadge": "Workflow",
     "sharedFromWorkflow": "This folder is shared from a workflow",
@@ -1582,10 +1577,8 @@
         "createSkillDesc": "Save a reusable skill from the current workflow",
         "listSkills": "List Skills",
         "listSkillsDesc": "List saved skills for the active agent",
-        "getSkill": "Get Skill",
-        "getSkillDesc": "Discover, inspect, or render a saved skill by ID or exact name",
-        "runSkill": "Get Skill",
-        "runSkillDesc": "Discover, inspect, or render a saved skill by ID or exact name",
+        "runSkill": "Run Skill",
+        "runSkillDesc": "Run a saved skill by ID or exact name",
         "updateSkill": "Update Skill",
         "updateSkillDesc": "Update a skill using feedback with version conflict checks",
         "copySkill": "Copy Skill",

@@ -5,7 +5,7 @@
  * Seline's ToolRegistry and per-agent MCP servers to the Claude Agent SDK.
  *
  * This lets the SDK agent see and call all Seline platform tools (vectorSearch,
- * memorize, getSkill, scheduleTask, etc.) and any MCP server tools configured
+ * memorize, runSkill, scheduleTask, etc.) and any MCP server tools configured
  * for the active agent — not just Claude Code's built-in tools.
  *
  * Tool exposure rules:

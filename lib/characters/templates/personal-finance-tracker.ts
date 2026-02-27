@@ -7,7 +7,7 @@ export const PERSONAL_FINANCE_TRACKER_TEMPLATE: AgentTemplate = {
   purpose: "Summarizes spending patterns and highlights opportunities to improve savings.",
   category: "personal",
   version: "1.0.0",
-  enabledTools: ["readFile", "calculator", "getSkill", "updateSkill", "updatePlan"],
+  enabledTools: ["readFile", "calculator", "runSkill", "updateSkill", "updatePlan"],
   memories: [
     { category: "business_rules", content: "Never provide investment guarantees; frame suggestions as educational planning guidance.", reasoning: "Keeps financial advice safe and realistic." },
   ],

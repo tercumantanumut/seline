@@ -34,10 +34,10 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
     "",
     "You have the following skills available.",
     "Skill-triggering policy:",
-    "- Use `getSkill` action=\"list\" to discover runtime-available skills when needed.",
-    "- Use `getSkill` action=\"inspect\" to read full skill content before execution.",
-    "- If a user request clearly matches a skill trigger, call `getSkill` action=\"run\".",
-    "- getSkill returns runnable instructions; you must execute those instructions to complete the task.",
+    "- Use `runSkill` action=\"list\" to discover runtime-available skills when needed.",
+    "- Use `runSkill` action=\"inspect\" to read full skill content before execution.",
+    "- If a user request clearly matches a skill trigger, call `runSkill` action=\"run\".",
+    "- runSkill returns runnable instructions; you must execute those instructions to complete the task.",
     "- Use `updateSkill` for create/patch/replace/metadata/copy/archive operations.",
     "- If multiple skills plausibly match, ask a short clarification before running.",
     "- If confidence is low, ask for confirmation instead of guessing.",
@@ -68,7 +68,7 @@ export function formatSkillsForPromptFromSummary(skills: SkillSummary[]): {
   const truncated = included < skills.length;
   if (truncated) {
     lines.push("");
-    lines.push("If you need the full catalog, call `getSkill` with action=\"list\".");
+    lines.push("If you need the full catalog, call `runSkill` with action=\"list\".");
     consumedTokens += estimateTokens(lines[lines.length - 1]);
   }
 
