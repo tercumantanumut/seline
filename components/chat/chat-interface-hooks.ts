@@ -65,9 +65,21 @@ export function useBackgroundProcessing({
             return;
         }
 
-        // Skip update if messages haven't changed (avoids unnecessary remount)
+        // Skip update if messages haven't changed (avoids unnecessary re-render).
+        // DB messages use `content` (JSON array of parts), not `parts`.
+        // The signature must capture content mutations so incremental background
+        // streaming updates (tool results filling in, text appending) are detected.
         const sig = data.messages
-            .map((m: any) => `${m.id}:${m.parts?.length ?? 0}:${JSON.stringify(m.parts?.at(-1)?.type ?? "")}`)
+            .map((m: any) => {
+                const parts = m.content ?? m.parts ?? [];
+                const lastPart = Array.isArray(parts) ? parts.at(-1) : null;
+                const partCount = Array.isArray(parts) ? parts.length : 0;
+                // Content fingerprint: length of text/output to detect in-place mutations
+                const contentHint = lastPart
+                    ? String(lastPart.text?.length ?? lastPart.output?.length ?? lastPart.argsText?.length ?? lastPart.state ?? "")
+                    : "";
+                return `${m.id}:${partCount}:${lastPart?.type ?? ""}:${contentHint}`;
+            })
             .join("|");
         if (sig === lastMessageSigRef.current) return;
         lastMessageSigRef.current = sig;
@@ -92,6 +104,12 @@ export function useBackgroundProcessing({
     // isChatFading is local to this hook's refreshMessages but needs to be surfaced
     // back to the component. We keep a state for it here too.
     const [isChatFading, setIsChatFading] = useState(false);
+
+    // Stable ref so startPollingForCompletion doesn't change identity when
+    // refreshMessages recreates (which would cascade through useEffect deps
+    // in chat-interface.tsx and cause runaway polling).
+    const refreshMessagesRef = useRef(refreshMessages);
+    useEffect(() => { refreshMessagesRef.current = refreshMessages; }, [refreshMessages]);
 
     const startPollingForCompletion = useCallback((runId: string) => {
         if (pollingIntervalRef.current) {
@@ -120,7 +138,7 @@ export function useBackgroundProcessing({
                         return;
                     }
                     // Fetch intermediate messages while still running for live updates
-                    await refreshMessages();
+                    await refreshMessagesRef.current();
                     return;
                 }
                 console.log("[Background Processing] Run completed with status:", data.status);
@@ -131,12 +149,12 @@ export function useBackgroundProcessing({
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
                 setIsZombieRun(false);
-                await refreshMessages();
+                await refreshMessagesRef.current();
             } catch (error) {
                 console.error("[Background Processing] Polling error:", error);
             }
         }, pollIntervalMs);
-    }, [refreshMessages]);
+    }, []);
 
     // Clear polling interval on unmount to prevent stale updates after navigation
     useEffect(() => {

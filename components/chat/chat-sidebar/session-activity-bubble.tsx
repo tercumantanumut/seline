@@ -371,13 +371,21 @@ export function SessionActivityBubble({
     if (visualModel.phase === "archived") {
       if (archiveTimeoutRef.current) clearTimeout(archiveTimeoutRef.current);
       archiveTimeoutRef.current = setTimeout(() => {
+        // onDismissed must be called OUTSIDE the state updater to avoid
+        // updating a parent component (SessionItem) during this component's
+        // render cycle — which triggers React's "Cannot update a component
+        // while rendering a different component" error.
+        let shouldDismiss = false;
         setVisualModel((current) => {
           if (current && current.signature === visualModel.signature) {
-            onDismissed?.();
+            shouldDismiss = true;
             return null;
           }
           return current;
         });
+        if (shouldDismiss) {
+          onDismissed?.();
+        }
       }, ARCHIVED_HIDE_MS);
     }
   }, [visualModel, onDismissed]);
