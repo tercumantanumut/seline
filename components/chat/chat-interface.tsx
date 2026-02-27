@@ -209,9 +209,16 @@ export default function ChatInterface({
                 return;
             }
 
-            const backgroundRunId = data.latestDeepResearchStatus === "running"
+            const resumedForegroundRunId =
+                !isForegroundStreamingRef.current && data.hasActiveRun
+                    ? data.runId ?? null
+                    : null;
+
+            const deepResearchRunId = data.latestDeepResearchStatus === "running"
                 ? data.latestDeepResearchRunId ?? null
                 : null;
+
+            const backgroundRunId = resumedForegroundRunId ?? deepResearchRunId;
 
             if (backgroundRunId) {
                 console.log("[Background Processing] Detected active run:", backgroundRunId);
