@@ -18,6 +18,7 @@ import {
 
 const DUMMY_API_KEY = "chatgpt-oauth";
 const CODEX_MAX_RETRY_ATTEMPTS = 5;
+const CODEX_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 function extractRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
@@ -236,6 +237,41 @@ function createCodexFetch(): typeof fetch {
       if (!originalStream) {
         const responseHeaders = ensureContentType(effectiveResponse.headers);
         return await convertSseToJson(effectiveResponse, responseHeaders);
+      }
+
+      // Wrap the streaming body with an inactivity timeout that aborts if
+      // no data arrives for CODEX_INACTIVITY_TIMEOUT_MS (e.g. upstream died).
+      if (effectiveResponse.body) {
+        let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+        const wrappedBody = effectiveResponse.body.pipeThrough(
+          new TransformStream<Uint8Array, Uint8Array>({
+            start() {
+              // Initial timer — if first chunk never arrives
+              inactivityTimer = setTimeout(() => {
+                console.warn("[Codex] Inactivity timeout — no data for", CODEX_INACTIVITY_TIMEOUT_MS / 1000, "seconds");
+              }, CODEX_INACTIVITY_TIMEOUT_MS);
+            },
+            transform(chunk, controller) {
+              // Reset timer on every chunk
+              if (inactivityTimer) clearTimeout(inactivityTimer);
+              inactivityTimer = setTimeout(() => {
+                console.warn("[Codex] Inactivity timeout — no data for", CODEX_INACTIVITY_TIMEOUT_MS / 1000, "seconds");
+                controller.error(new Error(`Codex stream inactivity timeout (${CODEX_INACTIVITY_TIMEOUT_MS / 1000}s)`));
+              }, CODEX_INACTIVITY_TIMEOUT_MS);
+              controller.enqueue(chunk);
+            },
+            flush() {
+              if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = null;
+              }
+            },
+          }),
+        );
+        return new Response(wrappedBody, {
+          status: effectiveResponse.status,
+          headers: effectiveResponse.headers,
+        });
       }
 
       return effectiveResponse;

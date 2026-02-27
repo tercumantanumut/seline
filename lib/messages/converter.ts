@@ -47,9 +47,48 @@ interface DBMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: unknown;
   createdAt: Date | string;
+  orderingIndex?: number | null;
   metadata?: unknown;
   tokenCount?: number | null;
   toolCallId?: string | null;  // For role="tool" messages, references the parent tool call
+}
+
+function toMessageTimestampMs(value: Date | string): number {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getOrderingIndexValue(msg: DBMessage): number {
+  return typeof msg.orderingIndex === "number" ? msg.orderingIndex : Number.MAX_SAFE_INTEGER;
+}
+
+function collectReferencedToolCallIds(content: DBContentPart[]): Set<string> {
+  const ids = new Set<string>();
+  for (const part of content) {
+    if (part.type === "tool-call" && typeof part.toolCallId === "string") {
+      ids.add(part.toolCallId);
+    }
+  }
+  return ids;
+}
+
+function buildScopedFallbackResults(
+  globalToolResults: Map<string, ToolResultInfo>,
+  referencedToolCallIds: Set<string>
+): Map<string, ToolResultInfo> | undefined {
+  if (referencedToolCallIds.size === 0) {
+    return undefined;
+  }
+
+  const scoped = new Map<string, ToolResultInfo>();
+  for (const toolCallId of referencedToolCallIds) {
+    const info = globalToolResults.get(toolCallId);
+    if (info) {
+      scoped.set(toolCallId, info);
+    }
+  }
+
+  return scoped.size > 0 ? scoped : undefined;
 }
 
 // Simpler part type that works with any UIMessage
@@ -88,13 +127,20 @@ function cloneToolResultInfo(info: ToolResultInfo): ToolResultInfo {
   };
 }
 
+interface BuildUIPartsOptions {
+  fallbackResults?: Map<string, ToolResultInfo>;
+  preserveFallbackOrphans?: boolean;
+}
+
 function buildUIPartsFromDBContent(
   content: DBContentPart[],
-  fallbackResults?: Map<string, ToolResultInfo>
+  options: BuildUIPartsOptions = {}
 ): SimplePart[] {
   if (!Array.isArray(content) || content.length === 0) {
     return [];
   }
+
+  const { fallbackResults, preserveFallbackOrphans = true } = options;
 
   const toolResults = new Map<string, ToolResultInfo>();
   if (fallbackResults) {
@@ -225,29 +271,31 @@ function buildUIPartsFromDBContent(
 
   // Preserve standalone tool results (or calls skipped due malformed args) by
   // synthesizing a minimal tool UI part so history remains visible after reload.
-  for (const [toolCallId, toolResult] of toolResults) {
-    if (renderedToolCallIds.has(toolCallId)) continue;
+  if (preserveFallbackOrphans) {
+    for (const [toolCallId, toolResult] of toolResults) {
+      if (renderedToolCallIds.has(toolCallId)) continue;
 
-    const toolName = toolResult.toolName || "tool";
-    const rawState: ToolInvocationState =
-      toolResult.state ||
-      (toolResult.errorText ? "output-error" : "output-available");
-    // Same as above: emit "output-available" when we have a result to preserve
-    // the full result through the AISDKMessageConverter.
-    const state: ToolInvocationState =
-      rawState === "output-error" && toolResult.result !== undefined
-        ? "output-available"
-        : rawState;
+      const toolName = toolResult.toolName || "tool";
+      const rawState: ToolInvocationState =
+        toolResult.state ||
+        (toolResult.errorText ? "output-error" : "output-available");
+      // Same as above: emit "output-available" when we have a result to preserve
+      // the full result through the AISDKMessageConverter.
+      const state: ToolInvocationState =
+        rawState === "output-error" && toolResult.result !== undefined
+          ? "output-available"
+          : rawState;
 
-    parts.push({
-      type: `tool-${toolName}` as `tool-${string}`,
-      toolCallId,
-      state,
-      input: {},
-      output: toolResult.result ?? null,
-      errorText: toolResult.errorText,
-      preliminary: toolResult.preliminary,
-    });
+      parts.push({
+        type: `tool-${toolName}` as `tool-${string}`,
+        toolCallId,
+        state,
+        input: {},
+        output: toolResult.result ?? null,
+        errorText: toolResult.errorText,
+        preliminary: toolResult.preliminary,
+      });
+    }
   }
 
   return parts;
@@ -312,81 +360,79 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
  * This prevents the runtime from detecting "pending" tool calls and re-executing them.
  */
 export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessage[] {
-  // Pre-sort by createdAt (defensive, DB should already be ordered)
   const sortedMessages = [...dbMessages].sort((a, b) => {
-    const aTime = new Date(a.createdAt).getTime();
-    const bTime = new Date(b.createdAt).getTime();
-    return aTime - bTime;
+    const orderingDelta = getOrderingIndexValue(a) - getOrderingIndexValue(b);
+    if (orderingDelta !== 0) return orderingDelta;
+    const createdAtDelta = toMessageTimestampMs(a.createdAt) - toMessageTimestampMs(b.createdAt);
+    if (createdAtDelta !== 0) return createdAtDelta;
+    return a.id.localeCompare(b.id);
   });
 
-  // First pass: collect all tool results from role="tool" messages
-  // These are stored separately from the assistant message that made the tool call
+  // First pass: collect all tool results from role="tool" messages.
+  // These are kept in a global map, then scoped per assistant message in pass two.
   const globalToolResults = new Map<string, ToolResultInfo>();
   for (const dbMsg of sortedMessages) {
-    if (dbMsg.role === "tool") {
-      const content = dbMsg.content as DBContentPart[];
-      if (Array.isArray(content)) {
-        for (const part of content) {
-          if (part.type === "tool-result" && part.toolCallId) {
-            const toolOutput = part.result !== undefined ? part.result : part.output;
-            const inferredState: ToolInvocationState =
-              part.state ??
-              (part.errorText || String(part.status || "").toLowerCase() === "error"
-                ? "output-error"
-                : "output-available");
-
-            globalToolResults.set(part.toolCallId, {
-              result: toolOutput,
-              state: inferredState,
-              errorText: part.errorText,
-              toolName: part.toolName,
-              preliminary: part.preliminary,
-            });
-          }
-        }
-      }
-      // Also check if toolCallId is at message level (some storage patterns)
-      if (dbMsg.toolCallId && Array.isArray(content) && content.length > 0) {
-        const firstPart = content[0];
-        if (firstPart.type === "tool-result") {
-          const toolOutput = firstPart.result !== undefined ? firstPart.result : firstPart.output;
-          const inferredState: ToolInvocationState =
-            firstPart.state ??
-            (firstPart.errorText || String(firstPart.status || "").toLowerCase() === "error"
-              ? "output-error"
-              : "output-available");
-
-          globalToolResults.set(dbMsg.toolCallId, {
-            result: toolOutput,
-            state: inferredState,
-            errorText: firstPart.errorText,
-            toolName: firstPart.toolName,
-            preliminary: firstPart.preliminary,
-          });
-        }
-      }
-    }
-  }
-
-  // Second pass: build UI messages, using collected tool results
-  const result: UIMessage[] = [];
-
-  for (const dbMsg of sortedMessages) {
-    // Skip system messages
-    if (dbMsg.role === "system") continue;
-
-    // Skip tool messages - their results have been collected above
-    if (dbMsg.role === "tool") continue;
+    if (dbMsg.role !== "tool") continue;
 
     const content = dbMsg.content as DBContentPart[];
     if (!Array.isArray(content) || content.length === 0) {
       continue;
     }
 
-    const inlineParts = buildUIPartsFromDBContent(
-      content,
-      dbMsg.role === "assistant" ? globalToolResults : undefined
-    );
+    const collectToolResult = (toolCallId: string, part: DBToolResultPart) => {
+      const toolOutput = part.result !== undefined ? part.result : part.output;
+      const inferredState: ToolInvocationState =
+        part.state ??
+        (part.errorText || String(part.status || "").toLowerCase() === "error"
+          ? "output-error"
+          : "output-available");
+
+      globalToolResults.set(toolCallId, {
+        result: toolOutput,
+        state: inferredState,
+        errorText: part.errorText,
+        toolName: part.toolName,
+        preliminary: part.preliminary,
+      });
+    };
+
+    for (const part of content) {
+      if (part.type === "tool-result" && part.toolCallId) {
+        collectToolResult(part.toolCallId, part);
+      }
+    }
+
+    // Also check if toolCallId is at message level (some storage patterns)
+    if (dbMsg.toolCallId) {
+      const firstToolResult = content.find(
+        (part): part is DBToolResultPart => part.type === "tool-result"
+      );
+      if (firstToolResult) {
+        collectToolResult(dbMsg.toolCallId, firstToolResult);
+      }
+    }
+  }
+
+  // Second pass: build UI messages, scoping tool fallbacks to each assistant turn.
+  const result: UIMessage[] = [];
+
+  for (const dbMsg of sortedMessages) {
+    // Skip system/tool messages - tool results are merged into assistant turns.
+    if (dbMsg.role === "system" || dbMsg.role === "tool") continue;
+
+    const content = dbMsg.content as DBContentPart[];
+    if (!Array.isArray(content) || content.length === 0) {
+      continue;
+    }
+
+    const scopedFallbackResults = dbMsg.role === "assistant"
+      ? buildScopedFallbackResults(globalToolResults, collectReferencedToolCallIds(content))
+      : undefined;
+
+    const inlineParts = buildUIPartsFromDBContent(content, {
+      // Scope fallback results to tool calls referenced by this assistant turn.
+      fallbackResults: scopedFallbackResults,
+    });
 
     if (inlineParts.length === 0) {
       continue;

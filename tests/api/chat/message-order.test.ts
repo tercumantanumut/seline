@@ -426,4 +426,66 @@ describe("Message Ordering", () => {
       error: "spawn dir ENOENT",
     });
   });
+
+  it("does not attach tool results to assistant turns that did not call that tool", async () => {
+    const session = await createSession({ title: "Scoped tool result mapping", userId: TEST_USER_ID });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 1,
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "tool-scope-1",
+          toolName: "localGrep",
+          args: { pattern: "needle" },
+          state: "input-available",
+        },
+      ] as any,
+    });
+
+    await createMessage({
+      sessionId: session.id,
+      role: "tool",
+      orderingIndex: 2,
+      toolCallId: "tool-scope-1",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "tool-scope-1",
+          toolName: "localGrep",
+          result: { matchCount: 3 },
+          state: "output-available",
+        },
+      ] as any,
+    });
+
+    await createMessage({
+      sessionId: session.id,
+      role: "assistant",
+      orderingIndex: 3,
+      content: [{ type: "text", text: "No tools in this turn" }],
+    });
+
+    const persisted = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(persisted as any);
+
+    expect(uiMessages).toHaveLength(2);
+
+    const firstAssistant = uiMessages[0];
+    const secondAssistant = uiMessages[1];
+
+    const firstToolParts = (firstAssistant.parts || []).filter(
+      (part) => typeof part.type === "string" && part.type.startsWith("tool-")
+    ) as Array<{ toolCallId: string }>;
+    expect(firstToolParts).toHaveLength(1);
+    expect(firstToolParts[0].toolCallId).toBe("tool-scope-1");
+
+    const secondToolParts = (secondAssistant.parts || []).filter(
+      (part) => typeof part.type === "string" && part.type.startsWith("tool-")
+    );
+    expect(secondToolParts).toHaveLength(0);
+  });
 });

@@ -305,7 +305,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
  * with no matching result. The @assistant-ui/react runtime can throw when
  * it encounters these during initialization.
  */
-function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
+export function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
   if (!messages || messages.length === 0) return messages;
 
   return messages.map((msg) => {
@@ -352,6 +352,10 @@ function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
       const state = p.state as string | undefined;
       if (state === "input-streaming") {
         console.warn("[ChatProvider] Removing input-streaming tool part:", p.toolCallId);
+        return false;
+      }
+      if (state === "input-available" && p.output === undefined) {
+        console.warn("[ChatProvider] Removing dangling input-available tool part:", p.toolCallId);
         return false;
       }
       // Keep all other parts (including input-available with output)
