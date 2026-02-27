@@ -106,7 +106,21 @@ describe("StdioClientTransport (integration)", () => {
 
       let expectedExecPath = process.execPath;
       let expectRunAsNode = true;
-      if (process.platform !== "win32") {
+      if (process.platform === "win32") {
+        try {
+          const resolved = execSync("where node", {
+            encoding: "utf8",
+            timeout: 2000,
+          }).trim();
+          const firstLine = resolved.split(/\r?\n/)[0];
+          if (firstLine && path.isAbsolute(firstLine)) {
+            expectedExecPath = firstLine;
+            expectRunAsNode = false;
+          }
+        } catch {
+          // Ignore command lookup failures.
+        }
+      } else {
         try {
           const resolved = execSync("command -v node", {
             encoding: "utf8",
@@ -133,9 +147,6 @@ describe("StdioClientTransport (integration)", () => {
       } else {
         expect(payload.env.ELECTRON_RUN_AS_NODE).toBeNull();
       }
-      // if (process.platform === "win32") {
-      //   expect(payload.env.npm_config_script_shell).toBe(process.execPath);
-      // }
 
       await new Promise(resolve => setTimeout(resolve, 200));
       expect(isProcessAlive(pid)).toBe(true);
@@ -180,7 +191,21 @@ describe("StdioClientTransport (integration)", () => {
 
           let expectedExecPath = process.execPath;
           let expectRunAsNode = true;
-          if (process.platform !== "win32") {
+          if (process.platform === "win32") {
+            try {
+              const resolved = execSync("where node", {
+                encoding: "utf8",
+                timeout: 2000,
+              }).trim();
+              const firstLine = resolved.split(/\r?\n/)[0];
+              if (firstLine && path.isAbsolute(firstLine)) {
+                expectedExecPath = firstLine;
+                expectRunAsNode = false;
+              }
+            } catch {
+              // Ignore command lookup failures.
+            }
+          } else {
             try {
               const resolved = execSync("command -v node", {
                 encoding: "utf8",
@@ -208,9 +233,6 @@ describe("StdioClientTransport (integration)", () => {
           } else {
             expect(payload.env.ELECTRON_RUN_AS_NODE).toBeNull();
           }
-          // if (process.platform === "win32") {
-          //   expect(payload.env.npm_config_script_shell).toBe(process.execPath);
-          // }
         } finally {
           await transport.close();
           if (fs.existsSync(outputPath)) {

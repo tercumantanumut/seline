@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "path";
 
 const authMocks = vi.hoisted(() => ({
   requireAuth: vi.fn(async () => "auth-user-1"),
@@ -141,13 +142,13 @@ describe("POST /api/plugins/import", () => {
 
     expect(payload.auxiliaryFiles).toEqual({
       count: 1,
-      path: "/mock-workspace/plugins/demo-plugin",
+      path: path.join("/mock-workspace", "plugins", "demo-plugin"),
       workspaceRegistered: false,
     });
 
     expect(fsPromisesMocks.copyFile).toHaveBeenCalledWith(
-      "/plugin-cache/docs/reference.md",
-      "/mock-workspace/plugins/demo-plugin/docs/reference.md"
+      path.join("/plugin-cache", "docs", "reference.md"),
+      path.join("/mock-workspace", "plugins", "demo-plugin", "docs", "reference.md"),
     );
     expect(syncServiceMocks.getSyncFolders).not.toHaveBeenCalled();
     expect(syncServiceMocks.addSyncFolder).not.toHaveBeenCalled();
