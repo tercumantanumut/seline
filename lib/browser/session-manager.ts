@@ -15,6 +15,7 @@
  */
 
 import type { Browser, BrowserContext, Page } from "playwright-core";
+import { execSync } from "child_process";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,16 +79,44 @@ async function ensureBrowser(): Promise<Browser> {
       // Dynamic import — playwright-core is optional at build time
       const { chromium } = await import("playwright-core");
 
-      const browser = await chromium.launch({
-        headless: true,
-        args: [
-          "--disable-gpu",
-          "--disable-dev-shm-usage",
-          "--disable-extensions",
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-        ],
-      });
+      const launchBrowser = async () => {
+        return chromium.launch({
+          headless: true,
+          args: [
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-extensions",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+          ],
+        });
+      };
+
+      let browser: Browser;
+      try {
+        browser = await launchBrowser();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Executable doesn't exist") || msg.includes("npx playwright install")) {
+          console.log("[ChromiumManager] Chromium not found — auto-installing...");
+          try {
+            execSync("npx playwright install chromium", {
+              stdio: "pipe",
+              timeout: 120_000,
+            });
+            console.log("[ChromiumManager] Chromium installed successfully, retrying launch...");
+            browser = await launchBrowser();
+          } catch (installErr) {
+            throw new Error(
+              `Chromium browser not found and auto-install failed. ` +
+              `Please run manually: npx playwright install chromium\n` +
+              `Install error: ${installErr instanceof Error ? installErr.message : String(installErr)}`
+            );
+          }
+        } else {
+          throw err;
+        }
+      }
 
       // Clean up on unexpected disconnect
       browser.on("disconnected", () => {
