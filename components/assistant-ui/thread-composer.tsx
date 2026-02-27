@@ -335,7 +335,13 @@ export const Composer: FC<{
         clearPastedTexts();
         if (hasAttachments) threadRuntime.composer.clearAttachments();
       } else {
-        threadRuntime.composer.setText(expandedMessage);
+        // Strip [PASTE_CONTENT:N:M]...[/PASTE_CONTENT:N] delimiter tags for clean display.
+        // Content is preserved inline; the API sanitizer handles truncation if needed.
+        const cleanMessage = expandedMessage.replace(
+          /\[PASTE_CONTENT:\d+:\d+\]\n([\s\S]*?)\n\[\/PASTE_CONTENT:\d+\]/g,
+          (_m: string, content: string) => content
+        );
+        threadRuntime.composer.setText(cleanMessage);
         threadRuntime.composer.send();
         clearDraft();
         updateCursorPosition(0);

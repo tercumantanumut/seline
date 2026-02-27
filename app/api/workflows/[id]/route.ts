@@ -11,6 +11,7 @@ import {
   setWorkflowInitiator,
   updateWorkflowConfig,
 } from "@/lib/agents/workflows";
+import { updateCharacter, getCharacter } from "@/lib/characters/queries";
 import { z } from "zod";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -113,12 +114,33 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         syncFolders: parsed.data.syncFolders,
       });
     } else if (action === "removeMember") {
+      // Check if this is a system workflow before removing, so we can track dismissed agents
+      const preWorkflow = await getWorkflowById(id, dbUser.id);
+      const isSystemWf = preWorkflow?.metadata?.source === "system-agents";
+
       const result = await removeWorkflowMember({
         workflowId: id,
         userId: dbUser.id,
         agentId: parsed.data.agentId,
         promoteToAgentId: parsed.data.promoteToAgentId,
       });
+
+      // Track this agent as dismissed so ensureSystemWorkflow won't re-add it
+      if (isSystemWf && preWorkflow?.initiatorId) {
+        const initiator = await getCharacter(preWorkflow.initiatorId);
+        if (initiator) {
+          const meta = (initiator.metadata ?? {}) as Record<string, unknown>;
+          const dismissed = Array.isArray(meta.dismissedSystemAgentIds)
+            ? [...(meta.dismissedSystemAgentIds as string[])]
+            : [];
+          if (!dismissed.includes(parsed.data.agentId)) {
+            dismissed.push(parsed.data.agentId);
+          }
+          await updateCharacter(preWorkflow.initiatorId, {
+            metadata: { ...meta, dismissedSystemAgentIds: dismissed },
+          });
+        }
+      }
 
       if (result.workflowDeleted) {
         return NextResponse.json({ success: true, workflowDeleted: true });
@@ -169,7 +191,23 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const dbUser = await getOrCreateLocalUser(userId, settings.localUserEmail);
     const { id } = await params;
 
+    // Check if this is a system workflow — mark it dismissed so it won't be re-created
+    const workflow = await getWorkflowById(id, dbUser.id);
+    const isSystemWorkflow = workflow?.metadata?.source === "system-agents";
+    const initiatorId = workflow?.initiatorId;
+
     await deleteWorkflow(id, dbUser.id);
+
+    if (isSystemWorkflow && initiatorId) {
+      const initiator = await getCharacter(initiatorId);
+      if (initiator) {
+        const meta = (initiator.metadata ?? {}) as Record<string, unknown>;
+        await updateCharacter(initiatorId, {
+          metadata: { ...meta, systemWorkflowDismissed: true },
+        });
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {

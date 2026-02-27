@@ -53,6 +53,17 @@ interface DBMessage {
   toolCallId?: string | null;  // For role="tool" messages, references the parent tool call
 }
 
+/**
+ * Convert [PASTE_CONTENT:N:M]...[/PASTE_CONTENT:N] tags into clean display text.
+ * These tags are preserved in DB storage and need to be rendered cleanly in the UI.
+ */
+function expandPasteContentForDisplay(text: string): string {
+  return text.replace(
+    /\[PASTE_CONTENT:(\d+):\d+\]\n([\s\S]*?)\n\[\/PASTE_CONTENT:\1\]/g,
+    (_match, _n, content) => content
+  );
+}
+
 function toMessageTimestampMs(value: Date | string): number {
   const time = new Date(value).getTime();
   return Number.isFinite(time) ? time : 0;
@@ -173,7 +184,7 @@ function buildUIPartsFromDBContent(
 
   for (const part of content) {
     if (part.type === "text" && part.text?.trim()) {
-      parts.push({ type: "text", text: part.text });
+      parts.push({ type: "text", text: expandPasteContentForDisplay(part.text) });
     } else if (part.type === "image" && part.image) {
       parts.push({
         type: "file",

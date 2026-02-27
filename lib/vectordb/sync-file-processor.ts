@@ -279,6 +279,13 @@ export async function processFileInBatch(
     clearTimeout(timeoutId);
     counters.processedCount++;
 
+    // Folder was deleted mid-sync — not a real error, just skip gracefully
+    const errObj = error as { code?: string };
+    if (errObj.code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
+      console.warn(`[SyncFileProcessor] Folder deleted mid-sync, skipping: ${file.relativePath}`);
+      return { indexed: false, skipped: true };
+    }
+
     let errorMsg = error instanceof Error ? error.message : "Unknown error";
     if (controller.signal.aborted) {
       errorMsg = `Timeout (${formatTimeout(MAX_FILE_INDEXING_TIMEOUT_MS)}) exceeded`;

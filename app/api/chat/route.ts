@@ -58,8 +58,8 @@ import {
   isValidIanaTimezone,
   resolvePluginRootMap,
 } from "./context-injection";
-import { stripPasteFromMessageForDB } from "./content-sanitizer";
 import { extractContent } from "./content-extractor";
+import { stripPasteDelimitersFromMessage } from "./content-sanitizer";
 import {
   type StreamingMessageState,
   appendTextPartToState,
@@ -390,7 +390,9 @@ export async function POST(req: Request) {
     const userMessageCount = messages.filter((msg) => msg.role === "user").length;
 
     if (!isScheduledRun && lastMessage && lastMessage.role === 'user') {
-      const messageForDB = stripPasteFromMessageForDB(lastMessage);
+      // Strip [PASTE_CONTENT:N:M]...[/PASTE_CONTENT:N] delimiter tags but keep the pasted content.
+      // This ensures full content is preserved in DB for reload, without tag clutter in the UI.
+      const messageForDB = stripPasteDelimitersFromMessage(lastMessage);
       const extractedContent = await extractContent(messageForDB);
       const normalizedContent: unknown[] = Array.isArray(extractedContent)
         ? extractedContent

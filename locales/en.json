@@ -492,7 +492,10 @@
       "addToWorkflowSuccess": "Agent added to workflow",
       "addToWorkflowNoAvailable": "No available workflows for this agent",
       "addToWorkflowCta": "Add to Workflow",
-      "addToWorkflowAdding": "Adding..."
+      "addToWorkflowAdding": "Adding...",
+      "restoreSystemSpecialists": "Restore System Specialists",
+      "restoreSuccess": "System specialists restored",
+      "restoreFailed": "Failed to restore system specialists"
     },
     "activeSession": {
       "label": "Active",

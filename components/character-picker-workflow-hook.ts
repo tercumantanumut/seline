@@ -209,6 +209,23 @@ export function useWorkflowManager(
     }
   }, [addSubagentToWorkflow, addToWorkflowCharacter, closeAddToWorkflowDialog, selectedWorkflowId, t]);
 
+  const [isReprovisioning, setIsReprovisioning] = useState(false);
+
+  const reprovisionSystemWorkflow = useCallback(async () => {
+    setIsReprovisioning(true);
+    try {
+      const { error } = await resilientPost("/api/workflows/reprovision-system", {});
+      if (error) throw new Error(error);
+      await loadCharacters();
+      toast.success(t("workflows.restoreSuccess"));
+    } catch (error) {
+      console.error("Reprovision system workflow failed:", error);
+      toast.error(t("workflows.restoreFailed"));
+    } finally {
+      setIsReprovisioning(false);
+    }
+  }, [loadCharacters, t]);
+
   const setExpandedWorkflowsOnLoad = useCallback((ids: Set<string>) => {
     setExpandedWorkflows(ids);
   }, []);
@@ -287,5 +304,7 @@ export function useWorkflowManager(
     handleWorkflowActionDialogOpenChange,
     setExpandedWorkflowsOnLoad,
     syncDraftsToGroups,
+    reprovisionSystemWorkflow,
+    isReprovisioning,
   };
 }

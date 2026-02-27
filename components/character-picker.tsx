@@ -381,6 +381,9 @@ export function CharacterPicker() {
             isDuplicating={charActions.isDuplicating}
             onDeleteCharacter={charActions.openDeleteDialog}
             onOpenFolderManager={charActions.openFolderManager}
+            onReprovisionSystem={wfManager.reprovisionSystemWorkflow}
+            isReprovisioning={wfManager.isReprovisioning}
+            hasSystemWorkflow={wfManager.workflowGroups.some((wf) => wf.metadata?.source === "system-agents")}
           />
         )}
 

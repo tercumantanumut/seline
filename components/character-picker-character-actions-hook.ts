@@ -95,7 +95,7 @@ export function useCharacterActions(
       });
       if (!error) {
         setIdentityEditorOpen(false);
-        loadCharacters();
+        await loadCharacters();
       }
     } catch (error) {
       console.error("Failed to save identity:", error);
@@ -119,7 +119,7 @@ export function useCharacterActions(
       if (!error) {
         setDeleteDialogOpen(false);
         setCharacterToDelete(null);
-        loadCharacters();
+        await loadCharacters();
       }
     } catch (error) {
       console.error("Failed to delete character:", error);
@@ -167,7 +167,7 @@ export function useCharacterActions(
       if (!error) {
         setMcpToolEditorOpen(false);
         setMcpRemovalWarningOpen(false);
-        loadCharacters();
+        await loadCharacters();
       }
     } catch (error) {
       console.error("Failed to save MCP tools:", error);
