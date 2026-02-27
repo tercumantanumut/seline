@@ -505,6 +505,36 @@ export function runDataMigrations(sqlite: Database.Database): void {
     console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
   }
 
+  // Migration: Add chromiumWorkspace to existing agents' enabledTools
+  try {
+    const rows = sqlite.prepare(
+      `SELECT id, metadata FROM characters WHERE metadata LIKE '%enabledTools%'`
+    ).all() as Array<{ id: string; metadata: string }>;
+
+    let updatedCount = 0;
+    for (const row of rows) {
+      try {
+        const metadata = JSON.parse(row.metadata || "{}");
+        if (!metadata.enabledTools || !Array.isArray(metadata.enabledTools)) continue;
+        if (metadata.enabledTools.includes("chromiumWorkspace")) continue;
+
+        metadata.enabledTools.push("chromiumWorkspace");
+        sqlite.prepare(
+          `UPDATE characters SET metadata = ?, updated_at = datetime('now') WHERE id = ?`
+        ).run(JSON.stringify(metadata), row.id);
+        updatedCount++;
+      } catch {
+        // Skip unparseable rows
+      }
+    }
+
+    if (updatedCount > 0) {
+      console.log(`[SQLite Migration] Added chromiumWorkspace to ${updatedCount} agent(s)`);
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] chromiumWorkspace migration failed:", error);
+  }
+
   // Migration: Add workflow folder inheritance tracking columns
   try {
     const folderCols = sqlite.prepare("PRAGMA table_info(agent_sync_folders)").all() as Array<{ name: string }>;
