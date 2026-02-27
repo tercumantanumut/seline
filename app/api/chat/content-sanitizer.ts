@@ -1,4 +1,5 @@
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
+import { isInternalToolHistoryLeakText } from "@/lib/messages/internal-tool-history";
 
 // Maximum length for any single text content to prevent base64 data from leaking into context
 // Maximum text content length before smart truncation kicks in
@@ -97,7 +98,8 @@ export function stripFakeToolCallJson(text: string): string {
   const inlinePattern = /\{"type"\s*:\s*"tool-(call|result)"\s*,\s*"toolCallId"\s*:\s*"[^"]*"[^}]*\}/g;
   cleaned = cleaned.replace(inlinePattern, '');
 
-  return cleaned.trim();
+  const trimmed = cleaned.trim();
+  return isInternalToolHistoryLeakText(trimmed) ? "" : trimmed;
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { isInternalToolHistoryLeakText } from "@/lib/messages/internal-tool-history";
 
 type ToolInvocationState = "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
 
@@ -141,6 +142,7 @@ function cloneToolResultInfo(info: ToolResultInfo): ToolResultInfo {
 interface BuildUIPartsOptions {
   fallbackResults?: Map<string, ToolResultInfo>;
   preserveFallbackOrphans?: boolean;
+  stripInternalToolLeakText?: boolean;
 }
 
 function buildUIPartsFromDBContent(
@@ -151,7 +153,11 @@ function buildUIPartsFromDBContent(
     return [];
   }
 
-  const { fallbackResults, preserveFallbackOrphans = true } = options;
+  const {
+    fallbackResults,
+    preserveFallbackOrphans = true,
+    stripInternalToolLeakText = true,
+  } = options;
 
   const toolResults = new Map<string, ToolResultInfo>();
   if (fallbackResults) {
@@ -184,7 +190,11 @@ function buildUIPartsFromDBContent(
 
   for (const part of content) {
     if (part.type === "text" && part.text?.trim()) {
-      parts.push({ type: "text", text: expandPasteContentForDisplay(part.text) });
+      const displayText = expandPasteContentForDisplay(part.text);
+      if (stripInternalToolLeakText && isInternalToolHistoryLeakText(displayText)) {
+        continue;
+      }
+      parts.push({ type: "text", text: displayText });
     } else if (part.type === "image" && part.image) {
       parts.push({
         type: "file",
@@ -331,7 +341,9 @@ export function convertDBMessageToUIMessage(dbMessage: DBMessage): UIMessage | n
     return null;
   }
 
-  const parts = buildUIPartsFromDBContent(content);
+  const parts = buildUIPartsFromDBContent(content, {
+    stripInternalToolLeakText: dbMessage.role === "assistant",
+  });
 
   if (parts.length === 0) {
     return null;
@@ -443,6 +455,7 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
     const inlineParts = buildUIPartsFromDBContent(content, {
       // Scope fallback results to tool calls referenced by this assistant turn.
       fallbackResults: scopedFallbackResults,
+      stripInternalToolLeakText: dbMsg.role === "assistant",
     });
 
     if (inlineParts.length === 0) {
