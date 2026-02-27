@@ -435,7 +435,12 @@ export default function ChatInterface({
             const interval = setInterval(() => {
                 if (document.visibilityState !== "visible") return;
                 void sm.loadSessions({ silent: true, overrideCursor: null, preserveExtra: sm.userLoadedMoreRef.current });
-                void reloadSessionMessages(sessionId);
+                // Skip message reload here — the 2s background polling in
+                // useBackgroundProcessing already handles message refresh.
+                // Doubling up causes excessive network requests.
+                if (isChannelSession && !bg.isProcessingInBackground) {
+                    void reloadSessionMessages(sessionId);
+                }
             }, 2500);
             return () => clearInterval(interval);
         }

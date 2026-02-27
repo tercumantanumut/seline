@@ -448,3 +448,15 @@ Previously, the app used `useChatRuntime` which required remounting to update me
 ### 5. Zombie detection is server-side
 
 The `/api/agent-runs/{id}/status` endpoint determines if a run is a zombie based on heartbeat freshness. The frontend just renders the flag. Don't add client-side timeout logic — it would race with the server.
+
+### 6. DB messages use `content`, not `parts`
+
+The `messages` table stores parts in a `content` JSON column (`text("content", { mode: "json" })`). The `UIMessage` type from `@ai-sdk/react` uses `parts`. When working with raw DB messages (e.g. in `refreshMessages`), always access `m.content` — `m.parts` will be `undefined`.
+
+**Rule**: The message dedup signature in `useBackgroundProcessing.refreshMessages` must use `m.content` and must capture content mutations (text length, output length), not just structural changes (part count, part type). Otherwise incremental background streaming updates are silently skipped and dump all at once on the next structural change.
+
+### 7. `startPollingForCompletion` must have a stable identity
+
+`startPollingForCompletion` is listed as a useEffect dependency in `chat-interface.tsx` (mount check, polling restart, visibility change). If its identity changes, those effects re-fire, calling `checkActiveRun` → `startPollingForCompletion` → state updates → identity changes again → runaway loop flooding the server.
+
+**Rule**: `startPollingForCompletion` uses `refreshMessagesRef` (a stable ref) instead of depending directly on the `refreshMessages` useCallback. This gives it `[]` deps and a stable identity. Never add reactive dependencies to `startPollingForCompletion` — use refs for any values it needs to close over.
