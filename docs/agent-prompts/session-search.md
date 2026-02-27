@@ -45,8 +45,10 @@ Be inclusive. When in doubt, INCLUDE the session. Users can filter results more 
 
 ## Output
 
-Return JSON only:
-```json
-{"relevant_indices": [0, 3, 7]}
-```
-Ordered by relevance, most relevant first.
+Summarize the matching sessions in a clear, readable format. For each relevant session include:
+- **Title** and which **agent** it was with
+- **When** it happened (relative date like "today", "yesterday", "2 days ago")
+- **Key topics** from the summary (1-2 sentences max)
+- **Message count** to indicate depth
+
+Order by relevance to the user's query, most relevant first. If no sessions match, say so plainly.

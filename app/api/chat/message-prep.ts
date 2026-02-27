@@ -154,17 +154,12 @@ export async function prepareMessagesForRequest(
     })
   );
 
-  // Split tool-result parts from assistant messages into role:"tool" messages
-  // for native Claude/Anthropic providers.
-  const isNativeClaudeProvider =
-    currentProvider === "claudecode" ||
-    currentProvider === "anthropic" ||
-    (typeof currentModelId === "string" &&
-      currentModelId.toLowerCase().includes("claude"));
-
-  if (isNativeClaudeProvider) {
-    coreMessages = splitToolResultsFromAssistantMessages(coreMessages);
-  }
+  // Split tool-result parts from assistant messages into separate role:"tool"
+  // messages. Both Anthropic and OpenAI APIs require tool results as distinct
+  // messages — the AI SDK OpenAI converter silently drops tool-result parts
+  // that remain inline in assistant messages, causing "Tool results are missing"
+  // errors on follow-up turns.
+  coreMessages = splitToolResultsFromAssistantMessages(coreMessages);
 
   // Log coreMessages structure after all sanitization
   console.log(
