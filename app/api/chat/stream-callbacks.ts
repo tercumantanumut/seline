@@ -30,8 +30,11 @@ import {
   mergeCanonicalAssistantContent,
   countCanonicalTruncationMarkers,
 } from "./canonical-content";
-import type { StreamingMessageState } from "./streaming-state";
-import { finalizeStreamingToolCalls } from "./streaming-state";
+import {
+  finalizeStreamingToolCalls,
+  sealDanglingToolCalls,
+  type StreamingMessageState,
+} from "./streaming-state";
 import type { ContextInjectionTrackingMetadata } from "./context-injection";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,6 +124,10 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
     // Finalize any tool calls that were streamed via deltas (OpenAI format)
     if (ctx.streamingState) {
       finalizeStreamingToolCalls(ctx.streamingState);
+      sealDanglingToolCalls(
+        ctx.streamingState,
+        "Tool execution ended before a final result was persisted."
+      );
     }
     if (ctx.streamingState && ctx.syncStreamingMessage) {
       await ctx.syncStreamingMessage(true);
@@ -428,6 +435,13 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
 
     try {
       const interruptionTimestamp = new Date();
+      if (ctx.streamingState) {
+        finalizeStreamingToolCalls(ctx.streamingState);
+        sealDanglingToolCalls(
+          ctx.streamingState,
+          "Tool execution was interrupted before completion."
+        );
+      }
       if (ctx.streamingState && ctx.syncStreamingMessage) {
         await ctx.syncStreamingMessage(true);
       }

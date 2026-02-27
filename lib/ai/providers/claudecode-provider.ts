@@ -527,12 +527,93 @@ function createStreamingClaudeCodeResponse(options: {
           },
         });
 
-        let contentIndex = 0;
+        let nextContentIndex = 0;
         let outputTokens = 0;
-        // When stream_events were seen for a turn, the assistant message is
-        // redundant — skip it entirely (mirrors sawStreamText in runClaudeAgentQuery).
-        let sawStreamEventsThisTurn = false;
-        let inStreamBlock = false;
+        let syntheticStreamLocalIndex = -1;
+        let sawStreamTextThisTurn = false;
+        const streamedToolUseIdsThisTurn = new Set<string>();
+        const streamedToolUseNamesThisTurn = new Set<string>();
+        const streamLocalToGlobalIndex = new Map<number, number>();
+        const openStreamLocalIndices = new Set<number>();
+
+        const allocateContentIndex = () => {
+          const idx = nextContentIndex;
+          nextContentIndex += 1;
+          return idx;
+        };
+
+        const emitTextBlock = (text: string, index?: number) => {
+          if (!text) return;
+          const targetIndex = index ?? allocateContentIndex();
+          emit("content_block_start", {
+            type: "content_block_start",
+            index: targetIndex,
+            content_block: { type: "text", text: "" },
+          });
+          emit("content_block_delta", {
+            type: "content_block_delta",
+            index: targetIndex,
+            delta: { type: "text_delta", text },
+          });
+          emit("content_block_stop", { type: "content_block_stop", index: targetIndex });
+          outputTokens += Math.max(1, Math.ceil(text.length / 4));
+        };
+
+        const emitToolUseBlock = (
+          id: string,
+          name: string,
+          inputJson?: string,
+          index?: number,
+        ) => {
+          const targetIndex = index ?? allocateContentIndex();
+          emit("content_block_start", {
+            type: "content_block_start",
+            index: targetIndex,
+            content_block: { type: "tool_use", id, name },
+          });
+          if (inputJson !== undefined) {
+            emit("content_block_delta", {
+              type: "content_block_delta",
+              index: targetIndex,
+              delta: { type: "input_json_delta", partial_json: inputJson },
+            });
+          }
+          emit("content_block_stop", { type: "content_block_stop", index: targetIndex });
+        };
+
+        const getEventIndex = (event: Record<string, unknown>): number | null => {
+          const raw = event.index;
+          if (typeof raw !== "number" || !Number.isInteger(raw)) return null;
+          return raw;
+        };
+
+        const resolveDeltaOrStopLocalIndex = (event: Record<string, unknown>): number | null => {
+          const indexed = getEventIndex(event);
+          if (indexed !== null) return indexed;
+          if (openStreamLocalIndices.size === 1) {
+            return [...openStreamLocalIndices][0];
+          }
+          return null;
+        };
+
+        const closeOpenStreamBlocks = () => {
+          for (const localIndex of [...openStreamLocalIndices]) {
+            const globalIndex = streamLocalToGlobalIndex.get(localIndex);
+            if (globalIndex !== undefined) {
+              emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+            }
+            openStreamLocalIndices.delete(localIndex);
+          }
+        };
+
+        const resetTurnStreamTracking = () => {
+          closeOpenStreamBlocks();
+          streamLocalToGlobalIndex.clear();
+          openStreamLocalIndices.clear();
+          sawStreamTextThisTurn = false;
+          streamedToolUseIdsThisTurn.clear();
+          streamedToolUseNamesThisTurn.clear();
+        };
 
         for await (const message of query) {
           // ── stream_event: real-time deltas (text + tool_use) ──────────────
@@ -541,43 +622,101 @@ function createStreamingClaudeCodeResponse(options: {
             if (!isDictionary(event) || typeof event.type !== "string") continue;
 
             if (event.type === "content_block_start" && isDictionary(event.content_block)) {
+              const explicitLocalIndex = getEventIndex(event);
+              if (
+                explicitLocalIndex === 0 &&
+                streamLocalToGlobalIndex.size > 0 &&
+                !openStreamLocalIndices.has(0)
+              ) {
+                // New turn started but an assistant summary message did not arrive.
+                resetTurnStreamTracking();
+              }
+              const localIndex = explicitLocalIndex ?? syntheticStreamLocalIndex--;
+              if (streamLocalToGlobalIndex.has(localIndex)) {
+                // Duplicate/out-of-order start; keep the first mapping for append-only deltas.
+                continue;
+              }
+              const globalIndex = allocateContentIndex();
+              streamLocalToGlobalIndex.set(localIndex, globalIndex);
+              openStreamLocalIndices.add(localIndex);
+
               const blockType = event.content_block.type;
               if (blockType === "text") {
                 emit("content_block_start", {
                   type: "content_block_start",
-                  index: contentIndex,
+                  index: globalIndex,
                   content_block: { type: "text", text: "" },
                 });
-                inStreamBlock = true;
-                sawStreamEventsThisTurn = true;
+                sawStreamTextThisTurn = true;
               } else if (blockType === "tool_use") {
+                const toolUseId =
+                  typeof event.content_block.id === "string"
+                    ? event.content_block.id
+                    : `toolu_${crypto.randomUUID()}`;
+                const toolName =
+                  typeof event.content_block.name === "string"
+                    ? event.content_block.name
+                    : "unknown";
                 emit("content_block_start", {
                   type: "content_block_start",
-                  index: contentIndex,
+                  index: globalIndex,
                   content_block: {
                     type: "tool_use",
-                    id: event.content_block.id ?? `toolu_${crypto.randomUUID()}`,
-                    name: event.content_block.name ?? "unknown",
+                    id: toolUseId,
+                    name: toolName,
                   },
                 });
-                inStreamBlock = true;
-                sawStreamEventsThisTurn = true;
+                streamedToolUseIdsThisTurn.add(toolUseId);
+                streamedToolUseNamesThisTurn.add(toolName);
+              } else {
+                openStreamLocalIndices.delete(localIndex);
               }
               continue;
             }
 
             if (event.type === "content_block_delta" && isDictionary(event.delta)) {
+              const localIndex = resolveDeltaOrStopLocalIndex(event);
+              let globalIndex = localIndex !== null
+                ? streamLocalToGlobalIndex.get(localIndex)
+                : undefined;
+              if (globalIndex === undefined) {
+                // Out-of-order delta before start; synthesize a matching block so
+                // downstream append-only validation remains stable.
+                const fallbackLocalIndex = localIndex ?? syntheticStreamLocalIndex--;
+                globalIndex = allocateContentIndex();
+                streamLocalToGlobalIndex.set(fallbackLocalIndex, globalIndex);
+                openStreamLocalIndices.add(fallbackLocalIndex);
+                if (event.delta.type === "text_delta") {
+                  emit("content_block_start", {
+                    type: "content_block_start",
+                    index: globalIndex,
+                    content_block: { type: "text", text: "" },
+                  });
+                  sawStreamTextThisTurn = true;
+                } else if (event.delta.type === "input_json_delta") {
+                  const toolUseId = `toolu_${crypto.randomUUID()}`;
+                  const toolName = "unknown";
+                  emit("content_block_start", {
+                    type: "content_block_start",
+                    index: globalIndex,
+                    content_block: { type: "tool_use", id: toolUseId, name: toolName },
+                  });
+                  streamedToolUseIdsThisTurn.add(toolUseId);
+                  streamedToolUseNamesThisTurn.add(toolName);
+                }
+              }
+
               if (event.delta.type === "text_delta" && typeof event.delta.text === "string") {
                 emit("content_block_delta", {
                   type: "content_block_delta",
-                  index: contentIndex,
+                  index: globalIndex,
                   delta: { type: "text_delta", text: event.delta.text },
                 });
                 outputTokens += Math.max(1, Math.ceil(String(event.delta.text).length / 4));
               } else if (event.delta.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
                 emit("content_block_delta", {
                   type: "content_block_delta",
-                  index: contentIndex,
+                  index: globalIndex,
                   delta: { type: "input_json_delta", partial_json: event.delta.partial_json },
                 });
               }
@@ -585,11 +724,12 @@ function createStreamingClaudeCodeResponse(options: {
             }
 
             if (event.type === "content_block_stop") {
-              if (inStreamBlock) {
-                emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
-                contentIndex++;
-                inStreamBlock = false;
-              }
+              const localIndex = resolveDeltaOrStopLocalIndex(event);
+              if (localIndex === null) continue;
+              const globalIndex = streamLocalToGlobalIndex.get(localIndex);
+              if (globalIndex === undefined || !openStreamLocalIndices.has(localIndex)) continue;
+              emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              openStreamLocalIndices.delete(localIndex);
               continue;
             }
 
@@ -597,8 +737,17 @@ function createStreamingClaudeCodeResponse(options: {
             continue;
           }
 
+          if (message.type === "tool_use_summary") {
+            const summary = (message as { summary?: unknown }).summary;
+            if (typeof summary === "string" && summary.trim().length > 0) {
+              emitTextBlock(summary);
+            }
+            continue;
+          }
+
           // ── assistant: finalized message with content blocks ──────────────
           if (message.type === "assistant") {
+            closeOpenStreamBlocks();
             const assistant = message as {
               message?: {
                 content?: Array<{
@@ -619,58 +768,36 @@ function createStreamingClaudeCodeResponse(options: {
               throw new Error(assistant.error);
             }
 
-            // If we already streamed this turn's content via stream_events,
-            // the assistant message is redundant — skip it to avoid duplicate
-            // tool_use blocks that crash the UI with "argsText can only be appended".
-            // This mirrors how runClaudeAgentQuery uses sawStreamText.
-            if (sawStreamEventsThisTurn) {
-              sawStreamEventsThisTurn = false;
-              continue;
-            }
-
-            // Fallback: emit content blocks from assistant message when no
-            // stream_events were received (e.g. older SDK versions).
+            // Fallback/patch-up mode: emit assistant content that wasn't already
+            // streamed as deltas in this turn.
             const content = assistant.message?.content;
             if (Array.isArray(content)) {
               for (const block of content) {
                 if (!block?.type) continue;
 
                 if (block.type === "tool_use" && block.id && block.name) {
-                  emit("content_block_start", {
-                    type: "content_block_start",
-                    index: contentIndex,
-                    content_block: { type: "tool_use", id: block.id, name: block.name },
-                  });
-                  const inputJson = JSON.stringify(block.input ?? {});
-                  emit("content_block_delta", {
-                    type: "content_block_delta",
-                    index: contentIndex,
-                    delta: { type: "input_json_delta", partial_json: inputJson },
-                  });
-                  emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
-                  contentIndex++;
+                  const duplicateById = streamedToolUseIdsThisTurn.has(block.id);
+                  const duplicateByName = streamedToolUseNamesThisTurn.has(block.name);
+                  if (duplicateById || duplicateByName) {
+                    continue;
+                  }
+                  emitToolUseBlock(block.id, block.name, JSON.stringify(block.input ?? {}));
                 } else if (block.type === "text" && block.text) {
-                  emit("content_block_start", {
-                    type: "content_block_start",
-                    index: contentIndex,
-                    content_block: { type: "text", text: "" },
-                  });
-                  emit("content_block_delta", {
-                    type: "content_block_delta",
-                    index: contentIndex,
-                    delta: { type: "text_delta", text: block.text },
-                  });
-                  emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
-                  outputTokens += Math.max(1, Math.ceil(block.text.length / 4));
-                  contentIndex++;
+                  // Avoid duplicate assistant text only when stream text for this turn
+                  // was already emitted.
+                  if (!sawStreamTextThisTurn) {
+                    emitTextBlock(block.text);
+                  }
                 }
               }
             }
+            resetTurnStreamTracking();
             continue;
           }
 
           // ── result: final message ─────────────────────────────────────────
           if (message.type === "result") {
+            closeOpenStreamBlocks();
             const result = message as {
               is_error?: boolean;
               subtype?: string;
@@ -680,36 +807,15 @@ function createStreamingClaudeCodeResponse(options: {
 
             if (Array.isArray(result.errors) && result.errors.length > 0) {
               const errorText = result.errors.join("\n");
-              emit("content_block_start", {
-                type: "content_block_start",
-                index: contentIndex,
-                content_block: { type: "text", text: "" },
-              });
-              emit("content_block_delta", {
-                type: "content_block_delta",
-                index: contentIndex,
-                delta: { type: "text_delta", text: errorText },
-              });
-              emit("content_block_stop", { type: "content_block_stop", index: contentIndex });
-              contentIndex++;
+              emitTextBlock(errorText);
             }
 
             if (
-              contentIndex === 0 &&
+              nextContentIndex === 0 &&
               typeof result.result === "string" &&
               result.result.length > 0
             ) {
-              emit("content_block_start", {
-                type: "content_block_start",
-                index: 0,
-                content_block: { type: "text", text: "" },
-              });
-              emit("content_block_delta", {
-                type: "content_block_delta",
-                index: 0,
-                delta: { type: "text_delta", text: result.result },
-              });
-              emit("content_block_stop", { type: "content_block_stop", index: 0 });
+              emitTextBlock(result.result);
             }
 
             if (result.is_error) {
@@ -718,6 +824,8 @@ function createStreamingClaudeCodeResponse(options: {
             continue;
           }
         }
+
+        closeOpenStreamBlocks();
 
         // Close the message
         emit("message_delta", {

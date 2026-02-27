@@ -41,6 +41,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /**
  * Check if an error is a recoverable streaming/tool-related error that should
  * auto-retry rather than crash the page.
@@ -79,9 +83,58 @@ class ChatErrorBoundary extends Component<
   { children: ReactNode; processingText: string; genericError: string },
   ErrorBoundaryState
 > {
+  private resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleRecoverableReset() {
+    if (this.resetTimer) {
+      clearTimeout(this.resetTimer);
+    }
+    this.resetTimer = setTimeout(() => {
+      this.setState({ hasError: false, error: null });
+      this.resetTimer = null;
+    }, 500);
+  }
+
+  private handleAsyncError = (errorLike: unknown): boolean => {
+    const error = toError(errorLike);
+    if (!isRecoverableStreamingError(error)) {
+      return false;
+    }
+    console.warn("[ChatErrorBoundary] Recoverable async streaming error - will retry", error.message);
+    this.setState({ hasError: true, error });
+    this.scheduleRecoverableReset();
+    return true;
+  };
+
+  private onUnhandledRejection = (event: PromiseRejectionEvent) => {
+    if (this.handleAsyncError(event.reason)) {
+      event.preventDefault();
+    }
+  };
+
+  private onWindowError = (event: ErrorEvent) => {
+    if (this.handleAsyncError(event.error ?? event.message)) {
+      event.preventDefault();
+    }
+  };
+
   constructor(props: { children: ReactNode; processingText: string; genericError: string }) {
     super(props);
     this.state = { hasError: false, error: null };
+  }
+
+  componentDidMount() {
+    window.addEventListener("unhandledrejection", this.onUnhandledRejection);
+    window.addEventListener("error", this.onWindowError);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("unhandledrejection", this.onUnhandledRejection);
+    window.removeEventListener("error", this.onWindowError);
+    if (this.resetTimer) {
+      clearTimeout(this.resetTimer);
+      this.resetTimer = null;
+    }
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -91,10 +144,7 @@ class ChatErrorBoundary extends Component<
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (isRecoverableStreamingError(error)) {
       console.warn("[ChatErrorBoundary] Recoverable streaming error - will retry", error.message);
-      // Auto-reset after a short delay to retry rendering
-      setTimeout(() => {
-        this.setState({ hasError: false, error: null });
-      }, 500);
+      this.scheduleRecoverableReset();
     } else {
       console.error("[ChatErrorBoundary] Unexpected error:", error, errorInfo);
     }
@@ -179,15 +229,63 @@ const STREAM_BATCH_INTERVAL_MS = Number.isFinite(envInterval)
 
 const envMax = Number(process.env.NEXT_PUBLIC_STREAM_BATCH_MAX_CHARS);
 const STREAM_BATCH_MAX_CHARS = Number.isFinite(envMax) ? envMax : 4000;
+const loggedSanitizerToolCallIds = new Set<string>();
 
 class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
+  private wrapStreamWithRecovery(
+    source: ReadableStream<UIMessageChunk>,
+  ): ReadableStream<UIMessageChunk> {
+    let reader: ReadableStreamDefaultReader<UIMessageChunk> | null = null;
+    return new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        reader = source.getReader();
+        const pump = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader!.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+            controller.close();
+          } catch (error) {
+            const normalized = toError(error);
+            if (isRecoverableStreamingError(normalized)) {
+              console.warn("[ChatTransport] Recoverable stream reader error:", normalized.message);
+              try {
+                controller.close();
+              } catch {
+                // no-op
+              }
+            } else {
+              controller.error(error);
+            }
+          } finally {
+            try {
+              reader?.releaseLock();
+            } catch {
+              // no-op
+            }
+          }
+        };
+        void pump();
+      },
+      async cancel(reason) {
+        try {
+          await reader?.cancel(reason);
+        } catch {
+          // no-op
+        }
+      },
+    });
+  }
+
   protected override processResponseStream(
     stream: ReadableStream<Uint8Array>,
   ): ReadableStream<UIMessageChunk> {
     const baseStream = super.processResponseStream(stream);
 
     if (!STREAM_BATCH_ENABLED) {
-      return baseStream;
+      return this.wrapStreamWithRecovery(baseStream);
     }
 
 
@@ -245,7 +343,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
       }, STREAM_BATCH_INTERVAL_MS);
     };
 
-    return baseStream.pipeThrough(
+    const bufferedStream = baseStream.pipeThrough(
       new TransformStream<UIMessageChunk, UIMessageChunk>({
         transform(chunk, controller) {
           if (streamErrored) return;
@@ -293,6 +391,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
         },
       }),
     );
+    return this.wrapStreamWithRecovery(bufferedStream);
   }
 }
 
@@ -350,12 +449,22 @@ export function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
       if (!isToolPart) return true;
 
       const state = p.state as string | undefined;
+      const toolCallId =
+        typeof p.toolCallId === "string" ? p.toolCallId : "unknown-tool-call";
       if (state === "input-streaming") {
-        console.warn("[ChatProvider] Removing input-streaming tool part:", p.toolCallId);
+        const key = `input-streaming:${toolCallId}`;
+        if (!loggedSanitizerToolCallIds.has(key)) {
+          loggedSanitizerToolCallIds.add(key);
+          console.warn("[ChatProvider] Removing input-streaming tool part:", toolCallId);
+        }
         return false;
       }
       if (state === "input-available" && p.output === undefined) {
-        console.warn("[ChatProvider] Removing dangling input-available tool part:", p.toolCallId);
+        const key = `input-available:${toolCallId}`;
+        if (!loggedSanitizerToolCallIds.has(key)) {
+          loggedSanitizerToolCallIds.add(key);
+          console.warn("[ChatProvider] Removing dangling input-available tool part:", toolCallId);
+        }
         return false;
       }
       // Keep all other parts (including input-available with output)

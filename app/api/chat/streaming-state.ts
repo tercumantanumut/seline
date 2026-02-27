@@ -172,6 +172,75 @@ export function finalizeStreamingToolCalls(state: StreamingMessageState): boolea
   return changed;
 }
 
+/**
+ * Ensure every persisted tool-call has a corresponding tool-result.
+ *
+ * Some interruption/error paths can leave tool-call parts in input-* states
+ * without a result, which causes repeated client-side sanitization and noisy
+ * logs on every poll. This seals those calls with a synthetic output-error
+ * result so history is internally consistent.
+ */
+export function sealDanglingToolCalls(
+  state: StreamingMessageState,
+  reason = "Tool execution ended before a result was persisted."
+): boolean {
+  if (!Array.isArray(state.parts) || state.parts.length === 0) return false;
+
+  const toolResultIds = new Set<string>();
+  for (const part of state.parts) {
+    if (part.type === "tool-result" && typeof part.toolCallId === "string") {
+      toolResultIds.add(part.toolCallId);
+    }
+  }
+
+  let changed = false;
+  const nextParts: DBContentPart[] = [];
+
+  for (const part of state.parts) {
+    nextParts.push(part);
+    if (part.type !== "tool-call") continue;
+    if (!part.toolCallId || toolResultIds.has(part.toolCallId)) continue;
+
+    // Normalize unresolved tool call into a terminal state.
+    if (!part.args) {
+      if (part.argsText) {
+        try {
+          part.args = JSON.parse(part.argsText);
+        } catch {
+          const repaired = attemptJsonRepair(part.argsText);
+          part.args = repaired ?? {};
+        }
+      } else {
+        part.args = {};
+      }
+    }
+    part.state = "output-error";
+
+    nextParts.push({
+      type: "tool-result",
+      toolCallId: part.toolCallId,
+      toolName: part.toolName || "tool",
+      result: {
+        status: "error",
+        error: reason,
+        reconstructed: true,
+      },
+      status: "error",
+      state: "output-error",
+      timestamp: new Date().toISOString(),
+    });
+
+    toolResultIds.add(part.toolCallId);
+    changed = true;
+  }
+
+  if (changed) {
+    state.parts = nextParts;
+  }
+
+  return changed;
+}
+
 export function recordStructuredToolCall(
   state: StreamingMessageState,
   toolCallId: string,
