@@ -62,8 +62,8 @@ export const ThreadWelcome: FC = () => {
     [displayChar.suggestedPrompts]
   );
 
-  const hardPrompts = promptModels.filter((prompt) => prompt.lane === "hard");
-  const simplePrompts = promptModels.filter((prompt) => prompt.lane === "simple");
+  const hardPrompts = useMemo(() => promptModels.filter((prompt) => prompt.lane === "hard"), [promptModels]);
+  const simplePrompts = useMemo(() => promptModels.filter((prompt) => prompt.lane === "simple"), [promptModels]);
 
   const [activeLane, setActiveLane] = useState<PromptLane>(hardPrompts.length > 0 ? "hard" : "simple");
 
@@ -90,12 +90,24 @@ export const ThreadWelcome: FC = () => {
     });
   }, [prefersReducedMotion]);
 
-  const visiblePrompts = activeLane === "hard" ? hardPrompts : simplePrompts;
+  const visiblePrompts = useMemo(
+    () => activeLane === "hard" ? hardPrompts : simplePrompts,
+    [activeLane, hardPrompts, simplePrompts]
+  );
+
+  // Only animate cards on initial mount and when the user switches lanes —
+  // NOT on every parent re-render (which happens often during tool calls).
+  const prevLaneRef = useRef(activeLane);
+  const hasAnimatedCardsRef = useRef(false);
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      return;
-    }
+    if (prefersReducedMotion) return;
+
+    const isLaneSwitch = prevLaneRef.current !== activeLane;
+    if (hasAnimatedCardsRef.current && !isLaneSwitch) return;
+
+    prevLaneRef.current = activeLane;
+    hasAnimatedCardsRef.current = true;
 
     cardsRef.current.forEach((card, index) => {
       if (card) {
@@ -108,7 +120,7 @@ export const ThreadWelcome: FC = () => {
         });
       }
     });
-  }, [visiblePrompts, prefersReducedMotion]);
+  }, [activeLane, prefersReducedMotion]);
 
   return (
     <ThreadPrimitive.Empty>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 /**
  * Character data for display in the chat UI
@@ -55,8 +55,9 @@ interface CharacterProviderProps {
 }
 
 export function CharacterProvider({ children, character }: CharacterProviderProps) {
+  const value = useMemo(() => ({ character }), [character]);
   return (
-    <CharacterContext.Provider value={{ character }}>
+    <CharacterContext.Provider value={value}>
       {children}
     </CharacterContext.Provider>
   );
