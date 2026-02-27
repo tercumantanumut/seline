@@ -118,6 +118,17 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
       removeLivePromptQueue(ctx.agentRun.id, ctx.sessionId);
     }
 
+    // Tear down any Chromium browser session owned by this agent session.
+    // Fire-and-forget — browser cleanup must not block message persistence.
+    try {
+      const { closeSession: closeBrowserSession } = await import("@/lib/browser/session-manager");
+      closeBrowserSession(ctx.sessionId).catch((err) =>
+        console.warn("[ChromiumManager] Teardown failed in onFinish:", err)
+      );
+    } catch {
+      // Module not available or import failed — no-op
+    }
+
     // Finalize any tool calls that were streamed via deltas (OpenAI format)
     if (ctx.streamingState) {
       finalizeStreamingToolCalls(ctx.streamingState);
@@ -424,6 +435,16 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
       handleUndrainedQueueMessages(ctx.agentRun.id, ctx.sessionId);
       removeChatAbortController(ctx.agentRun.id);
       removeLivePromptQueue(ctx.agentRun.id, ctx.sessionId);
+    }
+
+    // Tear down Chromium session on abort (fire-and-forget)
+    try {
+      const { closeSession: closeBrowserSession } = await import("@/lib/browser/session-manager");
+      closeBrowserSession(ctx.sessionId).catch((err) =>
+        console.warn("[ChromiumManager] Teardown failed in onAbort:", err)
+      );
+    } catch {
+      // no-op
     }
 
     try {

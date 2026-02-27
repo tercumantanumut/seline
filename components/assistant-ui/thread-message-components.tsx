@@ -36,6 +36,7 @@ import { PatchFileToolUI } from "./patch-file-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
+import { ChromiumWorkspaceToolUI } from "./chromium-workspace-tool-ui";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
@@ -323,6 +324,7 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   updatePlan: PlanToolUI,
                   speakAloud: SpeakAloudToolUI,
                   transcribe: TranscribeToolUI,
+                  chromiumWorkspace: ChromiumWorkspaceToolUI,
                 },
                 Fallback: ToolFallback,
               },
