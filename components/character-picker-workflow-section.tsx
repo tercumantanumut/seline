@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { GitBranchPlus, Crown, MoreHorizontal, MessageCircle, UserPlus, Unlink, ChevronDown, ChevronRight } from "lucide-react";
+import { GitBranchPlus, Crown, MoreHorizontal, MessageCircle, UserPlus, Unlink, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Database } from "@phosphor-icons/react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -392,6 +392,9 @@ export function WorkflowSection({
   isDuplicating,
   onDeleteCharacter,
   onOpenFolderManager,
+  onReprovisionSystem,
+  isReprovisioning,
+  hasSystemWorkflow,
 }: {
   filteredWorkflowGroups: WorkflowGroup[];
   workflowSectionState: string;
@@ -422,6 +425,9 @@ export function WorkflowSection({
   isDuplicating: boolean;
   onDeleteCharacter: (c: CharacterSummary) => void;
   onOpenFolderManager: (c: CharacterSummary) => void;
+  onReprovisionSystem?: () => void;
+  isReprovisioning?: boolean;
+  hasSystemWorkflow?: boolean;
 }) {
   return (
     <div className="mb-2 space-y-4">
@@ -430,6 +436,18 @@ export function WorkflowSection({
           {t("workflows.sectionTitle")}
         </h2>
         <div className="h-px flex-1 bg-terminal-border/60" />
+        {!hasSystemWorkflow && onReprovisionSystem && (
+          <AnimatedButton
+            size="sm"
+            variant="outline"
+            className="h-8 font-mono text-xs"
+            disabled={isReprovisioning}
+            onClick={onReprovisionSystem}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isReprovisioning ? "animate-spin" : ""}`} />
+            {t("workflows.restoreSystemSpecialists")}
+          </AnimatedButton>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <span tabIndex={disableWorkflowCreate ? 0 : -1}>

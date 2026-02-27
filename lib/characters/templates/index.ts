@@ -356,8 +356,14 @@ export async function ensureSystemAgentsExist(
     const defaultMeta = (defaultAgent?.metadata ?? {}) as Record<string, unknown>;
 
     if (defaultMeta.systemAgentsProvisioned) {
-      // Already provisioned once — only maintain the workflow
-      await ensureSystemWorkflow(userId, defaultAgentId, existingSystemAgentIds);
+      // Already provisioned once — only maintain the workflow if user hasn't dismissed it
+      if (!defaultMeta.systemWorkflowDismissed) {
+        const dismissed = Array.isArray(defaultMeta.dismissedSystemAgentIds)
+          ? new Set(defaultMeta.dismissedSystemAgentIds as string[])
+          : new Set<string>();
+        const activeSubagentIds = existingSystemAgentIds.filter((id) => !dismissed.has(id));
+        await ensureSystemWorkflow(userId, defaultAgentId, activeSubagentIds);
+      }
       return;
     }
 

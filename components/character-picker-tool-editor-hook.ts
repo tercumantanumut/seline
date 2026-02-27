@@ -241,7 +241,7 @@ export function useToolEditor(
       });
       if (!error) {
         setToolEditorOpen(false);
-        loadCharacters();
+        await loadCharacters();
       } else {
         toast.error(t("saveToolsFailed"));
       }

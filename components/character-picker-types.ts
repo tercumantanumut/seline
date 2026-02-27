@@ -44,6 +44,7 @@ export interface WorkflowGroup {
   status: string;
   initiatorId: string;
   metadata: {
+    source?: "system-agents" | "manual" | "plugin-import";
     sharedResources?: {
       syncFolderIds?: string[];
       pluginIds?: string[];

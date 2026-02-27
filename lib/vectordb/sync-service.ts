@@ -114,7 +114,9 @@ export async function removeSyncFolder(folderId: string): Promise<void> {
     stopWatching(folderId);
   }
 
-  // Delete folder row first so UI is unblocked even if vector cleanup fails.
+  // Delete child file rows first to prevent FK violations from concurrent syncs,
+  // then delete the folder row so UI is unblocked even if vector cleanup fails.
+  await db.delete(agentSyncFiles).where(eq(agentSyncFiles.folderId, folderId));
   await db.delete(agentSyncFolders).where(eq(agentSyncFolders.id, folderId));
   console.log(`[SyncService] Removed sync folder: ${folderId}`);
 

@@ -223,4 +223,30 @@ export function stripPasteFromMessageForDB<T extends { content?: unknown; parts?
   }
   return msg;
 }
+// Strip [PASTE_CONTENT:N:M]...[/PASTE_CONTENT:N] delimiter tags from text,
+// keeping the actual pasted content intact. Used for DB storage so content
+// is preserved on reload without the tag clutter.
+function stripPasteDelimiters(text: string): string {
+  return text.replace(
+    /\[PASTE_CONTENT:\d+:\d+\]\n([\s\S]*?)\n\[\/PASTE_CONTENT:\d+\]/g,
+    (_match, content) => content
+  );
+}
+
+export function stripPasteDelimitersFromMessage<T extends { content?: unknown; parts?: Array<{ type: string; text?: string; [key: string]: unknown }> }>(msg: T): T {
+  if (typeof msg.content === "string") {
+    return { ...msg, content: stripPasteDelimiters(msg.content) };
+  }
+  if (msg.parts) {
+    return {
+      ...msg,
+      parts: msg.parts.map(part =>
+        part.type === "text" && typeof part.text === "string"
+          ? { ...part, text: stripPasteDelimiters(part.text) }
+          : part
+      ),
+    };
+  }
+  return msg;
+}
 // ─────────────────────────────────────────────────────────────────────────────
