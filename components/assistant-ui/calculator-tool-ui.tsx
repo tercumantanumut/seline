@@ -22,11 +22,91 @@ interface CalculatorArgs {
     precision?: number;
 }
 
+function parseNestedJson(text: string, maxDepth: number = 3): unknown | undefined {
+    let current: unknown = text;
+    for (let i = 0; i < maxDepth; i += 1) {
+        if (typeof current !== "string") return current;
+        const trimmed = current.trim();
+        if (!trimmed) return undefined;
+        try {
+            current = JSON.parse(trimmed);
+        } catch {
+            return i === 0 ? undefined : current;
+        }
+    }
+    return current;
+}
+
+function normalizeCalculatorResult(
+    rawResult: CalculatorResult | Record<string, unknown> | undefined,
+): CalculatorResult | undefined {
+    if (!rawResult || typeof rawResult !== "object") return undefined;
+
+    const direct = rawResult as Partial<CalculatorResult> & Record<string, unknown>;
+    if (typeof direct.success === "boolean") {
+        return {
+            success: direct.success,
+            expression: String(direct.expression ?? ""),
+            ...(direct.result !== undefined ? { result: direct.result as string | number } : {}),
+            ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+            ...(typeof direct.error === "string" ? { error: direct.error } : {}),
+            ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+        };
+    }
+
+    const status = typeof direct.status === "string" ? direct.status : undefined;
+    const content = Array.isArray(direct.content) ? direct.content : undefined;
+    if (content && content.length > 0) {
+        const textItem = content.find(
+            (item): item is { type?: string; text?: string } =>
+                !!item &&
+                typeof item === "object" &&
+                (item as { type?: unknown }).type === "text" &&
+                typeof (item as { text?: unknown }).text === "string",
+        );
+
+        if (textItem?.text) {
+            const parsed = parseNestedJson(textItem.text);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return normalizeCalculatorResult(parsed as Record<string, unknown>);
+            }
+
+            if (status === "error") {
+                return {
+                    success: false,
+                    expression: String(direct.expression ?? ""),
+                    error: String(parsed ?? textItem.text),
+                };
+            }
+        }
+    }
+
+    if (status === "error") {
+        return {
+            success: false,
+            expression: String(direct.expression ?? ""),
+            error: typeof direct.error === "string" ? direct.error : "Calculation failed",
+        };
+    }
+
+    if (status === "success" && direct.result !== undefined) {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            result: direct.result as string | number,
+            ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+            ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+        };
+    }
+
+    return undefined;
+}
+
 type ToolCallContentPartComponent = FC<{
     toolName: string;
     argsText?: string;
     args: CalculatorArgs;
-    result?: CalculatorResult;
+    result?: CalculatorResult | Record<string, unknown>;
 }>;
 
 /** Get icon for result type */
@@ -70,12 +150,14 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     // Guard against missing args
     if (!args) return null;
 
+    const normalizedResult = normalizeCalculatorResult(result);
+
     const expression = args.expression;
-    const resultValue = result?.result;
-    const isSuccess = result?.success;
-    const error = result?.error;
-    const resultType = result?.type;
-    const details = result?.details;
+    const resultValue = normalizedResult?.result;
+    const isSuccess = normalizedResult?.success;
+    const error = normalizedResult?.error;
+    const resultType = normalizedResult?.type;
+    const details = normalizedResult?.details;
 
     // Determine if result is long and needs expansion
     const fullResult = String(resultValue ?? "");
@@ -127,7 +209,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                         <code className="block mt-1 font-mono text-sm text-terminal-dark">
                             {expression}
                         </code>
-                        <p className="mt-2 text-sm text-red-600/90">{error}</p>
+                        <p className="mt-2 text-sm text-red-600/90">{error || "Calculation failed"}</p>
                     </div>
                 </div>
             </div>

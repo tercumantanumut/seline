@@ -72,6 +72,59 @@ interface ToolResult {
   iterationPerformed?: boolean;
 }
 
+function getCanonicalToolName(toolName: string): string {
+  const match = /^mcp__.+?__(.+)$/.exec(toolName);
+  return match?.[1] || toolName;
+}
+
+function parseNestedJsonValue(text: string, maxDepth: number = 3): unknown | undefined {
+  let current: unknown = text;
+  for (let i = 0; i < maxDepth; i += 1) {
+    if (typeof current !== "string") return current;
+    const trimmed = current.trim();
+    if (!trimmed) return undefined;
+    try {
+      current = JSON.parse(trimmed);
+    } catch {
+      return i === 0 ? undefined : current;
+    }
+  }
+  return current;
+}
+
+function unwrapMcpTextWrappedResult(result: ToolResult): ToolResult {
+  const content = (result as ToolResult & { content?: unknown }).content;
+  if (!Array.isArray(content)) return result;
+
+  const textItem = content.find(
+    (item): item is { type?: string; text?: string } =>
+      !!item &&
+      typeof item === "object" &&
+      (item as { type?: unknown }).type === "text" &&
+      typeof (item as { text?: unknown }).text === "string"
+  );
+
+  if (!textItem?.text) return result;
+  const parsed = parseNestedJsonValue(textItem.text);
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const parsedObj = parsed as Record<string, unknown>;
+    return {
+      ...result,
+      ...parsedObj,
+      status: typeof parsedObj.status === "string" ? (parsedObj.status as ToolResult["status"]) : result.status,
+    };
+  }
+
+  if (typeof parsed === "string" && parsed.trim().length > 0) {
+    return {
+      ...result,
+      text: parsed,
+    };
+  }
+
+  return result;
+}
+
 function hasVisualMedia(result?: unknown): boolean {
   if (!result || typeof result !== "object") return false;
   const r = result as Record<string, unknown>;
@@ -141,25 +194,28 @@ ToolStatus.displayName = "ToolStatus";
 // Memoized Result Display Component
 const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ toolName, result }) => {
   const tResults = useTranslations("assistantUi.toolResults");
-  if (result.status === "error") {
+  const canonicalToolName = getCanonicalToolName(toolName);
+  const normalizedResult = unwrapMcpTextWrappedResult(result);
+
+  if (normalizedResult.status === "error") {
     return (
       <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
-        {result.error || tResults("errorOccurred")}
+        {normalizedResult.error || tResults("errorOccurred")}
       </div>
     );
   }
 
-  if (result.status === "processing") {
+  if (normalizedResult.status === "processing") {
     return (
       <div className={cn("transition-all duration-150", TOOL_RESULT_TEXT_CLASS)}>
-        {tResults("generationQueued", { jobId: result.jobId ?? "" })}
+        {tResults("generationQueued", { jobId: normalizedResult.jobId ?? "" })}
       </div>
     );
   }
 
   // Handle searchTools results
-  if (toolName === "searchTools") {
-    const rawResults = (result as { results?: unknown }).results;
+  if (canonicalToolName === "searchTools") {
+    const rawResults = (normalizedResult as { results?: unknown }).results;
     const searchResults = Array.isArray(rawResults) ? rawResults as Array<{
       name?: string;
       displayName?: string;
@@ -179,10 +235,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       );
     }
 
-    if (result.status === "no_results" || !searchResults || searchResults.length === 0) {
+    if (normalizedResult.status === "no_results" || !searchResults || searchResults.length === 0) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {tResults("noToolsFound", { query: result.query ?? "" })}
+          {tResults("noToolsFound", { query: normalizedResult.query ?? "" })}
         </div>
       );
     }
@@ -211,48 +267,48 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Handle listAllTools results
-  if (toolName === "listAllTools") {
+  if (canonicalToolName === "listAllTools") {
     return (
       <div className={TOOL_RESULT_TEXT_CLASS}>
-        {result.message || tResults("toolsListedSuccessfully")}
+        {normalizedResult.message || tResults("toolsListedSuccessfully")}
       </div>
     );
   }
 
   // Handle webSearch results
-  if (toolName === "webSearch") {
-    const action = typeof (result as { action?: unknown }).action === "string"
-      ? ((result as { action?: string }).action ?? "search")
+  if (canonicalToolName === "webSearch") {
+    const action = typeof (normalizedResult as { action?: unknown }).action === "string"
+      ? ((normalizedResult as { action?: string }).action ?? "search")
       : "search";
 
     // Handle provider/configuration errors
-    if (result.status === "no_provider" || result.status === "no_api_key") {
+    if (normalizedResult.status === "no_provider" || normalizedResult.status === "no_api_key") {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {result.message || tResults("webSearchUnavailable")}
+          {normalizedResult.message || tResults("webSearchUnavailable")}
         </div>
       );
     }
 
     // Handle browse action with full-page payloads
     if (action === "browse") {
-      const pages = Array.isArray((result as { pages?: unknown[] }).pages)
-        ? ((result as { pages?: Array<{ title?: string; url?: string; contentLength?: number }> }).pages ?? [])
+      const pages = Array.isArray((normalizedResult as { pages?: unknown[] }).pages)
+        ? ((normalizedResult as { pages?: Array<{ title?: string; url?: string; contentLength?: number }> }).pages ?? [])
         : [];
 
       if (pages.length === 0) {
         return (
           <div className={TOOL_RESULT_TEXT_CLASS}>
-            {result.message || tResults("noWebResults", { query: result.query ?? "" })}
+            {normalizedResult.message || tResults("noWebResults", { query: normalizedResult.query ?? "" })}
           </div>
         );
       }
 
       return (
         <div className={cn("space-y-3", TOOL_RESULT_TEXT_CLASS)}>
-          {result.message && (
+          {normalizedResult.message && (
             <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
-              {result.message}
+              {normalizedResult.message}
             </div>
           )}
           <div className="space-y-2">
@@ -282,23 +338,23 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     }
 
     // For disabled/no_paths statuses, show message when no sources available
-    if (result.status === "disabled" || result.status === "no_paths") {
-      const hasSources = Array.isArray(result.sources) && result.sources.length > 0;
+    if (normalizedResult.status === "disabled" || normalizedResult.status === "no_paths") {
+      const hasSources = Array.isArray(normalizedResult.sources) && normalizedResult.sources.length > 0;
       if (!hasSources) {
         return (
           <div className={TOOL_RESULT_TEXT_CLASS}>
-            {result.message || tResults("webSearchUnavailable")}
+            {normalizedResult.message || tResults("webSearchUnavailable")}
           </div>
         );
       }
     }
 
     // Display search-style sources with links
-    const sources = result.sources || [];
+    const sources = normalizedResult.sources || [];
     if (sources.length === 0) {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
-          {result.message || tResults("noWebResults", { query: result.query ?? "" })}
+          {normalizedResult.message || tResults("noWebResults", { query: normalizedResult.query ?? "" })}
         </div>
       );
     }
@@ -306,15 +362,15 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     return (
       <div className={cn("space-y-3", TOOL_RESULT_TEXT_CLASS)}>
         {/* Summary/Answer */}
-        {result.answer && (
+        {normalizedResult.answer && (
           <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
-            <span className="font-medium">{tResults("webSearchSummary")}:</span> {result.answer}
+            <span className="font-medium">{tResults("webSearchSummary")}:</span> {normalizedResult.answer}
           </div>
         )}
 
-        {result.message && (
+        {normalizedResult.message && (
           <div className="rounded bg-terminal-dark/5 p-2 text-terminal-dark [overflow-wrap:anywhere]">
-            {result.message}
+            {normalizedResult.message}
           </div>
         )}
 
@@ -344,8 +400,8 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Handle readFile results
-  if (toolName === "readFile") {
-    const readResult = result as ToolResult & {
+  if (canonicalToolName === "readFile") {
+    const readResult = normalizedResult as ToolResult & {
       filePath?: string;
       language?: string;
       lineRange?: string;
@@ -411,8 +467,8 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Handle localGrep results
-  if (toolName === "localGrep") {
-    const grepResult = result as ToolResult & {
+  if (canonicalToolName === "localGrep") {
+    const grepResult = normalizedResult as ToolResult & {
       matchCount?: number;
       pattern?: string;
       results?: string;
@@ -465,11 +521,11 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Show generated videos
-  if (result.videos && result.videos.length > 0) {
+  if (normalizedResult.videos && normalizedResult.videos.length > 0) {
     return (
       <div className="mt-2 animate-in fade-in zoom-in-95 duration-200">
         <div className="space-y-4">
-          {result.videos.map((video, idx) => (
+          {normalizedResult.videos.map((video, idx) => (
             <div key={idx} className="relative">
               <video
                 src={video.url}
@@ -496,9 +552,9 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
             </div>
           ))}
         </div>
-        {result.timeTaken && (
+        {normalizedResult.timeTaken && (
           <p className="mt-2 text-xs text-terminal-muted font-mono">
-            Generated in {result.timeTaken.toFixed(1)}s
+            Generated in {normalizedResult.timeTaken.toFixed(1)}s
           </p>
         )}
       </div>
@@ -506,11 +562,11 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Show generated images
-  if (result.images && result.images.length > 0) {
+  if (normalizedResult.images && normalizedResult.images.length > 0) {
     return (
       <div className="mt-2 animate-in fade-in zoom-in-95 duration-200">
         <div className="image-grid">
-          {result.images.map((img, idx) => (
+          {normalizedResult.images.map((img, idx) => (
             <a
               key={idx}
               href={img.url}
@@ -529,24 +585,24 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
             </a>
           ))}
         </div>
-        {result.text && (
-          <p className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>{result.text}</p>
+        {normalizedResult.text && (
+          <p className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>{normalizedResult.text}</p>
         )}
       </div>
     );
   }
 
-  if (typeof result.stdout === "string" || typeof result.stderr === "string") {
+  if (typeof normalizedResult.stdout === "string" || typeof normalizedResult.stderr === "string") {
     return (
       <div className="mt-2 space-y-2 transition-opacity duration-150">
-        {result.stdout && (
+        {normalizedResult.stdout && (
           <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
-            {result.stdout}
+            {normalizedResult.stdout}
           </pre>
         )}
-        {result.stderr && (
+        {normalizedResult.stderr && (
           <pre className={cn("max-h-64", TOOL_RESULT_ERROR_PRE_CLASS)}>
-            {result.stderr}
+            {normalizedResult.stderr}
           </pre>
         )}
       </div>
@@ -554,10 +610,10 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   }
 
   // Show batch results
-  if (Array.isArray(result.results) && result.results.length > 0) {
+  if (Array.isArray(normalizedResult.results) && normalizedResult.results.length > 0) {
     return (
       <div className="mt-2 space-y-4 transition-opacity duration-150">
-        {result.results.map((item, idx) => (
+        {normalizedResult.results.map((item, idx) => (
           <div key={idx} className="pt-4 first:pt-0">
             {item.prompt && (
               <p className="text-xs text-terminal-muted mb-2 font-mono">
@@ -600,18 +656,18 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     );
   }
 
-  if (result.results && !Array.isArray(result.results)) {
+  if (normalizedResult.results && !Array.isArray(normalizedResult.results)) {
     return (
       <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
         <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
-          {formatResultValue(result.results)}
+          {formatResultValue(normalizedResult.results)}
         </pre>
       </div>
     );
   }
 
   // Fallback for generic text/content results (e.g., MCP tools like take_snapshot)
-  const textContent = result.text || (result as { content?: string }).content;
+  const textContent = normalizedResult.text || (normalizedResult as { content?: string }).content;
   if (textContent && typeof textContent === "string") {
     // Truncate very long results for display (full result is still available to AI)
     const displayText = textContent.length > 2000
@@ -629,26 +685,26 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   // Final defensive fallback: render unknown object-shaped outputs so the UI
   // never appears empty when a tool completed but returned an unrecognized schema.
   const genericSummary =
-    typeof (result as { summary?: unknown }).summary === "string"
-      ? ((result as { summary?: string }).summary ?? "")
+    typeof (normalizedResult as { summary?: unknown }).summary === "string"
+      ? ((normalizedResult as { summary?: string }).summary ?? "")
       : "";
   if (genericSummary.trim().length > 0) {
     return (
       <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
         <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
-          {genericSummary}
-        </pre>
-      </div>
-    );
-  }
-
-  return (
-    <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
-      <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
-        {formatResultValue(result)}
+        {genericSummary}
       </pre>
     </div>
   );
+}
+
+return (
+  <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
+    <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
+      {formatResultValue(normalizedResult)}
+    </pre>
+  </div>
+);
 });
 ToolResultDisplay.displayName = "ToolResultDisplay";
 
