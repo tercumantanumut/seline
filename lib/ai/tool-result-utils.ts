@@ -1,5 +1,6 @@
 import { limitToolOutput } from "./output-limiter";
 import { getRunContext } from "@/lib/observability/run-context";
+import { parseNestedJsonString } from "@/lib/utils/parse-nested-json";
 
 type ToolResultNormalization = {
   output: Record<string, unknown>;
@@ -43,21 +44,6 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
     return value as Record<string, unknown>;
   }
   return undefined;
-}
-
-function parseNestedJsonString(value: string, maxDepth: number = 3): unknown | undefined {
-  let current: unknown = value;
-  for (let i = 0; i < maxDepth; i += 1) {
-    if (typeof current !== "string") return current;
-    const trimmed = current.trim();
-    if (!trimmed) return undefined;
-    try {
-      current = JSON.parse(trimmed);
-    } catch {
-      return i === 0 ? undefined : current;
-    }
-  }
-  return current;
 }
 
 function extractTextFromMcpContentArray(items: unknown[]): string | undefined {
