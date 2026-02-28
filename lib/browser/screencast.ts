@@ -111,13 +111,13 @@ export async function startScreencast(
       });
     });
 
-    // Start the screencast — JPEG at quality 40, ~3 FPS
+    // Start the screencast — JPEG at quality 70, every frame for smooth live view
     await cdpSession.send("Page.startScreencast", {
       format: "jpeg",
-      quality: 40,
-      maxWidth: 1280,
-      maxHeight: 720,
-      everyNthFrame: 2,
+      quality: 70,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      everyNthFrame: 1,
     });
 
     state.sessions.set(sessionId, screencastSession);

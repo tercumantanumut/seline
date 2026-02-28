@@ -18,9 +18,11 @@ interface BrowserBackdropProps {
   /** The chat session ID — used to connect to the screencast stream */
   sessionId?: string;
   className?: string;
+  /** Called when the backdrop becomes active (has frames) or inactive */
+  onActiveChange?: (active: boolean) => void;
 }
 
-export function BrowserBackdrop({ sessionId, className }: BrowserBackdropProps) {
+export function BrowserBackdrop({ sessionId, className, onActiveChange }: BrowserBackdropProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const [hasFrame, setHasFrame] = useState(false);
@@ -47,6 +49,11 @@ export function BrowserBackdrop({ sessionId, className }: BrowserBackdropProps) 
       probeIntervalRef.current = null;
     }
   }, [cleanupStream]);
+
+  // Notify parent when backdrop becomes active/inactive
+  useEffect(() => {
+    onActiveChange?.(hasFrame);
+  }, [hasFrame, onActiveChange]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -136,25 +143,16 @@ export function BrowserBackdrop({ sessionId, className }: BrowserBackdropProps) 
         alt=""
         className="h-full w-full object-cover"
         style={{
-          filter: "blur(20px) brightness(0.35) saturate(1.2)",
-          transform: "scale(1.1)", // Prevent blur edge artifacts
+          filter: "brightness(0.7) saturate(1.1)",
         }}
       />
 
-      {/* Gradient overlay for text readability */}
+      {/* Light gradient overlay — keeps text readable without hiding the browser */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.4) 100%)",
-        }}
-      />
-
-      {/* Subtle noise texture for premium feel */}
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0.2) 100%)",
         }}
       />
 
