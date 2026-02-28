@@ -4,6 +4,7 @@ import { type FC, useCallback, useState } from "react";
 import { CircleNotch, ChatCircleDots, CheckCircle, Check } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { parseNestedJsonString } from "@/lib/utils/parse-nested-json";
+import { useChatSessionId } from "@/components/chat-provider";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +31,7 @@ interface AskFollowupQuestionArgs {
 
 type ToolCallContentPartComponent = FC<{
   toolName: string;
+  toolCallId: string;
   argsText?: string;
   args?: AskFollowupQuestionArgs;
   result?: unknown;
@@ -73,28 +75,54 @@ function getQuestions(args: AskFollowupQuestionArgs | undefined): Question[] {
   return [];
 }
 
+async function submitAnswersToServer(
+  sessionId: string,
+  toolCallId: string,
+  answers: Record<string, string>,
+): Promise<boolean> {
+  try {
+    const res = await fetch("/api/chat/tool-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        toolUseId: toolCallId,
+        answers,
+      }),
+    });
+    const data = await res.json();
+    return data.resolved === true;
+  } catch (err) {
+    console.error("[AskQuestionUI] Failed to submit answers:", err);
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
+  toolCallId,
   args: rawArgs,
   result,
   addResult,
 }) => {
+  const sessionId = useChatSessionId();
   const args = normalizeArgs(rawArgs);
   const questions = getQuestions(args);
 
   // Track selections per question index: single-select stores label, multi-select stores Set of labels
   const [selections, setSelections] = useState<Record<number, string | Set<string>>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const hasResult = result !== undefined && result !== null;
-  const isAnswered = hasResult || submitted;
+  // Only treat as answered when the USER has submitted (not when the SDK auto-populates result)
+  const isAnswered = submitted;
 
   const handleSelect = useCallback(
     (qIdx: number, label: string, multiSelect: boolean) => {
-      if (isAnswered) return;
+      if (isAnswered || submitting) return;
       setSelections((prev) => {
         if (multiSelect) {
           const current = (prev[qIdx] instanceof Set ? prev[qIdx] : new Set<string>()) as Set<string>;
@@ -106,12 +134,30 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
         return { ...prev, [qIdx]: label };
       });
     },
-    [isAnswered],
+    [isAnswered, submitting],
+  );
+
+  const doSubmit = useCallback(
+    async (answers: Record<string, string>) => {
+      if (isAnswered || submitting) return;
+      setSubmitting(true);
+
+      // If we have a sessionId (claudecode provider), POST to server
+      if (sessionId && toolCallId) {
+        await submitAnswersToServer(sessionId, toolCallId, answers);
+      }
+      // Also call addResult so the UI state updates
+      if (addResult) {
+        addResult({ answers });
+      }
+      setSubmitted(true);
+      setSubmitting(false);
+    },
+    [isAnswered, submitting, sessionId, toolCallId, addResult],
   );
 
   const handleSubmit = useCallback(() => {
-    if (!addResult || isAnswered) return;
-    // Build answers: { [questionText]: selectedLabel(s) }
+    if (isAnswered || submitting) return;
     const answers: Record<string, string> = {};
     questions.forEach((q, qi) => {
       const sel = selections[qi];
@@ -121,22 +167,19 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
         answers[q.question] = sel;
       }
     });
-    setSubmitted(true);
-    addResult({ answers });
-  }, [addResult, isAnswered, questions, selections]);
+    doSubmit(answers);
+  }, [isAnswered, submitting, questions, selections, doSubmit]);
 
   // Auto-submit for single-question, single-select
   const handleOptionClick = useCallback(
     (qIdx: number, label: string, multiSelect: boolean) => {
       handleSelect(qIdx, label, multiSelect);
-      // Auto-submit for single-select with a single question
-      if (!multiSelect && questions.length === 1 && addResult && !isAnswered) {
+      if (!multiSelect && questions.length === 1 && !isAnswered && !submitting) {
         const answers: Record<string, string> = { [questions[0].question]: label };
-        setSubmitted(true);
-        addResult({ answers });
+        doSubmit(answers);
       }
     },
-    [handleSelect, questions, addResult, isAnswered],
+    [handleSelect, questions, isAnswered, submitting, doSubmit],
   );
 
   // Check if an option is selected
@@ -149,6 +192,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
   // Check if ready to submit (all questions have at least one selection)
   const canSubmit =
     !isAnswered &&
+    !submitting &&
     questions.length > 0 &&
     questions.every((_, qi) => {
       const sel = selections[qi];
@@ -224,7 +268,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
                 <button
                   key={oi}
                   type="button"
-                  disabled={isAnswered}
+                  disabled={isAnswered || submitting}
                   onClick={() => handleOptionClick(qi, opt.label, q.multiSelect)}
                   className={cn(
                     "px-3 py-2 rounded border font-mono text-xs text-left transition-all",
@@ -290,7 +334,14 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
               : "border-terminal-border/30 bg-terminal-bg/20 text-terminal-muted cursor-not-allowed"
           )}
         >
-          Submit
+          {submitting ? (
+            <span className="inline-flex items-center gap-2">
+              <CircleNotch className="w-3.5 h-3.5 animate-spin" />
+              Submitting...
+            </span>
+          ) : (
+            "Submit"
+          )}
         </button>
       )}
     </div>

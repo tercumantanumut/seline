@@ -198,6 +198,9 @@ type SetMessagesFn = (messages: UIMessage[] | ((messages: UIMessage[]) => UIMess
 const ChatSetMessagesContext = createContext<SetMessagesFn | null>(null);
 export const useChatSetMessages = () => useContext(ChatSetMessagesContext);
 
+const ChatSessionIdContext = createContext<string | undefined>(undefined);
+export const useChatSessionId = () => useContext(ChatSessionIdContext);
+
 // ============================================================================
 // Dynamic transport proxy (same as useChatRuntime does internally)
 // ============================================================================
@@ -721,13 +724,15 @@ export const ChatProvider: FC<ChatProviderProps> = ({
       recoveryRef={recoveryRef}
     >
       <AssistantRuntimeProvider runtime={runtime}>
-        <ChatSetMessagesContext.Provider value={chat.setMessages}>
-          <VoiceProvider>
-            <DeepResearchProvider sessionId={sessionId}>
-              {children}
-            </DeepResearchProvider>
-          </VoiceProvider>
-        </ChatSetMessagesContext.Provider>
+        <ChatSessionIdContext.Provider value={sessionId}>
+          <ChatSetMessagesContext.Provider value={chat.setMessages}>
+            <VoiceProvider>
+              <DeepResearchProvider sessionId={sessionId}>
+                {children}
+              </DeepResearchProvider>
+            </VoiceProvider>
+          </ChatSetMessagesContext.Provider>
+        </ChatSessionIdContext.Provider>
       </AssistantRuntimeProvider>
     </ChatErrorBoundary>
   );
