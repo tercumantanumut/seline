@@ -221,10 +221,10 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
         <div
           key={qi}
           className={cn(
-            "rounded-lg border bg-terminal-bg/30 overflow-hidden",
+            "rounded-lg border overflow-hidden bg-card",
             isAnswered
               ? "border-terminal-green/30"
-              : "border-terminal-amber/40"
+              : "border-border"
           )}
         >
           {/* Header */}
@@ -232,8 +232,8 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
             className={cn(
               "px-3 py-2 flex items-center gap-2 border-b",
               isAnswered
-                ? "bg-terminal-green/5 border-terminal-green/20"
-                : "bg-terminal-amber/5 border-terminal-amber/20"
+                ? "bg-terminal-green/10 border-terminal-green/20"
+                : "bg-muted/50 border-border"
             )}
           >
             {isAnswered ? (
@@ -242,12 +242,12 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
               <ChatCircleDots className="w-4 h-4 text-terminal-amber flex-shrink-0" weight="duotone" />
             )}
             {q.header && (
-              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-terminal-muted">
+              <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
                 {q.header}
               </span>
             )}
             {q.multiSelect && !isAnswered && (
-              <span className="ml-auto text-[10px] font-mono text-terminal-muted">
+              <span className="ml-auto text-[10px] font-mono text-muted-foreground">
                 Select multiple
               </span>
             )}
@@ -255,7 +255,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
 
           {/* Question */}
           <div className="px-3 py-2">
-            <p className="text-sm font-mono text-terminal-dark leading-relaxed">
+            <p className="text-sm font-mono text-foreground leading-relaxed">
               {q.question}
             </p>
           </div>
@@ -275,10 +275,10 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
                     isAnswered
                       ? selected
                         ? "border-terminal-green/40 bg-terminal-green/10 text-terminal-green"
-                        : "border-terminal-border/20 bg-terminal-bg/10 text-terminal-muted opacity-50"
+                        : "border-border/50 bg-muted/30 text-muted-foreground opacity-50"
                       : selected
-                        ? "border-terminal-amber/60 bg-terminal-amber/10 text-terminal-dark ring-1 ring-terminal-amber/30"
-                        : "border-terminal-border/30 bg-white/50 text-terminal-dark hover:border-terminal-amber/40 hover:bg-terminal-amber/5 cursor-pointer"
+                        ? "border-terminal-amber/60 bg-terminal-amber/10 text-foreground ring-1 ring-terminal-amber/30"
+                        : "border-border bg-card text-foreground hover:border-terminal-amber/40 hover:bg-terminal-amber/5 cursor-pointer"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
                           ? "border-terminal-green bg-terminal-green text-white"
                           : selected
                             ? "border-terminal-amber bg-terminal-amber text-white"
-                            : "border-terminal-border/50"
+                            : "border-border"
                       )}
                     >
                       {selected && <Check className="w-2.5 h-2.5" weight="bold" />}
@@ -299,7 +299,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
                     <div className="flex-1">
                       <div className="font-semibold">{opt.label}</div>
                       {opt.description && (
-                        <div className="text-terminal-muted mt-0.5 text-[11px]">
+                        <div className="text-muted-foreground mt-0.5 text-[11px]">
                           {opt.description}
                         </div>
                       )}
@@ -331,7 +331,7 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
             "px-4 py-2 rounded-lg border font-mono text-xs font-semibold transition-all",
             canSubmit
               ? "border-terminal-amber/60 bg-terminal-amber/10 text-terminal-amber hover:bg-terminal-amber/20 cursor-pointer"
-              : "border-terminal-border/30 bg-terminal-bg/20 text-terminal-muted cursor-not-allowed"
+              : "border-border bg-muted/30 text-muted-foreground cursor-not-allowed"
           )}
         >
           {submitting ? (
