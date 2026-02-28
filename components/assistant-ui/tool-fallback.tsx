@@ -626,7 +626,29 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
     );
   }
 
-  return null;
+  // Final defensive fallback: render unknown object-shaped outputs so the UI
+  // never appears empty when a tool completed but returned an unrecognized schema.
+  const genericSummary =
+    typeof (result as { summary?: unknown }).summary === "string"
+      ? ((result as { summary?: string }).summary ?? "")
+      : "";
+  if (genericSummary.trim().length > 0) {
+    return (
+      <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
+        <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
+          {genericSummary}
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("mt-2", TOOL_RESULT_TEXT_CLASS)}>
+      <pre className={cn("max-h-64", TOOL_RESULT_PRE_CLASS)}>
+        {formatResultValue(result)}
+      </pre>
+    </div>
+  );
 });
 ToolResultDisplay.displayName = "ToolResultDisplay";
 

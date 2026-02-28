@@ -53,6 +53,7 @@ import {
   buildWebSearchLoopGuardResult,
   WEB_SEARCH_NO_RESULT_GUARD,
 } from "./content-sanitizer";
+import { mcpContextStore } from "@/lib/ai/providers/mcp-context-store";
 
 // ─── Public interfaces ────────────────────────────────────────────────────────
 
@@ -408,10 +409,37 @@ export async function buildToolsForRequest(
         type: "object",
         additionalProperties: true,
       }),
-      // Immediate no-op execute so the Vercel AI SDK completes the tool lifecycle
-      // (showing "completed" status in the UI). The actual execution already happened
-      // inside the SDK agent. Loop prevention: route.ts uses stopWhen(1) for claudecode.
-      execute: async () => ({ _sdkPassthrough: true }),
+      // Resolve the real SDK tool output from the per-request bridge.
+      // Fallback to passthrough marker only if no bridged output arrives in time.
+      execute: async (_args, options) => {
+        const toolCallId =
+          options && typeof options === "object" && "toolCallId" in options &&
+          typeof (options as { toolCallId?: unknown }).toolCallId === "string"
+            ? (options as { toolCallId: string }).toolCallId
+            : "";
+
+        const abortSignal =
+          options && typeof options === "object" && "abortSignal" in options &&
+          (options as { abortSignal?: unknown }).abortSignal instanceof AbortSignal
+            ? (options as { abortSignal: AbortSignal }).abortSignal
+            : undefined;
+
+        const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
+        if (bridge && toolCallId) {
+          const resolved = await bridge.waitFor(toolCallId, {
+            timeoutMs: 300_000,
+            abortSignal,
+          });
+          if (resolved) {
+            return resolved.output;
+          }
+          console.warn(
+            `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+          );
+        }
+
+        return { _sdkPassthrough: true };
+      },
     });
 
     // (a) SDK built-in tools (Bash, Read, Write, etc.)

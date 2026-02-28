@@ -191,6 +191,64 @@ function isDictionary(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function extractSdkToolResultsFromUserMessage(
+  msg: unknown,
+): Array<{ toolCallId: string; output: unknown; toolName?: string }> {
+  if (!isDictionary(msg) || msg.type !== "user") return [];
+
+  const out: Array<{ toolCallId: string; output: unknown; toolName?: string }> = [];
+  const seen = new Set<string>();
+  const pushResult = (toolCallId: string, output: unknown, toolName?: string) => {
+    if (!toolCallId || seen.has(toolCallId)) return;
+    seen.add(toolCallId);
+    out.push({ toolCallId, output, ...(toolName ? { toolName } : {}) });
+  };
+
+  const parentToolUseId = typeof msg.parent_tool_use_id === "string"
+    ? msg.parent_tool_use_id
+    : "";
+  if ("tool_use_result" in msg && parentToolUseId) {
+    pushResult(
+      parentToolUseId,
+      (msg as { tool_use_result?: unknown }).tool_use_result,
+      typeof msg.tool_name === "string" ? msg.tool_name : undefined,
+    );
+  }
+
+  const innerMessage = isDictionary(msg.message) ? msg.message : null;
+  const content = Array.isArray(innerMessage?.content)
+    ? innerMessage.content
+    : [];
+
+  for (const part of content) {
+    if (!isDictionary(part) || part.type !== "tool_result") continue;
+    const toolUseId =
+      typeof part.tool_use_id === "string"
+        ? part.tool_use_id
+        : parentToolUseId;
+    if (!toolUseId) continue;
+
+    const toolName =
+      typeof part.name === "string"
+        ? part.name
+        : typeof part.tool_name === "string"
+          ? part.tool_name
+          : undefined;
+
+    if ("tool_use_result" in part) {
+      pushResult(toolUseId, (part as { tool_use_result?: unknown }).tool_use_result, toolName);
+      continue;
+    }
+    if ("content" in part) {
+      pushResult(toolUseId, (part as { content?: unknown }).content, toolName);
+      continue;
+    }
+    pushResult(toolUseId, part, toolName);
+  }
+
+  return out;
+}
+
 function normalizeToolUseInput(input: unknown): Record<string, unknown> {
   if (isDictionary(input)) {
     return input;
@@ -452,6 +510,7 @@ function createStreamingClaudeCodeResponse(options: {
         const sdk = options.sdkOptions;
         const mcpCtx: SelineMcpContext | undefined =
           sdk?.mcpContext ?? mcpContextStore.getStore();
+        const sdkToolResultBridge = mcpCtx?.sdkToolResultBridge;
 
         const selineMcpServers = mcpCtx
           ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
@@ -616,6 +675,16 @@ function createStreamingClaudeCodeResponse(options: {
         };
 
         for await (const message of query) {
+          if (message.type === "user") {
+            if (sdkToolResultBridge) {
+              const bridgedResults = extractSdkToolResultsFromUserMessage(message);
+              for (const entry of bridgedResults) {
+                sdkToolResultBridge.publish(entry.toolCallId, entry.output, entry.toolName);
+              }
+            }
+            continue;
+          }
+
           // ── stream_event: real-time deltas (text + tool_use) ──────────────
           if (message.type === "stream_event") {
             const event = (message as { event?: unknown }).event;

@@ -562,6 +562,73 @@ export async function POST(req: Request) {
       .map((p) => p.cachePath)
       .filter((p): p is string => Boolean(p));
 
+    // Claude Agent SDK tool-result bridge:
+    // - Provider adapter publishes SDK `tool_use_result` payloads keyed by tool_use_id
+    // - Passthrough tool executors await the keyed payload and return it to AI SDK
+    // This preserves real tool output in streaming + DB instead of placeholder stubs.
+    const sdkToolResultBridge = (() => {
+      type BridgeRecord = { output: unknown; toolName?: string };
+      const results = new Map<string, BridgeRecord>();
+      const waiters = new Map<string, Array<(value: BridgeRecord | undefined) => void>>();
+
+      const resolveWaiters = (toolCallId: string, value: BridgeRecord | undefined) => {
+        const pending = waiters.get(toolCallId);
+        if (!pending || pending.length === 0) return;
+        waiters.delete(toolCallId);
+        for (const resolve of pending) resolve(value);
+      };
+
+      const publish = (toolCallId: string, output: unknown, toolName?: string) => {
+        if (!toolCallId) return;
+        const record = { output, ...(toolName ? { toolName } : {}) };
+        results.set(toolCallId, record);
+        resolveWaiters(toolCallId, record);
+      };
+
+      const waitFor = (
+        toolCallId: string,
+        options?: { timeoutMs?: number; abortSignal?: AbortSignal }
+      ): Promise<BridgeRecord | undefined> => {
+        if (!toolCallId) return Promise.resolve(undefined);
+        const existing = results.get(toolCallId);
+        if (existing) return Promise.resolve(existing);
+
+        const timeoutMs = Math.max(250, options?.timeoutMs ?? 300_000);
+        const abortSignal = options?.abortSignal;
+
+        return new Promise<BridgeRecord | undefined>((resolve) => {
+          let settled = false;
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+
+          const finish = (value: BridgeRecord | undefined) => {
+            if (settled) return;
+            settled = true;
+            if (timeout) clearTimeout(timeout);
+            if (abortSignal) abortSignal.removeEventListener("abort", onAbort);
+            resolve(value);
+          };
+
+          const onAbort = () => finish(undefined);
+
+          const queue = waiters.get(toolCallId) ?? [];
+          queue.push(finish);
+          waiters.set(toolCallId, queue);
+
+          if (abortSignal) {
+            if (abortSignal.aborted) {
+              finish(undefined);
+              return;
+            }
+            abortSignal.addEventListener("abort", onAbort, { once: true });
+          }
+
+          timeout = setTimeout(() => finish(undefined), timeoutMs);
+        });
+      };
+
+      return { publish, waitFor };
+    })();
+
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
@@ -592,6 +659,7 @@ export async function POST(req: Request) {
           void _sync();
         };
       })(),
+      sdkToolResultBridge,
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
