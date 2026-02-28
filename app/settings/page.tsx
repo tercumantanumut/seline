@@ -399,9 +399,30 @@ export default function SettingsPage() {
   };
 
   const [claudeCodePasteMode, setClaudeCodePasteMode] = useState(false);
+  const [claudeCodeAuthSuccess, setClaudeCodeAuthSuccess] = useState(false);
+
+  // Periodic status polling to keep connection status fresh
+  useEffect(() => {
+    if (!claudeCodePasteMode) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const authenticated = await loadClaudeCodeAuth();
+        if (authenticated && !claudeCodeAuthSuccess) {
+          setClaudeCodeAuthSuccess(true);
+          setClaudecodeLoading(false);
+        }
+      } catch (err) {
+        console.error("[Settings] Claude Code status poll failed:", err);
+      }
+    }, 2000); // Poll every 2 seconds during auth flow
+
+    return () => clearInterval(pollInterval);
+  }, [claudeCodePasteMode, claudeCodeAuthSuccess]);
 
   const handleClaudeCodeLogin = async () => {
     setClaudecodeLoading(true);
+    setClaudeCodeAuthSuccess(false);
     const electronAPI = typeof window !== "undefined" && "electronAPI" in window
       ? (window as unknown as { electronAPI?: { isElectron?: boolean; shell?: { openExternal: (url: string) => Promise<void> } } }).electronAPI
       : undefined;
@@ -428,9 +449,9 @@ export default function SettingsPage() {
     } catch (err) {
       console.error("Claude Code login failed:", err);
       toast.error(t("errors.authStartFailed"));
-    } finally {
       setClaudecodeLoading(false);
     }
+    // Note: Keep loading state active while waiting for auth completion
   };
 
   const handleClaudeCodePasteSubmit = async (code: string) => {
@@ -448,14 +469,24 @@ export default function SettingsPage() {
         throw new Error(data.error || "Claude Agent SDK is not authenticated yet");
       }
 
-      await loadClaudeCodeAuth();
-      setClaudeCodePasteMode(false);
+      // Load auth state and show success
+      const authenticated = await loadClaudeCodeAuth();
+      if (authenticated) {
+        setClaudeCodeAuthSuccess(true);
+      } else {
+        throw new Error("Authentication verification failed");
+      }
     } catch (err) {
       console.error("Claude Code auth verification failed:", err);
       toast.error(err instanceof Error ? err.message : t("errors.codeExchangeFailed"));
-    } finally {
       setClaudecodeLoading(false);
     }
+  };
+
+  const handleClaudeCodeAuthComplete = () => {
+    setClaudeCodePasteMode(false);
+    setClaudeCodeAuthSuccess(false);
+    setClaudecodeLoading(false);
   };
 
   const handleClaudeCodeLogout = async () => {
@@ -613,8 +644,14 @@ export default function SettingsPage() {
               onClaudeCodeLogin={handleClaudeCodeLogin}
               onClaudeCodeLogout={handleClaudeCodeLogout}
               claudeCodePasteMode={claudeCodePasteMode}
+              claudeCodeAuthSuccess={claudeCodeAuthSuccess}
               onClaudeCodePasteSubmit={handleClaudeCodePasteSubmit}
-              onClaudeCodePasteCancel={() => setClaudeCodePasteMode(false)}
+              onClaudeCodePasteCancel={() => {
+                setClaudeCodePasteMode(false);
+                setClaudeCodeAuthSuccess(false);
+                setClaudecodeLoading(false);
+              }}
+              onClaudeCodeAuthComplete={handleClaudeCodeAuthComplete}
             />
           </div>
         </div>

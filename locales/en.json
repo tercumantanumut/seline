@@ -1883,7 +1883,16 @@
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Connect your Anthropic account to use Claude Code models.",
         "claudecodeWarning": "Personal use only — not for commercial use",
-        "signInAnthropic": "Sign in with Anthropic"
+        "signInAnthropic": "Sign in with Anthropic",
+        "authFlowTitle": "Complete Authentication",
+        "authStep1": "A browser window has opened with the Anthropic authentication page",
+        "authStep2": "Sign in with your Anthropic account if prompted",
+        "authStep3": "Authorize the Claude Code application",
+        "authStep4": "Copy the authorization code and paste it below",
+        "authCodeLabel": "Authorization Code",
+        "successTitle": "Authentication Successful!",
+        "successMessage": "Your Claude Code connection is now active and ready to use.",
+        "doneButton": "Done"
       },
       "fields": {
         "anthropic": {

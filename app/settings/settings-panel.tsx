@@ -42,54 +42,117 @@ export interface SettingsPanelProps {
   onClaudeCodeLogin: () => void;
   onClaudeCodeLogout: () => void;
   claudeCodePasteMode: boolean;
+  claudeCodeAuthSuccess: boolean;
   onClaudeCodePasteSubmit: (code: string) => void;
   onClaudeCodePasteCancel: () => void;
+  onClaudeCodeAuthComplete: () => void;
 }
 
-export function ClaudeCodePasteInput({
+export function ClaudeCodeAuthFlow({
   loading,
+  success,
   onSubmit,
   onCancel,
+  onComplete,
 }: {
   loading: boolean;
+  success: boolean;
   onSubmit: (code: string) => void;
   onCancel: () => void;
+  onComplete: () => void;
 }) {
   const t = useTranslations("settings.api.auth");
   const [code, setCode] = useState("");
 
+  if (success) {
+    return (
+      <div className="mt-3 space-y-3 border-t border-terminal-border pt-3">
+        <div className="rounded-lg border border-terminal-green bg-terminal-green/10 p-4">
+          <div className="flex items-center gap-2">
+            <svg className="h-5 w-5 text-terminal-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <p className="font-mono text-sm font-semibold text-terminal-green">
+              {t("authSuccess") || "Authentication successful!"}
+            </p>
+          </div>
+          <p className="mt-2 font-mono text-xs text-terminal-dark">
+            {t("authSuccessDesc") || "Your Claude Code connection is now active. You can now select Claude Code as your provider."}
+          </p>
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={onComplete}
+            className="rounded border border-terminal-green bg-terminal-green px-4 py-2 font-mono text-sm text-white hover:bg-terminal-green/90"
+          >
+            {t("done") || "Done"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-3 space-y-3 border-t border-terminal-border pt-3">
-      <p className="font-mono text-xs text-terminal-muted">
-        {t("pasteInstructions")}
-      </p>
-      <input
-        type="text"
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder={t("codePlaceholder")}
-        className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && code.trim()) {
-            onSubmit(code);
-          }
-        }}
-      />
+    <div className="mt-3 space-y-4 border-t border-terminal-border pt-3">
+      <div className="space-y-2">
+        <p className="font-mono text-sm font-semibold text-terminal-dark">
+          {t("authFlowTitle") || "Complete Authentication"}
+        </p>
+        <ol className="ml-4 list-decimal space-y-1.5 font-mono text-xs text-terminal-muted">
+          <li>{t("authStep1") || "A browser window has opened with the Anthropic authentication page"}</li>
+          <li>{t("authStep2") || "Sign in with your Anthropic account if prompted"}</li>
+          <li>{t("authStep3") || "Authorize the Claude Code application"}</li>
+          <li>{t("authStep4") || "Copy the authorization code and paste it below"}</li>
+        </ol>
+      </div>
+
+      <div>
+        <label htmlFor="auth-code" className="mb-1.5 block font-mono text-xs font-medium text-terminal-dark">
+          {t("authCodeLabel") || "Authorization Code"}
+        </label>
+        <input
+          id="auth-code"
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder={t("codePlaceholder") || "Paste code here..."}
+          className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+          autoFocus
+          disabled={loading}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && code.trim() && !loading) {
+              onSubmit(code.trim());
+            }
+          }}
+        />
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 rounded-lg border border-terminal-blue/30 bg-terminal-blue/5 p-3">
+          <svg className="h-4 w-4 animate-spin text-terminal-blue" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="font-mono text-xs text-terminal-blue">
+            {t("verifying") || "Verifying authorization..."}
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
           onClick={onCancel}
           disabled={loading}
           className="rounded border border-terminal-border px-3 py-1.5 font-mono text-xs text-terminal-muted hover:bg-terminal-bg disabled:opacity-50"
         >
-          {t("cancel")}
+          {t("cancel") || "Cancel"}
         </button>
         <button
-          onClick={() => onSubmit(code)}
-          disabled={loading}
+          onClick={() => code.trim() && onSubmit(code.trim())}
+          disabled={loading || !code.trim()}
           className="rounded border border-terminal-green bg-terminal-green/10 px-3 py-1.5 font-mono text-xs text-terminal-green hover:bg-terminal-green/20 disabled:opacity-50"
         >
-          {loading ? t("verifying") : t("submitCode")}
+          {loading ? (t("verifying") || "Verifying...") : (t("submitCode") || "Submit Code")}
         </button>
       </div>
     </div>
@@ -113,8 +176,10 @@ export function SettingsPanel({
   onClaudeCodeLogin,
   onClaudeCodeLogout,
   claudeCodePasteMode,
+  claudeCodeAuthSuccess,
   onClaudeCodePasteSubmit,
   onClaudeCodePasteCancel,
+  onClaudeCodeAuthComplete,
 }: SettingsPanelProps) {
   const t = useTranslations("settings");
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -139,8 +204,10 @@ export function SettingsPanel({
         onClaudeCodeLogin={onClaudeCodeLogin}
         onClaudeCodeLogout={onClaudeCodeLogout}
         claudeCodePasteMode={claudeCodePasteMode}
+        claudeCodeAuthSuccess={claudeCodeAuthSuccess}
         onClaudeCodePasteSubmit={onClaudeCodePasteSubmit}
         onClaudeCodePasteCancel={onClaudeCodePasteCancel}
+        onClaudeCodeAuthComplete={onClaudeCodeAuthComplete}
       />
     );
   }

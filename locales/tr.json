@@ -1868,7 +1868,16 @@
         "signInOpenAI": "OpenAI ile giriş yap",
         "claudecodeTitle": "Claude Code",
         "claudecodeDesc": "Claude Code modellerini kullanmak için Anthropic hesabınızı bağlayın.",
-        "signInAnthropic": "Anthropic ile giriş yap"
+        "signInAnthropic": "Anthropic ile giriş yap",
+        "authFlowTitle": "Kimlik Doğrulamayı Tamamla",
+        "authStep1": "Anthropic kimlik doğrulama sayfası ile bir tarayıcı penceresi açıldı",
+        "authStep2": "İstenirse Anthropic hesabınızla giriş yapın",
+        "authStep3": "Claude Code uygulamasını yetkilendirin",
+        "authStep4": "Yetkilendirme kodunu kopyalayın ve aşağıya yapıştırın",
+        "authCodeLabel": "Yetkilendirme Kodu",
+        "successTitle": "Kimlik Doğrulama Başarılı!",
+        "successMessage": "Claude Code bağlantınız artık aktif ve kullanıma hazır.",
+        "doneButton": "Tamam"
       },
       "fields": {
         "anthropic": {
