@@ -133,7 +133,8 @@ npmRebuild: false
 # macOS specific configuration
 mac:
   category: "public.app-category.entertainment"
-  hardenedRuntime: true
+  identity: null
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: "build-resources/entitlements.mac.plist"
   entitlementsInherit: "build-resources/entitlements.mac.inherit.plist"

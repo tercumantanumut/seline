@@ -1,6 +1,6 @@
 {
   "name": "seline",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Seline - Your agents, your rules",
   "author": "Seline",
   "private": true,
@@ -166,6 +166,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@electron/rebuild": "^4.0.2",
     "@types/animejs": "^3.1.13",
     "@types/better-sqlite3": "^7.6.13",
