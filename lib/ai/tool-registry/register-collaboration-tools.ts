@@ -11,6 +11,7 @@ import { createMemorizeTool } from "../tools/memorize-tool";
 import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createWorkspaceTool } from "../tools/workspace-tool";
+import { createChromiumWorkspaceTool } from "../tools/chromium-workspace-tool";
 
 export function registerCollaborationTools(registry: ToolRegistry): void {
   // Execute Command Tool - Run shell commands safely within synced directories
@@ -439,6 +440,59 @@ File tools (readFile, editFile, writeFile, localGrep) automatically work in the 
         sessionId: sessionId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",
         userId: userId || "UNSCOPED",
+      })
+  );
+
+  // Chromium Workspace Tool - Embedded browser automation (feature-flagged)
+  registry.register(
+    "chromiumWorkspace",
+    {
+      displayName: "Chromium Workspace",
+      category: "browser",
+      keywords: [
+        "browser",
+        "chromium",
+        "web",
+        "navigate",
+        "click",
+        "type",
+        "scrape",
+        "extract",
+        "screenshot",
+        "accessibility",
+        "snapshot",
+        "page",
+        "dom",
+        "evaluate",
+        "javascript",
+        "automation",
+      ],
+      shortDescription:
+        "Embedded Chromium browser for web automation — navigate, click, type, extract, evaluate",
+      fullInstructions: `## Chromium Workspace
+
+Isolated, embedded browser for web automation. One tool, multiple actions.
+
+**Actions:**
+- \`open\`: Start a session and navigate. \`{ action: "open", url: "https://..." }\`
+- \`navigate\`: Go to a new URL. \`{ action: "navigate", url: "https://..." }\`
+- \`click\`: Click an element. \`{ action: "click", selector: "button.submit" }\`
+- \`type\`: Type into an input. \`{ action: "type", selector: "input[name=q]", text: "query" }\`
+- \`snapshot\`: Get accessibility tree of the page (structured, token-efficient observation).
+- \`extract\`: Get text content from an element. \`{ action: "extract", selector: ".content" }\`
+- \`evaluate\`: Run JavaScript in page context. \`{ action: "evaluate", expression: "document.title" }\`
+- \`close\`: End session, return execution history summary.
+
+**Workflow:** open → (navigate/click/type/snapshot/extract/evaluate)* → close
+**Isolation:** Each agent gets its own sandboxed browser context.
+**Observation:** Prefer \`snapshot\` over screenshots — structured data, no vision model needed.`,
+      loading: { deferLoading: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId, characterId }) =>
+      createChromiumWorkspaceTool({
+        sessionId: sessionId || "UNSCOPED",
+        agentId: characterId,
       })
   );
 }

@@ -100,8 +100,9 @@ const toolSearchSchema = jsonSchema<{
         "utility",
         "search",
         "mcp",
+        "browser",
       ],
-      description: "Optional category filter to narrow down results. Use 'mcp' for MCP server tools (linear, filesystem, etc).",
+      description: "Optional category filter to narrow down results. Use 'mcp' for MCP server tools. Use 'browser' for the embedded Chromium workspace.",
     },
     limit: {
       type: "number",

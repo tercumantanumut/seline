@@ -143,6 +143,9 @@ export const TOOL_ICON_MAP: Record<string, ToolIconConfig> = {
   generate3D: { icon: Cube, weight: "duotone" },
   generateComfyUI: { icon: Cpu, weight: "duotone" },
   
+  // Browser
+  chromiumWorkspace: { icon: Globe, weight: "duotone" },
+
   // MCP & Integrations
   mcpTool: { icon: Plug, weight: "regular" },
   
@@ -176,6 +179,7 @@ export const CATEGORY_ICON_MAP: Record<string, ToolIconConfig> = {
   "utility": { icon: Wrench, weight: "regular" },
   "mcp": { icon: Plug, weight: "regular" },
   "custom-comfyui": { icon: Cpu, weight: "duotone" },
+  "browser": { icon: Globe, weight: "duotone" },
 };
 
 /**

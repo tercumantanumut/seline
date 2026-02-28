@@ -36,6 +36,7 @@ import { PatchFileToolUI } from "./patch-file-tool-ui";
 import { CalculatorToolUI } from "./calculator-tool-ui";
 import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
+import { ChromiumWorkspaceToolUI } from "./chromium-workspace-tool-ui";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
@@ -44,6 +45,32 @@ import { animate } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
+
+/**
+ * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__seline-platform__vectorSearch)
+ * resolve to the same component as the short name (vectorSearch).
+ * Without this, assistant-ui's by_name lookup fails for all MCP tools and falls back to ToolFallback.
+ */
+const MCP_PREFIX = "mcp__seline-platform__";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mcpAwareToolMap(map: Record<string, FC<any>>): Record<string, FC<any>> {
+  return new Proxy(map, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && prop.startsWith(MCP_PREFIX)) {
+        const short = prop.slice(MCP_PREFIX.length);
+        return target[short] ?? Reflect.get(target, prop, receiver);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+    has(target, prop) {
+      if (typeof prop === "string" && prop.startsWith(MCP_PREFIX)) {
+        const short = prop.slice(MCP_PREFIX.length);
+        return short in target || prop in target;
+      }
+      return prop in target;
+    },
+  });
+}
 
 export const ComposerAttachment: FC = () => {
   const attachment = useThreadComposerAttachment((a) => a);
@@ -312,7 +339,7 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
               Text: MarkdownText,
               ToolGroup: ToolCallGroup,
               tools: {
-                by_name: {
+                by_name: mcpAwareToolMap({
                   vectorSearch: VectorSearchToolUI,
                   showProductImages: ProductGalleryToolUI,
                   executeCommand: ExecuteCommandToolUI,
@@ -323,7 +350,8 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   updatePlan: PlanToolUI,
                   speakAloud: SpeakAloudToolUI,
                   transcribe: TranscribeToolUI,
-                },
+                  chromiumWorkspace: ChromiumWorkspaceToolUI,
+                }),
                 Fallback: ToolFallback,
               },
             }}

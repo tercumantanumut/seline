@@ -41,6 +41,7 @@ import {
   EditComposer as EditComposerComponent,
 } from "./thread-message-components";
 import { Composer } from "./thread-composer";
+import { BrowserBackdrop } from "./browser-backdrop";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -85,6 +86,9 @@ export const Thread: FC<ThreadProps> = ({
     ttsEnabled: false,
     sttEnabled: false,
   });
+
+  // Browser backdrop active — when true, make backgrounds transparent
+  const [isBrowserActive, setIsBrowserActive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,12 +188,15 @@ export const Thread: FC<ThreadProps> = ({
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root
-        className="flex h-full flex-col bg-terminal-cream"
+        className={cn("relative flex h-full flex-col transition-colors duration-700", isBrowserActive ? "bg-transparent" : "bg-terminal-cream")}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* Live browser video backdrop — auto-detects active screencast */}
+        <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
+
         <DragOverlay isDragging={isDragging} isImportingSkill={isImportingSkill} />
 
         <SkillImportOverlay
@@ -249,7 +256,7 @@ export const Thread: FC<ThreadProps> = ({
         <SessionActivityWatcher onSessionActivity={wrappedOnSessionActivity} />
         <GalleryWrapper>
           <ThreadPrimitive.Viewport className={cn(
-            "flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto] animate-in fade-in duration-200",
+            "relative z-10 flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-4 pt-8 [overflow-anchor:auto] animate-in fade-in duration-200",
             !isRunning && "scroll-smooth"
           )}
           data-chat-viewport="true">
@@ -281,7 +288,7 @@ export const Thread: FC<ThreadProps> = ({
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
-          <div className="sticky bottom-0 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg bg-terminal-cream pb-4 mx-auto px-4">
+          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
             <AgentResourcesBadge />
             <Composer

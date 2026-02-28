@@ -563,7 +563,8 @@
         "image-editing": "Image Editing",
         "video-generation": "Video Generation",
         "analysis": "Analysis",
-        "utility": "Utility"
+        "utility": "Utility",
+        "browser": "Browser"
       },
       "dependencyWarnings": {
         "syncedFolders": "Requires synced folders",
@@ -692,6 +693,10 @@
       "workspace": {
         "name": "Workspace",
         "description": "Create and manage git worktree workspaces for isolated code changes"
+      },
+      "chromiumWorkspace": {
+        "name": "Chromium Workspace",
+        "description": "Embedded Chromium browser for web automation — navigate, click, type, extract, evaluate"
       },
       "generateImageFlux2Flex": {
         "name": "Generate (Flux.2 Flex)",
@@ -1535,7 +1540,8 @@
         "imageEditing": "Image Editing",
         "videoGeneration": "Video Generation",
         "analysis": "Image Analysis",
-        "utility": "Utility & Display"
+        "utility": "Utility & Display",
+        "browser": "Browser"
       },
       "tools": {
         "docsSearch": "Document Search",

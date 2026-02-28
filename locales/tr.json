@@ -563,7 +563,8 @@
         "image-editing": "Görsel Düzenleme",
         "video-generation": "Video Oluşturma",
         "analysis": "Analiz",
-        "utility": "Yardımcı Araçlar"
+        "utility": "Yardımcı Araçlar",
+        "browser": "Tarayıcı"
       },
       "dependencyWarnings": {
         "syncedFolders": "Senkronize klasörler gerekli",
@@ -784,6 +785,10 @@
       "workspace": {
         "name": "Çalışma Alanı",
         "description": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet"
+      },
+      "chromiumWorkspace": {
+        "name": "Chromium Çalışma Alanı",
+        "description": "Web otomasyonu için gömülü Chromium tarayıcı — gezinme, tıklama, yazma, çıkarma, değerlendirme"
       },
       "delegateToSubagent": {
         "name": "Alt Ajana Devret",
@@ -1535,7 +1540,8 @@
         "imageEditing": "Görsel Düzenleme",
         "videoGeneration": "Video Oluşturma",
         "analysis": "Görsel Analizi",
-        "utility": "Yardımcı Araçlar ve Görüntüleme"
+        "utility": "Yardımcı Araçlar ve Görüntüleme",
+        "browser": "Tarayıcı"
       },
       "tools": {
         "docsSearch": "Belge Araması",
