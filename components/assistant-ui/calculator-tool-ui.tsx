@@ -39,11 +39,35 @@ function parseNestedJson(text: string, maxDepth: number = 3): unknown | undefine
 }
 
 function normalizeCalculatorResult(
-    rawResult: CalculatorResult | Record<string, unknown> | undefined,
+    rawResult: CalculatorResult | Record<string, unknown> | string | undefined,
 ): CalculatorResult | undefined {
-    if (!rawResult || typeof rawResult !== "object") return undefined;
+    if (!rawResult) return undefined;
+
+    if (typeof rawResult === "string") {
+        const parsed = parseNestedJson(rawResult);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return normalizeCalculatorResult(parsed as Record<string, unknown>);
+        }
+        return {
+            success: true,
+            expression: "",
+            info: String(parsed ?? rawResult),
+        };
+    }
+
+    if (typeof rawResult !== "object") return undefined;
 
     const direct = rawResult as Partial<CalculatorResult> & Record<string, unknown>;
+
+    if (direct.result && typeof direct.result === "object" && !Array.isArray(direct.result)) {
+        const nested = normalizeCalculatorResult(direct.result as Record<string, unknown>);
+        if (nested) return nested;
+    }
+    if (direct.output && typeof direct.output === "object" && !Array.isArray(direct.output)) {
+        const nested = normalizeCalculatorResult(direct.output as Record<string, unknown>);
+        if (nested) return nested;
+    }
+
     if (typeof direct.success === "boolean") {
         return {
             success: direct.success,
@@ -56,6 +80,16 @@ function normalizeCalculatorResult(
     }
 
     const status = typeof direct.status === "string" ? direct.status : undefined;
+    const summary = typeof direct.summary === "string" ? direct.summary : undefined;
+    const message = typeof direct.message === "string" ? direct.message : undefined;
+
+    if (direct._sdkPassthrough === true) {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            info: summary || message || "Tool executed via SDK passthrough. Structured output was not captured.",
+        };
+    }
 
     const directContent = typeof direct.content === "string" ? direct.content : undefined;
     if (directContent && directContent.trim().length > 0) {
@@ -134,6 +168,14 @@ function normalizeCalculatorResult(
         };
     }
 
+    if (status === "success") {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            info: summary || message || "Calculation completed.",
+        };
+    }
+
     return undefined;
 }
 
@@ -142,6 +184,9 @@ type ToolCallContentPartComponent = FC<{
     argsText?: string;
     args: CalculatorArgs;
     result?: CalculatorResult | Record<string, unknown>;
+    output?: CalculatorResult | Record<string, unknown> | string;
+    state?: "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
+    errorText?: string;
 }>;
 
 /** Get icon for result type */
@@ -177,6 +222,9 @@ function formatResult(result: string | number | undefined, type?: string): strin
 export const CalculatorToolUI: ToolCallContentPartComponent = ({
     args,
     result,
+    output,
+    state,
+    errorText,
 }) => {
     const t = useTranslations("assistantUi.calculator");
     const [copied, setCopied] = useState(false);
@@ -185,12 +233,18 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     // Guard against missing args
     if (!args) return null;
 
-    const normalizedResult = normalizeCalculatorResult(result);
+    const resolvedResult = result ?? output;
+    const normalizedResult = normalizeCalculatorResult(resolvedResult);
 
     const expression = args.expression;
     const resultValue = normalizedResult?.result;
-    const isSuccess = normalizedResult?.success;
-    const error = normalizedResult?.error;
+    const isOutputError = state === "output-error" || state === "output-denied";
+    const hasSuccessfulPayload = Boolean(
+        normalizedResult?.success ||
+        normalizedResult?.result !== undefined ||
+        (typeof normalizedResult?.info === "string" && normalizedResult.info.trim().length > 0),
+    );
+    const error = hasSuccessfulPayload ? normalizedResult?.error : (errorText || normalizedResult?.error);
     const resultType = normalizedResult?.type;
     const details = normalizedResult?.details;
     const info = normalizedResult?.info;
@@ -209,7 +263,8 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     };
 
     // Loading state
-    if (!result) {
+    const isInputState = state === "input-streaming" || state === "input-available";
+    if (!resolvedResult && isInputState) {
         return (
             <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-center gap-3 p-3">
@@ -233,7 +288,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     const hasResultValue = resultValue !== undefined && resultValue !== null && String(resultValue).length > 0;
 
     // Error state
-    if (!isSuccess) {
+    if (!hasSuccessfulPayload && isOutputError) {
         return (
             <div className="my-2 rounded-lg border border-red-200/70 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-start gap-3 p-3">
@@ -255,6 +310,10 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     }
 
     if (!hasResultValue) {
+        const infoLabel = isInputState ? t("calculating") : "completed";
+        const infoText = info || details || (isInputState
+            ? t("calculating")
+            : "Result returned without numeric calculator output.");
         return (
             <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-start gap-3 p-3">
@@ -263,13 +322,13 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">{t("calculating")}</span>
+                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">{infoLabel}</span>
                         </div>
                         <code className="block mt-1 font-mono text-sm text-terminal-dark">
                             {expression}
                         </code>
                         <p className="mt-2 text-sm text-terminal-muted">
-                            {info || details || t("calculating")}
+                            {infoText}
                         </p>
                     </div>
                 </div>
