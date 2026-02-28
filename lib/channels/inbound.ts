@@ -439,17 +439,22 @@ async function invokeChatApi(params: {
   const settings = loadSettings();
   await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
-  const controller = new AbortController();
   const configuredTimeoutMs = Number(process.env.CHANNEL_CHAT_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 300000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
   // Retry logic for transient connection failures
   const maxRetries = 3;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let requestTimedOut = false;
+    const channelAbortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      requestTimedOut = true;
+      channelAbortController.abort();
+    }, timeoutMs);
+
     try {
       console.log(`[Channels] Chat API request (attempt ${attempt}/${maxRetries}) to ${baseUrl}/api/chat`);
 
@@ -466,7 +471,7 @@ async function invokeChatApi(params: {
           sessionId: params.sessionId,
           messages: params.messages,
         }),
-        signal: controller.signal,
+        signal: channelAbortController.signal,
       });
 
       if (!response.ok) {
@@ -504,9 +509,15 @@ async function invokeChatApi(params: {
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (error instanceof Error && error.name === "AbortError") {
+      if (error instanceof Error && error.name === "AbortError" && requestTimedOut) {
+        const timeoutError = new Error(`Channel chat wait timed out after ${timeoutMs}ms`);
+        timeoutError.name = "ChannelTimeoutError";
         console.warn(`[Channels] Chat API request timed out after ${timeoutMs}ms`);
-        throw error; // Don't retry timeouts
+        throw timeoutError; // Don't retry channel timeout
+      }
+
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
       }
 
       // Enhanced logging for connection errors
@@ -521,16 +532,7 @@ async function invokeChatApi(params: {
         console.error(`[Channels] Chat API invocation error (attempt ${attempt}):`, error);
       }
 
-      if (reader) {
-        try {
-          await reader.cancel();
-        } catch (cancelError) {
-          console.warn("[Channels] Failed to cancel chat stream reader:", cancelError);
-        }
-        reader = undefined;
-      }
-
-      // Retry on connection errors
+      // Retry on connection errors (except explicit channel wait timeouts).
       if (attempt < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         continue;
@@ -540,6 +542,13 @@ async function invokeChatApi(params: {
       throw lastError;
     } finally {
       clearTimeout(timeoutId);
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (cancelError) {
+          console.warn("[Channels] Failed to cancel chat stream reader:", cancelError);
+        }
+      }
     }
   }
 

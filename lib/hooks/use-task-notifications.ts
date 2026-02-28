@@ -703,9 +703,22 @@ export function useTaskNotifications() {
 
         if (event.sessionId) {
           const sessionSyncState = useSessionSyncStore.getState();
-          sessionSyncState.setActiveRun(event.sessionId, event.runId);
-          const previous = sessionSyncState.getSessionActivity(event.sessionId);
           const progressState = deriveProgressIndicators(event);
+          const previous = sessionSyncState.getSessionActivity(event.sessionId);
+          const progressEvent = event as TaskProgressEvent;
+          const hasProgressContent =
+            Array.isArray(progressEvent.progressContent) &&
+            progressEvent.progressContent.length > 0;
+          const hasAssistantMessageId =
+            typeof progressEvent.assistantMessageId === "string" &&
+            progressEvent.assistantMessageId.length > 0;
+
+          // Keep the active-run marker while the server is still streaming
+          // progress content for the current run.
+          if (hasProgressContent || hasAssistantMessageId || previous?.isRunning) {
+            sessionSyncState.setActiveRun(event.sessionId, event.runId);
+          }
+
           sessionSyncState.setSessionActivity(
             event.sessionId,
             buildActivityState(
