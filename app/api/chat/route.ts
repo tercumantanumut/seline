@@ -68,6 +68,7 @@ import {
   recordStructuredToolCall,
   recordToolResultChunk,
   finalizeStreamingToolCalls,
+  sealDanglingToolCalls,
 } from "./streaming-state";
 import {
   shouldTreatStreamErrorAsCancellation,
@@ -622,6 +623,15 @@ export async function POST(req: Request) {
       // Flush any pending streaming state (tool-result parts) to DB before
       // marking the run as failed — syncStreamingMessage is throttled, so
       // a final forced sync ensures error results are persisted.
+      if (streamingState) {
+        finalizeStreamingToolCalls(streamingState);
+        sealDanglingToolCalls(
+          streamingState,
+          options?.streamAborted
+            ? "Tool execution was interrupted before completion."
+            : "Tool execution ended before a final result was persisted."
+        );
+      }
       if (streamingState && syncStreamingMessage) {
         try {
           await syncStreamingMessage(true);
