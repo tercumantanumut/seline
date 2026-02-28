@@ -9,6 +9,26 @@
 
 import { AsyncLocalStorage } from "async_hooks";
 
+export interface SdkToolResultRecord {
+  output: unknown;
+  toolName?: string;
+}
+
+export interface SdkToolResultBridge {
+  /**
+   * Publish a resolved SDK tool result (keyed by tool_use_id / toolCallId).
+   */
+  publish: (toolCallId: string, output: unknown, toolName?: string) => void;
+  /**
+   * Wait for a published result for this tool call.
+   * Returns undefined on timeout/cancel.
+   */
+  waitFor: (
+    toolCallId: string,
+    options?: { timeoutMs?: number; abortSignal?: AbortSignal }
+  ) => Promise<SdkToolResultRecord | undefined>;
+}
+
 /**
  * Per-request context used to build the Seline platform MCP server that
  * exposes ToolRegistry tools and per-agent MCP tools to the Claude Agent SDK.
@@ -78,6 +98,12 @@ export interface SelineMcpContext {
    * appear in the UI even when using the Agent SDK provider.
    */
   onRichOutput?: (toolCallId: string, toolName: string, output: unknown) => void;
+
+  /**
+   * Bridge for resolving real Claude Agent SDK tool outputs (tool_use_result)
+   * back into Vercel AI SDK tool execution lifecycle.
+   */
+  sdkToolResultBridge?: SdkToolResultBridge;
 }
 
 export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();

@@ -19,13 +19,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Clear dismissal flags so ensureSystemAgentsExist will recreate the workflow
+    // Clear dismissal flags AND reset provisioning flag so ensureSystemAgentsExist
+    // will re-create any deleted system agents (not just maintain the workflow).
     const meta = (defaultAgent.metadata ?? {}) as Record<string, unknown>;
     await updateCharacter(defaultAgent.id, {
       metadata: {
         ...meta,
         systemWorkflowDismissed: false,
         dismissedSystemAgentIds: [],
+        systemAgentsProvisioned: false,
       },
     });
 

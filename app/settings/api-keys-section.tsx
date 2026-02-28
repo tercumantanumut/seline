@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { AlertTriangle, Info } from "lucide-react";
 import { settingsSectionShellClassName } from "@/components/settings/settings-form-layout";
 import type { FormState } from "./settings-types";
-import { ClaudeCodePasteInput } from "./settings-panel";
+import { ClaudeCodeAuthFlow } from "./settings-panel";
 
 interface ApiKeysSectionProps {
   formState: FormState;
@@ -23,8 +23,10 @@ interface ApiKeysSectionProps {
   onClaudeCodeLogin: () => void;
   onClaudeCodeLogout: () => void;
   claudeCodePasteMode: boolean;
+  claudeCodeAuthSuccess: boolean;
   onClaudeCodePasteSubmit: (code: string) => void;
   onClaudeCodePasteCancel: () => void;
+  onClaudeCodeAuthComplete: () => void;
 }
 
 export function ApiKeysSection({
@@ -43,8 +45,10 @@ export function ApiKeysSection({
   onClaudeCodeLogin,
   onClaudeCodeLogout,
   claudeCodePasteMode,
+  claudeCodeAuthSuccess,
   onClaudeCodePasteSubmit,
   onClaudeCodePasteCancel,
+  onClaudeCodeAuthComplete,
 }: ApiKeysSectionProps) {
   const t = useTranslations("settings");
 
@@ -326,10 +330,12 @@ export function ApiKeysSection({
           </div>
         </div>
         {claudeCodePasteMode && !claudecodeAuth?.isAuthenticated && (
-          <ClaudeCodePasteInput
+          <ClaudeCodeAuthFlow
             loading={claudecodeLoading}
+            success={claudeCodeAuthSuccess}
             onSubmit={onClaudeCodePasteSubmit}
             onCancel={onClaudeCodePasteCancel}
+            onComplete={onClaudeCodeAuthComplete}
           />
         )}
       </div>

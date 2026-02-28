@@ -14,6 +14,7 @@ interface CalculatorResult {
     type?: string;
     error?: string;
     details?: string;
+    info?: string;
 }
 
 /** Input args type */
@@ -22,11 +23,175 @@ interface CalculatorArgs {
     precision?: number;
 }
 
+function parseNestedJson(text: string, maxDepth: number = 3): unknown | undefined {
+    let current: unknown = text;
+    for (let i = 0; i < maxDepth; i += 1) {
+        if (typeof current !== "string") return current;
+        const trimmed = current.trim();
+        if (!trimmed) return undefined;
+        try {
+            current = JSON.parse(trimmed);
+        } catch {
+            return i === 0 ? undefined : current;
+        }
+    }
+    return current;
+}
+
+function normalizeCalculatorResult(
+    rawResult: CalculatorResult | Record<string, unknown> | string | undefined,
+    depth: number = 0,
+    visited: WeakSet<object> = new WeakSet<object>(),
+): CalculatorResult | undefined {
+    if (depth > 8) return undefined;
+    if (!rawResult) return undefined;
+
+    if (typeof rawResult === "string") {
+        const parsed = parseNestedJson(rawResult);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
+        }
+        return {
+            success: true,
+            expression: "",
+            info: String(parsed ?? rawResult),
+        };
+    }
+
+    if (typeof rawResult !== "object") return undefined;
+    if (visited.has(rawResult)) return undefined;
+    visited.add(rawResult);
+
+    const direct = rawResult as Partial<CalculatorResult> & Record<string, unknown>;
+
+    if (direct.result && typeof direct.result === "object" && !Array.isArray(direct.result)) {
+        const nested = normalizeCalculatorResult(direct.result as Record<string, unknown>, depth + 1, visited);
+        if (nested) return nested;
+    }
+    if (direct.output && typeof direct.output === "object" && !Array.isArray(direct.output)) {
+        const nested = normalizeCalculatorResult(direct.output as Record<string, unknown>, depth + 1, visited);
+        if (nested) return nested;
+    }
+
+    if (typeof direct.success === "boolean") {
+        return {
+            success: direct.success,
+            expression: String(direct.expression ?? ""),
+            ...(direct.result !== undefined ? { result: direct.result as string | number } : {}),
+            ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+            ...(typeof direct.error === "string" ? { error: direct.error } : {}),
+            ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+        };
+    }
+
+    const status = typeof direct.status === "string" ? direct.status : undefined;
+    const summary = typeof direct.summary === "string" ? direct.summary : undefined;
+    const message = typeof direct.message === "string" ? direct.message : undefined;
+
+    if (direct._sdkPassthrough === true) {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            info: summary || message || "Tool executed via SDK passthrough. Structured output was not captured.",
+        };
+    }
+
+    const directContent = typeof direct.content === "string" ? direct.content : undefined;
+    if (directContent && directContent.trim().length > 0) {
+        const parsed = parseNestedJson(directContent);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
+        }
+        if (status === "error") {
+            return {
+                success: false,
+                expression: String(direct.expression ?? ""),
+                error: String(parsed ?? directContent),
+            };
+        }
+        if (status === "success") {
+            return {
+                success: true,
+                expression: String(direct.expression ?? ""),
+                info: String(parsed ?? directContent),
+                ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+                ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+            };
+        }
+    }
+
+    const content = Array.isArray(direct.content) ? direct.content : undefined;
+    if (content && content.length > 0) {
+        const textItem = content.find(
+            (item): item is { type?: string; text?: string } =>
+                !!item &&
+                typeof item === "object" &&
+                (item as { type?: unknown }).type === "text" &&
+                typeof (item as { text?: unknown }).text === "string",
+        );
+
+        if (textItem?.text) {
+            const parsed = parseNestedJson(textItem.text);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
+            }
+
+            if (status === "error") {
+                return {
+                    success: false,
+                    expression: String(direct.expression ?? ""),
+                    error: String(parsed ?? textItem.text),
+                };
+            }
+            if (status === "success") {
+                return {
+                    success: true,
+                    expression: String(direct.expression ?? ""),
+                    info: String(parsed ?? textItem.text),
+                    ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+                    ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+                };
+            }
+        }
+    }
+
+    if (status === "error") {
+        return {
+            success: false,
+            expression: String(direct.expression ?? ""),
+            error: typeof direct.error === "string" ? direct.error : "Calculation failed",
+        };
+    }
+
+    if (status === "success" && direct.result !== undefined) {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            result: direct.result as string | number,
+            ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+            ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+        };
+    }
+
+    if (status === "success") {
+        return {
+            success: true,
+            expression: String(direct.expression ?? ""),
+            info: summary || message || "Calculation completed.",
+        };
+    }
+
+    return undefined;
+}
+
 type ToolCallContentPartComponent = FC<{
     toolName: string;
     argsText?: string;
     args: CalculatorArgs;
-    result?: CalculatorResult;
+    result?: CalculatorResult | Record<string, unknown>;
+    output?: CalculatorResult | Record<string, unknown> | string;
+    state?: "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
+    errorText?: string;
 }>;
 
 /** Get icon for result type */
@@ -62,6 +227,9 @@ function formatResult(result: string | number | undefined, type?: string): strin
 export const CalculatorToolUI: ToolCallContentPartComponent = ({
     args,
     result,
+    output,
+    state,
+    errorText,
 }) => {
     const t = useTranslations("assistantUi.calculator");
     const [copied, setCopied] = useState(false);
@@ -70,12 +238,21 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     // Guard against missing args
     if (!args) return null;
 
+    const resolvedResult = result ?? output;
+    const normalizedResult = normalizeCalculatorResult(resolvedResult);
+
     const expression = args.expression;
-    const resultValue = result?.result;
-    const isSuccess = result?.success;
-    const error = result?.error;
-    const resultType = result?.type;
-    const details = result?.details;
+    const resultValue = normalizedResult?.result;
+    const isOutputError = state === "output-error" || state === "output-denied";
+    const hasSuccessfulPayload = Boolean(
+        normalizedResult?.success ||
+        normalizedResult?.result !== undefined ||
+        (typeof normalizedResult?.info === "string" && normalizedResult.info.trim().length > 0),
+    );
+    const error = hasSuccessfulPayload ? normalizedResult?.error : (errorText || normalizedResult?.error);
+    const resultType = normalizedResult?.type;
+    const details = normalizedResult?.details;
+    const info = normalizedResult?.info;
 
     // Determine if result is long and needs expansion
     const fullResult = String(resultValue ?? "");
@@ -91,7 +268,8 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     };
 
     // Loading state
-    if (!result) {
+    const isInputState = state === "input-streaming" || state === "input-available";
+    if (!resolvedResult && isInputState) {
         return (
             <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-center gap-3 p-3">
@@ -112,8 +290,10 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
         );
     }
 
+    const hasResultValue = resultValue !== undefined && resultValue !== null && String(resultValue).length > 0;
+
     // Error state
-    if (!isSuccess) {
+    if (!hasSuccessfulPayload && isOutputError) {
         return (
             <div className="my-2 rounded-lg border border-red-200/70 bg-terminal-cream/70 overflow-hidden">
                 <div className="flex items-start gap-3 p-3">
@@ -127,7 +307,34 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                         <code className="block mt-1 font-mono text-sm text-terminal-dark">
                             {expression}
                         </code>
-                        <p className="mt-2 text-sm text-red-600/90">{error}</p>
+                        <p className="mt-2 text-sm text-red-600/90">{error || "Calculation failed"}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!hasResultValue) {
+        const infoLabel = isInputState ? t("calculating") : "completed";
+        const infoText = info || details || (isInputState
+            ? t("calculating")
+            : "Result returned without numeric calculator output.");
+        return (
+            <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
+                <div className="flex items-start gap-3 p-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-terminal-bg/40 text-terminal-dark flex-shrink-0">
+                        <Calculator className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">{infoLabel}</span>
+                        </div>
+                        <code className="block mt-1 font-mono text-sm text-terminal-dark">
+                            {expression}
+                        </code>
+                        <p className="mt-2 text-sm text-terminal-muted">
+                            {infoText}
+                        </p>
                     </div>
                 </div>
             </div>

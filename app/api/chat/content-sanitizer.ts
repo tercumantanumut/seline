@@ -4,7 +4,7 @@ import { isInternalToolHistoryLeakText } from "@/lib/messages/internal-tool-hist
 // Maximum length for any single text content to prevent base64 data from leaking into context
 // Maximum text content length before smart truncation kicks in
 // Content exceeding this limit is truncated, with full content stored for on-demand retrieval
-export const MAX_TEXT_CONTENT_LENGTH = 10000;
+export const MAX_TEXT_CONTENT_LENGTH = 25_000;
 
 // Limit how many missing tool results we attempt to re-fetch per request
 export const MAX_TOOL_REFETCH = 6;

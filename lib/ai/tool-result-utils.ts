@@ -45,6 +45,73 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
   return undefined;
 }
 
+function parseNestedJsonString(value: string, maxDepth: number = 3): unknown | undefined {
+  let current: unknown = value;
+  for (let i = 0; i < maxDepth; i += 1) {
+    if (typeof current !== "string") return current;
+    const trimmed = current.trim();
+    if (!trimmed) return undefined;
+    try {
+      current = JSON.parse(trimmed);
+    } catch {
+      return i === 0 ? undefined : current;
+    }
+  }
+  return current;
+}
+
+function extractTextFromMcpContentArray(items: unknown[]): string | undefined {
+  const textParts = items
+    .map((item) => getRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .filter((item) => item.type === "text" && typeof item.text === "string")
+    .map((item) => String(item.text));
+  if (textParts.length === 0) return undefined;
+  const merged = textParts.join("\n").trim();
+  return merged.length > 0 ? merged : undefined;
+}
+
+function unwrapMcpTextWrappedToolResult(output: unknown): unknown {
+  const parseTextPayload = (text: string): unknown => {
+    const parsed = parseNestedJsonString(text);
+    return parsed === undefined ? text : parsed;
+  };
+
+  // Variant A: CallToolResult-like object { content: [{ type: "text", text: "..." }], isError? }
+  const obj = getRecord(output);
+  if (obj && Array.isArray(obj.content)) {
+    const text = extractTextFromMcpContentArray(obj.content);
+    if (!text) return output;
+
+    const parsed = parseTextPayload(text);
+    if (obj.isError === true) {
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const parsedObj = parsed as Record<string, unknown>;
+        return {
+          ...parsedObj,
+          status: "error",
+          ...(typeof parsedObj.error === "string" ? {} : { error: text }),
+        };
+      }
+      return {
+        status: "error",
+        error: typeof parsed === "string" ? parsed : text,
+      };
+    }
+
+    return parsed;
+  }
+
+  // Variant B: raw content array [{ type: "text", text: "..." }]
+  if (Array.isArray(output)) {
+    const text = extractTextFromMcpContentArray(output);
+    if (!text) return output;
+    return parseTextPayload(text);
+  }
+
+  return output;
+}
+
 const EXECUTE_COMMAND_CONTEXT_OUTPUT_LIMIT = 2000;
 
 function truncateField(value: unknown, maxLength: number): string | undefined {
@@ -248,10 +315,10 @@ export function normalizeToolResultOutput(
 ): ToolResultNormalization {
   // Canonical history must remain lossless. Projection is allowed to compact/limit.
   const mode = options.mode;
-  let normalizedOutput =
-    mode === "projection" && toolName === "executeCommand"
-      ? compactExecuteCommandOutput(output)
-      : output;
+  let normalizedOutput = unwrapMcpTextWrappedToolResult(output);
+  if (mode === "projection" && toolName === "executeCommand") {
+    normalizedOutput = compactExecuteCommandOutput(normalizedOutput);
+  }
 
   // Get session ID from run context for content storage
   const sessionId = getRunContext()?.sessionId;
