@@ -191,6 +191,32 @@ function isDictionary(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+export function normalizeClaudeSdkToolName(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  // Some malformed SDK payloads include name="Tool" style fragments.
+  const nameAttrMatch = /(?:^|[\s<])name\s*=\s*["']?([A-Za-z0-9_.:-]+)/i.exec(trimmed);
+  if (nameAttrMatch?.[1]) {
+    return nameAttrMatch[1];
+  }
+
+  const firstToken = trimmed.split(/\s+/)[0] ?? "";
+  if (!firstToken) return undefined;
+
+  const unwrapped = firstToken
+    .replace(/^["'`<]+/, "")
+    .replace(/[>"'`,;]+$/g, "");
+
+  if (!unwrapped) return undefined;
+
+  // Handle dangling-quote corruption like: Task" subagent_type="Explore
+  const quoteIndex = unwrapped.search(/["']/);
+  const candidate = (quoteIndex >= 0 ? unwrapped.slice(0, quoteIndex) : unwrapped).trim();
+  return candidate || undefined;
+}
+
 function extractSdkToolResultsFromUserMessage(
   msg: unknown,
 ): Array<{ toolCallId: string; output: unknown; toolName?: string }> {
@@ -211,7 +237,7 @@ function extractSdkToolResultsFromUserMessage(
     pushResult(
       parentToolUseId,
       (msg as { tool_use_result?: unknown }).tool_use_result,
-      typeof msg.tool_name === "string" ? msg.tool_name : undefined,
+      normalizeClaudeSdkToolName(msg.tool_name),
     );
   }
 
@@ -229,11 +255,8 @@ function extractSdkToolResultsFromUserMessage(
     if (!toolUseId) continue;
 
     const toolName =
-      typeof part.name === "string"
-        ? part.name
-        : typeof part.tool_name === "string"
-          ? part.tool_name
-          : undefined;
+      normalizeClaudeSdkToolName(part.name) ??
+      normalizeClaudeSdkToolName(part.tool_name);
 
     if ("tool_use_result" in part) {
       pushResult(toolUseId, (part as { tool_use_result?: unknown }).tool_use_result, toolName);
@@ -363,7 +386,7 @@ function buildPromptFromMessages(messages: unknown): string {
         if (part.type === "text" && typeof part.text === "string") {
           fragments.push(part.text);
         } else if (part.type === "tool_use") {
-          const toolName = typeof part.name === "string" ? part.name : "tool";
+          const toolName = normalizeClaudeSdkToolName(part.name) || "tool";
           fragments.push(`[tool_use:${toolName}]`);
         } else if (part.type === "tool_result") {
           fragments.push("[tool_result]");
@@ -722,10 +745,7 @@ function createStreamingClaudeCodeResponse(options: {
                   typeof event.content_block.id === "string"
                     ? event.content_block.id
                     : `toolu_${crypto.randomUUID()}`;
-                const toolName =
-                  typeof event.content_block.name === "string"
-                    ? event.content_block.name
-                    : "unknown";
+                const toolName = normalizeClaudeSdkToolName(event.content_block.name) || "unknown";
                 emit("content_block_start", {
                   type: "content_block_start",
                   index: globalIndex,
@@ -845,12 +865,16 @@ function createStreamingClaudeCodeResponse(options: {
                 if (!block?.type) continue;
 
                 if (block.type === "tool_use" && block.id && block.name) {
+                  const normalizedBlockName = normalizeClaudeSdkToolName(block.name);
+                  if (!normalizedBlockName) {
+                    continue;
+                  }
                   const duplicateById = streamedToolUseIdsThisTurn.has(block.id);
-                  const duplicateByName = streamedToolUseNamesThisTurn.has(block.name);
+                  const duplicateByName = streamedToolUseNamesThisTurn.has(normalizedBlockName);
                   if (duplicateById || duplicateByName) {
                     continue;
                   }
-                  emitToolUseBlock(block.id, block.name, JSON.stringify(block.input ?? {}));
+                  emitToolUseBlock(block.id, normalizedBlockName, JSON.stringify(block.input ?? {}));
                 } else if (block.type === "text" && block.text) {
                   // Avoid duplicate assistant text only when stream text for this turn
                   // was already emitted.

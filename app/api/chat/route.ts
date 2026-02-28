@@ -934,10 +934,22 @@ export async function POST(req: Request) {
               tool_search: "searchTools",
             };
 
-            const correctedName = TOOL_NAME_ALIASES[toolCall.toolName];
-            if (correctedName && correctedName in tools) {
-              console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" → "${correctedName}"`);
-              return { ...toolCall, toolName: correctedName };
+            const normalizedName = normalizeMalformedToolName(toolCall.toolName);
+            const candidateNames = Array.from(
+              new Set(
+                [
+                  TOOL_NAME_ALIASES[toolCall.toolName],
+                  normalizedName,
+                  TOOL_NAME_ALIASES[normalizedName],
+                ].filter((name): name is string => typeof name === "string" && name.length > 0)
+              )
+            );
+
+            for (const candidate of candidateNames) {
+              if (candidate in tools) {
+                console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" -> "${candidate}"`);
+                return { ...toolCall, toolName: candidate };
+              }
             }
 
             // For anything else, return null to inject error as tool result so the model can self-correct
@@ -1090,6 +1102,25 @@ function detectCreditError(errorMessage: string): boolean {
   return lower.includes("insufficient") || lower.includes("quota") || lower.includes("credit") || lower.includes("429");
 }
 
+function normalizeMalformedToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (!trimmed) return "";
+
+  const nameAttrMatch = /(?:^|[\s<])name\s*=\s*["']?([A-Za-z0-9_.:-]+)/i.exec(trimmed);
+  if (nameAttrMatch?.[1]) return nameAttrMatch[1];
+
+  const firstToken = trimmed.split(/\s+/)[0] ?? "";
+  if (!firstToken) return "";
+
+  const unwrapped = firstToken
+    .replace(/^["'`<]+/, "")
+    .replace(/[>"'`,;]+$/g, "");
+
+  if (!unwrapped) return "";
+  const quoteIndex = unwrapped.search(/["']/);
+  return (quoteIndex >= 0 ? unwrapped.slice(0, quoteIndex) : unwrapped).trim();
+}
+
 function getPlainTextFromContent(content: unknown): string {
   if (typeof content === "string") return content;
 
@@ -1106,3 +1137,4 @@ function getPlainTextFromContent(content: unknown): string {
 
   return "";
 }
+
