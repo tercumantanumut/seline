@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from "vitest";
 import {
   normalizeAnthropicToolUseInputs,
+  normalizeClaudeSdkToolName,
   sanitizeJsonStringValues,
   queryWithSdkOptions,
   type ClaudeAgentSdkQueryOptions,
@@ -53,6 +54,31 @@ async function* makeStream(messages: SDKMessage[]): AsyncGenerator<SDKMessage, v
 function setMockStream(messages: SDKMessage[]) {
   (mockQuery as MockedFunction<typeof mockQuery>).mockReturnValue(makeStream(messages));
 }
+
+// ---------------------------------------------------------------------------
+// normalizeClaudeSdkToolName
+// ---------------------------------------------------------------------------
+
+describe("normalizeClaudeSdkToolName", () => {
+  it("recovers malformed tool names with trailing attribute fragments", () => {
+    expect(normalizeClaudeSdkToolName('Task" subagent_type="Explore')).toBe("Task");
+  });
+
+  it("extracts tool names from name= fragments", () => {
+    expect(normalizeClaudeSdkToolName('name="Task" subagent_type="Explore"')).toBe("Task");
+  });
+
+  it("keeps valid MCP-prefixed tool names intact", () => {
+    expect(normalizeClaudeSdkToolName("mcp__seline-platform__searchTools")).toBe(
+      "mcp__seline-platform__searchTools"
+    );
+  });
+
+  it("returns undefined for non-string or empty values", () => {
+    expect(normalizeClaudeSdkToolName(undefined)).toBeUndefined();
+    expect(normalizeClaudeSdkToolName("   ")).toBeUndefined();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // sanitizeJsonStringValues

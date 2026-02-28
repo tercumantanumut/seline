@@ -1,9 +1,9 @@
 "use client";
 
-import { FC, useMemo } from "react";
+import { FC, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { parseNestedJsonString } from "@/lib/utils/parse-nested-json";
 import { Calculator, Copy, Check, AlertCircle, Hash, Pi, Sigma, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 /** Result type from calculator tool */
@@ -23,21 +23,6 @@ interface CalculatorArgs {
     precision?: number;
 }
 
-function parseNestedJson(text: string, maxDepth: number = 3): unknown | undefined {
-    let current: unknown = text;
-    for (let i = 0; i < maxDepth; i += 1) {
-        if (typeof current !== "string") return current;
-        const trimmed = current.trim();
-        if (!trimmed) return undefined;
-        try {
-            current = JSON.parse(trimmed);
-        } catch {
-            return i === 0 ? undefined : current;
-        }
-    }
-    return current;
-}
-
 function normalizeCalculatorResult(
     rawResult: CalculatorResult | Record<string, unknown> | string | undefined,
     depth: number = 0,
@@ -47,7 +32,7 @@ function normalizeCalculatorResult(
     if (!rawResult) return undefined;
 
     if (typeof rawResult === "string") {
-        const parsed = parseNestedJson(rawResult);
+        const parsed = parseNestedJsonString(rawResult);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
             return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
         }
@@ -98,7 +83,7 @@ function normalizeCalculatorResult(
 
     const directContent = typeof direct.content === "string" ? direct.content : undefined;
     if (directContent && directContent.trim().length > 0) {
-        const parsed = parseNestedJson(directContent);
+        const parsed = parseNestedJsonString(directContent);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
             return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
         }
@@ -131,7 +116,7 @@ function normalizeCalculatorResult(
         );
 
         if (textItem?.text) {
-            const parsed = parseNestedJson(textItem.text);
+            const parsed = parseNestedJsonString(textItem.text);
             if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
             }
@@ -239,7 +224,10 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     if (!args) return null;
 
     const resolvedResult = result ?? output;
-    const normalizedResult = normalizeCalculatorResult(resolvedResult);
+    const normalizedResult = useMemo(
+        () => normalizeCalculatorResult(resolvedResult),
+        [resolvedResult],
+    );
 
     const expression = args.expression;
     const resultValue = normalizedResult?.result;
