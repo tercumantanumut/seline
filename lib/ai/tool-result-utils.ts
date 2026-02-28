@@ -88,8 +88,8 @@ function unwrapMcpTextWrappedToolResult(output: unknown): unknown {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         const parsedObj = parsed as Record<string, unknown>;
         return {
-          status: "error",
           ...parsedObj,
+          status: "error",
           ...(typeof parsedObj.error === "string" ? {} : { error: text }),
         };
       }

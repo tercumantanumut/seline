@@ -1875,9 +1875,9 @@
         "authStep3": "Claude Code uygulamasını yetkilendirin",
         "authStep4": "Yetkilendirme kodunu kopyalayın ve aşağıya yapıştırın",
         "authCodeLabel": "Yetkilendirme Kodu",
-        "successTitle": "Kimlik Doğrulama Başarılı!",
-        "successMessage": "Claude Code bağlantınız artık aktif ve kullanıma hazır.",
-        "doneButton": "Tamam"
+        "authSuccess": "Kimlik Doğrulama Başarılı!",
+        "authSuccessDesc": "Claude Code bağlantınız artık aktif ve kullanıma hazır.",
+        "done": "Tamam"
       },
       "fields": {
         "anthropic": {

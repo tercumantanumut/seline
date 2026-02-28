@@ -40,13 +40,16 @@ function parseNestedJson(text: string, maxDepth: number = 3): unknown | undefine
 
 function normalizeCalculatorResult(
     rawResult: CalculatorResult | Record<string, unknown> | string | undefined,
+    depth: number = 0,
+    visited: WeakSet<object> = new WeakSet<object>(),
 ): CalculatorResult | undefined {
+    if (depth > 8) return undefined;
     if (!rawResult) return undefined;
 
     if (typeof rawResult === "string") {
         const parsed = parseNestedJson(rawResult);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            return normalizeCalculatorResult(parsed as Record<string, unknown>);
+            return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
         }
         return {
             success: true,
@@ -56,15 +59,17 @@ function normalizeCalculatorResult(
     }
 
     if (typeof rawResult !== "object") return undefined;
+    if (visited.has(rawResult)) return undefined;
+    visited.add(rawResult);
 
     const direct = rawResult as Partial<CalculatorResult> & Record<string, unknown>;
 
     if (direct.result && typeof direct.result === "object" && !Array.isArray(direct.result)) {
-        const nested = normalizeCalculatorResult(direct.result as Record<string, unknown>);
+        const nested = normalizeCalculatorResult(direct.result as Record<string, unknown>, depth + 1, visited);
         if (nested) return nested;
     }
     if (direct.output && typeof direct.output === "object" && !Array.isArray(direct.output)) {
-        const nested = normalizeCalculatorResult(direct.output as Record<string, unknown>);
+        const nested = normalizeCalculatorResult(direct.output as Record<string, unknown>, depth + 1, visited);
         if (nested) return nested;
     }
 
@@ -95,7 +100,7 @@ function normalizeCalculatorResult(
     if (directContent && directContent.trim().length > 0) {
         const parsed = parseNestedJson(directContent);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            return normalizeCalculatorResult(parsed as Record<string, unknown>);
+            return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
         }
         if (status === "error") {
             return {
@@ -128,7 +133,7 @@ function normalizeCalculatorResult(
         if (textItem?.text) {
             const parsed = parseNestedJson(textItem.text);
             if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                return normalizeCalculatorResult(parsed as Record<string, unknown>);
+                return normalizeCalculatorResult(parsed as Record<string, unknown>, depth + 1, visited);
             }
 
             if (status === "error") {

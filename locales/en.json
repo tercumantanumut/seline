@@ -1890,9 +1890,9 @@
         "authStep3": "Authorize the Claude Code application",
         "authStep4": "Copy the authorization code and paste it below",
         "authCodeLabel": "Authorization Code",
-        "successTitle": "Authentication Successful!",
-        "successMessage": "Your Claude Code connection is now active and ready to use.",
-        "doneButton": "Done"
+        "authSuccess": "Authentication Successful!",
+        "authSuccessDesc": "Your Claude Code connection is now active and ready to use.",
+        "done": "Done"
       },
       "fields": {
         "anthropic": {

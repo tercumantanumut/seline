@@ -570,6 +570,7 @@ export async function POST(req: Request) {
       type BridgeRecord = { output: unknown; toolName?: string };
       const results = new Map<string, BridgeRecord>();
       const waiters = new Map<string, Array<(value: BridgeRecord | undefined) => void>>();
+      const MAX_BUFFERED_RESULTS = 256;
 
       const resolveWaiters = (toolCallId: string, value: BridgeRecord | undefined) => {
         const pending = waiters.get(toolCallId);
@@ -578,10 +579,19 @@ export async function POST(req: Request) {
         for (const resolve of pending) resolve(value);
       };
 
+      const pruneOldestResults = () => {
+        while (results.size > MAX_BUFFERED_RESULTS) {
+          const oldestKey = results.keys().next().value;
+          if (!oldestKey) break;
+          results.delete(oldestKey);
+        }
+      };
+
       const publish = (toolCallId: string, output: unknown, toolName?: string) => {
         if (!toolCallId) return;
         const record = { output, ...(toolName ? { toolName } : {}) };
         results.set(toolCallId, record);
+        pruneOldestResults();
         resolveWaiters(toolCallId, record);
       };
 
@@ -591,7 +601,10 @@ export async function POST(req: Request) {
       ): Promise<BridgeRecord | undefined> => {
         if (!toolCallId) return Promise.resolve(undefined);
         const existing = results.get(toolCallId);
-        if (existing) return Promise.resolve(existing);
+        if (existing) {
+          results.delete(toolCallId);
+          return Promise.resolve(existing);
+        }
 
         const timeoutMs = Math.max(250, options?.timeoutMs ?? 300_000);
         const abortSignal = options?.abortSignal;
@@ -605,6 +618,19 @@ export async function POST(req: Request) {
             settled = true;
             if (timeout) clearTimeout(timeout);
             if (abortSignal) abortSignal.removeEventListener("abort", onAbort);
+            if (value) {
+              results.delete(toolCallId);
+            } else {
+              const queue = waiters.get(toolCallId);
+              if (queue && queue.length > 0) {
+                const next = queue.filter((resolveWaiter) => resolveWaiter !== finish);
+                if (next.length > 0) {
+                  waiters.set(toolCallId, next);
+                } else {
+                  waiters.delete(toolCallId);
+                }
+              }
+            }
             resolve(value);
           };
 

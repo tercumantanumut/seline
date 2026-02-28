@@ -47,7 +47,6 @@ import {
   runPostToolUseFailureHooks,
 } from "@/lib/plugins/hook-integration";
 import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
-import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { normalizeSdkPassthroughOutput } from "./sdk-passthrough-normalizer";
 import {
   normalizeWebSearchQuery,

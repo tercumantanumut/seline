@@ -285,4 +285,27 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
     expect(normalized.query).toBe("calculator math arithmetic");
     expect(Array.isArray(normalized.results)).toBe(true);
   });
+
+  it("preserves error status when MCP payload is marked isError", () => {
+    const output = {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            status: "success",
+            message: "calculation failed",
+          }),
+        },
+      ],
+    };
+
+    const result = normalizeToolResultOutput("mcp__seline-platform__calculator", output, undefined, {
+      mode: "canonical",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    expect(normalized.status).toBe("error");
+    expect(normalized.error).toBeTruthy();
+  });
 });
