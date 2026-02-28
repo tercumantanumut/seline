@@ -460,6 +460,11 @@ export async function buildToolsForRequest(
       "Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep",
       "Task", "WebFetch", "WebSearch", "NotebookEdit", "TodoRead",
       "TodoWrite", "AskFollowupQuestion",
+      // Additional Claude Code tools that stream during agent runs:
+      "AskUserQuestion", "Agent", "TaskOutput", "TaskStop",
+      "Skill", "EnterPlanMode", "ExitPlanMode",
+      "TaskCreate", "TaskGet", "TaskUpdate", "TaskList",
+      "EnterWorktree",
     ] as const;
 
     for (const name of SDK_AGENT_TOOLS) {
