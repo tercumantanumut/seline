@@ -48,6 +48,7 @@ import {
 } from "@/lib/plugins/hook-integration";
 import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
+import { normalizeSdkPassthroughOutput } from "./sdk-passthrough-normalizer";
 import {
   normalizeWebSearchQuery,
   getWebSearchSourceCount,
@@ -404,12 +405,6 @@ export async function buildToolsForRequest(
   const sdkPassthroughNames = new Set<string>();
 
   if (ctx.provider === "claudecode") {
-    const canonicalizeSdkToolName = (name?: string): string => {
-      if (!name) return "tool";
-      const match = /^mcp__.+?__(.+)$/.exec(name);
-      return match?.[1] || name;
-    };
-
     const createSdkPassthroughTool = (registeredToolName: string): Tool =>
       tool({
         description: "Claude Agent SDK passthrough tool (executed internally by the SDK agent)",
@@ -439,15 +434,11 @@ export async function buildToolsForRequest(
               abortSignal,
             });
             if (resolved) {
-              const toolNameForNormalization = canonicalizeSdkToolName(
-                resolved.toolName || registeredToolName
-              );
-              return normalizeToolResultOutput(
-                toolNameForNormalization,
+              return normalizeSdkPassthroughOutput(
+                resolved.toolName || registeredToolName,
                 resolved.output,
-                args,
-                { mode: "canonical" }
-              ).output;
+                args
+              );
             }
             console.warn(
               `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`

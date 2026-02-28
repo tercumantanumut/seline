@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import { getToolIcon } from "@/components/ui/tool-icon-map";
+import { getCanonicalToolName } from "./tool-name-utils";
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -70,11 +71,6 @@ interface ToolResult {
   answer?: string;
   formattedResults?: string;
   iterationPerformed?: boolean;
-}
-
-function getCanonicalToolName(toolName: string): string {
-  const match = /^mcp__.+?__(.+)$/.exec(toolName);
-  return match?.[1] || toolName;
 }
 
 function parseNestedJsonValue(text: string, maxDepth: number = 3): unknown | undefined {
@@ -804,29 +800,32 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   result,
 }) => {
   const t = useTranslations("assistantUi.tools");
+  const canonicalToolName = useMemo(() => getCanonicalToolName(toolName), [toolName]);
   const isRunning = result === undefined;
   const parsedResult = result as ToolResult | undefined;
   const [resolvedName, setResolvedName] = useState<string | null>(null);
 
   // Memoize the display name lookup
   const displayName = useMemo(() => {
-    return t.has(toolName) ? t(toolName) : (resolvedName || toolName);
-  }, [t, toolName, resolvedName]);
+    if (t.has(canonicalToolName)) return t(canonicalToolName);
+    if (t.has(toolName)) return t(toolName);
+    return resolvedName || canonicalToolName;
+  }, [t, canonicalToolName, toolName, resolvedName]);
 
   useEffect(() => {
     let cancelled = false;
-    if (t.has(toolName)) {
+    if (t.has(canonicalToolName) || t.has(toolName)) {
       setResolvedName(null);
       return;
     }
     loadToolNameCache().then((cache) => {
       if (cancelled) return;
-      setResolvedName(cache[toolName] || null);
+      setResolvedName(cache[canonicalToolName] || cache[toolName] || null);
     });
     return () => {
       cancelled = true;
     };
-  }, [toolName, t]);
+  }, [canonicalToolName, toolName, t]);
 
   // Memoize formatted args
   const formattedArgs = useMemo(() => {
@@ -840,7 +839,7 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
       isRunning && "min-h-[60px]"
     )}>
       <div className="mb-2 flex min-w-0 items-center gap-2 transition-opacity duration-150">
-        <ToolIcon toolName={toolName} isRunning={isRunning} result={parsedResult} />
+        <ToolIcon toolName={canonicalToolName} isRunning={isRunning} result={parsedResult} />
         <span className="min-w-0 truncate font-medium text-sm text-terminal-dark">
           {displayName}
         </span>
