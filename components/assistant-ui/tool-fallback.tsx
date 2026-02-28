@@ -265,10 +265,41 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       );
     }
 
-    if (normalizedResult.status === "no_results" || !searchResults || searchResults.length === 0) {
+    if (normalizedResult.status === "no_results") {
       return (
         <div className={TOOL_RESULT_TEXT_CLASS}>
           {tResults("noToolsFound", { query: normalizedResult.query ?? "" })}
+        </div>
+      );
+    }
+
+    if (Array.isArray(searchResults) && searchResults.length === 0) {
+      return (
+        <div className={TOOL_RESULT_TEXT_CLASS}>
+          {tResults("noToolsFound", { query: normalizedResult.query ?? "" })}
+        </div>
+      );
+    }
+
+    if (!searchResults) {
+      const fallbackText =
+        normalizedResult.message ||
+        normalizedResult.text ||
+        (typeof (normalizedResult as { summary?: unknown }).summary === "string"
+          ? ((normalizedResult as { summary?: string }).summary ?? "")
+          : "");
+      if (fallbackText.trim().length > 0) {
+        return (
+          <div className={TOOL_RESULT_TEXT_CLASS}>
+            <pre className={cn("mt-2 max-h-64", TOOL_RESULT_PRE_CLASS)}>
+              {fallbackText}
+            </pre>
+          </div>
+        );
+      }
+      return (
+        <div className={TOOL_RESULT_TEXT_CLASS}>
+          {tResults("unexpectedFormat")}
         </div>
       );
     }
