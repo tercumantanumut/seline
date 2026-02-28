@@ -47,6 +47,7 @@ import {
   runPostToolUseFailureHooks,
 } from "@/lib/plugins/hook-integration";
 import { guardToolResultForStreaming } from "@/lib/ai/tool-result-stream-guard";
+import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import {
   normalizeWebSearchQuery,
   getWebSearchSourceCount,
@@ -403,44 +404,59 @@ export async function buildToolsForRequest(
   const sdkPassthroughNames = new Set<string>();
 
   if (ctx.provider === "claudecode") {
-    const sdkPassthroughTool = tool({
-      description: "Claude Agent SDK passthrough tool (executed internally by the SDK agent)",
-      inputSchema: jsonSchema<Record<string, unknown>>({
-        type: "object",
-        additionalProperties: true,
-      }),
-      // Resolve the real SDK tool output from the per-request bridge.
-      // Fallback to passthrough marker only if no bridged output arrives in time.
-      execute: async (_args, options) => {
-        const toolCallId =
-          options && typeof options === "object" && "toolCallId" in options &&
-          typeof (options as { toolCallId?: unknown }).toolCallId === "string"
-            ? (options as { toolCallId: string }).toolCallId
-            : "";
+    const canonicalizeSdkToolName = (name?: string): string => {
+      if (!name) return "tool";
+      const match = /^mcp__.+?__(.+)$/.exec(name);
+      return match?.[1] || name;
+    };
 
-        const abortSignal =
-          options && typeof options === "object" && "abortSignal" in options &&
-          (options as { abortSignal?: unknown }).abortSignal instanceof AbortSignal
-            ? (options as { abortSignal: AbortSignal }).abortSignal
-            : undefined;
+    const createSdkPassthroughTool = (registeredToolName: string): Tool =>
+      tool({
+        description: "Claude Agent SDK passthrough tool (executed internally by the SDK agent)",
+        inputSchema: jsonSchema<Record<string, unknown>>({
+          type: "object",
+          additionalProperties: true,
+        }),
+        // Resolve the real SDK tool output from the per-request bridge.
+        // Fallback to passthrough marker only if no bridged output arrives in time.
+        execute: async (args, options) => {
+          const toolCallId =
+            options && typeof options === "object" && "toolCallId" in options &&
+            typeof (options as { toolCallId?: unknown }).toolCallId === "string"
+              ? (options as { toolCallId: string }).toolCallId
+              : "";
 
-        const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
-        if (bridge && toolCallId) {
-          const resolved = await bridge.waitFor(toolCallId, {
-            timeoutMs: 300_000,
-            abortSignal,
-          });
-          if (resolved) {
-            return resolved.output;
+          const abortSignal =
+            options && typeof options === "object" && "abortSignal" in options &&
+            (options as { abortSignal?: unknown }).abortSignal instanceof AbortSignal
+              ? (options as { abortSignal: AbortSignal }).abortSignal
+              : undefined;
+
+          const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
+          if (bridge && toolCallId) {
+            const resolved = await bridge.waitFor(toolCallId, {
+              timeoutMs: 300_000,
+              abortSignal,
+            });
+            if (resolved) {
+              const toolNameForNormalization = canonicalizeSdkToolName(
+                resolved.toolName || registeredToolName
+              );
+              return normalizeToolResultOutput(
+                toolNameForNormalization,
+                resolved.output,
+                args,
+                { mode: "canonical" }
+              ).output;
+            }
+            console.warn(
+              `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+            );
           }
-          console.warn(
-            `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
-          );
-        }
 
-        return { _sdkPassthrough: true };
-      },
-    });
+          return { _sdkPassthrough: true };
+        },
+      });
 
     // (a) SDK built-in tools (Bash, Read, Write, etc.)
     const SDK_AGENT_TOOLS = [
@@ -451,7 +467,7 @@ export async function buildToolsForRequest(
 
     for (const name of SDK_AGENT_TOOLS) {
       if (!allToolsWithMCP[name]) {
-        allToolsWithMCP[name] = sdkPassthroughTool;
+        allToolsWithMCP[name] = createSdkPassthroughTool(name);
         sdkPassthroughNames.add(name);
       }
     }
@@ -464,7 +480,7 @@ export async function buildToolsForRequest(
     for (const name of existingToolNames) {
       const prefixed = `mcp__${MCP_SERVER_NAME}__${name}`;
       if (!allToolsWithMCP[prefixed]) {
-        allToolsWithMCP[prefixed] = sdkPassthroughTool;
+        allToolsWithMCP[prefixed] = createSdkPassthroughTool(prefixed);
         sdkPassthroughNames.add(prefixed);
       }
     }
