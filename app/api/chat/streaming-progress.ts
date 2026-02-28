@@ -161,12 +161,14 @@ export function createSyncStreamingMessage(
       const agentRunId = getAgentRunId();
       const progressRunId = scheduledRunId ?? agentRunId;
       const progressType = scheduledRunId ? "scheduled" : agentRunId ? "chat" : undefined;
+      const assistantMessageId = streamingState.messageId;
 
       console.log("[CHAT API] Progress event routing:", {
         scheduledRunId,
         agentRunId,
         progressRunId,
         progressType,
+        assistantMessageId,
         progressText: progressText.slice(0, 50),
         willEmitToRegistry: Boolean(progressRunId && progressType),
       });
@@ -189,7 +191,7 @@ export function createSyncStreamingMessage(
           userId,
           characterId: eventCharacterId,
           sessionId,
-          assistantMessageId: streamingState.messageId,
+          assistantMessageId,
           progressContent: (progressLimit?.content ?? partsSnapshot) as DBContentPart[],
           progressContentLimited: progressLimit?.wasTruncated,
           progressContentOriginalTokens: progressLimit?.originalTokens,
