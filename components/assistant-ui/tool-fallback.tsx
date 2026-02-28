@@ -92,8 +92,38 @@ function parseNestedJsonValue(text: string, maxDepth: number = 3): unknown | und
   return current;
 }
 
-function unwrapMcpTextWrappedResult(result: ToolResult): ToolResult {
+function unwrapMcpTextWrappedResult(result: ToolResult | string): ToolResult {
+  if (typeof result === "string") {
+    const parsed = parseNestedJsonValue(result);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as ToolResult;
+    }
+    return {
+      status: "success",
+      text: typeof parsed === "string" ? parsed : result,
+    };
+  }
+
   const content = (result as ToolResult & { content?: unknown }).content;
+  if (typeof content === "string") {
+    const parsed = parseNestedJsonValue(content);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const parsedObj = parsed as Record<string, unknown>;
+      return {
+        ...result,
+        ...parsedObj,
+        status: typeof parsedObj.status === "string" ? (parsedObj.status as ToolResult["status"]) : result.status,
+      };
+    }
+    if (typeof parsed === "string" && parsed.trim().length > 0) {
+      return {
+        ...result,
+        text: parsed,
+      };
+    }
+    return result;
+  }
+
   if (!Array.isArray(content)) return result;
 
   const textItem = content.find(

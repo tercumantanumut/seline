@@ -14,6 +14,7 @@ interface CalculatorResult {
     type?: string;
     error?: string;
     details?: string;
+    info?: string;
 }
 
 /** Input args type */
@@ -55,6 +56,31 @@ function normalizeCalculatorResult(
     }
 
     const status = typeof direct.status === "string" ? direct.status : undefined;
+
+    const directContent = typeof direct.content === "string" ? direct.content : undefined;
+    if (directContent && directContent.trim().length > 0) {
+        const parsed = parseNestedJson(directContent);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return normalizeCalculatorResult(parsed as Record<string, unknown>);
+        }
+        if (status === "error") {
+            return {
+                success: false,
+                expression: String(direct.expression ?? ""),
+                error: String(parsed ?? directContent),
+            };
+        }
+        if (status === "success") {
+            return {
+                success: true,
+                expression: String(direct.expression ?? ""),
+                info: String(parsed ?? directContent),
+                ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+                ...(typeof direct.details === "string" ? { details: direct.details } : {}),
+            };
+        }
+    }
+
     const content = Array.isArray(direct.content) ? direct.content : undefined;
     if (content && content.length > 0) {
         const textItem = content.find(
@@ -76,6 +102,15 @@ function normalizeCalculatorResult(
                     success: false,
                     expression: String(direct.expression ?? ""),
                     error: String(parsed ?? textItem.text),
+                };
+            }
+            if (status === "success") {
+                return {
+                    success: true,
+                    expression: String(direct.expression ?? ""),
+                    info: String(parsed ?? textItem.text),
+                    ...(typeof direct.type === "string" ? { type: direct.type } : {}),
+                    ...(typeof direct.details === "string" ? { details: direct.details } : {}),
                 };
             }
         }
@@ -158,6 +193,7 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     const error = normalizedResult?.error;
     const resultType = normalizedResult?.type;
     const details = normalizedResult?.details;
+    const info = normalizedResult?.info;
 
     // Determine if result is long and needs expansion
     const fullResult = String(resultValue ?? "");
@@ -194,6 +230,8 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
         );
     }
 
+    const hasResultValue = resultValue !== undefined && resultValue !== null && String(resultValue).length > 0;
+
     // Error state
     if (!isSuccess) {
         return (
@@ -210,6 +248,29 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
                             {expression}
                         </code>
                         <p className="mt-2 text-sm text-red-600/90">{error || "Calculation failed"}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!hasResultValue) {
+        return (
+            <div className="my-2 rounded-lg border border-terminal-border/60 bg-terminal-cream/70 overflow-hidden">
+                <div className="flex items-start gap-3 p-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-terminal-bg/40 text-terminal-dark flex-shrink-0">
+                        <Calculator className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-terminal-muted uppercase tracking-wider">{t("calculating")}</span>
+                        </div>
+                        <code className="block mt-1 font-mono text-sm text-terminal-dark">
+                            {expression}
+                        </code>
+                        <p className="mt-2 text-sm text-terminal-muted">
+                            {info || details || t("calculating")}
+                        </p>
                     </div>
                 </div>
             </div>
