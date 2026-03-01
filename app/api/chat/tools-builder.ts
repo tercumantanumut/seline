@@ -428,20 +428,27 @@ export async function buildToolsForRequest(
 
           const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
           if (bridge && toolCallId) {
-            const resolved = await bridge.waitFor(toolCallId, {
-              timeoutMs: 300_000,
-              abortSignal,
-            });
-            if (resolved) {
-              return normalizeSdkPassthroughOutput(
-                resolved.toolName || registeredToolName,
-                resolved.output,
-                args
+            try {
+              const resolved = await bridge.waitFor(toolCallId, {
+                timeoutMs: 300_000,
+                abortSignal,
+              });
+              if (resolved) {
+                return normalizeSdkPassthroughOutput(
+                  resolved.toolName || registeredToolName,
+                  resolved.output,
+                  args
+                );
+              }
+              console.warn(
+                `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.warn(
+                `[CHAT API] SDK passthrough bridge wait failed: toolCallId=${toolCallId} tool=${registeredToolName} bridge=sdkToolResultBridge error=${message}`
               );
             }
-            console.warn(
-              `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
-            );
           }
 
           return { _sdkPassthrough: true };
