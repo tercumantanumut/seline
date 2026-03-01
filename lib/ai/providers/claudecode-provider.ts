@@ -29,6 +29,16 @@ import {
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+const CLAUDECODE_INPUT_DELTA_BATCH_ENABLED =
+  process.env.CLAUDECODE_INPUT_DELTA_BATCH_ENABLED !== "false";
+const CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS = (() => {
+  const parsed = Number(process.env.CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 8_192;
+})();
+const CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS = (() => {
+  const parsed = Number(process.env.CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 40;
+})();
 
 /**
  * SDK-native options that extend a basic Claude Agent SDK query.
@@ -535,6 +545,11 @@ function createStreamingClaudeCodeResponse(options: {
         }
       }
 
+      const pendingInputJsonDeltaByIndex = new Map<
+        number,
+        { partialJson: string; timer: ReturnType<typeof setTimeout> | null }
+      >();
+
       try {
         const sdk = options.sdkOptions;
         const mcpCtx: SelineMcpContext | undefined =
@@ -689,6 +704,8 @@ function createStreamingClaudeCodeResponse(options: {
         const streamedToolUseNamesThisTurn = new Set<string>();
         const streamLocalToGlobalIndex = new Map<number, number>();
         const openStreamLocalIndices = new Set<number>();
+        let rawInputJsonDeltaChunks = 0;
+        let emittedInputJsonDeltaChunks = 0;
 
         const allocateContentIndex = () => {
           const idx = nextContentIndex;
@@ -735,6 +752,75 @@ function createStreamingClaudeCodeResponse(options: {
           emit("content_block_stop", { type: "content_block_stop", index: targetIndex });
         };
 
+        const getPendingInputDelta = (index: number) => {
+          const existing = pendingInputJsonDeltaByIndex.get(index);
+          if (existing) return existing;
+          const created = { partialJson: "", timer: null as ReturnType<typeof setTimeout> | null };
+          pendingInputJsonDeltaByIndex.set(index, created);
+          return created;
+        };
+
+        const clearPendingInputDelta = (index: number) => {
+          const pending = pendingInputJsonDeltaByIndex.get(index);
+          if (!pending) return;
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+          }
+          pendingInputJsonDeltaByIndex.delete(index);
+        };
+
+        const flushInputJsonDelta = (index: number) => {
+          const pending = pendingInputJsonDeltaByIndex.get(index);
+          if (!pending || pending.partialJson.length === 0) return;
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+            pending.timer = null;
+          }
+          emit("content_block_delta", {
+            type: "content_block_delta",
+            index,
+            delta: { type: "input_json_delta", partial_json: pending.partialJson },
+          });
+          emittedInputJsonDeltaChunks += 1;
+          pending.partialJson = "";
+        };
+
+        const flushAllPendingInputJsonDeltas = () => {
+          for (const index of pendingInputJsonDeltaByIndex.keys()) {
+            flushInputJsonDelta(index);
+          }
+        };
+
+        const emitInputJsonDelta = (index: number, partialJson: string) => {
+          rawInputJsonDeltaChunks += 1;
+          if (!CLAUDECODE_INPUT_DELTA_BATCH_ENABLED) {
+            emit("content_block_delta", {
+              type: "content_block_delta",
+              index,
+              delta: { type: "input_json_delta", partial_json: partialJson },
+            });
+            emittedInputJsonDeltaChunks += 1;
+            return;
+          }
+
+          const pending = getPendingInputDelta(index);
+          pending.partialJson += partialJson;
+
+          if (pending.partialJson.length >= CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS) {
+            flushInputJsonDelta(index);
+            return;
+          }
+
+          if (!pending.timer) {
+            pending.timer = setTimeout(() => {
+              const state = pendingInputJsonDeltaByIndex.get(index);
+              if (!state) return;
+              state.timer = null;
+              flushInputJsonDelta(index);
+            }, CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS);
+          }
+        };
+
         const getEventIndex = (event: Record<string, unknown>): number | null => {
           const raw = event.index;
           if (typeof raw !== "number" || !Number.isInteger(raw)) return null;
@@ -754,7 +840,9 @@ function createStreamingClaudeCodeResponse(options: {
           for (const localIndex of [...openStreamLocalIndices]) {
             const globalIndex = streamLocalToGlobalIndex.get(localIndex);
             if (globalIndex !== undefined) {
+              flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              clearPendingInputDelta(globalIndex);
             }
             openStreamLocalIndices.delete(localIndex);
           }
@@ -764,6 +852,10 @@ function createStreamingClaudeCodeResponse(options: {
           closeOpenStreamBlocks();
           streamLocalToGlobalIndex.clear();
           openStreamLocalIndices.clear();
+          flushAllPendingInputJsonDeltas();
+          for (const index of [...pendingInputJsonDeltaByIndex.keys()]) {
+            clearPendingInputDelta(index);
+          }
           sawStreamTextThisTurn = false;
           streamedToolUseIdsThisTurn.clear();
           streamedToolUseNamesThisTurn.clear();
@@ -893,11 +985,7 @@ function createStreamingClaudeCodeResponse(options: {
                 });
                 outputTokens += Math.max(1, Math.ceil(String(event.delta.text).length / 4));
               } else if (event.delta.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
-                emit("content_block_delta", {
-                  type: "content_block_delta",
-                  index: globalIndex,
-                  delta: { type: "input_json_delta", partial_json: event.delta.partial_json },
-                });
+                emitInputJsonDelta(globalIndex, event.delta.partial_json);
               }
               continue;
             }
@@ -907,7 +995,9 @@ function createStreamingClaudeCodeResponse(options: {
               if (localIndex === null) continue;
               const globalIndex = streamLocalToGlobalIndex.get(localIndex);
               if (globalIndex === undefined || !openStreamLocalIndices.has(localIndex)) continue;
+              flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              clearPendingInputDelta(globalIndex);
               openStreamLocalIndices.delete(localIndex);
               continue;
             }
@@ -1009,6 +1099,17 @@ function createStreamingClaudeCodeResponse(options: {
         }
 
         closeOpenStreamBlocks();
+        flushAllPendingInputJsonDeltas();
+
+        if (
+          CLAUDECODE_INPUT_DELTA_BATCH_ENABLED &&
+          rawInputJsonDeltaChunks > 0 &&
+          process.env.NODE_ENV !== "production"
+        ) {
+          console.log(
+            `[ClaudeCode] input_json_delta batching: raw=${rawInputJsonDeltaChunks}, emitted=${emittedInputJsonDeltaChunks}`,
+          );
+        }
 
         // Close the message
         emit("message_delta", {
@@ -1029,6 +1130,12 @@ function createStreamingClaudeCodeResponse(options: {
         }
       } finally {
         options.signal?.removeEventListener("abort", onAbort);
+        for (const pending of pendingInputJsonDeltaByIndex.values()) {
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+          }
+        }
+        pendingInputJsonDeltaByIndex.clear();
         try {
           controller.close();
         } catch {
