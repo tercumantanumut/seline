@@ -208,7 +208,38 @@ export async function deleteMessagesNotIn(
     ],
   });
 
-  // Only trim a stale suffix (edit/reload semantics).
+  const deleteByIds = async (idsToDelete: string[]): Promise<number> => {
+    if (idsToDelete.length === 0) return 0;
+
+    const BATCH_SIZE = 100;
+    let totalDeleted = 0;
+    for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
+      const batch = idsToDelete.slice(i, i + BATCH_SIZE);
+      const result = await db
+        .delete(messages)
+        .where(
+          and(
+            eq(messages.sessionId, sessionId),
+            inArray(messages.id, batch)
+          )
+        );
+      totalDeleted += (result as unknown as { changes?: number })?.changes ?? batch.length;
+    }
+
+    if (totalDeleted > 0) {
+      await db
+        .update(sessions)
+        .set({
+          updatedAt: new Date().toISOString(),
+          messageCount: sql`MAX(0, ${sessions.messageCount} - ${totalDeleted})`,
+        })
+        .where(eq(sessions.id, sessionId));
+    }
+
+    return totalDeleted;
+  };
+
+  // Only trim a stale suffix by default (edit/reload semantics).
   // This avoids deleting older history when the frontend sends a partial list.
   let maxKeptPosition = -1;
   for (let i = 0; i < allMessages.length; i += 1) {
@@ -217,7 +248,18 @@ export async function deleteMessagesNotIn(
     }
   }
 
-  if (maxKeptPosition < 0) return 0;
+  if (maxKeptPosition < 0) {
+    // First-message edit path: assistant-ui sends only the edited user message
+    // with a brand-new ID, so none of the DB rows match keepIds. In this case
+    // we should clear prior conversational history so the new branch replaces it.
+    if (keepIds.size === 1) {
+      const allConversationalIds = allMessages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => m.id);
+      return deleteByIds(allConversationalIds);
+    }
+    return 0;
+  }
 
   const idsToDelete = allMessages
     .filter((m, idx) =>
@@ -227,34 +269,7 @@ export async function deleteMessagesNotIn(
     )
     .map(m => m.id);
 
-  if (idsToDelete.length === 0) return 0;
-
-  const BATCH_SIZE = 100;
-  let totalDeleted = 0;
-  for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
-    const batch = idsToDelete.slice(i, i + BATCH_SIZE);
-    const result = await db
-      .delete(messages)
-      .where(
-        and(
-          eq(messages.sessionId, sessionId),
-          inArray(messages.id, batch)
-        )
-      );
-    totalDeleted += (result as unknown as { changes?: number })?.changes ?? batch.length;
-  }
-
-  if (totalDeleted > 0) {
-    await db
-      .update(sessions)
-      .set({
-        updatedAt: new Date().toISOString(),
-        messageCount: sql`MAX(0, ${sessions.messageCount} - ${totalDeleted})`,
-      })
-      .where(eq(sessions.id, sessionId));
-  }
-
-  return totalDeleted;
+  return deleteByIds(idsToDelete);
 }
 
 // Returns IDs of all messages in a session that were injected via the live-prompt
