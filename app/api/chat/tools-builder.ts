@@ -56,6 +56,11 @@ import {
 } from "./content-sanitizer";
 import { mcpContextStore } from "@/lib/ai/providers/mcp-context-store";
 
+const SDK_PASSTHROUGH_LARGE_INPUT_BYTES = (() => {
+  const parsed = Number(process.env.SDK_PASSTHROUGH_LARGE_INPUT_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 262_144;
+})();
+
 // ─── Public interfaces ────────────────────────────────────────────────────────
 
 export interface ToolsBuildContext {
@@ -414,6 +419,22 @@ export async function buildToolsForRequest(
         // Resolve the real SDK tool output from the per-request bridge.
         // Fallback to passthrough marker only if no bridged output arrives in time.
         execute: async (args, options) => {
+          const serializedArgs = (() => {
+            try {
+              return JSON.stringify(args ?? {});
+            } catch {
+              return "";
+            }
+          })();
+          const largeInputMetadata =
+            serializedArgs.length > SDK_PASSTHROUGH_LARGE_INPUT_BYTES
+              ? {
+                  _sdkLargeInput: true,
+                  _sdkLargeInputBytes: serializedArgs.length,
+                  _sdkLargeInputPreview: serializedArgs.slice(0, 2_000),
+                }
+              : null;
+
           const toolCallId =
             options && typeof options === "object" && "toolCallId" in options &&
             typeof (options as { toolCallId?: unknown }).toolCallId === "string"
@@ -428,23 +449,34 @@ export async function buildToolsForRequest(
 
           const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
           if (bridge && toolCallId) {
-            const resolved = await bridge.waitFor(toolCallId, {
-              timeoutMs: 300_000,
-              abortSignal,
-            });
-            if (resolved) {
-              return normalizeSdkPassthroughOutput(
-                resolved.toolName || registeredToolName,
-                resolved.output,
-                args
+            try {
+              const resolved = await bridge.waitFor(toolCallId, {
+                timeoutMs: 300_000,
+                abortSignal,
+              });
+              if (resolved) {
+                const normalized = normalizeSdkPassthroughOutput(
+                  resolved.toolName || registeredToolName,
+                  resolved.output,
+                  args
+                );
+                if (largeInputMetadata) {
+                  return { ...normalized, ...largeInputMetadata };
+                }
+                return normalized;
+              }
+              console.warn(
+                `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              console.warn(
+                `[CHAT API] SDK passthrough bridge wait failed: toolCallId=${toolCallId} tool=${registeredToolName} bridge=sdkToolResultBridge error=${message}`
               );
             }
-            console.warn(
-              `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
-            );
           }
 
-          return { _sdkPassthrough: true };
+          return { _sdkPassthrough: true, ...(largeInputMetadata ?? {}) };
         },
       });
 
@@ -453,6 +485,11 @@ export async function buildToolsForRequest(
       "Bash", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep",
       "Task", "WebFetch", "WebSearch", "NotebookEdit", "TodoRead",
       "TodoWrite", "AskFollowupQuestion",
+      // Additional Claude Code tools that stream during agent runs:
+      "AskUserQuestion", "Agent", "TaskOutput", "TaskStop",
+      "Skill", "EnterPlanMode", "ExitPlanMode",
+      "TaskCreate", "TaskGet", "TaskUpdate", "TaskList",
+      "EnterWorktree",
     ] as const;
 
     for (const name of SDK_AGENT_TOOLS) {
