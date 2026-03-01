@@ -13,6 +13,7 @@ import {
   Loader2Icon,
   CircleStopIcon,
   MicIcon,
+  PenLineIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,9 @@ interface ComposerActionBarProps {
   enhancedContext: string | null;
   enhancementFilesFound: number;
   onEnhance: () => void;
+  // Editor mode
+  isEditorMode?: boolean;
+  onToggleEditorMode?: () => void;
   // Cancel / send
   onCancel: () => void;
   onSubmit: () => void;
@@ -81,6 +85,8 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
   enhancedContext,
   enhancementFilesFound,
   onEnhance,
+  isEditorMode = false,
+  onToggleEditorMode,
   onCancel,
   onSubmit,
 }) => {
@@ -192,6 +198,31 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
           {t("tooltips.addImage")}
         </TooltipContent>
       </Tooltip>
+
+      {onToggleEditorMode && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onToggleEditorMode}
+              disabled={isDeepResearchMode}
+              className={cn(
+                "size-8",
+                isEditorMode
+                  ? "text-blue-600 bg-blue-100 hover:bg-blue-200"
+                  : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
+              )}
+            >
+              <PenLineIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="bg-terminal-dark text-terminal-cream font-mono text-xs">
+            {isEditorMode ? t("composer.editorDisable") : t("composer.editorEnable")}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {showEnhanceButton && (
         <Tooltip>

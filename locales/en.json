@@ -877,7 +877,9 @@
       "attachmentsDisabledResearch": "Attachments are not available in Deep Research mode",
       "pastedTextChip": "Pasted text #{n} · {lines} lines",
       "removePastedText": "Remove pasted text",
-      "textPasted": "Large text captured ({lines} lines)"
+      "textPasted": "Large text captured ({lines} lines)",
+      "editorEnable": "Rich editor",
+      "editorDisable": "Simple mode"
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
@@ -1129,16 +1131,16 @@
     "voiceTool": {
       "stop": "Stop",
       "play": "Play",
-      "synthesizing": "Synthesizing speech\u2026",
+      "synthesizing": "Synthesizing speech…",
       "ttsFailed": "TTS failed",
-      "checkingTranscription": "Checking transcription\u2026",
+      "checkingTranscription": "Checking transcription…",
       "transcriptionFailed": "Transcription check failed",
       "playFailed": "Failed to play audio",
       "playbackBlocked": "Audio playback blocked by browser"
     },
     "planTool": {
-      "updating": "Updating plan\u2026",
-      "creating": "Creating plan\u2026",
+      "updating": "Updating plan…",
+      "creating": "Creating plan…",
       "planError": "Plan error: {error}",
       "plan": "Plan",
       "stepsUpdated": "{count, plural, one {# step updated} other {# steps updated}}"
@@ -1998,7 +2000,7 @@
       "validationUrlRequired": "URL is required for SSE transport",
       "validationInvalidUrl": "Invalid URL format",
       "reconnectServer": "Reconnect server",
-      "editServer": "Edit server",
+      "editServer": "Edit Server",
       "deleteServer": "Delete server",
       "addEnvVar": "Add",
       "cancelEnvVar": "Cancel",
@@ -2017,7 +2019,6 @@
       "hideAdvancedJson": "Hide advanced JSON",
       "rawJsonSettings": "Raw JSON settings",
       "applyJson": "Apply JSON",
-      "editServer": "Edit Server",
       "addNewServer": "Add New Server",
       "variablesButton": "Variables",
       "availableEnvVars": "Available Environment Variables:",
@@ -2028,7 +2029,6 @@
       "transportType": "Transport Type",
       "command": "Command",
       "arguments": "Arguments",
-      "insertVariable": "Insert Variable",
       "addArgumentPlaceholder": "Add argument...",
       "primaryFolder": "Primary synced folder",
       "allFolders": "All folders (expands to multiple args)",
@@ -2060,16 +2060,47 @@
       "headerCount": "{count, plural, one {# header} other {# headers}}",
       "jsonKeyHint": "Top-level key must be \"mcpServers\".",
       "templates": {
-        "filesystem": { "name": "Files (single folder)", "description": "Read and write files in one synced folder" },
-        "filesystem-multi": { "name": "Files (all folders)", "description": "Access every synced folder" },
-        "github": { "name": "GitHub", "description": "Manage repositories and search code" },
-        "chrome-devtools": { "name": "Chrome DevTools", "description": "Inspect and debug pages in Chrome" },
-        "postgres": { "name": "PostgreSQL", "description": "Connect to a PostgreSQL database" },
-        "composio": { "name": "Composio", "description": "Connect many apps through Composio", "setup": "Get Connection ID from Composio. For Tool Router, replace URL with: https://backend.composio.dev/tool_router/'{router_id}'/mcp" },
-        "linear": { "name": "Linear", "description": "Track issues and manage projects" },
-        "supabase": { "name": "Supabase", "description": "Manage Supabase project data and APIs" },
-        "assistant-ui": { "name": "Assistant UI Docs", "description": "Search Assistant UI documentation" },
-        "everything": { "name": "Everything", "description": "Sample server with many example tools" }
+        "filesystem": {
+          "name": "Files (single folder)",
+          "description": "Read and write files in one synced folder"
+        },
+        "filesystem-multi": {
+          "name": "Files (all folders)",
+          "description": "Access every synced folder"
+        },
+        "github": {
+          "name": "GitHub",
+          "description": "Manage repositories and search code"
+        },
+        "chrome-devtools": {
+          "name": "Chrome DevTools",
+          "description": "Inspect and debug pages in Chrome"
+        },
+        "postgres": {
+          "name": "PostgreSQL",
+          "description": "Connect to a PostgreSQL database"
+        },
+        "composio": {
+          "name": "Composio",
+          "description": "Connect many apps through Composio",
+          "setup": "Get Connection ID from Composio. For Tool Router, replace URL with: https://backend.composio.dev/tool_router/'{router_id}'/mcp"
+        },
+        "linear": {
+          "name": "Linear",
+          "description": "Track issues and manage projects"
+        },
+        "supabase": {
+          "name": "Supabase",
+          "description": "Manage Supabase project data and APIs"
+        },
+        "assistant-ui": {
+          "name": "Assistant UI Docs",
+          "description": "Search Assistant UI documentation"
+        },
+        "everything": {
+          "name": "Everything",
+          "description": "Sample server with many example tools"
+        }
       }
     },
     "models": {
@@ -2202,7 +2233,7 @@
           "customModelHelper": "Pick a preset or enter any Hugging Face cross-encoder reranker model ID.",
           "ready": "Ready",
           "download": "Download",
-          "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs — they don\u2019t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
+          "wrongModelType": "Wrong model type: This appears to be an embedding model, not a cross-encoder reranker. Rerankers score (query, text) pairs — they don’t produce vectors. Select a cross-encoder model like \"cross-encoder/ms-marco-MiniLM-L-6-v2\".",
           "unrecognizedModel": "Unrecognized model: Ensure this is a cross-encoder model (not an embedding model). Cross-encoders output relevance scores, not vectors.",
           "downloadFailed": "Download failed",
           "downloadApiUnavailable": "Model download API not available. Please restart the app."
@@ -3117,7 +3148,24 @@
   "skills": {
     "title": "Skills",
     "pageDescription": "Manage reusable skill recipes for {name}.",
-    "library": "Library",
+    "library": {
+      "title": "Cross-Agent Skill Library",
+      "searchPlaceholder": "Search skills",
+      "allCategories": "All categories",
+      "applyFilters": "Apply Filters",
+      "noMatch": "No skills matched your current filters.",
+      "noDescription": "No description",
+      "category": "Category",
+      "categoryGeneral": "general",
+      "runs": "Runs",
+      "success": "Success",
+      "updated": "Updated",
+      "selectAgent": "Select target agent",
+      "copy": "Copy",
+      "open": "Open",
+      "copySuccess": "Skill copied successfully.",
+      "copyFailed": "Failed to copy skill"
+    },
     "mySkills": "My Skills",
     "importPackage": "Import Package",
     "hideImport": "Hide Import",
@@ -3195,24 +3243,6 @@
       "fileTooLarge": "File too large",
       "fileTooLargeDesc": "File size exceeds 50MB limit"
     },
-    "library": {
-      "title": "Cross-Agent Skill Library",
-      "searchPlaceholder": "Search skills",
-      "allCategories": "All categories",
-      "applyFilters": "Apply Filters",
-      "noMatch": "No skills matched your current filters.",
-      "noDescription": "No description",
-      "category": "Category",
-      "categoryGeneral": "general",
-      "runs": "Runs",
-      "success": "Success",
-      "updated": "Updated",
-      "selectAgent": "Select target agent",
-      "copy": "Copy",
-      "open": "Open",
-      "copySuccess": "Skill copied successfully.",
-      "copyFailed": "Failed to copy skill"
-    },
     "detail": {
       "backToSkills": "Back to Skills",
       "title": "Skill Detail & Editor",
@@ -3257,7 +3287,11 @@
     "create": "New Schedule",
     "retry": "Retry",
     "delete": "Delete",
-    "cancel": "Cancel",
+    "cancel": {
+      "button": "Cancel",
+      "confirm": "Cancel this run?",
+      "success": "Run cancelled"
+    },
     "deleteConfirmTitle": "Delete Schedule",
     "deleteConfirmDescription": "This will permanently delete this scheduled task and all its run history. This action cannot be undone.",
     "filters": {
@@ -3510,11 +3544,6 @@
       "runAll": "Run All Now",
       "deleteAll": "Delete All",
       "confirmDelete": "Are you sure you want to delete {count} schedules?"
-    },
-    "cancel": {
-      "button": "Cancel",
-      "confirm": "Cancel this run?",
-      "success": "Run cancelled"
     },
     "delivery": {
       "title": "Deliver Results To",
