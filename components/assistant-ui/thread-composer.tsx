@@ -8,6 +8,7 @@ import {
   useThreadRuntime,
   useThreadComposer,
 } from "@assistant-ui/react";
+import type { JSONContent } from "@tiptap/core";
 import {
   ClockIcon,
   XIcon,
@@ -29,6 +30,7 @@ import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
 import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
+import { useSessionComposerEditorState } from "@/lib/hooks/use-session-composer-editor-state";
 import { ContextWindowIndicator } from "./context-window-indicator";
 import { ActiveModelIndicator } from "./active-model-indicator";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
@@ -93,7 +95,6 @@ export const Composer: FC<{
   const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
 
-  const [isEditorMode, setIsEditorMode] = useState(false);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
   // Attempt to inject a message into the currently active run's live prompt queue.
@@ -147,6 +148,13 @@ export const Composer: FC<{
     restoredSelection,
     clearDraft,
   } = useSessionComposerDraft(sessionId);
+  const {
+    isEditorMode,
+    setIsEditorMode,
+    tiptapDraft,
+    setTiptapDraft,
+    clearTiptapDraft,
+  } = useSessionComposerEditorState(sessionId);
 
   const updateCursorPosition = useCallback(
     (selectionStart: number, selectionEnd: number = selectionStart) => {
@@ -385,6 +393,7 @@ export const Composer: FC<{
           deepResearch.startResearch(textOnly.trim());
         }
         tiptapRef.current?.clear();
+        clearTiptapDraft();
         return;
       }
 
@@ -425,6 +434,7 @@ export const Composer: FC<{
           ]);
         }
         tiptapRef.current?.clear();
+        clearTiptapDraft();
         return;
       }
 
@@ -435,6 +445,7 @@ export const Composer: FC<{
       });
 
       tiptapRef.current?.clear();
+      clearTiptapDraft();
       clearEnhancement();
     },
     [
@@ -443,12 +454,24 @@ export const Composer: FC<{
       deepResearch,
       threadRuntime,
       clearEnhancement,
+      clearTiptapDraft,
     ]
   );
 
   const toggleEditorMode = useCallback(() => {
     setIsEditorMode((prev) => !prev);
-  }, []);
+  }, [setIsEditorMode]);
+
+  const handleTiptapDraftChange = useCallback(
+    (nextDraft: JSONContent | null) => {
+      setTiptapDraft(nextDraft);
+    },
+    [setTiptapDraft],
+  );
+
+  const handleClearTiptapDraft = useCallback(() => {
+    clearTiptapDraft();
+  }, [clearTiptapDraft]);
 
   const handleInsertMention = useCallback(
     (mention: string, atIndex: number, queryLength: number) => {
@@ -822,6 +845,9 @@ export const Composer: FC<{
               placeholder={getPlaceholder()}
               disabled={isDeepResearchLoading}
               isSubmitting={false}
+              initialContent={tiptapDraft}
+              onDraftChange={handleTiptapDraftChange}
+              onDraftClear={handleClearTiptapDraft}
             />
             <div className="flex items-center justify-end">
               <ComposerActionBar
