@@ -5,6 +5,9 @@ export type CodexInputItem = {
   role?: string;
   id?: string;
   call_id?: string;
+  callId?: string;
+  tool_call_id?: string;
+  toolCallId?: string;
   name?: string;
   content?: unknown;
   output?: unknown;
@@ -23,12 +26,18 @@ const TOOL_OUTPUT_TYPES = new Set([
   "custom_tool_call_output",
 ]);
 
-const getCallId = (item: CodexInputItem): string | null => {
-  const rawCallId = item.call_id;
-  if (typeof rawCallId !== "string") return null;
-  const trimmed = rawCallId.trim();
+const toTrimmedString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 };
+
+const getCallId = (item: CodexInputItem): string | null =>
+  toTrimmedString(item.call_id) ??
+  toTrimmedString(item.callId) ??
+  toTrimmedString(item.tool_call_id) ??
+  toTrimmedString(item.toolCallId) ??
+  toTrimmedString(item.id);
 
 const isToolCallType = (type: unknown): type is string =>
   typeof type === "string" && TOOL_CALL_TYPES.has(type);
@@ -126,9 +135,18 @@ export function filterCodexInput(
   for (const rawItem of input) {
     if (rawItem.type === "item_reference") continue;
 
-    const item = rawItem.id
+    // Drop transient item IDs, but preserve tool correlation when upstream
+    // encodes call IDs as `id` instead of `call_id`.
+    const itemWithoutId = rawItem.id
       ? (({ id, ...rest }) => rest as CodexInputItem)(rawItem)
       : rawItem;
+    const callId = getCallId(rawItem);
+    const item =
+      callId &&
+      (isToolCallType(rawItem.type) || isToolOutputType(rawItem.type)) &&
+      !toTrimmedString(itemWithoutId.call_id)
+        ? { ...itemWithoutId, call_id: callId }
+        : itemWithoutId;
 
     const sanitized = sanitizeAssistantMessageContent(item);
     if (!sanitized) continue;

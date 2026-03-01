@@ -540,7 +540,6 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
                   `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
                     `(had prior streaming deltas). Runtime will finalize from deltas.`
                 );
-                toolCallsWithDeltas.delete(availChunk.toolCallId);
                 return; // Drop this chunk
               }
               clearTimer();
@@ -559,10 +558,23 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
                   `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
                     `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
                 );
-                toolCallsWithDeltas.delete(errChunk.toolCallId);
                 return;
               }
               clearTimer();
+              flushBuffer(controller);
+              safeEnqueue(controller, chunk);
+              return;
+            }
+            case "tool-output-available":
+            case "tool-output-error":
+            case "tool-output-denied": {
+              const outChunk = chunk as UIMessageChunk & { toolCallId?: string };
+              if (outChunk.toolCallId) {
+                // Clear delta-tracking only after tool output is finalized.
+                toolCallsWithDeltas.delete(outChunk.toolCallId);
+              }
+              clearTimer();
+              flushAllToolInputBuffers(controller);
               flushBuffer(controller);
               safeEnqueue(controller, chunk);
               return;
@@ -590,6 +602,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
               `[ChatTransport] tool-input-delta batching: raw=${rawToolInputDeltaChunks}, emitted=${emittedToolInputDeltaChunks}`,
             );
           }
+          toolCallsWithDeltas.clear();
           clearAllToolInputBuffers();
         },
       }),
