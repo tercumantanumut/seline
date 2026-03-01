@@ -263,6 +263,7 @@ export class TelegramConnector implements ChannelConnector {
     const sent = await this.bot.api.sendMessage(chatId, text || " ", {
       message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
       reply_parameters: replyParameters,
+      parse_mode: payload.parseMode,
     });
     return {
       externalMessageId: String(sent.message_id),

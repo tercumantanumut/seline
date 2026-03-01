@@ -44,6 +44,8 @@ export interface SystemPromptBuildArgs {
   contextWindowStatus: ContextWindowStatus;
   workflowPromptContext: string | null;
   devWorkspaceEnabled: boolean;
+  /** When true, skip the channel formatting block so code blocks render freely. */
+  rawMode?: boolean;
 }
 
 export interface SystemPromptBuildResult {
@@ -68,6 +70,7 @@ export async function buildSystemPromptForRequest(
     contextWindowStatus,
     workflowPromptContext,
     devWorkspaceEnabled,
+    rawMode,
   } = args;
 
   let systemPromptValue: string | CacheableSystemBlock[];
@@ -98,7 +101,8 @@ export async function buildSystemPromptForRequest(
       }
 
       pluginContext = { agentId: characterId, characterId };
-      const channelType = (sessionMetadata?.channelType as string | undefined) ?? null;
+      // rawMode: suppress channel formatting block so code blocks render freely
+      const channelType = rawMode ? null : ((sessionMetadata?.channelType as string | undefined) ?? null);
       systemPromptValue = useCaching
         ? buildCacheableCharacterPrompt(character, { toolLoadingMode, channelType, enableCaching: true, skillSummaries: hydratedSkillSummaries })
         : buildCharacterSystemPrompt(character, { toolLoadingMode, channelType, skillSummaries: hydratedSkillSummaries });

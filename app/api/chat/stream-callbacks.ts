@@ -79,6 +79,7 @@ export interface StreamCallbackContext {
   runFinalized: { value: boolean };
   provider: string;
   streamAbortSignal: AbortSignal;
+  rawMode?: boolean;
 }
 
 // ─── onFinish callback factory ────────────────────────────────────────────────
@@ -289,6 +290,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
           messageId: finalMessageId,
           content: content as DBContentPart[],
           sessionMetadata: ctx.sessionMetadata,
+          rawMode: ctx.rawMode,
         });
       } catch (error) {
         console.error("[CHAT API] Channel delivery error:", error);
