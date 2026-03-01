@@ -51,6 +51,12 @@ export function registerInteractiveWait(
   const key = makeKey(sessionId, toolUseId);
   // Clean up stale entries opportunistically
   cleanupStaleEntries();
+  // Resolve any existing wait for this key to prevent a hung promise
+  const existing = pendingWaits.get(key);
+  if (existing) {
+    pendingWaits.delete(key);
+    existing.resolve({});
+  }
   return new Promise<Record<string, string>>((resolve) => {
     pendingWaits.set(key, { resolve, questions, createdAt: Date.now() });
     interactiveBridgeEvents.emit("pending", { sessionId, toolUseId, questions });

@@ -90,6 +90,10 @@ async function submitAnswersToServer(
         answers,
       }),
     });
+    if (!res.ok) {
+      console.error("[AskQuestionUI] Server returned error:", res.status);
+      return false;
+    }
     const data = await res.json();
     return data.resolved === true;
   } catch (err) {

@@ -18,7 +18,7 @@ When Claude Code (running via the Agent SDK) calls `AskUserQuestion`, three issu
 
 The Claude Code provider creates two parallel processing pipelines:
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  Claude Code SDK Agent Loop (autonomous)            │
 │  SDK ↔ Claude API (internal conversation)           │
@@ -56,7 +56,7 @@ The SDK manages its own conversation with Claude's API. We translate its streami
 
 ### Data Flow for Interactive AskUserQuestion
 
-```
+```text
 1. Claude calls AskUserQuestion tool
    ↓
 2. SDK streams content_block_start/delta/stop (tool_use)

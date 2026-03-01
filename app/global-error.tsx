@@ -6,13 +6,14 @@
  * Must render its own <html>/<body> because it replaces the root layout.
  */
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   return (
-    <html>
+    <html lang="en">
       <body
         style={{
           display: "flex",
@@ -39,6 +40,11 @@ export default function GlobalError({
           >
             An unexpected error occurred. Click below to try again.
           </p>
+          {process.env.NODE_ENV === "development" && error.digest && (
+            <p style={{ fontSize: "0.75rem", color: "#999", marginBottom: "1rem" }}>
+              Digest: {error.digest}
+            </p>
+          )}
           <button
             onClick={reset}
             style={{

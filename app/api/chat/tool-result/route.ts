@@ -24,9 +24,16 @@ export async function POST(req: Request) {
   }
 
   const { sessionId, toolUseId, answers } = body;
-  if (!sessionId || !toolUseId || !answers || typeof answers !== "object") {
+  if (
+    !sessionId ||
+    !toolUseId ||
+    !answers ||
+    typeof answers !== "object" ||
+    Array.isArray(answers) ||
+    !Object.values(answers).every((v) => typeof v === "string")
+  ) {
     return Response.json(
-      { error: "Missing required fields: sessionId, toolUseId, answers" },
+      { error: "Missing required fields: sessionId, toolUseId, answers (Record<string, string>)" },
       { status: 400 },
     );
   }
