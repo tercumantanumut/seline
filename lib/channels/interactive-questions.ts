@@ -258,7 +258,9 @@ export function mapIndicesToAnswers(
     const labels = selectedIndices
       .filter((i) => i >= 1 && i <= q.options.length)
       .map((i) => q.options[i - 1].label);
-    answers[q.question] = labels.join(", ") || q.options[0]?.label || "";
+    answers[q.question] = q.multiSelect
+      ? (labels.join(", ") || "")
+      : (labels[0] || "");
     return answers;
   }
 

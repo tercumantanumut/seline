@@ -220,14 +220,14 @@ export const CalculatorToolUI: ToolCallContentPartComponent = ({
     const [copied, setCopied] = useState(false);
     const [expanded, setExpanded] = useState(false);
 
-    // Guard against missing args
-    if (!args) return null;
-
     const resolvedResult = result ?? output;
     const normalizedResult = useMemo(
         () => normalizeCalculatorResult(resolvedResult),
         [resolvedResult],
     );
+
+    // Guard against missing args
+    if (!args) return null;
 
     const expression = args.expression;
     const resultValue = normalizedResult?.result;

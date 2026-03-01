@@ -8,10 +8,12 @@
 
 import { resolveInteractiveWait } from "@/lib/interactive-tool-bridge";
 import { requireAuth } from "@/lib/auth/local-auth";
+import { getSession } from "@/lib/db/queries-sessions";
 
 export async function POST(req: Request) {
+  let userId: string;
   try {
-    await requireAuth(req);
+    userId = await requireAuth(req);
   } catch {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -36,6 +38,12 @@ export async function POST(req: Request) {
       { error: "Missing required fields: sessionId, toolUseId, answers (Record<string, string>)" },
       { status: 400 },
     );
+  }
+
+  // Verify the authenticated user owns this session
+  const session = await getSession(sessionId);
+  if (!session || session.userId !== userId) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const resolved = resolveInteractiveWait(sessionId, toolUseId, answers);
