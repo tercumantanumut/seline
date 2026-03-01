@@ -5,7 +5,19 @@
  * a PreToolUse hook blocks execution and registers a pending wait here.
  * The client POSTs to /api/chat/tool-result with the user's answers,
  * which resolves the wait and unblocks the SDK agent.
+ *
+ * An EventEmitter (`interactiveBridgeEvents`) notifies subscribers (e.g.
+ * channel integrations) when a question is pending or resolved so they can
+ * render the question in Telegram / Slack / Discord / WhatsApp.
  */
+
+import { EventEmitter } from "events";
+
+// ---------------------------------------------------------------------------
+// Event emitter — notifies channel integrations about pending questions
+// ---------------------------------------------------------------------------
+
+export const interactiveBridgeEvents = new EventEmitter();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,8 +51,15 @@ export function registerInteractiveWait(
   const key = makeKey(sessionId, toolUseId);
   // Clean up stale entries opportunistically
   cleanupStaleEntries();
+  // Resolve any existing wait for this key to prevent a hung promise
+  const existing = pendingWaits.get(key);
+  if (existing) {
+    pendingWaits.delete(key);
+    existing.resolve({});
+  }
   return new Promise<Record<string, string>>((resolve) => {
     pendingWaits.set(key, { resolve, questions, createdAt: Date.now() });
+    interactiveBridgeEvents.emit("pending", { sessionId, toolUseId, questions });
   });
 }
 
@@ -59,6 +78,7 @@ export function resolveInteractiveWait(
   if (!entry) return false;
   pendingWaits.delete(key);
   entry.resolve(answers);
+  interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
   return true;
 }
 

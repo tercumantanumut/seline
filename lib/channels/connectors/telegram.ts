@@ -1,6 +1,6 @@
-import { Bot, InputFile, GrammyError } from "grammy";
+import { Bot, InputFile, InlineKeyboard, GrammyError } from "grammy";
 import type { Context } from "grammy";
-import { ChannelConnector, ChannelInboundMessage, ChannelSendPayload, ChannelSendResult, TelegramConnectionConfig } from "../types";
+import { ChannelConnector, ChannelInboundMessage, ChannelSendPayload, ChannelSendResult, TelegramConnectionConfig, InteractiveQuestionPayload, InteractiveAnswerData } from "../types";
 import { normalizeChannelText } from "../utils";
 
 /**
@@ -88,6 +88,7 @@ export class TelegramConnector implements ChannelConnector {
   private handlersAttached = false;
   private startPromise: Promise<void> | null = null;
   private pollingBlocked = false;
+  private interactiveAnswerHandler: ((data: InteractiveAnswerData) => void) | null = null;
 
   constructor(options: TelegramConnectorOptions) {
     this.connectionId = options.connectionId;
@@ -284,6 +285,27 @@ export class TelegramConnector implements ChannelConnector {
     return Promise.resolve();
   }
 
+  setInteractiveAnswerHandler(handler: (data: InteractiveAnswerData) => void): void {
+    this.interactiveAnswerHandler = handler;
+  }
+
+  async sendInteractiveQuestion(payload: InteractiveQuestionPayload): Promise<ChannelSendResult> {
+    const chatId = Number(payload.peerId);
+    const keyboard = new InlineKeyboard();
+    for (const opt of payload.options) {
+      keyboard.text(
+        `${opt.index}. ${opt.label}`,
+        `auq:${payload.toolUseId}:${opt.index}`,
+      ).row();
+    }
+    const text = `${payload.questionText}\n\n${payload.instructionText}`;
+    const sent = await this.bot.api.sendMessage(chatId, text, {
+      reply_markup: keyboard,
+      message_thread_id: payload.threadId ? Number(payload.threadId) : undefined,
+    });
+    return { externalMessageId: String(sent.message_id) };
+  }
+
   private attachHandlers(): void {
     if (this.handlersAttached) {
       return;
@@ -318,6 +340,48 @@ export class TelegramConnector implements ChannelConnector {
       };
 
       await this.onMessage(inbound);
+    });
+
+    // Handle inline keyboard button clicks for interactive questions
+    this.bot.on("callback_query:data", async (ctx) => {
+      const data = ctx.callbackQuery.data;
+      if (!data?.startsWith("auq:")) return;
+
+      const parts = data.split(":");
+      if (parts.length < 3) return;
+      const toolUseId = parts[1];
+      const selectedIndex = parseInt(parts[2], 10);
+      if (isNaN(selectedIndex)) return;
+
+      // Acknowledge the callback to dismiss the loading spinner
+      await ctx.answerCallbackQuery({ text: "Selection received" });
+
+      // Edit the message to show the selected option
+      try {
+        const selectedButton = ctx.callbackQuery.message?.reply_markup?.inline_keyboard
+          ?.flat()
+          ?.find((btn) => "callback_data" in btn && btn.callback_data === data);
+        const selectedText = selectedButton && "text" in selectedButton ? selectedButton.text : `Option ${selectedIndex}`;
+        await ctx.editMessageText(
+          `${ctx.callbackQuery.message?.text ?? ""}\n\n✓ Selected: ${selectedText}`,
+        );
+      } catch {
+        // Editing may fail if message is too old
+      }
+
+      if (this.interactiveAnswerHandler) {
+        const peerId = String(ctx.callbackQuery.message?.chat?.id ?? "");
+        const threadId = ctx.callbackQuery.message?.message_thread_id
+          ? String(ctx.callbackQuery.message.message_thread_id)
+          : undefined;
+        this.interactiveAnswerHandler({
+          connectionId: this.connectionId,
+          peerId,
+          threadId,
+          toolUseId,
+          selectedIndices: [selectedIndex],
+        });
+      }
     });
 
     this.handlersAttached = true;
