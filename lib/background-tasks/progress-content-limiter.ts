@@ -81,6 +81,53 @@ function isRunSkillToolResult(part: unknown): boolean {
 }
 
 /**
+ * Check if a part looks like a tool-call with an args payload
+ */
+function isToolCallPart(part: unknown): part is {
+  type: "tool-call";
+  toolCallId: string;
+  toolName?: string;
+  args?: unknown;
+  argsText?: string;
+  [key: string]: unknown;
+} {
+  if (!part || typeof part !== "object") return false;
+  const obj = part as Record<string, unknown>;
+  return obj.type === "tool-call";
+}
+
+/**
+ * Truncate a tool-call's `args` field if it exceeds the per-part limit.
+ * Also strips any residual `argsText` that leaked into the progress content.
+ * Returns a new object (does not mutate the original).
+ */
+function truncateToolCallArgs(
+  part: { type: "tool-call"; toolCallId: string; toolName?: string; args?: unknown; argsText?: string; [key: string]: unknown },
+): { truncated: boolean; part: Record<string, unknown> } {
+  // Always strip argsText — it's never needed for progress display
+  const { argsText: _strip, ...rest } = part as unknown as Record<string, unknown>;
+
+  const argsStr = part.args ? JSON.stringify(part.args) : undefined;
+  if (!argsStr || argsStr.length <= MAX_SINGLE_RESULT_CHARS) {
+    return { truncated: _strip !== undefined, part: rest };
+  }
+
+  const toolName = part.toolName || "tool";
+  const originalTokens = Math.ceil(argsStr.length / CHARS_PER_TOKEN);
+
+  return {
+    truncated: true,
+    part: {
+      ...rest,
+      args: {
+        _progressTruncated: true,
+        summary: `${toolName} args too large for progress display (~${originalTokens.toLocaleString()} tokens)`,
+      },
+    },
+  };
+}
+
+/**
  * Truncate a single tool-result's `result` field if it exceeds the limit.
  * Returns a new object (does not mutate the original).
  */
@@ -192,11 +239,18 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
     `Truncating tool-result parts for progress projection only (canonical history is unchanged).`
   );
 
-  // Pass 1: Truncate individual oversized tool-result parts
+  // Pass 1: Truncate individual oversized tool-result and tool-call parts
   let truncatedParts = 0;
   const limitedContent = content.map((part) => {
     if (isToolResultPart(part)) {
       const { truncated, part: newPart } = truncateToolResult(part);
+      if (truncated) {
+        truncatedParts++;
+      }
+      return newPart;
+    }
+    if (isToolCallPart(part)) {
+      const { truncated, part: newPart } = truncateToolCallArgs(part);
       if (truncated) {
         truncatedParts++;
       }
@@ -229,8 +283,8 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
     };
   }
 
-  // Pass 2: Still too large — strip tool-result `result` fields entirely,
-  // replacing with a summary string
+  // Pass 2: Still too large — strip tool-result `result` and tool-call `args`
+  // fields entirely, replacing with summary strings
   const strippedContent = limitedContent.map((part) => {
     if (isToolResultPart(part)) {
       const toolName = part.toolName || "tool";
@@ -241,6 +295,13 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
           summary: `${toolName} completed (output too large for progress display)`,
           _progressTruncated: true,
         },
+      };
+    }
+    if (isToolCallPart(part) && part.args) {
+      const { argsText: _strip, ...rest } = part as unknown as Record<string, unknown>;
+      return {
+        ...rest,
+        args: { _progressTruncated: true },
       };
     }
     return part;
@@ -265,7 +326,7 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
       wasTruncated: true,
       originalTokens,
       finalTokens: afterPass2Tokens,
-      truncatedParts: content.filter(isToolResultPart).length,
+      truncatedParts: content.filter((p) => isToolResultPart(p) || isToolCallPart(p)).length,
       hardCapped: false,
     };
   }
@@ -296,7 +357,7 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
     wasTruncated: true,
     originalTokens,
     finalTokens,
-    truncatedParts: content.filter(isToolResultPart).length,
+    truncatedParts: content.filter((p) => isToolResultPart(p) || isToolCallPart(p)).length,
     hardCapped: true,
   };
 }

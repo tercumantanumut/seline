@@ -19,9 +19,9 @@ import {
   extractTextFromParts,
 } from "./streaming-state";
 
-// Feature-flagged safety projection for task progress SSE payloads.
-const ENABLE_PROGRESS_CONTENT_LIMITER =
-  process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
+// Progress content limiter is now ON by default. Set env to "true" to disable.
+const DISABLE_PROGRESS_CONTENT_LIMITER =
+  process.env.DISABLE_PROGRESS_CONTENT_LIMITER === "true";
 
 export interface SyncStreamingMessageContext {
   sessionId: string;
@@ -174,9 +174,20 @@ export function createSyncStreamingMessage(
       });
 
       if (progressRunId && progressType) {
-        const progressLimit = ENABLE_PROGRESS_CONTENT_LIMITER
-          ? limitProgressContent(partsSnapshot)
-          : null;
+        // Strip argsText from tool-call parts before progress emission.
+        // argsText is only needed for finalization, not for display, and can
+        // be hundreds of KB from runaway model outputs.
+        const strippedSnapshot = partsSnapshot.map((part) => {
+          if (part.type === "tool-call" && "argsText" in part) {
+            const { argsText: _strip, ...rest } = part as unknown as Record<string, unknown>;
+            return rest as unknown as DBContentPart;
+          }
+          return part;
+        });
+
+        const progressLimit = DISABLE_PROGRESS_CONTENT_LIMITER
+          ? null
+          : limitProgressContent(strippedSnapshot);
         if (progressLimit?.wasTruncated) {
           console.log(
             `[CHAT API] Progress content truncated: ` +
@@ -192,12 +203,12 @@ export function createSyncStreamingMessage(
           characterId: eventCharacterId,
           sessionId,
           assistantMessageId,
-          progressContent: (progressLimit?.content ?? partsSnapshot) as DBContentPart[],
+          progressContent: (progressLimit?.content ?? strippedSnapshot) as DBContentPart[],
           progressContentLimited: progressLimit?.wasTruncated,
           progressContentOriginalTokens: progressLimit?.originalTokens,
           progressContentFinalTokens: progressLimit?.finalTokens,
           progressContentTruncatedParts: progressLimit?.truncatedParts,
-          progressContentProjectionOnly: progressLimit ? true : undefined,
+          progressContentProjectionOnly: true,
           startedAt: nowISO(),
         });
       }

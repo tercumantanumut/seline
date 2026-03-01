@@ -2,6 +2,16 @@ import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/mess
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { attemptJsonRepair } from "./tool-call-utils";
 
+/**
+ * Hard cap on accumulated argsText per tool call (512KB).
+ * Prevents unbounded memory growth when models produce runaway/repeated
+ * content in tool-call arguments (e.g. duplicated test blocks in editFile).
+ */
+export const MAX_ARGS_TEXT_BYTES = 512_000;
+
+/** Max chars of argsText to include in console warnings to prevent log flooding. */
+const LOG_ARGS_TEXT_PREVIEW_CHARS = 500;
+
 export interface StreamingMessageState {
   parts: DBContentPart[];
   toolCallParts: Map<string, DBToolCallPart>;
@@ -113,6 +123,24 @@ export function recordToolInputDelta(state: StreamingMessageState, toolCallId: s
     return false;
   }
   const part = ensureToolCallPart(state, toolCallId);
+  const currentLength = part.argsText?.length ?? 0;
+
+  // Hard cap: stop accumulating if argsText would exceed the safety limit.
+  // This prevents unbounded memory growth from runaway/duplicated tool payloads.
+  // Check combined size (current + delta) to prevent a single large delta from
+  // overshooting the cap.
+  if (currentLength + delta.length > MAX_ARGS_TEXT_BYTES) {
+    if (!state.loggedIncompleteToolCalls.has(`oversized:${toolCallId}`)) {
+      state.loggedIncompleteToolCalls.add(`oversized:${toolCallId}`);
+      console.warn(
+        `[CHAT API] argsText for ${part.toolName} (${toolCallId}) would exceed ${MAX_ARGS_TEXT_BYTES} bytes ` +
+        `(current: ${currentLength}, delta: ${delta.length}). ` +
+        `Dropping further deltas to prevent memory exhaustion.`
+      );
+    }
+    return false;
+  }
+
   part.argsText = `${part.argsText ?? ""}${delta}`;
   part.state = part.state ?? "input-streaming";
   return true;
@@ -132,12 +160,13 @@ export function finalizeStreamingToolCalls(state: StreamingMessageState): boolea
           changed = true;
           console.log(`[CHAT API] Finalized streaming tool call: ${part.toolName} (${part.toolCallId})`);
         } catch (error) {
-          // argsText is invalid JSON - log full details for debugging
+          // argsText is invalid JSON - log truncated preview to avoid log flooding
           console.warn(
             `[CHAT API] Failed to parse argsText for ${part.toolName} (${part.toolCallId}).\n` +
             `  Error: ${error instanceof Error ? error.message : String(error)}\n` +
             `  argsText length: ${part.argsText.length}\n` +
-            `  Full argsText: ${part.argsText}`
+            `  argsText preview: ${part.argsText.slice(0, LOG_ARGS_TEXT_PREVIEW_CHARS)}` +
+            (part.argsText.length > LOG_ARGS_TEXT_PREVIEW_CHARS ? `… [truncated ${part.argsText.length - LOG_ARGS_TEXT_PREVIEW_CHARS} more chars]` : "")
           );
 
           // Attempt to repair truncated JSON (e.g. missing closing braces/brackets)
