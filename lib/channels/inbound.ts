@@ -8,6 +8,7 @@ import {
   createMessage,
   createSession,
   findChannelConversation,
+  findChannelConversationBySessionId,
   findChannelMessageByExternalId,
   getChannelConnection,
   getMessages,
@@ -27,8 +28,131 @@ import { abortChatRun } from "@/lib/background-tasks/chat-abort-registry";
 import type { ChannelTask } from "@/lib/background-tasks/types";
 import { nowISO } from "@/lib/utils/timestamp";
 import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/lib/audio/transcription";
+import { interactiveBridgeEvents, resolveInteractiveWait, storeUserAnswer } from "@/lib/interactive-tool-bridge";
+import {
+  parseToolInputToQuestions,
+  formatQuestionsForChannel,
+  formatAnswerConfirmation,
+  parseUserResponseToAnswers,
+  mapIndicesToAnswers,
+  setPendingQuestion,
+  getPendingQuestion,
+  clearPendingQuestion,
+  clearPendingQuestionBySession,
+  findPendingQuestionByToolUseId,
+} from "./interactive-questions";
 
 const conversationQueues = new Map<string, Promise<void>>();
+
+// ---------------------------------------------------------------------------
+// Interactive question bridge — listen for pending AskUserQuestion tool calls
+// ---------------------------------------------------------------------------
+
+interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }: {
+  sessionId: string;
+  toolUseId: string;
+  questions: unknown;
+}) => {
+  try {
+    const conversation = await findChannelConversationBySessionId(sessionId);
+    if (!conversation) return; // Not a channel session
+
+    const connection = await getChannelConnection(conversation.connectionId);
+    if (!connection) return;
+
+    const parsed = parseToolInputToQuestions(questions);
+    if (parsed.length === 0) return;
+
+    const manager = getChannelManager();
+    const connector = manager.getConnector(conversation.connectionId);
+
+    // Wire up the interactive answer handler for button callbacks
+    if (connector?.setInteractiveAnswerHandler) {
+      connector.setInteractiveAnswerHandler((data) => {
+        const pending = findPendingQuestionByToolUseId(data.toolUseId);
+        if (!pending) return;
+
+        const answers = mapIndicesToAnswers(data.selectedIndices, pending.data.questions);
+        storeUserAnswer(pending.data.sessionId, pending.data.toolUseId, answers);
+        resolveInteractiveWait(pending.data.sessionId, pending.data.toolUseId, answers);
+        clearPendingQuestion(pending.key);
+
+        // Send confirmation
+        manager.sendMessage(connection.id, {
+          peerId: data.peerId,
+          threadId: data.threadId,
+          text: formatAnswerConfirmation(answers, pending.data.questions),
+        }).catch((err) => console.warn("[Channels] Failed to send answer confirmation:", err));
+      });
+    }
+
+    const key = buildConversationKey({
+      connectionId: conversation.connectionId,
+      peerId: conversation.peerId,
+      threadId: conversation.threadId,
+    });
+
+    // For the first question only (multi-question is rare with interactive elements)
+    const firstQ = parsed[0];
+    const questionText = parsed.length === 1
+      ? firstQ.question
+      : formatQuestionsForChannel(parsed).split("\n\nReply")[0];
+
+    const instructionText = firstQ.multiSelect
+      ? "Select your answer (or reply with numbers separated by commas)"
+      : `Select your answer (or reply with a number 1-${firstQ.options.length})`;
+
+    const options = firstQ.options.map((opt, i) => ({
+      index: i + 1,
+      label: opt.label,
+      description: opt.description,
+    }));
+
+    // Try native interactive elements, fall back to text
+    if (connector?.sendInteractiveQuestion) {
+      await manager.sendInteractiveQuestion(connection.id, {
+        peerId: conversation.peerId,
+        threadId: conversation.threadId,
+        toolUseId,
+        questionText,
+        options,
+        multiSelect: firstQ.multiSelect,
+        instructionText,
+      });
+    } else {
+      // Text fallback (WhatsApp, etc.)
+      await manager.sendMessage(connection.id, {
+        peerId: conversation.peerId,
+        threadId: conversation.threadId,
+        text: formatQuestionsForChannel(parsed),
+      });
+    }
+
+    // Register pending state for text reply fallback
+    setPendingQuestion(key, {
+      sessionId,
+      toolUseId,
+      questions: parsed,
+      conversationKey: key,
+      connectionId: conversation.connectionId,
+      peerId: conversation.peerId,
+      threadId: conversation.threadId,
+      createdAt: Date.now(),
+    });
+  } catch (error) {
+    console.error("[Channels] Failed to send interactive question to channel:", error);
+  }
+});
+
+// Clean up channel pending state when bridge resolves (e.g. web UI answers first)
+interactiveBridgeEvents.on("resolved", ({ sessionId, toolUseId }: {
+  sessionId: string;
+  toolUseId: string;
+}) => {
+  clearPendingQuestionBySession(sessionId, toolUseId);
+});
+
+// ---------------------------------------------------------------------------
 
 export async function handleInboundMessage(message: ChannelInboundMessage): Promise<void> {
   const normalizedText = normalizeChannelText(message.text);
@@ -117,6 +241,36 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   taskRegistry.register(channelTask);
 
   const normalizedText = normalizeChannelText(message.text);
+
+  // Check for pending interactive question — intercept reply as an answer
+  const conversationKey = buildConversationKey({
+    connectionId: message.connectionId,
+    peerId: message.peerId,
+    threadId: message.threadId,
+  });
+  const pendingQ = getPendingQuestion(conversationKey);
+  if (pendingQ && normalizedText) {
+    clearPendingQuestion(conversationKey);
+    const answers = parseUserResponseToAnswers(normalizedText, pendingQ.questions);
+    storeUserAnswer(pendingQ.sessionId, pendingQ.toolUseId, answers);
+    resolveInteractiveWait(pendingQ.sessionId, pendingQ.toolUseId, answers);
+
+    // Send confirmation
+    const manager = getChannelManager();
+    try {
+      await manager.sendMessage(message.connectionId, {
+        peerId: message.peerId,
+        threadId: message.threadId,
+        text: formatAnswerConfirmation(answers, pendingQ.questions),
+      });
+    } catch (err) {
+      console.warn("[Channels] Failed to send answer confirmation:", err);
+    }
+    taskRegistry.updateStatus(runId, "succeeded", {
+      durationMs: Date.now() - new Date(startedAt).getTime(),
+    });
+    return;
+  }
 
   // Handle slash commands (/status, /tts, /compact, /stop)
   const commandResult = parseChannelCommand(normalizedText);

@@ -934,10 +934,22 @@ export async function POST(req: Request) {
               tool_search: "searchTools",
             };
 
-            const correctedName = TOOL_NAME_ALIASES[toolCall.toolName];
-            if (correctedName && correctedName in tools) {
-              console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" → "${correctedName}"`);
-              return { ...toolCall, toolName: correctedName };
+            const normalizedName = normalizeMalformedToolName(toolCall.toolName);
+            const candidateNames = Array.from(
+              new Set(
+                [
+                  TOOL_NAME_ALIASES[toolCall.toolName],
+                  normalizedName,
+                  TOOL_NAME_ALIASES[normalizedName],
+                ].filter((name): name is string => typeof name === "string" && name.length > 0)
+              )
+            );
+
+            for (const candidate of candidateNames) {
+              if (candidate in tools) {
+                console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" -> "${candidate}"`);
+                return { ...toolCall, toolName: candidate };
+              }
             }
 
             // For anything else, return null to inject error as tool result so the model can self-correct
@@ -958,6 +970,19 @@ export async function POST(req: Request) {
               } else if (chunk.type === "tool-input-delta") {
                 changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
               } else if (chunk.type === "tool-call") {
+                // Detect argsText conflict: streaming deltas already accumulated
+                // but a complete tool-call event arrived (e.g. from repairToolCall).
+                const existingPart = streamingState.toolCallParts.get(chunk.toolCallId);
+                if (existingPart?.argsText && existingPart.argsText.length > 0) {
+                  const newArgsText = JSON.stringify(chunk.input ?? {});
+                  if (!newArgsText.startsWith(existingPart.argsText)) {
+                    console.warn(
+                      `[CHAT API] argsText conflict for ${chunk.toolName} (${chunk.toolCallId}): ` +
+                        `streaming argsText (${existingPart.argsText.length} chars) replaced by structured input. ` +
+                        `Client error boundary will handle recovery.`
+                    );
+                  }
+                }
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
@@ -1090,6 +1115,25 @@ function detectCreditError(errorMessage: string): boolean {
   return lower.includes("insufficient") || lower.includes("quota") || lower.includes("credit") || lower.includes("429");
 }
 
+function normalizeMalformedToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (!trimmed) return "";
+
+  const nameAttrMatch = /(?:^|[\s<])name\s*=\s*["']?([A-Za-z0-9_.:-]+)/i.exec(trimmed);
+  if (nameAttrMatch?.[1]) return nameAttrMatch[1];
+
+  const firstToken = trimmed.split(/\s+/)[0] ?? "";
+  if (!firstToken) return "";
+
+  const unwrapped = firstToken
+    .replace(/^["'`<]+/, "")
+    .replace(/[>"'`,;]+$/g, "");
+
+  if (!unwrapped) return "";
+  const quoteIndex = unwrapped.search(/["']/);
+  return (quoteIndex >= 0 ? unwrapped.slice(0, quoteIndex) : unwrapped).trim();
+}
+
 function getPlainTextFromContent(content: unknown): string {
   if (typeof content === "string") return content;
 
@@ -1106,3 +1150,4 @@ function getPlainTextFromContent(content: unknown): string {
 
   return "";
 }
+

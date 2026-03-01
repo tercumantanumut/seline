@@ -9,7 +9,7 @@ import { WhatsAppConnector } from "./connectors/whatsapp";
 import { TelegramConnector } from "./connectors/telegram";
 import { SlackConnector } from "./connectors/slack";
 import { DiscordConnector } from "./connectors/discord";
-import { ChannelConnector, ChannelSendPayload, ChannelSendResult, ChannelStatus } from "./types";
+import { ChannelConnector, ChannelSendPayload, ChannelSendResult, ChannelStatus, InteractiveQuestionPayload } from "./types";
 import { handleInboundMessage } from "./inbound";
 
 class ChannelManager {
@@ -188,6 +188,30 @@ class ChannelManager {
     if (connector && connector.markAsRead) {
       await connector.markAsRead(peerId, messageId);
     }
+  }
+
+  getConnector(connectionId: string): ChannelConnector | undefined {
+    return this.connectors.get(connectionId);
+  }
+
+  async sendInteractiveQuestion(
+    connectionId: string,
+    payload: InteractiveQuestionPayload,
+  ): Promise<ChannelSendResult> {
+    const connector = await this.connect(connectionId);
+    if (!connector) {
+      throw new Error("Channel connector unavailable");
+    }
+    // Use native interactive elements if supported, otherwise text fallback
+    if (connector.sendInteractiveQuestion) {
+      return connector.sendInteractiveQuestion(payload);
+    }
+    // Text fallback (WhatsApp and any connector without interactive support)
+    return connector.sendMessage({
+      peerId: payload.peerId,
+      threadId: payload.threadId,
+      text: `${payload.questionText}\n\n${payload.instructionText}`,
+    });
   }
 }
 

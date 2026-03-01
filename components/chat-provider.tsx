@@ -13,7 +13,7 @@ if (process.env.NODE_ENV !== "production") {
   };
 }
 
-import { Component, createContext, type ErrorInfo, type FC, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
+import { Component, createContext, type ErrorInfo, type FC, type MutableRefObject, type ReactNode, useContext, useEffect, useMemo, useRef } from "react";
 import {
   AssistantRuntimeProvider,
   type AttachmentAdapter,
@@ -80,7 +80,12 @@ function isRecoverableStreamingError(error: Error): boolean {
  * Shows a loading state and auto-retries after a short delay.
  */
 class ChatErrorBoundary extends Component<
-  { children: ReactNode; processingText: string; genericError: string },
+  {
+    children: ReactNode;
+    processingText: string;
+    genericError: string;
+    recoveryRef?: MutableRefObject<(() => void) | null>;
+  },
   ErrorBoundaryState
 > {
   private resetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -90,6 +95,15 @@ class ChatErrorBoundary extends Component<
       clearTimeout(this.resetTimer);
     }
     this.resetTimer = setTimeout(() => {
+      // Clear bad state (e.g. broken tool-call argsText) from useChat
+      // BEFORE re-rendering children, to prevent the same error re-throwing.
+      if (this.props.recoveryRef?.current) {
+        try {
+          this.props.recoveryRef.current();
+        } catch (e) {
+          console.warn("[ChatErrorBoundary] Recovery callback failed:", e);
+        }
+      }
       this.setState({ hasError: false, error: null });
       this.resetTimer = null;
     }, 500);
@@ -184,6 +198,9 @@ type SetMessagesFn = (messages: UIMessage[] | ((messages: UIMessage[]) => UIMess
 const ChatSetMessagesContext = createContext<SetMessagesFn | null>(null);
 export const useChatSetMessages = () => useContext(ChatSetMessagesContext);
 
+const ChatSessionIdContext = createContext<string | undefined>(undefined);
+export const useChatSessionId = () => useContext(ChatSessionIdContext);
+
 // ============================================================================
 // Dynamic transport proxy (same as useChatRuntime does internally)
 // ============================================================================
@@ -216,8 +233,8 @@ interface ChatProviderProps {
 // =============================================================================
 // OpenRouter models can emit very small text deltas, which causes excessive
 // React re-renders in the browser and Electron shell during long responses.
-// This transport coalesces text-delta chunks on the client before they reach
-// the runtime while leaving tool events untouched.
+// This transport coalesces high-frequency text/tool-input delta chunks on the
+// client before they reach the runtime to reduce React re-render pressure.
 
 const STREAM_BATCH_ENABLED =
   process.env.NEXT_PUBLIC_STREAM_BATCH_ENABLED !== "false";
@@ -229,6 +246,16 @@ const STREAM_BATCH_INTERVAL_MS = Number.isFinite(envInterval)
 
 const envMax = Number(process.env.NEXT_PUBLIC_STREAM_BATCH_MAX_CHARS);
 const STREAM_BATCH_MAX_CHARS = Number.isFinite(envMax) ? envMax : 4000;
+const TOOL_INPUT_BATCH_ENABLED =
+  process.env.NEXT_PUBLIC_TOOL_INPUT_BATCH_ENABLED !== "false";
+const envToolInputInterval = Number(process.env.NEXT_PUBLIC_TOOL_INPUT_BATCH_INTERVAL_MS);
+const TOOL_INPUT_BATCH_INTERVAL_MS = Number.isFinite(envToolInputInterval)
+  ? envToolInputInterval
+  : 50;
+const envToolInputMax = Number(process.env.NEXT_PUBLIC_TOOL_INPUT_BATCH_MAX_CHARS);
+const TOOL_INPUT_BATCH_MAX_CHARS = Number.isFinite(envToolInputMax)
+  ? envToolInputMax
+  : 8192;
 const loggedSanitizerToolCallIds = new Set<string>();
 
 class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
@@ -293,6 +320,12 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
     let lastTextId: string | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     let streamErrored = false;
+    const toolInputBuffers = new Map<
+      string,
+      { delta: string; timer: ReturnType<typeof setTimeout> | null }
+    >();
+    let rawToolInputDeltaChunks = 0;
+    let emittedToolInputDeltaChunks = 0;
 
     const clearTimer = () => {
       if (flushTimer) {
@@ -332,6 +365,91 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
       bufferedDelta = "";
     };
 
+    const getToolInputBuffer = (toolCallId: string) => {
+      const existing = toolInputBuffers.get(toolCallId);
+      if (existing) return existing;
+      const created = { delta: "", timer: null as ReturnType<typeof setTimeout> | null };
+      toolInputBuffers.set(toolCallId, created);
+      return created;
+    };
+
+    const clearToolInputTimer = (toolCallId: string) => {
+      const buffered = toolInputBuffers.get(toolCallId);
+      if (!buffered?.timer) return;
+      clearTimeout(buffered.timer);
+      buffered.timer = null;
+    };
+
+    const flushToolInputBuffer = (
+      toolCallId: string,
+      controller: TransformStreamDefaultController<UIMessageChunk>,
+    ) => {
+      const buffered = toolInputBuffers.get(toolCallId);
+      if (!buffered || buffered.delta.length === 0) return;
+      clearToolInputTimer(toolCallId);
+      if (!safeEnqueue(controller, {
+        type: "tool-input-delta",
+        toolCallId,
+        inputTextDelta: buffered.delta,
+      } as UIMessageChunk)) {
+        buffered.delta = "";
+        return;
+      }
+      emittedToolInputDeltaChunks += 1;
+      buffered.delta = "";
+    };
+
+    const flushAllToolInputBuffers = (
+      controller: TransformStreamDefaultController<UIMessageChunk>,
+    ) => {
+      for (const toolCallId of toolInputBuffers.keys()) {
+        flushToolInputBuffer(toolCallId, controller);
+      }
+    };
+
+    const clearAllToolInputBuffers = () => {
+      for (const [toolCallId, buffered] of toolInputBuffers.entries()) {
+        if (buffered.timer) {
+          clearTimeout(buffered.timer);
+        }
+        toolInputBuffers.delete(toolCallId);
+      }
+    };
+
+    const bufferToolInputDelta = (
+      toolCallId: string,
+      delta: string,
+      controller: TransformStreamDefaultController<UIMessageChunk>,
+    ) => {
+      rawToolInputDeltaChunks += 1;
+      if (!TOOL_INPUT_BATCH_ENABLED) {
+        safeEnqueue(controller, {
+          type: "tool-input-delta",
+          toolCallId,
+          inputTextDelta: delta,
+        } as UIMessageChunk);
+        emittedToolInputDeltaChunks += 1;
+        return;
+      }
+
+      const buffered = getToolInputBuffer(toolCallId);
+      buffered.delta += delta;
+
+      if (buffered.delta.length >= TOOL_INPUT_BATCH_MAX_CHARS) {
+        flushToolInputBuffer(toolCallId, controller);
+        return;
+      }
+
+      if (!buffered.timer) {
+        buffered.timer = setTimeout(() => {
+          const state = toolInputBuffers.get(toolCallId);
+          if (!state) return;
+          state.timer = null;
+          flushToolInputBuffer(toolCallId, controller);
+        }, TOOL_INPUT_BATCH_INTERVAL_MS);
+      }
+    };
+
     const scheduleFlush = (
       controller: TransformStreamDefaultController<UIMessageChunk>,
     ) => {
@@ -343,6 +461,15 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
       }, STREAM_BATCH_INTERVAL_MS);
     };
 
+    // Track tool call IDs that received streaming input deltas.
+    // When a "tool-input-available" arrives for one of these, the
+    // structured input may conflict with the accumulated argsText
+    // (e.g. {} vs {"questions":[...]}) — causing @assistant-ui/react
+    // to throw "argsText can only be appended, not updated".
+    // We drop the conflicting "tool-input-available" so the runtime
+    // finalizes from the streaming deltas instead.
+    const toolCallsWithDeltas = new Set<string>();
+
     const bufferedStream = baseStream.pipeThrough(
       new TransformStream<UIMessageChunk, UIMessageChunk>({
         transform(chunk, controller) {
@@ -350,12 +477,14 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
           switch (chunk.type) {
             case "text-start": {
               // Flush anything pending before a new text stream begins.
+              flushAllToolInputBuffers(controller);
               flushBuffer(controller);
               lastTextId = chunk.id;
               safeEnqueue(controller, chunk);
               return;
             }
             case "text-delta": {
+              flushAllToolInputBuffers(controller);
               lastTextId = chunk.id;
               bufferedDelta += chunk.delta;
 
@@ -372,6 +501,80 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
             case "text-end": {
               // Ensure final buffered text is emitted before the end marker.
               clearTimer();
+              flushAllToolInputBuffers(controller);
+              flushBuffer(controller);
+              safeEnqueue(controller, chunk);
+              return;
+            }
+            case "tool-input-delta": {
+              // Track that this tool call had streaming deltas.
+              const deltaChunk = chunk as UIMessageChunk & {
+                toolCallId?: string;
+                inputTextDelta?: string;
+                delta?: string;
+              };
+              if (deltaChunk.toolCallId) toolCallsWithDeltas.add(deltaChunk.toolCallId);
+              clearTimer();
+              flushBuffer(controller);
+              const deltaText =
+                typeof deltaChunk.inputTextDelta === "string"
+                  ? deltaChunk.inputTextDelta
+                  : typeof deltaChunk.delta === "string"
+                    ? deltaChunk.delta
+                    : "";
+              if (!deltaChunk.toolCallId || !deltaText) {
+                safeEnqueue(controller, chunk);
+                return;
+              }
+              bufferToolInputDelta(deltaChunk.toolCallId, deltaText, controller);
+              return;
+            }
+            case "tool-input-available": {
+              flushAllToolInputBuffers(controller);
+              // If this tool call already received streaming deltas, the
+              // structured input may conflict with accumulated argsText.
+              // Drop it to prevent the "argsText can only be appended" crash.
+              const availChunk = chunk as UIMessageChunk & { toolCallId: string };
+              if (availChunk.toolCallId && toolCallsWithDeltas.has(availChunk.toolCallId)) {
+                console.warn(
+                  `[ChatTransport] Dropping conflicting tool-input-available for ${availChunk.toolCallId} ` +
+                    `(had prior streaming deltas). Runtime will finalize from deltas.`
+                );
+                return; // Drop this chunk
+              }
+              clearTimer();
+              flushBuffer(controller);
+              safeEnqueue(controller, chunk);
+              return;
+            }
+            case "tool-input-error": {
+              flushAllToolInputBuffers(controller);
+              // Same as tool-input-available: if this tool call had streaming
+              // deltas, dropping the error chunk prevents argsText reset.
+              // The subsequent tool-output-error will preserve the streamed input.
+              const errChunk = chunk as UIMessageChunk & { toolCallId: string };
+              if (errChunk.toolCallId && toolCallsWithDeltas.has(errChunk.toolCallId)) {
+                console.warn(
+                  `[ChatTransport] Dropping tool-input-error for ${errChunk.toolCallId} ` +
+                    `(had prior streaming deltas). Subsequent tool-output-error will preserve input.`
+                );
+                return;
+              }
+              clearTimer();
+              flushBuffer(controller);
+              safeEnqueue(controller, chunk);
+              return;
+            }
+            case "tool-output-available":
+            case "tool-output-error":
+            case "tool-output-denied": {
+              const outChunk = chunk as UIMessageChunk & { toolCallId?: string };
+              if (outChunk.toolCallId) {
+                // Clear delta-tracking only after tool output is finalized.
+                toolCallsWithDeltas.delete(outChunk.toolCallId);
+              }
+              clearTimer();
+              flushAllToolInputBuffers(controller);
               flushBuffer(controller);
               safeEnqueue(controller, chunk);
               return;
@@ -379,6 +582,7 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
             default: {
               // Tool and control events should not be delayed.
               clearTimer();
+              flushAllToolInputBuffers(controller);
               flushBuffer(controller);
               safeEnqueue(controller, chunk);
               return;
@@ -387,7 +591,19 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
         },
         flush(controller) {
           clearTimer();
+          flushAllToolInputBuffers(controller);
           flushBuffer(controller);
+          if (
+            TOOL_INPUT_BATCH_ENABLED &&
+            rawToolInputDeltaChunks > 0 &&
+            process.env.NODE_ENV !== "production"
+          ) {
+            console.log(
+              `[ChatTransport] tool-input-delta batching: raw=${rawToolInputDeltaChunks}, emitted=${emittedToolInputDeltaChunks}`,
+            );
+          }
+          toolCallsWithDeltas.clear();
+          clearAllToolInputBuffers();
         },
       }),
     );
@@ -632,19 +848,34 @@ export const ChatProvider: FC<ChatProviderProps> = ({
     }
   }, [transport, runtime]);
 
+  // Recovery callback: sanitize messages to clear broken tool-call state
+  // so the error boundary can re-render without hitting the same error.
+  const recoveryRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    recoveryRef.current = () => {
+      chat.setMessages((prev) => sanitizeMessagesForInit(prev));
+    };
+    return () => {
+      recoveryRef.current = null;
+    };
+  }, [chat]);
+
   return (
     <ChatErrorBoundary
       processingText={tAssistant("processingTool")}
       genericError={tErrors("genericRefresh")}
+      recoveryRef={recoveryRef}
     >
       <AssistantRuntimeProvider runtime={runtime}>
-        <ChatSetMessagesContext.Provider value={chat.setMessages}>
-          <VoiceProvider>
-            <DeepResearchProvider sessionId={sessionId}>
-              {children}
-            </DeepResearchProvider>
-          </VoiceProvider>
-        </ChatSetMessagesContext.Provider>
+        <ChatSessionIdContext.Provider value={sessionId}>
+          <ChatSetMessagesContext.Provider value={chat.setMessages}>
+            <VoiceProvider>
+              <DeepResearchProvider sessionId={sessionId}>
+                {children}
+              </DeepResearchProvider>
+            </VoiceProvider>
+          </ChatSetMessagesContext.Provider>
+        </ChatSessionIdContext.Provider>
       </AssistantRuntimeProvider>
     </ChatErrorBoundary>
   );

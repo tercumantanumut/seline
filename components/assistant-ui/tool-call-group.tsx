@@ -112,6 +112,9 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [toolParts]);
 
   const mediaPreviews = useMemo(() => {
+    if (toolParts.length === 0 || toolParts.every((part) => part.result == null)) {
+      return [];
+    }
     const seen = new Set<string>();
     const collected: Array<{ type: "image" | "video"; url: string }> = [];
     for (const part of toolParts) {

@@ -86,6 +86,24 @@ export interface ChannelSendResult {
   totalChunks?: number;
 }
 
+export interface InteractiveQuestionPayload {
+  peerId: string;
+  threadId?: string | null;
+  toolUseId: string;
+  questionText: string;
+  options: { index: number; label: string; description: string }[];
+  multiSelect: boolean;
+  instructionText: string;
+}
+
+export interface InteractiveAnswerData {
+  connectionId: string;
+  peerId: string;
+  threadId?: string | null;
+  toolUseId: string;
+  selectedIndices: number[];
+}
+
 export interface ChannelConnector {
   connectionId: string;
   channelType: ChannelType;
@@ -96,4 +114,6 @@ export interface ChannelConnector {
   getQrCode?(): string | null;
   sendTyping?(peerId: string): Promise<void>;
   markAsRead?(peerId: string, messageId: string): Promise<void>;
+  sendInteractiveQuestion?(payload: InteractiveQuestionPayload): Promise<ChannelSendResult>;
+  setInteractiveAnswerHandler?(handler: (data: InteractiveAnswerData) => void): void;
 }
