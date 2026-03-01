@@ -226,4 +226,82 @@ describe("limitProgressContent", () => {
     expect(toolCallPart).toBeDefined();
     expect(toolCallPart.toolCallId).toBe("tc-1");
   });
+
+  it("strips argsText from tool-call parts in pass 1", () => {
+    // argsText is only needed for finalization, not progress display
+    const content = [
+      {
+        type: "tool-call",
+        toolCallId: "tc-1",
+        toolName: "editFile",
+        args: { filePath: "/tmp/test.ts" },
+        argsText: '{"filePath": "/tmp/test.ts"}',
+      },
+      {
+        type: "tool-result",
+        toolCallId: "tc-1",
+        toolName: "editFile",
+        result: "x".repeat(200_000),
+      },
+    ];
+
+    const result = limitProgressContent(content);
+
+    expect(result.wasTruncated).toBe(true);
+    const toolCallPart = result.content.find(
+      (p) => (p as Record<string, unknown>).type === "tool-call"
+    ) as Record<string, unknown>;
+    expect(toolCallPart).toBeDefined();
+    // argsText should be stripped
+    expect(toolCallPart.argsText).toBeUndefined();
+    // args should be preserved (small enough)
+    expect(toolCallPart.args).toBeDefined();
+  });
+
+  it("truncates oversized tool-call args in pass 1", () => {
+    // Simulate a tool-call with massive args (e.g. editFile with duplicated content)
+    const massiveArgs = { newString: "x".repeat(200_000), filePath: "/tmp/test.ts" };
+    const content = [
+      {
+        type: "tool-call",
+        toolCallId: "tc-1",
+        toolName: "editFile",
+        args: massiveArgs,
+      },
+    ];
+
+    const result = limitProgressContent(content);
+
+    expect(result.wasTruncated).toBe(true);
+    expect(result.truncatedParts).toBeGreaterThanOrEqual(1);
+    const toolCallPart = result.content[0] as Record<string, unknown>;
+    const args = toolCallPart.args as Record<string, unknown>;
+    expect(args._progressTruncated).toBe(true);
+    expect(args.summary).toContain("editFile");
+  });
+
+  it("strips tool-call args entirely in pass 2 when still over budget", () => {
+    // Multiple oversized tool-calls that even after per-part truncation exceed the limit
+    const content = Array.from({ length: 10 }, (_, i) => ({
+      type: "tool-call" as const,
+      toolCallId: `tc-${i}`,
+      toolName: "editFile",
+      args: { newString: "z".repeat(60_000), filePath: `/tmp/file${i}.ts` },
+    }));
+
+    // Also add matching oversized tool-results to push well over budget
+    for (let i = 0; i < 10; i++) {
+      content.push({
+        type: "tool-result" as any,
+        toolCallId: `tc-${i}`,
+        toolName: "editFile",
+        args: { result: "r".repeat(60_000) } as any,
+      } as any);
+    }
+
+    const result = limitProgressContent(content);
+
+    expect(result.wasTruncated).toBe(true);
+    expect(result.finalTokens).toBeLessThanOrEqual(20_000);
+  });
 });

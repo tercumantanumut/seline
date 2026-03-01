@@ -92,4 +92,34 @@ describe("converter internal tool history guard", () => {
       assistantTextParts.some((part) => part.text.includes("[Previous tool result; call_id="))
     ).toBe(false);
   });
+
+  it("keeps assistant messages as empty placeholders when all parts are sanitized", () => {
+    const now = new Date().toISOString();
+
+    const uiMessages = convertDBMessagesToUIMessages([
+      {
+        id: "a-empty",
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: '[Previous tool result; call_id=call_1]: {"status":"success"}',
+          },
+        ],
+        createdAt: now,
+        orderingIndex: 1,
+      },
+    ] as any);
+
+    expect(uiMessages).toHaveLength(1);
+    expect(uiMessages[0]?.role).toBe("assistant");
+
+    const textParts = (uiMessages[0]?.parts ?? []).filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof (part as { text?: unknown }).text === "string"
+    );
+    expect(textParts).toHaveLength(1);
+    expect(textParts[0]?.text).toBe("");
+  });
+
 });

@@ -108,10 +108,6 @@ function handleUndrainedQueueMessages(runId: string, sessionId: string): void {
   }
 }
 
-// Feature-flagged safety projection for task progress SSE payloads.
-const ENABLE_PROGRESS_CONTENT_LIMITER = process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
-
-
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
@@ -562,6 +558,99 @@ export async function POST(req: Request) {
       .map((p) => p.cachePath)
       .filter((p): p is string => Boolean(p));
 
+    // Claude Agent SDK tool-result bridge:
+    // - Provider adapter publishes SDK `tool_use_result` payloads keyed by tool_use_id
+    // - Passthrough tool executors await the keyed payload and return it to AI SDK
+    // This preserves real tool output in streaming + DB instead of placeholder stubs.
+    const sdkToolResultBridge = (() => {
+      type BridgeRecord = { output: unknown; toolName?: string };
+      const results = new Map<string, BridgeRecord>();
+      const waiters = new Map<string, Array<(value: BridgeRecord | undefined) => void>>();
+      const MAX_BUFFERED_RESULTS = 256;
+
+      const resolveWaiters = (toolCallId: string, value: BridgeRecord | undefined) => {
+        const pending = waiters.get(toolCallId);
+        if (!pending || pending.length === 0) return;
+        waiters.delete(toolCallId);
+        for (const resolve of pending) resolve(value);
+      };
+
+      const pruneOldestResults = () => {
+        while (results.size > MAX_BUFFERED_RESULTS) {
+          const oldestKey = results.keys().next().value;
+          if (!oldestKey) break;
+          results.delete(oldestKey);
+        }
+      };
+
+      const publish = (toolCallId: string, output: unknown, toolName?: string) => {
+        if (!toolCallId) return;
+        const record = { output, ...(toolName ? { toolName } : {}) };
+        results.set(toolCallId, record);
+        pruneOldestResults();
+        resolveWaiters(toolCallId, record);
+      };
+
+      const waitFor = (
+        toolCallId: string,
+        options?: { timeoutMs?: number; abortSignal?: AbortSignal }
+      ): Promise<BridgeRecord | undefined> => {
+        if (!toolCallId) return Promise.resolve(undefined);
+        const existing = results.get(toolCallId);
+        if (existing) {
+          results.delete(toolCallId);
+          return Promise.resolve(existing);
+        }
+
+        const timeoutMs = Math.max(250, options?.timeoutMs ?? 300_000);
+        const abortSignal = options?.abortSignal;
+
+        return new Promise<BridgeRecord | undefined>((resolve) => {
+          let settled = false;
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+
+          const finish = (value: BridgeRecord | undefined) => {
+            if (settled) return;
+            settled = true;
+            if (timeout) clearTimeout(timeout);
+            if (abortSignal) abortSignal.removeEventListener("abort", onAbort);
+            if (value) {
+              results.delete(toolCallId);
+            } else {
+              const queue = waiters.get(toolCallId);
+              if (queue && queue.length > 0) {
+                const next = queue.filter((resolveWaiter) => resolveWaiter !== finish);
+                if (next.length > 0) {
+                  waiters.set(toolCallId, next);
+                } else {
+                  waiters.delete(toolCallId);
+                }
+              }
+            }
+            resolve(value);
+          };
+
+          const onAbort = () => finish(undefined);
+
+          const queue = waiters.get(toolCallId) ?? [];
+          queue.push(finish);
+          waiters.set(toolCallId, queue);
+
+          if (abortSignal) {
+            if (abortSignal.aborted) {
+              finish(undefined);
+              return;
+            }
+            abortSignal.addEventListener("abort", onAbort, { once: true });
+          }
+
+          timeout = setTimeout(() => finish(undefined), timeoutMs);
+        });
+      };
+
+      return { publish, waitFor };
+    })();
+
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
@@ -592,6 +681,7 @@ export async function POST(req: Request) {
           void _sync();
         };
       })(),
+      sdkToolResultBridge,
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
@@ -840,10 +930,22 @@ export async function POST(req: Request) {
               tool_search: "searchTools",
             };
 
-            const correctedName = TOOL_NAME_ALIASES[toolCall.toolName];
-            if (correctedName && correctedName in tools) {
-              console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" → "${correctedName}"`);
-              return { ...toolCall, toolName: correctedName };
+            const normalizedName = normalizeMalformedToolName(toolCall.toolName);
+            const candidateNames = Array.from(
+              new Set(
+                [
+                  TOOL_NAME_ALIASES[toolCall.toolName],
+                  normalizedName,
+                  TOOL_NAME_ALIASES[normalizedName],
+                ].filter((name): name is string => typeof name === "string" && name.length > 0)
+              )
+            );
+
+            for (const candidate of candidateNames) {
+              if (candidate in tools) {
+                console.warn(`[CHAT API] Remapping tool call "${toolCall.toolName}" -> "${candidate}"`);
+                return { ...toolCall, toolName: candidate };
+              }
             }
 
             // For anything else, return null to inject error as tool result so the model can self-correct
@@ -851,6 +953,12 @@ export async function POST(req: Request) {
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            // Claude Code SDK agents self-correct after tool validation failures —
+            // the stream stays open and onFinish will finalize the run properly.
+            if (provider === "claudecode" && isNonFatalToolError(error)) {
+              console.warn(`[CHAT API] Non-fatal tool error in Claude Code run (skipping finalization): ${errorMessage}`);
+              return;
+            }
             await finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
           },
           onChunk: shouldEmitProgress
@@ -864,6 +972,19 @@ export async function POST(req: Request) {
               } else if (chunk.type === "tool-input-delta") {
                 changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
               } else if (chunk.type === "tool-call") {
+                // Detect argsText conflict: streaming deltas already accumulated
+                // but a complete tool-call event arrived (e.g. from repairToolCall).
+                const existingPart = streamingState.toolCallParts.get(chunk.toolCallId);
+                if (existingPart?.argsText && existingPart.argsText.length > 0) {
+                  const newArgsText = JSON.stringify(chunk.input ?? {});
+                  if (!newArgsText.startsWith(existingPart.argsText)) {
+                    console.warn(
+                      `[CHAT API] argsText conflict for ${chunk.toolName} (${chunk.toolCallId}): ` +
+                        `streaming argsText (${existingPart.argsText.length} chars) replaced by structured input. ` +
+                        `Client error boundary will handle recovery.`
+                    );
+                  }
+                }
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
@@ -909,11 +1030,19 @@ export async function POST(req: Request) {
           stream,
           onError: (error) => {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            if (provider === "claudecode" && isNonFatalToolError(error)) {
+              console.warn(`[CHAT API] Non-fatal tool error in Claude Code SSE stream (skipping finalization): ${errorMessage}`);
+              return;
+            }
             void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
           },
         }),
       onError: (error) => {
         const errorMessage = error instanceof Error ? error.message : String(error);
+        if (provider === "claudecode" && isNonFatalToolError(error)) {
+          console.warn(`[CHAT API] Non-fatal tool error in Claude Code UI stream (skipping finalization): ${errorMessage}`);
+          return "Non-fatal tool error — agent is self-correcting.";
+        }
         void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
         return "Streaming interrupted. The run was marked accordingly.";
       },
@@ -991,9 +1120,55 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * Detect non-fatal tool validation errors that Claude Code SDK agents
+ * can self-correct from. These should NOT trigger run finalization.
+ */
+function isNonFatalToolError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+
+  // Vercel AI SDK error class markers (duck-typed)
+  const marker = (error as any)[Symbol.for("vercel.ai.error")];
+  if (
+    marker === "AI_InvalidToolInputError" ||
+    marker === "AI_NoSuchToolError" ||
+    marker === "AI_ToolCallRepairError"
+  ) {
+    return true;
+  }
+
+  // Fallback: message-based detection
+  return (
+    msg.includes("invalid input for tool") ||
+    msg.includes("json parsing failed") ||
+    msg.includes("tool not found") ||
+    (msg.includes("tool") && msg.includes("does not exist"))
+  );
+}
+
 function detectCreditError(errorMessage: string): boolean {
   const lower = errorMessage.toLowerCase();
   return lower.includes("insufficient") || lower.includes("quota") || lower.includes("credit") || lower.includes("429");
+}
+
+function normalizeMalformedToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (!trimmed) return "";
+
+  const nameAttrMatch = /(?:^|[\s<])name\s*=\s*["']?([A-Za-z0-9_.:-]+)/i.exec(trimmed);
+  if (nameAttrMatch?.[1]) return nameAttrMatch[1];
+
+  const firstToken = trimmed.split(/\s+/)[0] ?? "";
+  if (!firstToken) return "";
+
+  const unwrapped = firstToken
+    .replace(/^["'`<]+/, "")
+    .replace(/[>"'`,;]+$/g, "");
+
+  if (!unwrapped) return "";
+  const quoteIndex = unwrapped.search(/["']/);
+  return (quoteIndex >= 0 ? unwrapped.slice(0, quoteIndex) : unwrapped).trim();
 }
 
 function getPlainTextFromContent(content: unknown): string {
@@ -1012,3 +1187,4 @@ function getPlainTextFromContent(content: unknown): string {
 
   return "";
 }
+

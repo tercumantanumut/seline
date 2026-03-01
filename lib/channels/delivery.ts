@@ -20,6 +20,7 @@ export async function deliverChannelReply(params: {
   messageId: string;
   content: DBContentPart[];
   sessionMetadata: Record<string, unknown>;
+  rawMode?: boolean;
 }): Promise<void> {
   const conversationId = params.sessionMetadata.channelConversationId as string | undefined;
   if (!conversationId) {
@@ -72,11 +73,15 @@ export async function deliverChannelReply(params: {
   }
 
   const manager = getChannelManager();
+  const { text: sendText, parseMode } = params.rawMode
+    ? rawModeTextTransform(text)
+    : { text, parseMode: undefined };
   const result = await manager.sendMessage(connection.id, {
     peerId: conversation.peerId,
     threadId: conversation.threadId,
-    text: text || " ",
+    text: sendText || " ",
     attachments: allAttachments.length > 0 ? allAttachments : undefined,
+    parseMode,
   });
 
   await createChannelMessage({
@@ -317,6 +322,35 @@ export async function persistVoiceState(
   } catch (error) {
     console.warn("[Voice] Failed to persist voice state:", error);
   }
+}
+
+/**
+ * Convert markdown code fences to Telegram HTML <pre> blocks for raw mode.
+ * Non-code-block text is HTML-escaped so Telegram's HTML parse mode is safe.
+ * Returns the original text and no parseMode when no code fences are present.
+ */
+function rawModeTextTransform(text: string): { text: string; parseMode: "HTML" | undefined } {
+  if (!text || !text.includes("```")) {
+    return { text, parseMode: undefined };
+  }
+  // Split on code fences (capturing delimiter keeps it in the array)
+  const parts = text.split(/(```[^\r\n]*\r?\n[\s\S]*?```|```[\s\S]*?```)/g);
+  const transformed = parts.map((part) => {
+    if (part.startsWith("```")) {
+      // Strip opening fence (with optional language tag like c++, objective-c) and closing fence
+      const code = part.replace(/^```[^\r\n]*\r?\n?/, "").replace(/\r?\n?```$/, "");
+      return `<pre>${escapeHtmlEntities(code)}</pre>`;
+    }
+    return escapeHtmlEntities(part);
+  });
+  return { text: transformed.join(""), parseMode: "HTML" };
+}
+
+function escapeHtmlEntities(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 /**

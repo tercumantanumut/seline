@@ -163,7 +163,11 @@ export const TOOL_ICON_MAP: Record<string, ToolIconConfig> = {
  * Falls back to Package icon with regular weight if tool not found
  */
 export function getToolIcon(toolName: string): ToolIconConfig {
-  return TOOL_ICON_MAP[toolName] ?? { icon: Package, weight: "regular" };
+  const canonicalToolName = (() => {
+    const match = /^mcp__.+?__(.+)$/.exec(toolName);
+    return match?.[1] || toolName;
+  })();
+  return TOOL_ICON_MAP[canonicalToolName] ?? TOOL_ICON_MAP[toolName] ?? { icon: Package, weight: "regular" };
 }
 
 /**

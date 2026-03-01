@@ -1,5 +1,5 @@
 import { App, LogLevel } from "@slack/bolt";
-import type { ChannelInboundMessage, ChannelConnector, ChannelSendPayload, ChannelSendResult, SlackConnectionConfig } from "../types";
+import type { ChannelInboundMessage, ChannelConnector, ChannelSendPayload, ChannelSendResult, SlackConnectionConfig, InteractiveQuestionPayload, InteractiveAnswerData } from "../types";
 import { normalizeChannelText } from "../utils";
 
 type SlackConnectorOptions = {
@@ -20,6 +20,7 @@ export class SlackConnector implements ChannelConnector {
   private onStatus: SlackConnectorOptions["onStatus"];
   private characterId: string;
   private botUserId: string | null = null;
+  private interactiveAnswerHandler: ((data: InteractiveAnswerData) => void) | null = null;
 
   constructor(options: SlackConnectorOptions) {
     this.connectionId = options.connectionId;
@@ -76,6 +77,39 @@ export class SlackConnector implements ChannelConnector {
       await this.onMessage(inbound);
     });
 
+    // Handle interactive question button clicks
+    this.app.action(/^auq_/, async ({ action, ack, respond }) => {
+      await ack();
+      if (!("value" in action) || typeof action.value !== "string") return;
+
+      const parts = action.value.split(":");
+      if (parts.length < 3 || parts[0] !== "auq") return;
+      const toolUseId = parts[1];
+      const selectedIndex = parseInt(parts[2], 10);
+      if (isNaN(selectedIndex)) return;
+
+      // Update original message to show selection
+      try {
+        const label = "text" in action && action.text ? (action.text as { text?: string }).text : `Option ${selectedIndex}`;
+        await respond({
+          text: `✓ Selected: ${label ?? `Option ${selectedIndex}`}`,
+          replace_original: false,
+        });
+      } catch {
+        // Ignore respond failures
+      }
+
+      if (this.interactiveAnswerHandler) {
+        const peerId = "channel" in action ? String((action as { channel?: { id?: string } }).channel?.id ?? "") : "";
+        this.interactiveAnswerHandler({
+          connectionId: this.connectionId,
+          peerId,
+          toolUseId,
+          selectedIndices: [selectedIndex],
+        });
+      }
+    });
+
     await this.app.start();
     this.status = "connected";
     this.onStatus(this.status);
@@ -126,6 +160,38 @@ export class SlackConnector implements ChannelConnector {
     } catch (error) {
       console.warn("[Slack] Failed to send typing status:", error);
     }
+  }
+
+  setInteractiveAnswerHandler(handler: (data: InteractiveAnswerData) => void): void {
+    this.interactiveAnswerHandler = handler;
+  }
+
+  async sendInteractiveQuestion(payload: InteractiveQuestionPayload): Promise<ChannelSendResult> {
+    const blocks = [
+      {
+        type: "section" as const,
+        text: { type: "mrkdwn" as const, text: payload.questionText },
+      },
+      {
+        type: "actions" as const,
+        block_id: `auq_${payload.toolUseId}`,
+        elements: payload.options.map((opt) => ({
+          type: "button" as const,
+          text: { type: "plain_text" as const, text: opt.label, emoji: true },
+          value: `auq:${payload.toolUseId}:${opt.index}`,
+          action_id: `auq_${payload.toolUseId}_${opt.index}`,
+        })),
+      },
+    ];
+
+    const sent = await this.app.client.chat.postMessage({
+      channel: payload.peerId,
+      blocks,
+      text: `${payload.questionText}\n${payload.instructionText}`,
+      thread_ts: payload.threadId || undefined,
+    });
+
+    return { externalMessageId: String(sent.ts || `${payload.peerId}:${Date.now()}`) };
   }
 }
 

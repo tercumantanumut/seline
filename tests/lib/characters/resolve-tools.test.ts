@@ -242,8 +242,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 1 always-on webSearch = 16 tools minimum
-      expect(result.enabledTools.length).toBeGreaterThanOrEqual(16);
+      // 6 core + 9 utility + 1 always-on webSearch + 1 chromiumWorkspace = 17 tools minimum
+      expect(result.enabledTools.length).toBeGreaterThanOrEqual(17);
       expect(result.enabledTools).not.toContain("vectorSearch");
       expect(result.enabledTools).toContain("webSearch");
     });
@@ -253,7 +253,7 @@ describe("resolveSelineTemplateTools", () => {
   // Tool count verification
   // =========================================================================
   describe("tool count", () => {
-    it("should return exactly 17 tools when all prerequisites are met", () => {
+    it("should return exactly 18 tools when all prerequisites are met", () => {
       const settings = buildSettings({
         vectorDBEnabled: true,
         tavilyApiKey: "tvly-test-key",
@@ -261,11 +261,11 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 2 conditional = 17
-      expect(result.enabledTools).toHaveLength(17);
+      // 6 core + 9 utility + 2 conditional + 1 always-on chromiumWorkspace = 18
+      expect(result.enabledTools).toHaveLength(18);
     });
 
-    it("should return exactly 16 tools when no optional tools are available (webSearch always on)", () => {
+    it("should return exactly 17 tools when no optional tools are available (webSearch always on)", () => {
       const settings = buildSettings({
         vectorDBEnabled: false,
         tavilyApiKey: undefined,
@@ -274,8 +274,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 1 always-on webSearch = 16
-      expect(result.enabledTools).toHaveLength(16);
+      // 6 core + 9 utility + 1 always-on webSearch + 1 chromiumWorkspace = 17
+      expect(result.enabledTools).toHaveLength(17);
     });
   });
 
@@ -318,6 +318,7 @@ describe("DEFAULT_ENABLED_TOOLS", () => {
       ...ALWAYS_ENABLED_TOOLS,
       ...UTILITY_TOOLS,
       "webSearch",
+      "chromiumWorkspace",
     ]);
   });
 
