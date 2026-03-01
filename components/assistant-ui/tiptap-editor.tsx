@@ -9,6 +9,7 @@ import {
   useImperativeHandle,
 } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -60,6 +61,12 @@ interface TiptapEditorProps {
   onSubmit: (content: ContentPart[]) => void;
   /** Session ID for image uploads */
   sessionId?: string;
+  /** Initial editor document, restored from draft persistence */
+  initialContent?: JSONContent | null;
+  /** Called whenever editor doc changes */
+  onDraftChange?: (draft: JSONContent | null) => void;
+  /** Called after editor content is cleared */
+  onDraftClear?: () => void;
   /** Placeholder text */
   placeholder?: string;
   /** Whether submission is disabled */
@@ -233,6 +240,9 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
       disabled = false,
       isSubmitting = false,
       className,
+      initialContent = null,
+      onDraftChange,
+      onDraftClear,
     },
     ref,
   ) => {
@@ -240,6 +250,10 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
     const [isUploading, setIsUploading] = useState(false);
 
     const editor = useEditor({
+      content: initialContent ?? undefined,
+      onUpdate: ({ editor: currentEditor }) => {
+        onDraftChange?.(currentEditor.isEmpty ? null : currentEditor.getJSON());
+      },
       extensions: [
         StarterKit.configure({
           heading: { levels: [2, 3] },
@@ -438,6 +452,7 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
       },
       clear: () => {
         editor?.commands.clearContent();
+        onDraftClear?.();
       },
       focus: () => {
         editor?.commands.focus();
