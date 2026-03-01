@@ -78,6 +78,8 @@ export interface ChannelSendPayload {
   replyToMessageId?: string | null;
   chunkIndex?: number;
   totalChunks?: number;
+  /** When set, the connector should render the message using this parse mode (e.g. "HTML"). */
+  parseMode?: string;
 }
 
 export interface ChannelSendResult {

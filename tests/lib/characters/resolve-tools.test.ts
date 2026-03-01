@@ -261,8 +261,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 2 conditional = 17
-      expect(result.enabledTools).toHaveLength(17);
+      // 6 core + 9 utility + 2 conditional + 1 chromiumWorkspace = 18
+      expect(result.enabledTools).toHaveLength(18);
     });
 
     it("should return exactly 16 tools when no optional tools are available (webSearch always on)", () => {
@@ -274,8 +274,8 @@ describe("resolveSelineTemplateTools", () => {
       });
       const result = resolveSelineTemplateTools(settings);
 
-      // 6 core + 9 utility + 1 always-on webSearch = 16
-      expect(result.enabledTools).toHaveLength(16);
+      // 6 core + 9 utility + 1 always-on webSearch + 1 chromiumWorkspace = 17
+      expect(result.enabledTools).toHaveLength(17);
     });
   });
 
@@ -318,6 +318,7 @@ describe("DEFAULT_ENABLED_TOOLS", () => {
       ...ALWAYS_ENABLED_TOOLS,
       ...UTILITY_TOOLS,
       "webSearch",
+      "chromiumWorkspace",
     ]);
   });
 
