@@ -30,38 +30,51 @@ describe("recordToolInputDelta - argsText size cap", () => {
     expect(part?.argsText).toHaveLength(1000);
   });
 
-  it("stops accumulating when argsText exceeds MAX_ARGS_TEXT_BYTES", () => {
+  it("stops accumulating when combined size would exceed MAX_ARGS_TEXT_BYTES", () => {
     const state = makeState();
     recordToolInputStart(state, "tc-1", "editFile");
 
     // Fill to just under the limit
     const bigChunk = "x".repeat(MAX_ARGS_TEXT_BYTES - 100);
     recordToolInputDelta(state, "tc-1", bigChunk);
-
-    // This pushes it over the limit
-    const overflowChunk = "y".repeat(200);
-    recordToolInputDelta(state, "tc-1", overflowChunk);
     const part = state.toolCallParts.get("tc-1");
-    // Now at MAX_ARGS_TEXT_BYTES + 100, further deltas should be dropped
-    expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES + 100);
+    expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES - 100);
 
-    // Further delta should be rejected
-    const extraDelta = "z".repeat(500);
-    const result = recordToolInputDelta(state, "tc-1", extraDelta);
-    expect(result).toBe(false);
+    // A small delta that fits should still be accepted
+    const fitsChunk = "y".repeat(50);
+    const fitsResult = recordToolInputDelta(state, "tc-1", fitsChunk);
+    expect(fitsResult).toBe(true);
+    expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES - 50);
+
+    // A delta that would push it over the limit should be rejected
+    const overflowChunk = "z".repeat(100);
+    const overflowResult = recordToolInputDelta(state, "tc-1", overflowChunk);
+    expect(overflowResult).toBe(false);
 
     // argsText should not have grown
-    expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES + 100);
+    expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES - 50);
+  });
+
+  it("rejects a single oversized delta that exceeds the cap from zero", () => {
+    const state = makeState();
+    recordToolInputStart(state, "tc-1", "editFile");
+
+    // A single delta larger than the cap should be rejected
+    const result = recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES + 1));
+    expect(result).toBe(false);
+
+    const part = state.toolCallParts.get("tc-1");
+    expect(part?.argsText).toBeUndefined();
   });
 
   it("logs the oversized warning exactly once per tool call", () => {
     const state = makeState();
     recordToolInputStart(state, "tc-1", "editFile");
 
-    // Push over the limit
-    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES + 1));
+    // Fill to capacity
+    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES));
 
-    // Try two more deltas
+    // Try two more deltas that would exceed
     recordToolInputDelta(state, "tc-1", "a");
     recordToolInputDelta(state, "tc-1", "b");
 
@@ -78,8 +91,8 @@ describe("recordToolInputDelta - argsText size cap", () => {
     recordToolInputStart(state, "tc-1", "editFile");
     recordToolInputStart(state, "tc-2", "readFile");
 
-    // Overflow tc-1
-    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES + 1));
+    // Fill tc-1 to capacity, then try to exceed
+    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES));
     const blocked = recordToolInputDelta(state, "tc-1", "more");
     expect(blocked).toBe(false);
 

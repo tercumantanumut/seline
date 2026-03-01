@@ -326,7 +326,7 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
       wasTruncated: true,
       originalTokens,
       finalTokens: afterPass2Tokens,
-      truncatedParts: content.filter(isToolResultPart).length,
+      truncatedParts: content.filter((p) => isToolResultPart(p) || isToolCallPart(p)).length,
       hardCapped: false,
     };
   }
@@ -357,7 +357,7 @@ export function limitProgressContent(content: unknown[] | undefined): ProgressLi
     wasTruncated: true,
     originalTokens,
     finalTokens,
-    truncatedParts: content.filter(isToolResultPart).length,
+    truncatedParts: content.filter((p) => isToolResultPart(p) || isToolCallPart(p)).length,
     hardCapped: true,
   };
 }

@@ -19,7 +19,7 @@ import {
   extractTextFromParts,
 } from "./streaming-state";
 
-// Progress content limiter is now ON by default. Set env to "false" to opt out.
+// Progress content limiter is now ON by default. Set env to "true" to disable.
 const DISABLE_PROGRESS_CONTENT_LIMITER =
   process.env.DISABLE_PROGRESS_CONTENT_LIMITER === "true";
 
@@ -208,7 +208,7 @@ export function createSyncStreamingMessage(
           progressContentOriginalTokens: progressLimit?.originalTokens,
           progressContentFinalTokens: progressLimit?.finalTokens,
           progressContentTruncatedParts: progressLimit?.truncatedParts,
-          progressContentProjectionOnly: progressLimit ? true : undefined,
+          progressContentProjectionOnly: true,
           startedAt: nowISO(),
         });
       }

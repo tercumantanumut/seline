@@ -125,13 +125,16 @@ export function recordToolInputDelta(state: StreamingMessageState, toolCallId: s
   const part = ensureToolCallPart(state, toolCallId);
   const currentLength = part.argsText?.length ?? 0;
 
-  // Hard cap: stop accumulating if argsText already exceeds the safety limit.
+  // Hard cap: stop accumulating if argsText would exceed the safety limit.
   // This prevents unbounded memory growth from runaway/duplicated tool payloads.
-  if (currentLength >= MAX_ARGS_TEXT_BYTES) {
+  // Check combined size (current + delta) to prevent a single large delta from
+  // overshooting the cap.
+  if (currentLength + delta.length > MAX_ARGS_TEXT_BYTES) {
     if (!state.loggedIncompleteToolCalls.has(`oversized:${toolCallId}`)) {
       state.loggedIncompleteToolCalls.add(`oversized:${toolCallId}`);
       console.warn(
-        `[CHAT API] argsText for ${part.toolName} (${toolCallId}) exceeded ${MAX_ARGS_TEXT_BYTES} bytes. ` +
+        `[CHAT API] argsText for ${part.toolName} (${toolCallId}) would exceed ${MAX_ARGS_TEXT_BYTES} bytes ` +
+        `(current: ${currentLength}, delta: ${delta.length}). ` +
         `Dropping further deltas to prevent memory exhaustion.`
       );
     }
