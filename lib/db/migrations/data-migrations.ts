@@ -505,6 +505,32 @@ export function runDataMigrations(sqlite: Database.Database): void {
     console.warn("[SQLite Migration] Default agent MCP disable migration failed:", error);
   }
 
+  // Migration: Backfill sessions.message_count with conversational turns only
+  // (role=user|assistant). Older databases counted tool/system rows too.
+  try {
+    const result = sqlite.prepare(`
+      UPDATE sessions
+      SET message_count = COALESCE((
+        SELECT COUNT(*)
+        FROM messages
+        WHERE messages.session_id = sessions.id
+          AND messages.role IN ('user', 'assistant')
+      ), 0)
+      WHERE message_count != COALESCE((
+        SELECT COUNT(*)
+        FROM messages
+        WHERE messages.session_id = sessions.id
+          AND messages.role IN ('user', 'assistant')
+      ), 0)
+    `).run();
+
+    if (result.changes > 0) {
+      console.log(`[SQLite Migration] Recomputed conversational message_count for ${result.changes} session(s)`);
+    }
+  } catch (error) {
+    console.warn("[SQLite Migration] Conversational message_count migration failed:", error);
+  }
+
   // Migration: Add chromiumWorkspace to existing agents' enabledTools
   try {
     const rows = sqlite.prepare(

@@ -445,6 +445,7 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
 
     const content = dbMsg.content as DBContentPart[];
     if (!Array.isArray(content) || content.length === 0) {
+      console.warn(`[CONVERTER] Dropping ${dbMsg.role} message ${dbMsg.id}: empty content array`);
       continue;
     }
 
@@ -459,7 +460,15 @@ export function convertDBMessagesToUIMessages(dbMessages: DBMessage[]): UIMessag
     });
 
     if (inlineParts.length === 0) {
-      continue;
+      if (dbMsg.role === "assistant") {
+        // Keep a minimal assistant bubble so stream interruptions do not erase turn history.
+        inlineParts.push({ type: "text", text: "" });
+      } else {
+        console.warn(
+          `[CONVERTER] Dropping ${dbMsg.role} message ${dbMsg.id}: all parts sanitized or unsupported`
+        );
+        continue;
+      }
     }
 
     // Build metadata for assistant-ui format

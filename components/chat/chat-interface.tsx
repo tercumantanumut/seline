@@ -39,17 +39,29 @@ const ChatSetMessagesBridge: FC<{
     return null;
 };
 
-const ForegroundStreamingBridge: FC<{ isForegroundStreamingRef: MutableRefObject<boolean> }> = ({
+const ForegroundStreamingBridge: FC<{
+    isForegroundStreamingRef: MutableRefObject<boolean>;
+    onForegroundRunFinished?: () => void;
+}> = ({
     isForegroundStreamingRef,
+    onForegroundRunFinished,
 }) => {
     const isRunning = useThread((thread) => thread.isRunning);
+    const wasRunningRef = useRef(false);
 
     useEffect(() => {
         isForegroundStreamingRef.current = Boolean(isRunning);
+
+        if (!isRunning && wasRunningRef.current) {
+            onForegroundRunFinished?.();
+        }
+
+        wasRunningRef.current = Boolean(isRunning);
+
         return () => {
             isForegroundStreamingRef.current = false;
         };
-    }, [isRunning, isForegroundStreamingRef]);
+    }, [isRunning, isForegroundStreamingRef, onForegroundRunFinished]);
 
     return null;
 };
@@ -160,22 +172,30 @@ export default function ChatInterface({
         targetSessionId: string,
         options?: { force?: boolean }
     ) => {
-        const uiMessages = await sm.fetchSessionMessages(targetSessionId);
-        if (!uiMessages) return;
+        const sessionPayload = await sm.fetchSessionMessages(targetSessionId);
+        if (!sessionPayload) return;
         if (sessionId && sessionId !== targetSessionId) return;
+
+        const { uiMessages, conversationalMessageCount } = sessionPayload;
         const nextSignature = getMessagesSignature(uiMessages);
         if (!options?.force && nextSignature === lastSessionSignatureRef.current) return;
+
         setSessionState((prev) => {
             if (prev.sessionId !== targetSessionId) return prev;
             return { sessionId: targetSessionId, messages: uiMessages };
         });
+
         // Update thread in-place via AI SDK setMessages (no remount needed)
         if (chatSetMessagesRef.current) {
             chatSetMessagesRef.current(uiMessages);
         }
+
         lastSessionSignatureRef.current = nextSignature;
+        sm.notifySessionUpdate(targetSessionId, {
+            messageCount: conversationalMessageCount,
+        });
         sm.refreshSessionTimestamp(targetSessionId);
-    }, [sm.fetchSessionMessages, sm.refreshSessionTimestamp, sessionId]);
+    }, [sm.fetchSessionMessages, sm.notifySessionUpdate, sm.refreshSessionTimestamp, sessionId]);
 
     // ── Pathname-triggered refresh ──────────────────────────────────────────
     // When navigating away (e.g. to /settings) and back, the Next.js Router
@@ -545,6 +565,11 @@ export default function ChatInterface({
         void reloadSessionMessages(sessionId, { force: true });
     }, [sessionId, reloadSessionMessages]);
 
+    const handleForegroundRunFinished = useCallback(() => {
+        if (!sessionId) return;
+        void reloadSessionMessages(sessionId, { force: true });
+    }, [sessionId, reloadSessionMessages]);
+
     if (sm.isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -606,7 +631,10 @@ export default function ChatInterface({
                         initialMessages={messages}
                     >
                         <ChatSetMessagesBridge setMessagesRef={chatSetMessagesRef} />
-                        <ForegroundStreamingBridge isForegroundStreamingRef={isForegroundStreamingRef} />
+                        <ForegroundStreamingBridge
+                            isForegroundStreamingRef={isForegroundStreamingRef}
+                            onForegroundRunFinished={handleForegroundRunFinished}
+                        />
                         <div className="flex h-full flex-col gap-3">
                             {currentWorkspaceInfo && (
                                 <div className="flex items-center justify-end px-4 pt-2">
