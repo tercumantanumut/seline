@@ -532,6 +532,9 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
       results?: string;
       matches?: Array<{ file: string; line: number; text: string }>;
       searchedPaths?: string[];
+      pathSource?: "explicit" | "workspace" | "synced_folders" | "workspace_then_synced";
+      attemptedScopes?: string[];
+      fallbackUsed?: boolean;
     };
 
     if (grepResult.status === "error") {
@@ -561,6 +564,9 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
           <p className="text-terminal-dark mb-2">
             {tResults("matchesFound", { count: grepResult.matchCount ?? 0, pattern: grepResult.pattern ?? "" })}
           </p>
+          {grepResult.message && (
+            <p className="text-xs text-terminal-muted mb-2">{grepResult.message}</p>
+          )}
           {grepResult.results && (
             <pre className={cn("mt-2 max-h-64", TOOL_RESULT_PRE_CLASS)}>
               {grepResult.results}

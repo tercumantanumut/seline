@@ -150,6 +150,7 @@ async function main() {
     console.error("  - validate-message-ordering-migration");
     console.error("  - validate-chat-overflow-guards");
     console.error("  - validate-tool-error-auditability");
+    console.error("  - validate-localgrep-default-paths");
     console.error("  - validate-macos-signing-notarization");
     console.error("  - validate-utility-session-token-audit");
     process.exit(1);

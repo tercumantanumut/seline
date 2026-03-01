@@ -38,12 +38,28 @@ const pathValidationMock = vi.hoisted(() => ({
   validateSyncFolderPath: vi.fn(async (folderPath: string) => ({ normalizedPath: folderPath, error: null })),
 }));
 
+const sessionQueriesMock = vi.hoisted(() => ({
+  getSession: vi.fn(async () => null),
+}));
+
+const workspaceTypesMock = vi.hoisted(() => ({
+  getWorkspaceInfo: vi.fn(() => null),
+}));
+
 vi.mock("@/lib/vectordb/sync-service", () => ({
   getSyncFolders: syncServiceMock.getSyncFolders,
 }));
 
 vi.mock("@/lib/vectordb/path-validation", () => ({
   validateSyncFolderPath: pathValidationMock.validateSyncFolderPath,
+}));
+
+vi.mock("@/lib/db/queries", () => ({
+  getSession: sessionQueriesMock.getSession,
+}));
+
+vi.mock("@/lib/workspace/types", () => ({
+  getWorkspaceInfo: workspaceTypesMock.getWorkspaceInfo,
 }));
 
 import { createLocalGrepTool } from "@/lib/ai/ripgrep/tool";
@@ -54,6 +70,8 @@ describe("localGrep tool contract", () => {
     settingsMock.state.settings.localGrepEnabled = true;
     ripgrepMock.isRipgrepAvailable.mockReturnValue(true);
     syncServiceMock.getSyncFolders.mockResolvedValue([]);
+    sessionQueriesMock.getSession.mockResolvedValue(null);
+    workspaceTypesMock.getWorkspaceInfo.mockReturnValue(null);
     pathValidationMock.validateSyncFolderPath.mockImplementation(async (folderPath: string) => ({
       normalizedPath: folderPath,
       error: null,
@@ -161,6 +179,85 @@ describe("localGrep tool contract", () => {
 
     expect(result.status).toBe("no_paths");
     expect(result.message).toContain("No valid synced folders are currently available");
+  });
+
+  it("prefers workspace path when no explicit paths are provided", async () => {
+    sessionQueriesMock.getSession.mockResolvedValue({
+      metadata: { workspaceInfo: { status: "active", worktreePath: "/worktree" } },
+    });
+    workspaceTypesMock.getWorkspaceInfo.mockReturnValue({
+      status: "active",
+      worktreePath: "/worktree",
+    });
+    ripgrepMock.searchWithRipgrep.mockResolvedValue({
+      matches: [{ file: "/worktree/file.ts", line: 1, column: 0, text: "localGrep" }],
+      totalMatches: 1,
+      wasTruncated: false,
+    });
+
+    const tool = createLocalGrepTool({ sessionId: "sess-1", characterId: "char-1" });
+    const result = await tool.execute(
+      { pattern: "localGrep" },
+      { toolCallId: "tc-6", messages: [], abortSignal: new AbortController().signal }
+    );
+
+    expect(result).toMatchObject({
+      status: "success",
+      pathSource: "workspace",
+      searchedPaths: ["/worktree"],
+      fallbackUsed: false,
+      attemptedScopes: ["workspace"],
+    });
+    expect(ripgrepMock.searchWithRipgrep).toHaveBeenCalledTimes(1);
+    expect(ripgrepMock.searchWithRipgrep).toHaveBeenCalledWith(
+      expect.objectContaining({ paths: ["/worktree"] })
+    );
+  });
+
+  it("retries with synced folders in same call when workspace search has zero matches", async () => {
+    sessionQueriesMock.getSession.mockResolvedValue({
+      metadata: { workspaceInfo: { status: "active", worktreePath: "/worktree" } },
+    });
+    workspaceTypesMock.getWorkspaceInfo.mockReturnValue({
+      status: "active",
+      worktreePath: "/worktree",
+    });
+    syncServiceMock.getSyncFolders.mockResolvedValue([{ folderPath: "/repo" }]);
+
+    ripgrepMock.searchWithRipgrep
+      .mockResolvedValueOnce({
+        matches: [],
+        totalMatches: 0,
+        wasTruncated: false,
+      })
+      .mockResolvedValueOnce({
+        matches: [{ file: "/repo/file.ts", line: 1, column: 0, text: "localGrep" }],
+        totalMatches: 1,
+        wasTruncated: false,
+      });
+
+    const tool = createLocalGrepTool({ sessionId: "sess-1", characterId: "char-1" });
+    const result = await tool.execute(
+      { pattern: "localGrep" },
+      { toolCallId: "tc-7", messages: [], abortSignal: new AbortController().signal }
+    );
+
+    expect(result).toMatchObject({
+      status: "success",
+      pathSource: "workspace_then_synced",
+      searchedPaths: ["/repo"],
+      fallbackUsed: true,
+      attemptedScopes: ["workspace", "synced_folders"],
+    });
+    expect(result.message).toContain("retried with synced folders");
+    expect(ripgrepMock.searchWithRipgrep).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ paths: ["/worktree"] })
+    );
+    expect(ripgrepMock.searchWithRipgrep).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ paths: ["/repo"] })
+    );
   });
 
   it("adds a regex-specific hint when regex parse fails", async () => {
