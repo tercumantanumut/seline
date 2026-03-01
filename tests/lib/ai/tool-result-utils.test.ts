@@ -238,4 +238,74 @@ describe("normalizeToolResultOutput - readFile exemption", () => {
     expect(normalized.logId).toBe("log_123");
     expect(normalized.truncatedContentId).toBeUndefined();
   });
+
+  it("unwraps MCP CallToolResult text payloads into structured objects", () => {
+    const output = {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            expression: "14 + 5",
+            result: 19,
+            type: "number",
+          }),
+        },
+      ],
+    };
+
+    const result = normalizeToolResultOutput("mcp__seline-platform__calculator", output, undefined, {
+      mode: "canonical",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    expect(normalized.success).toBe(true);
+    expect(normalized.expression).toBe("14 + 5");
+    expect(normalized.result).toBe(19);
+    expect(normalized.status).toBe("success");
+  });
+
+  it("unwraps double-encoded JSON strings inside MCP text payloads", () => {
+    const onceEncoded = JSON.stringify({
+      status: "success",
+      query: "calculator math arithmetic",
+      results: [{ name: "calculator", isAvailable: true }],
+    });
+    const doubleEncoded = JSON.stringify(onceEncoded);
+    const output = {
+      content: [{ type: "text", text: doubleEncoded }],
+    };
+
+    const result = normalizeToolResultOutput("mcp__seline-platform__searchTools", output, undefined, {
+      mode: "canonical",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    expect(normalized.status).toBe("success");
+    expect(normalized.query).toBe("calculator math arithmetic");
+    expect(Array.isArray(normalized.results)).toBe(true);
+  });
+
+  it("preserves error status when MCP payload is marked isError", () => {
+    const output = {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            status: "success",
+            message: "calculation failed",
+          }),
+        },
+      ],
+    };
+
+    const result = normalizeToolResultOutput("mcp__seline-platform__calculator", output, undefined, {
+      mode: "canonical",
+    });
+
+    const normalized = result.output as Record<string, unknown>;
+    expect(normalized.status).toBe("error");
+    expect(normalized.error).toBeTruthy();
+  });
 });

@@ -3,6 +3,9 @@ import {
   GatewayIntentBits,
   Partials,
   AttachmentBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from "discord.js";
 import type { Message as DiscordMessage, TextChannel, DMChannel } from "discord.js";
 import type {
@@ -11,6 +14,8 @@ import type {
   ChannelSendPayload,
   ChannelSendResult,
   DiscordConnectionConfig,
+  InteractiveQuestionPayload,
+  InteractiveAnswerData,
 } from "../types";
 import { normalizeChannelText } from "../utils";
 
@@ -33,6 +38,7 @@ export class DiscordConnector implements ChannelConnector {
   private characterId: string;
   private botToken: string;
   private botUserId: string | null = null;
+  private interactiveAnswerHandler: ((data: InteractiveAnswerData) => void) | null = null;
 
   constructor(options: DiscordConnectorOptions) {
     this.connectionId = options.connectionId;
@@ -66,6 +72,43 @@ export class DiscordConnector implements ChannelConnector {
 
     this.client.on("messageCreate", async (msg) => {
       await this.handleMessage(msg);
+    });
+
+    // Handle interactive question button clicks
+    this.client.on("interactionCreate", async (interaction) => {
+      if (!interaction.isButton()) return;
+      const customId = interaction.customId;
+      if (!customId.startsWith("auq:")) return;
+
+      const parts = customId.split(":");
+      if (parts.length < 3) return;
+      const toolUseId = parts[1];
+      const selectedIndex = parseInt(parts[2], 10);
+      if (isNaN(selectedIndex)) return;
+
+      // Update the message to show selection and disable buttons
+      try {
+        const label = ("label" in interaction.component ? interaction.component.label : null) ?? `Option ${selectedIndex}`;
+        await interaction.update({
+          content: `${interaction.message.content}\n\n✓ Selected: ${label}`,
+          components: [],
+        });
+      } catch {
+        try {
+          await interaction.deferUpdate();
+        } catch {
+          // Ignore
+        }
+      }
+
+      if (this.interactiveAnswerHandler) {
+        this.interactiveAnswerHandler({
+          connectionId: this.connectionId,
+          peerId: interaction.channelId,
+          toolUseId,
+          selectedIndices: [selectedIndex],
+        });
+      }
     });
 
     this.client.on("error", (error) => {
@@ -149,6 +192,41 @@ export class DiscordConnector implements ChannelConnector {
       chunkIndex: payload.chunkIndex,
       totalChunks: payload.totalChunks,
     };
+  }
+
+  setInteractiveAnswerHandler(handler: (data: InteractiveAnswerData) => void): void {
+    this.interactiveAnswerHandler = handler;
+  }
+
+  async sendInteractiveQuestion(payload: InteractiveQuestionPayload): Promise<ChannelSendResult> {
+    const channel = await this.client.channels.fetch(payload.peerId);
+    if (!channel || !("send" in channel)) {
+      throw new Error(`Discord channel ${payload.peerId} not found or not text-based`);
+    }
+    const textChannel = channel as TextChannel | DMChannel;
+
+    // Discord limits: 5 buttons per row, 5 rows per message (25 buttons max)
+    const MAX_BUTTONS_PER_ROW = 5;
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    for (let i = 0; i < payload.options.length; i += MAX_BUTTONS_PER_ROW) {
+      const chunk = payload.options.slice(i, i + MAX_BUTTONS_PER_ROW);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...chunk.map((opt) =>
+          new ButtonBuilder()
+            .setCustomId(`auq:${payload.toolUseId}:${opt.index}`)
+            .setLabel(`${opt.index}. ${opt.label}`.slice(0, 80))
+            .setStyle(ButtonStyle.Primary),
+        ),
+      );
+      rows.push(row);
+    }
+
+    // Discord limits 5 action rows
+    const components = rows.slice(0, 5);
+    const text = `${payload.questionText}\n\n${payload.instructionText}`;
+
+    const sent = await textChannel.send({ content: text, components });
+    return { externalMessageId: sent.id };
   }
 
   private async handleMessage(msg: DiscordMessage): Promise<void> {

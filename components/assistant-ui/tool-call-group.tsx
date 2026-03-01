@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ToolCallBadge, type ToolCallBadgeStatus } from "./tool-call-badge";
+import { getCanonicalToolName } from "./tool-name-utils";
 
 type ToolCallPart = Extract<MessagePartState, { type: "tool-call" }>;
 
@@ -111,6 +112,9 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [toolParts]);
 
   const mediaPreviews = useMemo(() => {
+    if (toolParts.length === 0 || toolParts.every((part) => part.result == null)) {
+      return [];
+    }
     const seen = new Set<string>();
     const collected: Array<{ type: "image" | "video"; url: string }> = [];
     for (const part of toolParts) {
@@ -160,7 +164,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     >
       <div className="flex flex-wrap items-center gap-2 pb-1">
         {toolParts.map((part, index) => {
-          const label = t.has(part.toolName) ? t(part.toolName) : part.toolName;
+          const canonicalToolName = getCanonicalToolName(part.toolName);
+          const label = t.has(canonicalToolName)
+            ? t(canonicalToolName)
+            : t.has(part.toolName)
+              ? t(part.toolName)
+              : canonicalToolName;
           const status = getStatus(part);
           const count = getResultCount(part.result);
           return (

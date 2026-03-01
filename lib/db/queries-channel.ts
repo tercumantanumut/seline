@@ -107,6 +107,14 @@ export async function getChannelConversation(id: string): Promise<ChannelConvers
   });
 }
 
+export async function findChannelConversationBySessionId(
+  sessionId: string,
+): Promise<ChannelConversation | undefined> {
+  return db.query.channelConversations.findFirst({
+    where: eq(channelConversations.sessionId, sessionId),
+  });
+}
+
 export async function listChannelConversationsByCharacter(
   characterId: string
 ): Promise<ChannelConversation[]> {

@@ -62,6 +62,10 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+vi.mock("@/lib/auth/local-auth", () => ({
+  SESSION_COOKIE_NAME: "seline_session",
+}));
+
 vi.mock("@/lib/settings/settings-manager", () => ({
   loadSettings: mocks.loadSettings,
 }));

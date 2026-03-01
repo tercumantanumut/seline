@@ -251,6 +251,18 @@ export function recordStructuredToolCall(
     return false;
   }
   const part = ensureToolCallPart(state, toolCallId, toolName);
+
+  // When a complete tool-call arrives after streaming deltas (e.g. from
+  // experimental_repairToolCall), update argsText to match the new input
+  // so server-side state stays consistent.
+  if (part.argsText && part.argsText.length > 0) {
+    console.warn(
+      `[CHAT API] recordStructuredToolCall overwriting streaming argsText for ${toolName} (${toolCallId}). ` +
+        `Old argsText length: ${part.argsText.length}`
+    );
+    part.argsText = JSON.stringify(input ?? {});
+  }
+
   part.state = "input-available";
   part.args = input;
   return true;
