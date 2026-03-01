@@ -85,11 +85,12 @@ export function useBackgroundProcessing({
         lastMessageSigRef.current = sig;
 
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
+        const conversationMessageCount = data.messages.filter((message) => message.role === "user" || message.role === "assistant").length;
 
         refreshSessionTimestamp(sessionId);
         notifySessionUpdate(sessionId, {
             updatedAt: new Date().toISOString(),
-            messageCount: data.messages?.length || 0
+            messageCount: conversationMessageCount,
         });
 
         // Update session state for sidebar / session switching
@@ -356,7 +357,14 @@ export function useSessionManager({
             if (error) console.error("Failed to fetch session messages:", error);
             return null;
         }
-        return convertDBMessagesToUIMessages((data.messages || []) as DBMessage[]);
+
+        const dbMessages = (data.messages || []) as DBMessage[];
+        const uiMessages = convertDBMessagesToUIMessages(dbMessages);
+        const conversationalMessageCount = dbMessages.filter(
+            (message) => message.role === "user" || message.role === "assistant"
+        ).length;
+
+        return { uiMessages, conversationalMessageCount };
     }, []);
 
     const loadMoreSessions = useCallback(async () => {
@@ -399,16 +407,19 @@ export function useSessionManager({
         try {
             setIsLoading(true);
             clearBackgroundState();
-            const uiMessages = await fetchSessionMessages(newSessionId);
-            if (!uiMessages) return;
-            setSessionState({ sessionId: newSessionId, messages: uiMessages });
+            const sessionPayload = await fetchSessionMessages(newSessionId);
+            if (!sessionPayload) return;
+            setSessionState({ sessionId: newSessionId, messages: sessionPayload.uiMessages });
+            notifySessionUpdate(newSessionId, {
+                messageCount: sessionPayload.conversationalMessageCount,
+            });
             router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
         } catch (err) {
             console.error("Failed to switch session:", err);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, character.id, router, fetchSessionMessages, clearBackgroundState, setSessionState]);
+    }, [sessionId, character.id, router, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, setSessionState]);
 
     const createNewSession = useCallback(async () => {
         try {

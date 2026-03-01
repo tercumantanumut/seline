@@ -14,12 +14,15 @@ export async function createMessage(data: NewMessage) {
     if (message) {
       const tokenCount = typeof message.tokenCount === "number" ? message.tokenCount : 0;
       const nowIso = new Date().toISOString();
+      const shouldIncrementMessageCount = message.role === "user" || message.role === "assistant";
       await db
         .update(sessions)
         .set({
           updatedAt: nowIso,
           lastMessageAt: nowIso,
-          messageCount: sql`${sessions.messageCount} + 1`,
+          messageCount: shouldIncrementMessageCount
+            ? sql`${sessions.messageCount} + 1`
+            : sessions.messageCount,
           totalTokenCount: sql`${sessions.totalTokenCount} + ${tokenCount}`,
         })
         .where(eq(sessions.id, data.sessionId));
