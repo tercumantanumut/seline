@@ -40,6 +40,7 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
+import { TiptapEditor, type TiptapEditorHandle, type ContentPart } from "./tiptap-editor";
 
 // Interface for queued messages
 interface QueuedMessage {
@@ -89,8 +90,10 @@ export const Composer: FC<{
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
+  const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
 
+  const [isEditorMode, setIsEditorMode] = useState(false);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
   // Attempt to inject a message into the currently active run's live prompt queue.
@@ -364,6 +367,88 @@ export const Composer: FC<{
       clearPastedTexts,
     ]
   );
+
+  // -----------------------------------------------------------------------
+  // Tiptap editor submit — Path B: multimodal content array
+  // -----------------------------------------------------------------------
+  const handleEditorSubmit = useCallback(
+    (contentParts: ContentPart[]) => {
+      if (contentParts.length === 0) return;
+
+      // Deep research mode only takes text — extract text parts
+      if (isDeepResearchMode && deepResearch && !isQueueBlocked) {
+        const textOnly = contentParts
+          .filter((p) => p.type === "text" && p.text)
+          .map((p) => p.text!)
+          .join("\n");
+        if (textOnly.trim()) {
+          deepResearch.startResearch(textOnly.trim());
+        }
+        tiptapRef.current?.clear();
+        return;
+      }
+
+      // Build the multimodal content array for threadRuntime.append()
+      const apiContent: Array<
+        | { type: "text"; text: string }
+        | { type: "image"; image: string }
+      > = [];
+
+      for (const part of contentParts) {
+        if (part.type === "text" && part.text) {
+          apiContent.push({ type: "text", text: part.text });
+        } else if (part.type === "image" && part.image) {
+          apiContent.push({ type: "image", image: part.image });
+        }
+      }
+
+      if (apiContent.length === 0) return;
+
+      // Extract text for queue display
+      const textForQueue = apiContent
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { type: "text"; text: string }).text)
+        .join(" ")
+        .slice(0, 100);
+
+      if (isQueueBlocked) {
+        if (textForQueue) {
+          const msgId = `queued-${Date.now()}`;
+          setQueuedMessages((prev) => [
+            ...prev,
+            {
+              id: msgId,
+              content: textForQueue,
+              mode: isDeepResearchMode ? "deep-research" : "chat",
+              status: "queued-classic",
+            },
+          ]);
+        }
+        tiptapRef.current?.clear();
+        return;
+      }
+
+      // Direct submit via threadRuntime.append() — multimodal interleaving
+      threadRuntime.append({
+        role: "user",
+        content: apiContent,
+      });
+
+      tiptapRef.current?.clear();
+      clearEnhancement();
+    },
+    [
+      isQueueBlocked,
+      isDeepResearchMode,
+      deepResearch,
+      threadRuntime,
+      clearEnhancement,
+    ]
+  );
+
+  const toggleEditorMode = useCallback(() => {
+    setIsEditorMode((prev) => !prev);
+  }, []);
 
   const handleInsertMention = useCallback(
     (mention: string, atIndex: number, queryLength: number) => {
@@ -727,55 +812,105 @@ export const Composer: FC<{
           </div>
         )}
 
-        <div className="flex items-end">
-          <textarea
-            ref={inputRef}
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
-              if (enhancedContext || enhancementInfo) clearEnhancement();
-            }}
-            onSelect={(e) => {
-              const textarea = e.target as HTMLTextAreaElement;
-              updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
-            }}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            autoFocus
-            placeholder={getPlaceholder()}
-            rows={1}
-            className="flex-1 resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
-            style={{ minHeight: "36px", maxHeight: "192px" }}
-          />
+        {isEditorMode ? (
+          /* ---- Tiptap rich editor mode ---- */
+          <div className="flex flex-col">
+            <TiptapEditor
+              ref={tiptapRef}
+              onSubmit={handleEditorSubmit}
+              sessionId={sessionId}
+              placeholder={getPlaceholder()}
+              disabled={isDeepResearchLoading}
+              isSubmitting={false}
+            />
+            <div className="flex items-center justify-end">
+              <ComposerActionBar
+                isOperationRunning={isOperationRunning}
+                isCancelling={isCancelling}
+                isQueueBlocked={isQueueBlocked}
+                isRunning={isRunning}
+                isDeepResearchMode={isDeepResearchMode}
+                isDeepResearchActive={isDeepResearchActive}
+                isDeepResearchLoading={isDeepResearchLoading}
+                mcpIsReloading={mcpStatus.isReloading}
+                mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
+                sessionId={sessionId}
+                onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
+                sttEnabled={sttEnabled}
+                isRecordingVoice={isRecordingVoice}
+                isTranscribingVoice={isTranscribingVoice}
+                onVoiceInput={handleVoiceInput}
+                inputHasText={tiptapRef.current?.hasContent() ?? false}
+                attachmentCount={attachmentCount}
+                showEnhanceButton={false}
+                isEnhancing={false}
+                enhancedContext={null}
+                enhancementFilesFound={0}
+                onEnhance={handleEnhance}
+                isEditorMode={isEditorMode}
+                onToggleEditorMode={toggleEditorMode}
+                onCancel={handleCancel}
+                onSubmit={() => {
+                  const parts = tiptapRef.current?.getContentArray();
+                  if (parts?.length) handleEditorSubmit(parts);
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          /* ---- Simple textarea mode (default) ---- */
+          <div className="flex items-end">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
+                if (enhancedContext || enhancementInfo) clearEnhancement();
+              }}
+              onSelect={(e) => {
+                const textarea = e.target as HTMLTextAreaElement;
+                updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
+              }}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              autoFocus
+              placeholder={getPlaceholder()}
+              rows={1}
+              className="flex-1 resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
+              style={{ minHeight: "36px", maxHeight: "192px" }}
+            />
 
-          <ComposerActionBar
-            isOperationRunning={isOperationRunning}
-            isCancelling={isCancelling}
-            isQueueBlocked={isQueueBlocked}
-            isRunning={isRunning}
-            isDeepResearchMode={isDeepResearchMode}
-            isDeepResearchActive={isDeepResearchActive}
-            isDeepResearchLoading={isDeepResearchLoading}
-            mcpIsReloading={mcpStatus.isReloading}
-            mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-            sessionId={sessionId}
-            onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
-            sttEnabled={sttEnabled}
-            isRecordingVoice={isRecordingVoice}
-            isTranscribingVoice={isTranscribingVoice}
-            onVoiceInput={handleVoiceInput}
-            inputHasText={inputValue.trim().length > 2}
-            attachmentCount={attachmentCount}
-            showEnhanceButton={!!(character?.id && character.id !== "default")}
-            isEnhancing={isEnhancing}
-            enhancedContext={enhancedContext}
-            enhancementFilesFound={enhancementInfo?.filesFound || 0}
-            onEnhance={handleEnhance}
-            onCancel={handleCancel}
-            onSubmit={handleSubmit}
-          />
-        </div>
+            <ComposerActionBar
+              isOperationRunning={isOperationRunning}
+              isCancelling={isCancelling}
+              isQueueBlocked={isQueueBlocked}
+              isRunning={isRunning}
+              isDeepResearchMode={isDeepResearchMode}
+              isDeepResearchActive={isDeepResearchActive}
+              isDeepResearchLoading={isDeepResearchLoading}
+              mcpIsReloading={mcpStatus.isReloading}
+              mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
+              sessionId={sessionId}
+              onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
+              sttEnabled={sttEnabled}
+              isRecordingVoice={isRecordingVoice}
+              isTranscribingVoice={isTranscribingVoice}
+              onVoiceInput={handleVoiceInput}
+              inputHasText={inputValue.trim().length > 2}
+              attachmentCount={attachmentCount}
+              showEnhanceButton={!!(character?.id && character.id !== "default")}
+              isEnhancing={isEnhancing}
+              enhancedContext={enhancedContext}
+              enhancementFilesFound={enhancementInfo?.filesFound || 0}
+              onEnhance={handleEnhance}
+              isEditorMode={isEditorMode}
+              onToggleEditorMode={toggleEditorMode}
+              onCancel={handleCancel}
+              onSubmit={handleSubmit}
+            />
+          </div>
+        )}
       </ComposerPrimitive.Root>
 
       {(contextStatus || contextLoading) && (

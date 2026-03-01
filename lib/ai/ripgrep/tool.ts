@@ -7,6 +7,8 @@
 
 import { tool, jsonSchema } from "ai";
 import { searchWithRipgrep, isRipgrepAvailable, type RipgrepMatch, type RipgrepSearchResult } from "./ripgrep";
+import { getSession } from "@/lib/db/queries";
+import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import { validateSyncFolderPath } from "@/lib/vectordb/path-validation";
 import { loadSettings } from "@/lib/settings/settings-manager";
@@ -43,10 +45,101 @@ interface LocalGrepResult {
     pattern?: string;
     regex?: boolean;
     searchedPaths?: string[];
+    /** Where default search paths came from when caller omitted explicit paths */
+    pathSource?: "explicit" | "workspace" | "synced_folders" | "workspace_then_synced";
+    /** Ordered implicit scopes attempted by the tool for no-path requests */
+    attemptedScopes?: string[];
+    /** Whether the tool ran a same-call fallback scope after zero matches */
+    fallbackUsed?: boolean;
     results?: string;
     matches?: Array<{ file: string; line: number; text: string }>;
     message?: string;
     error?: string;
+}
+
+type SyncedPathResolution =
+    | { status: "ok"; paths: string[]; skippedCount: number }
+    | { status: "no_paths"; message: string }
+    | { status: "error"; error: string };
+
+async function resolveSyncedSearchPaths(characterId?: string | null): Promise<SyncedPathResolution> {
+    if (!characterId) {
+        return {
+            status: "no_paths",
+            message: "No paths specified. Please provide paths to search.",
+        };
+    }
+
+    try {
+        const folders = await getSyncFolders(characterId);
+        const validatedFolders = await Promise.all(
+            folders.map(async (folder) => {
+                const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath, {
+                    requireReadable: false,
+                });
+
+                return {
+                    path: normalizedPath,
+                    error,
+                };
+            })
+        );
+
+        const skippedCount = validatedFolders.filter((folder) => folder.error).length;
+        const paths = validatedFolders
+            .filter((folder) => !folder.error)
+            .map((folder) => folder.path);
+
+        if (paths.length === 0) {
+            return {
+                status: "no_paths",
+                message:
+                    skippedCount > 0
+                        ? "No valid synced folders are currently available for this agent. Synced folder entries may point to deleted or inaccessible paths. Remove stale folders in agent settings or pass explicit paths."
+                        : "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.",
+            };
+        }
+
+        return {
+            status: "ok",
+            paths,
+            skippedCount,
+        };
+    } catch {
+        return {
+            status: "error",
+            error: "Failed to retrieve synced folders. Please specify paths to search explicitly.",
+        };
+    }
+}
+
+async function resolveWorkspaceSearchPath(sessionId: string): Promise<string | null> {
+    if (!sessionId || sessionId === "UNSCOPED") {
+        return null;
+    }
+
+    try {
+        const session = await getSession(sessionId);
+        if (!session) {
+            return null;
+        }
+
+        const metadata = (session.metadata || {}) as Record<string, unknown>;
+        const workspaceInfo = getWorkspaceInfo(metadata);
+        const worktreePath = workspaceInfo?.worktreePath;
+
+        if (!worktreePath || typeof worktreePath !== "string") {
+            return null;
+        }
+
+        const { normalizedPath, error } = await validateSyncFolderPath(worktreePath, {
+            requireReadable: false,
+        });
+
+        return error ? null : normalizedPath;
+    } catch {
+        return null;
+    }
 }
 
 function buildRegexErrorHint(pattern: string, errorMessage: string): string {
@@ -173,7 +266,7 @@ const localGrepSchema = jsonSchema<LocalGrepInput>({
  * Create the localGrep AI tool
  */
 export function createLocalGrepTool(options: LocalGrepToolOptions) {
-    const { characterId } = options;
+    const { sessionId, characterId } = options;
 
     return tool({
         description: `Search for exact text or regex patterns in files using ripgrep.
@@ -310,85 +403,10 @@ Respects .gitignore and skips binary files by default.`,
                 };
             }
 
-            // Determine search paths
-            let searchPaths = paths || [];
-            let skippedSyncedFolderCount = 0;
-
-            if (searchPaths.length === 0 && characterId) {
-                // Default to synced folders for this agent
-                try {
-                    const folders = await getSyncFolders(characterId);
-                    const validatedFolders = await Promise.all(
-                        folders.map(async (folder) => {
-                            const { normalizedPath, error } = await validateSyncFolderPath(folder.folderPath, {
-                                requireReadable: false,
-                            });
-
-                            return {
-                                path: normalizedPath,
-                                error,
-                            };
-                        })
-                    );
-
-                    skippedSyncedFolderCount = validatedFolders.filter((folder) => folder.error).length;
-                    searchPaths = validatedFolders
-                        .filter((folder) => !folder.error)
-                        .map((folder) => folder.path);
-
-                    if (searchPaths.length === 0) {
-                        const message =
-                            skippedSyncedFolderCount > 0
-                                ? "No valid synced folders are currently available for this agent. Synced folder entries may point to deleted or inaccessible paths. Remove stale folders in agent settings or pass explicit paths."
-                                : "No paths specified and no synced folders found for this agent. Please specify paths to search or add synced folders in the agent settings.";
-                        logToolEvent({
-                            level: "warn",
-                            toolName: "localGrep",
-                            event: "error",
-                            error: message,
-                            metadata: { searchPath: "native_localgrep" },
-                        });
-
-                        return {
-                            status: "no_paths",
-                            message,
-                        };
-                    }
-                } catch {
-                    const errorMessage = "Failed to retrieve synced folders. Please specify paths to search explicitly.";
-                    logToolEvent({
-                        level: "error",
-                        toolName: "localGrep",
-                        event: "error",
-                        error: errorMessage,
-                        metadata: { searchPath: "native_localgrep" },
-                    });
-
-                    return {
-                        status: "error",
-                        error: errorMessage,
-                    };
-                }
-            } else if (searchPaths.length === 0) {
-                const message = "No paths specified. Please provide paths to search.";
-                logToolEvent({
-                    level: "warn",
-                    toolName: "localGrep",
-                    event: "error",
-                    error: message,
-                    metadata: { searchPath: "native_localgrep" },
-                });
-
-                return {
-                    status: "no_paths",
-                    message,
-                };
-            }
-
-            try {
-                const searchResult = await searchWithRipgrep({
+            const executeSearch = async (candidatePaths: string[]) => {
+                return searchWithRipgrep({
                     pattern,
-                    paths: searchPaths,
+                    paths: candidatePaths,
                     regex: isRegex,
                     caseInsensitive,
                     maxResults: maxResults ?? settings.localGrepMaxResults ?? 20,
@@ -396,6 +414,107 @@ Respects .gitignore and skips binary files by default.`,
                     contextLines: contextLines ?? settings.localGrepContextLines ?? 2,
                     respectGitignore: settings.localGrepRespectGitignore ?? true,
                 });
+            };
+
+            // Determine search paths
+            const hasExplicitPaths = Array.isArray(paths) && paths.length > 0;
+            let searchPaths = paths || [];
+            let skippedSyncedFolderCount = 0;
+            let pathSource: LocalGrepResult["pathSource"] = hasExplicitPaths ? "explicit" : undefined;
+            const attemptedScopes: string[] = [];
+            let fallbackUsed = false;
+
+            if (!hasExplicitPaths) {
+                const workspacePath = await resolveWorkspaceSearchPath(sessionId);
+                if (workspacePath) {
+                    searchPaths = [workspacePath];
+                    pathSource = "workspace";
+                    attemptedScopes.push("workspace");
+                } else {
+                    attemptedScopes.push("synced_folders");
+                    const syncedResolution = await resolveSyncedSearchPaths(characterId);
+
+                    if (syncedResolution.status === "error") {
+                        logToolEvent({
+                            level: "error",
+                            toolName: "localGrep",
+                            event: "error",
+                            error: syncedResolution.error,
+                            metadata: { searchPath: "native_localgrep" },
+                        });
+
+                        return {
+                            status: "error",
+                            error: syncedResolution.error,
+                        };
+                    }
+
+                    if (syncedResolution.status === "no_paths") {
+                        logToolEvent({
+                            level: "warn",
+                            toolName: "localGrep",
+                            event: "error",
+                            error: syncedResolution.message,
+                            metadata: { searchPath: "native_localgrep" },
+                        });
+
+                        return {
+                            status: "no_paths",
+                            message: syncedResolution.message,
+                        };
+                    }
+
+                    searchPaths = syncedResolution.paths;
+                    skippedSyncedFolderCount = syncedResolution.skippedCount;
+                    pathSource = "synced_folders";
+                }
+            }
+
+            try {
+                let searchResult = await executeSearch(searchPaths);
+                let finalSearchPaths = searchPaths;
+                const infoMessages: string[] = [];
+                let finalPathSource: LocalGrepResult["pathSource"] =
+                    pathSource === "workspace"
+                        ? "workspace"
+                        : pathSource === "synced_folders"
+                            ? "synced_folders"
+                            : pathSource === "explicit"
+                                ? "explicit"
+                                : undefined;
+
+                if (!hasExplicitPaths && pathSource === "workspace" && searchResult.matches.length === 0) {
+                    attemptedScopes.push("synced_folders");
+                    const syncedResolution = await resolveSyncedSearchPaths(characterId);
+
+                    if (syncedResolution.status === "ok") {
+                        skippedSyncedFolderCount += syncedResolution.skippedCount;
+                        fallbackUsed = true;
+                        finalPathSource = "workspace_then_synced";
+                        finalSearchPaths = syncedResolution.paths;
+                        searchResult = await executeSearch(finalSearchPaths);
+                    } else if (syncedResolution.status === "error") {
+                        infoMessages.push(
+                            "Workspace search returned 0 matches; synced folder fallback failed to load."
+                        );
+                    } else {
+                        infoMessages.push(
+                            "Workspace search returned 0 matches; no synced folders were available for fallback."
+                        );
+                    }
+                }
+
+                if (skippedSyncedFolderCount > 0) {
+                    infoMessages.push(
+                        `Skipped ${skippedSyncedFolderCount} unavailable synced folder path(s) before searching.`
+                    );
+                }
+
+                if (fallbackUsed) {
+                    infoMessages.push(
+                        "Workspace search returned 0 matches; retried with synced folders in the same tool call."
+                    );
+                }
 
                 const formattedOutput = formatResults(searchResult, pattern);
 
@@ -409,6 +528,9 @@ Respects .gitignore and skips binary files by default.`,
                         regex: isRegex,
                         matchCount: searchResult.matches.length,
                         skippedSyncedFolderCount,
+                        pathSource: finalPathSource,
+                        attemptedScopes: attemptedScopes.join(","),
+                        fallbackUsed,
                     },
                 });
 
@@ -419,12 +541,12 @@ Respects .gitignore and skips binary files by default.`,
                     wasTruncated: searchResult.wasTruncated,
                     pattern,
                     regex: isRegex,
-                    searchedPaths: searchPaths,
+                    searchedPaths: finalSearchPaths,
+                    pathSource: finalPathSource,
+                    attemptedScopes: attemptedScopes.length > 0 ? attemptedScopes : undefined,
+                    fallbackUsed,
                     results: formattedOutput,
-                    message:
-                        skippedSyncedFolderCount > 0
-                            ? `Skipped ${skippedSyncedFolderCount} unavailable synced folder path(s) before searching.`
-                            : undefined,
+                    message: infoMessages.length > 0 ? infoMessages.join(" ") : undefined,
                     // Also include structured data for potential further processing
                     matches: searchResult.matches.slice(0, 20).map((m: RipgrepMatch) => ({
                         file: m.file,

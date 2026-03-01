@@ -877,7 +877,9 @@
       "placeholderInitializing": "Araçlar başlatılıyor...",
       "pastedTextChip": "Yapıştırılan metin #{n} · {lines} satır",
       "removePastedText": "Yapıştırılan metni kaldır",
-      "textPasted": "Büyük metin alındı ({lines} satır)"
+      "textPasted": "Büyük metin alındı ({lines} satır)",
+      "editorEnable": "Zengin editor",
+      "editorDisable": "Basit mod"
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada",
@@ -1115,9 +1117,9 @@
     "voiceTool": {
       "stop": "Durdur",
       "play": "Oynat",
-      "synthesizing": "Ses sentezleniyor\u2026",
+      "synthesizing": "Ses sentezleniyor…",
       "ttsFailed": "TTS başarısız",
-      "checkingTranscription": "Transkripsiyon kontrol ediliyor\u2026",
+      "checkingTranscription": "Transkripsiyon kontrol ediliyor…",
       "transcriptionFailed": "Transkripsiyon kontrolü başarısız",
       "playFailed": "Ses çalınamadı",
       "playbackBlocked": "Ses oynatma tarayıcı tarafından engellendi"
@@ -1137,8 +1139,8 @@
       "clickToExpand": "Çıktıyı genişletmek için tıklayın..."
     },
     "planTool": {
-      "updating": "Plan güncelleniyor\u2026",
-      "creating": "Plan oluşturuluyor\u2026",
+      "updating": "Plan güncelleniyor…",
+      "creating": "Plan oluşturuluyor…",
       "planError": "Plan hatası: {error}",
       "plan": "Plan",
       "stepsUpdated": "{count} adım güncellendi"
@@ -2307,7 +2309,7 @@
       "validationUrlRequired": "SSE taşıması için URL gerekli",
       "validationInvalidUrl": "Geçersiz URL biçimi",
       "reconnectServer": "Sunucuya yeniden bağlan",
-      "editServer": "Sunucuyu düzenle",
+      "editServer": "Sunucuyu Düzenle",
       "deleteServer": "Sunucuyu sil",
       "addEnvVar": "Ekle",
       "cancelEnvVar": "İptal",
@@ -2326,7 +2328,6 @@
       "hideAdvancedJson": "Gelişmiş JSON'u gizle",
       "rawJsonSettings": "Ham JSON ayarları",
       "applyJson": "JSON'u Uygula",
-      "editServer": "Sunucuyu Düzenle",
       "addNewServer": "Yeni Sunucu Ekle",
       "variablesButton": "Değişkenler",
       "availableEnvVars": "Mevcut Ortam Değişkenleri:",
@@ -2337,7 +2338,6 @@
       "transportType": "Taşıma Türü",
       "command": "Komut",
       "arguments": "Argümanlar",
-      "insertVariable": "Değişken Ekle",
       "addArgumentPlaceholder": "Argüman ekle...",
       "primaryFolder": "Birincil senkronize klasör",
       "allFolders": "Tüm klasörler (birden fazla argümana genişler)",
@@ -2369,16 +2369,47 @@
       "headerCount": "{count, plural, one {# başlık} other {# başlık}}",
       "jsonKeyHint": "Üst düzey anahtar \"mcpServers\" olmalıdır.",
       "templates": {
-        "filesystem": { "name": "Dosyalar (tek klasör)", "description": "Senkronize klasörde dosya oku ve yaz" },
-        "filesystem-multi": { "name": "Dosyalar (tüm klasörler)", "description": "Tüm senkronize klasörlere eriş" },
-        "github": { "name": "GitHub", "description": "Depoları yönet ve kod ara" },
-        "chrome-devtools": { "name": "Chrome DevTools", "description": "Chrome'da sayfalarda inceleme ve hata ayıkla" },
-        "postgres": { "name": "PostgreSQL", "description": "PostgreSQL veritabanına bağlan" },
-        "composio": { "name": "Composio", "description": "Composio ile birçok uygulamayı bağla", "setup": "Composio'dan Bağlantı Kimliği alın. Tool Router için URL'yi şununla değiştirin: https://backend.composio.dev/tool_router/'{router_id}'/mcp" },
-        "linear": { "name": "Linear", "description": "Sorunları takip et ve projeleri yönet" },
-        "supabase": { "name": "Supabase", "description": "Supabase proje verilerini ve API'lerini yönet" },
-        "assistant-ui": { "name": "Assistant UI Belgeleri", "description": "Assistant UI belgelerinde ara" },
-        "everything": { "name": "Everything", "description": "Pek çok örnek aracı olan örnek sunucu" }
+        "filesystem": {
+          "name": "Dosyalar (tek klasör)",
+          "description": "Senkronize klasörde dosya oku ve yaz"
+        },
+        "filesystem-multi": {
+          "name": "Dosyalar (tüm klasörler)",
+          "description": "Tüm senkronize klasörlere eriş"
+        },
+        "github": {
+          "name": "GitHub",
+          "description": "Depoları yönet ve kod ara"
+        },
+        "chrome-devtools": {
+          "name": "Chrome DevTools",
+          "description": "Chrome'da sayfalarda inceleme ve hata ayıkla"
+        },
+        "postgres": {
+          "name": "PostgreSQL",
+          "description": "PostgreSQL veritabanına bağlan"
+        },
+        "composio": {
+          "name": "Composio",
+          "description": "Composio ile birçok uygulamayı bağla",
+          "setup": "Composio'dan Bağlantı Kimliği alın. Tool Router için URL'yi şununla değiştirin: https://backend.composio.dev/tool_router/'{router_id}'/mcp"
+        },
+        "linear": {
+          "name": "Linear",
+          "description": "Sorunları takip et ve projeleri yönet"
+        },
+        "supabase": {
+          "name": "Supabase",
+          "description": "Supabase proje verilerini ve API'lerini yönet"
+        },
+        "assistant-ui": {
+          "name": "Assistant UI Belgeleri",
+          "description": "Assistant UI belgelerinde ara"
+        },
+        "everything": {
+          "name": "Everything",
+          "description": "Pek çok örnek aracı olan örnek sunucu"
+        }
       }
     }
   },
@@ -3115,7 +3146,24 @@
   "skills": {
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
-    "library": "Kütüphane",
+    "library": {
+      "title": "Çapraz Ajan Beceri Kütüphanesi",
+      "searchPlaceholder": "Beceri ara",
+      "allCategories": "Tüm kategoriler",
+      "applyFilters": "Filtreleri Uygula",
+      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
+      "noDescription": "Açıklama yok",
+      "category": "Kategori",
+      "categoryGeneral": "genel",
+      "runs": "Çalışma",
+      "success": "Başarı",
+      "updated": "Güncellendi",
+      "selectAgent": "Hedef ajan seçin",
+      "copy": "Kopyala",
+      "open": "Aç",
+      "copySuccess": "Beceri başarıyla kopyalandı.",
+      "copyFailed": "Beceri kopyalanamadı"
+    },
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",
     "importSuccess": "Yetenek başarıyla içe aktarıldı",
@@ -3192,24 +3240,6 @@
       "fileTooLarge": "Dosya çok büyük",
       "fileTooLargeDesc": "Dosya boyutu 50MB sınırını aşıyor"
     },
-    "library": {
-      "title": "Çapraz Ajan Beceri Kütüphanesi",
-      "searchPlaceholder": "Beceri ara",
-      "allCategories": "Tüm kategoriler",
-      "applyFilters": "Filtreleri Uygula",
-      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
-      "noDescription": "Açıklama yok",
-      "category": "Kategori",
-      "categoryGeneral": "genel",
-      "runs": "Çalışma",
-      "success": "Başarı",
-      "updated": "Güncellendi",
-      "selectAgent": "Hedef ajan seçin",
-      "copy": "Kopyala",
-      "open": "Aç",
-      "copySuccess": "Beceri başarıyla kopyalandı.",
-      "copyFailed": "Beceri kopyalanamadı"
-    },
     "detail": {
       "backToSkills": "Becerilere Dön",
       "title": "Beceri Detayı ve Düzenleyici",
@@ -3254,7 +3284,11 @@
     "create": "Yeni Zamanlama",
     "retry": "Yeniden Dene",
     "delete": "Sil",
-    "cancel": "İptal",
+    "cancel": {
+      "button": "İptal",
+      "confirm": "Bu çalıştırmayı iptal et?",
+      "success": "Çalıştırma iptal edildi"
+    },
     "deleteConfirmTitle": "Zamanlamayı Sil",
     "deleteConfirmDescription": "Bu zamanlanmış görev ve tüm çalıştırma geçmişi kalıcı olarak silinecektir. Bu işlem geri alınamaz.",
     "filters": {
@@ -3507,11 +3541,6 @@
       "runAll": "Tümünü Şimdi Çalıştır",
       "deleteAll": "Tümünü Sil",
       "confirmDelete": "{count} zamanlamayı silmek istediğinizden emin misiniz?"
-    },
-    "cancel": {
-      "button": "İptal",
-      "confirm": "Bu çalıştırmayı iptal et?",
-      "success": "Çalıştırma iptal edildi"
     },
     "delivery": {
       "title": "Sonuçları Gönder",
