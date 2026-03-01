@@ -970,6 +970,19 @@ export async function POST(req: Request) {
               } else if (chunk.type === "tool-input-delta") {
                 changed = recordToolInputDelta(streamingState, chunk.id, chunk.delta) || changed;
               } else if (chunk.type === "tool-call") {
+                // Detect argsText conflict: streaming deltas already accumulated
+                // but a complete tool-call event arrived (e.g. from repairToolCall).
+                const existingPart = streamingState.toolCallParts.get(chunk.toolCallId);
+                if (existingPart?.argsText && existingPart.argsText.length > 0) {
+                  const newArgsText = JSON.stringify(chunk.input ?? {});
+                  if (!newArgsText.startsWith(existingPart.argsText)) {
+                    console.warn(
+                      `[CHAT API] argsText conflict for ${chunk.toolName} (${chunk.toolCallId}): ` +
+                        `streaming argsText (${existingPart.argsText.length} chars) replaced by structured input. ` +
+                        `Client error boundary will handle recovery.`
+                    );
+                  }
+                }
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;

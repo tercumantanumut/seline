@@ -165,6 +165,7 @@ function hasVisualMedia(result?: unknown): boolean {
 const TOOL_RESULT_TEXT_CLASS = "text-sm text-terminal-muted font-mono transition-opacity duration-150 [overflow-wrap:anywhere]";
 const TOOL_RESULT_PRE_CLASS = "overflow-x-auto rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark";
 const TOOL_RESULT_ERROR_PRE_CLASS = "overflow-x-auto rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-red-600";
+const TOOL_ARGS_PREVIEW_MAX_CHARS = 2_000;
 
 // Memoized Icon Component with Phosphor Icons
 const ToolIcon: FC<{
@@ -804,6 +805,7 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   const isRunning = result === undefined;
   const parsedResult = result as ToolResult | undefined;
   const [resolvedName, setResolvedName] = useState<string | null>(null);
+  const [isArgsExpanded, setIsArgsExpanded] = useState(false);
 
   // Memoize the display name lookup
   const displayName = useMemo(() => {
@@ -830,8 +832,12 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   // Memoize formatted args
   const formattedArgs = useMemo(() => {
     if (!argsText) return null;
+    // Avoid repeated JSON parsing while the tool is still streaming input.
+    if (isRunning || !isArgsExpanded) {
+      return formatArgsPreview(argsText);
+    }
     return formatArgs(argsText);
-  }, [argsText]);
+  }, [argsText, isArgsExpanded, isRunning]);
 
   return (
     <div className={cn(
@@ -848,13 +854,24 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
 
       {/* Show args summary */}
       {formattedArgs && (
-        <details className="mb-2 text-xs text-terminal-muted">
+        <details
+          className="mb-2 text-xs text-terminal-muted"
+          open={isArgsExpanded}
+          onToggle={(event) => {
+            setIsArgsExpanded((event.currentTarget as HTMLDetailsElement).open);
+          }}
+        >
           <summary className="cursor-pointer hover:text-terminal-dark">
-            View parameters
+            View parameters{isRunning ? " (live preview)" : ""}
           </summary>
           <pre className={cn("mt-2 max-h-48 overflow-y-auto", TOOL_RESULT_PRE_CLASS)}>
             {formattedArgs}
           </pre>
+          {isRunning && typeof argsText === "string" && argsText.length > TOOL_ARGS_PREVIEW_MAX_CHARS && (
+            <p className="mt-1 text-[11px] text-terminal-muted">
+              Full parameters will be available after the tool completes.
+            </p>
+          )}
         </details>
       )}
 
@@ -883,6 +900,17 @@ function formatArgs(argsText: string): string {
   } catch {
     return argsText;
   }
+}
+
+export function formatArgsPreview(argsText: string): string {
+  if (argsText.length <= TOOL_ARGS_PREVIEW_MAX_CHARS) {
+    return argsText;
+  }
+  const hiddenChars = argsText.length - TOOL_ARGS_PREVIEW_MAX_CHARS;
+  return (
+    `${argsText.slice(0, TOOL_ARGS_PREVIEW_MAX_CHARS)}\n\n` +
+    `... [${hiddenChars.toLocaleString()} more characters hidden in preview]`
+  );
 }
 
 function formatResultValue(value: unknown): string {

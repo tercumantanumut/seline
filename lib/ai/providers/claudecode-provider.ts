@@ -2,6 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentDefinition,
+  HookCallback,
   HookEvent,
   HookCallbackMatcher,
   SdkPluginConfig,
@@ -20,9 +21,24 @@ import { isElectronProduction } from "@/lib/utils/environment";
 import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
 import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
 import { buildSdkHooksFromSeline, mergeHooks } from "@/lib/plugins/sdk-hook-adapter";
+import {
+  registerInteractiveWait,
+  storeUserAnswer,
+  popUserAnswer,
+} from "@/lib/interactive-tool-bridge";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
+const CLAUDECODE_INPUT_DELTA_BATCH_ENABLED =
+  process.env.CLAUDECODE_INPUT_DELTA_BATCH_ENABLED !== "false";
+const CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS = (() => {
+  const parsed = Number(process.env.CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 8_192;
+})();
+const CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS = (() => {
+  const parsed = Number(process.env.CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 40;
+})();
 
 /**
  * SDK-native options that extend a basic Claude Agent SDK query.
@@ -529,6 +545,11 @@ function createStreamingClaudeCodeResponse(options: {
         }
       }
 
+      const pendingInputJsonDeltaByIndex = new Map<
+        number,
+        { partialJson: string; timer: ReturnType<typeof setTimeout> | null }
+      >();
+
       try {
         const sdk = options.sdkOptions;
         const mcpCtx: SelineMcpContext | undefined =
@@ -558,6 +579,72 @@ function createStreamingClaudeCodeResponse(options: {
           : undefined;
         const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
 
+        // ── Interactive tool gate: pause SDK for AskUserQuestion ──────────
+        // The async PreToolUse hook blocks the SDK from auto-executing
+        // AskUserQuestion / AskFollowupQuestion until the real user answers
+        // via the /api/chat/tool-result endpoint.
+        const interactiveSessionId = mcpCtx?.sessionId ?? "";
+        const interactiveToolHook: HookCallback = async (input, toolUseId) => {
+          const toolName = (input as Record<string, unknown>).tool_name as string;
+          if (
+            toolName !== "AskUserQuestion" &&
+            toolName !== "AskFollowupQuestion"
+          ) {
+            return {};
+          }
+          if (!toolUseId || !interactiveSessionId) return {};
+
+          const toolInput = (input as Record<string, unknown>).tool_input;
+          console.log(
+            `[ClaudeCode] Interactive tool gate: blocking ${toolName} (${toolUseId}) until user answers`,
+          );
+
+          // Block until user answers via the API endpoint
+          const answers = await registerInteractiveWait(
+            interactiveSessionId,
+            toolUseId,
+            toolInput,
+          );
+
+          // Store answers so we can override the SDK's auto-answer later
+          storeUserAnswer(interactiveSessionId, toolUseId, answers);
+
+          console.log(
+            `[ClaudeCode] Interactive tool gate: user answered ${toolName} (${toolUseId})`,
+          );
+
+          // Use updatedInput to inject user's answers into the tool input.
+          // This tells the SDK's AskUserQuestion handler that answers are pre-filled,
+          // so it passes them through to Claude instead of auto-answering.
+          const originalInput =
+            typeof toolInput === "object" && toolInput !== null
+              ? (toolInput as Record<string, unknown>)
+              : {};
+          return {
+            hookSpecificOutput: {
+              hookEventName: "PreToolUse" as const,
+              permissionDecision: "allow" as const,
+              updatedInput: { ...originalInput, answers },
+              additionalContext: `The user has already answered this question. Their selections: ${JSON.stringify(answers)}. Use these answers as the tool result.`,
+            },
+          };
+        };
+
+        const finalHooks = mergeHooks(mergedHookMap, {
+          PreToolUse: [
+            {
+              matcher: "AskUserQuestion",
+              hooks: [interactiveToolHook],
+              timeout: 300,
+            },
+            {
+              matcher: "AskFollowupQuestion",
+              hooks: [interactiveToolHook],
+              timeout: 300,
+            },
+          ],
+        });
+
         const query = claudeAgentQuery({
           prompt: options.prompt,
           options: {
@@ -583,7 +670,7 @@ function createStreamingClaudeCodeResponse(options: {
             ...(sdk?.agents ? { agents: sdk.agents } : {}),
             ...(sdk?.allowedTools ? { allowedTools: sdk.allowedTools } : {}),
             ...(sdk?.disallowedTools ? { disallowedTools: sdk.disallowedTools } : {}),
-            ...(mergedHookMap ? { hooks: mergedHookMap } : {}),
+            ...(finalHooks ? { hooks: finalHooks } : {}),
             ...(mergedPlugins ? { plugins: mergedPlugins } : {}),
             ...(sdk?.resume ? { resume: sdk.resume } : {}),
             ...(sdk?.sessionId ? { sessionId: sdk.sessionId } : {}),
@@ -617,6 +704,8 @@ function createStreamingClaudeCodeResponse(options: {
         const streamedToolUseNamesThisTurn = new Set<string>();
         const streamLocalToGlobalIndex = new Map<number, number>();
         const openStreamLocalIndices = new Set<number>();
+        let rawInputJsonDeltaChunks = 0;
+        let emittedInputJsonDeltaChunks = 0;
 
         const allocateContentIndex = () => {
           const idx = nextContentIndex;
@@ -663,6 +752,75 @@ function createStreamingClaudeCodeResponse(options: {
           emit("content_block_stop", { type: "content_block_stop", index: targetIndex });
         };
 
+        const getPendingInputDelta = (index: number) => {
+          const existing = pendingInputJsonDeltaByIndex.get(index);
+          if (existing) return existing;
+          const created = { partialJson: "", timer: null as ReturnType<typeof setTimeout> | null };
+          pendingInputJsonDeltaByIndex.set(index, created);
+          return created;
+        };
+
+        const clearPendingInputDelta = (index: number) => {
+          const pending = pendingInputJsonDeltaByIndex.get(index);
+          if (!pending) return;
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+          }
+          pendingInputJsonDeltaByIndex.delete(index);
+        };
+
+        const flushInputJsonDelta = (index: number) => {
+          const pending = pendingInputJsonDeltaByIndex.get(index);
+          if (!pending || pending.partialJson.length === 0) return;
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+            pending.timer = null;
+          }
+          emit("content_block_delta", {
+            type: "content_block_delta",
+            index,
+            delta: { type: "input_json_delta", partial_json: pending.partialJson },
+          });
+          emittedInputJsonDeltaChunks += 1;
+          pending.partialJson = "";
+        };
+
+        const flushAllPendingInputJsonDeltas = () => {
+          for (const index of pendingInputJsonDeltaByIndex.keys()) {
+            flushInputJsonDelta(index);
+          }
+        };
+
+        const emitInputJsonDelta = (index: number, partialJson: string) => {
+          rawInputJsonDeltaChunks += 1;
+          if (!CLAUDECODE_INPUT_DELTA_BATCH_ENABLED) {
+            emit("content_block_delta", {
+              type: "content_block_delta",
+              index,
+              delta: { type: "input_json_delta", partial_json: partialJson },
+            });
+            emittedInputJsonDeltaChunks += 1;
+            return;
+          }
+
+          const pending = getPendingInputDelta(index);
+          pending.partialJson += partialJson;
+
+          if (pending.partialJson.length >= CLAUDECODE_INPUT_DELTA_BATCH_MAX_CHARS) {
+            flushInputJsonDelta(index);
+            return;
+          }
+
+          if (!pending.timer) {
+            pending.timer = setTimeout(() => {
+              const state = pendingInputJsonDeltaByIndex.get(index);
+              if (!state) return;
+              state.timer = null;
+              flushInputJsonDelta(index);
+            }, CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS);
+          }
+        };
+
         const getEventIndex = (event: Record<string, unknown>): number | null => {
           const raw = event.index;
           if (typeof raw !== "number" || !Number.isInteger(raw)) return null;
@@ -682,7 +840,9 @@ function createStreamingClaudeCodeResponse(options: {
           for (const localIndex of [...openStreamLocalIndices]) {
             const globalIndex = streamLocalToGlobalIndex.get(localIndex);
             if (globalIndex !== undefined) {
+              flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              clearPendingInputDelta(globalIndex);
             }
             openStreamLocalIndices.delete(localIndex);
           }
@@ -692,6 +852,10 @@ function createStreamingClaudeCodeResponse(options: {
           closeOpenStreamBlocks();
           streamLocalToGlobalIndex.clear();
           openStreamLocalIndices.clear();
+          flushAllPendingInputJsonDeltas();
+          for (const index of [...pendingInputJsonDeltaByIndex.keys()]) {
+            clearPendingInputDelta(index);
+          }
           sawStreamTextThisTurn = false;
           streamedToolUseIdsThisTurn.clear();
           streamedToolUseNamesThisTurn.clear();
@@ -702,6 +866,24 @@ function createStreamingClaudeCodeResponse(options: {
             if (sdkToolResultBridge) {
               const bridgedResults = extractSdkToolResultsFromUserMessage(message);
               for (const entry of bridgedResults) {
+                // Override SDK's auto-answer with user's real answer for interactive tools
+                if (
+                  interactiveSessionId &&
+                  (entry.toolName === "AskUserQuestion" || entry.toolName === "AskFollowupQuestion")
+                ) {
+                  console.log(
+                    `[ClaudeCode] SDK auto-answer for ${entry.toolName} (${entry.toolCallId}):`,
+                    JSON.stringify(entry.output, null, 2),
+                  );
+                  const userAnswer = popUserAnswer(interactiveSessionId, entry.toolCallId);
+                  if (userAnswer) {
+                    console.log(
+                      `[ClaudeCode] Overriding with user's answer:`,
+                      JSON.stringify(userAnswer),
+                    );
+                    entry.output = { answers: userAnswer };
+                  }
+                }
                 sdkToolResultBridge.publish(entry.toolCallId, entry.output, entry.toolName);
               }
             }
@@ -803,11 +985,7 @@ function createStreamingClaudeCodeResponse(options: {
                 });
                 outputTokens += Math.max(1, Math.ceil(String(event.delta.text).length / 4));
               } else if (event.delta.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
-                emit("content_block_delta", {
-                  type: "content_block_delta",
-                  index: globalIndex,
-                  delta: { type: "input_json_delta", partial_json: event.delta.partial_json },
-                });
+                emitInputJsonDelta(globalIndex, event.delta.partial_json);
               }
               continue;
             }
@@ -817,7 +995,9 @@ function createStreamingClaudeCodeResponse(options: {
               if (localIndex === null) continue;
               const globalIndex = streamLocalToGlobalIndex.get(localIndex);
               if (globalIndex === undefined || !openStreamLocalIndices.has(localIndex)) continue;
+              flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              clearPendingInputDelta(globalIndex);
               openStreamLocalIndices.delete(localIndex);
               continue;
             }
@@ -919,6 +1099,17 @@ function createStreamingClaudeCodeResponse(options: {
         }
 
         closeOpenStreamBlocks();
+        flushAllPendingInputJsonDeltas();
+
+        if (
+          CLAUDECODE_INPUT_DELTA_BATCH_ENABLED &&
+          rawInputJsonDeltaChunks > 0 &&
+          process.env.NODE_ENV !== "production"
+        ) {
+          console.log(
+            `[ClaudeCode] input_json_delta batching: raw=${rawInputJsonDeltaChunks}, emitted=${emittedInputJsonDeltaChunks}`,
+          );
+        }
 
         // Close the message
         emit("message_delta", {
@@ -939,6 +1130,12 @@ function createStreamingClaudeCodeResponse(options: {
         }
       } finally {
         options.signal?.removeEventListener("abort", onAbort);
+        for (const pending of pendingInputJsonDeltaByIndex.values()) {
+          if (pending.timer) {
+            clearTimeout(pending.timer);
+          }
+        }
+        pendingInputJsonDeltaByIndex.clear();
         try {
           controller.close();
         } catch {

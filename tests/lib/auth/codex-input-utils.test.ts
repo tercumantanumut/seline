@@ -36,6 +36,24 @@ describe("codex-input-utils", () => {
     ]);
   });
 
+  it("preserves tool correlation when call id is provided via id", () => {
+    const input: CodexInputItem[] = [
+      { type: "function_call", id: "call_legacy", name: "executeCommand", arguments: "{\"command\":\"pwd\"}" },
+      { type: "function_call_output", call_id: "call_legacy", name: "executeCommand", output: { status: "success" } },
+    ];
+
+    const filtered = filterCodexInput(input);
+    expect(filtered?.[0]).toMatchObject({
+      type: "function_call",
+      call_id: "call_legacy",
+      name: "executeCommand",
+    });
+    expect(filtered?.[0]).not.toHaveProperty("id");
+
+    const normalized = normalizeOrphanedToolOutputs(filtered ?? []);
+    expect(normalized).toEqual(filtered);
+  });
+
   it("keeps matched function call and output pairs", () => {
     const input: CodexInputItem[] = [
       { type: "function_call", call_id: "call_1", name: "executeCommand", arguments: "{\"command\":\"pwd\"}" },
