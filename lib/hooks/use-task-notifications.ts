@@ -715,7 +715,9 @@ export function useTaskNotifications() {
 
           // Keep the active-run marker while the server is still streaming
           // progress content for the current run.
-          if (hasProgressContent || hasAssistantMessageId || previous?.isRunning) {
+          const isSameRunStillActive =
+            previous?.runId === event.runId && previous.isRunning;
+          if (hasProgressContent || hasAssistantMessageId || isSameRunStillActive) {
             sessionSyncState.setActiveRun(event.sessionId, event.runId);
           }
 

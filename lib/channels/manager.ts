@@ -207,10 +207,14 @@ class ChannelManager {
       return connector.sendInteractiveQuestion(payload);
     }
     // Text fallback (WhatsApp and any connector without interactive support)
+    const optionsText = payload.options
+      .map((opt) => `${opt.index}. ${opt.label}${opt.description ? ` — ${opt.description}` : ""}`)
+      .join("\n");
+
     return connector.sendMessage({
       peerId: payload.peerId,
       threadId: payload.threadId,
-      text: `${payload.questionText}\n\n${payload.instructionText}`,
+      text: `${payload.questionText}\n\n${optionsText}\n\n${payload.instructionText}`,
     });
   }
 }

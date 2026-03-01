@@ -145,17 +145,20 @@ export const AskFollowupQuestionToolUI: ToolCallContentPartComponent = ({
     async (answers: Record<string, string>) => {
       if (isAnswered || submitting) return;
       setSubmitting(true);
-
-      // If we have a sessionId (claudecode provider), POST to server
-      if (sessionId && toolCallId) {
-        await submitAnswersToServer(sessionId, toolCallId, answers);
+      try {
+        // If we have a sessionId (claudecode provider), POST to server
+        if (sessionId && toolCallId) {
+          const ok = await submitAnswersToServer(sessionId, toolCallId, answers);
+          if (!ok) return; // keep UI interactive for retry
+        }
+        // Call addResult so the UI state updates
+        if (addResult) {
+          addResult({ answers });
+        }
+        setSubmitted(true);
+      } finally {
+        setSubmitting(false);
       }
-      // Also call addResult so the UI state updates
-      if (addResult) {
-        addResult({ answers });
-      }
-      setSubmitted(true);
-      setSubmitting(false);
     },
     [isAnswered, submitting, sessionId, toolCallId, addResult],
   );

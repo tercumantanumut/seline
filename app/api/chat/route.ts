@@ -957,6 +957,12 @@ export async function POST(req: Request) {
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            // Claude Code SDK agents self-correct after tool validation failures —
+            // the stream stays open and onFinish will finalize the run properly.
+            if (provider === "claudecode" && isNonFatalToolError(error)) {
+              console.warn(`[CHAT API] Non-fatal tool error in Claude Code run (skipping finalization): ${errorMessage}`);
+              return;
+            }
             await finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
           },
           onChunk: shouldEmitProgress
@@ -1028,11 +1034,19 @@ export async function POST(req: Request) {
           stream,
           onError: (error) => {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            if (provider === "claudecode" && isNonFatalToolError(error)) {
+              console.warn(`[CHAT API] Non-fatal tool error in Claude Code SSE stream (skipping finalization): ${errorMessage}`);
+              return;
+            }
             void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
           },
         }),
       onError: (error) => {
         const errorMessage = error instanceof Error ? error.message : String(error);
+        if (provider === "claudecode" && isNonFatalToolError(error)) {
+          console.warn(`[CHAT API] Non-fatal tool error in Claude Code UI stream (skipping finalization): ${errorMessage}`);
+          return "Non-fatal tool error — agent is self-correcting.";
+        }
         void finalizeFailedRun(errorMessage, detectCreditError(errorMessage), { sourceError: error, streamAborted: streamAbortSignal.aborted });
         return "Streaming interrupted. The run was marked accordingly.";
       },
@@ -1108,6 +1122,33 @@ export async function POST(req: Request) {
       }
     );
   }
+}
+
+/**
+ * Detect non-fatal tool validation errors that Claude Code SDK agents
+ * can self-correct from. These should NOT trigger run finalization.
+ */
+function isNonFatalToolError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+
+  // Vercel AI SDK error class markers (duck-typed)
+  const marker = (error as any)[Symbol.for("vercel.ai.error")];
+  if (
+    marker === "AI_InvalidToolInputError" ||
+    marker === "AI_NoSuchToolError" ||
+    marker === "AI_ToolCallRepairError"
+  ) {
+    return true;
+  }
+
+  // Fallback: message-based detection
+  return (
+    msg.includes("invalid input for tool") ||
+    msg.includes("json parsing failed") ||
+    msg.includes("tool not found") ||
+    (msg.includes("tool") && msg.includes("does not exist"))
+  );
 }
 
 function detectCreditError(errorMessage: string): boolean {

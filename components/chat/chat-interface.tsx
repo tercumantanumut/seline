@@ -567,8 +567,11 @@ export default function ChatInterface({
 
     const handleForegroundRunFinished = useCallback(() => {
         if (!sessionId) return;
-        void reloadSessionMessages(sessionId, { force: true });
-    }, [sessionId, reloadSessionMessages]);
+        // Foreground runs already stream directly into useChat state.
+        // Rehydrating from DB here can reintroduce stale branches/messages.
+        sm.notifySessionUpdate(sessionId, { messageCount: messages.length });
+        sm.refreshSessionTimestamp(sessionId);
+    }, [sessionId, sm.notifySessionUpdate, sm.refreshSessionTimestamp, messages.length]);
 
     if (sm.isLoading) {
         return (
