@@ -329,16 +329,16 @@ export async function persistVoiceState(
  * Non-code-block text is HTML-escaped so Telegram's HTML parse mode is safe.
  * Returns the original text and no parseMode when no code fences are present.
  */
-function rawModeTextTransform(text: string): { text: string; parseMode: string | undefined } {
+function rawModeTextTransform(text: string): { text: string; parseMode: "HTML" | undefined } {
   if (!text || !text.includes("```")) {
     return { text, parseMode: undefined };
   }
   // Split on code fences (capturing delimiter keeps it in the array)
-  const parts = text.split(/(```(?:[\w]*)\n[\s\S]*?```|```[\s\S]*?```)/g);
+  const parts = text.split(/(```[^\r\n]*\r?\n[\s\S]*?```|```[\s\S]*?```)/g);
   const transformed = parts.map((part) => {
     if (part.startsWith("```")) {
-      // Strip opening fence (with optional language tag) and closing fence
-      const code = part.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+      // Strip opening fence (with optional language tag like c++, objective-c) and closing fence
+      const code = part.replace(/^```[^\r\n]*\r?\n?/, "").replace(/\r?\n?```$/, "");
       return `<pre>${escapeHtmlEntities(code)}</pre>`;
     }
     return escapeHtmlEntities(part);

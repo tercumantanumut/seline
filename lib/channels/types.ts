@@ -78,8 +78,8 @@ export interface ChannelSendPayload {
   replyToMessageId?: string | null;
   chunkIndex?: number;
   totalChunks?: number;
-  /** When set, the connector should render the message using this parse mode (e.g. "HTML"). */
-  parseMode?: string;
+  /** Telegram-compatible parse mode. Legacy "Markdown" is supported but "MarkdownV2" is preferred. */
+  parseMode?: "Markdown" | "MarkdownV2" | "HTML";
 }
 
 export interface ChannelSendResult {
