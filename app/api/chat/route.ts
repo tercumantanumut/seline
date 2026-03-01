@@ -108,10 +108,6 @@ function handleUndrainedQueueMessages(runId: string, sessionId: string): void {
   }
 }
 
-// Feature-flagged safety projection for task progress SSE payloads.
-const ENABLE_PROGRESS_CONTENT_LIMITER = process.env.ENABLE_PROGRESS_CONTENT_LIMITER === "true";
-
-
 export async function POST(req: Request) {
   let agentRun: { id: string } | null = null;
   let chatTaskRegistered = false;
