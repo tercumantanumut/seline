@@ -135,11 +135,51 @@ export function normalizeToolCallInput(
 }
 
 /**
+ * Sanitize numeric values in parsed JSON args after repair.
+ * Replaces Infinity, -Infinity, NaN, and absurdly large numbers with null.
+ * This prevents degenerate model output (e.g., repeated digits producing
+ * Infinity for endLine) from causing downstream tool execution blowups.
+ */
+function sanitizeNumericValues(obj: Record<string, unknown>): Record<string, unknown> {
+  // No realistic tool parameter exceeds 1e15 (1 quadrillion).
+  // File line numbers, timeouts, counts — all well under this.
+  const MAX_SANE_NUMBER = 1e15;
+
+  for (const key of Object.keys(obj)) {
+    const value = obj[key];
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || Math.abs(value) > MAX_SANE_NUMBER) {
+        console.warn(
+          `[CHAT API] Sanitized degenerate numeric value in repaired JSON: ${key}=${value} → null`
+        );
+        obj[key] = null;
+      }
+    } else if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        if (typeof value[i] === "number") {
+          if (!Number.isFinite(value[i] as number) || Math.abs(value[i] as number) > MAX_SANE_NUMBER) {
+            value[i] = null;
+          }
+        } else if (value[i] && typeof value[i] === "object" && !Array.isArray(value[i])) {
+          sanitizeNumericValues(value[i] as Record<string, unknown>);
+        }
+      }
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      sanitizeNumericValues(value as Record<string, unknown>);
+    }
+  }
+  return obj;
+}
+
+/**
  * Attempt to repair truncated JSON from streaming tool calls.
  * Handles common patterns where the stream was interrupted mid-JSON:
  * - Missing closing braces/brackets: {"command": "python", "args": ["-c"
  * - Truncated string values: {"command": "python", "args": ["-c", "from PIL
  * Returns parsed object or null if repair is not possible.
+ *
+ * After successful repair, numeric values are sanitized to catch degenerate
+ * model output (e.g., token repetition producing astronomically large numbers).
  */
 export function attemptJsonRepair(malformedJson: string): Record<string, unknown> | null {
   if (!malformedJson || malformedJson.trim().length === 0) {
@@ -207,7 +247,7 @@ export function attemptJsonRepair(malformedJson: string): Record<string, unknown
   try {
     const parsed = JSON.parse(repaired);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+      return sanitizeNumericValues(parsed as Record<string, unknown>);
     }
   } catch {
     // Repair attempt didn't produce valid JSON

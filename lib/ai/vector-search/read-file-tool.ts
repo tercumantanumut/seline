@@ -195,6 +195,19 @@ async function executeReadFile(
 ): Promise<ReadFileResult> {
   const { filePath, startLine, endLine } = args;
 
+  // Guard: reject non-finite or negative numeric params early.
+  // Degenerate model output (e.g. token repetition loops) can produce
+  // Infinity or NaN values that bypass downstream range checks.
+  if (startLine !== undefined && (!Number.isFinite(startLine) || startLine < 1)) {
+    return { status: "error" as const, error: `Invalid startLine: ${startLine}. Must be a positive integer.` };
+  }
+  if (endLine !== undefined && (!Number.isFinite(endLine) || endLine < 1)) {
+    return { status: "error" as const, error: `Invalid endLine: ${endLine}. Must be a positive integer.` };
+  }
+  if (startLine !== undefined && endLine !== undefined && endLine < startLine) {
+    return { status: "error" as const, error: `endLine (${endLine}) must be >= startLine (${startLine}).` };
+  }
+
   if (!characterId) {
     return {
       status: "error" as const,

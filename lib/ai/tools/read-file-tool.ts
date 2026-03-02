@@ -256,6 +256,25 @@ export function createReadFileTool(options: ReadFileToolOptions) {
 
       const { filePath, startLine, endLine, head, tail } = input;
 
+      // Guard: reject non-finite or negative numeric params early.
+      // Degenerate model output (e.g. token repetition loops) can produce
+      // Infinity or NaN values that bypass downstream range checks.
+      if (startLine !== undefined && (!Number.isFinite(startLine) || startLine < 1)) {
+        return { status: "error", error: `Invalid startLine: ${startLine}. Must be a positive integer.` };
+      }
+      if (endLine !== undefined && (!Number.isFinite(endLine) || endLine < 1)) {
+        return { status: "error", error: `Invalid endLine: ${endLine}. Must be a positive integer.` };
+      }
+      if (head !== undefined && (!Number.isFinite(head) || head < 1)) {
+        return { status: "error", error: `Invalid head: ${head}. Must be a positive integer.` };
+      }
+      if (tail !== undefined && (!Number.isFinite(tail) || tail < 1)) {
+        return { status: "error", error: `Invalid tail: ${tail}. Must be a positive integer.` };
+      }
+      if (startLine !== undefined && endLine !== undefined && endLine < startLine) {
+        return { status: "error", error: `endLine (${endLine}) must be >= startLine (${startLine}).` };
+      }
+
       // Validation
       if ((head || tail) && (startLine || endLine)) {
          return {

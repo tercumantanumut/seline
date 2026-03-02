@@ -17,6 +17,16 @@ function makeState(): StreamingMessageState {
   };
 }
 
+/** Generate a string of the given length with varied characters (won't trigger repetition detection). */
+function variedString(len: number): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    result += chars[i % chars.length];
+  }
+  return result;
+}
+
 describe("recordToolInputDelta - argsText size cap", () => {
   it("accumulates deltas normally when under the limit", () => {
     const state = makeState();
@@ -34,20 +44,20 @@ describe("recordToolInputDelta - argsText size cap", () => {
     const state = makeState();
     recordToolInputStart(state, "tc-1", "editFile");
 
-    // Fill to just under the limit
-    const bigChunk = "x".repeat(MAX_ARGS_TEXT_BYTES - 100);
+    // Fill to just under the limit (use varied chars to avoid repetition detection)
+    const bigChunk = variedString(MAX_ARGS_TEXT_BYTES - 100);
     recordToolInputDelta(state, "tc-1", bigChunk);
     const part = state.toolCallParts.get("tc-1");
     expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES - 100);
 
     // A small delta that fits should still be accepted
-    const fitsChunk = "y".repeat(50);
+    const fitsChunk = variedString(50);
     const fitsResult = recordToolInputDelta(state, "tc-1", fitsChunk);
     expect(fitsResult).toBe(true);
     expect(part!.argsText!.length).toBe(MAX_ARGS_TEXT_BYTES - 50);
 
     // A delta that would push it over the limit should be rejected
-    const overflowChunk = "z".repeat(100);
+    const overflowChunk = variedString(100);
     const overflowResult = recordToolInputDelta(state, "tc-1", overflowChunk);
     expect(overflowResult).toBe(false);
 
@@ -60,7 +70,7 @@ describe("recordToolInputDelta - argsText size cap", () => {
     recordToolInputStart(state, "tc-1", "editFile");
 
     // A single delta larger than the cap should be rejected
-    const result = recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES + 1));
+    const result = recordToolInputDelta(state, "tc-1", variedString(MAX_ARGS_TEXT_BYTES + 1));
     expect(result).toBe(false);
 
     const part = state.toolCallParts.get("tc-1");
@@ -71,8 +81,8 @@ describe("recordToolInputDelta - argsText size cap", () => {
     const state = makeState();
     recordToolInputStart(state, "tc-1", "editFile");
 
-    // Fill to capacity
-    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES));
+    // Fill to capacity (use varied chars to avoid repetition detection)
+    recordToolInputDelta(state, "tc-1", variedString(MAX_ARGS_TEXT_BYTES));
 
     // Try two more deltas that would exceed
     recordToolInputDelta(state, "tc-1", "a");
@@ -91,8 +101,8 @@ describe("recordToolInputDelta - argsText size cap", () => {
     recordToolInputStart(state, "tc-1", "editFile");
     recordToolInputStart(state, "tc-2", "readFile");
 
-    // Fill tc-1 to capacity, then try to exceed
-    recordToolInputDelta(state, "tc-1", "x".repeat(MAX_ARGS_TEXT_BYTES));
+    // Fill tc-1 to capacity (varied chars), then try to exceed
+    recordToolInputDelta(state, "tc-1", variedString(MAX_ARGS_TEXT_BYTES));
     const blocked = recordToolInputDelta(state, "tc-1", "more");
     expect(blocked).toBe(false);
 
@@ -100,6 +110,56 @@ describe("recordToolInputDelta - argsText size cap", () => {
     const ok = recordToolInputDelta(state, "tc-2", '{"path": "/tmp"}');
     expect(ok).toBe(true);
     expect(state.toolCallParts.get("tc-2")?.argsText).toBe('{"path": "/tmp"}');
+  });
+});
+
+describe("recordToolInputDelta - degenerate repetition detection", () => {
+  it("halts accumulation when last 64 chars are all the same character", () => {
+    const state = makeState();
+    recordToolInputStart(state, "tc-1", "readFile");
+
+    // Start with valid JSON prefix
+    const prefix = '{"filePath":"/tmp/test.ts","endLine":445';
+    recordToolInputDelta(state, "tc-1", prefix);
+
+    // Now simulate model stuck repeating '0'
+    const zeros = "0".repeat(200);
+    recordToolInputDelta(state, "tc-1", zeros);
+
+    // At this point, argsText is prefix + zeros. Total > 200, last 64 chars are all '0'.
+    // Next delta should be blocked.
+    const blocked = recordToolInputDelta(state, "tc-1", "0".repeat(10));
+    expect(blocked).toBe(false);
+
+    // Should have logged degenerate detection
+    expect(state.loggedIncompleteToolCalls.has("degenerate:tc-1")).toBe(true);
+    // Should also set oversized flag to block all further deltas
+    expect(state.loggedIncompleteToolCalls.has("oversized:tc-1")).toBe(true);
+  });
+
+  it("does not trigger for varied content even if long", () => {
+    const state = makeState();
+    recordToolInputStart(state, "tc-1", "editFile");
+
+    // Accumulate a large varied string
+    recordToolInputDelta(state, "tc-1", variedString(500));
+
+    // Should still accept more deltas (no repetition)
+    const result = recordToolInputDelta(state, "tc-1", variedString(100));
+    expect(result).toBe(true);
+    expect(state.loggedIncompleteToolCalls.has("degenerate:tc-1")).toBe(false);
+  });
+
+  it("does not trigger for short accumulations even with repeated chars", () => {
+    const state = makeState();
+    recordToolInputStart(state, "tc-1", "readFile");
+
+    // Short repeated content (under 200 threshold) should be fine
+    recordToolInputDelta(state, "tc-1", "x".repeat(100));
+
+    const result = recordToolInputDelta(state, "tc-1", "y".repeat(10));
+    expect(result).toBe(true);
+    expect(state.loggedIncompleteToolCalls.has("degenerate:tc-1")).toBe(false);
   });
 });
 

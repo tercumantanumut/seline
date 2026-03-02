@@ -3,11 +3,14 @@ import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { attemptJsonRepair } from "./tool-call-utils";
 
 /**
- * Hard cap on accumulated argsText per tool call (512KB).
+ * Hard cap on accumulated argsText per tool call (100KB).
  * Prevents unbounded memory growth when models produce runaway/repeated
  * content in tool-call arguments (e.g. duplicated test blocks in editFile).
+ * Lowered from 512KB — legitimate tool calls rarely exceed 50KB of JSON args,
+ * and catching runaway streams earlier prevents downstream cascading failures
+ * (e.g. degenerate values causing bloated tool results → socket errors).
  */
-export const MAX_ARGS_TEXT_BYTES = 512_000;
+export const MAX_ARGS_TEXT_BYTES = 100_000;
 
 /** Max chars of argsText to include in console warnings to prevent log flooding. */
 const LOG_ARGS_TEXT_PREVIEW_CHARS = 500;
@@ -139,6 +142,25 @@ export function recordToolInputDelta(state: StreamingMessageState, toolCallId: s
       );
     }
     return false;
+  }
+
+  // Degenerate repetition detection: if the last 64 chars of accumulated text
+  // are all the same character, the model is stuck in a token repetition loop
+  // (e.g. "endLine":44550000000000000000...). Halt accumulation early to prevent
+  // downstream cascading failures (absurd params → bloated results → socket errors).
+  if (currentLength > 200 && part.argsText) {
+    const tail = part.argsText.slice(-64);
+    if (tail.length === 64 && new Set(tail).size === 1) {
+      if (!state.loggedIncompleteToolCalls.has(`degenerate:${toolCallId}`)) {
+        state.loggedIncompleteToolCalls.add(`degenerate:${toolCallId}`);
+        state.loggedIncompleteToolCalls.add(`oversized:${toolCallId}`);
+        console.warn(
+          `[CHAT API] Degenerate repetition detected in argsText for ${part.toolName} (${toolCallId}). ` +
+          `Last 64 chars are all '${tail[0]}' at ${currentLength} bytes. Halting accumulation.`
+        );
+      }
+      return false;
+    }
   }
 
   part.argsText = `${part.argsText ?? ""}${delta}`;
