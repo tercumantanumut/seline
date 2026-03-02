@@ -449,9 +449,19 @@ export async function buildToolsForRequest(
 
           const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
           if (bridge && toolCallId) {
+            const isLongRunningSdkTool =
+              registeredToolName === "Task" ||
+              registeredToolName === "Agent" ||
+              registeredToolName === "TaskCreate" ||
+              registeredToolName === "TaskGet" ||
+              registeredToolName === "TaskUpdate" ||
+              registeredToolName === "TaskList";
+
             try {
               const resolved = await bridge.waitFor(toolCallId, {
-                timeoutMs: 300_000,
+                // Claude SDK Task/Agent calls can run well beyond the default 5-minute
+                // passthrough timeout while sub-agents complete; keep waiting unless aborted.
+                timeoutMs: isLongRunningSdkTool ? null : 300_000,
                 abortSignal,
               });
               if (resolved) {
@@ -466,7 +476,7 @@ export async function buildToolsForRequest(
                 return normalized;
               }
               console.warn(
-                `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+                `[CHAT API] SDK passthrough wait ended without result: ${toolCallId} tool=${registeredToolName}`
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);

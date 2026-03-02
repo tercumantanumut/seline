@@ -79,6 +79,7 @@ import { createOnFinishCallback, createOnAbortCallback } from "./stream-callback
 import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
 import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
+import { createSdkToolResultBridge } from "./sdk-tool-result-bridge";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -114,6 +115,7 @@ export async function POST(req: Request) {
   let configuredProvider: string | undefined;
   let activeSessionId: string | undefined;
   let sessionId = "";
+  let sdkToolResultBridge: ReturnType<typeof createSdkToolResultBridge> | null = null;
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const isInternalAuth = req.headers.get("X-Internal-Auth") === INTERNAL_API_SECRET;
@@ -562,94 +564,7 @@ export async function POST(req: Request) {
     // - Provider adapter publishes SDK `tool_use_result` payloads keyed by tool_use_id
     // - Passthrough tool executors await the keyed payload and return it to AI SDK
     // This preserves real tool output in streaming + DB instead of placeholder stubs.
-    const sdkToolResultBridge = (() => {
-      type BridgeRecord = { output: unknown; toolName?: string };
-      const results = new Map<string, BridgeRecord>();
-      const waiters = new Map<string, Array<(value: BridgeRecord | undefined) => void>>();
-      const MAX_BUFFERED_RESULTS = 256;
-
-      const resolveWaiters = (toolCallId: string, value: BridgeRecord | undefined) => {
-        const pending = waiters.get(toolCallId);
-        if (!pending || pending.length === 0) return;
-        waiters.delete(toolCallId);
-        for (const resolve of pending) resolve(value);
-      };
-
-      const pruneOldestResults = () => {
-        while (results.size > MAX_BUFFERED_RESULTS) {
-          const oldestKey = results.keys().next().value;
-          if (!oldestKey) break;
-          results.delete(oldestKey);
-        }
-      };
-
-      const publish = (toolCallId: string, output: unknown, toolName?: string) => {
-        if (!toolCallId) return;
-        const record = { output, ...(toolName ? { toolName } : {}) };
-        results.set(toolCallId, record);
-        pruneOldestResults();
-        resolveWaiters(toolCallId, record);
-      };
-
-      const waitFor = (
-        toolCallId: string,
-        options?: { timeoutMs?: number; abortSignal?: AbortSignal }
-      ): Promise<BridgeRecord | undefined> => {
-        if (!toolCallId) return Promise.resolve(undefined);
-        const existing = results.get(toolCallId);
-        if (existing) {
-          results.delete(toolCallId);
-          return Promise.resolve(existing);
-        }
-
-        const timeoutMs = Math.max(250, options?.timeoutMs ?? 300_000);
-        const abortSignal = options?.abortSignal;
-
-        return new Promise<BridgeRecord | undefined>((resolve) => {
-          let settled = false;
-          let timeout: ReturnType<typeof setTimeout> | undefined;
-
-          const finish = (value: BridgeRecord | undefined) => {
-            if (settled) return;
-            settled = true;
-            if (timeout) clearTimeout(timeout);
-            if (abortSignal) abortSignal.removeEventListener("abort", onAbort);
-            if (value) {
-              results.delete(toolCallId);
-            } else {
-              const queue = waiters.get(toolCallId);
-              if (queue && queue.length > 0) {
-                const next = queue.filter((resolveWaiter) => resolveWaiter !== finish);
-                if (next.length > 0) {
-                  waiters.set(toolCallId, next);
-                } else {
-                  waiters.delete(toolCallId);
-                }
-              }
-            }
-            resolve(value);
-          };
-
-          const onAbort = () => finish(undefined);
-
-          const queue = waiters.get(toolCallId) ?? [];
-          queue.push(finish);
-          waiters.set(toolCallId, queue);
-
-          if (abortSignal) {
-            if (abortSignal.aborted) {
-              finish(undefined);
-              return;
-            }
-            abortSignal.addEventListener("abort", onAbort, { once: true });
-          }
-
-          timeout = setTimeout(() => finish(undefined), timeoutMs);
-        });
-      };
-
-      return { publish, waitFor };
-    })();
+    sdkToolResultBridge = createSdkToolResultBridge();
 
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
@@ -798,6 +713,7 @@ export async function POST(req: Request) {
       runFinalized,
       provider,
       streamAbortSignal,
+      disposeSdkToolResultBridge: sdkToolResultBridge.dispose,
     };
 
     const createStreamResult = () =>
@@ -1073,6 +989,9 @@ export async function POST(req: Request) {
       headers: response.headers,
     });
   } catch (error) {
+    if (sdkToolResultBridge) {
+      sdkToolResultBridge.dispose?.();
+    }
     console.error("Chat API error:", error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

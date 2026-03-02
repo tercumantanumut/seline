@@ -25,8 +25,12 @@ export interface SdkToolResultBridge {
    */
   waitFor: (
     toolCallId: string,
-    options?: { timeoutMs?: number; abortSignal?: AbortSignal }
+    options?: { timeoutMs?: number | null; abortSignal?: AbortSignal }
   ) => Promise<SdkToolResultRecord | undefined>;
+  /**
+   * Resolve and clear all pending waiters/results for request teardown.
+   */
+  dispose?: () => void;
 }
 
 /**

@@ -79,6 +79,7 @@ export interface StreamCallbackContext {
   runFinalized: { value: boolean };
   provider: string;
   streamAbortSignal: AbortSignal;
+  disposeSdkToolResultBridge?: () => void;
   rawMode?: boolean;
 }
 
@@ -102,6 +103,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
   }) => {
     if (ctx.runFinalized.value) return;
     ctx.runFinalized.value = true;
+    ctx.disposeSdkToolResultBridge?.();
 
     if (ctx.hasStopHooks) {
       try {
@@ -426,6 +428,7 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
   return async ({ steps }: { steps: StepLike[] }) => {
     if (ctx.runFinalized.value) return;
     ctx.runFinalized.value = true;
+    ctx.disposeSdkToolResultBridge?.();
 
     if (ctx.hasStopHooks) {
       try {
