@@ -42,6 +42,8 @@ export interface ToolResultEnhancementOptions {
   // Kept for API compatibility; strict history mode does not refetch missing results.
   refetchTools?: Record<string, unknown>;
   maxRefetch?: number;
+  // Disabled by default to avoid creating orphaned tool rows after history truncation.
+  allowSyntheticBackfill?: boolean;
 }
 
 /**
@@ -149,7 +151,8 @@ export async function enhanceFrontendMessagesWithToolResults(
   sessionId: string,
   options: ToolResultEnhancementOptions = {}
 ): Promise<FrontendMessage[]> {
-  void options;
+  const allowSyntheticBackfill = options.allowSyntheticBackfill === true;
+
   // Fetch all tool results from the database for this session
   const toolResults = await getToolResultsForSession(sessionId);
 
@@ -187,7 +190,7 @@ export async function enhanceFrontendMessagesWithToolResults(
             mode: "canonical",
           });
           resolvedToolResults.set(part.toolCallId, normalized.output);
-          if (!persistedToolResults.has(part.toolCallId)) {
+          if (allowSyntheticBackfill && !persistedToolResults.has(part.toolCallId)) {
             await persistToolResultMessage({
               sessionId,
               toolCallId: part.toolCallId,

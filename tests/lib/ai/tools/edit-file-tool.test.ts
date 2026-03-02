@@ -211,7 +211,8 @@ describe("edit-file-tool", () => {
         { filePath: FILE, oldString: "", newString: "// new file content\n" },
         { toolCallId: "tc-1", messages: [], abortSignal: new AbortController().signal }
       );
-      expect(result.status).toBe("created");
+      expect(result.status).toBe("success");
+      expect(result.created).toBe(true);
       expect(result.filePath).toBe(FILE);
       expect(result.diff).toContain("--- index.ts");
       expect(result.diff).toContain("+++ index.ts");

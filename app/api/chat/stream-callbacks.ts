@@ -30,6 +30,7 @@ import {
   mergeCanonicalAssistantContent,
   countCanonicalTruncationMarkers,
 } from "./canonical-content";
+import { estimateMessageTokens } from "@/lib/utils";
 import {
   finalizeStreamingToolCalls,
   sealDanglingToolCalls,
@@ -197,6 +198,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
     }
 
     let finalMessageId: string | undefined;
+    const assistantContentTokenCount = estimateMessageTokens({ content });
 
     // Cache metrics
     const anthropicMeta = (providerMetadata as any)?.anthropic || {};
@@ -258,7 +260,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
       const updated = await updateMessage(ctx.streamingState.messageId, {
         content,
         model: AI_CONFIG.model,
-        tokenCount: usage?.totalTokens,
+        tokenCount: assistantContentTokenCount,
         metadata: messageMetadata,
       });
       finalMessageId = updated?.id ?? ctx.streamingState.messageId;
@@ -275,7 +277,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
         content: content,
         orderingIndex: assistantMessageIndex,
         model: AI_CONFIG.model,
-        tokenCount: usage?.totalTokens,
+        tokenCount: assistantContentTokenCount,
         metadata: messageMetadata,
       });
       finalMessageId = created?.id;
