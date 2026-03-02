@@ -44,6 +44,7 @@ import {
 } from "./composer-hooks";
 import {
   TiptapEditor,
+  contentPartsToComposerText,
   plainTextToTiptapDoc,
   type TiptapEditorHandle,
   type ContentPart,
@@ -99,6 +100,7 @@ export const Composer: FC<{
   const mentionRef = useRef<HTMLDivElement>(null);
   const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
+  const simpleDraftAtRichModeEntryRef = useRef<string | null>(null);
 
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
@@ -464,15 +466,44 @@ export const Composer: FC<{
   );
 
   const toggleEditorMode = useCallback(() => {
-    if (!isEditorMode && !tiptapDraft) {
-      const seededDoc = plainTextToTiptapDoc(inputValue);
-      if (seededDoc) {
-        setTiptapDraft(seededDoc);
+    if (!isEditorMode) {
+      if (!tiptapDraft) {
+        const seededDoc = plainTextToTiptapDoc(inputValue);
+        if (seededDoc) {
+          setTiptapDraft(seededDoc);
+        }
       }
+
+      simpleDraftAtRichModeEntryRef.current = inputValue;
+      setIsEditorMode(true);
+      return;
     }
 
-    setIsEditorMode((prev) => !prev);
-  }, [isEditorMode, inputValue, setIsEditorMode, setTiptapDraft, tiptapDraft]);
+    const composerTextFromRichEditor = contentPartsToComposerText(
+      tiptapRef.current?.getContentArray() ?? [],
+    );
+    const draftAtEntry = simpleDraftAtRichModeEntryRef.current;
+    const canOverwriteSimpleDraft =
+      inputValue.trim().length === 0 ||
+      draftAtEntry === null ||
+      inputValue === draftAtEntry;
+
+    if (composerTextFromRichEditor && canOverwriteSimpleDraft) {
+      setInputValue(composerTextFromRichEditor);
+      updateCursorPosition(composerTextFromRichEditor.length);
+    }
+
+    simpleDraftAtRichModeEntryRef.current = null;
+    setIsEditorMode(false);
+  }, [
+    inputValue,
+    isEditorMode,
+    setInputValue,
+    setIsEditorMode,
+    setTiptapDraft,
+    tiptapDraft,
+    updateCursorPosition,
+  ]);
 
   const handleTiptapDraftChange = useCallback(
     (nextDraft: JSONContent | null) => {

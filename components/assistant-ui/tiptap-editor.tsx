@@ -209,6 +209,18 @@ export function plainTextToTiptapDoc(text: string): JSONContent | null {
   };
 }
 
+export function contentPartsToComposerText(parts: ContentPart[]): string {
+  return parts
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof part.text === "string",
+    )
+    .map((part) => part.text)
+    .filter((text) => text.length > 0)
+    .join("\n")
+    .trim();
+}
+
 /**
  * Walk the Tiptap document and produce an interleaved content array.
  * Text paragraphs are merged into a single text part until an image

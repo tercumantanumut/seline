@@ -1,7 +1,10 @@
 import type { JSONContent } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { serializeDocToContentArray } from "@/components/assistant-ui/tiptap-editor";
+import {
+  contentPartsToComposerText,
+  serializeDocToContentArray,
+} from "@/components/assistant-ui/tiptap-editor";
 
 describe("serializeDocToContentArray", () => {
   it("serializes inline marks into markdown", () => {
@@ -159,5 +162,25 @@ describe("serializeDocToContentArray", () => {
       { type: "image", image: "https://example.com/a.png" },
       { type: "text", text: "*after*" },
     ]);
+  });
+});
+
+describe("contentPartsToComposerText", () => {
+  it("joins text parts with newlines and ignores non-text parts", () => {
+    expect(
+      contentPartsToComposerText([
+        { type: "text", text: "first line" },
+        { type: "image", image: "https://example.com/image.png" },
+        { type: "text", text: "second line" },
+      ]),
+    ).toBe("first line\nsecond line");
+  });
+
+  it("trims and returns empty string when no text parts are present", () => {
+    expect(
+      contentPartsToComposerText([
+        { type: "image", image: "https://example.com/image.png" },
+      ]),
+    ).toBe("");
   });
 });
