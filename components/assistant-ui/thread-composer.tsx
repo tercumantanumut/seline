@@ -42,7 +42,12 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
-import { TiptapEditor, type TiptapEditorHandle, type ContentPart } from "./tiptap-editor";
+import {
+  TiptapEditor,
+  plainTextToTiptapDoc,
+  type TiptapEditorHandle,
+  type ContentPart,
+} from "./tiptap-editor";
 
 // Interface for queued messages
 interface QueuedMessage {
@@ -459,8 +464,15 @@ export const Composer: FC<{
   );
 
   const toggleEditorMode = useCallback(() => {
+    if (!isEditorMode && !tiptapDraft) {
+      const seededDoc = plainTextToTiptapDoc(inputValue);
+      if (seededDoc) {
+        setTiptapDraft(seededDoc);
+      }
+    }
+
     setIsEditorMode((prev) => !prev);
-  }, [setIsEditorMode]);
+  }, [isEditorMode, inputValue, setIsEditorMode, setTiptapDraft, tiptapDraft]);
 
   const handleTiptapDraftChange = useCallback(
     (nextDraft: JSONContent | null) => {

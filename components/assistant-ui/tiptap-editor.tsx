@@ -186,6 +186,29 @@ function applyTextMarks(
   return `[${markedText}](${href})`;
 }
 
+export function plainTextToTiptapDoc(text: string): JSONContent | null {
+  if (!text.trim()) {
+    return null;
+  }
+
+  const normalizedText = text.replace(/\r\n?/g, "\n");
+  const paragraphs = normalizedText.split("\n").map((line) => {
+    if (line.length === 0) {
+      return { type: "paragraph" };
+    }
+
+    return {
+      type: "paragraph",
+      content: [{ type: "text", text: line }],
+    };
+  });
+
+  return {
+    type: "doc",
+    content: paragraphs,
+  };
+}
+
 /**
  * Walk the Tiptap document and produce an interleaved content array.
  * Text paragraphs are merged into a single text part until an image
