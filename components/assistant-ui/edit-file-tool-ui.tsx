@@ -17,6 +17,7 @@ interface EditFileResult {
   filePath: string;
   message: string;
   linesChanged?: number;
+  created?: boolean;
   diagnostics?: DiagnosticResult;
   diff?: string;
 }
@@ -55,7 +56,7 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   const isWrite = toolName === "writeFile";
   const isCreating = isWrite
     ? (result as WriteFileResult)?.created
-    : !(args?.oldString as string);
+    : (result as EditFileResult)?.created ?? !(args?.oldString as string);
 
   // Dynamic label based on result status
   const getActionLabel = () => {
