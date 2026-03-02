@@ -82,6 +82,8 @@ export interface StreamCallbackContext {
   streamAbortSignal: AbortSignal;
   disposeSdkToolResultBridge?: () => void;
   rawMode?: boolean;
+  /** Pre-generated ID so frontend stream and DB share the same assistant message UUID. */
+  assistantMessageId?: string;
 }
 
 // ─── onFinish callback factory ────────────────────────────────────────────────
@@ -272,6 +274,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
       const assistantMessageIndex = await nextOrderingIndex(ctx.sessionId);
 
       const created = await createMessage({
+        ...(ctx.assistantMessageId ? { id: ctx.assistantMessageId } : {}),
         sessionId: ctx.sessionId,
         role: "assistant",
         content: content,
@@ -501,6 +504,7 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
           const partialMessageIndex = await nextOrderingIndex(ctx.sessionId);
 
           await createMessage({
+            ...(ctx.assistantMessageId ? { id: ctx.assistantMessageId } : {}),
             sessionId: ctx.sessionId,
             role: "assistant",
             content: content,

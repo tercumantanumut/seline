@@ -272,6 +272,11 @@ export async function POST(req: Request) {
       }
       : null;
 
+    // Pre-generate the assistant message ID so frontend stream and DB share
+    // the same UUID.  This prevents deleteMessagesNotIn() from treating the
+    // DB-side assistant message as "unknown" and silently deleting it.
+    const assistantMessageId = crypto.randomUUID();
+
     const syncStreamingMessage = shouldEmitProgress && streamingState
       ? createSyncStreamingMessage({
           sessionId,
@@ -282,6 +287,7 @@ export async function POST(req: Request) {
           scheduledTaskName,
           getAgentRunId: () => agentRun?.id,
           streamingState,
+          assistantMessageId,
         })
       : undefined;
 
@@ -707,6 +713,7 @@ export async function POST(req: Request) {
       discoveredTools,
       previouslyDiscoveredTools,
       initialActiveToolNames,
+      assistantMessageId,
       contextTracking,
       injectContext,
       toolLoadingMode,
@@ -982,6 +989,7 @@ export async function POST(req: Request) {
     }
 
     const response = result!.toUIMessageStreamResponse({
+      generateMessageId: () => assistantMessageId,
       consumeSseStream: ({ stream }) =>
         consumeStream({
           stream,
