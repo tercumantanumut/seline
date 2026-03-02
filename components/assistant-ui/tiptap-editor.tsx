@@ -121,17 +121,81 @@ async function uploadImage(
 // Content serialization
 // ============================================================================
 
+type TiptapMark = {
+  type?: string;
+  attrs?: {
+    href?: string;
+  };
+};
+
+function wrapInlineCode(text: string): string {
+  const runs = text.match(/`+/g);
+  const longestRun = runs ? Math.max(...runs.map((run) => run.length)) : 0;
+  const fence = "`".repeat(longestRun + 1);
+  return `${fence}${text}${fence}`;
+}
+
+function applyTextMarks(
+  text: string,
+  marks: TiptapMark[],
+): string {
+  if (marks.length === 0) {
+    return text;
+  }
+
+  const styleMarks: TiptapMark[] = [];
+  let href: string | undefined;
+
+  for (const mark of marks) {
+    if (mark.type === "link") {
+      href = mark.attrs?.href;
+      continue;
+    }
+    styleMarks.push(mark);
+  }
+
+  let markedText = text;
+
+  for (const mark of styleMarks) {
+    switch (mark.type) {
+      case "bold": {
+        markedText = `**${markedText}**`;
+        break;
+      }
+      case "italic": {
+        markedText = `*${markedText}*`;
+        break;
+      }
+      case "code": {
+        markedText = wrapInlineCode(markedText);
+        break;
+      }
+      case "strike": {
+        markedText = `~~${markedText}~~`;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  if (!href) {
+    return markedText;
+  }
+
+  return `[${markedText}](${href})`;
+}
+
 /**
  * Walk the Tiptap document and produce an interleaved content array.
  * Text paragraphs are merged into a single text part until an image
  * node is encountered, which flushes the buffer and emits an image part.
  */
-function serializeToContentArray(
-  editor: ReturnType<typeof useEditor>,
+export function serializeDocToContentArray(
+  doc: JSONContent | null | undefined,
 ): ContentPart[] {
-  if (!editor) return [];
+  if (!doc) return [];
 
-  const doc = editor.getJSON();
   const parts: ContentPart[] = [];
   let textBuffer = "";
 
@@ -143,7 +207,11 @@ function serializeToContentArray(
     textBuffer = "";
   };
 
-  const processNode = (node: Record<string, unknown>) => {
+  const processNode = (
+    node: Record<string, unknown>,
+    parentType?: string,
+    listItemIndex?: number,
+  ) => {
     if (node.type === "image") {
       flushText();
       const attrs = node.attrs as { src?: string } | undefined;
@@ -154,16 +222,22 @@ function serializeToContentArray(
     }
 
     if (node.type === "text") {
-      textBuffer += (node.text as string) || "";
+      const rawText = (node.text as string) || "";
+      const marks = (node.marks as TiptapMark[] | undefined) ?? [];
+      textBuffer += applyTextMarks(rawText, marks);
       return;
     }
 
-    // Block-level nodes: add newlines for separation
+    const isParagraphInListItem =
+      node.type === "paragraph" && parentType === "listItem";
+
+    // Block-level nodes: add newlines for separation.
     if (
-      node.type === "paragraph" ||
-      node.type === "heading" ||
-      node.type === "blockquote" ||
-      node.type === "codeBlock"
+      (node.type === "paragraph" ||
+        node.type === "heading" ||
+        node.type === "blockquote" ||
+        node.type === "codeBlock") &&
+      !isParagraphInListItem
     ) {
       if (textBuffer && !textBuffer.endsWith("\n")) {
         textBuffer += "\n";
@@ -177,7 +251,11 @@ function serializeToContentArray(
     }
 
     if (node.type === "listItem") {
-      textBuffer += "- ";
+      if (parentType === "orderedList" && typeof listItemIndex === "number") {
+        textBuffer += `${listItemIndex}. `;
+      } else {
+        textBuffer += "- ";
+      }
     }
 
     if (node.type === "heading") {
@@ -193,15 +271,28 @@ function serializeToContentArray(
       textBuffer += "```\n";
     }
 
-    // Recurse into children
     const children = node.content as Record<string, unknown>[] | undefined;
     if (children && Array.isArray(children)) {
-      for (const child of children) {
-        processNode(child);
+      if (node.type === "orderedList") {
+        const start = (node.attrs as { start?: number })?.start ?? 1;
+        let index = start;
+        for (const child of children) {
+          if (child.type === "listItem") {
+            processNode(child, "orderedList", index);
+            index += 1;
+          } else {
+            processNode(child, "orderedList");
+          }
+        }
+      } else {
+        const currentType = typeof node.type === "string" ? node.type : undefined;
+        for (const child of children) {
+          processNode(child, currentType);
+        }
       }
     }
 
-    // Close block-level nodes
+    // Close block-level nodes.
     if (node.type === "codeBlock") {
       textBuffer += "\n```";
     }
@@ -212,7 +303,9 @@ function serializeToContentArray(
       node.type === "blockquote" ||
       node.type === "listItem"
     ) {
-      textBuffer += "\n";
+      if (!textBuffer.endsWith("\n")) {
+        textBuffer += "\n";
+      }
     }
   };
 
@@ -225,6 +318,13 @@ function serializeToContentArray(
 
   flushText();
   return parts;
+}
+
+function serializeToContentArray(
+  editor: ReturnType<typeof useEditor>,
+): ContentPart[] {
+  if (!editor) return [];
+  return serializeDocToContentArray(editor.getJSON());
 }
 
 // ============================================================================
