@@ -50,6 +50,55 @@ export function buildWebSearchLoopGuardResult(query: string | null, reason: stri
   };
 }
 
+const READ_FILE_SELECTORS = ["startLine", "endLine", "head", "tail"] as const;
+
+/**
+ * Normalize readFile args before execution.
+ *
+ * - Drops null/undefined selector values.
+ * - Drops non-finite numeric selector values.
+ * - If startLine/endLine is present, drops head/tail (range wins).
+ */
+export function normalizeReadFileInputArgs(
+  args: Record<string, unknown>
+): {
+  normalizedArgs: Record<string, unknown>;
+  droppedSelectors: Array<(typeof READ_FILE_SELECTORS)[number]>;
+} {
+  const normalizedArgs: Record<string, unknown> = { ...args };
+  const droppedSelectors = new Set<(typeof READ_FILE_SELECTORS)[number]>();
+
+  for (const key of READ_FILE_SELECTORS) {
+    const value = normalizedArgs[key];
+    if (value == null) {
+      delete normalizedArgs[key];
+      continue;
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      delete normalizedArgs[key];
+      droppedSelectors.add(key);
+    }
+  }
+
+  const hasRange =
+    normalizedArgs.startLine !== undefined || normalizedArgs.endLine !== undefined;
+  if (hasRange) {
+    if (normalizedArgs.head !== undefined) {
+      delete normalizedArgs.head;
+      droppedSelectors.add("head");
+    }
+    if (normalizedArgs.tail !== undefined) {
+      delete normalizedArgs.tail;
+      droppedSelectors.add("tail");
+    }
+  }
+
+  return {
+    normalizedArgs,
+    droppedSelectors: Array.from(droppedSelectors),
+  };
+}
+
 /**
  * Check if a string looks like base64 image data that shouldn't be in text context
  * This is a safeguard against accidentally including base64 in conversation

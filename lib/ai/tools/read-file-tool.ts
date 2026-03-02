@@ -79,18 +79,22 @@ const readFileSchema = jsonSchema<ReadFileInput>({
     },
     startLine: {
       type: "number",
+      minimum: 1,
       description: "Start line number (1-indexed, optional)",
     },
     endLine: {
       type: "number",
+      minimum: 1,
       description: "End line number (1-indexed, optional)",
     },
     head: {
       type: "number",
+      minimum: 1,
       description: "Read the first N lines of the file (optional)",
     },
     tail: {
       type: "number",
+      minimum: 1,
       description: "Read the last N lines of the file (optional)",
     },
   },
@@ -238,6 +242,7 @@ export function createReadFileTool(options: ReadFileToolOptions) {
 
 **Features:**
 - **Smart Limiting**: Reads first 5000 lines by default.
+- **Single Selection Mode**: Use exactly one mode per call: ('head') OR ('tail') OR ('startLine'/'endLine').
 - **Head/Tail**: Use 'head' to read first N lines, 'tail' to read last N lines.
 - **Line Range**: Use 'startLine'/'endLine' for specific sections.
 - **Binary Detection**: Automatically prevents reading binary files.
@@ -255,6 +260,25 @@ export function createReadFileTool(options: ReadFileToolOptions) {
       }
 
       const { filePath, startLine, endLine, head, tail } = input;
+
+      // Guard: reject non-finite or negative numeric params early.
+      // Degenerate model output (e.g. token repetition loops) can produce
+      // Infinity or NaN values that bypass downstream range checks.
+      if (startLine !== undefined && (!Number.isFinite(startLine) || startLine < 1)) {
+        return { status: "error", error: `Invalid startLine: ${startLine}. Must be a positive integer.` };
+      }
+      if (endLine !== undefined && (!Number.isFinite(endLine) || endLine < 1)) {
+        return { status: "error", error: `Invalid endLine: ${endLine}. Must be a positive integer.` };
+      }
+      if (head !== undefined && (!Number.isFinite(head) || head < 1)) {
+        return { status: "error", error: `Invalid head: ${head}. Must be a positive integer.` };
+      }
+      if (tail !== undefined && (!Number.isFinite(tail) || tail < 1)) {
+        return { status: "error", error: `Invalid tail: ${tail}. Must be a positive integer.` };
+      }
+      if (startLine !== undefined && endLine !== undefined && endLine < startLine) {
+        return { status: "error", error: `endLine (${endLine}) must be >= startLine (${startLine}).` };
+      }
 
       // Validation
       if ((head || tail) && (startLine || endLine)) {

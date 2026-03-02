@@ -704,6 +704,10 @@ function createStreamingClaudeCodeResponse(options: {
         const streamedToolUseNamesThisTurn = new Set<string>();
         const streamLocalToGlobalIndex = new Map<number, number>();
         const openStreamLocalIndices = new Set<number>();
+        /** Global indices that were already closed (force-closed or naturally stopped).
+         *  Prevents double-emitting content_block_stop for the same global index
+         *  when concurrent SDK Agent sub-tasks collide on the same local index. */
+        const closedGlobalIndices = new Set<number>();
         let rawInputJsonDeltaChunks = 0;
         let emittedInputJsonDeltaChunks = 0;
 
@@ -839,9 +843,10 @@ function createStreamingClaudeCodeResponse(options: {
         const closeOpenStreamBlocks = () => {
           for (const localIndex of [...openStreamLocalIndices]) {
             const globalIndex = streamLocalToGlobalIndex.get(localIndex);
-            if (globalIndex !== undefined) {
+            if (globalIndex !== undefined && !closedGlobalIndices.has(globalIndex)) {
               flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              closedGlobalIndices.add(globalIndex);
               clearPendingInputDelta(globalIndex);
             }
             openStreamLocalIndices.delete(localIndex);
@@ -852,6 +857,7 @@ function createStreamingClaudeCodeResponse(options: {
           closeOpenStreamBlocks();
           streamLocalToGlobalIndex.clear();
           openStreamLocalIndices.clear();
+          closedGlobalIndices.clear();
           flushAllPendingInputJsonDeltas();
           for (const index of [...pendingInputJsonDeltaByIndex.keys()]) {
             clearPendingInputDelta(index);
@@ -897,18 +903,28 @@ function createStreamingClaudeCodeResponse(options: {
 
             if (event.type === "content_block_start" && isDictionary(event.content_block)) {
               const explicitLocalIndex = getEventIndex(event);
-              if (
-                explicitLocalIndex === 0 &&
-                streamLocalToGlobalIndex.size > 0 &&
-                !openStreamLocalIndices.has(0)
-              ) {
-                // New turn started but an assistant summary message did not arrive.
-                resetTurnStreamTracking();
-              }
+              // NOTE: Removed index-0 resetTurnStreamTracking() heuristic.
+              // With concurrent SDK Agent sub-tasks (Claude fires multiple Agent
+              // tool calls), local indices from different sub-agents collide.
+              // Resetting all state when index 0 reappears would destroy
+              // still-active blocks from other sub-agents, causing crashes.
               const localIndex = explicitLocalIndex ?? syntheticStreamLocalIndex--;
               if (streamLocalToGlobalIndex.has(localIndex)) {
-                // Duplicate/out-of-order start; keep the first mapping for append-only deltas.
-                continue;
+                if (openStreamLocalIndices.has(localIndex)) {
+                  // Still-open block at this local index — concurrent sub-agent
+                  // collision. Force-close the existing block so the new one can
+                  // take over this local index.
+                  const oldGlobal = streamLocalToGlobalIndex.get(localIndex)!;
+                  flushInputJsonDelta(oldGlobal);
+                  if (!closedGlobalIndices.has(oldGlobal)) {
+                    emit("content_block_stop", { type: "content_block_stop", index: oldGlobal });
+                    closedGlobalIndices.add(oldGlobal);
+                  }
+                  clearPendingInputDelta(oldGlobal);
+                  openStreamLocalIndices.delete(localIndex);
+                }
+                // Stale/closed mapping — remove so we allocate a fresh global index.
+                streamLocalToGlobalIndex.delete(localIndex);
               }
               const globalIndex = allocateContentIndex();
               streamLocalToGlobalIndex.set(localIndex, globalIndex);
@@ -995,8 +1011,15 @@ function createStreamingClaudeCodeResponse(options: {
               if (localIndex === null) continue;
               const globalIndex = streamLocalToGlobalIndex.get(localIndex);
               if (globalIndex === undefined || !openStreamLocalIndices.has(localIndex)) continue;
+              // Guard against double-close: a prior force-close (from concurrent
+              // sub-agent index collision) already emitted content_block_stop.
+              if (closedGlobalIndices.has(globalIndex)) {
+                openStreamLocalIndices.delete(localIndex);
+                continue;
+              }
               flushInputJsonDelta(globalIndex);
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
+              closedGlobalIndices.add(globalIndex);
               clearPendingInputDelta(globalIndex);
               openStreamLocalIndices.delete(localIndex);
               continue;
@@ -1016,7 +1039,11 @@ function createStreamingClaudeCodeResponse(options: {
 
           // ── assistant: finalized message with content blocks ──────────────
           if (message.type === "assistant") {
-            closeOpenStreamBlocks();
+            // NOTE: Do NOT call closeOpenStreamBlocks() or resetTurnStreamTracking()
+            // here. With concurrent SDK Agent sub-tasks, one sub-agent's assistant
+            // message would prematurely close blocks and destroy index mappings
+            // from other still-active sub-agents, causing frontend crashes.
+            // Dedup tracking intentionally accumulates — cleaned up in `result`.
             const assistant = message as {
               message?: {
                 content?: Array<{
@@ -1038,7 +1065,7 @@ function createStreamingClaudeCodeResponse(options: {
             }
 
             // Fallback/patch-up mode: emit assistant content that wasn't already
-            // streamed as deltas in this turn.
+            // streamed as deltas across the session.
             const content = assistant.message?.content;
             if (Array.isArray(content)) {
               for (const block of content) {
@@ -1056,15 +1083,16 @@ function createStreamingClaudeCodeResponse(options: {
                   }
                   emitToolUseBlock(block.id, normalizedBlockName, JSON.stringify(block.input ?? {}));
                 } else if (block.type === "text" && block.text) {
-                  // Avoid duplicate assistant text only when stream text for this turn
-                  // was already emitted.
+                  // Avoid duplicate assistant text only when stream text was
+                  // already emitted via deltas at any point during this session.
                   if (!sawStreamTextThisTurn) {
                     emitTextBlock(block.text);
                   }
                 }
               }
             }
-            resetTurnStreamTracking();
+            // No reset here — state accumulates across concurrent sub-agent turns.
+            // Full cleanup happens in the `result` handler when the query ends.
             continue;
           }
 

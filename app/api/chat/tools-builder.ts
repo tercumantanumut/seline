@@ -52,6 +52,7 @@ import {
   normalizeWebSearchQuery,
   getWebSearchSourceCount,
   buildWebSearchLoopGuardResult,
+  normalizeReadFileInputArgs,
   WEB_SEARCH_NO_RESULT_GUARD,
 } from "./content-sanitizer";
 import { mcpContextStore } from "@/lib/ai/providers/mcp-context-store";
@@ -449,9 +450,19 @@ export async function buildToolsForRequest(
 
           const bridge = mcpContextStore.getStore()?.sdkToolResultBridge;
           if (bridge && toolCallId) {
+            const isLongRunningSdkTool =
+              registeredToolName === "Task" ||
+              registeredToolName === "Agent" ||
+              registeredToolName === "TaskCreate" ||
+              registeredToolName === "TaskGet" ||
+              registeredToolName === "TaskUpdate" ||
+              registeredToolName === "TaskList";
+
             try {
               const resolved = await bridge.waitFor(toolCallId, {
-                timeoutMs: 300_000,
+                // Claude SDK Task/Agent calls can run well beyond the default 5-minute
+                // passthrough timeout while sub-agents complete; keep waiting unless aborted.
+                timeoutMs: isLongRunningSdkTool ? null : 300_000,
                 abortSignal,
               });
               if (resolved) {
@@ -466,7 +477,7 @@ export async function buildToolsForRequest(
                 return normalized;
               }
               console.warn(
-                `[CHAT API] SDK passthrough timed out waiting for tool result: ${toolCallId}`
+                `[CHAT API] SDK passthrough wait ended without result: ${toolCallId} tool=${registeredToolName}`
               );
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);
@@ -535,9 +546,21 @@ export async function buildToolsForRequest(
     wrappedTools[toolId] = {
       ...originalTool,
       execute: async (args: unknown, options: unknown) => {
-        const normalizedArgs = (
+        const baseNormalizedArgs = (
           args && typeof args === "object" ? args : {}
         ) as Record<string, unknown>;
+        const {
+          normalizedArgs,
+          droppedSelectors: droppedReadFileSelectors,
+        } = toolId === "readFile"
+          ? normalizeReadFileInputArgs(baseNormalizedArgs)
+          : { normalizedArgs: baseNormalizedArgs, droppedSelectors: [] as string[] };
+
+        if (toolId === "readFile" && droppedReadFileSelectors.length > 0) {
+          console.warn(
+            `[CHAT API] readFile args normalized: dropped selectors (${droppedReadFileSelectors.join(", ")}) to enforce a single selection mode`
+          );
+        }
 
         if (toolId === "webSearch") {
           const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
@@ -604,7 +627,7 @@ export async function buildToolsForRequest(
         }
 
         try {
-          const rawResult = await origExecute(args, options as any);
+          const rawResult = await origExecute(normalizedArgs, options as any);
           const guardedResult = guardToolResultForStreaming(toolId, rawResult, {
             maxTokens: streamToolResultBudgetTokens,
             metadata: {

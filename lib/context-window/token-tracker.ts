@@ -82,6 +82,90 @@ const MESSAGE_OVERHEAD_TOKENS = 4;
  */
 const TOOL_CALL_OVERHEAD_TOKENS = 10;
 
+const LEGACY_ASSISTANT_TOKEN_RATIO_THRESHOLD = 1.3;
+
+// ---------------------------------------------------------------------------
+// Token Estimation Helpers
+// ---------------------------------------------------------------------------
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function extractUsageFromMetadata(metadata: unknown): {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+} | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const usage = (metadata as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) {
+    return null;
+  }
+
+  const typedUsage = usage as {
+    inputTokens?: unknown;
+    outputTokens?: unknown;
+    totalTokens?: unknown;
+  };
+
+  return {
+    inputTokens: toFiniteNumber(typedUsage.inputTokens),
+    outputTokens: toFiniteNumber(typedUsage.outputTokens),
+    totalTokens: toFiniteNumber(typedUsage.totalTokens),
+  };
+}
+
+function isLegacyAssistantTotalTokenCount(
+  msg: Message,
+  estimatedTokens: number
+): boolean {
+  if (msg.role !== "assistant") return false;
+  if (typeof msg.tokenCount !== "number" || msg.tokenCount <= 0) return false;
+
+  const usage = extractUsageFromMetadata(msg.metadata);
+  if (!usage || usage.totalTokens !== msg.tokenCount) return false;
+
+  if ((usage.inputTokens ?? 0) > 0) {
+    return true;
+  }
+
+  return msg.tokenCount > estimatedTokens * LEGACY_ASSISTANT_TOKEN_RATIO_THRESHOLD;
+}
+
+function isSyntheticToolResultMessage(msg: Message): boolean {
+  if (msg.role !== "tool") return false;
+  if (!msg.metadata || typeof msg.metadata !== "object" || Array.isArray(msg.metadata)) {
+    return false;
+  }
+  return (msg.metadata as { syntheticToolResult?: unknown }).syntheticToolResult === true;
+}
+
+export function getReliableMessageTokenCount(msg: Message): number {
+  const estimatedTokens = estimateMessageTokens({ content: msg.content });
+  if (typeof msg.tokenCount !== "number" || msg.tokenCount <= 0) {
+    return estimatedTokens;
+  }
+
+  if (isLegacyAssistantTotalTokenCount(msg, estimatedTokens)) {
+    return estimatedTokens;
+  }
+
+  return msg.tokenCount;
+}
+
 // ---------------------------------------------------------------------------
 // Token Estimation Helpers
 // ---------------------------------------------------------------------------
@@ -183,10 +267,10 @@ export class TokenTracker {
 
     for (const msg of messages) {
       // Skip compacted messages - they're represented in the summary
-      if (msg.isCompacted) continue;
+      if (msg.isCompacted || isSyntheticToolResultMessage(msg)) continue;
 
-      // Use cached token count if available, otherwise estimate
-      const baseTokens = msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+      // Ignore legacy assistant rows where tokenCount stores request-level totals.
+      const baseTokens = getReliableMessageTokenCount(msg);
       const messageTokens = baseTokens + MESSAGE_OVERHEAD_TOKENS;
 
       switch (msg.role) {
@@ -317,8 +401,8 @@ export class TokenTracker {
     let currentTokens = 0;
 
     for (const msg of messagesToCompact) {
-      if (!msg.isCompacted) {
-        currentTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+      if (!msg.isCompacted && !isSyntheticToolResultMessage(msg)) {
+        currentTokens += getReliableMessageTokenCount(msg);
         currentTokens += MESSAGE_OVERHEAD_TOKENS;
       }
     }
@@ -349,8 +433,8 @@ export class TokenTracker {
 
     for (let i = 0; i <= maxCompactIndex; i++) {
       const msg = messages[i];
-      if (!msg.isCompacted) {
-        accumulatedTokens += msg.tokenCount ?? estimateMessageTokens({ content: msg.content });
+      if (!msg.isCompacted && !isSyntheticToolResultMessage(msg)) {
+        accumulatedTokens += getReliableMessageTokenCount(msg);
         accumulatedTokens += MESSAGE_OVERHEAD_TOKENS;
       }
 

@@ -79,6 +79,11 @@ import { createOnFinishCallback, createOnAbortCallback } from "./stream-callback
 import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
 import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
+import { createSdkToolResultBridge } from "./sdk-tool-result-bridge";
+import {
+  disableToolForSchemaRecovery,
+  parseInvalidToolSchemaError,
+} from "./tool-schema-recovery";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -114,6 +119,7 @@ export async function POST(req: Request) {
   let configuredProvider: string | undefined;
   let activeSessionId: string | undefined;
   let sessionId = "";
+  let sdkToolResultBridge: ReturnType<typeof createSdkToolResultBridge> | null = null;
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
     const isInternalAuth = req.headers.get("X-Internal-Auth") === INTERNAL_API_SECRET;
@@ -266,6 +272,11 @@ export async function POST(req: Request) {
       }
       : null;
 
+    // Pre-generate the assistant message ID so frontend stream and DB share
+    // the same UUID.  This prevents deleteMessagesNotIn() from treating the
+    // DB-side assistant message as "unknown" and silently deleting it.
+    const assistantMessageId = crypto.randomUUID();
+
     const syncStreamingMessage = shouldEmitProgress && streamingState
       ? createSyncStreamingMessage({
           sessionId,
@@ -276,6 +287,7 @@ export async function POST(req: Request) {
           scheduledTaskName,
           getAgentRunId: () => agentRun?.id,
           streamingState,
+          assistantMessageId,
         })
       : undefined;
 
@@ -562,94 +574,7 @@ export async function POST(req: Request) {
     // - Provider adapter publishes SDK `tool_use_result` payloads keyed by tool_use_id
     // - Passthrough tool executors await the keyed payload and return it to AI SDK
     // This preserves real tool output in streaming + DB instead of placeholder stubs.
-    const sdkToolResultBridge = (() => {
-      type BridgeRecord = { output: unknown; toolName?: string };
-      const results = new Map<string, BridgeRecord>();
-      const waiters = new Map<string, Array<(value: BridgeRecord | undefined) => void>>();
-      const MAX_BUFFERED_RESULTS = 256;
-
-      const resolveWaiters = (toolCallId: string, value: BridgeRecord | undefined) => {
-        const pending = waiters.get(toolCallId);
-        if (!pending || pending.length === 0) return;
-        waiters.delete(toolCallId);
-        for (const resolve of pending) resolve(value);
-      };
-
-      const pruneOldestResults = () => {
-        while (results.size > MAX_BUFFERED_RESULTS) {
-          const oldestKey = results.keys().next().value;
-          if (!oldestKey) break;
-          results.delete(oldestKey);
-        }
-      };
-
-      const publish = (toolCallId: string, output: unknown, toolName?: string) => {
-        if (!toolCallId) return;
-        const record = { output, ...(toolName ? { toolName } : {}) };
-        results.set(toolCallId, record);
-        pruneOldestResults();
-        resolveWaiters(toolCallId, record);
-      };
-
-      const waitFor = (
-        toolCallId: string,
-        options?: { timeoutMs?: number; abortSignal?: AbortSignal }
-      ): Promise<BridgeRecord | undefined> => {
-        if (!toolCallId) return Promise.resolve(undefined);
-        const existing = results.get(toolCallId);
-        if (existing) {
-          results.delete(toolCallId);
-          return Promise.resolve(existing);
-        }
-
-        const timeoutMs = Math.max(250, options?.timeoutMs ?? 300_000);
-        const abortSignal = options?.abortSignal;
-
-        return new Promise<BridgeRecord | undefined>((resolve) => {
-          let settled = false;
-          let timeout: ReturnType<typeof setTimeout> | undefined;
-
-          const finish = (value: BridgeRecord | undefined) => {
-            if (settled) return;
-            settled = true;
-            if (timeout) clearTimeout(timeout);
-            if (abortSignal) abortSignal.removeEventListener("abort", onAbort);
-            if (value) {
-              results.delete(toolCallId);
-            } else {
-              const queue = waiters.get(toolCallId);
-              if (queue && queue.length > 0) {
-                const next = queue.filter((resolveWaiter) => resolveWaiter !== finish);
-                if (next.length > 0) {
-                  waiters.set(toolCallId, next);
-                } else {
-                  waiters.delete(toolCallId);
-                }
-              }
-            }
-            resolve(value);
-          };
-
-          const onAbort = () => finish(undefined);
-
-          const queue = waiters.get(toolCallId) ?? [];
-          queue.push(finish);
-          waiters.set(toolCallId, queue);
-
-          if (abortSignal) {
-            if (abortSignal.aborted) {
-              finish(undefined);
-              return;
-            }
-            abortSignal.addEventListener("abort", onAbort, { once: true });
-          }
-
-          timeout = setTimeout(() => finish(undefined), timeoutMs);
-        });
-      };
-
-      return { publish, waitFor };
-    })();
+    sdkToolResultBridge = createSdkToolResultBridge();
 
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
@@ -788,6 +713,7 @@ export async function POST(req: Request) {
       discoveredTools,
       previouslyDiscoveredTools,
       initialActiveToolNames,
+      assistantMessageId,
       contextTracking,
       injectContext,
       toolLoadingMode,
@@ -798,6 +724,7 @@ export async function POST(req: Request) {
       runFinalized,
       provider,
       streamAbortSignal,
+      disposeSdkToolResultBridge: sdkToolResultBridge.dispose,
     };
 
     const createStreamResult = () =>
@@ -1000,6 +927,7 @@ export async function POST(req: Request) {
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
+    const schemaRecoveredTools = new Set<string>();
     for (let attempt = 0; ; attempt += 1) {
       try {
         result = await createStreamResult();
@@ -1008,6 +936,42 @@ export async function POST(req: Request) {
         }
         break;
       } catch (error) {
+        const schemaError = parseInvalidToolSchemaError(error);
+        if (schemaError && !schemaRecoveredTools.has(schemaError.toolName)) {
+          const recovered = disableToolForSchemaRecovery(
+            {
+              allToolsWithMCP,
+              initialActiveToolNames,
+              initialActiveTools,
+              discoveredTools,
+              previouslyDiscoveredTools,
+            },
+            schemaError.toolName
+          );
+
+          if (recovered) {
+            schemaRecoveredTools.add(schemaError.toolName);
+            console.warn(
+              `[CHAT API] Recovered from invalid schema for tool "${schemaError.toolName}" by disabling it for this run: ${schemaError.reason}`
+            );
+            if (runId) {
+              await appendRunEvent({
+                runId,
+                eventType: "tool_failed",
+                level: "warn",
+                pipelineName: "chat",
+                data: {
+                  attempt: attempt + 1,
+                  toolName: schemaError.toolName,
+                  reason: schemaError.reason,
+                  outcome: "tool_disabled_retrying",
+                },
+              });
+            }
+            continue;
+          }
+        }
+
         const classification = classifyRecoverability({ provider, error, message: error instanceof Error ? error.message : String(error) });
         const retry = shouldRetry({ classification, attempt, maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS, aborted: streamAbortSignal.aborted });
 
@@ -1025,6 +989,7 @@ export async function POST(req: Request) {
     }
 
     const response = result!.toUIMessageStreamResponse({
+      generateMessageId: () => assistantMessageId,
       consumeSseStream: ({ stream }) =>
         consumeStream({
           stream,
@@ -1073,6 +1038,9 @@ export async function POST(req: Request) {
       headers: response.headers,
     });
   } catch (error) {
+    if (sdkToolResultBridge) {
+      sdkToolResultBridge.dispose?.();
+    }
     console.error("Chat API error:", error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -1187,4 +1155,3 @@ function getPlainTextFromContent(content: unknown): string {
 
   return "";
 }
-

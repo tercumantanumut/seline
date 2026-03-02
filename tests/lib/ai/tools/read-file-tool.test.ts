@@ -28,6 +28,19 @@ describe("readFile Tool", () => {
     (isPathAllowed as any).mockResolvedValue("/mock/root/file.txt");
   });
 
+  it("should expose provider-compatible object schema without root oneOf/anyOf", () => {
+    const tool = createReadFileTool({
+      sessionId: mockSessionId,
+      characterId: mockCharacterId,
+      userId: mockUserId,
+    });
+
+    const schema = (tool.inputSchema as any)?.jsonSchema ?? (tool.inputSchema as any);
+    expect(schema?.type).toBe("object");
+    expect(schema?.oneOf).toBeUndefined();
+    expect(schema?.anyOf).toBeUndefined();
+  });
+
   it("should read a text file successfully", async () => {
     const tool = createReadFileTool({ sessionId: mockSessionId, characterId: mockCharacterId, userId: mockUserId });
     
@@ -115,5 +128,44 @@ describe("readFile Tool", () => {
     expect(result.content).toContain("5");
     expect(result.content).not.toContain("3");
     expect(result.lineRange).toBe("4-5");
+  });
+
+  it("should reject mixed range and head/tail selectors", async () => {
+    const tool = createReadFileTool({ sessionId: mockSessionId, characterId: mockCharacterId, userId: mockUserId });
+
+    const result = await tool.execute({
+      filePath: "file.txt",
+      startLine: 10,
+      endLine: 20,
+      head: 5,
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("Cannot specify both head/tail and startLine/endLine parameters");
+  });
+
+  it("should reject startLine less than 1", async () => {
+    const tool = createReadFileTool({ sessionId: mockSessionId, characterId: mockCharacterId, userId: mockUserId });
+
+    const result = await tool.execute({
+      filePath: "file.txt",
+      startLine: 0,
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("Invalid startLine");
+  });
+
+  it("should reject endLine lower than startLine", async () => {
+    const tool = createReadFileTool({ sessionId: mockSessionId, characterId: mockCharacterId, userId: mockUserId });
+
+    const result = await tool.execute({
+      filePath: "file.txt",
+      startLine: 20,
+      endLine: 10,
+    });
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("must be >= startLine");
   });
 });

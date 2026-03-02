@@ -30,6 +30,7 @@ import {
   mergeCanonicalAssistantContent,
   countCanonicalTruncationMarkers,
 } from "./canonical-content";
+import { estimateMessageTokens } from "@/lib/utils";
 import {
   finalizeStreamingToolCalls,
   sealDanglingToolCalls,
@@ -79,7 +80,10 @@ export interface StreamCallbackContext {
   runFinalized: { value: boolean };
   provider: string;
   streamAbortSignal: AbortSignal;
+  disposeSdkToolResultBridge?: () => void;
   rawMode?: boolean;
+  /** Pre-generated ID so frontend stream and DB share the same assistant message UUID. */
+  assistantMessageId?: string;
 }
 
 // ─── onFinish callback factory ────────────────────────────────────────────────
@@ -102,6 +106,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
   }) => {
     if (ctx.runFinalized.value) return;
     ctx.runFinalized.value = true;
+    ctx.disposeSdkToolResultBridge?.();
 
     if (ctx.hasStopHooks) {
       try {
@@ -195,6 +200,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
     }
 
     let finalMessageId: string | undefined;
+    const assistantContentTokenCount = estimateMessageTokens({ content });
 
     // Cache metrics
     const anthropicMeta = (providerMetadata as any)?.anthropic || {};
@@ -256,7 +262,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
       const updated = await updateMessage(ctx.streamingState.messageId, {
         content,
         model: AI_CONFIG.model,
-        tokenCount: usage?.totalTokens,
+        tokenCount: assistantContentTokenCount,
         metadata: messageMetadata,
       });
       finalMessageId = updated?.id ?? ctx.streamingState.messageId;
@@ -268,12 +274,13 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
       const assistantMessageIndex = await nextOrderingIndex(ctx.sessionId);
 
       const created = await createMessage({
+        ...(ctx.assistantMessageId ? { id: ctx.assistantMessageId } : {}),
         sessionId: ctx.sessionId,
         role: "assistant",
         content: content,
         orderingIndex: assistantMessageIndex,
         model: AI_CONFIG.model,
-        tokenCount: usage?.totalTokens,
+        tokenCount: assistantContentTokenCount,
         metadata: messageMetadata,
       });
       finalMessageId = created?.id;
@@ -426,6 +433,7 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
   return async ({ steps }: { steps: StepLike[] }) => {
     if (ctx.runFinalized.value) return;
     ctx.runFinalized.value = true;
+    ctx.disposeSdkToolResultBridge?.();
 
     if (ctx.hasStopHooks) {
       try {
@@ -496,6 +504,7 @@ export function createOnAbortCallback(ctx: StreamCallbackContext) {
           const partialMessageIndex = await nextOrderingIndex(ctx.sessionId);
 
           await createMessage({
+            ...(ctx.assistantMessageId ? { id: ctx.assistantMessageId } : {}),
             sessionId: ctx.sessionId,
             role: "assistant",
             content: content,

@@ -66,9 +66,8 @@ describe("enhanceFrontendMessagesWithToolResults", () => {
     expect(part.state).toBe("output-available");
   });
 
-  it("persists frontend tool outputs when db is missing", async () => {
+  it("does not persist frontend tool outputs when db is missing by default", async () => {
     mocks.getToolResultsForSession.mockResolvedValue(new Map());
-    mocks.createMessage.mockResolvedValue({ id: "tool-msg-1" });
 
     const messages = [
       {
@@ -92,6 +91,34 @@ describe("enhanceFrontendMessagesWithToolResults", () => {
 
     const part = enhanced[0].parts?.[0] as any;
     expect(part.output).toEqual({ status: "success", content: "updated" });
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+  });
+
+  it("persists frontend tool outputs only when synthetic backfill is enabled", async () => {
+    mocks.getToolResultsForSession.mockResolvedValue(new Map());
+    mocks.createMessage.mockResolvedValue({ id: "tool-msg-1" });
+
+    const messages = [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-mcp_linear_update_issue",
+            toolCallId: "call-2",
+            input: { id: "RLT-275" },
+            output: { status: "success", content: "updated" },
+            state: "output-available",
+          },
+        ],
+      },
+    ];
+
+    await enhanceFrontendMessagesWithToolResults(
+      messages,
+      "session-2",
+      { allowSyntheticBackfill: true }
+    );
+
     expect(mocks.createMessage).toHaveBeenCalledTimes(1);
     expect(mocks.createMessage).toHaveBeenCalledWith(
       expect.objectContaining({

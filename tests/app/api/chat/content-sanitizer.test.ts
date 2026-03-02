@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_TEXT_CONTENT_LENGTH, sanitizeTextContent } from "@/app/api/chat/content-sanitizer";
+import {
+  MAX_TEXT_CONTENT_LENGTH,
+  sanitizeTextContent,
+  normalizeReadFileInputArgs,
+} from "@/app/api/chat/content-sanitizer";
 import { storeFullContent } from "@/lib/ai/truncated-content-store";
 
 vi.mock("@/lib/ai/truncated-content-store", () => ({
@@ -56,5 +60,35 @@ describe("content-sanitizer text length limits", () => {
 
     expect(storeFullContent).not.toHaveBeenCalled();
     expect(output).toContain("Content truncated at 25,000 chars");
+  });
+});
+
+describe("normalizeReadFileInputArgs", () => {
+  it("drops head/tail when line range is present", () => {
+    const { normalizedArgs, droppedSelectors } = normalizeReadFileInputArgs({
+      filePath: "foo.ts",
+      startLine: 10,
+      endLine: 20,
+      head: 5,
+      tail: 5,
+    });
+
+    expect(normalizedArgs).toEqual({
+      filePath: "foo.ts",
+      startLine: 10,
+      endLine: 20,
+    });
+    expect(droppedSelectors).toEqual(expect.arrayContaining(["head", "tail"]));
+  });
+
+  it("drops non-finite selector values", () => {
+    const { normalizedArgs, droppedSelectors } = normalizeReadFileInputArgs({
+      filePath: "foo.ts",
+      head: Number.POSITIVE_INFINITY,
+      tail: Number.NaN,
+    });
+
+    expect(normalizedArgs).toEqual({ filePath: "foo.ts" });
+    expect(droppedSelectors).toEqual(expect.arrayContaining(["head", "tail"]));
   });
 });

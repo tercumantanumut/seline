@@ -48,11 +48,12 @@ interface EditFileInput {
 }
 
 interface EditFileResult {
-  status: "success" | "created" | "error" | "no_folders";
+  status: "success" | "error" | "no_folders";
   filePath?: string;
   message?: string;
   error?: string;
   linesChanged?: number;
+  created?: boolean;
   diagnostics?: DiagnosticResult;
   diff?: string;
   dryRun?: boolean;
@@ -221,7 +222,8 @@ export function createEditFileTool(options: EditFileToolOptions) {
           ).catch(() => null);
 
           return {
-            status: "created",
+            status: "success",
+            created: true,
             filePath: validPath,
             message: `Created ${basename(validPath)} (${lineCount} lines)`,
             linesChanged: lineCount,

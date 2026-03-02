@@ -522,6 +522,19 @@ export function createToolSearchTool(context?: ToolSearchContext) {
         };
       }
 
+      // IMPORTANT: Add discovered deferred tools to discoveredTools BEFORE
+      // computing isAvailable, so the first search that finds a tool immediately
+      // reports it as available (fixes stale isAvailable: false on first discovery).
+      if (discoveredTools) {
+        for (const r of results) {
+          const toolMeta = registry.get(r.name);
+          if (toolMeta?.metadata.loading.deferLoading) {
+            discoveredTools.add(r.name);
+            logSearchTools(`[searchTools] Discovered deferred tool: ${r.name}`);
+          }
+        }
+      }
+
       // Convert tool results to unified format with availability
       const toolResultsWithAvailability: UnifiedResultWithAvailability[] = results.map((r) => {
         const isDeferred = registry.get(r.name)?.metadata.loading.deferLoading ?? false;
@@ -553,20 +566,6 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 
       // Apply final limit
       const limitedResults = allResults.slice(0, effectiveLimit);
-
-      // IMPORTANT: Add discovered deferred tools to the discoveredTools set
-      // This enables them for use in subsequent steps via prepareStep
-      if (discoveredTools) {
-        for (const result of limitedResults) {
-          if (result.resultType === "tool") {
-            const toolMeta = registry.get(result.name);
-            if (toolMeta?.metadata.loading.deferLoading) {
-              discoveredTools.add(result.name);
-              logSearchTools(`[searchTools] Discovered deferred tool: ${result.name}`);
-            }
-          }
-        }
-      }
 
       // Count available items
       const toolCount = limitedResults.filter((r) => r.resultType === "tool").length;
