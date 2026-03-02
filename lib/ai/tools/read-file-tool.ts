@@ -79,21 +79,47 @@ const readFileSchema = jsonSchema<ReadFileInput>({
     },
     startLine: {
       type: "number",
+      minimum: 1,
       description: "Start line number (1-indexed, optional)",
     },
     endLine: {
       type: "number",
+      minimum: 1,
       description: "End line number (1-indexed, optional)",
     },
     head: {
       type: "number",
+      minimum: 1,
       description: "Read the first N lines of the file (optional)",
     },
     tail: {
       type: "number",
+      minimum: 1,
       description: "Read the last N lines of the file (optional)",
     },
   },
+  oneOf: [
+    {
+      description: "Line range mode",
+      not: {
+        anyOf: [{ required: ["head"] }, { required: ["tail"] }],
+      },
+    },
+    {
+      description: "Head mode",
+      required: ["head"],
+      not: {
+        anyOf: [{ required: ["startLine"] }, { required: ["endLine"] }, { required: ["tail"] }],
+      },
+    },
+    {
+      description: "Tail mode",
+      required: ["tail"],
+      not: {
+        anyOf: [{ required: ["startLine"] }, { required: ["endLine"] }, { required: ["head"] }],
+      },
+    },
+  ],
   required: ["filePath"],
   additionalProperties: false,
 });
@@ -238,6 +264,7 @@ export function createReadFileTool(options: ReadFileToolOptions) {
 
 **Features:**
 - **Smart Limiting**: Reads first 5000 lines by default.
+- **Single Selection Mode**: Use exactly one mode per call: ('head') OR ('tail') OR ('startLine'/'endLine').
 - **Head/Tail**: Use 'head' to read first N lines, 'tail' to read last N lines.
 - **Line Range**: Use 'startLine'/'endLine' for specific sections.
 - **Binary Detection**: Automatically prevents reading binary files.

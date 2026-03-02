@@ -52,6 +52,7 @@ import {
   normalizeWebSearchQuery,
   getWebSearchSourceCount,
   buildWebSearchLoopGuardResult,
+  normalizeReadFileInputArgs,
   WEB_SEARCH_NO_RESULT_GUARD,
 } from "./content-sanitizer";
 import { mcpContextStore } from "@/lib/ai/providers/mcp-context-store";
@@ -545,9 +546,21 @@ export async function buildToolsForRequest(
     wrappedTools[toolId] = {
       ...originalTool,
       execute: async (args: unknown, options: unknown) => {
-        const normalizedArgs = (
+        const baseNormalizedArgs = (
           args && typeof args === "object" ? args : {}
         ) as Record<string, unknown>;
+        const {
+          normalizedArgs,
+          droppedSelectors: droppedReadFileSelectors,
+        } = toolId === "readFile"
+          ? normalizeReadFileInputArgs(baseNormalizedArgs)
+          : { normalizedArgs: baseNormalizedArgs, droppedSelectors: [] as string[] };
+
+        if (toolId === "readFile" && droppedReadFileSelectors.length > 0) {
+          console.warn(
+            `[CHAT API] readFile args normalized: dropped selectors (${droppedReadFileSelectors.join(", ")}) to enforce a single selection mode`
+          );
+        }
 
         if (toolId === "webSearch") {
           const normalizedQuery = normalizeWebSearchQuery(normalizedArgs.query);
@@ -614,7 +627,7 @@ export async function buildToolsForRequest(
         }
 
         try {
-          const rawResult = await origExecute(args, options as any);
+          const rawResult = await origExecute(normalizedArgs, options as any);
           const guardedResult = guardToolResultForStreaming(toolId, rawResult, {
             maxTokens: streamToolResultBudgetTokens,
             metadata: {
