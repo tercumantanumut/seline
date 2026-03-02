@@ -28,6 +28,19 @@ describe("readFile Tool", () => {
     (isPathAllowed as any).mockResolvedValue("/mock/root/file.txt");
   });
 
+  it("should expose provider-compatible object schema without root oneOf/anyOf", () => {
+    const tool = createReadFileTool({
+      sessionId: mockSessionId,
+      characterId: mockCharacterId,
+      userId: mockUserId,
+    });
+
+    const schema = (tool.inputSchema as any)?.jsonSchema ?? (tool.inputSchema as any);
+    expect(schema?.type).toBe("object");
+    expect(schema?.oneOf).toBeUndefined();
+    expect(schema?.anyOf).toBeUndefined();
+  });
+
   it("should read a text file successfully", async () => {
     const tool = createReadFileTool({ sessionId: mockSessionId, characterId: mockCharacterId, userId: mockUserId });
     

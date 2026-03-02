@@ -80,6 +80,10 @@ import { createSyncStreamingMessage } from "./streaming-progress";
 import { buildSystemPromptForRequest } from "./system-prompt-builder";
 import { mcpContextStore, type SelineMcpContext } from "@/lib/ai/providers/mcp-context-store";
 import { createSdkToolResultBridge } from "./sdk-tool-result-bridge";
+import {
+  disableToolForSchemaRecovery,
+  parseInvalidToolSchemaError,
+} from "./tool-schema-recovery";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -916,6 +920,7 @@ export async function POST(req: Request) {
 
     const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
+    const schemaRecoveredTools = new Set<string>();
     for (let attempt = 0; ; attempt += 1) {
       try {
         result = await createStreamResult();
@@ -924,6 +929,42 @@ export async function POST(req: Request) {
         }
         break;
       } catch (error) {
+        const schemaError = parseInvalidToolSchemaError(error);
+        if (schemaError && !schemaRecoveredTools.has(schemaError.toolName)) {
+          const recovered = disableToolForSchemaRecovery(
+            {
+              allToolsWithMCP,
+              initialActiveToolNames,
+              initialActiveTools,
+              discoveredTools,
+              previouslyDiscoveredTools,
+            },
+            schemaError.toolName
+          );
+
+          if (recovered) {
+            schemaRecoveredTools.add(schemaError.toolName);
+            console.warn(
+              `[CHAT API] Recovered from invalid schema for tool "${schemaError.toolName}" by disabling it for this run: ${schemaError.reason}`
+            );
+            if (runId) {
+              await appendRunEvent({
+                runId,
+                eventType: "tool_failed",
+                level: "warn",
+                pipelineName: "chat",
+                data: {
+                  attempt: attempt + 1,
+                  toolName: schemaError.toolName,
+                  reason: schemaError.reason,
+                  outcome: "tool_disabled_retrying",
+                },
+              });
+            }
+            continue;
+          }
+        }
+
         const classification = classifyRecoverability({ provider, error, message: error instanceof Error ? error.message : String(error) });
         const retry = shouldRetry({ classification, attempt, maxAttempts: STREAM_RECOVERY_MAX_ATTEMPTS, aborted: streamAbortSignal.aborted });
 
@@ -1106,4 +1147,3 @@ function getPlainTextFromContent(content: unknown): string {
 
   return "";
 }
-

@@ -98,28 +98,6 @@ const readFileSchema = jsonSchema<ReadFileInput>({
       description: "Read the last N lines of the file (optional)",
     },
   },
-  oneOf: [
-    {
-      description: "Line range mode",
-      not: {
-        anyOf: [{ required: ["head"] }, { required: ["tail"] }],
-      },
-    },
-    {
-      description: "Head mode",
-      required: ["head"],
-      not: {
-        anyOf: [{ required: ["startLine"] }, { required: ["endLine"] }, { required: ["tail"] }],
-      },
-    },
-    {
-      description: "Tail mode",
-      required: ["tail"],
-      not: {
-        anyOf: [{ required: ["startLine"] }, { required: ["endLine"] }, { required: ["head"] }],
-      },
-    },
-  ],
   required: ["filePath"],
   additionalProperties: false,
 });
