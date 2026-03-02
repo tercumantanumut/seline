@@ -17,7 +17,10 @@
  * Deferred loading (when ctx.toolLoadingMode === "deferred"):
  *  - Non-alwaysLoad tools require searchTools discovery before they can be called.
  *  - A session-scoped `activatedTools` Set tracks which tools have been discovered.
- *  - searchTools execution auto-activates tools by scanning the result for tool names.
+ *  - searchTools/listAllTools are created with a ToolSearchContext that references
+ *    `activatedTools` as both initialActiveTools and discoveredTools. This bridges
+ *    the SDK's activation state so isAvailable is correct and searchTools.execute()
+ *    directly activates tools via the shared Set (no text-scanning needed).
  *  - Previously discovered tools (from session metadata) are pre-seeded.
  *
  * Rich outputs (images, videos, files):
@@ -33,6 +36,8 @@ import {
 import { z } from "zod";
 import { ToolRegistry } from "@/lib/ai/tool-registry/registry";
 import { getMCPToolsForAgent, getMCPToolId } from "@/lib/ai/tool-registry/mcp-tool-adapter";
+import { createToolSearchTool, createListToolsTool } from "@/lib/ai/tool-registry/search-tool";
+import type { ToolSearchContext } from "@/lib/ai/tool-registry/search-tool";
 import type { SelineMcpContext } from "./mcp-context-store";
 
 // ---------------------------------------------------------------------------
@@ -235,11 +240,22 @@ export function createSelineSdkMcpServer(
     ...(ctx.previouslyDiscoveredTools ?? []),
   ]);
 
-  // We'll add alwaysLoad tool names after we know which registry tools are alwaysLoad.
-  // Track all known tool names for searchTools result scanning.
-  const allKnownToolNames = new Set<string>();
-
   const sdkTools: SdkMcpToolDefinition<any>[] = [];
+
+  // ── Bridge: ToolSearchContext for searchTools/listAllTools ──────────────
+  //
+  // FIX: The factory at tool-definitions.ts:75 creates searchTools without
+  // ToolSearchContext, so isAvailable is always false in the SDK path.
+  // We create a ToolSearchContext that uses the SDK's `activatedTools` Set
+  // as both initialActiveTools and discoveredTools (same reference), so:
+  //  - isAvailable correctly reflects activation state
+  //  - searchTools.execute() adds discovered tools directly to activatedTools
+  //  - No separate text-scanning needed — the shared Set is the bridge
+  const sdkToolSearchContext: ToolSearchContext = {
+    initialActiveTools: activatedTools,
+    discoveredTools: activatedTools,
+    enabledTools: enabledSet ?? undefined,
+  };
 
   // ── 1. Built-in ToolRegistry tools (non-MCP) ────────────────────────────
   for (const name of registry.getToolNames()) {
@@ -261,16 +277,29 @@ export function createSelineSdkMcpServer(
       activatedTools.add(name);
     }
 
-    allKnownToolNames.add(name);
-
     try {
-      const toolInstance = registeredTool.factory(factoryOpts);
+      // FIX: For searchTools and listAllTools, create context-aware instances
+      // instead of using the context-less factory. This bridges the SDK's
+      // activatedTools Set so isAvailable is correct and discoveredTools.add()
+      // directly activates tools for the deferred gate.
+      const isSearchTools = name === "searchTools";
+      const isListAllTools = name === "listAllTools";
+
+      let toolInstance: ReturnType<typeof registeredTool.factory>;
+      if (isSearchTools) {
+        toolInstance = createToolSearchTool(sdkToolSearchContext);
+      } else if (isListAllTools) {
+        toolInstance = createListToolsTool(sdkToolSearchContext);
+      } else {
+        toolInstance = registeredTool.factory(factoryOpts);
+      }
+
       const inputSchema = zodShapeFromInputSchema(toolInstance.inputSchema);
       const description =
         toolInstance.description ??
         registeredTool.metadata.shortDescription;
 
-      const isSearchTools = name === "searchTools" || name === "listAllTools";
+      const isSearchOrList = isSearchTools || isListAllTools;
 
       sdkTools.push({
         name,
@@ -288,19 +317,19 @@ export function createSelineSdkMcpServer(
           try {
             const result = await (toolInstance as any).execute?.(args, {});
 
-            // searchTools/listAllTools: scan result for tool names and auto-activate them
-            if (isSearchTools && result != null) {
-              const resultText = typeof result === "string"
-                ? result
-                : JSON.stringify(result);
-              for (const toolName of allKnownToolNames) {
-                if (resultText.includes(toolName)) {
-                  activatedTools.add(toolName);
+            // searchTools/listAllTools: the context-aware instance already adds
+            // discovered tools to activatedTools via the shared discoveredTools
+            // reference. As a safety net, also parse the structured result to
+            // explicitly activate any tool names returned — this eliminates the
+            // old fragile substring-scanning approach.
+            if (isSearchOrList && result != null && typeof result === "object") {
+              const sr = result as { results?: Array<{ name?: string; resultType?: string }> };
+              if (Array.isArray(sr.results)) {
+                for (const r of sr.results) {
+                  if (r.name && typeof r.name === "string" && r.resultType === "tool") {
+                    activatedTools.add(r.name);
+                  }
                 }
-              }
-              // Also activate any MCP tool names mentioned
-              for (const mcpName of alwaysLoadMcpSet) {
-                activatedTools.add(mcpName);
               }
             }
 
@@ -337,6 +366,15 @@ export function createSelineSdkMcpServer(
     console.warn("[SelineMcpServer] getMCPToolsForAgent failed, no MCP tools exposed:", err);
   }
 
+  // Add MCP tool IDs to enabledTools so searchTools can discover them
+  // (mirrors tools-builder.ts behavior where MCP tools are added to enabledTools set)
+  if (sdkToolSearchContext.enabledTools) {
+    for (const mcpTool of mcpTools) {
+      const toolId = getMCPToolId(mcpTool.serverName, mcpTool.name);
+      sdkToolSearchContext.enabledTools.add(toolId);
+    }
+  }
+
   for (const mcpTool of mcpTools) {
     const toolId = getMCPToolId(mcpTool.serverName, mcpTool.name);
     const inputSchema = jsonSchemaToZodShape(
@@ -350,8 +388,6 @@ export function createSelineSdkMcpServer(
     if (isMcpAlwaysLoad) {
       activatedTools.add(toolId);
     }
-
-    allKnownToolNames.add(toolId);
 
     sdkTools.push({
       name: toolId,
