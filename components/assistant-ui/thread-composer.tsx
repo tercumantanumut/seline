@@ -42,7 +42,13 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
-import { TiptapEditor, type TiptapEditorHandle, type ContentPart } from "./tiptap-editor";
+import {
+  TiptapEditor,
+  contentPartsToComposerText,
+  plainTextToTiptapDoc,
+  type TiptapEditorHandle,
+  type ContentPart,
+} from "./tiptap-editor";
 
 // Interface for queued messages
 interface QueuedMessage {
@@ -94,6 +100,7 @@ export const Composer: FC<{
   const mentionRef = useRef<HTMLDivElement>(null);
   const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
+  const simpleDraftAtRichModeEntryRef = useRef<string | null>(null);
 
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
 
@@ -459,8 +466,44 @@ export const Composer: FC<{
   );
 
   const toggleEditorMode = useCallback(() => {
-    setIsEditorMode((prev) => !prev);
-  }, [setIsEditorMode]);
+    if (!isEditorMode) {
+      if (!tiptapDraft) {
+        const seededDoc = plainTextToTiptapDoc(inputValue);
+        if (seededDoc) {
+          setTiptapDraft(seededDoc);
+        }
+      }
+
+      simpleDraftAtRichModeEntryRef.current = inputValue;
+      setIsEditorMode(true);
+      return;
+    }
+
+    const composerTextFromRichEditor = contentPartsToComposerText(
+      tiptapRef.current?.getContentArray() ?? [],
+    );
+    const draftAtEntry = simpleDraftAtRichModeEntryRef.current;
+    const canOverwriteSimpleDraft =
+      inputValue.trim().length === 0 ||
+      draftAtEntry === null ||
+      inputValue === draftAtEntry;
+
+    if (composerTextFromRichEditor && canOverwriteSimpleDraft) {
+      setInputValue(composerTextFromRichEditor);
+      updateCursorPosition(composerTextFromRichEditor.length);
+    }
+
+    simpleDraftAtRichModeEntryRef.current = null;
+    setIsEditorMode(false);
+  }, [
+    inputValue,
+    isEditorMode,
+    setInputValue,
+    setIsEditorMode,
+    setTiptapDraft,
+    tiptapDraft,
+    updateCursorPosition,
+  ]);
 
   const handleTiptapDraftChange = useCallback(
     (nextDraft: JSONContent | null) => {
