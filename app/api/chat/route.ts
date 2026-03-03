@@ -1,5 +1,5 @@
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
-import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
+import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, ensureCodexTokenValid } from "@/lib/ai/providers";
 import { registerAllTools } from "@/lib/ai/tool-registry";
 import { AI_CONFIG } from "@/lib/ai/config";
 import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
@@ -173,6 +173,16 @@ export async function POST(req: Request) {
         if (!tokenValid) {
           return new Response(
             JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      if (selectedProvider === "codex") {
+        const tokenValid = await ensureCodexTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Codex authentication expired. Please re-authenticate in Settings." }),
             { status: 401, headers: { "Content-Type": "application/json" } }
           );
         }
@@ -880,6 +890,18 @@ export async function POST(req: Request) {
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            // Always log the full error so it's visible in debug.log — prevents
+            // silent swallowing that previously made failures impossible to diagnose.
+            console.error(`[CHAT API] Stream onError: ${errorMessage}`, {
+              provider,
+              sessionId,
+              runId,
+              errorType: error?.constructor?.name,
+              stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
+              // When error is a plain object (not Error), log its contents so we
+              // can actually see what the provider returned (e.g. Codex API errors).
+              raw: !(error instanceof Error) ? JSON.stringify(error, null, 2)?.slice(0, 2000) : undefined,
+            });
             // Claude Code SDK agents self-correct after tool validation failures —
             // the stream stays open and onFinish will finalize the run properly.
             if (provider === "claudecode" && isNonFatalToolError(error)) {
@@ -1041,7 +1063,13 @@ export async function POST(req: Request) {
     if (sdkToolResultBridge) {
       sdkToolResultBridge.dispose?.();
     }
-    console.error("Chat API error:", error);
+    console.error("[CHAT API] Unhandled error in POST handler:", {
+      message: error instanceof Error ? error.message : String(error),
+      type: error?.constructor?.name,
+      stack: error instanceof Error ? error.stack?.split("\n").slice(0, 8).join("\n") : undefined,
+      provider: configuredProvider,
+      sessionId,
+    });
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const isCreditError = detectCreditError(errorMessage);

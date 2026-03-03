@@ -158,12 +158,25 @@ function createCodexFetch(): typeof fetch {
       originalStream = parsed.stream === true;
       promptCacheKey = typeof parsed.prompt_cache_key === "string" ? parsed.prompt_cache_key : undefined;
 
+      const inputItemCount = Array.isArray(parsed.input) ? parsed.input.length : 0;
+      console.log(
+        `[CODEX] Request pre-transform: model=${parsed.model}, inputItems=${inputItemCount}, ` +
+        `bodySize=${(bodyText.length / 1024).toFixed(1)}KB`
+      );
+
       const codexInstructions = await getCodexInstructions(parsed.model);
       const transformed = await transformCodexRequest(parsed, codexInstructions);
 
+      const transformedBody = JSON.stringify(transformed);
+      const transformedItemCount = Array.isArray(transformed.input) ? transformed.input.length : 0;
+      console.log(
+        `[CODEX] Request post-transform: inputItems=${transformedItemCount}, ` +
+        `bodySize=${(transformedBody.length / 1024).toFixed(1)}KB`
+      );
+
       updatedInit = {
         ...init,
-        body: JSON.stringify(transformed),
+        body: transformedBody,
       };
     }
 

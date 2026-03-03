@@ -2,6 +2,7 @@ import { normalizeCodexModel } from "@/lib/auth/codex-models";
 import {
   filterCodexInput,
   normalizeOrphanedToolOutputs,
+  truncateCodexInput,
   type CodexInputItem,
 } from "@/lib/auth/codex-input-utils";
 
@@ -134,7 +135,8 @@ export async function transformCodexRequest(
 
   if (Array.isArray(body.input)) {
     const filtered = filterCodexInput(body.input as CodexInputItem[]) || [];
-    body.input = normalizeOrphanedToolOutputs(filtered);
+    const normalized = normalizeOrphanedToolOutputs(filtered);
+    body.input = truncateCodexInput(normalized);
   }
 
   const requestedEffort =

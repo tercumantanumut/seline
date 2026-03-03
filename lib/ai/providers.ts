@@ -28,7 +28,7 @@ import {
   fetchAntigravityProjectId,
   invalidateAntigravityAuthCache,
 } from "@/lib/auth/antigravity-auth";
-import { isCodexAuthenticated } from "@/lib/auth/codex-auth";
+import { isCodexAuthenticated, ensureValidCodexToken } from "@/lib/auth/codex-auth";
 import { CODEX_MODEL_IDS } from "@/lib/auth/codex-models";
 import { KIMI_MODEL_IDS } from "@/lib/auth/kimi-models";
 import {
@@ -199,6 +199,14 @@ export async function ensureClaudeCodeTokenValid(): Promise<boolean> {
   _claudecodeProvider = null;
 
   return true;
+}
+
+/**
+ * Ensure Codex auth token is valid, refreshing if needed.
+ */
+export async function ensureCodexTokenValid(): Promise<boolean> {
+  invalidateSettingsCache();
+  return ensureValidCodexToken();
 }
 
 // ---- Provider instance getters -----------------------------------------------
