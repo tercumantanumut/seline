@@ -232,4 +232,102 @@ describe("createToolSearchTool utility routing", () => {
     expect(names).not.toContain("editFile");
     expect(names).not.toContain("scheduleTask");
   });
+
+  it("emits Anthropic tool references for deferred tool matches", async () => {
+    process.env.TOOL_SEARCH_ROUTER_MODEL = "false";
+
+    const { ToolRegistry } = await import("../registry");
+    const { createToolSearchTool } = await import("../search-tool");
+
+    ToolRegistry.reset();
+    const registry = ToolRegistry.getInstance();
+
+    registry.register(
+      "searchTools",
+      {
+        displayName: "Search Tools",
+        category: "utility",
+        keywords: ["search"],
+        shortDescription: "search tools",
+        loading: { alwaysLoad: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    registry.register(
+      "localGrep",
+      {
+        displayName: "Local Grep",
+        category: "knowledge",
+        keywords: ["grep", "pattern"],
+        shortDescription: "exact text search",
+        loading: { deferLoading: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    const searchTool = createToolSearchTool({
+      initialActiveTools: new Set(["searchTools"]),
+      discoveredTools: new Set<string>(),
+      enabledTools: new Set(["localGrep"]),
+      enableAnthropicToolReferences: true,
+    }) as any;
+
+    const result = await searchTool.execute({ query: "grep", limit: 5 });
+    const modelOutput = await searchTool.toModelOutput({
+      toolCallId: "tc1",
+      input: { query: "grep", limit: 5 },
+      output: result,
+    });
+
+    expect(modelOutput.type).toBe("content");
+    expect(modelOutput.value[0].type).toBe("text");
+    expect(modelOutput.value[1].type).toBe("custom");
+    expect(modelOutput.value[1].providerOptions.anthropic.type).toBe("tool-reference");
+    expect(modelOutput.value[1].providerOptions.anthropic.toolName).toBe("localGrep");
+  });
+
+  it("falls back to JSON model output when subagent results are present", async () => {
+    process.env.TOOL_SEARCH_ROUTER_MODEL = "false";
+
+    const { ToolRegistry } = await import("../registry");
+    const { createToolSearchTool } = await import("../search-tool");
+
+    ToolRegistry.reset();
+    const registry = ToolRegistry.getInstance();
+
+    registry.register(
+      "searchTools",
+      {
+        displayName: "Search Tools",
+        category: "utility",
+        keywords: ["search"],
+        shortDescription: "search tools",
+        loading: { alwaysLoad: true },
+        requiresSession: false,
+      },
+      () => ({} as any)
+    );
+
+    const searchTool = createToolSearchTool({
+      initialActiveTools: new Set(["searchTools"]),
+      discoveredTools: new Set<string>(),
+      enabledTools: new Set<string>(),
+      enableAnthropicToolReferences: true,
+      subagentDirectory: [
+        "- Session Search (id: agent-1): Find relevant sessions from chat history",
+      ],
+    }) as any;
+
+    const result = await searchTool.execute({ query: "session", limit: 5 });
+    const modelOutput = await searchTool.toModelOutput({
+      toolCallId: "tc2",
+      input: { query: "session", limit: 5 },
+      output: result,
+    });
+
+    expect(modelOutput.type).toBe("json");
+  });
 });

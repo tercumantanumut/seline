@@ -270,13 +270,13 @@ export async function startBackgroundProcess(
 
         return {
             processId: "",
-            error: error instanceof Error ? error.message : "Failed to spawn background process",
+            error: error instanceof Error ? error.message : String(error),
         };
     }
 }
 
 /**
- * Get the current status of a background process.
+ * Get background process status and output.
  */
 export function getBackgroundProcess(processId: string): BackgroundProcessInfo | null {
     return backgroundProcesses.get(processId) ?? null;
@@ -295,7 +295,7 @@ export function killBackgroundProcess(processId: string): boolean {
     try {
         info.process.kill("SIGTERM");
         setTimeout(() => {
-            try { info.process.kill("SIGKILL"); } catch { /* ok */ }
+            try { info.process.kill("SIGKILL"); } catch { /* already dead */ }
         }, 3000);
     } catch { /* already dead */ }
     return true;
@@ -544,7 +544,10 @@ export async function executeCommand(options: ExecuteOptions): Promise<ExecuteRe
                 // Check if it's a "command not found" error
                 if (error.message.includes("ENOENT") || error.message.includes("spawn") && error.message.includes("not found")) {
                     const diagnostic = buildNotFoundDiagnostic(command, runtime, finalEnv, resolved.resolution);
-                    errorMessage = `Command '${command}' not found. ${errorMessage}\n\n${diagnostic}\n\nTip: For Node.js commands (npm, npx, node), Seline expects bundled binaries under resources/standalone.`;
+                    const attemptedCommand = wrapped.usingRTK
+                        ? `${finalCommand} (RTK wrapper for ${command})`
+                        : finalCommand;
+                    errorMessage = `Command execution failed: requested='${command}', attempted='${attemptedCommand}'. ${error.message}\n\n${diagnostic}\n\nTip: For Node.js commands (npm, npx, node), Seline expects bundled binaries under resources/standalone.`;
                 }
 
                 commandLogger.logExecutionError(command, errorMessage, context);

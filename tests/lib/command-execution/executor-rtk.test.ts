@@ -47,4 +47,16 @@ describe("wrapWithRTK", () => {
     expect(result.args).toEqual(["git", "status"]);
     expect(rtkManagerMocks.shouldUseRTK).toHaveBeenCalledWith("git");
   });
+
+  it("falls back to direct execution when RTK binary is unavailable", () => {
+    rtkManagerMocks.getRTKBinary.mockReturnValue(null);
+
+    const result = wrapWithRTK("git", ["status"], { PATH: "/usr/bin" });
+
+    expect(result).toMatchObject({
+      command: "git",
+      args: ["status"],
+      usingRTK: false,
+    });
+  });
 });

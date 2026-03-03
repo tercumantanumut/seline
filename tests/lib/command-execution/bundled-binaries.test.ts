@@ -2,6 +2,10 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
 import { join } from "path";
 
+vi.mock("@/lib/shell-env/resolver", () => ({
+    getResolvedShellEnvironment: vi.fn(() => ({})),
+}));
+
 // Mock fs module
 vi.mock("fs", () => ({
     existsSync: vi.fn(),

@@ -255,6 +255,9 @@ export function createSelineSdkMcpServer(
     initialActiveTools: activatedTools,
     discoveredTools: activatedTools,
     enabledTools: enabledSet ?? undefined,
+    // SDK MCP path already exposes full tool schemas to Claude Agent SDK.
+    // Tool references are only useful for Anthropic Messages API path.
+    enableAnthropicToolReferences: false,
   };
 
   // ── 1. Built-in ToolRegistry tools (non-MCP) ────────────────────────────
