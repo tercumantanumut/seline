@@ -444,6 +444,37 @@ File tools (readFile, editFile, writeFile, localGrep) automatically work in the 
       })
   );
 
+  // Ask User Question Tool - Interactive user clarification with selectable options
+  registry.register(
+    "askUserQuestion",
+    {
+      displayName: "Ask User Question",
+      category: "utility",
+      keywords: [
+        "ask",
+        "question",
+        "user",
+        "interactive",
+        "clarify",
+        "clarification",
+        "options",
+        "select",
+        "multiple choice",
+        "preference",
+        "choice",
+        "confirm",
+      ],
+      shortDescription:
+        "Ask the user interactive questions with selectable options and wait for their response",
+      loading: { alwaysLoad: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createAskUserQuestionTool({
+        sessionId: sessionId || "UNSCOPED",
+      })
+  );
+
   // Chromium Workspace Tool - Embedded browser automation (feature-flagged)
   registry.register(
     "chromiumWorkspace",

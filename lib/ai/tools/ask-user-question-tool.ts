@@ -23,6 +23,7 @@ export interface AskUserQuestionArgs {
 }
 
 const WAIT_TIMEOUT_MS = 300_000;
+const TIMEOUT_RESULT = { answers: {}, timedOut: true } as const;
 
 const askUserQuestionSchema = jsonSchema<AskUserQuestionArgs>({
   type: "object",
@@ -119,13 +120,13 @@ async function executeAskUserQuestion(
   toolCallOptions?: ToolExecutionOptions,
 ): Promise<{ answers: Record<string, string>; timedOut?: boolean }> {
   if (options.sessionId === "UNSCOPED") {
-    return { answers: {}, timedOut: true };
+    return TIMEOUT_RESULT;
   }
 
   const toolCallId = extractToolCallId(toolCallOptions);
   if (!toolCallId) {
     // Without a tool call id, the UI cannot resolve this invocation back to the waiter.
-    return { answers: {}, timedOut: true };
+    return TIMEOUT_RESULT;
   }
 
   const waitPromise = registerInteractiveWait(
@@ -136,7 +137,7 @@ async function executeAskUserQuestion(
 
   const resolvedAnswers = await withTimeout(waitPromise, WAIT_TIMEOUT_MS);
   if (!resolvedAnswers) {
-    return { answers: {}, timedOut: true };
+    return TIMEOUT_RESULT;
   }
 
   return { answers: resolvedAnswers };

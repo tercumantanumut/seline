@@ -34,7 +34,7 @@ export function BackgroundLayer({ config, className = "" }: BackgroundLayerProps
 
   return (
     <div
-      className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden ${className}`}
+      className={`pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
       aria-hidden
     >
       {backgroundUrl ? (

@@ -656,6 +656,7 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
                 {t.rich("preferences.devWorkspace.recommendedServersDesc", {
                   worktreeTools: () => <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code>,
                   githubMcp: () => <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code>,
+                  strong: (chunks) => <strong className="text-terminal-dark">{chunks}</strong>,
                 })}
               </p>
             </div>

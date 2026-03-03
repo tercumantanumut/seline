@@ -352,6 +352,8 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   speakAloud: SpeakAloudToolUI,
                   transcribe: TranscribeToolUI,
                   chromiumWorkspace: ChromiumWorkspaceToolUI,
+                  askUserQuestion: AskFollowupQuestionToolUI,
+                  askFollowupQuestion: AskFollowupQuestionToolUI,
                   AskFollowupQuestion: AskFollowupQuestionToolUI,
                   AskUserQuestion: AskFollowupQuestionToolUI,
                 }),

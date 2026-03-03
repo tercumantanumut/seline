@@ -1647,6 +1647,8 @@
         "memorize": "Hafıza",
         "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin",
         "workspace": "Çalışma Alanı",
+      "askUserQuestion": "Kullanıcıya Soru Sor",
+      "askFollowupQuestion": "Takip Sorusu Sor",
         "workspaceDesc": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet",
         "delegateToSubagent": "Alt Ajana Devret",
         "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"

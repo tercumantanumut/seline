@@ -969,6 +969,8 @@
       "calculator": "Calculator",
       "updatePlan": "Update Plan",
       "workspace": "Workspace",
+      "askUserQuestion": "Ask User Question",
+      "askFollowupQuestion": "Ask Follow-up Question",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
