@@ -59,7 +59,7 @@ export default function SettingsPage() {
     loadSettings();
     loadAntigravityAuth();
     loadCodexAuth();
-    loadClaudeCodeAuth();
+    loadClaudeCodeAuth({ forceRefresh: true });
   }, []);
 
   const loadSettings = async () => {
@@ -120,11 +120,12 @@ export default function SettingsPage() {
     return false;
   };
 
-  const loadClaudeCodeAuth = async (): Promise<boolean> => {
+  const loadClaudeCodeAuth = async ({ forceRefresh = false }: { forceRefresh?: boolean } = {}): Promise<boolean> => {
     try {
-      await fetch("/api/auth/claudecode/refresh", { method: "POST" });
-
-      const response = await fetch(`/api/auth/claudecode?t=${Date.now()}`);
+      const endpoint = forceRefresh
+        ? `/api/auth/claudecode?refresh=1&t=${Date.now()}`
+        : `/api/auth/claudecode?t=${Date.now()}`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         console.log("[Settings] Loaded Claude Code auth:", data);
@@ -401,25 +402,6 @@ export default function SettingsPage() {
   const [claudeCodePasteMode, setClaudeCodePasteMode] = useState(false);
   const [claudeCodeAuthSuccess, setClaudeCodeAuthSuccess] = useState(false);
 
-  // Periodic status polling to keep connection status fresh
-  useEffect(() => {
-    if (!claudeCodePasteMode) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const authenticated = await loadClaudeCodeAuth();
-        if (authenticated && !claudeCodeAuthSuccess) {
-          setClaudeCodeAuthSuccess(true);
-          setClaudecodeLoading(false);
-        }
-      } catch (err) {
-        console.error("[Settings] Claude Code status poll failed:", err);
-      }
-    }, 2000); // Poll every 2 seconds during auth flow
-
-    return () => clearInterval(pollInterval);
-  }, [claudeCodePasteMode, claudeCodeAuthSuccess]);
-
   const handleClaudeCodeLogin = async () => {
     setClaudecodeLoading(true);
     setClaudeCodeAuthSuccess(false);
@@ -446,12 +428,12 @@ export default function SettingsPage() {
 
       // Show the verification panel while auth is completed via Agent SDK.
       setClaudeCodePasteMode(true);
+      setClaudecodeLoading(false);
     } catch (err) {
       console.error("Claude Code login failed:", err);
       toast.error(t("errors.authStartFailed"));
       setClaudecodeLoading(false);
     }
-    // Note: Keep loading state active while waiting for auth completion
   };
 
   const handleClaudeCodePasteSubmit = async (code: string) => {
@@ -469,10 +451,11 @@ export default function SettingsPage() {
         throw new Error(data.error || "Claude Agent SDK is not authenticated yet");
       }
 
-      // Load auth state and show success
-      const authenticated = await loadClaudeCodeAuth();
+      // Load fresh auth state and show success
+      const authenticated = await loadClaudeCodeAuth({ forceRefresh: true });
       if (authenticated) {
         setClaudeCodeAuthSuccess(true);
+        setClaudecodeLoading(false);
       } else {
         throw new Error("Authentication verification failed");
       }

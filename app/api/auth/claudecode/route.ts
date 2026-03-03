@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   clearClaudeCodeAuth,
+  getClaudeCodeAuthState,
   getClaudeCodeAuthStatus,
   invalidateClaudeCodeAuthCache,
 } from "@/lib/auth/claudecode-auth";
@@ -8,23 +9,42 @@ import { CLAUDECODE_MODEL_IDS } from "@/lib/auth/claudecode-models";
 import { invalidateProviderCacheFor } from "@/lib/ai/providers";
 import { invalidateSettingsCache } from "@/lib/settings/settings-manager";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     invalidateSettingsCache();
     invalidateClaudeCodeAuthCache();
 
-    const status = await getClaudeCodeAuthStatus();
+    const url = new URL(request.url);
+    const forceRefresh = url.searchParams.get("refresh") === "1";
 
+    if (forceRefresh) {
+      // Explicitly refresh from Agent SDK only when requested to avoid
+      // expensive status checks on every settings page render.
+      const status = await getClaudeCodeAuthStatus();
+      return NextResponse.json({
+        success: true,
+        authenticated: status.authenticated,
+        email: status.email,
+        tokenSource: status.tokenSource,
+        apiKeySource: status.apiKeySource,
+        authUrl: status.authUrl,
+        output: status.output,
+        error: status.error,
+        availableModels: status.authenticated ? [...CLAUDECODE_MODEL_IDS] : [],
+      });
+    }
+
+    const state = getClaudeCodeAuthState();
     return NextResponse.json({
       success: true,
-      authenticated: status.authenticated,
-      email: status.email,
-      tokenSource: status.tokenSource,
-      apiKeySource: status.apiKeySource,
-      authUrl: status.authUrl,
-      output: status.output,
-      error: status.error,
-      availableModels: status.authenticated ? [...CLAUDECODE_MODEL_IDS] : [],
+      authenticated: state.isAuthenticated,
+      email: state.email,
+      tokenSource: state.tokenSource,
+      apiKeySource: state.apiKeySource,
+      authUrl: state.authUrl,
+      output: state.output,
+      error: state.error,
+      availableModels: state.isAuthenticated ? [...CLAUDECODE_MODEL_IDS] : [],
     });
   } catch (error) {
     console.error("[ClaudeCodeAuth] Failed to get auth status:", error);
