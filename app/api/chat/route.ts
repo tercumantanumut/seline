@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
 import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, ensureCodexTokenValid } from "@/lib/ai/providers";
 import { registerAllTools } from "@/lib/ai/tool-registry";
@@ -572,7 +573,16 @@ export async function POST(req: Request) {
     if (characterId) {
       const primaryFolder = await getPrimarySyncFolder(characterId);
       if (primaryFolder?.folderPath) {
-        agentCwd = primaryFolder.folderPath;
+        try {
+          const stats = await stat(primaryFolder.folderPath);
+          if (stats.isDirectory()) {
+            agentCwd = primaryFolder.folderPath;
+          } else {
+            console.warn(`[CHAT API] Primary sync folder is not a directory: ${primaryFolder.folderPath}`);
+          }
+        } catch {
+          console.warn(`[CHAT API] Primary sync folder path does not exist, falling back to process.cwd(): ${primaryFolder.folderPath}`);
+        }
       }
     }
 

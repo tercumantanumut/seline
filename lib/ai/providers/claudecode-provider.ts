@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -560,7 +561,11 @@ function createStreamingClaudeCodeResponse(options: {
           ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
           : undefined;
 
-        const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+        const candidateCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+        const resolvedCwd = existsSync(candidateCwd) ? candidateCwd : process.cwd();
+        if (resolvedCwd !== candidateCwd) {
+          console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
+        }
 
         // Bridge Seline plugin cache paths → SDK plugin configs
         const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
@@ -1216,7 +1221,11 @@ async function runClaudeAgentQuery(options: {
     : undefined;
 
   // Resolve working directory: explicit SDK option > MCP context > process.cwd()
-  const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+  const candidateCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+  const resolvedCwd = existsSync(candidateCwd) ? candidateCwd : process.cwd();
+  if (resolvedCwd !== candidateCwd) {
+    console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
+  }
 
   // Bridge Seline plugin cache paths → SDK plugin configs
   const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
