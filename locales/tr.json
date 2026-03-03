@@ -2101,6 +2101,23 @@
         "light": "Aydınlık",
         "system": "Sistem"
       },
+      "colorPalette": {
+        "heading": "Renk Paleti",
+        "description": "Genel görünümü değiştirmek için bir renk paleti seçin"
+      },
+      "backgrounds": {
+        "heading": "Arka Planlar",
+        "description": "Ana sayfa ve sohbet arayüzü için duvar kağıdı ayarlayın",
+        "homepage": "Ana Sayfa",
+        "chat": "Sohbet",
+        "opacity": "Opaklık",
+        "wallpaper": "Duvar kağıdı",
+        "color": "Renk",
+        "customUrl": "Özel URL",
+        "none": "Yok",
+        "all": "Tümü",
+        "clearBackground": "Arka planı temizle"
+      },
       "language": {
         "label": "Dil",
         "en": "English",

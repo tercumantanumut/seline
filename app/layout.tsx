@@ -65,15 +65,16 @@ export default async function RootLayout({
   const themeScript = `
 (() => {
   try {
-    const storageKey = "seline-theme";
     const root = document.documentElement;
-    const stored = localStorage.getItem(storageKey);
+    const stored = localStorage.getItem("seline-theme");
     const preference = stored || root.dataset.theme || "system";
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolved = preference === "system" ? (prefersDark ? "dark" : "light") : preference;
     root.classList.toggle("dark", resolved === "dark");
     root.style.colorScheme = resolved;
     root.dataset.theme = preference;
+    const preset = localStorage.getItem("seline-theme-preset");
+    if (preset && preset !== "ember") root.dataset.themePreset = preset;
   } catch {}
 })();
   `;

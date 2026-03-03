@@ -46,9 +46,12 @@ import type { CharacterSummary, WorkflowGroup, WorkflowMember } from "@/componen
 import { useWorkflowManager } from "@/components/character-picker-workflow-hook";
 import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
 import { useCharacterActions } from "@/components/character-picker-character-actions-hook";
+import { useTheme } from "@/components/theme/theme-provider";
+import { BackgroundLayer } from "@/components/ui/background-layer";
 
 export function CharacterPicker() {
   const router = useRouter();
+  const { homepageBackground } = useTheme();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -326,8 +329,9 @@ export function CharacterPicker() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
-        <AnimatedContainer direction="down" distance={15} className="text-center">
+      <div className="relative flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
+        <BackgroundLayer config={homepageBackground} className="rounded-lg" />
+        <AnimatedContainer direction="down" distance={15} className="relative z-[1] text-center">
           <h1 className="text-2xl font-bold font-mono text-terminal-dark">{t("title")}</h1>
           <p className="text-terminal-muted mt-2 font-mono text-sm">
             {t("subtitle")}

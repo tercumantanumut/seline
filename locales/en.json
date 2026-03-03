@@ -2262,6 +2262,23 @@
         "light": "Light",
         "system": "System"
       },
+      "colorPalette": {
+        "heading": "Color Palette",
+        "description": "Choose a color palette to change the overall look and feel"
+      },
+      "backgrounds": {
+        "heading": "Backgrounds",
+        "description": "Set wallpaper backgrounds for the homepage and chat interface",
+        "homepage": "Homepage",
+        "chat": "Chat",
+        "opacity": "Opacity",
+        "wallpaper": "Wallpaper",
+        "color": "Color",
+        "customUrl": "Custom URL",
+        "none": "None",
+        "all": "All",
+        "clearBackground": "Clear background"
+      },
       "language": {
         "label": "Language",
         "en": "English",

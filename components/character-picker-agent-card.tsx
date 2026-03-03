@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, PlusCircle } from "lucide-react";
@@ -10,6 +11,7 @@ import { ToolBadge, getTopTools } from "@/components/ui/tool-badge";
 import { useTranslations } from "next-intl";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AgentOverflowMenu } from "@/components/character-picker-agent-overflow-menu";
+import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
 import type { CharacterSummary } from "@/components/character-picker-types";
 
 export function AgentCardInWorkflow({
@@ -66,11 +68,20 @@ export function AgentCardInWorkflow({
   const avatarImage = character.images?.find((img) => img.imageType === "avatar");
   const imageUrl = avatarImage?.url || primaryImage?.url;
 
+  // Deterministic accent color based on character ID (or manual override from metadata)
+  const accentColor = useMemo(
+    () => getAgentAccentColor(character.id, (character.metadata as Record<string, unknown>)?.accentColor as string | undefined),
+    [character.id, character.metadata]
+  );
+
   return (
     <AnimatedCard
       data-animate-card={dataAnimateCard ? true : undefined}
       hoverLift
       className="group relative w-full border-0 bg-terminal-cream/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+      style={{
+        borderLeft: `3px solid ${accentColor.hex}`,
+      }}
     >
       <div className="p-4 pb-2">
         <AgentOverflowMenu
@@ -94,9 +105,18 @@ export function AgentCardInWorkflow({
 
         <div className="flex min-h-9 items-center gap-3">
           <div className="relative">
-            <Avatar className="h-10 w-10 shadow-sm">
+            <Avatar
+              className="h-10 w-10 shadow-sm ring-2 ring-offset-1 ring-offset-terminal-cream"
+              style={{ "--tw-ring-color": accentColor.hex } as React.CSSProperties}
+            >
               {imageUrl ? <AvatarImage src={imageUrl} alt={character.name} /> : null}
-              <AvatarFallback className="bg-terminal-green/10 font-mono text-xs text-terminal-green">
+              <AvatarFallback
+                className="font-mono text-xs font-semibold"
+                style={{
+                  backgroundColor: `${accentColor.hex}18`,
+                  color: accentColor.hex,
+                }}
+              >
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -172,6 +192,7 @@ export function AgentCardInWorkflow({
           variant="outline"
           className="h-7 w-7 px-0 font-mono text-xs text-terminal-dark hover:bg-terminal-dark/5"
           onClick={() => onNewChat(character.id)}
+          aria-label={t("startNew")}
         >
           <PlusCircle className="h-3 w-3" />
         </AnimatedButton>

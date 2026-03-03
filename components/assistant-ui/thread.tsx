@@ -42,6 +42,8 @@ import {
 } from "./thread-message-components";
 import { Composer } from "./thread-composer";
 import { BrowserBackdrop } from "./browser-backdrop";
+import { useTheme } from "@/components/theme/theme-provider";
+import { BackgroundLayer } from "@/components/ui/background-layer";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -89,6 +91,7 @@ export const Thread: FC<ThreadProps> = ({
 
   // Browser backdrop active — when true, make backgrounds transparent
   const [isBrowserActive, setIsBrowserActive] = useState(false);
+  const { chatBackground } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -194,6 +197,8 @@ export const Thread: FC<ThreadProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* Chat wallpaper background */}
+        <BackgroundLayer config={chatBackground} />
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
 
