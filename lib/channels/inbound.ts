@@ -594,7 +594,7 @@ async function invokeChatApi(params: {
   await getOrCreateLocalUser(params.userId, settings.localUserEmail);
 
   const configuredTimeoutMs = Number(process.env.CHANNEL_CHAT_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 300000;
+  const timeoutMs = Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 5400000;
 
   // Retry logic for transient connection failures
   const maxRetries = 3;

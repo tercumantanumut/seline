@@ -151,15 +151,8 @@ export class SlackConnector implements ChannelConnector {
     return { externalMessageId: String(sent.ts || `${payload.peerId}:${Date.now()}`) };
   }
 
-  async sendTyping(peerId: string): Promise<void> {
-    try {
-      await (this.app.client as { apiCall: (method: string, options?: Record<string, unknown>) => Promise<unknown> }).apiCall(
-        "chat.typing",
-        { channel: peerId }
-      );
-    } catch (error) {
-      console.warn("[Slack] Failed to send typing status:", error);
-    }
+  async sendTyping(_peerId: string): Promise<void> {
+    // Slack Web API does not support typing indicators for bots — no-op
   }
 
   setInteractiveAnswerHandler(handler: (data: InteractiveAnswerData) => void): void {

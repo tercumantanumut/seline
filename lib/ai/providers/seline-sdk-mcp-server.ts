@@ -309,14 +309,6 @@ export function createSelineSdkMcpServer(
         description,
         inputSchema,
         handler: async (args: Record<string, unknown>) => {
-          // Deferred gate: block non-activated tools until searchTools discovers them
-          if (useDeferredMode && !isAlwaysLoad && !activatedTools.has(name)) {
-            return toCallToolResult(
-              `Tool "${name}" requires discovery first. ` +
-              `Call searchTools("${name}") to activate it, then retry.`
-            );
-          }
-
           try {
             const result = await (toolInstance as any).execute?.(args, {});
 
@@ -397,14 +389,6 @@ export function createSelineSdkMcpServer(
       description,
       inputSchema,
       handler: async (args: Record<string, unknown>) => {
-        // Deferred gate for MCP tools (same as ToolRegistry tools)
-        if (useDeferredMode && !isMcpAlwaysLoad && !activatedTools.has(toolId)) {
-          return toCallToolResult(
-            `MCP tool "${toolId}" requires discovery first. ` +
-            `Call searchTools("${mcpTool.name}") to activate it, then retry.`
-          );
-        }
-
         try {
           // Import MCPClientManager lazily to avoid circular deps
           const { MCPClientManager } = await import("@/lib/mcp/client-manager");
