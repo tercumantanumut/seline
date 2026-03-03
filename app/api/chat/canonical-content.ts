@@ -241,7 +241,10 @@ export function mergeCanonicalAssistantContent(
           break;
         }
       }
-      if (latestExistingText === incoming.text) {
+      if (
+        latestExistingText !== undefined &&
+        latestExistingText.trim() === incoming.text.trim()
+      ) {
         continue;
       }
       base.push(incoming);
