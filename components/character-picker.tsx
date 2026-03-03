@@ -329,7 +329,7 @@ export function CharacterPicker() {
 
   return (
     <TooltipProvider>
-      <div className="relative flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
+      <div className="isolate relative flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
         <BackgroundLayer config={homepageBackground} className="rounded-lg" />
         <AnimatedContainer direction="down" distance={15} className="relative z-[1] text-center">
           <h1 className="text-2xl font-bold font-mono text-terminal-dark">{t("title")}</h1>

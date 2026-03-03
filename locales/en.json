@@ -2337,7 +2337,7 @@
         "autoCleanDesc": "Remove old worktrees automatically after merge or after a set number of days.",
         "cleanupDaysLabel": "Clean up after (days)",
         "recommendedServers": "Recommended tool servers:",
-        "recommendedServersDesc": "Install {worktreeTools} for worktree management or {githubMcp} for pull request workflows. Configure them in Tool servers (MCP)."
+        "recommendedServersDesc": "Install <worktreeTools/> for worktree management or <githubMcp/> for pull request workflows. Configure them in Tool servers (MCP)."
       }
     },
     "memory": {

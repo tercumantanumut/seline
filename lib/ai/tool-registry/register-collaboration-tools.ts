@@ -12,6 +12,7 @@ import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createWorkspaceTool } from "../tools/workspace-tool";
 import { createChromiumWorkspaceTool } from "../tools/chromium-workspace-tool";
+import { createAskUserQuestionTool } from "../tools/ask-user-question-tool";
 
 export function registerCollaborationTools(registry: ToolRegistry): void {
   // Execute Command Tool - Run shell commands safely within synced directories

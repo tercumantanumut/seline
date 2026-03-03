@@ -2176,7 +2176,7 @@
         "autoCleanDesc": "Birleştirmeden sonra veya belirli gün sayısından sonra eski çalışma ağaçlarını otomatik kaldır.",
         "cleanupDaysLabel": "Sonra temizle (gün)",
         "recommendedServers": "Önerilen araç sunucuları:",
-        "recommendedServersDesc": "Çalışma ağacı yönetimi için {worktreeTools} veya pull request iş akışları için {githubMcp} yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
+        "recommendedServersDesc": "Çalışma ağacı yönetimi için <worktreeTools/> veya pull request iş akışları için <githubMcp/> yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
       }
     },
     "memory": {
