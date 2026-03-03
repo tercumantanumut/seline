@@ -162,6 +162,7 @@ export const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setOpen(false)}
               className="rounded-lg p-1.5 text-terminal-cream/40 hover:text-terminal-cream hover:bg-white/10 transition-colors"
             >
@@ -193,6 +194,7 @@ export const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
             {/* Provider pills */}
             <div className="flex items-center gap-1 flex-1 overflow-x-auto">
               <button
+                type="button"
                 onClick={() => setFilterProvider("all")}
                 className={cn(
                   "shrink-0 rounded-full px-2.5 py-1 font-mono text-[10px] font-semibold transition-all",
@@ -205,6 +207,7 @@ export const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
               </button>
               {authProviders.map((p) => (
                 <button
+                  type="button"
                   key={p.id}
                   onClick={() => setFilterProvider(filterProvider === p.id ? "all" : p.id)}
                   className={cn(
@@ -275,6 +278,7 @@ export const ModelBagPopover: FC<{ sessionId: string }> = ({ sessionId }) => {
                       const isActive = model.id === activeModelId;
                       return (
                         <button
+                          type="button"
                           key={`${model.provider}:${model.id}`}
                           onClick={() => handleSelectModel(model)}
                           disabled={saving}
