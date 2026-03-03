@@ -353,7 +353,7 @@ export async function removeFolderFromVectorDB(params: {
   if (!existingTables.includes(tableName)) return;
 
   const table = await db.openTable(tableName);
-  await table.delete(`folderId = "${folderId}"`);
+  await table.delete(`"folderId" = '${folderId}'`);
 
   console.log(`[VectorDB] Bulk removed all points for folder ${folderId} from ${tableName}`);
 }
