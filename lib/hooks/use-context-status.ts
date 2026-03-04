@@ -37,6 +37,8 @@ export interface UseContextStatusOptions {
   pollIntervalMs?: number;
   /** Whether to auto-fetch on mount. Default: true. */
   autoFetch?: boolean;
+  /** Skip interval fetches while tab is hidden. Default: true. */
+  pauseWhenHidden?: boolean;
 }
 
 export interface UseContextStatusReturn {
@@ -65,6 +67,7 @@ export function useContextStatus({
   sessionId,
   pollIntervalMs = 0,
   autoFetch = true,
+  pauseWhenHidden = true,
 }: UseContextStatusOptions): UseContextStatusReturn {
   const [status, setStatus] = useState<ContextWindowStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -150,13 +153,33 @@ export function useContextStatus({
     };
   }, [autoFetch, sessionId, fetchStatus]);
 
+  // Refresh once when tab becomes visible again after being hidden.
+  useEffect(() => {
+    if (!sessionId || !pauseWhenHidden || typeof document === "undefined") return;
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchStatus();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [sessionId, pauseWhenHidden, fetchStatus]);
+
   // Optional polling
   useEffect(() => {
     if (!pollIntervalMs || pollIntervalMs <= 0 || !sessionId) return;
 
-    const interval = setInterval(fetchStatus, pollIntervalMs);
+    const interval = setInterval(() => {
+      if (pauseWhenHidden && typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+      void fetchStatus();
+    }, pollIntervalMs);
+
     return () => clearInterval(interval);
-  }, [pollIntervalMs, sessionId, fetchStatus]);
+  }, [pollIntervalMs, sessionId, pauseWhenHidden, fetchStatus]);
 
   // Reset when sessionId changes
   useEffect(() => {

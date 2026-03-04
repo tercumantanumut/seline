@@ -9,16 +9,11 @@ import {
 } from "@assistant-ui/react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCharacter } from "./character-context";
 import { useOptionalDeepResearch } from "./deep-research-context";
-import { useTranslations } from "next-intl";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
+import { useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
 import {
   ContextWindowBlockedBanner,
   type ContextWindowBlockedPayload,
@@ -78,7 +73,6 @@ export const Thread: FC<ThreadProps> = ({
   const router = useRouter();
   const { character } = useCharacter();
   const threadRuntime = useThreadRuntime();
-  const t = useTranslations("assistantUi");
 
   // Deep research mode (for drag-drop gating)
   const deepResearch = useOptionalDeepResearch();
@@ -158,6 +152,9 @@ export const Thread: FC<ThreadProps> = ({
     router,
   });
 
+  const hasActiveRun = useSessionHasActiveRun(sessionId ?? null);
+  const contextPollIntervalMs = hasActiveRun ? 5000 : 30000;
+
   // Context window status tracking
   const {
     status: contextStatus,
@@ -165,7 +162,11 @@ export const Thread: FC<ThreadProps> = ({
     refresh: refreshContextStatus,
     compact: triggerCompact,
     isCompacting,
-  } = useContextStatus({ sessionId });
+  } = useContextStatus({
+    sessionId,
+    pollIntervalMs: contextPollIntervalMs,
+    pauseWhenHidden: true,
+  });
 
   // Blocked banner state — set when a 413 error is received
   const [blockedPayload, setBlockedPayload] =
