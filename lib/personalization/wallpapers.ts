@@ -304,13 +304,15 @@ export function getWallpaperById(id: string): Wallpaper | undefined {
 
 /** Background config for settings storage */
 export interface BackgroundConfig {
-  type: "none" | "wallpaper" | "color" | "url";
+  type: "none" | "wallpaper" | "color" | "url" | "video";
   /** Wallpaper ID (when type="wallpaper") */
   wallpaperId?: string;
   /** CSS color value (when type="color") */
   color?: string;
   /** External URL (when type="url") */
   url?: string;
+  /** Video wallpaper ID (when type="video") */
+  videoId?: string;
   /** Opacity 0-100 (how much the background shows through) */
   opacity?: number;
   /** Blur in px */

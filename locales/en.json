@@ -2279,7 +2279,10 @@
         "customUrl": "Custom URL",
         "none": "None",
         "all": "All",
-        "clearBackground": "Clear background"
+        "clearBackground": "Clear background",
+        "images": "Images",
+        "videos": "Videos",
+        "videoLabel": "Video"
       },
       "language": {
         "label": "Language",

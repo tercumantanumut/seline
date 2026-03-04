@@ -2118,7 +2118,10 @@
         "customUrl": "Özel URL",
         "none": "Yok",
         "all": "Tümü",
-        "clearBackground": "Arka planı temizle"
+        "clearBackground": "Arka planı temizle",
+        "images": "Görseller",
+        "videos": "Videolar",
+        "videoLabel": "Video"
       },
       "language": {
         "label": "Dil",

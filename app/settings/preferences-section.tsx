@@ -6,7 +6,8 @@ import { locales, localeCookieName, type Locale } from "@/i18n/config";
 import { useTheme } from "@/components/theme/theme-provider";
 import { THEME_PRESETS } from "@/lib/personalization/theme-presets";
 import { WALLPAPERS, WALLPAPER_CATEGORIES, type BackgroundConfig } from "@/lib/personalization/wallpapers";
-import { Check, X, Image as ImageIcon } from "lucide-react";
+import { VIDEO_WALLPAPERS, VIDEO_WALLPAPER_CATEGORIES, getVideoWallpaperById } from "@/lib/personalization/video-wallpapers";
+import { Check, X, Image as ImageIcon, Play } from "lucide-react";
 import type { FormState } from "./settings-types";
 
 interface PreferencesSectionProps {
@@ -19,7 +20,9 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
   const currentLocale = useLocale() as Locale;
   const { themePreset, setThemePreset, homepageBackground, setHomepageBackground, chatBackground, setChatBackground } = useTheme();
   const [bgTab, setBgTab] = useState<"homepage" | "chat">("homepage");
+  const [bgMediaType, setBgMediaType] = useState<"images" | "videos">("images");
   const [wallpaperCategory, setWallpaperCategory] = useState<string>("all");
+  const [videoCategory, setVideoCategory] = useState<string>("all");
 
   const handleLocaleChange = (newLocale: Locale) => {
     document.cookie = `${localeCookieName}=${newLocale}; path=/; max-age=31536000`;
@@ -33,8 +36,16 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
     ? WALLPAPERS
     : WALLPAPERS.filter((w) => w.category === wallpaperCategory);
 
+  const filteredVideos = videoCategory === "all"
+    ? VIDEO_WALLPAPERS
+    : VIDEO_WALLPAPERS.filter((v) => v.category === videoCategory);
+
   const handleSelectWallpaper = (wallpaperId: string, url: string) => {
     setActiveBg({ type: "wallpaper", wallpaperId, url, opacity: 30, blur: 0 });
+  };
+
+  const handleSelectVideo = (videoId: string) => {
+    setActiveBg({ type: "video", videoId, opacity: 30, blur: 0 });
   };
 
   const handleClearBackground = () => {
@@ -143,13 +154,27 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
         {/* Current background preview */}
         {activeBg.type !== "none" && (
           <div className="relative overflow-hidden rounded-lg border border-terminal-border">
-            <div className="h-20 w-full bg-terminal-cream" style={activeBg.url ? {
-              backgroundImage: `url(${activeBg.url})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: (activeBg.opacity ?? 30) / 100,
-              filter: activeBg.blur ? `blur(${activeBg.blur}px)` : undefined,
-            } : activeBg.color ? { backgroundColor: activeBg.color } : undefined} />
+            <div className="h-20 w-full bg-terminal-cream" style={(() => {
+              if (activeBg.type === "video" && activeBg.videoId) {
+                const vid = getVideoWallpaperById(activeBg.videoId);
+                return vid ? {
+                  backgroundImage: `url(${vid.posterUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  opacity: (activeBg.opacity ?? 30) / 100,
+                  filter: activeBg.blur ? `blur(${activeBg.blur}px)` : undefined,
+                } : undefined;
+              }
+              if (activeBg.url) return {
+                backgroundImage: `url(${activeBg.url})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                opacity: (activeBg.opacity ?? 30) / 100,
+                filter: activeBg.blur ? `blur(${activeBg.blur}px)` : undefined,
+              };
+              if (activeBg.color) return { backgroundColor: activeBg.color };
+              return undefined;
+            })()} />
             <button
               type="button"
               onClick={handleClearBackground}
@@ -159,9 +184,13 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
               <X className="h-3 w-3" />
             </button>
             <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-              <ImageIcon className="h-3 w-3 text-white/80" />
+              {activeBg.type === "video" ? (
+                <Play className="h-3 w-3 text-white/80" />
+              ) : (
+                <ImageIcon className="h-3 w-3 text-white/80" />
+              )}
               <span className="font-mono text-[10px] text-white/80">
-                {activeBg.type === "wallpaper" ? t("preferences.backgrounds.wallpaper") : activeBg.type === "color" ? t("preferences.backgrounds.color") : t("preferences.backgrounds.customUrl")}
+                {activeBg.type === "wallpaper" ? t("preferences.backgrounds.wallpaper") : activeBg.type === "video" ? t("preferences.backgrounds.videoLabel") : activeBg.type === "color" ? t("preferences.backgrounds.color") : t("preferences.backgrounds.customUrl")}
               </span>
             </div>
           </div>
@@ -184,84 +213,198 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
           </div>
         )}
 
-        {/* Category filter */}
-        <div className="flex flex-wrap gap-1">
-          <button
-            type="button"
-            onClick={() => setWallpaperCategory("all")}
-            className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
-              wallpaperCategory === "all"
-                ? "bg-terminal-dark text-terminal-cream"
-                : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
-            }`}
-          >
-            {t("preferences.backgrounds.all")}
-          </button>
-          {WALLPAPER_CATEGORIES.map((cat) => (
+        {/* Media type toggle (Images / Videos) */}
+        <div className="flex gap-1 rounded-lg bg-terminal-cream/60 p-1" role="tablist">
+          {(["images", "videos"] as const).map((type) => (
             <button
-              key={cat.id}
+              key={type}
               type="button"
-              onClick={() => setWallpaperCategory(cat.id)}
-              className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
-                wallpaperCategory === cat.id
-                  ? "bg-terminal-dark text-terminal-cream"
-                  : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+              role="tab"
+              aria-selected={bgMediaType === type}
+              onClick={() => setBgMediaType(type)}
+              className={`flex-1 rounded-md px-3 py-1.5 font-mono text-xs font-medium transition-all ${
+                bgMediaType === type
+                  ? "bg-terminal-dark text-terminal-cream shadow-sm"
+                  : "text-terminal-muted hover:text-terminal-dark"
               }`}
             >
-              {cat.label}
+              {type === "images" ? t("preferences.backgrounds.images") : t("preferences.backgrounds.videos")}
             </button>
           ))}
         </div>
 
-        {/* Wallpaper grid */}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {/* None option */}
-          <button
-            type="button"
-            onClick={handleClearBackground}
-            className={`relative flex h-16 items-center justify-center rounded-lg border transition-all ${
-              activeBg.type === "none"
-                ? "border-terminal-green bg-terminal-green/10"
-                : "border-terminal-border hover:border-terminal-green/40"
-            }`}
-          >
-            <span className="font-mono text-[10px] text-terminal-muted">{t("preferences.backgrounds.none")}</span>
-            {activeBg.type === "none" && (
-              <div className="absolute -right-1 -top-1">
-                <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
-                  <Check className="h-2 w-2" />
-                </div>
-              </div>
-            )}
-          </button>
-          {filteredWallpapers.map((wp) => (
-            <button
-              key={wp.id}
-              type="button"
-              onClick={() => handleSelectWallpaper(wp.id, wp.url)}
-              className={`relative h-16 overflow-hidden rounded-lg border transition-all ${
-                activeBg.wallpaperId === wp.id
-                  ? "border-terminal-green ring-1 ring-terminal-green"
-                  : "border-terminal-border hover:border-terminal-green/40"
-              }`}
-            >
-              <img
-                src={wp.thumbnailUrl}
-                alt={wp.label}
-                loading="lazy"
-                className="h-full w-full object-cover"
-                style={{ backgroundColor: wp.dominantColor }}
-              />
-              {activeBg.wallpaperId === wp.id && (
-                <div className="absolute -right-0.5 -top-0.5">
-                  <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
-                    <Check className="h-2 w-2" />
+        {bgMediaType === "images" ? (
+          <>
+            {/* Image category filter */}
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setWallpaperCategory("all")}
+                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                  wallpaperCategory === "all"
+                    ? "bg-terminal-dark text-terminal-cream"
+                    : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                }`}
+              >
+                {t("preferences.backgrounds.all")}
+              </button>
+              {WALLPAPER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setWallpaperCategory(cat.id)}
+                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                    wallpaperCategory === cat.id
+                      ? "bg-terminal-dark text-terminal-cream"
+                      : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Wallpaper grid */}
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {/* None option */}
+              <button
+                type="button"
+                onClick={handleClearBackground}
+                className={`relative flex h-16 items-center justify-center rounded-lg border transition-all ${
+                  activeBg.type === "none"
+                    ? "border-terminal-green bg-terminal-green/10"
+                    : "border-terminal-border hover:border-terminal-green/40"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-terminal-muted">{t("preferences.backgrounds.none")}</span>
+                {activeBg.type === "none" && (
+                  <div className="absolute -right-1 -top-1">
+                    <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                      <Check className="h-2 w-2" />
+                    </div>
                   </div>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
+                )}
+              </button>
+              {filteredWallpapers.map((wp) => (
+                <button
+                  key={wp.id}
+                  type="button"
+                  onClick={() => handleSelectWallpaper(wp.id, wp.url)}
+                  className={`relative h-16 overflow-hidden rounded-lg border transition-all ${
+                    activeBg.wallpaperId === wp.id
+                      ? "border-terminal-green ring-1 ring-terminal-green"
+                      : "border-terminal-border hover:border-terminal-green/40"
+                  }`}
+                >
+                  <img
+                    src={wp.thumbnailUrl}
+                    alt={wp.label}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    style={{ backgroundColor: wp.dominantColor }}
+                  />
+                  {activeBg.wallpaperId === wp.id && (
+                    <div className="absolute -right-0.5 -top-0.5">
+                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                        <Check className="h-2 w-2" />
+                      </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Video category filter */}
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setVideoCategory("all")}
+                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                  videoCategory === "all"
+                    ? "bg-terminal-dark text-terminal-cream"
+                    : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                }`}
+              >
+                {t("preferences.backgrounds.all")}
+              </button>
+              {VIDEO_WALLPAPER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setVideoCategory(cat.id)}
+                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                    videoCategory === cat.id
+                      ? "bg-terminal-dark text-terminal-cream"
+                      : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Video wallpaper grid */}
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {/* None option */}
+              <button
+                type="button"
+                onClick={handleClearBackground}
+                className={`relative flex h-16 items-center justify-center rounded-lg border transition-all ${
+                  activeBg.type === "none"
+                    ? "border-terminal-green bg-terminal-green/10"
+                    : "border-terminal-border hover:border-terminal-green/40"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-terminal-muted">{t("preferences.backgrounds.none")}</span>
+                {activeBg.type === "none" && (
+                  <div className="absolute -right-1 -top-1">
+                    <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                      <Check className="h-2 w-2" />
+                    </div>
+                  </div>
+                )}
+              </button>
+              {filteredVideos.map((vid) => (
+                <button
+                  key={vid.id}
+                  type="button"
+                  onClick={() => handleSelectVideo(vid.id)}
+                  className={`group relative h-16 overflow-hidden rounded-lg border transition-all ${
+                    activeBg.videoId === vid.id
+                      ? "border-terminal-green ring-1 ring-terminal-green"
+                      : "border-terminal-border hover:border-terminal-green/40"
+                  }`}
+                  title={vid.label}
+                >
+                  <img
+                    src={vid.posterUrl}
+                    alt={vid.label}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    style={{ backgroundColor: vid.dominantColor }}
+                  />
+                  {/* Play icon overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Play className="h-4 w-4 fill-white text-white" />
+                  </div>
+                  {/* Duration badge */}
+                  <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 py-px font-mono text-[8px] text-white">
+                    {vid.duration}s
+                  </span>
+                  {activeBg.videoId === vid.id && (
+                    <div className="absolute -right-0.5 -top-0.5">
+                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                        <Check className="h-2 w-2" />
+                      </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div>
