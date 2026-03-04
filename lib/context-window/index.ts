@@ -71,3 +71,22 @@ export {
   type CompactionResult,
   type CompactionOptions,
 } from "./compaction-service";
+
+// Scoped counting contracts + helpers
+export {
+  type ContextScope,
+  type ContextProvenance,
+  type ScopedCountOptions,
+  CLAUDECODE_PROVIDER,
+  isScopedCountingEnabled,
+  isScopedDualCalcEnabled,
+  isScopedFallbackEnabled,
+  getScopedFallbackMinConfidence,
+  shouldUseScopedCounting,
+  shouldDualCalculate,
+  normalizeProvenance,
+} from "./scoped-counting-contract";
+
+export { isDelegatedToolName, getDefaultScopeFromSessionMetadata } from "./claudecode-scope-classifier";
+export { LegacyScopeHeuristic, type LegacyScopeInference } from "./fallback-scope-parser";
+export { logScopedCountingTelemetry } from "./scoped-counting-telemetry";

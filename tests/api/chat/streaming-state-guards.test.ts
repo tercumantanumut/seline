@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  appendTextPartToState,
+  recordToolResultChunk,
   recordToolInputDelta,
   recordToolInputStart,
   finalizeStreamingToolCalls,
@@ -204,5 +206,81 @@ describe("finalizeStreamingToolCalls - log truncation", () => {
     const part = state.toolCallParts.get("tc-1");
     expect(part?.state).toBe("input-available");
     expect(part?.args).toEqual({});
+  });
+});
+
+
+describe("streaming provenance", () => {
+  it("attaches provenance to emitted text and tool-result parts", () => {
+    const state: StreamingMessageState = {
+      parts: [],
+      toolCallParts: new Map(),
+      loggedIncompleteToolCalls: new Set(),
+      lastBroadcastAt: 0,
+      lastBroadcastSignature: "",
+      provenance: {
+        contextScope: "delegated",
+        delegationId: "del-1",
+        provenanceVersion: 1,
+      },
+    };
+
+    const textChanged = (recordToolInputStart(state, "tc-provenance", "Task") && true);
+    expect(textChanged).toBe(true);
+
+    // Add text via the exported API so provenance applies through append flow.
+    const appendResult = appendTextPartToState(state, "delegated output");
+    expect(appendResult).toBe(true);
+
+    const resultChanged = recordToolResultChunk(state, "tc-provenance", "Task", { ok: true });
+    expect(resultChanged).toBe(true);
+
+    const textPart = state.parts.find((part) => part.type === "text") as any;
+    const toolResultPart = state.parts.find((part) => part.type === "tool-result") as any;
+
+    expect(textPart.contextScope).toBe("delegated");
+    expect(textPart.delegationId).toBe("del-1");
+    expect(toolResultPart.contextScope).toBe("delegated");
+    expect(toolResultPart.delegationId).toBe("del-1");
+  });
+});
+
+
+describe("streaming-state provenance tagging", () => {
+  it("attaches provenance to new text/tool parts", () => {
+    const state = makeState();
+    state.provenance = {
+      contextScope: "delegated",
+      provenanceVersion: 1,
+      delegationId: "d-1",
+    };
+
+    recordToolInputStart(state, "tc-prov", "Task");
+    recordToolInputDelta(state, "tc-prov", '{"id":"1"}');
+
+    const callPart = state.parts.find((part) => part.type === "tool-call") as any;
+    expect(callPart?.contextScope).toBe("delegated");
+    expect(callPart?.delegationId).toBe("d-1");
+
+    const textState = makeState();
+    textState.provenance = { contextScope: "main", provenanceVersion: 1 };
+    textState.parts.push({ type: "text", text: "existing" } as any);
+
+    // push a tool part to verify provenance on inserted parts in this test file's flow
+    recordToolInputStart(textState, "tc-main", "readFile");
+    const inserted = textState.parts.find((part) => part.type === "tool-call") as any;
+    expect(inserted?.contextScope).toBe("main");
+  });
+
+  it("attaches provenance to tool-result replacement", () => {
+    const state = makeState();
+    state.provenance = { contextScope: "delegated", provenanceVersion: 1 };
+
+    recordToolInputStart(state, "tc-result", "Task");
+
+    recordToolResultChunk(state, "tc-result", "Task", { ok: true }, false);
+
+    const resultPart = state.parts.find((part) => part.type === "tool-result") as any;
+    expect(resultPart?.contextScope).toBe("delegated");
   });
 });

@@ -1,6 +1,10 @@
 import type { DBContentPart, DBToolCallPart, DBToolResultPart } from "@/lib/messages/converter";
 import { normalizeToolResultOutput } from "@/lib/ai/tool-result-utils";
 import { attemptJsonRepair } from "./tool-call-utils";
+import {
+  normalizeProvenance,
+  type ContextProvenance,
+} from "@/lib/context-window/scoped-counting-contract";
 
 /**
  * Hard cap on accumulated argsText per tool call (100KB).
@@ -30,6 +34,7 @@ export interface StreamingMessageState {
    * onFinish uses this to only persist post-injection steps to the new message.
    */
   stepOffset?: number;
+  provenance?: ContextProvenance;
 }
 
 export function cloneContentParts(parts: DBContentPart[]): DBContentPart[] {
@@ -82,6 +87,18 @@ export function extractTextFromParts(parts: DBContentPart[]): string {
     .trim();
 }
 
+function applyProvenanceToPart(
+  state: StreamingMessageState,
+  part: DBContentPart
+): DBContentPart {
+  const provenance = normalizeProvenance(state.provenance);
+  if (!provenance) return part;
+  return {
+    ...part,
+    ...provenance,
+  } as DBContentPart;
+}
+
 export function appendTextPartToState(state: StreamingMessageState, delta: string | undefined): boolean {
   if (!delta) {
     return false;
@@ -90,7 +107,7 @@ export function appendTextPartToState(state: StreamingMessageState, delta: strin
   if (lastPart?.type === "text") {
     lastPart.text += delta;
   } else {
-    state.parts.push({ type: "text", text: delta });
+    state.parts.push(applyProvenanceToPart(state, { type: "text", text: delta }));
   }
   return true;
 }
@@ -98,12 +115,12 @@ export function appendTextPartToState(state: StreamingMessageState, delta: strin
 export function ensureToolCallPart(state: StreamingMessageState, toolCallId: string, toolName?: string): DBToolCallPart {
   let part = state.toolCallParts.get(toolCallId);
   if (!part) {
-    part = {
+    part = applyProvenanceToPart(state, {
       type: "tool-call",
       toolCallId,
       toolName: toolName ?? "tool",
       state: "input-streaming",
-    };
+    }) as DBToolCallPart;
     state.toolCallParts.set(toolCallId, part);
     state.parts.push(part);
   } else if (toolName && part.toolName !== toolName) {
@@ -346,7 +363,7 @@ export function recordToolResultChunk(
     (part) => part.type === "tool-result" && (part as DBToolResultPart).toolCallId === toolCallId
   );
 
-  const resultPart: DBToolResultPart = {
+  const resultPart: DBToolResultPart = applyProvenanceToPart(state, {
     type: "tool-result",
     toolCallId,
     toolName: normalizedName,
@@ -355,7 +372,7 @@ export function recordToolResultChunk(
     preliminary,
     status: normalized.status,
     timestamp: new Date().toISOString(),
-  };
+  }) as DBToolResultPart;
 
   if (existingResultIndex !== -1) {
     // Update existing result part instead of adding a new one

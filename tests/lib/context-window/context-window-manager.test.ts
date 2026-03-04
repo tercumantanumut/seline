@@ -8,6 +8,10 @@ const dbMocks = vi.hoisted(() => ({
   markMessagesAsCompacted: vi.fn(),
 }));
 
+vi.mock("@/lib/db/sqlite-client", () => ({
+  db: {},
+}));
+
 vi.mock("@/lib/db/queries", () => ({
   getSession: dbMocks.getSession,
   getNonCompactedMessages: dbMocks.getNonCompactedMessages,
@@ -263,5 +267,88 @@ describe("Codex model context window limits", () => {
     expect(result.status.maxTokens).toBe(400_000);
     // 208K / 400K = 52%
     expect(result.status.usagePercentage).toBeCloseTo(0.52, 2);
+  });
+});
+
+
+describe("ContextWindowManager scoped counting integration", () => {
+  const sessionId = "session-scoped";
+  const modelId = "claude-sonnet-4-6";
+
+  beforeEach(() => {
+    dbMocks.getSession.mockReset();
+    dbMocks.getNonCompactedMessages.mockReset();
+    vi.restoreAllMocks();
+
+    dbMocks.getSession.mockResolvedValue({
+      id: sessionId,
+      summary: null,
+      metadata: { provider: "claudecode" },
+    });
+    dbMocks.getNonCompactedMessages.mockResolvedValue([]);
+  });
+
+  it("uses scoped tokens for claudecode context status", async () => {
+    const usageSpy = vi
+      .spyOn(TokenTracker, "calculateUsage")
+      .mockResolvedValueOnce(makeUsage(1_000))
+      .mockResolvedValueOnce(makeUsage(190_500));
+
+    const status = await ContextWindowManager.checkContextWindow(
+      sessionId,
+      modelId,
+      0,
+      "claudecode"
+    );
+
+    expect(usageSpy).toHaveBeenCalledTimes(2);
+    expect(usageSpy.mock.calls[0]?.[4]).toMatchObject({ provider: "claudecode" });
+    expect(usageSpy.mock.calls[1]?.[4]).toMatchObject({ scopedMode: "legacy" });
+    expect(status.currentTokens).toBe(1_000);
+    expect(status.status).toBe("safe");
+  });
+
+  it("wouldExceedLimit projection uses scoped baseline", async () => {
+    vi.spyOn(TokenTracker, "calculateUsage")
+      .mockResolvedValueOnce(makeUsage(150_000))
+      .mockResolvedValueOnce(makeUsage(180_000));
+
+    const projection = await ContextWindowManager.wouldExceedLimit(
+      sessionId,
+      modelId,
+      { type: "text", text: "hello" },
+      0,
+      "claudecode"
+    );
+
+    expect(projection.projectedTokens).toBeGreaterThan(150_000);
+    expect(projection.projectedTokens).toBeLessThan(190_000);
+    expect(projection.wouldExceed).toBe(false);
+  });
+
+  it("preFlightCheck blocks when scoped usage exceeds hard limit", async () => {
+    vi.spyOn(TokenTracker, "calculateUsage")
+      .mockResolvedValueOnce(makeUsage(191_000))
+      .mockResolvedValueOnce(makeUsage(191_000))
+      .mockResolvedValueOnce(makeUsage(191_000));
+
+    vi.spyOn(CompactionService, "compact")
+      .mockResolvedValueOnce({
+        success: false,
+        tokensFreed: 0,
+        messagesCompacted: 0,
+        newSummary: "",
+        error: "Not enough messages to compact (1 < 3)",
+      });
+
+    const result = await ContextWindowManager.preFlightCheck(
+      sessionId,
+      modelId,
+      0,
+      "claudecode"
+    );
+
+    expect(result.canProceed).toBe(false);
+    expect(result.status.status).toBe("exceeded");
   });
 });

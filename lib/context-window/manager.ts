@@ -16,6 +16,13 @@ import {
 } from "./provider-limits";
 import { CompactionService, type CompactionResult } from "./compaction-service";
 import type { LLMProvider } from "@/components/model-bag/model-bag.types";
+import {
+  getScopedFallbackMinConfidence,
+  isScopedFallbackEnabled,
+  shouldUseScopedCounting,
+  shouldDualCalculate,
+} from "./scoped-counting-contract";
+import { logScopedCountingTelemetry } from "./scoped-counting-telemetry";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +80,16 @@ export interface ContextCheckResult {
 // ---------------------------------------------------------------------------
 
 export class ContextWindowManager {
+  private static classifyStatusFromTokens(
+    totalTokens: number,
+    thresholds: { warningTokens: number; criticalTokens: number; hardLimitTokens: number }
+  ): ContextStatus {
+    if (totalTokens >= thresholds.hardLimitTokens) return "exceeded";
+    if (totalTokens >= thresholds.criticalTokens) return "critical";
+    if (totalTokens >= thresholds.warningTokens) return "warning";
+    return "safe";
+  }
+
   /**
    * Check context window status for a session.
    *
@@ -97,15 +114,52 @@ export class ContextWindowManager {
     const config = getContextWindowConfig(modelId, provider);
     const thresholds = getTokenThresholds(modelId, provider);
 
-    // Calculate current token usage
+    const scopedOptions = {
+      provider,
+      sessionMetadata: (session.metadata ?? null) as Record<string, unknown> | null,
+      fallbackEnabled: isScopedFallbackEnabled(),
+      fallbackMinConfidence: getScopedFallbackMinConfidence(),
+    };
+
     const usage = await TokenTracker.calculateUsage(
       sessionId,
       messages,
       systemPromptLength,
-      session.summary
+      session.summary,
+      scopedOptions
     );
 
-    const usagePercentage = usage.totalTokens / config.maxTokens;
+    let usageForDecision = usage;
+    if (shouldDualCalculate(provider)) {
+      const legacyUsage = await TokenTracker.calculateUsage(
+        sessionId,
+        messages,
+        systemPromptLength,
+        session.summary,
+        {
+          ...scopedOptions,
+          scopedMode: "legacy",
+        }
+      );
+      const scopedStatus = this.classifyStatusFromTokens(usage.totalTokens, thresholds);
+      const legacyStatus = this.classifyStatusFromTokens(legacyUsage.totalTokens, thresholds);
+      logScopedCountingTelemetry({
+        sessionId,
+        provider,
+        legacyTokens: legacyUsage.totalTokens,
+        scopedTokens: usage.totalTokens,
+        legacyStatus,
+        scopedStatus,
+        fallbackUsed: scopedOptions.fallbackEnabled,
+        fallbackMinConfidence: scopedOptions.fallbackMinConfidence,
+      });
+
+      if (!shouldUseScopedCounting(provider)) {
+        usageForDecision = legacyUsage;
+      }
+    }
+
+    const usagePercentage = usageForDecision.totalTokens / config.maxTokens;
 
     // Determine status and actions
     let status: ContextStatus;
@@ -113,18 +167,18 @@ export class ContextWindowManager {
     let mustCompact = false;
     let recommendedAction: string;
 
-    if (usage.totalTokens >= thresholds.hardLimitTokens) {
+    if (usageForDecision.totalTokens >= thresholds.hardLimitTokens) {
       status = "exceeded";
       mustCompact = true;
       recommendedAction =
         "Context window exceeded. Compaction required before continuing. " +
         "If compaction fails, please start a new conversation.";
-    } else if (usage.totalTokens >= thresholds.criticalTokens) {
+    } else if (usageForDecision.totalTokens >= thresholds.criticalTokens) {
       status = "critical";
       mustCompact = true;
       recommendedAction =
         "Context window critical. Forcing compaction before next request.";
-    } else if (usage.totalTokens >= thresholds.warningTokens) {
+    } else if (usageForDecision.totalTokens >= thresholds.warningTokens) {
       status = "warning";
       shouldCompact = true;
       recommendedAction =
@@ -137,7 +191,7 @@ export class ContextWindowManager {
     const percentage = usagePercentage * 100;
 
     return {
-      currentTokens: usage.totalTokens,
+      currentTokens: usageForDecision.totalTokens,
       maxTokens: config.maxTokens,
       usagePercentage,
       status,

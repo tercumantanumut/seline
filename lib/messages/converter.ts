@@ -1,19 +1,20 @@
 import type { UIMessage } from "ai";
 import { isInternalToolHistoryLeakText } from "@/lib/messages/internal-tool-history";
+import type { ContextProvenance } from "@/lib/context-window/scoped-counting-contract";
 
 type ToolInvocationState = "input-streaming" | "input-available" | "output-available" | "output-error" | "output-denied";
 
-export interface DBTextContentPart {
+export interface DBTextContentPart extends ContextProvenance {
   type: "text";
   text: string;
 }
 
-export interface DBImageContentPart {
+export interface DBImageContentPart extends ContextProvenance {
   type: "image";
   image: string;
 }
 
-export interface DBToolCallPart {
+export interface DBToolCallPart extends ContextProvenance {
   type: "tool-call";
   toolCallId: string;
   toolName: string;
@@ -22,7 +23,7 @@ export interface DBToolCallPart {
   state?: ToolInvocationState;
 }
 
-export interface DBToolResultPart {
+export interface DBToolResultPart extends ContextProvenance {
   type: "tool-result";
   toolCallId: string;
   toolName?: string;

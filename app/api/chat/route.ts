@@ -6,7 +6,7 @@ import { AI_CONFIG } from "@/lib/ai/config";
 import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
 import { shouldUseCache } from "@/lib/ai/cache/config";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
-import { ContextWindowManager } from "@/lib/context-window";
+import { ContextWindowManager, isDelegatedToolName } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds } from "@/lib/db/queries";
@@ -280,6 +280,10 @@ export async function POST(req: Request) {
         messageId: undefined,
         lastBroadcastAt: 0,
         lastBroadcastSignature: "",
+        provenance: {
+          contextScope: sessionMetadata?.isDelegation === true ? "delegated" : "main",
+          provenanceVersion: 1,
+        },
       }
       : null;
 
@@ -944,9 +948,23 @@ export async function POST(req: Request) {
                     );
                   }
                 }
+                if (provider === "claudecode" && chunk.toolName && isDelegatedToolName(chunk.toolName)) {
+                  streamingState.provenance = {
+                    ...(streamingState.provenance ?? {}),
+                    contextScope: "delegated",
+                    provenanceVersion: 1,
+                  };
+                }
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+                if (provider === "claudecode" && chunk.toolName && isDelegatedToolName(chunk.toolName)) {
+                  streamingState.provenance = {
+                    ...(streamingState.provenance ?? {}),
+                    contextScope: "main",
+                    provenanceVersion: 1,
+                  };
+                }
               }
               if (changed) await syncStreamingMessage();
             }

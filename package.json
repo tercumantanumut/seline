@@ -47,6 +47,8 @@
     "test:validate:mac-signing:dry": "tsx scripts/validation/exec-validation.ts validate-macos-signing-notarization --dry-run",
     "test:validate:utility-session-token-audit": "tsx scripts/validation/exec-validation.ts validate-utility-session-token-audit",
     "test:validate:utility-session-token-audit:dry": "tsx scripts/validation/exec-validation.ts validate-utility-session-token-audit --dry-run",
+    "test:validate:scoped-context-recompute": "tsx scripts/validation/recompute-scoped-context-usage.ts --write",
+    "test:validate:scoped-context-recompute:dry": "tsx scripts/validation/recompute-scoped-context-usage.ts --dry-run",
     "test:validate:chromium-workspace": "tsx scripts/validation/validate-chromium-workspace.ts --live",
     "test:validate:chromium-workspace:dry": "tsx scripts/validation/validate-chromium-workspace.ts --dry-run",
     "test:ddg:windows": "tsx scripts/diagnose-ddg-windows.ts",
