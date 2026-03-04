@@ -2311,7 +2311,21 @@
         "autoStartDesc": "Parakeet seciliyken ilk transkripsiyon gecikmesini azaltir.",
         "portLabel": "Parakeet websocket portu",
         "portHelper": "0 ise uygun bir port otomatik secilir."
-      }
+      },
+      "historyCopied": "Panoya kopyalandı",
+      "historyCopyFailed": "Kopyalama başarısız",
+      "historyDeleted": "Kayıt silindi",
+      "historyDeleteFailed": "Kayıt silinemedi",
+      "historyEmpty": "Henüz transkripsiyon geçmişi yok",
+      "dictionaryAdded": "\"{word}\" sözlüğe eklendi",
+      "dictionaryRemoved": "\"{word}\" sözlükten çıkarıldı",
+      "dictionaryAddFailed": "Kelime eklenemedi",
+      "dictionaryRemoveFailed": "Kelime silinemedi",
+      "dictionaryPlaceholder": "Kelime veya isim ekle...",
+      "dictionaryAutoLearnHint": "Düzeltmelerinizden otomatik öğrenir",
+      "dictionaryEmpty": "Henüz özel kelime yok",
+      "dictionaryCount": "{count} kelime",
+      "actionComplete": "İşlem tamamlandı"
     },
     "localGrep": {
       "heading": "Yerel grep (tam kod araması)",

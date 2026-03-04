@@ -166,6 +166,7 @@ import {
   PROD_SERVER_PORT,
 } from "./next-server";
 import { setupIpcHandlers, setupEmbeddingModelPaths } from "./ipc-handlers";
+import { registerVoiceHotkeyFromSettings } from "./hotkey-manager";
 
 // ---------------------------------------------------------------------------
 // Initialize debug log
@@ -271,6 +272,22 @@ app.whenReady().then(async () => {
     waitForServer: waitForServerReady,
   });
   debugLog("[App] Main window created");
+
+  // Register global voice hotkey from user settings
+  try {
+    const hotkeyResult = registerVoiceHotkeyFromSettings({
+      dataDir,
+      onTrigger: () => {
+        const { mainWindow } = require("./window-manager") as typeof import("./window-manager");
+        if (mainWindow) {
+          mainWindow.webContents.send("voice-hotkey:triggered");
+        }
+      },
+    });
+    debugLog(`[App] Voice hotkey registered: ${hotkeyResult.accelerator} (success: ${hotkeyResult.success})`);
+  } catch (error) {
+    debugError("[App] Voice hotkey registration failed:", error);
+  }
 
   // On macOS, re-create window when dock icon is clicked and no windows exist
   app.on("activate", async () => {

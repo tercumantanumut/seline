@@ -33,8 +33,7 @@ export interface CatalogSkill {
   displayName: string;
   shortDescription: string;
   category: SkillCategory;
-  icon: string;               // filename in /public/icons/skills/
-  fallbackIcon?: string;      // Lucide icon name for dynamic rendering
+  icon: string;               // PNG filename in /public/icons/skills/ (sourced from openai/skills repo)
   defaultPrompt: string;
   overview?: string;          // Short markdown for dialog body (before full SKILL.md loads)
   dependencies?: CatalogSkillDependency[];
@@ -64,7 +63,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Figma",
     shortDescription: "Use Figma MCP for design-to-code work",
     category: "design",
-    icon: "figma.svg",
+    icon: "figma.png",
     defaultPrompt: "Use Figma MCP to inspect the target design and translate it into implementable UI decisions.",
     dependencies: [
       { type: "mcp", value: "figma", description: "Figma MCP server", url: "https://mcp.figma.com/mcp" }
@@ -77,7 +76,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Figma Implement Design",
     shortDescription: "Turn Figma designs into production-ready code",
     category: "design",
-    icon: "figma.svg",
+    icon: "figma.png",
     defaultPrompt: "Implement this Figma design in this codebase, matching layout, states, and responsive behavior.",
     dependencies: [
       { type: "mcp", value: "figma", description: "Figma MCP server", url: "https://mcp.figma.com/mcp" }
@@ -92,7 +91,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Vercel Deploy",
     shortDescription: "Deploy apps with zero configuration on Vercel",
     category: "deploy",
-    icon: "vercel.svg",
+    icon: "vercel.png",
     defaultPrompt: "Create a Vercel deployment for this project and share the URL.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/vercel-deploy" },
     tags: ["vercel", "deploy", "hosting", "serverless"],
@@ -102,7 +101,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Netlify Deploy",
     shortDescription: "Deploy web projects to Netlify with the Netlify CLI",
     category: "deploy",
-    icon: "netlify.svg",
+    icon: "netlify.png",
     defaultPrompt: "Deploy this project to Netlify and return the preview URL, build settings, and any required fixes.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/netlify-deploy" },
     tags: ["netlify", "deploy", "hosting", "static"],
@@ -112,7 +111,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Cloudflare Deploy",
     shortDescription: "Deploy Workers, Pages, and platform services on Cloudflare",
     category: "deploy",
-    icon: "cloudflare.svg",
+    icon: "cloudflare.png",
     defaultPrompt: "Deploy this app to Cloudflare (Workers or Pages) and return URL, config, and required env vars.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/cloudflare-deploy" },
     tags: ["cloudflare", "workers", "pages", "deploy"],
@@ -122,7 +121,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Render Deploy",
     shortDescription: "Deploy applications to Render via Blueprints or MCP",
     category: "deploy",
-    icon: "render.svg",
+    icon: "render.png",
     defaultPrompt: "Deploy this application to Render and provide service URL, env vars, and next checks.",
     dependencies: [
       { type: "mcp", value: "render", description: "Render MCP server", url: "https://mcp.render.com/mcp" }
@@ -137,7 +136,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "GitHub Fix CI",
     shortDescription: "Debug failing GitHub Actions CI",
     category: "dev-tools",
-    icon: "github.svg",
+    icon: "github.png",
     defaultPrompt: "Inspect failing GitHub Actions checks in this repo, summarize root cause, and propose a focused fix plan.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/gh-fix-ci" },
     tags: ["github", "ci", "actions", "debug"],
@@ -147,7 +146,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "GitHub Address Comments",
     shortDescription: "Address comments in a GitHub PR review",
     category: "dev-tools",
-    icon: "github.svg",
+    icon: "github.png",
     defaultPrompt: "Address all actionable GitHub PR review comments in this branch and summarize the updates.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/gh-address-comments" },
     tags: ["github", "pr", "review", "comments"],
@@ -157,7 +156,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Linear",
     shortDescription: "Manage Linear issues in Seline",
     category: "dev-tools",
-    icon: "linear.svg",
+    icon: "linear.png",
     defaultPrompt: "Use Linear context to triage or update relevant issues for this task, with clear next actions.",
     dependencies: [
       { type: "mcp", value: "linear", description: "Linear MCP server", url: "https://mcp.linear.app/mcp" }
@@ -170,7 +169,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Sentry",
     shortDescription: "Read-only Sentry observability",
     category: "dev-tools",
-    icon: "sentry.svg",
+    icon: "sentry.png",
     defaultPrompt: "Investigate this issue in read-only Sentry data and report likely root cause, impact, and next steps.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/sentry" },
     tags: ["sentry", "observability", "errors", "monitoring"],
@@ -180,7 +179,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Playwright",
     shortDescription: "Automate real browsers from the terminal",
     category: "dev-tools",
-    icon: "playwright.svg",
+    icon: "playwright.png",
     defaultPrompt: "Automate this browser workflow with Playwright and produce a reliable script with run steps.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/playwright" },
     tags: ["playwright", "browser", "testing", "automation"],
@@ -190,8 +189,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Screenshot",
     shortDescription: "Capture screenshots",
     category: "dev-tools",
-    icon: "screenshot.svg",
-    fallbackIcon: "Camera",
+    icon: "screenshot.png",
     defaultPrompt: "Capture the right screenshot for this task (target, area, and output path).",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/screenshot" },
     tags: ["screenshot", "capture", "image"],
@@ -201,7 +199,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Jupyter Notebooks",
     shortDescription: "Create Jupyter notebooks for experiments and tutorials",
     category: "dev-tools",
-    icon: "jupyter.svg",
+    icon: "jupyter.png",
     defaultPrompt: "Create a Jupyter notebook for this task with clear sections, runnable cells, and concise takeaways.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/jupyter-notebook" },
     tags: ["jupyter", "notebook", "python", "data"],
@@ -211,7 +209,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "ChatGPT Apps",
     shortDescription: "Build and scaffold ChatGPT apps",
     category: "dev-tools",
-    icon: "openai.svg",
+    icon: "openai.png",
     defaultPrompt: "Use $chatgpt-apps to classify the app archetype first, fetch current OpenAI Apps SDK docs before generating code.",
     dependencies: [
       { type: "mcp", value: "openaiDeveloperDocs", description: "OpenAI Developer Docs MCP", url: "https://developers.openai.com/mcp" }
@@ -224,8 +222,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Develop Web Game",
     shortDescription: "Web game dev + Playwright test loop",
     category: "creative",
-    icon: "game.svg",
-    fallbackIcon: "Gamepad2",
+    icon: "game.png",
     defaultPrompt: "Build and iterate a playable web game in this workspace, validating changes with a Playwright loop.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/develop-web-game" },
     tags: ["game", "web", "playwright", "development"],
@@ -235,8 +232,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Yeet",
     shortDescription: "Stage, commit, and open PR",
     category: "dev-tools",
-    icon: "yeet.svg",
-    fallbackIcon: "GitPullRequest",
+    icon: "yeet.png",
     defaultPrompt: "Prepare this branch for review: stage intended changes, write a focused commit, and open a PR.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/yeet" },
     tags: ["git", "commit", "pr", "push"],
@@ -248,7 +244,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Notion Knowledge Capture",
     shortDescription: "Capture conversations into structured Notion pages",
     category: "productivity",
-    icon: "notion.svg",
+    icon: "notion.png",
     defaultPrompt: "Capture this conversation into structured Notion pages with decisions, action items, and owners when known.",
     dependencies: [
       { type: "mcp", value: "notion", description: "Notion MCP server", url: "https://mcp.notion.com/mcp" }
@@ -261,7 +257,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Notion Meeting Intelligence",
     shortDescription: "Prep meetings with Notion context and tailored agendas",
     category: "productivity",
-    icon: "notion.svg",
+    icon: "notion.png",
     defaultPrompt: "Prepare this meeting from Notion context with a brief, agenda, decisions needed, and open questions.",
     dependencies: [
       { type: "mcp", value: "notion", description: "Notion MCP server", url: "https://mcp.notion.com/mcp" }
@@ -274,7 +270,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Notion Research & Documentation",
     shortDescription: "Research Notion content and produce briefs/reports",
     category: "productivity",
-    icon: "notion.svg",
+    icon: "notion.png",
     defaultPrompt: "Research this topic in Notion and produce a sourced brief with clear recommendations.",
     dependencies: [
       { type: "mcp", value: "notion", description: "Notion MCP server", url: "https://mcp.notion.com/mcp" }
@@ -287,7 +283,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Notion Spec to Implementation",
     shortDescription: "Turn Notion specs into implementation plans, tasks, and progress tracking",
     category: "productivity",
-    icon: "notion.svg",
+    icon: "notion.png",
     defaultPrompt: "Turn this Notion spec into an implementation plan with milestones, tasks, and dependencies.",
     dependencies: [
       { type: "mcp", value: "notion", description: "Notion MCP server", url: "https://mcp.notion.com/mcp" }
@@ -300,8 +296,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "PDF",
     shortDescription: "Create, edit, and review PDFs",
     category: "productivity",
-    icon: "pdf.svg",
-    fallbackIcon: "FileText",
+    icon: "pdf.png",
     defaultPrompt: "Create, edit, or review this PDF and summarize the key output or changes.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/pdf" },
     tags: ["pdf", "document", "create", "edit"],
@@ -311,8 +306,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Word Docs",
     shortDescription: "Edit and review docx files",
     category: "productivity",
-    icon: "doc.svg",
-    fallbackIcon: "FileEdit",
+    icon: "doc.png",
     defaultPrompt: "Edit or review this .docx file and return the updated file plus a concise change summary.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/doc" },
     tags: ["docx", "word", "document", "edit"],
@@ -322,8 +316,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Spreadsheet",
     shortDescription: "Create, edit, and analyze spreadsheets",
     category: "productivity",
-    icon: "spreadsheet.svg",
-    fallbackIcon: "Sheet",
+    icon: "spreadsheet.png",
     defaultPrompt: "Create or update a spreadsheet for this task with the right formulas, structure, and formatting.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/spreadsheet" },
     tags: ["spreadsheet", "excel", "csv", "data"],
@@ -335,7 +328,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Image Gen",
     shortDescription: "Generate and edit images using OpenAI",
     category: "creative",
-    icon: "imagegen.svg",
+    icon: "imagegen.png",
     defaultPrompt: "Generate or edit images for this task and return the final prompt plus selected outputs.",
     dependencies: [
       { type: "api-key", value: "OPENAI_API_KEY", description: "OpenAI API key for image generation" }
@@ -348,7 +341,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Sora",
     shortDescription: "Generate and manage Sora videos",
     category: "creative",
-    icon: "sora.svg",
+    icon: "sora.png",
     defaultPrompt: "Plan and generate a Sora video for this request, then iterate with concrete prompt edits.",
     dependencies: [
       { type: "api-key", value: "OPENAI_API_KEY", description: "OpenAI API key for Sora" }
@@ -361,8 +354,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Speech",
     shortDescription: "Generate narrated audio from text",
     category: "creative",
-    icon: "speech.svg",
-    fallbackIcon: "AudioLines",
+    icon: "speech.png",
     defaultPrompt: "Generate spoken audio for this text with the right voice style, pacing, and output format.",
     dependencies: [
       { type: "api-key", value: "OPENAI_API_KEY", description: "OpenAI API key for TTS" }
@@ -375,8 +367,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Transcribe",
     shortDescription: "Transcribe audio using OpenAI, with optional speaker diarization",
     category: "creative",
-    icon: "transcribe.svg",
-    fallbackIcon: "AudioWaveform",
+    icon: "transcribe.png",
     defaultPrompt: "Transcribe this audio or video, include speaker labels when possible, and provide a clean summary.",
     dependencies: [
       { type: "api-key", value: "OPENAI_API_KEY", description: "OpenAI API key for Whisper" }
@@ -391,7 +382,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "OpenAI Docs",
     shortDescription: "Reference the official OpenAI Developer docs",
     category: "docs",
-    icon: "openai.svg",
+    icon: "openai.png",
     defaultPrompt: "Look up official OpenAI docs for this task and answer with concise, cited guidance.",
     dependencies: [
       { type: "mcp", value: "openaiDeveloperDocs", description: "OpenAI Developer Docs MCP", url: "https://developers.openai.com/mcp" }
@@ -406,8 +397,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Security Best Practices",
     shortDescription: "Security reviews and secure-by-default guidance",
     category: "security",
-    icon: "security.svg",
-    fallbackIcon: "Shield",
+    icon: "security-best-practices.png",  // TODO: source from Codex client (not in skills repo)
     defaultPrompt: "Review this codebase for security best practices and suggest secure-by-default improvements.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/security-best-practices" },
     tags: ["security", "review", "best-practices", "audit"],
@@ -417,8 +407,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Security Ownership Map",
     shortDescription: "Map maintainers, bus factor, and sensitive code ownership",
     category: "security",
-    icon: "security.svg",
-    fallbackIcon: "ShieldCheck",
+    icon: "security-ownership-map.png",  // TODO: source from Codex client (not in skills repo)
     defaultPrompt: "Build a security ownership map for this repository and identify bus-factor risks in sensitive code.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/security-ownership-map" },
     tags: ["security", "ownership", "bus-factor", "audit"],
@@ -428,8 +417,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "Security Threat Model",
     shortDescription: "Repo-grounded threat modeling and abuse-path analysis",
     category: "security",
-    icon: "security.svg",
-    fallbackIcon: "ShieldAlert",
+    icon: "security-threat-model.png",  // TODO: source from Codex client (not in skills repo)
     defaultPrompt: "Create a repository-grounded threat model for this codebase with prioritized abuse paths and mitigations.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/security-threat-model" },
     tags: ["security", "threat-model", "abuse-paths", "audit"],
@@ -441,7 +429,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "ASP.NET Core",
     shortDescription: "[Windows] Build and review ASP.NET Core web apps",
     category: "dev-tools",
-    icon: "dotnet.svg",
+    icon: "dotnet.png",
     defaultPrompt: "Create a new ASP.NET Core website for me.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/aspnet-core" },
     tags: ["dotnet", "aspnet", "csharp", "windows"],
@@ -452,7 +440,7 @@ export const SKILL_CATALOG: CatalogSkill[] = [
     displayName: "WinUI App",
     shortDescription: "[Windows] Build native WinUI 3 apps",
     category: "dev-tools",
-    icon: "winui.svg",
+    icon: "winui.png",
     defaultPrompt: "Create a new WinUI 3 desktop app for me.",
     installSource: { type: "github", repo: "openai/skills", path: "skills/.curated/winui-app" },
     tags: ["winui", "windows", "desktop", "native"],
@@ -472,8 +460,7 @@ export const SYSTEM_SKILLS: CatalogSkill[] = [
     displayName: "Skill Creator",
     shortDescription: "Create or update a skill",
     category: "dev-tools",
-    icon: "skill-creator.svg",
-    fallbackIcon: "Pencil",
+    icon: "skill-creator.png",  // TODO: source from Codex client (not in skills repo)
     defaultPrompt: "Create a new skill based on this conversation.",
     installSource: { type: "bundled" },
     tags: ["skill", "create", "update", "meta"],
@@ -483,7 +470,7 @@ export const SYSTEM_SKILLS: CatalogSkill[] = [
     displayName: "Notion",
     shortDescription: "Notion API for creating and managing pages, databases, and blocks",
     category: "productivity",
-    icon: "notion.svg",
+    icon: "notion.png",
     defaultPrompt: "Use Notion API to manage pages and databases.",
     dependencies: [
       { type: "mcp", value: "notion", description: "Notion MCP server", url: "https://mcp.notion.com/mcp" }
@@ -496,37 +483,100 @@ export const SYSTEM_SKILLS: CatalogSkill[] = [
 
 ## Icon Inventory
 
-Icons to add to `/public/icons/skills/`:
+All icons sourced as PNGs directly from `openai/skills` GitHub repo `assets/` directories. Stored in `/public/icons/skills/`.
 
-| Filename | Source | Notes |
+### Download Script (`scripts/download-skill-icons.sh`)
+
+```bash
+#!/bin/bash
+# Download all skill icons from openai/skills repo
+BASE="https://raw.githubusercontent.com/openai/skills/main/skills"
+OUT="public/icons/skills"
+mkdir -p "$OUT"
+
+# Curated skills with standard icon names
+declare -A ICONS=(
+  ["figma"]="figma"
+  ["sentry"]="sentry"
+  ["linear"]="linear"
+  ["playwright"]="playwright"
+  ["cloudflare-deploy"]="cloudflare"
+  ["vercel-deploy"]="vercel"
+  ["netlify-deploy"]="netlify"
+  ["render-deploy"]="render"
+  ["gh-fix-ci"]="github"
+  ["pdf"]="pdf"
+  ["doc"]="doc"
+  ["spreadsheet"]="spreadsheet"
+  ["imagegen"]="imagegen"
+  ["sora"]="sora"
+  ["speech"]="speech"
+  ["transcribe"]="transcribe"
+  ["screenshot"]="screenshot"
+  ["jupyter-notebook"]="jupyter"
+  ["yeet"]="yeet"
+  ["develop-web-game"]="game"
+  ["openai-docs"]="openai"
+  ["notion-knowledge-capture"]="notion"
+)
+
+for skill in "${!ICONS[@]}"; do
+  name="${ICONS[$skill]}"
+  echo "Downloading $name.png from $skill..."
+  curl -sL "$BASE/.curated/$skill/assets/$name.png" -o "$OUT/$name.png"
+done
+
+# Non-standard names
+curl -sL "$BASE/.curated/aspnet-core/assets/dotnet-logo.png" -o "$OUT/dotnet.png"
+curl -sL "$BASE/.curated/winui-app/assets/winui.png" -o "$OUT/winui.png"
+
+# System skill
+curl -sL "$BASE/.system/skill-installer/assets/skill-installer.png" -o "$OUT/skill-installer.png"
+
+echo "Done. Downloaded $(ls -1 $OUT/*.png | wc -l) icons."
+echo ""
+echo "⚠️  Missing icons (not in repo, need manual sourcing):"
+echo "  - skill-creator.png (system skill, icon in Codex client only)"
+echo "  - security-best-practices.png (no assets dir in repo)"
+echo "  - security-ownership-map.png (no assets dir in repo)"
+echo "  - security-threat-model.png (no assets dir in repo)"
+echo "  - chatgpt-apps uses openai.png (same brand)"
+```
+
+### Complete Icon List
+
+| Filename | Source URL | Status |
 |---|---|---|
-| figma.svg | SimpleIcons / Figma press kit | Brand mark |
-| vercel.svg | Already exists? Check /icons/brands/ | Triangle mark |
-| netlify.svg | SimpleIcons | |
-| cloudflare.svg | SimpleIcons | |
-| render.svg | Render press kit | |
-| github.svg | SimpleIcons | Invertocat |
-| linear.svg | SimpleIcons | |
-| sentry.svg | SimpleIcons | |
-| playwright.svg | SimpleIcons / MS | |
-| jupyter.svg | SimpleIcons | |
-| openai.svg | Can reuse from /icons/brands/openai.svg | |
-| notion.svg | Can reuse from /icons/brands/ if exists | |
-| dotnet.svg | SimpleIcons | |
-| winui.svg | Microsoft press kit | |
-| security.svg | Custom — Phosphor Shield exported as SVG | |
-| pdf.svg | Custom — Phosphor FilePdf exported as SVG | |
-| doc.svg | Custom — Phosphor FileDoc exported as SVG | |
-| spreadsheet.svg | Custom — Phosphor Table exported as SVG | |
-| imagegen.svg | Custom — Phosphor Image exported as SVG | |
-| sora.svg | OpenAI press kit / custom | |
-| speech.svg | Custom — Phosphor SpeakerHigh exported as SVG | |
-| transcribe.svg | Custom — Phosphor Microphone exported as SVG | |
-| screenshot.svg | Custom — Phosphor Camera exported as SVG | |
-| game.svg | Custom — Phosphor GameController exported as SVG | |
-| yeet.svg | Custom — Phosphor GitPullRequest exported as SVG | |
-| skill-creator.svg | Custom — Phosphor PencilSimple exported as SVG | |
+| figma.png | `.curated/figma/assets/figma.png` | ✅ Available |
+| sentry.png | `.curated/sentry/assets/sentry.png` | ✅ Available |
+| linear.png | `.curated/linear/assets/linear.png` | ✅ Available |
+| playwright.png | `.curated/playwright/assets/playwright.png` | ✅ Available |
+| cloudflare.png | `.curated/cloudflare-deploy/assets/cloudflare.png` | ✅ Available |
+| vercel.png | `.curated/vercel-deploy/assets/vercel.png` | ✅ Available |
+| netlify.png | `.curated/netlify-deploy/assets/netlify.png` | ✅ Available |
+| render.png | `.curated/render-deploy/assets/render.png` | ✅ Available |
+| github.png | `.curated/gh-fix-ci/assets/github.png` | ✅ Available |
+| notion.png | `.curated/notion-knowledge-capture/assets/notion.png` | ✅ Available |
+| openai.png | `.curated/openai-docs/assets/openai.png` | ✅ Available |
+| pdf.png | `.curated/pdf/assets/pdf.png` | ✅ Available |
+| doc.png | `.curated/doc/assets/doc.png` | ✅ Available |
+| spreadsheet.png | `.curated/spreadsheet/assets/spreadsheet.png` | ✅ Available |
+| imagegen.png | `.curated/imagegen/assets/imagegen.png` | ✅ Available |
+| sora.png | `.curated/sora/assets/sora.png` | ✅ Available |
+| speech.png | `.curated/speech/assets/speech.png` | ✅ Available |
+| transcribe.png | `.curated/transcribe/assets/transcribe.png` | ✅ Available |
+| screenshot.png | `.curated/screenshot/assets/screenshot.png` | ✅ Available |
+| jupyter.png | `.curated/jupyter-notebook/assets/jupyter.png` | ✅ Available |
+| yeet.png | `.curated/yeet/assets/yeet.png` | ✅ Available |
+| game.png | `.curated/develop-web-game/assets/game.png` | ✅ Available |
+| dotnet.png | `.curated/aspnet-core/assets/dotnet-logo.png` | ✅ Available |
+| winui.png | `.curated/winui-app/assets/winui.png` | ✅ Available |
+| skill-installer.png | `.system/skill-installer/assets/skill-installer.png` | ✅ Available |
+| skill-creator.png | Not in repo (Codex client only) | ❌ Manual |
+| security-best-practices.png | Not in repo (no assets dir) | ❌ Manual |
+| security-ownership-map.png | Not in repo (no assets dir) | ❌ Manual |
+| security-threat-model.png | Not in repo (no assets dir) | ❌ Manual |
 
-**Reusable from existing `/icons/brands/`**: openai.svg, possibly notion (if we add it there).
+**25 icons downloadable from repo. 4 need manual sourcing.**
 
-**Strategy for generic skills**: Export Phosphor icons as static SVGs using https://phosphoricons.com — select icon → download SVG → save to `/public/icons/skills/`. This gives us proper, optimized SVGs (not runtime-generated) that match the Phosphor weight system already used in tool-badge.tsx.
+For `chatgpt-apps`: reuses `openai.png` (same brand family, no separate icon needed).

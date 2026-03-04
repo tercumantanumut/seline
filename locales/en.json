@@ -2474,7 +2474,21 @@
         "summaryShort": "Short",
         "summaryMedium": "Medium",
         "summaryLong": "Long"
-      }
+      },
+      "historyCopied": "Copied to clipboard",
+      "historyCopyFailed": "Failed to copy",
+      "historyDeleted": "Entry deleted",
+      "historyDeleteFailed": "Failed to delete entry",
+      "historyEmpty": "No transcription history yet",
+      "dictionaryAdded": "Added \"{word}\" to dictionary",
+      "dictionaryRemoved": "Removed \"{word}\" from dictionary",
+      "dictionaryAddFailed": "Failed to add word",
+      "dictionaryRemoveFailed": "Failed to remove word",
+      "dictionaryPlaceholder": "Add a word or name...",
+      "dictionaryAutoLearnHint": "Auto-learns from your corrections",
+      "dictionaryEmpty": "No custom words yet",
+      "dictionaryCount": "{count} words",
+      "actionComplete": "Action completed"
     },
     "localGrep": {
       "heading": "Local grep (exact code search)",

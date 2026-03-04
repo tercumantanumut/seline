@@ -143,6 +143,29 @@ const electronAPI = {
     },
   },
 
+  // Voice hotkey operations
+  voiceHotkey: {
+    onTriggered: (callback: () => void): (() => void) | undefined => {
+      const handler = () => callback();
+      ipcRenderer.on("voice-hotkey:triggered", handler);
+      return () => {
+        ipcRenderer.removeListener("voice-hotkey:triggered", handler);
+      };
+    },
+    register: (accelerator: string): Promise<{ success: boolean; accelerator: string; error?: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:register", accelerator);
+    },
+    registerFromSettings: (): Promise<{ success: boolean; accelerator: string; error?: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:registerFromSettings");
+    },
+    getRegistered: (): Promise<{ accelerator: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:getRegistered");
+    },
+    clear: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke("voice-hotkey:clear");
+    },
+  },
+
   // ComfyUI local backend operations
   comfyui: {
     checkStatus: (backendPath?: string): Promise<{
@@ -359,6 +382,10 @@ const electronAPI = {
         "comfyui:fullSetup",
         "comfyuiCustom:detect",
         "comfyuiCustom:resolve",
+        "voice-hotkey:register",
+        "voice-hotkey:registerFromSettings",
+        "voice-hotkey:getRegistered",
+        "voice-hotkey:clear",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -367,13 +394,13 @@ const electronAPI = {
     },
     on: (channel: string, callback: (...args: unknown[]) => void): void => {
       // Whitelist of allowed channels
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, (_event, ...args) => callback(...args));
       }
     },
     removeAllListeners: (channel: string): void => {
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }

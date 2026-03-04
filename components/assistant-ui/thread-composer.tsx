@@ -43,6 +43,9 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
+import { VoiceWaveform } from "@/components/voice/voice-waveform";
+import { VoiceActions } from "@/components/voice/voice-actions";
+import { useGlobalVoiceHotkey } from "@/lib/hooks/use-global-hotkey";
 import {
   TiptapEditor,
   contentPartsToComposerText,
@@ -69,6 +72,11 @@ export const Composer: FC<{
   sessionId?: string;
   activeRunId?: string | null;
   sttEnabled?: boolean;
+  voicePostProcessing?: boolean;
+  voiceActionsEnabled?: boolean;
+  voiceAudioCues?: boolean;
+  voiceActivationMode?: "tap" | "push";
+  voiceHotkey?: string;
   onCancelBackgroundRun?: () => void;
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
@@ -85,6 +93,11 @@ export const Composer: FC<{
   sessionId,
   activeRunId,
   sttEnabled = false,
+  voicePostProcessing = true,
+  voiceActionsEnabled = true,
+  voiceAudioCues = true,
+  voiceActivationMode = "tap",
+  voiceHotkey = "CommandOrControl+Shift+Space",
   onCancelBackgroundRun,
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
@@ -237,8 +250,10 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode } = useVoiceRecording({
     sttEnabled,
+    voicePostProcessing,
+    voiceAudioCues,
     onTranscript: (transcript) => {
       setInputValue((prev) => {
         if (!prev.trim()) return transcript;
@@ -255,6 +270,13 @@ export const Composer: FC<{
         updateCursorPosition(cursor);
       });
     },
+  });
+
+  // Global voice hotkey (Electron global shortcut + browser fallback)
+  useGlobalVoiceHotkey({
+    enabled: sttEnabled,
+    onTrigger: () => { void handleVoiceInput(); },
+    hotkey: voiceHotkey,
   });
 
   // Process queued messages when AI finishes
@@ -879,6 +901,23 @@ export const Composer: FC<{
               </div>
             ))}
           </div>
+        )}
+
+        {isRecordingVoice && (
+          <VoiceWaveform
+            isRecording={isRecordingVoice}
+            analyserNode={analyserNode}
+            className="border-b border-terminal-dark/10"
+          />
+        )}
+
+        {!isRecordingVoice && !isTranscribingVoice && sttEnabled && voiceActionsEnabled && inputValue.trim().length > 0 && (
+          <VoiceActions
+            text={inputValue}
+            sessionId={sessionId}
+            onResult={(text) => setInputValue(text)}
+            className="px-3 py-1.5 border-b border-terminal-dark/10"
+          />
         )}
 
         {isEditorMode ? (

@@ -2,24 +2,24 @@
 
 ## 1. `skill-icon.tsx`
 
-Renders a skill icon with SVG path → Lucide fallback → initials fallback.
+Renders a skill icon using the actual PNG from `/public/icons/skills/`. No Lucide icons. No generated SVGs.
 
 ```tsx
 interface SkillIconProps {
-  icon: string | null;          // Path like "figma.svg" or null
-  fallbackIcon?: LucideIcon;    // Lucide component fallback
-  displayName: string;          // For initials fallback
+  icon: string;                 // PNG filename like "figma.png"
+  displayName: string;          // For alt text + initials fallback (only if PNG missing)
   size?: 24 | 32 | 40;         // px dimensions
   className?: string;
 }
 ```
 
-**Rendering priority**:
-1. If `icon` is set → `<img src="/icons/skills/{icon}" />`
-2. If `fallbackIcon` → `<FallbackIcon className={sizeClass} />`
-3. Else → Two-letter initials in a colored circle (hash displayName for consistent color)
+**Rendering**:
+1. Primary: `<img src="/icons/skills/{icon}" alt={displayName} />` — actual PNG from repo
+2. Fallback (only if img fails to load via `onError`): Two-letter initials in a colored circle (hash displayName for consistent color)
 
-**Pattern match**: Same as `components/onboarding/steps/features-step.tsx` FeatureChip.
+No Lucide. No Phosphor. PNGs sourced from `openai/skills` repo `assets/` directories.
+
+**Pattern match**: Same `<img src="/icons/brands/${icon}" />` pattern used in `components/onboarding/steps/features-step.tsx`.
 
 ---
 

@@ -112,7 +112,7 @@ interface CatalogSkill {
   displayName: string;      // "Figma"
   shortDescription: string; // "Use Figma MCP for design-to-code work"
   category: SkillCategory;  // "design" | "deploy" | "dev-tools" | ...
-  icon: string;             // Path to SVG/PNG in /public/icons/skills/
+  icon: string;             // PNG filename in /public/icons/skills/ (from openai/skills repo)
   defaultPrompt: string;    // What gets injected when skill runs
   dependencies?: {          // MCP servers, API keys, etc.
     type: "mcp" | "api-key" | "cli";
@@ -131,41 +131,61 @@ interface CatalogSkill {
 
 **Location**: `/public/icons/skills/`
 
-Following the established pattern from `/public/icons/brands/`:
-- Proper SVGs sourced from official brand assets (not AI-generated)
-- PNG fallback for complex logos
-- Consistent 24x24 or 32x32 viewBox
-- Same `<img src="/icons/skills/{name}.svg">` pattern used in onboarding
+**Source**: Actual PNGs and SVGs downloaded directly from `openai/skills` repo `assets/` directories. Same `<img>` tag pattern used in onboarding (`/public/icons/brands/`).
 
-**Required icons** (mapped from Codex catalog):
+**NO** Lucide icons. **NO** Phosphor icons. **NO** SimpleIcons. **NO** generated SVGs. Only the actual app icons from the source repo.
 
-| Skill | Icon Source |
-|---|---|
-| figma | Figma brand SVG |
-| sentry | Sentry brand SVG |
-| vercel | Vercel brand SVG |
-| netlify | Netlify brand SVG |
-| cloudflare | Cloudflare brand SVG |
-| notion | Notion brand SVG |
-| linear | Linear brand SVG |
-| github | GitHub Invertocat SVG |
-| playwright | Playwright brand SVG |
-| jupyter | Jupyter brand SVG |
-| pdf | Lucide FileText or custom doc icon |
-| speech | Lucide AudioLines or mic icon |
-| transcribe | Lucide AudioWaveform |
-| imagegen | OpenAI/image icon |
-| spreadsheet | Lucide Sheet icon |
-| security | Lucide Shield icon |
-| sora | OpenAI Sora brand |
-| render | Render brand SVG |
-| screenshot | Lucide Camera |
-| doc | Lucide FileEdit |
-| game | Lucide Gamepad2 |
-| yeet | Lucide GitPullRequest |
-| skill-creator | Lucide Pencil or Wand |
+**Download pattern**:
+```
+https://raw.githubusercontent.com/openai/skills/main/skills/.curated/<skill>/assets/<name>.png
+https://raw.githubusercontent.com/openai/skills/main/skills/.curated/<skill>/assets/<name>-small.svg
+```
 
-For brand icons: source from SimpleIcons (simpleicons.org) or official brand press kits. For generic skills: use Phosphor or Lucide icons rendered as SVG files.
+**Full icon inventory** (28 available from repo, 5 need separate sourcing):
+
+| Skill | Repo Assets | Target File |
+|---|---|---|
+| figma | figma.png, figma-small.svg | figma.png |
+| figma-implement-design | figma.png (same) | figma.png (shared) |
+| sentry | sentry.png, sentry-small.svg | sentry.png |
+| linear | linear.png, linear-small.svg | linear.png |
+| playwright | playwright.png, playwright-small.svg | playwright.png |
+| cloudflare | cloudflare.png, cloudflare-small.svg | cloudflare.png |
+| vercel | vercel.png, vercel-small.svg | vercel.png |
+| netlify | netlify.png, netlify-small.svg | netlify.png |
+| render | render.png, render-small.svg | render.png |
+| github (gh-fix-ci) | github.png, github-small.svg | github.png |
+| github (gh-address-comments) | github.png (same) | github.png (shared) |
+| pdf | pdf.png (no SVG) | pdf.png |
+| doc | doc.png, doc-small.svg | doc.png |
+| spreadsheet | spreadsheet.png, spreadsheet-small.svg | spreadsheet.png |
+| imagegen | imagegen.png, imagegen-small.svg | imagegen.png |
+| sora | sora.png, sora-small.svg | sora.png |
+| speech | speech.png, speech-small.svg | speech.png |
+| transcribe | transcribe.png, transcribe-small.svg | transcribe.png |
+| screenshot | screenshot.png, screenshot-small.svg | screenshot.png |
+| jupyter | jupyter.png, jupyter-small.svg | jupyter.png |
+| yeet | yeet.png, yeet-small.svg | yeet.png |
+| develop-web-game | game.png, game-small.svg | game.png |
+| openai-docs | openai.png, openai-small.svg | openai.png |
+| notion (4 skills) | notion.png, notion-small.svg | notion.png (shared) |
+| aspnet-core | dotnet-logo.png | dotnet.png |
+| winui-app | winui.png | winui.png |
+| skill-installer | skill-installer.png, skill-installer-small.svg | skill-installer.png |
+
+**Missing from repo (icons exist in Codex client, not in skills repo)**:
+
+| Skill | Status | Resolution |
+|---|---|---|
+| chatgpt-apps | No assets/ dir | Use `openai.png` (same brand family) |
+| security-best-practices | No assets/ dir | Extract from Codex client or recreate matching shield icon |
+| security-ownership-map | No assets/ dir | Same shield variant as above |
+| security-threat-model | No assets/ dir | Same shield variant as above |
+| skill-creator | No assets/ dir (system skill) | Extract from Codex client or recreate pencil icon |
+
+**Download script**: `scripts/download-skill-icons.sh` — fetches all PNGs from GitHub raw URLs into `/public/icons/skills/`. Run once during Phase 1.
+
+**Rendering**: `<img src="/icons/skills/{name}.png" />` — same pattern as onboarding's `<img src="/icons/brands/${icon}" />`.
 
 ---
 
@@ -178,7 +198,7 @@ components/skills/
   skills-page.tsx              → Main /skills page (replaces library)
   skill-card.tsx               → Individual skill card (grid item)
   skill-detail-dialog.tsx      → Modal for skill detail/install/uninstall
-  skill-icon.tsx               → Icon renderer (SVG path + Lucide fallback)
+  skill-icon.tsx               → Icon renderer (<img> PNG + initials fallback)
   skill-search.tsx             → Search input with real-time filtering
   skill-section.tsx            → Section header ("Installed", "Recommended")
   skill-toggle.tsx             → Enable/disable toggle for installed skills
@@ -323,7 +343,8 @@ Each card:
 Files:
 - `lib/skills/catalog/types.ts`
 - `lib/skills/catalog/index.ts` — Full catalog data
-- `public/icons/skills/` — All skill SVGs
+- `scripts/download-skill-icons.sh` — Downloads all PNGs from openai/skills repo
+- `public/icons/skills/*.png` — ~25 actual app icon PNGs (downloaded from repo)
 - `lib/skills/catalog/bundled/` — Bundled SKILL.md content for system skills
 
 ### Phase 2: API Routes
@@ -376,7 +397,7 @@ Files:
 | 4 | `lib/skills/catalog/bundled/notion.md` | System skill content |
 | 5 | `app/api/skills/catalog/route.ts` | GET catalog endpoint |
 | 6 | `app/api/skills/catalog/install/route.ts` | POST install endpoint |
-| 7 | `components/skills/skill-icon.tsx` | Icon component |
+| 7 | `components/skills/skill-icon.tsx` | PNG icon renderer (img tag, initials fallback) |
 | 8 | `components/skills/skill-card.tsx` | Card component |
 | 9 | `components/skills/skill-section.tsx` | Section header |
 | 10 | `components/skills/skill-search.tsx` | Search input |
@@ -384,7 +405,7 @@ Files:
 | 12 | `components/skills/skill-detail-dialog.tsx` | Detail modal |
 | 13 | `components/skills/skills-page.tsx` | Main page component |
 | 14 | `app/skills/page.tsx` | Next.js page |
-| 15 | `public/icons/skills/*.svg` | ~25 icon files |
+| 15 | `public/icons/skills/*.png` | ~25 icon PNGs downloaded from openai/skills repo |
 | 16-19 | i18n locale files | Translation keys |
 
 ### Modified Files (6)
@@ -404,41 +425,41 @@ Files:
 
 Mapped 1:1 from Codex curated catalog, adapted for Seline:
 
-| # | ID | Display Name | Short Description | Category | Icon |
+| # | ID | Display Name | Short Description | Category | Icon (PNG) |
 |---|---|---|---|---|---|
-| 1 | figma | Figma | Use Figma MCP for design-to-code work | design | figma.svg |
-| 2 | figma-implement | Figma Implement Design | Turn Figma designs into production-ready code | design | figma.svg |
-| 3 | sentry | Sentry | Read-only Sentry observability | dev-tools | sentry.svg |
-| 4 | vercel-deploy | Vercel Deploy | Deploy apps with zero configuration on Vercel | deploy | vercel.svg |
-| 5 | netlify-deploy | Netlify Deploy | Deploy web projects to Netlify | deploy | netlify.svg |
-| 6 | cloudflare-deploy | Cloudflare Deploy | Deploy Workers, Pages on Cloudflare | deploy | cloudflare.svg |
-| 7 | render-deploy | Render Deploy | Deploy applications to Render | deploy | render.svg |
-| 8 | gh-fix-ci | GitHub Fix CI | Debug failing GitHub Actions CI | dev-tools | github.svg |
-| 9 | gh-address-comments | GitHub Address Comments | Address comments in a GitHub PR review | dev-tools | github.svg |
-| 10 | linear | Linear | Manage Linear issues | dev-tools | linear.svg |
-| 11 | notion-capture | Notion Knowledge Capture | Capture conversations into Notion pages | productivity | notion.svg |
-| 12 | notion-meeting | Notion Meeting Intelligence | Prep meetings with Notion context | productivity | notion.svg |
-| 13 | notion-research | Notion Research & Docs | Research Notion content, produce briefs | productivity | notion.svg |
-| 14 | notion-spec | Notion Spec to Implementation | Turn Notion specs into implementation plans | productivity | notion.svg |
-| 15 | imagegen | Image Gen | Generate and edit images using OpenAI | creative | imagegen.svg |
-| 16 | sora | Sora | Generate and manage Sora videos | creative | sora.svg |
-| 17 | speech | Speech | Generate narrated audio from text | creative | speech.svg |
-| 18 | transcribe | Transcribe | Transcribe audio with speaker diarization | creative | transcribe.svg |
-| 19 | pdf | PDF | Create, edit, and review PDFs | productivity | pdf.svg |
-| 20 | doc | Word Docs | Edit and review docx files | productivity | doc.svg |
-| 21 | spreadsheet | Spreadsheet | Create, edit, and analyze spreadsheets | productivity | spreadsheet.svg |
-| 22 | playwright | Playwright | Automate real browsers from the terminal | dev-tools | playwright.svg |
-| 23 | screenshot | Screenshot | Capture screenshots | dev-tools | screenshot.svg |
-| 24 | jupyter-notebook | Jupyter Notebooks | Create Jupyter notebooks | dev-tools | jupyter.svg |
-| 25 | openai-docs | OpenAI Docs | Reference official OpenAI Developer docs | docs | openai.svg |
-| 26 | develop-web-game | Develop Web Game | Web game dev + Playwright test loop | creative | game.svg |
-| 27 | chatgpt-apps | ChatGPT Apps | Build and scaffold ChatGPT apps | dev-tools | chatgpt.svg |
-| 28 | security-best-practices | Security Best Practices | Security reviews and secure-by-default guidance | security | security.svg |
-| 29 | security-ownership-map | Security Ownership Map | Map maintainers, bus factor, sensitive code | security | security.svg |
-| 30 | security-threat-model | Security Threat Model | Threat modeling and abuse-path analysis | security | security.svg |
-| 31 | yeet | Yeet | Stage, commit, and open PR | dev-tools | yeet.svg |
-| 32 | aspnet-core | ASP.NET Core | [Windows] Build ASP.NET Core web apps | dev-tools | dotnet.svg |
-| 33 | winui-app | WinUI App | [Windows] Build native WinUI 3 apps | dev-tools | winui.svg |
+| 1 | figma | Figma | Use Figma MCP for design-to-code work | design | figma.png ✅ |
+| 2 | figma-implement | Figma Implement Design | Turn Figma designs into production-ready code | design | figma.png ✅ |
+| 3 | sentry | Sentry | Read-only Sentry observability | dev-tools | sentry.png ✅ |
+| 4 | vercel-deploy | Vercel Deploy | Deploy apps with zero configuration on Vercel | deploy | vercel.png ✅ |
+| 5 | netlify-deploy | Netlify Deploy | Deploy web projects to Netlify | deploy | netlify.png ✅ |
+| 6 | cloudflare-deploy | Cloudflare Deploy | Deploy Workers, Pages on Cloudflare | deploy | cloudflare.png ✅ |
+| 7 | render-deploy | Render Deploy | Deploy applications to Render | deploy | render.png ✅ |
+| 8 | gh-fix-ci | GitHub Fix CI | Debug failing GitHub Actions CI | dev-tools | github.png ✅ |
+| 9 | gh-address-comments | GitHub Address Comments | Address comments in a GitHub PR review | dev-tools | github.png ✅ |
+| 10 | linear | Linear | Manage Linear issues | dev-tools | linear.png ✅ |
+| 11 | notion-capture | Notion Knowledge Capture | Capture conversations into Notion pages | productivity | notion.png ✅ |
+| 12 | notion-meeting | Notion Meeting Intelligence | Prep meetings with Notion context | productivity | notion.png ✅ |
+| 13 | notion-research | Notion Research & Docs | Research Notion content, produce briefs | productivity | notion.png ✅ |
+| 14 | notion-spec | Notion Spec to Implementation | Turn Notion specs into implementation plans | productivity | notion.png ✅ |
+| 15 | imagegen | Image Gen | Generate and edit images using OpenAI | creative | imagegen.png ✅ |
+| 16 | sora | Sora | Generate and manage Sora videos | creative | sora.png ✅ |
+| 17 | speech | Speech | Generate narrated audio from text | creative | speech.png ✅ |
+| 18 | transcribe | Transcribe | Transcribe audio with speaker diarization | creative | transcribe.png ✅ |
+| 19 | pdf | PDF | Create, edit, and review PDFs | productivity | pdf.png ✅ |
+| 20 | doc | Word Docs | Edit and review docx files | productivity | doc.png ✅ |
+| 21 | spreadsheet | Spreadsheet | Create, edit, and analyze spreadsheets | productivity | spreadsheet.png ✅ |
+| 22 | playwright | Playwright | Automate real browsers from the terminal | dev-tools | playwright.png ✅ |
+| 23 | screenshot | Screenshot | Capture screenshots | dev-tools | screenshot.png ✅ |
+| 24 | jupyter-notebook | Jupyter Notebooks | Create Jupyter notebooks | dev-tools | jupyter.png ✅ |
+| 25 | openai-docs | OpenAI Docs | Reference official OpenAI Developer docs | docs | openai.png ✅ |
+| 26 | develop-web-game | Develop Web Game | Web game dev + Playwright test loop | creative | game.png ✅ |
+| 27 | chatgpt-apps | ChatGPT Apps | Build and scaffold ChatGPT apps | dev-tools | openai.png ✅ (reuses) |
+| 28 | security-best-practices | Security Best Practices | Security reviews and secure-by-default guidance | security | ❌ manual |
+| 29 | security-ownership-map | Security Ownership Map | Map maintainers, bus factor, sensitive code | security | ❌ manual |
+| 30 | security-threat-model | Security Threat Model | Threat modeling and abuse-path analysis | security | ❌ manual |
+| 31 | yeet | Yeet | Stage, commit, and open PR | dev-tools | yeet.png ✅ |
+| 32 | aspnet-core | ASP.NET Core | [Windows] Build ASP.NET Core web apps | dev-tools | dotnet.png ✅ |
+| 33 | winui-app | WinUI App | [Windows] Build native WinUI 3 apps | dev-tools | winui.png ✅ |
 
 **System skills** (pre-installed, not in catalog grid):
 
@@ -453,7 +474,7 @@ Mapped 1:1 from Codex curated catalog, adapted for Seline:
 
 | Risk | Mitigation |
 |---|---|
-| Icon licensing | Use SimpleIcons (CC0) or official brand press kits (usually free for integration UIs) |
+| Icon licensing | PNGs sourced from openai/skills repo (MIT licensed). 5 missing icons need manual extraction from Codex client |
 | Catalog staleness | Catalog is static JSON; easy to update. Version field allows cache busting |
 | Breaking existing skills | No schema changes to existing rows. `catalogId` is nullable. `sourceType` enum expands, doesn't break |
 | Performance | Catalog is ~5KB static import, no DB queries. Installed check is one lightweight query |

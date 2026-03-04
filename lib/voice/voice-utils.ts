@@ -73,7 +73,10 @@ function safeTrim(value: string, max = 20_000): string {
   return trimmed.length <= max ? trimmed : trimmed.slice(0, max);
 }
 
+let voiceTablesInitialized = false;
+
 function ensureVoiceTables(): void {
+  if (voiceTablesInitialized) return;
   const sqlite = getSqlClient();
   if (!sqlite?.exec) {
     throw new Error("SQLite client is unavailable");
@@ -119,6 +122,8 @@ function ensureVoiceTables(): void {
     CREATE INDEX IF NOT EXISTS idx_voice_dictionary_user_word
       ON voice_dictionary (user_id, word)
   `);
+
+  voiceTablesInitialized = true;
 }
 
 function asPromptContext(): PromptContext {
@@ -517,6 +522,35 @@ export function buildWhisperPromptFromDictionary(words: string[]): string | unde
   }
 
   return `Custom dictionary: ${clipped.join(", ")}`;
+}
+
+export async function saveTranscriptionToHistory(entry: {
+  provider: string;
+  text: string;
+  language: string | null;
+  durationMs: number | null;
+  sessionId?: string;
+}): Promise<void> {
+  ensureVoiceTables();
+  const user = await getLocalUser();
+  const settings = loadSettings();
+  if (settings.voiceHistoryEnabled === false) return;
+
+  getPreparedStatement(
+    `INSERT INTO voice_history (id, user_id, session_id, provider, input_text, output_text, action, language, duration_ms, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    crypto.randomUUID(),
+    user.id,
+    entry.sessionId ?? null,
+    entry.provider,
+    "",
+    safeTrim(entry.text, 20_000),
+    "transcription",
+    entry.language,
+    entry.durationMs,
+    "{}",
+  );
 }
 
 export async function listVoiceHistoryByDay(limit = 200): Promise<Array<{ date: string; items: VoiceHistoryEntry[] }>> {

@@ -80,6 +80,11 @@ export const Thread: FC<ThreadProps> = ({
   const [voiceUiSettings, setVoiceUiSettings] = useState<VoiceUiSettings>({
     ttsEnabled: false,
     sttEnabled: false,
+    voicePostProcessing: true,
+    voiceActionsEnabled: true,
+    voiceAudioCues: true,
+    voiceActivationMode: "tap",
+    voiceHotkey: "CommandOrControl+Shift+Space",
   });
 
   // Browser backdrop active — when true, make backgrounds transparent
@@ -93,6 +98,11 @@ export const Thread: FC<ThreadProps> = ({
       const { data, error } = await resilientFetch<{
         ttsEnabled?: boolean;
         sttEnabled?: boolean;
+        voicePostProcessing?: boolean;
+        voiceActionsEnabled?: boolean;
+        voiceAudioCues?: boolean;
+        voiceActivationMode?: "tap" | "push";
+        voiceHotkey?: string;
       }>("/api/settings", {
         timeout: 10_000,
         retries: 0,
@@ -105,6 +115,14 @@ export const Thread: FC<ThreadProps> = ({
       setVoiceUiSettings({
         ttsEnabled: Boolean(data.ttsEnabled),
         sttEnabled: Boolean(data.sttEnabled),
+        voicePostProcessing: data.voicePostProcessing !== false,
+        voiceActionsEnabled: data.voiceActionsEnabled !== false,
+        voiceAudioCues: data.voiceAudioCues !== false,
+        voiceActivationMode: data.voiceActivationMode === "push" ? "push" : "tap",
+        voiceHotkey:
+          typeof data.voiceHotkey === "string" && data.voiceHotkey.trim().length > 0
+            ? data.voiceHotkey.trim()
+            : "CommandOrControl+Shift+Space",
       });
     };
 
@@ -300,6 +318,11 @@ export const Thread: FC<ThreadProps> = ({
               sessionId={sessionId}
               activeRunId={activeRunId}
               sttEnabled={voiceUiSettings.sttEnabled}
+              voicePostProcessing={voiceUiSettings.voicePostProcessing}
+              voiceActionsEnabled={voiceUiSettings.voiceActionsEnabled}
+              voiceAudioCues={voiceUiSettings.voiceAudioCues}
+              voiceActivationMode={voiceUiSettings.voiceActivationMode}
+              voiceHotkey={voiceUiSettings.voiceHotkey}
               onCancelBackgroundRun={onCancelBackgroundRun}
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
