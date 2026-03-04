@@ -912,6 +912,7 @@
       "readAloud": "Sesli oku",
       "stopAudio": "Sesi durdur",
       "voiceInput": "Sesle yaz",
+      "voiceInputHold": "Kaydetmek için basılı tut",
       "stopVoiceInput": "Kaydı durdur",
       "transcribingAudio": "Ses yazıya dönüştürülüyor..."
     },

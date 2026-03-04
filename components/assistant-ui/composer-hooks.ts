@@ -23,12 +23,17 @@ interface UseVoiceRecordingOptions {
   onTranscriptInserted?: () => void;
   voicePostProcessing?: boolean;
   voiceAudioCues?: boolean;
+  voiceActivationMode?: "tap" | "push";
 }
 
 export interface UseVoiceRecordingReturn {
   isRecordingVoice: boolean;
   isTranscribingVoice: boolean;
   handleVoiceInput: () => Promise<void>;
+  /** Push mode: start recording only (never stops). Use with onMouseDown/onTouchStart. */
+  handleVoiceStart: () => Promise<void>;
+  /** Push mode: stop recording only. Use with onMouseUp/onMouseLeave/onTouchEnd. */
+  handleVoiceStop: () => void;
   analyserNode: AnalyserNode | null;
   /** The raw transcript from the last voice input (before post-processing), for auto-learn comparison */
   lastTranscriptRef: React.RefObject<string | null>;
@@ -105,14 +110,14 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
     };
   }, [stopRecordingStream]);
 
-  const handleVoiceInput = useCallback(async () => {
+  // Shared helper: start a new recording session (mic access, MediaRecorder setup, etc.)
+  const startRecording = useCallback(async () => {
     if (!sttEnabled || isTranscribingVoice) {
       return;
     }
 
-    const activeRecorder = mediaRecorderRef.current;
-    if (isRecordingVoice && activeRecorder && activeRecorder.state !== "inactive") {
-      activeRecorder.stop();
+    // Already recording — bail out
+    if (isRecordingVoice) {
       return;
     }
 
@@ -272,7 +277,40 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
     }
   }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, playTone, voicePostProcessing, t]);
 
-  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode, lastTranscriptRef };
+  // Shared helper: stop an active recording
+  const stopRecording = useCallback(() => {
+    const activeRecorder = mediaRecorderRef.current;
+    if (activeRecorder && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+    }
+  }, []);
+
+  // Tap mode: toggle recording on/off
+  const handleVoiceInput = useCallback(async () => {
+    if (!sttEnabled || isTranscribingVoice) {
+      return;
+    }
+
+    const activeRecorder = mediaRecorderRef.current;
+    if (isRecordingVoice && activeRecorder && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+      return;
+    }
+
+    await startRecording();
+  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, startRecording]);
+
+  // Push mode: start recording only (never stops)
+  const handleVoiceStart = useCallback(async () => {
+    await startRecording();
+  }, [startRecording]);
+
+  // Push mode: stop recording only
+  const handleVoiceStop = useCallback(() => {
+    stopRecording();
+  }, [stopRecording]);
+
+  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef };
 }
 
 // ---------------------------------------------------------------------------

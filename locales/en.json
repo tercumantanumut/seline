@@ -912,6 +912,7 @@
       "readAloud": "Read aloud",
       "stopAudio": "Stop audio",
       "voiceInput": "Voice input",
+      "voiceInputHold": "Hold to record",
       "stopVoiceInput": "Stop recording",
       "transcribingAudio": "Transcribing audio..."
     },

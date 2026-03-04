@@ -6,8 +6,9 @@ import {
   getSherpaOnnxBinaryName,
   type ParakeetModel,
 } from "@/lib/voice/parakeet-models";
+import { getOrStartParakeetServer, shutdownParakeetServer } from "@/lib/voice/parakeet-server";
 import { buildWhisperPromptFromDictionary, getCustomDictionary } from "@/lib/voice/voice-utils";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
   writeFileSync,
   readFileSync,
@@ -17,7 +18,10 @@ import {
   readdirSync,
   statSync,
   chmodSync,
+  createWriteStream,
 } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 import { join, basename, dirname } from "node:path";
 import { tmpdir, homedir, platform } from "node:os";
 
@@ -187,7 +191,19 @@ async function transcribeWithParakeet(
       message.writeFloatLE(samples[i], 8 + i * 4);
     }
 
-    const endpoint = await resolveParakeetEndpoint(model);
+    const baseDir = resolveParakeetBaseDir();
+    if (!existsSync(baseDir)) {
+      mkdirSync(baseDir, { recursive: true });
+    }
+
+    const modelDir = await ensureParakeetModel(model, baseDir);
+    const wsBinary = await ensureParakeetRuntime(baseDir);
+
+    const endpoint = await getOrStartParakeetServer({
+      modelDir,
+      runtimeBinary: wsBinary,
+    });
+
     const startedAt = Date.now();
     const rawResult = await transcribeViaParakeetWebSocket(endpoint, message);
     const elapsedSeconds = (Date.now() - startedAt) / 1000;
@@ -219,27 +235,6 @@ async function transcribeWithParakeet(
       unlinkSync(tmpWav);
     } catch {}
   }
-}
-
-async function resolveParakeetEndpoint(model: ParakeetModel): Promise<string> {
-  const baseDir = resolveParakeetBaseDir();
-  if (!existsSync(baseDir)) {
-    mkdirSync(baseDir, { recursive: true });
-  }
-
-  const modelDir = await ensureParakeetModel(model, baseDir);
-  const wsBinary = await ensureParakeetRuntime(baseDir);
-
-  const args = [
-    `--tokens=${join(modelDir, "tokens.txt")}`,
-    `--encoder=${join(modelDir, "encoder.int8.onnx")}`,
-    `--decoder=${join(modelDir, "decoder.int8.onnx")}`,
-    `--joiner=${join(modelDir, "joiner.int8.onnx")}`,
-    "--port=0",
-    "--num-threads=4",
-  ];
-
-  return startParakeetWs(wsBinary, args);
 }
 
 function resolveParakeetBaseDir(): string {
@@ -370,6 +365,9 @@ function ensureExecutable(filePath: string): void {
   }
 }
 
+// Track active extraction processes for cleanup on shutdown.
+const activeExtractionProcesses = new Set<ChildProcess>();
+
 function extractTarBz2Archive(archivePath: string, destinationDir: string): Promise<void> {
   const tarCmd = process.platform === "win32" ? "tar.exe" : "tar";
 
@@ -379,16 +377,20 @@ function extractTarBz2Archive(archivePath: string, destinationDir: string): Prom
       windowsHide: true,
     });
 
+    activeExtractionProcesses.add(child);
+
     let stderr = "";
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
 
     child.on("error", (error) => {
+      activeExtractionProcesses.delete(child);
       reject(error);
     });
 
     child.on("close", (code) => {
+      activeExtractionProcesses.delete(child);
       if (code === 0) {
         resolve();
         return;
@@ -405,61 +407,37 @@ async function downloadToFile(url: string, destinationPath: string): Promise<voi
     throw new Error(`Download failed (${response.status}) for ${url}`);
   }
 
-  const payload = Buffer.from(await response.arrayBuffer());
-  writeFileSync(destinationPath, payload);
+  if (!response.body) {
+    throw new Error(`No response body for ${url}`);
+  }
+
+  const destDir = dirname(destinationPath);
+  if (!existsSync(destDir)) {
+    mkdirSync(destDir, { recursive: true });
+  }
+
+  // Stream response body directly to disk — no memory buffering
+  const readable = Readable.fromWeb(response.body as import("stream/web").ReadableStream);
+  const writable = createWriteStream(destinationPath);
+
+  await pipeline(readable, writable);
 }
 
-function startParakeetWs(command: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+/**
+ * Kill all active extraction child processes and shut down the persistent
+ * Parakeet server. Call from electron/main.ts on app quit.
+ */
+export async function cleanupAllVoiceProcesses(): Promise<void> {
+  // Kill any in-flight tar extractions.
+  for (const child of activeExtractionProcesses) {
+    try {
+      child.kill();
+    } catch {}
+  }
+  activeExtractionProcesses.clear();
 
-    let settled = false;
-    let stderr = "";
-
-    const cleanup = () => {
-      child.removeAllListeners();
-      child.stdout.removeAllListeners();
-      child.stderr.removeAllListeners();
-    };
-
-    const finish = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      fn();
-    };
-
-    const timer = setTimeout(() => {
-      try {
-        child.kill();
-      } catch {}
-      finish(() => reject(new Error("Parakeet websocket server startup timed out")));
-    }, 30_000);
-
-    // sherpa-onnx prints listen URL to stderr
-    child.stderr.on("data", (chunk) => {
-      const line = chunk.toString();
-      stderr += line;
-      const match = line.match(/Listening on:\s*ws:\/\/[^\s]+/i);
-      if (match) {
-        clearTimeout(timer);
-        finish(() => resolve(match[0].replace(/^Listening on:\s*/i, "").trim()));
-      }
-    });
-
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      finish(() => reject(error));
-    });
-
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      finish(() => reject(new Error(`Parakeet websocket exited (${code}): ${stderr.slice(0, 200)}`)));
-    });
-  });
+  // Shut down the persistent Parakeet WebSocket server.
+  await shutdownParakeetServer();
 }
 
 function transcribeViaParakeetWebSocket(endpoint: string, payload: Buffer): Promise<string> {

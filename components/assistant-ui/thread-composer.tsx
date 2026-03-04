@@ -250,10 +250,11 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode, lastTranscriptRef } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef } = useVoiceRecording({
     sttEnabled,
     voicePostProcessing,
     voiceAudioCues,
+    voiceActivationMode,
     onTranscript: (transcript) => {
       setInputValue((prev) => {
         if (!prev.trim()) return transcript;
@@ -964,6 +965,9 @@ export const Composer: FC<{
                 isRecordingVoice={isRecordingVoice}
                 isTranscribingVoice={isTranscribingVoice}
                 onVoiceInput={handleVoiceInput}
+                voiceActivationMode={voiceActivationMode}
+                onVoiceStart={handleVoiceStart}
+                onVoiceStop={handleVoiceStop}
                 inputHasText={tiptapRef.current?.hasContent() ?? false}
                 attachmentCount={attachmentCount}
                 showEnhanceButton={false}
@@ -1021,6 +1025,9 @@ export const Composer: FC<{
               isRecordingVoice={isRecordingVoice}
               isTranscribingVoice={isTranscribingVoice}
               onVoiceInput={handleVoiceInput}
+              voiceActivationMode={voiceActivationMode}
+              onVoiceStart={handleVoiceStart}
+              onVoiceStop={handleVoiceStop}
               inputHasText={inputValue.trim().length > 2}
               attachmentCount={attachmentCount}
               showEnhanceButton={!!(character?.id && character.id !== "default")}

@@ -45,6 +45,9 @@ interface ComposerActionBarProps {
   isRecordingVoice: boolean;
   isTranscribingVoice: boolean;
   onVoiceInput: () => void;
+  voiceActivationMode?: "tap" | "push";
+  onVoiceStart?: () => Promise<void>;
+  onVoiceStop?: () => void;
   // Attachment / send
   inputHasText: boolean;
   attachmentCount: number;
@@ -78,6 +81,9 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
   isRecordingVoice,
   isTranscribingVoice,
   onVoiceInput,
+  voiceActivationMode = "tap",
+  onVoiceStart,
+  onVoiceStop,
   inputHasText,
   attachmentCount,
   showEnhanceButton,
@@ -153,10 +159,19 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               type="button"
               variant="ghost"
               size="icon"
-              onClick={onVoiceInput}
+              {...(voiceActivationMode === "push" && onVoiceStart && onVoiceStop
+                ? {
+                    onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); void onVoiceStart(); },
+                    onMouseUp: onVoiceStop,
+                    onMouseLeave: isRecordingVoice ? onVoiceStop : undefined,
+                    onTouchStart: (e: React.TouchEvent) => { e.preventDefault(); void onVoiceStart(); },
+                    onTouchEnd: onVoiceStop,
+                  }
+                : { onClick: onVoiceInput }
+              )}
               disabled={isTranscribingVoice || mcpIsReloading}
               className={cn(
-                "size-8",
+                "size-8 select-none",
                 isRecordingVoice
                   ? "text-red-600 bg-red-100 hover:bg-red-200"
                   : "text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/10"
@@ -176,7 +191,9 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
               ? t("tooltips.transcribingAudio")
               : isRecordingVoice
                 ? t("tooltips.stopVoiceInput")
-                : t("tooltips.voiceInput")}
+                : voiceActivationMode === "push"
+                  ? t("tooltips.voiceInputHold")
+                  : t("tooltips.voiceInput")}
           </TooltipContent>
         </Tooltip>
       )}
