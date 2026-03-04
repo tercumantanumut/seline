@@ -8,8 +8,8 @@
  * Root cause: When extractContent produces 106 tool-call + 106 tool-result
  * parts, if tool-call parts remain nested inside assistant message content
  * (instead of being top-level function_call items), the normalizer creates
- * synthetic calls with empty arguments. The fix in filterCodexInput extracts
- * these nested parts before normalization.
+ * synthetic calls with empty arguments. Nested tool-call parts now stay
+ * inside assistant content (harmless context) instead of being extracted.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

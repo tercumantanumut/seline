@@ -7,7 +7,6 @@
  *
  * Key scenarios:
  * 1. 106 orphaned outputs → normalizer creates synthetic calls with empty args
- *    (this is now prevented by filterCodexInput extracting nested tool-calls)
  * 2. transformCodexRequest truncates excessive tool history
  * 3. Payload size stays within Codex API limits
  */
@@ -83,12 +82,11 @@ describe("transformCodexRequest with large tool history", () => {
     expect(lastItem.content).toBe("Now fix them");
   });
 
-  it("handles orphaned outputs: normalizer creates synthetic calls, then truncation caps them", async () => {
-    // When outputs exist without matching calls at top level (no nested
-    // tool-call parts in assistant content), the normalizer creates synthetic
-    // calls. After normalization: 4 messages + 106 synthetic calls + 106
-    // outputs = 216 items, which exceeds MAX_CODEX_INPUT_ITEMS (200),
-    // so truncation drops the oldest pairs.
+  it("handles orphaned outputs: normalizer creates synthetic calls, preserves all pairs", async () => {
+    // When outputs exist without matching calls at top level, the normalizer
+    // creates synthetic calls. After normalization: 4 messages + 106
+    // synthetic calls + 106 outputs = 216 items. All within limits, no
+    // pairs dropped. The new truncation caps output content, not pairs.
     const input: CodexInputItem[] = [
       makeUserMessage("Search the codebase"),
       makeAssistantMessage("I'll search now."),
@@ -118,8 +116,7 @@ describe("transformCodexRequest with large tool history", () => {
 
     const resultInput = result.input as CodexInputItem[];
 
-    // After normalization: 4 messages + 106 synthetic calls + 106 outputs = 216 items.
-    // 216 < MAX_CODEX_INPUT_ITEMS (400), so no truncation.
+    // Synthetic calls should be created for orphaned outputs
     const syntheticCalls = resultInput.filter(
       (item) => item.type === "function_call" && item.arguments === "{}"
     );

@@ -122,6 +122,31 @@ export async function buildSystemPromptForRequest(
       : getSystemPrompt({ stylyApiEnabled: hasStylyApiKey(), toolLoadingMode });
   }
 
+  // Append synced folder paths so the agent knows its indexed directories upfront
+  if (characterId) {
+    try {
+      const { getSyncFolders } = await import("@/lib/vectordb/sync-folder-crud");
+      const syncFolders = await getSyncFolders(characterId);
+      if (syncFolders.length > 0) {
+        const folderLines = syncFolders.map((f) => {
+          const primary = f.isPrimary ? " (primary)" : "";
+          const name = f.displayName ? ` — ${f.displayName}` : "";
+          const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
+          const status = f.status !== "synced" ? `, status: ${f.status}` : "";
+          return `- \`${f.folderPath}\`${primary}${name}${files}${status}`;
+        });
+        systemPromptValue = appendBlock(
+          systemPromptValue,
+          `\n\n[Synced Folders]\n` +
+            `These directories are indexed and available to you via localGrep, vectorSearch, and readFile:\n` +
+            folderLines.join("\n")
+        );
+      }
+    } catch (e) {
+      console.warn("[CHAT API] Failed to fetch sync folders for prompt:", e);
+    }
+  }
+
   // Append context-window block
   systemPromptValue = appendBlock(
     systemPromptValue,

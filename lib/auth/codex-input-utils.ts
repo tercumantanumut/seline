@@ -246,9 +246,14 @@ export function filterCodexInput(
     const sanitized = sanitizeAssistantMessageContent(item);
     if (!sanitized) continue;
 
-    // Extract nested tool-call parts from assistant messages into top-level items
-    const extracted = extractNestedToolCalls(sanitized);
-    normalized.push(...extracted);
+    // NOTE: We intentionally do NOT extract nested tool-call parts from
+    // assistant message content arrays. The old extractNestedToolCalls()
+    // created top-level function_call items without matching outputs,
+    // which normalizeOrphanedToolOutputs then "fixed" with synthetic error
+    // outputs. The model saw those errors as real failures and retried
+    // the same tool calls → infinite loop. Nested tool-call parts stay
+    // inside assistant content where they are harmless context.
+    normalized.push(sanitized);
   }
 
   return normalized;
@@ -340,17 +345,39 @@ export function normalizeOrphanedToolOutputs(input: CodexInputItem[]): CodexInpu
 }
 
 /**
- * Truncate oversized Codex input by dropping the oldest tool-call/output
- * pairs until both MAX_CODEX_INPUT_ITEMS and MAX_CODEX_PAYLOAD_BYTES are
- * satisfied.
+ * Max bytes for a single tool output's serialized content before it gets
+ * summarized. Set to 8 KB — enough for useful context, low enough to keep
+ * the overall payload well under the ~1 MB API limit even with 100+ calls.
+ */
+const MAX_TOOL_OUTPUT_BYTES = 8 * 1024;
+
+/**
+ * Summarize a tool output value that exceeds MAX_TOOL_OUTPUT_BYTES.
+ * Keeps the first portion so the model still knows what happened,
+ * appends a truncation marker so it knows data was cut.
+ */
+function summarizeToolOutput(output: unknown): unknown {
+  const serialized = typeof output === "string" ? output : JSON.stringify(output);
+  if (serialized.length <= MAX_TOOL_OUTPUT_BYTES) return output;
+
+  const kept = serialized.slice(0, MAX_TOOL_OUTPUT_BYTES);
+  return `${kept}\n\n[... truncated — original was ${(serialized.length / 1024).toFixed(1)} KB]`;
+}
+
+/**
+ * Truncate oversized Codex input by capping individual tool output content.
+ *
+ * Unlike the old approach (dropping entire call/output pairs), this preserves
+ * the full call/output structure so the model remembers what tools it already
+ * invoked. Only the output *content* is trimmed when oversized.
  *
  * Strategy:
- * 1. Separate tool items from non-tool "anchor" items (messages, etc.).
- * 2. Group tool items into call/output pairs by call_id.
- * 3. Drop the oldest pairs first, keeping the most recent context.
- * 4. Always preserve all non-tool anchor items.
+ * 1. If payload is within limits, return as-is.
+ * 2. Walk all tool output items and cap their `output` field.
+ * 3. If still over limit after capping outputs, drop oldest pairs as last resort.
  */
 export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
+  // Fast path: already within limits
   if (input.length <= MAX_CODEX_INPUT_ITEMS) {
     const payloadSize = JSON.stringify(input).length;
     if (payloadSize <= MAX_CODEX_PAYLOAD_BYTES) {
@@ -358,13 +385,46 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     }
   }
 
-  // Separate tool items from anchors, preserving order information
+  // Phase 1: Cap individual tool output content
+  let truncatedOutputs = 0;
+  const capped = input.map((item) => {
+    if (!isToolOutputType(item.type)) return item;
+    if (item.output === undefined && item.content === undefined) return item;
+
+    const outputVal = item.output ?? item.content;
+    const serialized = typeof outputVal === "string" ? outputVal : JSON.stringify(outputVal);
+    if (serialized.length <= MAX_TOOL_OUTPUT_BYTES) return item;
+
+    truncatedOutputs++;
+    const summarized = summarizeToolOutput(outputVal);
+    return item.output !== undefined
+      ? { ...item, output: summarized }
+      : { ...item, content: summarized };
+  });
+
+  if (truncatedOutputs > 0) {
+    console.log(
+      `[CODEX] Capped ${truncatedOutputs} oversized tool outputs ` +
+        `(max ${(MAX_TOOL_OUTPUT_BYTES / 1024).toFixed(0)} KB each)`
+    );
+  }
+
+  // Check if capping was enough
+  if (capped.length <= MAX_CODEX_INPUT_ITEMS) {
+    const payloadSize = JSON.stringify(capped).length;
+    if (payloadSize <= MAX_CODEX_PAYLOAD_BYTES) {
+      return capped;
+    }
+  }
+
+  // Phase 2 (last resort): Drop oldest tool pairs if still over limits.
+  // This should rarely happen after Phase 1 capping.
   type IndexedItem = { index: number; item: CodexInputItem };
   const anchors: IndexedItem[] = [];
   const toolItems: IndexedItem[] = [];
 
-  for (let i = 0; i < input.length; i++) {
-    const item = input[i];
+  for (let i = 0; i < capped.length; i++) {
+    const item = capped[i];
     if (isToolCallType(item.type) || isToolOutputType(item.type)) {
       toolItems.push({ index: i, item });
     } else {
@@ -372,11 +432,8 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     }
   }
 
-  if (toolItems.length === 0) {
-    return input;
-  }
+  if (toolItems.length === 0) return capped;
 
-  // Group tool items into pairs by call_id (order by first appearance)
   const pairMap = new Map<string, IndexedItem[]>();
   const pairOrder: string[] = [];
 
@@ -389,8 +446,6 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     pairMap.get(cid)!.push(ti);
   }
 
-  // Drop oldest pairs first until within limits
-  // pairOrder[0] is the oldest, pairOrder[last] is the most recent
   let dropCount = 0;
 
   const rebuild = (): CodexInputItem[] => {
@@ -401,7 +456,7 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
         kept.add(ti.index);
       }
     }
-    return input.filter((_, i) => kept.has(i));
+    return capped.filter((_, i) => kept.has(i));
   };
 
   const isWithinLimits = (items: CodexInputItem[]): boolean =>
@@ -414,13 +469,13 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
 
   const result = rebuild();
 
-  const droppedItems = input.length - result.length;
+  const droppedItems = capped.length - result.length;
   if (droppedItems > 0) {
     console.warn(
-      `[CODEX] Truncated input: dropped ${droppedItems} items ` +
-        `(${dropCount} tool pairs), ` +
-        `${input.length} → ${result.length} items, ` +
-        `${(JSON.stringify(input).length / 1024).toFixed(0)}KB → ` +
+      `[CODEX] Last-resort truncation: dropped ${droppedItems} items ` +
+        `(${dropCount} tool pairs) after output capping was insufficient, ` +
+        `${capped.length} → ${result.length} items, ` +
+        `${(JSON.stringify(capped).length / 1024).toFixed(0)}KB → ` +
         `${(JSON.stringify(result).length / 1024).toFixed(0)}KB`
     );
   }

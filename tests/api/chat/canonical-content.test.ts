@@ -138,11 +138,12 @@ describe("mergeCanonicalAssistantContent", () => {
     expect((textParts[0] as { text: string }).text).toBe("hello world");
   });
 
-  // ── Fix #2: stripFakeToolCallJson divergence ──────────────────────────
+  // ── stripFakeToolCallJson gating ──────────────────────────────────────
+  // With STRIP_FAKE_TOOL_JSON disabled (default), fake tool JSON stays in text.
+  // The merge just compares raw trimmed text.
 
-  it("fake tool JSON at end of streaming text: sanitized to exact match", () => {
-    // When fake JSON is at the end, stripping leaves no extra whitespace.
-    // stripFakeToolCallJson trims the result, so "Start.\n{...}" → "Start."
+  it("fake tool JSON in streaming text: no stripping when flag is off (default)", () => {
+    // Without the flag, fake JSON is NOT stripped — texts differ → 2 parts
     const fakeToolJson = '{"type":"tool-result","toolCallId":"tc_x","toolName":"Write","result":{}}';
     const streamedText = `Start.\n${fakeToolJson}`;
     const cleanText = "Start.";
@@ -152,15 +153,14 @@ describe("mergeCanonicalAssistantContent", () => {
 
     const merged = mergeCanonicalAssistantContent(streamed, step);
     const textParts = merged.filter((p) => p.type === "text");
-    // Sanitized streaming: "Start." → exact match with step text → 1 part
+    // Streaming text contains the fake JSON, step text doesn't — but step is a
+    // substring of the trimmed streaming text → existing superset → 1 part
     expect(textParts).toHaveLength(1);
   });
 
   it("fake tool JSON as entire streaming text: step text appended as new content", () => {
-    // If streaming text is ONLY fake tool JSON, sanitization produces empty
-    // string for comparison → the part is skipped during overlap checks.
-    // Step text is genuinely new → appended. The raw streaming part remains
-    // in base (merge doesn't mutate existing part text).
+    // Streaming text is ONLY fake tool JSON (no real text). Step has real text.
+    // They don't overlap at all → step text appended.
     const fakeToolJson = '{"type":"tool-call","toolCallId":"tc_123","toolName":"Read","args":{}}';
     const streamed = [textPart(fakeToolJson)];
     const step = [textPart("Let me check.")];
@@ -170,23 +170,6 @@ describe("mergeCanonicalAssistantContent", () => {
     // 2 parts: original fake-JSON text (still in base) + new step text
     expect(textParts).toHaveLength(2);
     expect((textParts[1] as { text: string }).text).toBe("Let me check.");
-  });
-
-  it("fake tool JSON in streaming text: existing sanitized is superset of step", () => {
-    // Streaming has extra real text + fake JSON. After sanitization, the streaming
-    // text contains everything the step text has plus more → superset → skip.
-    const fakeToolJson = '{"type":"tool-call","toolCallId":"tc_1","toolName":"Read"}';
-    const streamedText = `Check the file. Found it. ${fakeToolJson} Here's the result.`;
-    const cleanText = "Found it.";
-
-    const streamed = [textPart(streamedText)];
-    const step = [textPart(cleanText)];
-
-    const merged = mergeCanonicalAssistantContent(streamed, step);
-    const textParts = merged.filter((p) => p.type === "text");
-    // Sanitized existing: "Check the file. Found it.  Here's the result."
-    // includes "Found it." → superset → 1 part
-    expect(textParts).toHaveLength(1);
   });
 
   // ── tool-call/result merging ──────────────────────────────────────────
@@ -349,14 +332,16 @@ describe("buildCanonicalAssistantContentFromSteps", () => {
     expect(parts[0].type).toBe("text");
   });
 
-  it("strips fake tool-call JSON from step text", () => {
+  it("preserves fake tool-call JSON when STRIP_FAKE_TOOL_JSON is off (default)", () => {
+    // With the env flag off, stripFakeToolCallJson is a passthrough (trim only)
     const fakeJson = '{"type":"tool-call","toolCallId":"tc_x","toolName":"Read","args":{}}';
     const parts = buildCanonicalAssistantContentFromSteps([
       { text: `Some text\n${fakeJson}\nMore text` },
     ]);
     expect(parts).toHaveLength(1);
     const textContent = (parts[0] as { text: string }).text;
-    expect(textContent).not.toContain("tool-call");
+    // Fake JSON is preserved since stripping is disabled
+    expect(textContent).toContain("tool-call");
     expect(textContent).toContain("Some text");
     expect(textContent).toContain("More text");
   });
