@@ -18,6 +18,8 @@ export function DictionaryManager({ autoLearnEnabled = true, className }: Dictio
   const [newWord, setNewWord] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [removingWord, setRemovingWord] = useState<string | null>(null);
+  const [confirmRemoveWord, setConfirmRemoveWord] = useState<string | null>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const t = useTranslations("voice");
 
@@ -66,24 +68,42 @@ export function DictionaryManager({ autoLearnEnabled = true, className }: Dictio
     }
   }, [newWord, t]);
 
-  const handleRemove = useCallback(async (word: string) => {
-    setRemovingWord(word);
-    try {
-      const response = await fetch(`/api/voice/dictionary?word=${encodeURIComponent(word)}`, {
-        method: "DELETE",
-      });
-      const data = await response.json() as { words?: string[] };
-      if (Array.isArray(data.words)) {
-        setWords(data.words);
-        toast.success(t("dictionaryRemoved", { word }));
+  const handleRemoveClick = useCallback((word: string) => {
+    if (confirmRemoveWord === word) {
+      // Second click — execute removal
+      if (confirmTimerRef.current) {
+        clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = null;
       }
-    } catch (error) {
-      console.error("[DictionaryManager] Remove failed:", error);
-      toast.error(t("dictionaryRemoveFailed"));
-    } finally {
-      setRemovingWord(null);
+      setConfirmRemoveWord(null);
+      setRemovingWord(word);
+      void (async () => {
+        try {
+          const response = await fetch(`/api/voice/dictionary?word=${encodeURIComponent(word)}`, {
+            method: "DELETE",
+          });
+          const data = await response.json() as { words?: string[] };
+          if (Array.isArray(data.words)) {
+            setWords(data.words);
+            toast.success(t("dictionaryRemoved", { word }));
+          }
+        } catch (error) {
+          console.error("[DictionaryManager] Remove failed:", error);
+          toast.error(t("dictionaryRemoveFailed"));
+        } finally {
+          setRemovingWord(null);
+        }
+      })();
+    } else {
+      // First click — ask for confirmation
+      setConfirmRemoveWord(word);
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => {
+        setConfirmRemoveWord(null);
+        confirmTimerRef.current = null;
+      }, 3000);
     }
-  }, [t]);
+  }, [confirmRemoveWord, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -122,6 +142,7 @@ export function DictionaryManager({ autoLearnEnabled = true, className }: Dictio
           onClick={() => void handleAdd()}
           disabled={isAdding || !newWord.trim()}
           className="h-7 px-2 text-xs font-mono"
+          aria-label="Add word to dictionary"
         >
           {isAdding ? (
             <Loader2Icon className="size-3 animate-spin" />
@@ -144,6 +165,9 @@ export function DictionaryManager({ autoLearnEnabled = true, className }: Dictio
         <div className="flex flex-col items-center justify-center gap-2 py-6 text-terminal-muted">
           <BookOpenIcon className="size-5" />
           <span className="text-xs font-mono">{t("dictionaryEmpty")}</span>
+          <span className="text-[10px] font-mono text-terminal-muted/50 text-center max-w-[240px]">
+            Add names, technical terms, or words the transcriber might misspell.
+          </span>
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
@@ -154,15 +178,22 @@ export function DictionaryManager({ autoLearnEnabled = true, className }: Dictio
             >
               {word}
               <button
-                onClick={() => void handleRemove(word)}
+                onClick={() => handleRemoveClick(word)}
                 disabled={removingWord === word}
-                className="ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-terminal-muted hover:text-red-500"
-                title={`Remove "${word}"`}
+                className={cn(
+                  "ml-0.5 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity",
+                  confirmRemoveWord === word
+                    ? "opacity-100 text-red-500"
+                    : "text-terminal-muted hover:text-red-500"
+                )}
+                aria-label={`Remove word: ${word}`}
               >
                 {removingWord === word ? (
-                  <Loader2Icon className="size-2.5 animate-spin" />
+                  <Loader2Icon className="size-3 animate-spin" />
+                ) : confirmRemoveWord === word ? (
+                  <span className="text-[9px] font-mono font-medium text-red-500">Confirm?</span>
                 ) : (
-                  <XIcon className="size-2.5" />
+                  <XIcon className="size-3" />
                 )}
               </button>
             </span>

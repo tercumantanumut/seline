@@ -245,7 +245,7 @@ describe("Audio Transcription", () => {
       };
       await expect(
         transcribeAudio(fakeAudio, "audio/ogg")
-      ).rejects.toThrow("No API key configured for transcription");
+      ).rejects.toThrow("OpenAI API key is required for Whisper transcription");
     });
 
     it("calls OpenAI Whisper API and returns TranscriptionResult", async () => {

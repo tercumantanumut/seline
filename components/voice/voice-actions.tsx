@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { CheckIcon, BriefcaseIcon, ListIcon, LanguagesIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,11 +30,13 @@ const ACTIONS: VoiceAction[] = [
 
 export function VoiceActions({ text, sessionId, onResult, className, disabled = false }: VoiceActionsProps) {
   const [runningAction, setRunningAction] = useState<string | null>(null);
+  const runningRef = useRef(false);
   const t = useTranslations("voice");
 
   const handleAction = useCallback(async (actionId: string) => {
-    if (!text.trim() || runningAction) return;
+    if (!text.trim() || runningAction || runningRef.current) return;
 
+    runningRef.current = true;
     setRunningAction(actionId);
     try {
       const response = await fetch("/api/voice/actions", {
@@ -62,6 +64,7 @@ export function VoiceActions({ text, sessionId, onResult, className, disabled = 
       toast.error(message);
     } finally {
       setRunningAction(null);
+      runningRef.current = false;
     }
   }, [text, sessionId, onResult, runningAction, t]);
 
@@ -78,9 +81,9 @@ export function VoiceActions({ text, sessionId, onResult, className, disabled = 
             key={action.id}
             onClick={() => void handleAction(action.id)}
             disabled={disabled || !!runningAction}
-            title={action.description}
+            aria-label={action.description}
             className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-mono transition-all",
+              "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-mono transition-all min-h-[36px]",
               "border border-terminal-border/40 text-terminal-muted",
               "hover:bg-terminal-cream/60 hover:text-terminal-dark hover:border-terminal-border",
               "disabled:opacity-40 disabled:cursor-not-allowed",

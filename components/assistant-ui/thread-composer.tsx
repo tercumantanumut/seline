@@ -16,6 +16,8 @@ import {
   Loader2Icon,
   CircleStopIcon,
   CheckCircleIcon,
+  SparklesIcon,
+  UndoIcon,
 } from "lucide-react";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
@@ -932,6 +934,34 @@ export const Composer: FC<{
             onResult={(text) => setInputValue(text)}
             className="px-3 py-1.5 border-b border-terminal-dark/10"
           />
+        )}
+
+        {/* I7: Transcribing state indicator */}
+        {isTranscribingVoice && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-mono text-terminal-muted border-b border-terminal-dark/10">
+            <Loader2Icon className="size-3 animate-spin flex-shrink-0" />
+            <span>Transcribing...</span>
+          </div>
+        )}
+
+        {/* I5: AI-cleaned undo indicator */}
+        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && lastTranscriptRef.current !== inputValue.trim() && (
+          <div className="flex items-center gap-1.5 px-3 py-1 border-b border-terminal-dark/10">
+            <SparklesIcon className="size-3 text-amber-500" />
+            <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (lastTranscriptRef.current) {
+                  setInputValue(lastTranscriptRef.current);
+                }
+              }}
+              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1"
+            >
+              <UndoIcon className="size-3" />
+              Undo
+            </button>
+          </div>
         )}
 
         {isEditorMode ? (

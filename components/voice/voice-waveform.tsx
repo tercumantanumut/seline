@@ -17,6 +17,7 @@ export function VoiceWaveform({ isRecording, analyserNode, className }: VoiceWav
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const canvasSizedRef = useRef(false);
+  const frequencyDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startTimeRef = useRef<number>(0);
 
@@ -47,6 +48,8 @@ export function VoiceWaveform({ isRecording, analyserNode, className }: VoiceWav
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
 
+    if (width === 0 || height === 0) return;
+
     // Only resize canvas buffer when dimensions actually change (avoids GPU realloc per frame)
     const targetW = Math.round(width * dpr);
     const targetH = Math.round(height * dpr);
@@ -64,7 +67,11 @@ export function VoiceWaveform({ isRecording, analyserNode, className }: VoiceWav
     let frequencies: Uint8Array<ArrayBuffer>;
 
     if (analyserNode && isRecording) {
-      frequencies = new Uint8Array(analyserNode.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+      const binCount = analyserNode.frequencyBinCount;
+      if (!frequencyDataRef.current || frequencyDataRef.current.length !== binCount) {
+        frequencyDataRef.current = new Uint8Array(binCount);
+      }
+      frequencies = frequencyDataRef.current;
       analyserNode.getByteFrequencyData(frequencies);
     } else {
       frequencies = new Uint8Array(BAR_COUNT).fill(0) as Uint8Array<ArrayBuffer>;
@@ -115,10 +122,15 @@ export function VoiceWaveform({ isRecording, analyserNode, className }: VoiceWav
   if (!isRecording) return null;
 
   return (
-    <div className={cn("flex items-center gap-3 px-3 py-2", className)}>
+    <div
+      className={cn("flex items-center gap-3 px-3 py-2", className)}
+      role="status"
+      aria-live="polite"
+      aria-label="Recording in progress"
+    >
       {/* Recording dot */}
       <div className="relative flex items-center justify-center">
-        <span className="absolute size-3 rounded-full bg-red-500/30 animate-ping" />
+        <span className="absolute size-3 rounded-full bg-red-500/30 animate-ping will-change-[transform,opacity]" />
         <span className="relative size-2 rounded-full bg-red-500" />
       </div>
 
@@ -127,10 +139,11 @@ export function VoiceWaveform({ isRecording, analyserNode, className }: VoiceWav
         ref={canvasRef}
         className="h-8 flex-1"
         style={{ minWidth: 120 }}
+        aria-hidden="true"
       />
 
       {/* Timer */}
-      <span className="text-xs font-mono text-terminal-muted tabular-nums min-w-[3ch]">
+      <span className="text-xs font-mono text-terminal-muted tabular-nums min-w-[4ch]">
         {formatElapsed(elapsed)}
       </span>
     </div>

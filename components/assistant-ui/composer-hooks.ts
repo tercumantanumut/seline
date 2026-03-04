@@ -48,6 +48,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const isRecordingRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingStreamRef = useRef<MediaStream | null>(null);
@@ -82,8 +83,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + duration);
-      // Close the AudioContext after the tone finishes to avoid resource leaks
-      setTimeout(() => { try { ctx.close(); } catch {} }, (duration + 0.1) * 1000);
+      osc.onended = () => { try { ctx.close(); } catch {} };
     } catch {
       // Audio cue failed — non-critical
     }
@@ -116,8 +116,8 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
       return;
     }
 
-    // Already recording — bail out
-    if (isRecordingVoice) {
+    // Already recording — bail out (use ref to avoid stale closure)
+    if (isRecordingRef.current) {
       return;
     }
 
@@ -170,6 +170,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
       };
 
       recorder.onerror = () => {
+        isRecordingRef.current = false;
         setIsRecordingVoice(false);
         setIsTranscribingVoice(false);
         mediaRecorderRef.current = null;
@@ -184,6 +185,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
       };
 
       recorder.onstop = async () => {
+        isRecordingRef.current = false;
         setIsRecordingVoice(false);
         playTone(440, 0.15);
         const mimeType = recorder.mimeType || "audio/webm";
@@ -248,6 +250,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
               }
             } catch {
               // Post-processing failed — use raw transcript
+              toast.info("Grammar cleanup unavailable. Using raw transcription.");
             }
           }
 
@@ -264,18 +267,36 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
 
       recorder.start(250);
       playTone(880, 0.12);
+      isRecordingRef.current = true;
       setIsRecordingVoice(true);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : t("toast.micAccessFailed");
+      let errorMessage: string;
+      if (error instanceof DOMException) {
+        switch (error.name) {
+          case "NotAllowedError":
+            errorMessage = "Microphone access denied. Check your browser and system privacy settings.";
+            break;
+          case "NotFoundError":
+            errorMessage = "No microphone detected. Please connect a microphone.";
+            break;
+          case "NotReadableError":
+            errorMessage = "Microphone is in use by another application.";
+            break;
+          default:
+            errorMessage = "Failed to access microphone.";
+        }
+      } else {
+        errorMessage = "Failed to access microphone.";
+      }
       toast.error(errorMessage);
+      isRecordingRef.current = false;
       setIsRecordingVoice(false);
       setIsTranscribingVoice(false);
       mediaRecorderRef.current = null;
       recordingChunksRef.current = [];
       stopRecordingStream();
     }
-  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, playTone, voicePostProcessing, t]);
+  }, [isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, playTone, voicePostProcessing, t]);
 
   // Shared helper: stop an active recording
   const stopRecording = useCallback(() => {

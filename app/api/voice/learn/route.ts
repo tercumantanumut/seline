@@ -21,6 +21,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const MAX_LEARN_TEXT_LENGTH = 50_000;
+    if (
+      body.originalText.length > MAX_LEARN_TEXT_LENGTH ||
+      body.editedText.length > MAX_LEARN_TEXT_LENGTH
+    ) {
+      return NextResponse.json(
+        { error: `Text fields must not exceed ${MAX_LEARN_TEXT_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
+
     if (!body.originalText.trim() || !body.editedText.trim()) {
       return NextResponse.json({ success: true, learned: [] });
     }

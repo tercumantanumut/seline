@@ -9,7 +9,7 @@ export interface ParakeetModel {
   extractDir: string;
 }
 
-const SHERPA_ONNX_VERSION = "1.12.23";
+export const SHERPA_ONNX_VERSION = "1.12.23";
 
 export const PARAKEET_MODELS: ParakeetModel[] = [
   {

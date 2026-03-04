@@ -4,6 +4,7 @@ import {
   getParakeetModel,
   getSherpaOnnxArchiveName,
   getSherpaOnnxBinaryName,
+  SHERPA_ONNX_VERSION,
   type ParakeetModel,
 } from "@/lib/voice/parakeet-models";
 import { getOrStartParakeetServer, shutdownParakeetServer } from "@/lib/voice/parakeet-server";
@@ -76,18 +77,16 @@ async function transcribeWithOpenAI(
   const settings = loadSettings();
 
   const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
-  const openrouterKey = settings.openrouterApiKey;
 
-  if (!openaiKey && !openrouterKey) {
+  if (!openaiKey) {
     throw new Error(
-      "No API key configured for transcription. " +
-      "Please add your OpenAI API key in Settings -> API Keys, " +
-      "or configure an OpenRouter API key as a fallback."
+      "OpenAI API key is required for Whisper transcription. " +
+      "Please add your OpenAI API key (sk-...) in Settings -> API Keys. " +
+      "Note: OpenRouter keys cannot be used for the Whisper audio API."
     );
   }
 
-  // Whisper API is only available on OpenAI directly (not OpenRouter)
-  const effectiveKey = openaiKey || openrouterKey!;
+  const effectiveKey = openaiKey;
   const baseUrl = "https://api.openai.com/v1";
 
   const extension = getExtensionForMimeType(mimeType);
@@ -113,11 +112,10 @@ async function transcribeWithOpenAI(
     const statusCode = response.status;
 
     if (statusCode === 401) {
-      const keySource = openaiKey ? "OpenAI" : "OpenRouter (fallback)";
       throw new Error(
-        `Whisper API authentication failed (401) using ${keySource} key. ` +
+        `Whisper API authentication failed (401). ` +
         `Please verify your OpenAI API key in Settings -> API Keys. ` +
-        `Note: OpenAI Whisper requires a direct OpenAI API key (sk-...), not an OpenRouter key.`
+        `OpenAI Whisper requires a direct OpenAI API key (sk-...).`
       );
     }
 
@@ -296,7 +294,7 @@ async function ensureParakeetRuntime(baseDir: string): Promise<string> {
   }
 
   const archivePath = join(baseDir, archiveName);
-  const archiveUrl = `https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.12.23/${archiveName}`;
+  const archiveUrl = `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}/${archiveName}`;
 
   try {
     await downloadToFile(archiveUrl, archivePath);
@@ -373,7 +371,7 @@ function extractTarBz2Archive(archivePath: string, destinationDir: string): Prom
 
   return new Promise((resolve, reject) => {
     const child = spawn(tarCmd, ["-xjf", archivePath, "-C", destinationDir], {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "ignore", "pipe"],
       windowsHide: true,
     });
 
@@ -443,6 +441,7 @@ export async function cleanupAllVoiceProcesses(): Promise<void> {
 function transcribeViaParakeetWebSocket(endpoint: string, payload: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(endpoint);
+    let receivedMessage = false;
 
     const timer = setTimeout(() => {
       ws.close();
@@ -454,6 +453,7 @@ function transcribeViaParakeetWebSocket(endpoint: string, payload: Buffer): Prom
     });
 
     ws.addEventListener("message", (event) => {
+      receivedMessage = true;
       const data = typeof event.data === "string" ? event.data : String(event.data);
       clearTimeout(timer);
       ws.close();
@@ -463,6 +463,13 @@ function transcribeViaParakeetWebSocket(endpoint: string, payload: Buffer): Prom
     ws.addEventListener("error", () => {
       clearTimeout(timer);
       reject(new Error("Parakeet websocket communication failed"));
+    });
+
+    ws.addEventListener("close", () => {
+      if (!receivedMessage) {
+        clearTimeout(timer);
+        reject(new Error("Parakeet websocket closed without returning a transcription result"));
+      }
     });
   });
 }

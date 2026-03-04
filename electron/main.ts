@@ -167,6 +167,7 @@ import {
 } from "./next-server";
 import { setupIpcHandlers, setupEmbeddingModelPaths } from "./ipc-handlers";
 import { registerVoiceHotkeyFromSettings } from "./hotkey-manager";
+import { cleanupAllVoiceProcesses } from "../lib/audio/transcription";
 
 // ---------------------------------------------------------------------------
 // Initialize debug log
@@ -326,6 +327,9 @@ app.on("before-quit", () => {
   isAppQuitting = true;
   clearServerRestartTimer();
   stopNextServer();
+  void cleanupAllVoiceProcesses().catch((err) => {
+    debugError("[App] Voice process cleanup failed:", err);
+  });
 });
 
 // Security: Prevent new webview creation

@@ -63,9 +63,8 @@ let readyReject: ((err: Error) => void) | null = null;
  * If the server is currently starting, the caller blocks until it is ready.
  */
 export function getOrStartParakeetServer(options: StartOptions): Promise<string> {
-  currentOptions = options;
-
   if (serverState === "ready" && serverEndpoint) {
+    currentOptions = options;
     return Promise.resolve(serverEndpoint);
   }
 
@@ -74,6 +73,7 @@ export function getOrStartParakeetServer(options: StartOptions): Promise<string>
   }
 
   // Transition: idle | error → starting
+  currentOptions = options;
   return startServer(options);
 }
 
@@ -266,7 +266,11 @@ function handleUnexpectedExit(): void {
     console.log(
       `[parakeet-server] Attempting restart ${restartCount}/${MAX_TOTAL_RESTARTS}...`
     );
-    startServer(currentOptions);
+    void startServer(currentOptions).catch((err) => {
+      console.error("[parakeet-server] Restart failed:", err);
+      serverState = "error";
+      lastError = err instanceof Error ? err.message : String(err);
+    });
   } else {
     lastError = `Server exited unexpectedly and restart limit reached (${restartCount}/${MAX_TOTAL_RESTARTS})`;
     console.error(`[parakeet-server] ${lastError}`);
@@ -345,6 +349,13 @@ function performHealthPing(): void {
     settled = true;
     onHealthPingFailed("WebSocket connection error");
   });
+
+  ws.addEventListener("close", () => {
+    if (settled) return;
+    clearTimeout(timer);
+    settled = true;
+    onHealthPingFailed("WebSocket closed before open");
+  });
 }
 
 function onHealthPingSuccess(): void {
@@ -359,7 +370,9 @@ function onHealthPingFailed(reason: string): void {
 
   if (consecutiveHealthFailures >= MAX_CONSECUTIVE_HEALTH_FAILURES) {
     console.warn("[parakeet-server] Too many consecutive health failures. Restarting server...");
-    restartAfterHealthFailure();
+    void restartAfterHealthFailure().catch((err) => {
+      console.error("[parakeet-server] Restart after health failure failed:", err);
+    });
   }
 }
 

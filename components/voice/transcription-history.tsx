@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { CopyIcon, TrashIcon, Loader2Icon, HistoryIcon } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { CopyIcon, TrashIcon, Loader2Icon, HistoryIcon, AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -50,9 +50,13 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const t = useTranslations("voice");
 
   const loadHistory = useCallback(async () => {
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (sessionId) params.set("sessionId", sessionId);
@@ -61,6 +65,7 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
       const response = await fetch(`/api/voice/history?${params.toString()}`);
       if (!response.ok) {
         console.error("[TranscriptionHistory] Server error:", response.status);
+        setLoadError(true);
         return;
       }
       const data = await response.json() as { items?: HistoryEntry[] };
@@ -70,6 +75,7 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
       }
     } catch (error) {
       console.error("[TranscriptionHistory] Failed to load:", error);
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -88,21 +94,39 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
     }
   }, [t]);
 
-  const handleDelete = useCallback(async (entryId: string) => {
-    setDeletingId(entryId);
-    try {
-      const response = await fetch(`/api/voice/history?id=${entryId}`, { method: "DELETE" });
-      if (response.ok) {
-        setEntries((prev) => prev.filter((e) => e.id !== entryId));
-        toast.success(t("historyDeleted"));
+  const handleDeleteClick = useCallback((entryId: string) => {
+    if (confirmDeleteId === entryId) {
+      // Second click — execute delete
+      if (confirmTimerRef.current) {
+        clearTimeout(confirmTimerRef.current);
+        confirmTimerRef.current = null;
       }
-    } catch (error) {
-      console.error("[TranscriptionHistory] Delete failed:", error);
-      toast.error(t("historyDeleteFailed"));
-    } finally {
-      setDeletingId(null);
+      setConfirmDeleteId(null);
+      setDeletingId(entryId);
+      void (async () => {
+        try {
+          const response = await fetch(`/api/voice/history?id=${entryId}`, { method: "DELETE" });
+          if (response.ok) {
+            setEntries((prev) => prev.filter((e) => e.id !== entryId));
+            toast.success(t("historyDeleted"));
+          }
+        } catch (error) {
+          console.error("[TranscriptionHistory] Delete failed:", error);
+          toast.error(t("historyDeleteFailed"));
+        } finally {
+          setDeletingId(null);
+        }
+      })();
+    } else {
+      // First click — ask for confirmation
+      setConfirmDeleteId(entryId);
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => {
+        setConfirmDeleteId(null);
+        confirmTimerRef.current = null;
+      }, 3000);
     }
-  }, [t]);
+  }, [confirmDeleteId, t]);
 
   // Group by date
   const grouped = entries.reduce<Record<string, HistoryEntry[]>>((acc, entry) => {
@@ -118,6 +142,22 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
     return (
       <div className={cn("flex items-center justify-center py-8", className)}>
         <Loader2Icon className="size-4 animate-spin text-terminal-muted" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center gap-2 py-8 text-terminal-muted", className)}>
+        <AlertCircleIcon className="size-5 text-red-400" />
+        <span className="text-xs font-mono">Failed to load history</span>
+        <button
+          onClick={() => { setIsLoading(true); void loadHistory(); }}
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-mono text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/5 transition-colors"
+        >
+          <RefreshCwIcon className="size-3" />
+          Retry
+        </button>
       </div>
     );
   }
@@ -166,22 +206,29 @@ export function TranscriptionHistory({ sessionId, className, previewLength = 140
               </p>
 
               {/* Hover actions */}
-              <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="absolute right-2 top-2 flex gap-1 opacity-40 sm:opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
                   onClick={() => void handleCopy(entry.outputText)}
                   className="rounded p-1 text-terminal-muted hover:text-terminal-dark hover:bg-terminal-dark/5 transition-colors"
-                  title="Copy"
+                  aria-label="Copy transcription"
                 >
                   <CopyIcon className="size-3" />
                 </button>
                 <button
-                  onClick={() => void handleDelete(entry.id)}
+                  onClick={() => handleDeleteClick(entry.id)}
                   disabled={deletingId === entry.id}
-                  className="rounded p-1 text-terminal-muted hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                  title="Delete"
+                  className={cn(
+                    "rounded p-1 transition-colors disabled:opacity-50",
+                    confirmDeleteId === entry.id
+                      ? "text-red-500 bg-red-50"
+                      : "text-terminal-muted hover:text-red-500 hover:bg-red-50"
+                  )}
+                  aria-label="Delete transcription"
                 >
                   {deletingId === entry.id ? (
                     <Loader2Icon className="size-3 animate-spin" />
+                  ) : confirmDeleteId === entry.id ? (
+                    <span className="text-[10px] font-mono font-medium text-red-500 px-0.5">Confirm?</span>
                   ) : (
                     <TrashIcon className="size-3" />
                   )}

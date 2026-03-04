@@ -73,10 +73,10 @@ function safeTrim(value: string, max = 20_000): string {
   return trimmed.length <= max ? trimmed : trimmed.slice(0, max);
 }
 
-let voiceTablesInitialized = false;
+const VOICE_TABLES_INIT_KEY = "__voiceTablesInitialized__";
 
 function ensureVoiceTables(): void {
-  if (voiceTablesInitialized) return;
+  if ((globalThis as Record<string, unknown>)[VOICE_TABLES_INIT_KEY]) return;
   const sqlite = getSqlClient();
   if (!sqlite?.exec) {
     throw new Error("SQLite client is unavailable");
@@ -123,7 +123,7 @@ function ensureVoiceTables(): void {
       ON voice_dictionary (user_id, word)
   `);
 
-  voiceTablesInitialized = true;
+  (globalThis as Record<string, unknown>)[VOICE_TABLES_INIT_KEY] = true;
 }
 
 function asPromptContext(): PromptContext {
@@ -402,6 +402,8 @@ export async function runVoiceAction(request: VoiceActionRequest): Promise<{ tex
   };
 }
 
+const VOICE_RETENTION_LAST_RUN_KEY = "__voiceRetentionLastRun__";
+
 export async function getVoiceHistory(options?: { sessionId?: string; limit?: number }): Promise<VoiceHistoryEntry[]> {
   ensureVoiceTables();
   const user = await getLocalUser();
@@ -411,7 +413,11 @@ export async function getVoiceHistory(options?: { sessionId?: string; limit?: nu
   const retentionDays = settings.voiceHistoryRetentionDays ?? 30;
   const cutoffIso = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
 
-  getPreparedStatement("DELETE FROM voice_history WHERE user_id = ? AND created_at < ?").run(user.id, cutoffIso);
+  const lastRetentionRun = ((globalThis as Record<string, unknown>)[VOICE_RETENTION_LAST_RUN_KEY] as number) || 0;
+  if (Date.now() - lastRetentionRun > 60_000) {
+    getPreparedStatement("DELETE FROM voice_history WHERE user_id = ? AND created_at < ?").run(user.id, cutoffIso);
+    (globalThis as Record<string, unknown>)[VOICE_RETENTION_LAST_RUN_KEY] = Date.now();
+  }
 
   const sql = options?.sessionId
     ? `SELECT * FROM voice_history WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT ?`
@@ -553,18 +559,3 @@ export async function saveTranscriptionToHistory(entry: {
   );
 }
 
-export async function listVoiceHistoryByDay(limit = 200): Promise<Array<{ date: string; items: VoiceHistoryEntry[] }>> {
-  const history = await getVoiceHistory({ limit });
-  const grouped = new Map<string, VoiceHistoryEntry[]>();
-
-  for (const item of history) {
-    const date = item.createdAt.slice(0, 10);
-    const bucket = grouped.get(date) ?? [];
-    bucket.push(item);
-    grouped.set(date, bucket);
-  }
-
-  return Array.from(grouped.entries())
-    .map(([date, items]) => ({ date, items }))
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
-}

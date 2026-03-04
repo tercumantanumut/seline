@@ -166,10 +166,18 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
                     onMouseLeave: isRecordingVoice ? onVoiceStop : undefined,
                     onTouchStart: (e: React.TouchEvent) => { e.preventDefault(); void onVoiceStart(); },
                     onTouchEnd: onVoiceStop,
+                    onTouchCancel: onVoiceStop,
                   }
                 : { onClick: onVoiceInput }
               )}
               disabled={isTranscribingVoice || mcpIsReloading}
+              aria-label={
+                isTranscribingVoice
+                  ? "Transcribing audio"
+                  : isRecordingVoice
+                    ? "Stop voice recording"
+                    : "Start voice recording"
+              }
               className={cn(
                 "size-8 select-none",
                 isRecordingVoice
