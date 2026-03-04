@@ -53,7 +53,7 @@ function mixkit(
   const base = `https://assets.mixkit.co/videos/${videoId}`;
   return {
     videoUrl: `${base}/${videoId}-1080.mp4`,
-    posterUrl: `${base}/${videoId}-thumb-720-${thumbIndex}.jpg`,
+    posterUrl: `${base}/${videoId}-thumb-1080-${thumbIndex}.jpg`,
   };
 }
 

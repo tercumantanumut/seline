@@ -398,6 +398,21 @@ export function useSessionManager({
         setIsCancellingBackgroundRun(false);
     }, [pollingIntervalRef, setIsProcessingInBackground, setProcessingRunId, setIsZombieRun, setIsCancellingBackgroundRun]);
 
+    // Session switches should not trigger an App Router navigation because that remounts
+    // the chat shell and restarts ambient video backgrounds.
+    const replaceSessionUrl = useCallback((targetSessionId: string) => {
+        const chatPathSuffix = `/chat/${character.id}`;
+        const nextUrl = `${chatPathSuffix}?sessionId=${targetSessionId}`;
+        if (typeof window !== "undefined") {
+            const currentPath = window.location.pathname.replace(/\/$/, "");
+            if (currentPath.endsWith(chatPathSuffix)) {
+                window.history.replaceState(window.history.state, "", nextUrl);
+                return;
+            }
+        }
+        router.replace(nextUrl, { scroll: false });
+    }, [character.id, router]);
+
     const switchSession = useCallback(async (newSessionId: string) => {
         // Guard: clicking the same session while a run is active must be a no-op.
         // clearBackgroundState() would drop processingRunId / isProcessingInBackground,
@@ -413,13 +428,13 @@ export function useSessionManager({
             notifySessionUpdate(newSessionId, {
                 messageCount: sessionPayload.conversationalMessageCount,
             });
-            router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
+            replaceSessionUrl(newSessionId);
         } catch (err) {
             console.error("Failed to switch session:", err);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, character.id, router, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, setSessionState]);
+    }, [sessionId, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, replaceSessionUrl, setSessionState]);
 
     const createNewSession = useCallback(async () => {
         try {
@@ -434,7 +449,7 @@ export function useSessionManager({
                 setSessionState({ sessionId: session.id, messages: [] });
                 syncSessions([session]);
                 await loadSessions();
-                router.replace(`/chat/${character.id}?sessionId=${session.id}`, { scroll: false });
+                replaceSessionUrl(session.id);
             }
         } catch (err) {
             console.error("Failed to create new session:", err);
