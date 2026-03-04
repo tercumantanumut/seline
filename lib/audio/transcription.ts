@@ -1,6 +1,11 @@
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWhisperModel, DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
-import { execFileSync } from "node:child_process";
+import {
+  getParakeetModel,
+  getSherpaOnnxBinaryName,
+  type ParakeetModel,
+} from "@/lib/voice/parakeet-models";
+import { execFileSync, spawn } from "node:child_process";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
 import { tmpdir, homedir, platform } from "node:os";
@@ -35,6 +40,10 @@ export async function transcribeAudio(
 
   if (provider === "local") {
     return transcribeWithWhisperCpp(audio, mimeType, filename);
+  }
+
+  if (provider === "parakeet") {
+    return transcribeWithParakeet(audio, mimeType);
   }
 
   throw new Error(`Unsupported STT provider: ${provider}`);
@@ -134,6 +143,85 @@ async function transcribeWithOpenAI(
  *     or a custom path in settings.whisperCppPath
  *   - A downloaded GGML model file (.bin)
  */
+async function transcribeWithParakeet(
+  audio: Buffer,
+  mimeType: string
+): Promise<TranscriptionResult> {
+  const settings = loadSettings();
+  const modelId = settings.parakeetModel || "parakeet-tdt-0.6b-v3";
+  const model = getParakeetModel(modelId);
+  if (!model) {
+    throw new Error(`Unsupported Parakeet model: ${modelId}`);
+  }
+
+  if (!(process.versions as { electron?: string }).electron) {
+    throw new Error("Parakeet transcription is available only in Electron runtime");
+  }
+
+  const ffmpegPath = findFfmpegBinary();
+  if (!ffmpegPath) {
+    throw new Error(
+      "ffmpeg is required for Parakeet transcription but was not found. " +
+      "Install it with your package manager and ensure it is in PATH."
+    );
+  }
+
+  const ext = getExtensionForMimeType(mimeType);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tmpIn = join(tmpdir(), `seline-parakeet-in-${id}.${ext}`);
+  const tmpWav = join(tmpdir(), `seline-parakeet-conv-${id}.wav`);
+
+  try {
+    writeFileSync(tmpIn, audio);
+
+    execFileSync(
+      ffmpegPath,
+      ["-y", "-i", tmpIn, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", tmpWav],
+      { timeout: 30000, stdio: "pipe" }
+    );
+
+    const samples = readWavAsFloat32(tmpWav);
+    const message = Buffer.alloc(8 + samples.length * 4);
+    message.writeInt32LE(16000, 0);
+    message.writeInt32LE(samples.length * 4, 4);
+    for (let i = 0; i < samples.length; i += 1) {
+      message.writeFloatLE(samples[i], 8 + i * 4);
+    }
+
+    const endpoint = await resolveParakeetEndpoint(model.id);
+    const startedAt = Date.now();
+    const rawResult = await transcribeViaParakeetWebSocket(endpoint, message);
+    const elapsedSeconds = (Date.now() - startedAt) / 1000;
+
+    let text = rawResult.trim();
+    try {
+      const parsed = JSON.parse(rawResult) as { text?: string };
+      if (typeof parsed.text === "string") {
+        text = parsed.text.trim();
+      }
+    } catch {
+      // Server can return plain text for some builds
+    }
+
+    if (!text) {
+      throw new Error("Parakeet transcription produced empty result");
+    }
+
+    console.log(`[STT] Transcribed audio (${elapsedSeconds.toFixed(1)}s) via Parakeet (${model.name})`);
+    return {
+      text,
+      provider: "parakeet",
+    };
+  } finally {
+    try {
+      unlinkSync(tmpIn);
+    } catch {}
+    try {
+      unlinkSync(tmpWav);
+    } catch {}
+  }
+}
+
 async function transcribeWithWhisperCpp(
   audio: Buffer,
   mimeType: string,
@@ -446,25 +534,11 @@ function resolvePreferredWhisperBinary(binaryPath: string): string | null {
   return null;
 }
 
-function isDeprecatedWhisperStub(binaryPath: string): boolean {
-  try {
-    const output = execFileSync(binaryPath, ["--help"], {
-      timeout: 5000,
-      stdio: "pipe",
-      encoding: "utf-8",
-    });
-    return /is deprecated/i.test(output || "");
-  } catch (err) {
-    const output = getProcessErrorOutput(err);
-    return /is deprecated/i.test(output);
-  }
-}
-
 function runWhisperCli(binaryPath: string, args: string[]): string {
   const firstChoice = preferNewWhisperBinary(binaryPath);
   try {
     execFileSync(firstChoice, args, {
-      timeout: 120000, // 2 minutes max
+      timeout: 120000,
       stdio: "pipe",
       env: buildWhisperRuntimeEnv(firstChoice),
     });
@@ -475,7 +549,7 @@ function runWhisperCli(binaryPath: string, args: string[]): string {
 
     if (replacement) {
       const retryPath = resolveReplacementWhisperBinary(firstChoice, replacement);
-      if (retryPath && retryPath !== firstChoice) {
+      if (retryPath && retryPath != firstChoice) {
         execFileSync(retryPath, args, {
           timeout: 120000,
           stdio: "pipe",
@@ -486,8 +560,8 @@ function runWhisperCli(binaryPath: string, args: string[]): string {
 
       throw new Error(
         `Bundled whisper binary "${basename(firstChoice)}" is a deprecated launcher and exited before transcription. ` +
-        `Expected replacement "${replacement}" was not found. ` +
-        `Re-bundle whisper binaries (npm run electron:bundle-whisper) or set a custom binary path in Settings -> Voice & Audio.`
+          `Expected replacement "${replacement}" was not found. ` +
+          `Re-bundle whisper binaries (npm run electron:bundle-whisper) or set a custom binary path in Settings -> Voice & Audio.`
       );
     }
 
@@ -498,7 +572,6 @@ function runWhisperCli(binaryPath: string, args: string[]): string {
 function buildWhisperRuntimeEnv(binaryPath: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
 
-  // Windows loader requires dependent DLL directories in PATH.
   if (platform() === "win32") {
     const libDir = join(dirname(binaryPath), "..", "lib");
     if (existsSync(libDir)) {
@@ -543,6 +616,89 @@ function resolveReplacementWhisperBinary(currentBinaryPath: string, replacementN
   if (fromPath) return fromPath;
 
   return null;
+}
+
+function isDeprecatedWhisperStub(binaryPath: string): boolean {
+  try {
+    const output = execFileSync(binaryPath, ["--help"], {
+      timeout: 5000,
+      stdio: "pipe",
+      encoding: "utf-8",
+    });
+    return /is deprecated/i.test(output || "");
+  } catch (err) {
+    const output = getProcessErrorOutput(err);
+    return /is deprecated/i.test(output);
+  }
+}
+
+function readWavAsFloat32(wavPath: string): Float32Array {
+  const buffer = readFileSync(wavPath);
+  if (buffer.length < 44) {
+    throw new Error("Invalid WAV file: header too short");
+  }
+
+  const riff = buffer.toString("ascii", 0, 4);
+  const wave = buffer.toString("ascii", 8, 12);
+  if (riff !== "RIFF" || wave !== "WAVE") {
+    throw new Error("Invalid WAV file: missing RIFF/WAVE headers");
+  }
+
+  let offset = 12;
+  let audioFormat = 0;
+  let channels = 0;
+  let bitsPerSample = 0;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString("ascii", offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    const chunkDataOffset = offset + 8;
+
+    if (chunkId === "fmt " && chunkSize >= 16) {
+      audioFormat = buffer.readUInt16LE(chunkDataOffset);
+      channels = buffer.readUInt16LE(chunkDataOffset + 2);
+      bitsPerSample = buffer.readUInt16LE(chunkDataOffset + 14);
+    } else if (chunkId === "data") {
+      dataOffset = chunkDataOffset;
+      dataSize = chunkSize;
+      break;
+    }
+
+    offset = chunkDataOffset + chunkSize + (chunkSize % 2);
+  }
+
+  if (dataOffset < 0 || dataSize <= 0) {
+    throw new Error("Invalid WAV file: data chunk not found");
+  }
+
+  if (audioFormat !== 1) {
+    throw new Error(`Unsupported WAV encoding: expected PCM (1), received ${audioFormat}`);
+  }
+
+  if (bitsPerSample !== 16) {
+    throw new Error(`Unsupported WAV bit depth: expected 16-bit PCM, received ${bitsPerSample}`);
+  }
+
+  if (channels < 1) {
+    throw new Error("Invalid WAV file: channel count is zero");
+  }
+
+  const frameSize = channels * 2;
+  const frameCount = Math.floor(dataSize / frameSize);
+  const samples = new Float32Array(frameCount);
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const frameStart = dataOffset + i * frameSize;
+    let monoSum = 0;
+    for (let ch = 0; ch < channels; ch += 1) {
+      monoSum += buffer.readInt16LE(frameStart + ch * 2);
+    }
+    samples[i] = (monoSum / channels) / 32768;
+  }
+
+  return samples;
 }
 
 function getFfmpegBundledRelativePaths(): string[] {

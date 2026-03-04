@@ -149,8 +149,29 @@ export interface FormState {
   openaiTtsVoice: string;
   ttsSummarizeThreshold: number;
   sttEnabled: boolean;
-  sttProvider: "openai" | "local";
+  sttProvider: "openai" | "local" | "parakeet";
   sttLocalModel: string;
+  voicePostProcessing: boolean;
+  voiceAgentName: string;
+  voiceAudioCues: boolean;
+  voiceAutoLearn: boolean;
+  voiceActivationMode: "tap" | "push";
+  parakeetModel: string;
+  parakeetAutoStart: boolean;
+  parakeetServerPort: number;
+  voiceHotkey: string;
+  customDictionary: string[];
+  voiceHistoryEnabled: boolean;
+  voiceHistoryLimit: number;
+  voiceHistoryRetentionDays: number;
+  voiceHistoryPreviewLength: number;
+  voiceActionsEnabled: boolean;
+  voiceActionDefaultLanguage: string;
+  voiceActionPreserveStyle: boolean;
+  voiceActionConfirmDestructive: boolean;
+  voiceActionFormalTone: "auto" | "business" | "casual";
+  voiceActionTranslationStyle: "natural" | "literal";
+  voiceActionSummarizeLength: "short" | "medium" | "long";
 }
 
 export const DEFAULT_FORM_STATE: FormState = {
@@ -229,6 +250,27 @@ export const DEFAULT_FORM_STATE: FormState = {
   sttEnabled: true,
   sttProvider: "local",
   sttLocalModel: DEFAULT_WHISPER_MODEL,
+  voicePostProcessing: true,
+  voiceAgentName: "Seline",
+  voiceAudioCues: true,
+  voiceAutoLearn: true,
+  voiceActivationMode: "tap",
+  parakeetModel: "parakeet-tdt-0.6b-v3",
+  parakeetAutoStart: true,
+  parakeetServerPort: 0,
+  voiceHotkey: "CommandOrControl+Shift+Space",
+  customDictionary: [],
+  voiceHistoryEnabled: true,
+  voiceHistoryLimit: 200,
+  voiceHistoryRetentionDays: 30,
+  voiceHistoryPreviewLength: 140,
+  voiceActionsEnabled: true,
+  voiceActionDefaultLanguage: "English",
+  voiceActionPreserveStyle: true,
+  voiceActionConfirmDestructive: true,
+  voiceActionFormalTone: "auto",
+  voiceActionTranslationStyle: "natural",
+  voiceActionSummarizeLength: "medium",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -309,5 +351,26 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     sttEnabled: data.sttEnabled ?? true,
     sttProvider: data.sttProvider ?? "local",
     sttLocalModel: data.sttLocalModel ?? DEFAULT_WHISPER_MODEL,
+    voicePostProcessing: data.voicePostProcessing ?? true,
+    voiceAgentName: data.voiceAgentName ?? "Seline",
+    voiceAudioCues: data.voiceAudioCues ?? true,
+    voiceAutoLearn: data.voiceAutoLearn ?? true,
+    voiceActivationMode: data.voiceActivationMode ?? "tap",
+    parakeetModel: data.parakeetModel ?? "parakeet-tdt-0.6b-v3",
+    parakeetAutoStart: data.parakeetAutoStart ?? true,
+    parakeetServerPort: data.parakeetServerPort ?? 0,
+    voiceHotkey: data.voiceHotkey ?? "CommandOrControl+Shift+Space",
+    customDictionary: Array.isArray(data.customDictionary) ? data.customDictionary : [],
+    voiceHistoryEnabled: data.voiceHistoryEnabled ?? true,
+    voiceHistoryLimit: data.voiceHistoryLimit ?? 200,
+    voiceHistoryRetentionDays: data.voiceHistoryRetentionDays ?? 30,
+    voiceHistoryPreviewLength: data.voiceHistoryPreviewLength ?? 140,
+    voiceActionsEnabled: data.voiceActionsEnabled ?? true,
+    voiceActionDefaultLanguage: data.voiceActionDefaultLanguage ?? "English",
+    voiceActionPreserveStyle: data.voiceActionPreserveStyle ?? true,
+    voiceActionConfirmDestructive: data.voiceActionConfirmDestructive ?? true,
+    voiceActionFormalTone: data.voiceActionFormalTone ?? "auto",
+    voiceActionTranslationStyle: data.voiceActionTranslationStyle ?? "natural",
+    voiceActionSummarizeLength: data.voiceActionSummarizeLength ?? "medium",
   };
 }

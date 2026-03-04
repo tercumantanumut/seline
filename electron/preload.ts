@@ -109,6 +109,38 @@ const electronAPI = {
     downloadFile: (opts: { modelId: string; repo: string; filename: string }): Promise<{ success: boolean; error?: string }> => {
       return ipcRenderer.invoke("model:downloadFile", opts);
     },
+    parakeetGetStatus: (modelId?: string): Promise<{
+      installed: boolean;
+      running: boolean;
+      modelId: string | null;
+      modelDir: string | null;
+      wsBinary: string | null;
+      wsAvailable: boolean;
+      cpuThreads: number;
+      baseDir: string;
+    }> => {
+      return ipcRenderer.invoke("parakeet:getStatus", modelId);
+    },
+    parakeetResolvePaths: (modelId?: string): Promise<{
+      success: boolean;
+      error?: string;
+      modelId?: string;
+      modelDir?: string;
+      wsBinary?: string | null;
+      modelInstalled?: boolean;
+      wsAvailable?: boolean;
+    }> => {
+      return ipcRenderer.invoke("parakeet:resolvePaths", modelId);
+    },
+    parakeetDownloadModel: (modelId?: string): Promise<{
+      success: boolean;
+      error?: string;
+      modelId?: string;
+      modelDir?: string;
+      wsBinary?: string | null;
+    }> => {
+      return ipcRenderer.invoke("parakeet:downloadModel", modelId);
+    },
   },
 
   // ComfyUI local backend operations

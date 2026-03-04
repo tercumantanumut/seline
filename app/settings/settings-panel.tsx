@@ -507,7 +507,10 @@ export function SettingsPanel({
     const sttProviderOptions = [
       { value: "openai" as const, label: t("voice.stt.providerOpenAI"), description: t("voice.stt.providerOpenAIDesc") },
       { value: "local" as const, label: t("voice.stt.providerLocal"), description: t("voice.stt.providerLocalDesc") },
+      { value: "parakeet" as const, label: t("voice.stt.providerParakeet"), description: t("voice.stt.providerParakeetDesc") },
     ];
+
+    const isParakeetProvider = formState.sttProvider === "parakeet";
 
     return (
       <div className={settingsSectionShellClassName}>
@@ -688,6 +691,36 @@ export function SettingsPanel({
 
                 {formState.sttProvider === "local" && (
                   <WhisperModelSelector formState={formState} updateField={updateField} />
+                )}
+
+                {isParakeetProvider && (
+                  <div className="rounded border border-terminal-border bg-terminal-cream/30 p-4 space-y-3">
+                    <SettingsField
+                      label={t("voice.stt.parakeetModelLabel")}
+                      htmlFor="parakeetModel"
+                    >
+                      <select
+                        id="parakeetModel"
+                        value={formState.parakeetModel}
+                        onChange={(e) => updateField("parakeetModel", e.target.value)}
+                        className={settingsInputClassName}
+                      >
+                        <option value="parakeet-tdt-0.6b-v3">Parakeet TDT 0.6B v3</option>
+                      </select>
+                    </SettingsField>
+
+                    <SettingsToggleRow
+                      id="parakeetAutoStart"
+                      label={t("voice.stt.parakeetAutoStartLabel")}
+                      description={t("voice.stt.parakeetAutoStartDesc")}
+                      checked={formState.parakeetAutoStart}
+                      onChange={(checked) => updateField("parakeetAutoStart", checked)}
+                    />
+
+                    <div className="rounded border border-terminal-border bg-terminal-bg/30 px-3 py-2 font-mono text-xs text-terminal-muted">
+                      {t("voice.stt.parakeetDownloadHint")}
+                    </div>
+                  </div>
                 )}
               </div>
             ) : (

@@ -221,9 +221,30 @@ export interface AppSettings {
 
     // Audio Transcription (STT) settings
     sttEnabled?: boolean;
-    sttProvider?: "openai" | "local";
+    sttProvider?: "openai" | "local" | "parakeet";
     sttLocalModel?: string;          // Selected whisper.cpp model ID (default: "ggml-tiny.en")
     whisperCppPath?: string;         // Custom path to whisper-cli binary (auto-detected if empty)
+    voicePostProcessing?: boolean;
+    voiceAgentName?: string;
+    voiceAudioCues?: boolean;
+    voiceAutoLearn?: boolean;
+    voiceActivationMode?: "tap" | "push";
+    parakeetModel?: string;
+    parakeetAutoStart?: boolean;
+    parakeetServerPort?: number;
+    voiceHotkey?: string;
+    customDictionary?: string[];
+    voiceHistoryEnabled?: boolean;
+    voiceHistoryLimit?: number;
+    voiceHistoryRetentionDays?: number;
+    voiceHistoryPreviewLength?: number;
+    voiceActionsEnabled?: boolean;
+    voiceActionDefaultLanguage?: string;
+    voiceActionPreserveStyle?: boolean;
+    voiceActionConfirmDestructive?: boolean;
+    voiceActionFormalTone?: "auto" | "business" | "casual";
+    voiceActionTranslationStyle?: "natural" | "literal";
+    voiceActionSummarizeLength?: "short" | "medium" | "long";
 
     // Memory settings
     memoryAutoApprove?: boolean;     // Auto-approve background-extracted memories (default: false)
@@ -314,6 +335,27 @@ const DEFAULT_SETTINGS: AppSettings = {
     sttEnabled: true,
     sttProvider: "local",
     sttLocalModel: "ggml-tiny.en",
+    voicePostProcessing: true,
+    voiceAgentName: "Seline",
+    voiceAudioCues: true,
+    voiceAutoLearn: true,
+    voiceActivationMode: "tap",
+    parakeetModel: "parakeet-tdt-0.6b-v3",
+    parakeetAutoStart: true,
+    voiceHotkey: "CommandOrControl+Shift+Space",
+    customDictionary: [],
+    voiceHistoryEnabled: true,
+    voiceHistoryLimit: 200,
+    voiceHistoryRetentionDays: 30,
+    voiceHistoryPreviewLength: 140,
+    voiceActionsEnabled: true,
+    voiceActionDefaultLanguage: "English",
+    voiceActionPreserveStyle: true,
+    voiceActionConfirmDestructive: true,
+    voiceActionFormalTone: "auto",
+    voiceActionTranslationStyle: "natural",
+    voiceActionSummarizeLength: "medium",
+    parakeetServerPort: 0,
     // RTK defaults
     rtkEnabled: false,
     rtkInstalled: false,
