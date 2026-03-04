@@ -226,6 +226,9 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
             throw new Error(t("toast.noSpeechDetected"));
           }
 
+          // Store raw transcript for auto-learn comparison when user sends
+          lastTranscriptRef.current = transcript;
+
           let finalText = transcript;
           if (voicePostProcessing && transcript.length > 0) {
             try {
@@ -269,7 +272,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
     }
   }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, playTone, voicePostProcessing, t]);
 
-  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode };
+  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode, lastTranscriptRef };
 }
 
 // ---------------------------------------------------------------------------

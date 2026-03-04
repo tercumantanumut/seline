@@ -250,7 +250,7 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, analyserNode, lastTranscriptRef } = useVoiceRecording({
     sttEnabled,
     voicePostProcessing,
     voiceAudioCues,
@@ -325,6 +325,18 @@ export const Composer: FC<{
         clearDraft();
         updateCursorPosition(0);
         return;
+      }
+
+      // Auto-learn from voice corrections: if user edited a voice transcript before sending,
+      // submit the diff to the learn endpoint (fire-and-forget)
+      const rawTranscript = lastTranscriptRef.current;
+      if (rawTranscript && hasText && rawTranscript !== inputValue.trim()) {
+        void fetch("/api/voice/learn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ originalText: rawTranscript, editedText: inputValue.trim() }),
+        }).catch(() => {});
+        lastTranscriptRef.current = null;
       }
 
       const messageToSend = enhancedContext || inputValue.trim();
@@ -405,6 +417,7 @@ export const Composer: FC<{
       updateCursorPosition,
       clearEnhancement,
       clearPastedTexts,
+      lastTranscriptRef,
     ]
   );
 
