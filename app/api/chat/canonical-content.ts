@@ -245,7 +245,15 @@ export function mergeCanonicalAssistantContent(
       for (let i = 0; i < base.length; i += 1) {
         const part = base[i];
         if (part.type !== "text") continue;
-        const existingTrimmed = part.text.trim();
+        // Sanitize existing text the same way step text is sanitized so the
+        // comparison isn't thrown off by fake tool-call JSON that only exists
+        // in the streaming copy (Fix #2: stripFakeToolCallJson divergence).
+        const existingTrimmed = stripFakeToolCallJson(part.text).trim();
+
+        // Skip empty text parts — `"hello".includes("")` is always true in JS,
+        // which would cause every non-empty incoming text to count empty parts
+        // as "subsumed" and trigger the blob-drop heuristic (Fix #1).
+        if (!existingTrimmed) continue;
 
         if (existingTrimmed === incomingTrimmed) {
           exactMatch = true;
