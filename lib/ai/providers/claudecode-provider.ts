@@ -7,6 +7,7 @@ import type {
   HookEvent,
   HookCallbackMatcher,
   SdkPluginConfig,
+  SDKUserMessage,
   OutputFormat,
   ThinkingConfig,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -423,6 +424,97 @@ function buildPromptFromMessages(messages: unknown): string {
   return lines.join("\n\n");
 }
 
+/**
+ * Detect whether intercepted Anthropic API messages contain image content blocks.
+ * When images are present, we must use the SDK's multimodal prompt path instead
+ * of flattening to a text-only string (which silently drops image data).
+ */
+function hasImageContent(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  for (const message of messages) {
+    if (!isDictionary(message)) continue;
+    const content = message.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (isDictionary(part) && part.type === "image") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Build an AsyncIterable<SDKUserMessage> that preserves image content blocks
+ * from intercepted Anthropic API messages. This allows the Claude Agent SDK's
+ * query() to process multimodal prompts (text + images) natively.
+ *
+ * Consolidates the full conversation (user + assistant messages) into a single
+ * SDKUserMessage. Assistant turns are included as text context blocks so the
+ * model retains conversation history, while user image blocks are preserved.
+ * SDKUserMessage.type must be 'user' — the SDK's streamInput only accepts that.
+ */
+async function* buildMultimodalSdkPrompt(
+  messages: unknown[],
+): AsyncGenerator<SDKUserMessage> {
+  const sessionId = crypto.randomUUID();
+
+  // Collect all content blocks across the conversation into a single message.
+  // This mirrors buildPromptFromMessages (single string) but preserves images.
+  const contentBlocks: unknown[] = [];
+
+  for (const message of messages) {
+    if (!isDictionary(message)) continue;
+
+    const role = message.role === "assistant" ? "ASSISTANT" : "USER";
+    const content = message.content;
+
+    if (typeof content === "string" && content.trim().length > 0) {
+      contentBlocks.push({ type: "text", text: `${role}: ${content}` });
+      continue;
+    }
+
+    if (Array.isArray(content)) {
+      // Flatten all structured blocks to text, except image blocks which
+      // are preserved as native content (the whole point of this path).
+      const textFragments: string[] = [];
+
+      for (const part of content) {
+        if (!isDictionary(part) || typeof part.type !== "string") continue;
+
+        if (part.type === "text" && typeof part.text === "string") {
+          textFragments.push(part.text);
+        } else if (part.type === "image") {
+          // Only image blocks are preserved as native content blocks
+          contentBlocks.push(part);
+        } else if (part.type === "tool_use") {
+          const toolName = normalizeClaudeSdkToolName(part.name) || "tool";
+          textFragments.push(`[tool_use:${toolName}]`);
+        } else if (part.type === "tool_result") {
+          textFragments.push("[tool_result]");
+        }
+      }
+
+      if (textFragments.length > 0) {
+        contentBlocks.push({
+          type: "text",
+          text: `${role}: ${textFragments.join("\n")}`,
+        });
+      }
+    }
+  }
+
+  if (contentBlocks.length === 0) return;
+
+  yield {
+    type: "user" as const,
+    message: {
+      role: "user" as const,
+      content: contentBlocks,
+    },
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  } as SDKUserMessage;
+}
+
 function isAuthError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -521,7 +613,7 @@ function createAnthropicStreamResponse(text: string, model: string): Response {
  * chat UI to show intermediate tool steps in real-time.
  */
 function createStreamingClaudeCodeResponse(options: {
-  prompt: string;
+  prompt: string | AsyncIterable<SDKUserMessage>;
   model: string;
   systemPrompt?: string;
   signal?: AbortSignal;
@@ -1189,7 +1281,7 @@ function createStreamingClaudeCodeResponse(options: {
 }
 
 async function runClaudeAgentQuery(options: {
-  prompt: string;
+  prompt: string | AsyncIterable<SDKUserMessage>;
   model: string;
   systemPrompt?: string;
   signal?: AbortSignal;
@@ -1499,16 +1591,27 @@ function createClaudeCodeFetch(): typeof fetch {
     }
 
     const requestBody = sanitizedBody.value as Record<string, unknown>;
-    const prompt = buildPromptFromMessages(requestBody.messages);
     const model = typeof requestBody.model === "string" ? requestBody.model : DEFAULT_MODEL;
     const systemPrompt = buildSystemPrompt(requestBody.system);
     const isStream = requestBody.stream === true;
+
+    // When messages contain image content blocks (e.g. describeImage tool),
+    // use the SDK's native multimodal prompt path to preserve image data.
+    // For text-only messages, use the existing string flattening (zero blast radius).
+    const isMultimodal = hasImageContent(requestBody.messages);
+    // Text prompt is computed once; multimodal generators are rebuilt per-attempt
+    // since AsyncGenerator is single-use and retries need a fresh iterable.
+    const textPrompt = isMultimodal ? undefined : buildPromptFromMessages(requestBody.messages);
+    const makePrompt = (): string | AsyncIterable<SDKUserMessage> =>
+      isMultimodal
+        ? buildMultimodalSdkPrompt(requestBody.messages as unknown[])
+        : textPrompt!;
 
     // For streaming requests, use the real-time streaming path that pipes SDK
     // events (including tool_use blocks) directly to the client as SSE.
     if (isStream) {
       return createStreamingClaudeCodeResponse({
-        prompt,
+        prompt: makePrompt(),
         model,
         systemPrompt,
         signal: init.signal ?? undefined,
@@ -1518,7 +1621,7 @@ function createClaudeCodeFetch(): typeof fetch {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const output = await runClaudeAgentQuery({
-          prompt,
+          prompt: makePrompt(),
           model,
           systemPrompt,
           signal: init.signal ?? undefined,

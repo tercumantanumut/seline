@@ -193,10 +193,12 @@ export const Shell: FC<ShellProps> = ({
         {hasSidebar && (
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 shadow-sm flex flex-col",
-              hasBackground
-                ? "bg-terminal-cream/50 backdrop-blur-md"
-                : "bg-terminal-cream/80 backdrop-blur-sm",
+              "fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
+              hasBackground && desktopCollapsed
+                ? "bg-transparent"
+                : hasBackground
+                  ? "bg-terminal-cream/50 backdrop-blur-md shadow-sm"
+                  : "bg-terminal-cream/80 backdrop-blur-sm shadow-sm",
               sidebarOpen ? "translate-x-0" : "-translate-x-full",
               // Desktop width based on collapsed state (only apply after hydration to prevent flash)
               isHydrated && desktopCollapsed ? "md:w-16" : "w-72",
@@ -253,8 +255,12 @@ export const Shell: FC<ShellProps> = ({
             {user && (
               <div
                 className={cn(
-                  "shrink-0 border-t border-terminal-dark/10",
-                  hasBackground ? "bg-transparent" : "bg-terminal-cream/90",
+                  "shrink-0",
+                  hasBackground && desktopCollapsed
+                    ? "bg-transparent"
+                    : hasBackground
+                      ? "bg-transparent border-t border-terminal-dark/10"
+                      : "bg-terminal-cream/90 border-t border-terminal-dark/10",
                   desktopCollapsed ? "md:p-2" : "p-3",
                 )}
               >

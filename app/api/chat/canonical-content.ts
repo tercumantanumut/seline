@@ -233,21 +233,36 @@ export function mergeCanonicalAssistantContent(
     }
 
     if (incoming.type === "text") {
-      let latestExistingText: string | undefined;
+      const incomingTrimmed = incoming.text.trim();
+      if (!incomingTrimmed) continue;
+
+      // Find all existing text parts and check for overlap
+      let superseded = false;
       for (let i = base.length - 1; i >= 0; i -= 1) {
         const part = base[i];
-        if (part.type === "text") {
-          latestExistingText = part.text;
+        if (part.type !== "text") continue;
+        const existingTrimmed = part.text.trim();
+
+        // Exact match — skip incoming
+        if (existingTrimmed === incomingTrimmed) {
+          superseded = true;
+          break;
+        }
+        // Incoming is a superset of existing — replace existing with incoming
+        if (incomingTrimmed.includes(existingTrimmed)) {
+          base[i] = incoming;
+          superseded = true;
+          break;
+        }
+        // Existing is a superset of incoming — skip incoming
+        if (existingTrimmed.includes(incomingTrimmed)) {
+          superseded = true;
           break;
         }
       }
-      if (
-        latestExistingText !== undefined &&
-        latestExistingText.trim() === incoming.text.trim()
-      ) {
-        continue;
+      if (!superseded) {
+        base.push(incoming);
       }
-      base.push(incoming);
       continue;
     }
 
