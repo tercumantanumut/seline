@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { Plus, Search as LucideSearch, Sparkles as LucideSparkles } from "lucide-react";
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { AnimatedButton } from "@/components/ui/animated-button";
@@ -47,7 +48,6 @@ import { useWorkflowManager } from "@/components/character-picker-workflow-hook"
 import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
 import { useCharacterActions } from "@/components/character-picker-character-actions-hook";
 import { useTheme } from "@/components/theme/theme-provider";
-import { BackgroundLayer } from "@/components/ui/background-layer";
 
 export function CharacterPicker() {
   const router = useRouter();
@@ -329,8 +329,7 @@ export function CharacterPicker() {
 
   return (
     <TooltipProvider>
-      <div className="isolate relative flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto bg-terminal-cream min-h-full w-full">
-        <BackgroundLayer config={homepageBackground} className="rounded-lg" />
+      <div className={cn("isolate relative flex flex-col gap-6 px-2 py-6 sm:px-4 lg:px-6 xl:px-8 max-w-[1600px] mx-auto min-h-full w-full", homepageBackground.type !== "none" ? "bg-transparent" : "bg-terminal-cream")}>
         <AnimatedContainer direction="down" distance={15} className="relative z-[1] text-center">
           <h1 className="text-2xl font-bold font-mono text-terminal-dark">{t("title")}</h1>
           <p className="text-terminal-muted mt-2 font-mono text-sm">
@@ -415,7 +414,7 @@ export function CharacterPicker() {
         )}
 
         <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          <AnimatedCard data-animate-card hoverLift className="bg-terminal-cream/50 hover:bg-terminal-cream">
+          <AnimatedCard data-animate-card hoverLift className={cn(homepageBackground.type !== "none" ? "bg-terminal-cream/30 backdrop-blur-md hover:bg-terminal-cream/40" : "bg-terminal-cream/50 hover:bg-terminal-cream")}>
             <button
               type="button"
               onClick={() => setCreateModalOpen(true)}
@@ -452,6 +451,7 @@ export function CharacterPicker() {
               onAddToWorkflow={openAddToWorkflowDialog}
               canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
               onDelete={charActions.openDeleteDialog}
+              hasWallpaper={homepageBackground.type !== "none"}
               router={router}
             />
           ))}

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useThread } from "@assistant-ui/react";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
+import { useTheme } from "@/components/theme/theme-provider";
 import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Loader2 } from "lucide-react";
@@ -88,6 +89,7 @@ export default function ChatInterface({
     const pathname = usePathname();
     const t = useTranslations("chat");
     const tc = useTranslations("common");
+    const { chatBackground } = useTheme();
 
     // Combined state to prevent race conditions where sessionId changes
     // but messages haven't updated yet
@@ -595,6 +597,7 @@ export default function ChatInterface({
 
     return (
         <Shell
+            background={chatBackground}
             sidebarHeader={<ChatSidebarHeader label={tc("back")} onBack={() => router.push("/")} />}
             sidebar={
                 <CharacterSidebar

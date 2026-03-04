@@ -28,6 +28,7 @@ import { animate } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
+import { useTheme } from "@/components/theme/theme-provider";
 import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
 import { useSessionComposerEditorState } from "@/lib/hooks/use-session-composer-editor-state";
@@ -100,6 +101,8 @@ export const Composer: FC<{
   const mentionRef = useRef<HTMLDivElement>(null);
   const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
+  const { chatBackground } = useTheme();
+  const hasWallpaper = chatBackground.type !== "none";
   const simpleDraftAtRichModeEntryRef = useRef<string | null>(null);
 
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
@@ -832,7 +835,7 @@ export const Composer: FC<{
           "relative flex w-full flex-col rounded-lg shadow-md transition-shadow focus-within:shadow-lg transform-gpu",
           isDeepResearchMode
             ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200"
-            : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
+            : hasWallpaper ? "bg-terminal-cream/50 backdrop-blur-sm focus-within:bg-terminal-cream/60" : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
         )}
         onFocus={handleFocus}
       >

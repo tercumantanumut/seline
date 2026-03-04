@@ -38,7 +38,6 @@ import {
 import { Composer } from "./thread-composer";
 import { BrowserBackdrop } from "./browser-backdrop";
 import { useTheme } from "@/components/theme/theme-provider";
-import { BackgroundLayer } from "@/components/ui/background-layer";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -192,14 +191,12 @@ export const Thread: FC<ThreadProps> = ({
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root
-        className={cn("isolate relative flex h-full flex-col transition-colors duration-700", isBrowserActive ? "bg-transparent" : "bg-terminal-cream")}
+        className={cn("isolate relative flex h-full flex-col transition-colors duration-700", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Chat wallpaper background */}
-        <BackgroundLayer config={chatBackground} />
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
 
@@ -294,7 +291,7 @@ export const Thread: FC<ThreadProps> = ({
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
-          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : "bg-terminal-cream")}>
+          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
             <AgentResourcesBadge />
             <Composer
