@@ -352,6 +352,23 @@ export function normalizeOrphanedToolOutputs(input: CodexInputItem[]): CodexInpu
 const MAX_TOOL_OUTPUT_BYTES = 8 * 1024;
 
 /**
+ * Max bytes for a single non-tool item (anchor) before it gets truncated.
+ * System prompts, developer messages, and assistant messages can be huge
+ * (5MB+ in observed production cases). If anchors exceed the payload budget
+ * on their own, no amount of tool-pair dropping helps — the model gets zero
+ * context and loops. Capping anchors ensures room for recent tool history.
+ */
+const MAX_ANCHOR_ITEM_BYTES = 50 * 1024;
+
+/**
+ * Minimum number of recent tool pairs to preserve during last-resort
+ * truncation. Without this floor, the model loses ALL tool history
+ * when anchors are large, causing it to repeat the same tool calls
+ * indefinitely (the observed infinite-loop bug).
+ */
+const MIN_PRESERVED_TOOL_PAIRS = 5;
+
+/**
  * Summarize a tool output value that exceeds MAX_TOOL_OUTPUT_BYTES.
  * Keeps the first portion so the model still knows what happened,
  * appends a truncation marker so it knows data was cut.
@@ -365,6 +382,60 @@ function summarizeToolOutput(output: unknown): unknown {
 }
 
 /**
+ * Truncate a message item's content if it exceeds maxBytes.
+ * Handles both string content and array content (e.g. developer messages
+ * with [{type: "input_text", text: "..."}]).
+ */
+function capItemContent(item: CodexInputItem, maxBytes: number): CodexInputItem {
+  const serialized = JSON.stringify(item);
+  if (serialized.length <= maxBytes) return item;
+
+  // String content — simple truncation
+  if (typeof item.content === "string") {
+    const kept = item.content.slice(0, maxBytes);
+    return {
+      ...item,
+      content: `${kept}\n\n[... system prompt truncated — original was ${(item.content.length / 1024).toFixed(0)} KB]`,
+    };
+  }
+
+  // Array content (e.g. [{type: "input_text", text: "..."}])
+  if (Array.isArray(item.content)) {
+    const cappedParts: unknown[] = [];
+    let budget = maxBytes;
+
+    for (const part of item.content as Array<Record<string, unknown>>) {
+      const partStr = JSON.stringify(part);
+      if (partStr.length <= budget) {
+        cappedParts.push(part);
+        budget -= partStr.length;
+      } else if (budget > 200 && typeof part === "object" && part !== null) {
+        // Try to truncate the text field within the part
+        const textField = (part as { text?: string }).text;
+        if (typeof textField === "string" && textField.length > 200) {
+          const keptText = textField.slice(0, budget);
+          cappedParts.push({
+            ...part,
+            text: `${keptText}\n\n[... truncated — original was ${(textField.length / 1024).toFixed(0)} KB]`,
+          });
+        }
+        break;
+      } else {
+        break;
+      }
+    }
+
+    return { ...item, content: cappedParts.length > 0 ? cappedParts : "[Content too large — truncated]" };
+  }
+
+  // Unknown structure — replace with placeholder
+  return {
+    ...item,
+    content: `[Content truncated — original was ${(serialized.length / 1024).toFixed(0)} KB]`,
+  };
+}
+
+/**
  * Truncate oversized Codex input by capping individual tool output content.
  *
  * Unlike the old approach (dropping entire call/output pairs), this preserves
@@ -374,7 +445,10 @@ function summarizeToolOutput(output: unknown): unknown {
  * Strategy:
  * 1. If payload is within limits, return as-is.
  * 2. Walk all tool output items and cap their `output` field.
- * 3. If still over limit after capping outputs, drop oldest pairs as last resort.
+ * 2.5. Cap oversized anchor items (system prompt, messages) that would
+ *      starve the budget and leave no room for tool history.
+ * 3. If still over limit after capping, drop oldest pairs BUT always
+ *    preserve MIN_PRESERVED_TOOL_PAIRS recent pairs.
  */
 export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
   // Fast path: already within limits
@@ -387,7 +461,7 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
 
   // Phase 1: Cap individual tool output content
   let truncatedOutputs = 0;
-  const capped = input.map((item) => {
+  let capped = input.map((item) => {
     if (!isToolOutputType(item.type)) return item;
     if (item.output === undefined && item.content === undefined) return item;
 
@@ -417,8 +491,38 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     }
   }
 
-  // Phase 2 (last resort): Drop oldest tool pairs if still over limits.
-  // This should rarely happen after Phase 1 capping.
+  // Phase 1.5: Cap oversized anchor items (non-tool items).
+  // System prompts and developer messages can be 5MB+ — if anchors alone
+  // exceed the budget, dropping tool pairs is futile and causes the model
+  // to loop. Cap anchors so there's room for recent tool history.
+  let cappedAnchors = 0;
+  capped = capped.map((item) => {
+    if (isToolCallType(item.type) || isToolOutputType(item.type)) return item;
+    const serialized = JSON.stringify(item);
+    if (serialized.length <= MAX_ANCHOR_ITEM_BYTES) return item;
+
+    cappedAnchors++;
+    return capItemContent(item, MAX_ANCHOR_ITEM_BYTES);
+  });
+
+  if (cappedAnchors > 0) {
+    console.log(
+      `[CODEX] Capped ${cappedAnchors} oversized anchor items ` +
+        `(max ${(MAX_ANCHOR_ITEM_BYTES / 1024).toFixed(0)} KB each)`
+    );
+  }
+
+  // Re-check after anchor capping
+  if (capped.length <= MAX_CODEX_INPUT_ITEMS) {
+    const payloadSize = JSON.stringify(capped).length;
+    if (payloadSize <= MAX_CODEX_PAYLOAD_BYTES) {
+      return capped;
+    }
+  }
+
+  // Phase 2: Drop oldest tool pairs if still over limits, but ALWAYS
+  // preserve at least MIN_PRESERVED_TOOL_PAIRS recent pairs.
+  // Without this floor, the model loses all context and loops.
   type IndexedItem = { index: number; item: CodexInputItem };
   const anchors: IndexedItem[] = [];
   const toolItems: IndexedItem[] = [];
@@ -446,6 +550,10 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     pairMap.get(cid)!.push(ti);
   }
 
+  // Never drop below this many recent pairs — model needs SOME context
+  // to avoid repeating the same tool calls.
+  const maxDroppable = Math.max(0, pairOrder.length - MIN_PRESERVED_TOOL_PAIRS);
+
   let dropCount = 0;
 
   const rebuild = (): CodexInputItem[] => {
@@ -463,7 +571,7 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
     items.length <= MAX_CODEX_INPUT_ITEMS &&
     JSON.stringify(items).length <= MAX_CODEX_PAYLOAD_BYTES;
 
-  while (dropCount < pairOrder.length && !isWithinLimits(rebuild())) {
+  while (dropCount < maxDroppable && !isWithinLimits(rebuild())) {
     dropCount++;
   }
 
@@ -471,12 +579,14 @@ export function truncateCodexInput(input: CodexInputItem[]): CodexInputItem[] {
 
   const droppedItems = capped.length - result.length;
   if (droppedItems > 0) {
+    const preserved = pairOrder.length - dropCount;
     console.warn(
       `[CODEX] Last-resort truncation: dropped ${droppedItems} items ` +
         `(${dropCount} tool pairs) after output capping was insufficient, ` +
         `${capped.length} → ${result.length} items, ` +
         `${(JSON.stringify(capped).length / 1024).toFixed(0)}KB → ` +
-        `${(JSON.stringify(result).length / 1024).toFixed(0)}KB`
+        `${(JSON.stringify(result).length / 1024).toFixed(0)}KB` +
+        `${preserved <= MIN_PRESERVED_TOOL_PAIRS ? ` (preserved ${preserved} recent pairs — floor active)` : ""}`
     );
   }
 

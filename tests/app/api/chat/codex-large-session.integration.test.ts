@@ -449,6 +449,112 @@ describe("truncateCodexInput correctness", () => {
   });
 });
 
+// ─── Anchor capping and minimum tool preservation (infinite loop fix) ─────────
+
+describe("anchor capping prevents infinite loop", () => {
+  it("caps oversized system prompt and preserves recent tool pairs", () => {
+    // Production bug: 5MB system prompt + 138 tool pairs.
+    // Old behavior: anchors alone exceed 900KB budget → all 138 tool pairs
+    // dropped → model gets zero context → repeats same tools → infinite loop.
+    const HUGE_SYSTEM_PROMPT = "x".repeat(5 * 1024 * 1024); // 5MB
+    const TOOL_COUNT = 20;
+
+    const input: CodexInputItem[] = [
+      { type: "message", role: "developer", content: HUGE_SYSTEM_PROMPT },
+      { type: "message", role: "user", content: "Fix the image zoom issue" },
+    ];
+
+    for (let i = 0; i < TOOL_COUNT; i++) {
+      input.push({
+        type: "function_call",
+        call_id: `call_${i}`,
+        name: "localGrep",
+        arguments: JSON.stringify({ pattern: `pattern_${i}` }),
+      });
+      input.push({
+        type: "function_call_output",
+        call_id: `call_${i}`,
+        name: "localGrep",
+        output: JSON.stringify({ status: "success", matchCount: 3 }),
+      });
+    }
+
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const result = truncateCodexInput(input);
+
+    consoleSpy.mockRestore();
+    logSpy.mockRestore();
+
+    // CRITICAL: Must have SOME tool pairs preserved (not zero!)
+    const calls = result.filter((item) => item.type === "function_call");
+    const outputs = result.filter((item) => item.type === "function_call_output");
+    expect(calls.length).toBeGreaterThan(0);
+    expect(outputs.length).toBeGreaterThan(0);
+
+    // System prompt should be capped (not 5MB anymore)
+    const devMsg = result.find(
+      (item) => item.type === "message" && item.role === "developer"
+    );
+    expect(devMsg).toBeDefined();
+    const devContent = typeof devMsg!.content === "string"
+      ? devMsg!.content
+      : JSON.stringify(devMsg!.content);
+    expect(devContent.length).toBeLessThan(100 * 1024); // well under 100KB
+
+    // User message preserved
+    const userMsg = result.find(
+      (item) => item.type === "message" && item.role === "user"
+    );
+    expect(userMsg).toBeDefined();
+    expect(userMsg!.content).toBe("Fix the image zoom issue");
+
+    // Payload within limits
+    expect(JSON.stringify(result).length).toBeLessThanOrEqual(MAX_CODEX_PAYLOAD_BYTES);
+  });
+
+  it("minimum tool pairs floor prevents complete history loss", () => {
+    // Even when anchors + tools exceed budget, at least MIN_PRESERVED_TOOL_PAIRS
+    // (5) recent pairs must survive.
+    const input: CodexInputItem[] = [
+      { type: "message", role: "user", content: "Do something" },
+    ];
+
+    // 100 tool pairs with 7KB outputs each (~700KB of tool data)
+    for (let i = 0; i < 100; i++) {
+      input.push({
+        type: "function_call",
+        call_id: `call_${i}`,
+        name: "localGrep",
+        arguments: JSON.stringify({ pattern: `p${i}` }),
+      });
+      input.push({
+        type: "function_call_output",
+        call_id: `call_${i}`,
+        name: "localGrep",
+        output: "y".repeat(7 * 1024),
+      });
+    }
+
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const result = truncateCodexInput(input);
+
+    consoleSpy.mockRestore();
+    logSpy.mockRestore();
+
+    const calls = result.filter((item) => item.type === "function_call");
+
+    // Must have at least 5 recent pairs (the floor)
+    expect(calls.length).toBeGreaterThanOrEqual(5);
+
+    // The most recent pair should always be preserved
+    expect(calls.some((c) => c.call_id === "call_99")).toBe(true);
+  });
+});
+
 // ─── Error surfacing ──────────────────────────────────────────────────────────
 
 describe("error surfacing for large sessions", () => {
