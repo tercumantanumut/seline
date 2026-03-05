@@ -94,38 +94,39 @@ let talkingHeadLoadPromise: Promise<TalkingHeadModule | null> | null = null;
  * Dynamically loads TalkingHead.js at runtime.
  *
  * Strategy:
- * 1. Check if already available on `window` (CDN <script> tag)
- * 2. Try dynamic import from a bundled asset path
- * 3. Try CDN fallback
- * 4. Return null if unavailable (graceful degradation)
+ * 1. Check if already available on `window` (pre-loaded bundle)
+ * 2. Inject the IIFE bundle via <script> tag — sets window.TalkingHead
+ * 3. Return null if unavailable (graceful degradation)
+ *
+ * The bundle at /talkinghead/talkinghead.bundle.js includes Three.js and all
+ * dependencies in a single IIFE. No import maps or ESM dynamic imports needed.
  */
 function loadTalkingHead(): Promise<TalkingHeadModule | null> {
   if (talkingHeadLoadPromise) return talkingHeadLoadPromise;
 
   talkingHeadLoadPromise = (async (): Promise<TalkingHeadModule | null> => {
-    // Check if loaded via CDN <script> tag
     const win = window as unknown as Record<string, unknown>;
+
+    // Already loaded (e.g. from a previous mount)
     if (win.TalkingHead && typeof win.TalkingHead === "function") {
       return { TalkingHead: win.TalkingHead } as TalkingHeadModule;
     }
 
-    // Try dynamic import from local asset
-    // Uses a variable to prevent TypeScript from resolving the module statically
+    // Inject the IIFE bundle via <script> tag
     try {
-      const localPath = "/talkinghead/talkinghead.mjs";
-      const mod = (await import(/* webpackIgnore: true */ localPath)) as TalkingHeadModule;
-      if (mod?.TalkingHead) return mod;
-    } catch {
-      // Not available at the expected path
-    }
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "/talkinghead/talkinghead.bundle.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load TalkingHead bundle"));
+        document.head.appendChild(script);
+      });
 
-    // Try CDN fallback
-    try {
-      const cdnUrl = "https://cdn.jsdelivr.net/npm/@met4citizen/talkinghead/modules/talkinghead.mjs";
-      const mod = (await import(/* webpackIgnore: true */ cdnUrl)) as TalkingHeadModule;
-      if (mod?.TalkingHead) return mod;
+      if (win.TalkingHead && typeof win.TalkingHead === "function") {
+        return { TalkingHead: win.TalkingHead } as TalkingHeadModule;
+      }
     } catch {
-      // CDN not available either
+      // Bundle not available
     }
 
     return null;

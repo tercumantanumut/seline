@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useThread } from "@assistant-ui/react";
 import { Shell } from "@/components/layout/shell";
@@ -17,6 +17,9 @@ import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import { AvatarRenderer } from "@/components/avatar-3d/avatar-renderer";
+import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
+import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
@@ -76,6 +79,97 @@ const ForegroundStreamingBridge: FC<{
     return null;
 };
 
+/**
+ * Bridge: routes TTS audio to the 3D avatar instead of HTML5 Audio.
+ * Must be rendered inside VoiceProvider (via ChatProvider).
+ */
+const AvatarAudioBridge: FC<{
+    avatarRef: React.RefObject<Avatar3DRef | null>;
+}> = ({ avatarRef }) => {
+    const voiceCtx = useOptionalVoice();
+
+    useEffect(() => {
+        if (!voiceCtx) return;
+
+        const externalPlayer = async (url: string) => {
+            const avatar = avatarRef.current;
+            if (!avatar?.isReady) {
+                throw new Error("Avatar not ready — fall back to HTML5 Audio");
+            }
+            const res = await fetch(url);
+            const arrayBuffer = await res.arrayBuffer();
+            await avatar.speak(arrayBuffer);
+        };
+
+        voiceCtx.registerExternalPlayer(externalPlayer);
+        return () => voiceCtx.unregisterExternalPlayer();
+    }, [voiceCtx, avatarRef]);
+
+    return null;
+};
+
+/**
+ * Bridge: auto-speaks the last assistant reply when ttsAutoMode === "always"
+ * and avatar is enabled. Fires after streaming finishes.
+ */
+const AutoSpeakBridge: FC<{
+    ttsAutoMode: string;
+    ttsEnabled: boolean;
+}> = ({ ttsAutoMode, ttsEnabled }) => {
+    const voiceCtx = useOptionalVoice();
+    const isRunning = useThread((thread) => thread.isRunning);
+    const threadMessages = useThread((thread) => thread.messages);
+    const wasRunningRef = useRef(false);
+    const lastSpokenIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        // Detect streaming end: was running → now stopped
+        if (wasRunningRef.current && !isRunning) {
+            if (ttsAutoMode === "always" && ttsEnabled && voiceCtx) {
+                // Find the last assistant message
+                const lastMsg = [...threadMessages].reverse().find(
+                    (m) => m.role === "assistant"
+                );
+                if (lastMsg && lastMsg.id !== lastSpokenIdRef.current) {
+                    lastSpokenIdRef.current = lastMsg.id;
+                    // Extract text content from the message
+                    const text = lastMsg.content
+                        .filter((part): part is { type: "text"; text: string } => part.type === "text")
+                        .map((part) => part.text)
+                        .join("\n")
+                        .trim();
+
+                    if (text && text.length > 0) {
+                        // Truncate to reasonable TTS length
+                        const truncated = text.length > 1500 ? text.slice(0, 1500) : text;
+                        voiceCtx.setSynthesizing(true);
+                        fetch("/api/voice/speak", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text: truncated }),
+                        })
+                            .then((res) => {
+                                if (!res.ok) throw new Error(`TTS failed: ${res.status}`);
+                                return res.blob();
+                            })
+                            .then((blob) => {
+                                const url = URL.createObjectURL(blob);
+                                voiceCtx.playAudio(url);
+                            })
+                            .catch((err) => {
+                                console.warn("[AutoSpeak] TTS synthesis failed:", err);
+                                voiceCtx.setSynthesizing(false);
+                            });
+                    }
+                }
+            }
+        }
+        wasRunningRef.current = Boolean(isRunning);
+    }, [isRunning, threadMessages, ttsAutoMode, ttsEnabled, voiceCtx]);
+
+    return null;
+};
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -103,7 +197,63 @@ export default function ChatInterface({
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
+    const [avatarConfig, setAvatarConfig] = useState<Avatar3DConfig>({ enabled: false });
+    const [avatarHidden, setAvatarHidden] = useState(false);
+    const avatarRef = useRef<Avatar3DRef>(null);
     const isForegroundStreamingRef = useRef(false);
+    const [ttsAutoMode, setTtsAutoMode] = useState<string>("off");
+    const [ttsEnabled, setTtsEnabled] = useState(false);
+
+    // ── Draggable avatar state ──
+    const [avatarPos, setAvatarPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
+    const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+    // Initialize avatar position centered at top after first render
+    useEffect(() => {
+        if (avatarPos.x === -1 && typeof window !== "undefined") {
+            setAvatarPos({ x: Math.round(window.innerWidth / 2 - 140), y: 16 });
+        }
+    }, [avatarPos.x]);
+
+    const handleAvatarPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+        // Only primary button
+        if (e.button !== 0) return;
+        e.preventDefault();
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        dragRef.current = { startX: e.clientX, startY: e.clientY, origX: avatarPos.x, origY: avatarPos.y };
+    }, [avatarPos]);
+
+    useEffect(() => {
+        const handlePointerMove = (e: globalThis.PointerEvent) => {
+            if (!dragRef.current) return;
+            const dx = e.clientX - dragRef.current.startX;
+            const dy = e.clientY - dragRef.current.startY;
+            setAvatarPos({
+                x: dragRef.current.origX + dx,
+                y: dragRef.current.origY + dy,
+            });
+        };
+        const handlePointerUp = () => { dragRef.current = null; };
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+    }, []);
+
+    useEffect(() => {
+        fetch("/api/settings")
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => {
+                if (data?.avatar3dEnabled) {
+                    setAvatarConfig({ enabled: true, lipsyncLang: "en" });
+                }
+                if (data?.ttsAutoMode) setTtsAutoMode(data.ttsAutoMode);
+                if (data?.ttsEnabled != null) setTtsEnabled(data.ttsEnabled);
+            })
+            .catch(() => {});
+    }, []);
 
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -664,6 +814,37 @@ export default function ChatInterface({
                                         cancelling={isCancellingRun}
                                     />
                                 </div>
+                            )}
+                            {avatarConfig.enabled && (
+                                <>
+                                    <AvatarAudioBridge avatarRef={avatarRef} />
+                                    <AutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} />
+                                    {!avatarHidden ? (
+                                        <div
+                                            className="group/avatar fixed z-50 w-[280px] h-[320px] pointer-events-auto select-none"
+                                            style={{ left: avatarPos.x, top: avatarPos.y, cursor: dragRef.current ? "grabbing" : "grab" }}
+                                            onPointerDown={handleAvatarPointerDown}
+                                        >
+                                            <AvatarRenderer ref={avatarRef} config={avatarConfig} className="rounded-2xl" />
+                                            {/* Hide button — appears on hover, no overlay */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setAvatarHidden(true); }}
+                                                className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200 hover:bg-black/70 cursor-pointer"
+                                                title="Hide avatar"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setAvatarHidden(false)}
+                                            className="fixed top-4 right-4 z-50 px-3 py-1.5 rounded-full bg-primary/90 text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary transition-colors pointer-events-auto"
+                                            title="Show avatar"
+                                        >
+                                            Show Avatar
+                                        </button>
+                                    )}
+                                </>
                             )}
                             <Thread
                                 onSessionActivity={handleSessionActivity}

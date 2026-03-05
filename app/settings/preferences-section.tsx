@@ -807,6 +807,33 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
         )}
       </div>
 
+      {/* 3D Avatar */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">
+            {t("preferences.avatar3d.heading")}
+          </h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.avatar3d.description")}
+          </p>
+        </div>
+
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.avatar3d.enableLabel")}</span>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              {t("preferences.avatar3d.enableDesc")}
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={formState.avatar3dEnabled}
+            onChange={(e) => updateField("avatar3dEnabled", e.target.checked)}
+            className="size-5 accent-terminal-green"
+          />
+        </label>
+      </div>
+
       {/* Browser Automation */}
       <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
         <div>

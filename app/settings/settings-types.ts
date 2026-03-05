@@ -1,10 +1,11 @@
 import { DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
 
 export interface AppSettings {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey?: string;
   openrouterApiKey?: string;
   kimiApiKey?: string;
+  minimaxApiKey?: string;
   openaiApiKey?: string;
   ollamaBaseUrl?: string;
   tavilyApiKey?: string;
@@ -72,10 +73,11 @@ export interface AppSettings {
 export type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "plugins" | "voice";
 
 export interface FormState {
-  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
+  llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey: string;
   openrouterApiKey: string;
   kimiApiKey: string;
+  minimaxApiKey: string;
   openaiApiKey: string;
   ollamaBaseUrl: string;
   tavilyApiKey: string;
@@ -143,6 +145,11 @@ export interface FormState {
   comfyuiCustomUseHttps: boolean;
   comfyuiCustomAutoDetect: boolean;
   comfyuiCustomBaseUrl: string;
+  // 3D Avatar settings
+  avatar3dEnabled: boolean;
+  // EverMemOS shared memory settings
+  everMemOSEnabled: boolean;
+  everMemOSServerUrl: string;
   // Voice & Audio settings
   ttsEnabled: boolean;
   ttsProvider: "elevenlabs" | "openai" | "edge";
@@ -182,6 +189,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   anthropicApiKey: "",
   openrouterApiKey: "",
   kimiApiKey: "",
+  minimaxApiKey: "",
   openaiApiKey: "",
   ollamaBaseUrl: "http://localhost:11434/v1",
   tavilyApiKey: "",
@@ -245,6 +253,9 @@ export const DEFAULT_FORM_STATE: FormState = {
   comfyuiCustomUseHttps: false,
   comfyuiCustomAutoDetect: true,
   comfyuiCustomBaseUrl: "",
+  avatar3dEnabled: false,
+  everMemOSEnabled: false,
+  everMemOSServerUrl: "",
   ttsEnabled: true,
   ttsProvider: "edge",
   ttsAutoMode: "off",
@@ -285,6 +296,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     anthropicApiKey: data.anthropicApiKey || "",
     openrouterApiKey: data.openrouterApiKey || "",
     kimiApiKey: data.kimiApiKey || "",
+    minimaxApiKey: data.minimaxApiKey || "",
     openaiApiKey: data.openaiApiKey || "",
     ollamaBaseUrl: data.ollamaBaseUrl || "http://localhost:11434/v1",
     tavilyApiKey: data.tavilyApiKey || "",
@@ -348,6 +360,9 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     comfyuiCustomUseHttps: data.comfyuiCustomUseHttps ?? false,
     comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
     comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
+    avatar3dEnabled: data.avatar3dEnabled ?? false,
+    everMemOSEnabled: data.everMemOSEnabled ?? false,
+    everMemOSServerUrl: data.everMemOSServerUrl ?? "",
     ttsEnabled: data.ttsEnabled ?? true,
     ttsProvider: data.ttsProvider ?? "edge",
     ttsAutoMode: data.ttsAutoMode ?? "off",

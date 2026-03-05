@@ -24,6 +24,9 @@ export function MemorySection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resettingOnboarding, setResettingOnboarding] = useState(false);
+  const [everMemOSEnabled, setEverMemOSEnabled] = useState(false);
+  const [everMemOSServerUrl, setEverMemOSServerUrl] = useState("");
+  const [everMemOSSaving, setEverMemOSSaving] = useState(false);
 
   // Load global memory defaults on mount
   useEffect(() => {
@@ -41,6 +44,12 @@ export function MemorySection() {
             communication_style: settings.globalMemoryDefaults.communication_style || [],
             workflow_patterns: settings.globalMemoryDefaults.workflow_patterns || [],
           });
+        }
+        if (settings.everMemOSEnabled !== undefined) {
+          setEverMemOSEnabled(settings.everMemOSEnabled);
+        }
+        if (settings.everMemOSServerUrl) {
+          setEverMemOSServerUrl(settings.everMemOSServerUrl);
         }
       }
     } catch (error) {
@@ -66,6 +75,23 @@ export function MemorySection() {
       toast.error(t("errors.memorySaveFailed"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveEverMemOSSettings = async (enabled: boolean, serverUrl: string) => {
+    setEverMemOSSaving(true);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ everMemOSEnabled: enabled, everMemOSServerUrl: serverUrl }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      console.error("Failed to save EverMemOS settings:", error);
+      toast.error(t("errors.memorySaveFailed"));
+    } finally {
+      setEverMemOSSaving(false);
     }
   };
 
@@ -236,6 +262,60 @@ export function MemorySection() {
               {t("onboarding.cta")}
             </Button>
           </div>
+        </div>
+      </div>
+
+      {/* EverMemOS Shared Memory */}
+      <div className="border-t border-terminal-border pt-6">
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-mono text-lg font-semibold text-terminal-dark flex items-center gap-2">
+              <BrainIcon className="size-5 text-terminal-green" />
+              {t("preferences.everMemOS.heading")}
+            </h2>
+            <p className="mt-1 font-mono text-sm text-terminal-muted">
+              {t("preferences.everMemOS.description")}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
+            <label className="flex items-center justify-between gap-3">
+              <div>
+                <span className="font-mono text-sm text-terminal-dark">{t("preferences.everMemOS.enableLabel")}</span>
+                <p className="mt-1 font-mono text-xs text-terminal-muted">
+                  {t("preferences.everMemOS.enableDesc")}
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={everMemOSEnabled}
+                onChange={(e) => {
+                  setEverMemOSEnabled(e.target.checked);
+                  saveEverMemOSSettings(e.target.checked, everMemOSServerUrl);
+                }}
+                className="size-5 accent-terminal-green"
+              />
+            </label>
+          </div>
+
+          {everMemOSEnabled && (
+            <div className="rounded-lg border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 p-4">
+              <label className="mb-1 block font-mono text-sm text-terminal-muted">
+                {t("preferences.everMemOS.serverUrlLabel")}
+              </label>
+              <input
+                type="text"
+                value={everMemOSServerUrl}
+                onChange={(e) => setEverMemOSServerUrl(e.target.value)}
+                onBlur={() => saveEverMemOSSettings(everMemOSEnabled, everMemOSServerUrl)}
+                placeholder={t("preferences.everMemOS.serverUrlPlaceholder")}
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+              <p className="mt-1 font-mono text-xs text-terminal-muted">
+                {t("preferences.everMemOS.serverUrlHelper")}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

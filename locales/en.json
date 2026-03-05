@@ -1869,6 +1869,7 @@
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
+      "minimax": "MiniMax",
       "ollama": "Ollama (local)",
       "keysTitle": "Provider keys",
       "auth": {
@@ -1916,6 +1917,11 @@
           "label": "Moonshot API Key",
           "placeholder": "sk-...",
           "helper": "Create a key in your Moonshot account."
+        },
+        "minimax": {
+          "label": "MiniMax API Key",
+          "placeholder": "eyJ...",
+          "helper": "Get your key from the MiniMax platform."
         },
         "webSearchProvider": {
           "label": "Web search source",
@@ -2357,6 +2363,21 @@
         "userAction": "User",
         "showActions": "Show Actions",
         "hideActions": "Hide Actions"
+      },
+      "avatar3d": {
+        "heading": "3D Avatar",
+        "description": "Enable a 3D talking head avatar that lip-syncs to TTS audio and reflects detected emotions.",
+        "enableLabel": "Enable 3D avatar",
+        "enableDesc": "Shows an animated 3D avatar in the chat interface."
+      },
+      "everMemOS": {
+        "heading": "Shared memory (EverMemOS)",
+        "description": "Connect to an EverMemOS server for cross-agent shared memory. Local memory is always used; EverMemOS adds shared recall.",
+        "enableLabel": "Enable EverMemOS",
+        "enableDesc": "Pushes memories to a shared EverMemOS server in addition to local storage.",
+        "serverUrlLabel": "EverMemOS server URL",
+        "serverUrlPlaceholder": "http://localhost:8765",
+        "serverUrlHelper": "The base URL of your running EverMemOS instance."
       },
       "devWorkspace": {
         "heading": "Developer workspace",

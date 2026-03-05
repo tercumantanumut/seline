@@ -132,6 +132,23 @@ export function ApiKeysSection({
             <input
               type="radio"
               name="llmProvider"
+              value="minimax"
+              checked={formState.llmProvider === "minimax"}
+              onChange={(e) => {
+                updateField("llmProvider", e.target.value as FormState["llmProvider"]);
+                updateField("chatModel", "");
+                updateField("researchModel", "");
+                updateField("visionModel", "");
+                updateField("utilityModel", "");
+              }}
+              className="size-4 accent-terminal-green"
+            />
+            <span className="font-mono text-terminal-dark">{t("api.minimax")}</span>
+          </label>
+          <label className="flex items-center gap-3">
+            <input
+              type="radio"
+              name="llmProvider"
               value="codex"
               checked={formState.llmProvider === "codex"}
               onChange={(e) => {
@@ -393,6 +410,18 @@ export function ApiKeysSection({
             className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
           />
           <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.kimi.helper")}</p>
+        </div>
+
+        <div>
+          <label className="mb-1 block font-mono text-sm text-terminal-muted">{t("api.fields.minimax.label")}</label>
+          <input
+            type="password"
+            value={formState.minimaxApiKey}
+            onChange={(e) => updateField("minimaxApiKey", e.target.value)}
+            placeholder={t("api.fields.minimax.placeholder")}
+            className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+          />
+          <p className="mt-1 font-mono text-xs text-terminal-muted">{t("api.fields.minimax.helper")}</p>
         </div>
 
         <div>

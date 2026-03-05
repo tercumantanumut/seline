@@ -157,6 +157,11 @@ export async function PUT(request: NextRequest) {
       devWorkspaceAutoCleanup: body.devWorkspaceAutoCleanup !== undefined ? body.devWorkspaceAutoCleanup : currentSettings.devWorkspaceAutoCleanup,
       devWorkspaceAutoCleanupDays: body.devWorkspaceAutoCleanupDays !== undefined ? body.devWorkspaceAutoCleanupDays : currentSettings.devWorkspaceAutoCleanupDays,
       workspaceOnboardingSeen: body.workspaceOnboardingSeen !== undefined ? body.workspaceOnboardingSeen : currentSettings.workspaceOnboardingSeen,
+      // 3D Avatar
+      avatar3dEnabled: body.avatar3dEnabled !== undefined ? body.avatar3dEnabled : currentSettings.avatar3dEnabled,
+      // EverMemOS
+      everMemOSEnabled: body.everMemOSEnabled !== undefined ? body.everMemOSEnabled : currentSettings.everMemOSEnabled,
+      everMemOSServerUrl: body.everMemOSServerUrl !== undefined ? body.everMemOSServerUrl : currentSettings.everMemOSServerUrl,
     };
 
     // Only update API keys if they're provided and not masked

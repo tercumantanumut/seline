@@ -263,6 +263,13 @@ export interface AppSettings {
     devWorkspaceAutoCleanupDays?: number;   // Days before auto-cleanup (default: 7)
     workspaceOnboardingSeen?: boolean;      // Whether the workspace onboarding tour has been shown
 
+    // 3D Avatar
+    avatar3dEnabled?: boolean;              // Enable 3D talking head avatar in chat interface
+
+    // EverMemOS (shared memory)
+    everMemOSEnabled?: boolean;             // Enable EverMemOS integration
+    everMemOSServerUrl?: string;            // EverMemOS server URL
+
     // Browser automation settings
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)

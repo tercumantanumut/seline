@@ -87,6 +87,7 @@ import {
 } from "./tool-schema-recovery";
 import { tagIntermediateDelegationParts } from "./delegation-scope-tagging";
 import { createThinkTagFilter, shouldFilterThinkTags } from "@/lib/ai/streaming/think-tag-filter";
+import { detectEmotion } from "@/lib/emotion";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -456,6 +457,9 @@ export async function POST(req: Request) {
       if ((isNewSession || userMessageCount === 1) && plainTextContent.length > 0) {
         void generateSessionTitle(sessionId, plainTextContent);
       }
+
+      // Fire-and-forget emotion detection
+      detectEmotion(plainTextContent, [], { conversationId: sessionId }).catch(() => {});
     }
 
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────

@@ -109,6 +109,7 @@ export default async function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
+      <head />
       <body className="min-h-dvh antialiased font-sans">
         <Script id="theme-script" strategy="beforeInteractive">
           {themeScript}
