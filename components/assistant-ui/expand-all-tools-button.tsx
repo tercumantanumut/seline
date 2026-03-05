@@ -34,10 +34,9 @@ export const ExpandAllToolsButton: FC = () => {
 
   if (!ctx) return null;
 
-  // After first toggle, mode reflects the LAST action taken.
-  // If counter is 0 (never toggled), next action will be "expand".
-  const nextAction = ctx.signal.counter === 0 ? "expand" : ctx.signal.mode;
-  const isExpanded = nextAction === "collapse";
+  // mode reflects the LAST action dispatched to consumers.
+  // counter=0 means never toggled → default collapsed state.
+  const isExpanded = ctx.signal.counter > 0 && ctx.signal.mode === "expand";
 
   return (
     <Tooltip>

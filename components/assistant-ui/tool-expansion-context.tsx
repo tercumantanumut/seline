@@ -25,7 +25,7 @@ const ToolExpansionContext = createContext<ToolExpansionState | null>(null);
 
 export function ToolExpansionProvider({ children }: { children: ReactNode }) {
   const [signal, setSignal] = useState<ToolExpansionSignal>({
-    mode: "expand",
+    mode: "collapse",
     counter: 0,
   });
 
