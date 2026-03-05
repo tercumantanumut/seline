@@ -85,13 +85,17 @@ const ForegroundStreamingBridge: FC<{
  */
 const AvatarAudioBridge: FC<{
     avatarRef: React.RefObject<Avatar3DRef | null>;
-}> = ({ avatarRef }) => {
+    mutedRef: React.RefObject<boolean>;
+}> = ({ avatarRef, mutedRef }) => {
     const voiceCtx = useOptionalVoice();
 
     useEffect(() => {
         if (!voiceCtx) return;
 
         const externalPlayer = async (url: string) => {
+            if (mutedRef.current) {
+                throw new Error("Avatar muted — fall back to HTML5 Audio");
+            }
             const avatar = avatarRef.current;
             if (!avatar?.isReady) {
                 throw new Error("Avatar not ready — fall back to HTML5 Audio");
@@ -103,7 +107,7 @@ const AvatarAudioBridge: FC<{
 
         voiceCtx.registerExternalPlayer(externalPlayer);
         return () => voiceCtx.unregisterExternalPlayer();
-    }, [voiceCtx, avatarRef]);
+    }, [voiceCtx, avatarRef, mutedRef]);
 
     return null;
 };
@@ -199,10 +203,15 @@ export default function ChatInterface({
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
     const [avatarConfig, setAvatarConfig] = useState<Avatar3DConfig>({ enabled: false });
     const [avatarHidden, setAvatarHidden] = useState(false);
+    const [avatarMuted, setAvatarMuted] = useState(false);
+    const avatarMutedRef = useRef(false);
     const avatarRef = useRef<Avatar3DRef>(null);
     const isForegroundStreamingRef = useRef(false);
     const [ttsAutoMode, setTtsAutoMode] = useState<string>("off");
     const [ttsEnabled, setTtsEnabled] = useState(false);
+
+    // Keep muted ref in sync with state (bridge reads ref, not state)
+    useEffect(() => { avatarMutedRef.current = avatarMuted; }, [avatarMuted]);
 
     // ── Draggable avatar state ──
     const [avatarPos, setAvatarPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
@@ -817,7 +826,7 @@ export default function ChatInterface({
                             )}
                             {avatarConfig.enabled && (
                                 <>
-                                    <AvatarAudioBridge avatarRef={avatarRef} />
+                                    <AvatarAudioBridge avatarRef={avatarRef} mutedRef={avatarMutedRef} />
                                     <AutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} />
                                     {!avatarHidden ? (
                                         <div
@@ -826,14 +835,23 @@ export default function ChatInterface({
                                             onPointerDown={handleAvatarPointerDown}
                                         >
                                             <AvatarRenderer ref={avatarRef} config={avatarConfig} className="rounded-2xl" />
-                                            {/* Hide button — appears on hover, no overlay */}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setAvatarHidden(true); }}
-                                                className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200 hover:bg-black/70 cursor-pointer"
-                                                title="Hide avatar"
-                                            >
-                                                ✕
-                                            </button>
+                                            {/* Controls — appear on hover */}
+                                            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setAvatarMuted((m) => !m); }}
+                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
+                                                    title={avatarMuted ? "Unmute avatar" : "Mute avatar"}
+                                                >
+                                                    {avatarMuted ? "🔇" : "🔊"}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setAvatarHidden(true); }}
+                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
+                                                    title="Hide avatar"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
                                         </div>
                                     ) : (
                                         <button
