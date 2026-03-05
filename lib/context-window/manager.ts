@@ -21,8 +21,42 @@ import {
   isScopedFallbackEnabled,
   shouldUseScopedCounting,
   shouldDualCalculate,
+  type ContextScope,
 } from "./scoped-counting-contract";
+import type { Message } from "@/lib/db/schema";
 import { logScopedCountingTelemetry } from "./scoped-counting-telemetry";
+
+function readContextScope(value: unknown): ContextScope | undefined {
+  return value === "main" || value === "delegated" ? value : undefined;
+}
+
+function hasDelegatedAnnotations(messages: Message[]): boolean {
+  for (const message of messages) {
+    const metadata =
+      message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+        ? (message.metadata as Record<string, unknown>)
+        : null;
+
+    if (readContextScope(metadata?.contextScope) === "delegated") {
+      return true;
+    }
+
+    if (!Array.isArray(message.content)) {
+      continue;
+    }
+
+    for (const part of message.content) {
+      if (!part || typeof part !== "object" || Array.isArray(part)) {
+        continue;
+      }
+      if (readContextScope((part as { contextScope?: unknown }).contextScope) === "delegated") {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -113,12 +147,14 @@ export class ContextWindowManager {
     const messages = await getNonCompactedMessages(sessionId);
     const config = getContextWindowConfig(modelId, provider);
     const thresholds = getTokenThresholds(modelId, provider);
+    const delegatedAnnotationsPresent = hasDelegatedAnnotations(messages);
 
     const scopedOptions = {
       provider,
       sessionMetadata: (session.metadata ?? null) as Record<string, unknown> | null,
       fallbackEnabled: isScopedFallbackEnabled(),
       fallbackMinConfidence: getScopedFallbackMinConfidence(),
+      hasDelegatedAnnotations: delegatedAnnotationsPresent,
     };
 
     const usage = await TokenTracker.calculateUsage(

@@ -16,6 +16,7 @@ export interface ScopedCountOptions {
   scopedMode?: "legacy" | "scoped";
   fallbackEnabled?: boolean;
   fallbackMinConfidence?: number;
+  hasDelegatedAnnotations?: boolean;
 }
 
 export const CLAUDECODE_PROVIDER: LLMProvider = "claudecode";

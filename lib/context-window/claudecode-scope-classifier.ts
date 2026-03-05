@@ -28,10 +28,22 @@ function normalizePassthroughToolName(raw: string): string {
   return raw;
 }
 
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function isDelegatedToolName(raw: unknown): boolean {
   const normalized = normalizePassthroughToolName(normalizeToolName(raw));
   if (!normalized) return false;
   return DELEGATED_TOOL_NAMES.has(normalized);
+}
+
+export function isDelegatedSubagentIntermediateResult(part: unknown): boolean {
+  if (!isObjectLike(part)) return false;
+  if (part.type !== "tool-result") return false;
+  if (part.toolName !== "delegateToSubagent") return false;
+  if (!isObjectLike(part.result)) return false;
+  return part.result.running === true && part.result.completed !== true;
 }
 
 export function getDefaultScopeFromSessionMetadata(

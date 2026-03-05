@@ -13,6 +13,11 @@ interface ToolCallLike {
   type?: string;
   toolCallId?: string;
   toolName?: string;
+  result?: unknown;
+}
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function asToolCallLike(part: unknown): ToolCallLike {
@@ -60,6 +65,20 @@ export class LegacyScopeHeuristic {
         scope: "delegated",
         confidence: 0.98,
         reason: "delegated_tool_call_name",
+      };
+    }
+
+    if (
+      candidate.type === "tool-result" &&
+      candidate.toolName === "delegateToSubagent" &&
+      isObjectLike(candidate.result) &&
+      candidate.result.running === true &&
+      candidate.result.completed !== true
+    ) {
+      return {
+        scope: "delegated",
+        confidence: 0.95,
+        reason: "delegate_observe_intermediate_running",
       };
     }
 

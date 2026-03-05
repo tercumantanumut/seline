@@ -87,6 +87,10 @@ export {
   normalizeProvenance,
 } from "./scoped-counting-contract";
 
-export { isDelegatedToolName, getDefaultScopeFromSessionMetadata } from "./claudecode-scope-classifier";
+export {
+  isDelegatedToolName,
+  isDelegatedSubagentIntermediateResult,
+  getDefaultScopeFromSessionMetadata,
+} from "./claudecode-scope-classifier";
 export { LegacyScopeHeuristic, type LegacyScopeInference } from "./fallback-scope-parser";
 export { logScopedCountingTelemetry } from "./scoped-counting-telemetry";

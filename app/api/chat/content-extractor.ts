@@ -9,6 +9,67 @@ import {
 } from "./content-sanitizer";
 import { reconcileToolCallPairs, toModelToolResultOutput, normalizeToolCallInput } from "./tool-call-utils";
 
+// Image mime types recognized for base64 conversion
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+// Most AI provider APIs cap base64 image payloads around 5 MB.
+// 4.5 MB leaves headroom for data-URI overhead and minor size variance.
+const MAX_BASE64_BYTES = 4.5 * 1024 * 1024;
+
+// base64 encoding inflates size by ~1.33x; use 1.37 to account for
+// data-URI prefix and small overhead.
+const BASE64_OVERHEAD = 1.37;
+
+/**
+ * Resize an image buffer so its base64 representation stays under the API limit.
+ * Uses a two-pass strategy: first attempt with generous dimensions/quality,
+ * then a tighter pass if still too large.
+ * Returns the original buffer unchanged when sharp is unavailable or on error.
+ */
+async function resizeImageIfNeeded(
+  buffer: Buffer,
+  imageUrl: string,
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  try {
+    const sharp = (await import("sharp")).default;
+
+    // First pass — preserve detail where possible
+    let resized = await sharp(buffer)
+      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    if (resized.length * BASE64_OVERHEAD <= MAX_BASE64_BYTES) {
+      console.log(
+        `[CHAT API] Resized oversized image: ${imageUrl} ` +
+        `(${buffer.length} → ${resized.length} bytes, ~${Math.round(resized.length * BASE64_OVERHEAD / 1024)}KB base64)`,
+      );
+      return { buffer: resized, mimeType: "image/jpeg" };
+    }
+
+    // Second pass — tighter constraints
+    resized = await sharp(buffer)
+      .resize({ width: 1536, height: 1536, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 75 })
+      .toBuffer();
+
+    console.log(
+      `[CHAT API] Resized oversized image (pass 2): ${imageUrl} ` +
+      `(${buffer.length} → ${resized.length} bytes, ~${Math.round(resized.length * BASE64_OVERHEAD / 1024)}KB base64)`,
+    );
+    return { buffer: resized, mimeType: "image/jpeg" };
+  } catch (resizeError) {
+    console.warn(`[CHAT API] Failed to resize image, using original: ${imageUrl}`, resizeError);
+    return null;
+  }
+}
+
 // Helper to convert relative image URLs to base64 data URIs for AI providers
 async function imageUrlToBase64(imageUrl: string): Promise<string> {
   // If already a data URI or absolute URL, return as-is
@@ -29,21 +90,25 @@ async function imageUrlToBase64(imageUrl: string): Promise<string> {
         return imageUrl;
       }
 
-      const fileBuffer = await fs.readFile(filePath);
-      const base64 = fileBuffer.toString("base64");
+      let fileBuffer = await fs.readFile(filePath);
 
       // Determine mime type from extension
       const ext = path.extname(filePath).toLowerCase();
-      const mimeTypes: Record<string, string> = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-      };
-      const mimeType = mimeTypes[ext] || "image/png";
+      let mimeType = IMAGE_MIME_TYPES[ext] || "image/png";
 
-      console.log(`[CHAT API] Converted image to base64: ${imageUrl} (${mimeType})`);
+      // If the image would produce an oversized base64 payload, resize it.
+      // Only applies to recognized image types — non-image media passes through untouched.
+      if (fileBuffer.length * BASE64_OVERHEAD > MAX_BASE64_BYTES && ext in IMAGE_MIME_TYPES) {
+        const resized = await resizeImageIfNeeded(fileBuffer, imageUrl);
+        if (resized) {
+          fileBuffer = Buffer.from(resized.buffer);
+          mimeType = resized.mimeType;
+        }
+      }
+
+      const base64 = fileBuffer.toString("base64");
+
+      console.log(`[CHAT API] Converted image to base64: ${imageUrl} (${mimeType}, ${Math.round(base64.length / 1024)}KB)`);
       return `data:${mimeType};base64,${base64}`;
     } catch (error) {
       console.error(`[CHAT API] Failed to convert image to base64: ${imageUrl}`, error);

@@ -95,6 +95,7 @@ const LEGACY_ASSISTANT_TOKEN_RATIO_THRESHOLD = 1.3;
 function isScopedModeActive(options: ScopedCountOptions): boolean {
   if (options.scopedMode === "legacy") return false;
   if (options.scopedMode === "scoped") return true;
+  if (options.hasDelegatedAnnotations) return true;
   return shouldUseScopedCounting(options.provider);
 }
 

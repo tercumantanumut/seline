@@ -483,8 +483,17 @@ async function* buildMultimodalSdkPrompt(
         if (part.type === "text" && typeof part.text === "string") {
           textFragments.push(part.text);
         } else if (part.type === "image") {
-          // Only image blocks are preserved as native content blocks
-          contentBlocks.push(part);
+          // Safety guard: if the image base64 payload exceeds the API limit
+          // (should have been resized upstream, but catch edge cases here)
+          const imageData: unknown = (part as Record<string, unknown>).image;
+          if (typeof imageData === "string" && imageData.length > 5 * 1024 * 1024) {
+            console.warn(
+              `[CLAUDECODE] Image block too large (${Math.round(imageData.length / 1024)}KB), replacing with placeholder`,
+            );
+            contentBlocks.push({ type: "text", text: "[Image omitted — exceeded provider size limit]" });
+          } else {
+            contentBlocks.push(part);
+          }
         } else if (part.type === "tool_use") {
           const toolName = normalizeClaudeSdkToolName(part.name) || "tool";
           textFragments.push(`[tool_use:${toolName}]`);
