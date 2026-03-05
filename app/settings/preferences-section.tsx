@@ -869,7 +869,7 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
 
             <div className="rounded border border-dashed border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 p-3">
               <p className="font-mono text-xs text-terminal-muted">
-                <strong className="text-amber-600 dark:text-amber-400">{t("preferences.browserAutomation.noteLabel")}</strong>{" "}
+                <strong className="text-amber-600 dark:text-amber-400">&#9888; {t("preferences.browserAutomation.noteLabel")}</strong>{" "}
                 {t("preferences.browserAutomation.noteText")}
               </p>
             </div>

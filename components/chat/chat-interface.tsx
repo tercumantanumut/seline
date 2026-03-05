@@ -116,15 +116,12 @@ export default function ChatInterface({
     // Using refs ensures the callbacks passed to useBackgroundProcessing never change
     // identity, keeping startPollingForCompletion stable and preventing checkActiveRun
     // from firing on every render.
-    const refreshSessionTimestampRef = useRef<(id: string) => void>(() => {});
     const notifySessionUpdateRef = useRef<(id: string, data: Record<string, unknown>) => void>(() => {});
-    const stableRefreshSessionTimestamp = useCallback((id: string) => refreshSessionTimestampRef.current(id), []);
     const stableNotifySessionUpdate = useCallback((id: string, data: Record<string, unknown>) => notifySessionUpdateRef.current(id, data), []);
 
     // ── Background processing (polling, refresh, cancel) ──
     const bg = useBackgroundProcessing({
         sessionId,
-        refreshSessionTimestamp: stableRefreshSessionTimestamp,
         notifySessionUpdate: stableNotifySessionUpdate,
         setSessionState,
         chatSetMessagesRef,
@@ -145,8 +142,7 @@ export default function ChatInterface({
         setIsCancellingBackgroundRun: bg.setIsCancellingBackgroundRun,
     });
 
-    // Wire up refs to real implementations now that sm is initialized
-    refreshSessionTimestampRef.current = sm.refreshSessionTimestamp;
+    // Wire up ref to real implementation now that sm is initialized
     notifySessionUpdateRef.current = sm.notifySessionUpdate;
 
     const isChannelSession = Boolean(

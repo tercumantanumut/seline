@@ -13,6 +13,7 @@ import type { Page, CDPSession } from "playwright-core";
 // ─── CDP Session Cache ─────────────────────────────────────────────────────────
 
 const GLOBAL_KEY = "__seline_input_cdp_sessions__" as const;
+const PENDING_KEY = "__seline_input_cdp_pending__" as const;
 
 function getCdpCache(): Map<string, CDPSession> {
   const g = globalThis as unknown as Record<string, Map<string, CDPSession>>;
@@ -22,9 +23,19 @@ function getCdpCache(): Map<string, CDPSession> {
   return g[GLOBAL_KEY];
 }
 
+function getPendingCreations(): Map<string, Promise<CDPSession>> {
+  const g = globalThis as unknown as Record<string, Map<string, Promise<CDPSession>>>;
+  if (!g[PENDING_KEY]) {
+    g[PENDING_KEY] = new Map();
+  }
+  return g[PENDING_KEY];
+}
+
 /**
  * Get or create a CDP session for input dispatch.
  * Caches per sessionId to avoid creating multiple CDP sessions for the same page.
+ * Uses a pending promise map to prevent race conditions when concurrent requests
+ * both attempt to create a new CDP session for the same sessionId.
  */
 async function getCdpSession(sessionId: string, page: Page): Promise<CDPSession> {
   const cache = getCdpCache();
@@ -39,9 +50,23 @@ async function getCdpSession(sessionId: string, page: Page): Promise<CDPSession>
     }
   }
 
-  const cdp = await page.context().newCDPSession(page);
-  cache.set(sessionId, cdp);
-  return cdp;
+  // Check if another caller is already creating this session
+  const pending = getPendingCreations();
+  const inflight = pending.get(sessionId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const cdp = await page.context().newCDPSession(page);
+      cache.set(sessionId, cdp);
+      return cdp;
+    } finally {
+      pending.delete(sessionId);
+    }
+  })();
+
+  pending.set(sessionId, promise);
+  return promise;
 }
 
 /**
@@ -111,8 +136,9 @@ export async function dispatchMouseMove(
 // ─── Keyboard Events ───────────────────────────────────────────────────────────
 
 /**
- * Type a string of text character by character.
- * Uses Input.dispatchKeyEvent for each character.
+ * Type a string of text using CDP Input.insertText.
+ * Uses a single CDP call instead of 2N keyDown/keyUp events per character,
+ * and correctly handles multi-byte input (emoji, CJK, accented characters).
  */
 export async function dispatchType(
   sessionId: string,
@@ -121,18 +147,8 @@ export async function dispatchType(
 ): Promise<void> {
   const cdp = await getCdpSession(sessionId, page);
 
-  for (const char of text) {
-    await cdp.send("Input.dispatchKeyEvent", {
-      type: "keyDown",
-      text: char,
-      key: char,
-      unmodifiedText: char,
-    });
-    await cdp.send("Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key: char,
-    });
-  }
+  // Use Input.insertText for reliable multi-byte character support
+  await cdp.send("Input.insertText", { text });
 }
 
 /**

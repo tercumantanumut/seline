@@ -34,6 +34,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useScreencastRecorder } from "./use-screencast-recorder";
 import { useBrowserInteraction } from "./use-browser-interaction";
+import { useActionIndicators, type ActionSSEData } from "./use-action-indicators";
+import { ActionIndicators } from "./action-indicators";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,21 +144,52 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
   const {
     handleMouseDown,
     handleMouseMove,
-    handleWheel,
     cursorPos,
+    displayCursorPos,
     isSending,
     navigate,
   } = useBrowserInteraction({
     sessionId: activeSessionId,
     imgRef,
     enabled: isInteractive,
+    containerRef: interactionContainerRef,
   });
+
+  const [showIndicators, setShowIndicators] = useState(true);
+
+  const { indicators, addAction } = useActionIndicators({
+    sessionId: activeSessionId,
+    imgRef,
+    enabled: showIndicators,
+  });
+
+  // H7: Sequential key queue — processes one keystroke at a time to avoid out-of-order delivery
+  const keyQueueRef = useRef<Array<{type: string; [key: string]: unknown}>>([]);
+  const processingKeyRef = useRef(false);
+
+  const processKeyQueue = useCallback(async () => {
+    if (processingKeyRef.current) return;
+    processingKeyRef.current = true;
+
+    while (keyQueueRef.current.length > 0) {
+      const payload = keyQueueRef.current.shift()!;
+      try {
+        await fetch(`/api/browser/${activeSessionId}/interact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch { /* ignore */ }
+    }
+
+    processingKeyRef.current = false;
+  }, [activeSessionId]);
 
   // Capture keyboard events when interactive mode is on
   useEffect(() => {
     if (!isInteractive || !activeSessionId) return;
 
-    const handleKeyDown = async (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Don't capture if user is typing in the URL bar
       if (e.target instanceof HTMLInputElement) return;
 
@@ -169,31 +202,23 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
       ]);
 
       if (specialKeys.has(e.key)) {
-        // Send as keypress
         let modifiers = 0;
         if (e.altKey) modifiers |= 1;
         if (e.ctrlKey) modifiers |= 2;
         if (e.metaKey) modifiers |= 4;
         if (e.shiftKey) modifiers |= 8;
 
-        await fetch(`/api/browser/${activeSessionId}/interact`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "keypress", key: e.key, modifiers }),
-        });
+        keyQueueRef.current.push({ type: "keypress", key: e.key, modifiers });
+        void processKeyQueue();
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        // Regular character — send as type
-        await fetch(`/api/browser/${activeSessionId}/interact`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "type", text: e.key }),
-        });
+        keyQueueRef.current.push({ type: "type", text: e.key });
+        void processKeyQueue();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isInteractive, activeSessionId]);
+  }, [isInteractive, activeSessionId, processKeyQueue]);
 
   // Connect to screencast stream — uses activeSessionId
   useEffect(() => {
@@ -232,6 +257,13 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
           // Skip malformed frames
         }
       };
+
+      es.addEventListener("action", (event) => {
+        try {
+          const data = JSON.parse(event.data) as ActionSSEData;
+          addAction(data);
+        } catch { /* skip */ }
+      });
 
       es.onerror = () => {
         es.close();
@@ -428,7 +460,6 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
             className="flex-1 relative flex items-center justify-center"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
-            onWheel={handleWheel}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -440,27 +471,26 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
               )}
             />
 
+            {/* Action indicator overlays */}
+            {showIndicators && (
+              <ActionIndicators
+                indicators={indicators}
+                containerRef={interactionContainerRef}
+              />
+            )}
+
             {/* Hidden canvas for recording */}
             <canvas ref={canvasRef} className="hidden" />
 
-            {/* Cursor position indicator in interactive mode */}
-            {isInteractive && cursorPos && hasFrame && (
+            {/* M7: Cursor position indicator — uses display-space coords */}
+            {isInteractive && displayCursorPos && hasFrame && (
               <div
-                className="pointer-events-none absolute"
+                className="pointer-events-none absolute w-4 h-4 border-2 border-blue-400/60 rounded-full -translate-x-1/2 -translate-y-1/2"
                 style={{
-                  left: "50%",
-                  top: "50%",
-                  transform: "translate(-50%, -50%)",
+                  left: displayCursorPos.x,
+                  top: displayCursorPos.y,
                 }}
-              >
-                <div
-                  className="absolute w-4 h-4 border-2 border-blue-400/60 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{
-                    left: `${cursorPos.x}px`,
-                    top: `${cursorPos.y}px`,
-                  }}
-                />
-              </div>
+              />
             )}
 
             {/* Placeholder when no frames */}
@@ -484,6 +514,21 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
                 </span>
               </div>
             )}
+
+            {/* H8: Agent activity warning — shown when agent acted within last 3s */}
+            {isInteractive && hasFrame && history?.actions.length && (() => {
+              const lastAgent = history.actions.filter(a => a.source !== "user").pop();
+              if (!lastAgent) return null;
+              const agentActiveRecently = Date.now() - new Date(lastAgent.timestamp).getTime() < 3000;
+              if (!agentActiveRecently) return null;
+              return (
+                <div className="absolute bottom-3 left-40 flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2 py-1 backdrop-blur-sm">
+                  <span className="text-[10px] font-mono text-amber-400/90 font-medium">
+                    Agent active
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -591,6 +636,22 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
               >
                 <Hand className={cn("size-3.5", isInteractive && "text-blue-400")} weight={isInteractive ? "fill" : "bold"} />
                 {isInteractive ? "Interactive" : "Interact"}
+              </button>
+
+              {/* Action indicators toggle */}
+              <button
+                type="button"
+                onClick={() => setShowIndicators((prev) => !prev)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-mono transition-colors",
+                  showIndicators
+                    ? "bg-violet-500/20 text-violet-400 hover:bg-violet-500/30"
+                    : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/80"
+                )}
+                title={showIndicators ? "Hide Actions" : "Show Actions"}
+              >
+                <Eye className={cn("size-3.5", showIndicators && "text-violet-400")} weight={showIndicators ? "fill" : "bold"} />
+                {showIndicators ? "Hide Actions" : "Show Actions"}
               </button>
 
               {/* Record / Stop */}

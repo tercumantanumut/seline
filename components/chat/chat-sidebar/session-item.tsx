@@ -230,16 +230,21 @@ export function SessionItem({
         }
       }}
     >
-      {isPinned ? (
-        <Pin className="h-4 w-4 flex-shrink-0 text-terminal-amber" />
-      ) : (
-        <MessageCircle
-          className={cn(
-            "h-4 w-4 flex-shrink-0 transition-colors duration-200",
-            isCurrent ? "text-terminal-green" : "text-terminal-muted"
-          )}
-        />
-      )}
+      <div className="relative flex-shrink-0">
+        {isPinned ? (
+          <Pin className="h-4 w-4 text-terminal-amber" />
+        ) : (
+          <MessageCircle
+            className={cn(
+              "h-4 w-4 transition-colors duration-200",
+              isCurrent ? "text-terminal-green" : "text-terminal-muted"
+            )}
+          />
+        )}
+        {hasActiveRun ? (
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        ) : null}
+      </div>
       <div className="flex-1 min-w-0 space-y-1">
         {isEditing ? (
           <div className="space-y-2" onClick={(event) => event.stopPropagation()}>

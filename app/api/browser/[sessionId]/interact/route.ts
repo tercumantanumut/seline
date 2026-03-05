@@ -49,6 +49,13 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  // Verify request is from same origin (prevent external CSRF)
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+  if (origin && host && !origin.includes(host.split(":")[0])) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { sessionId } = await params;
 
   const session = getSession(sessionId);
@@ -72,6 +79,20 @@ export async function POST(
   if (!payload.type) {
     return NextResponse.json(
       { error: "Missing 'type' field" },
+      { status: 400 }
+    );
+  }
+
+  // Input size limits
+  if (payload.text && payload.text.length > 5000) {
+    return NextResponse.json(
+      { error: "Text input exceeds 5000 character limit" },
+      { status: 400 }
+    );
+  }
+  if (payload.url && payload.url.length > 8192) {
+    return NextResponse.json(
+      { error: "URL exceeds maximum length" },
       { status: 400 }
     );
   }
@@ -139,6 +160,31 @@ export async function POST(
       case "navigate": {
         if (!payload.url) {
           return NextResponse.json({ error: "navigate requires url" }, { status: 400 });
+        }
+        // Validate URL scheme — only allow http/https
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(payload.url);
+        } catch {
+          return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+        }
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          return NextResponse.json(
+            { error: `URL scheme "${parsedUrl.protocol}" not allowed. Use http:// or https://` },
+            { status: 400 }
+          );
+        }
+        // Block cloud metadata / internal addresses (but allow localhost for local dev)
+        const hostname = parsedUrl.hostname;
+        if (
+          hostname === "169.254.169.254" ||
+          hostname === "metadata.google.internal" ||
+          hostname === "0.0.0.0"
+        ) {
+          return NextResponse.json(
+            { error: "Navigation to internal addresses is not allowed" },
+            { status: 400 }
+          );
         }
         // Use Playwright's goto for proper navigation (handles redirects, waits for load)
         await session.page.goto(payload.url, {

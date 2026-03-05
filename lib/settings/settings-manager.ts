@@ -470,6 +470,13 @@ export function saveSettings(settings: AppSettings): void {
         mkdirSync(dir, { recursive: true });
     }
 
+    // Sanitize browser profile path: strip null bytes and trim whitespace
+    if (settings.chromiumUserProfilePath) {
+        settings.chromiumUserProfilePath = settings.chromiumUserProfilePath
+            .replace(/\0/g, "")
+            .trim();
+    }
+
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     cachedSettings = settings;
     cachedSettingsTimestamp = Date.now();

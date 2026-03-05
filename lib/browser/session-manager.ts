@@ -46,7 +46,7 @@ interface ChromiumManagerState {
   browserMode: "standalone" | "user-chrome" | null;
   sessions: Map<string, BrowserSession>;
   reaperInterval: ReturnType<typeof setInterval> | null;
-  launching: Promise<Browser> | null;
+  launching: Promise<void> | null;
 }
 
 const GLOBAL_KEY = "__seline_chromium_manager__" as const;
@@ -70,6 +70,11 @@ function getState(): ChromiumManagerState {
 
 /**
  * Returns the OS-specific default Chrome user data directory.
+ *
+ * Only returns the most common Google Chrome path per platform. For other
+ * Chromium-based browsers (Brave, Edge, Chromium, Snap/Flatpak installs),
+ * users should specify their profile path via Settings → Preferences →
+ * "Chrome User Profile Path".
  */
 function getDefaultChromeProfilePath(): string {
   const home = homedir();
@@ -104,27 +109,34 @@ function getBrowserSettings(): { mode: "standalone" | "user-chrome"; profilePath
 // ─── Browser lifecycle ────────────────────────────────────────────────────────
 
 /**
- * Get or launch the shared Chromium browser instance.
+ * Ensure the shared Chromium browser instance is running.
  * Uses a launch lock to prevent concurrent startups.
  *
  * In "user-chrome" mode, launches with launchPersistentContext() to inherit
  * the user's real Chrome profile (cookies, extensions, fingerprint).
+ *
+ * After this resolves, callers should read from state.browser (standalone)
+ * or state.persistentContext (user-chrome) directly.
  */
-async function ensureBrowser(): Promise<Browser> {
+async function ensureBrowser(): Promise<void> {
   const state = getState();
   const { mode } = getBrowserSettings();
 
   // If mode changed while a browser is running, shut down and restart
-  if (state.browserMode && state.browserMode !== mode && state.browser?.isConnected()) {
+  const isRunning = state.browser?.isConnected() || state.persistentContext;
+  if (state.browserMode && state.browserMode !== mode && isRunning) {
     console.log(`[ChromiumManager] Browser mode changed from ${state.browserMode} to ${mode} — restarting`);
     await shutdownBrowser();
   }
 
   // Already connected
-  if (state.browser?.isConnected()) return state.browser;
+  if (state.browser?.isConnected() || state.persistentContext) return;
 
   // Another caller is already launching — wait for it
-  if (state.launching) return state.launching;
+  if (state.launching) {
+    await state.launching;
+    return;
+  }
 
   state.launching = (async () => {
     try {
@@ -132,16 +144,16 @@ async function ensureBrowser(): Promise<Browser> {
       const { chromium } = await import("playwright-core");
 
       if (mode === "user-chrome") {
-        return await launchUserChrome(chromium, state);
+        await launchUserChrome(chromium, state);
+      } else {
+        await launchStandalone(chromium, state);
       }
-
-      return await launchStandalone(chromium, state);
     } finally {
       state.launching = null;
     }
   })();
 
-  return state.launching;
+  await state.launching;
 }
 
 /**
@@ -151,7 +163,7 @@ async function ensureBrowser(): Promise<Browser> {
 async function launchStandalone(
   chromium: typeof import("playwright-core").chromium,
   state: ChromiumManagerState,
-): Promise<Browser> {
+): Promise<void> {
   const launchArgs = [
     "--disable-gpu",
     "--disable-dev-shm-usage",
@@ -213,7 +225,6 @@ async function launchStandalone(
   state.persistentContext = null;
   state.browserMode = "standalone";
   startReaper();
-  return browser;
 }
 
 /**
@@ -224,16 +235,21 @@ async function launchStandalone(
  * Runs non-headless so the real rendering pipeline is used (better
  * anti-detection). The Electron screencast viewer still works via CDP.
  *
+ * Note: launchPersistentContext() returns a BrowserContext directly — there
+ * is no separate Browser object. The persistent context IS the top-level
+ * resource, so state.browser remains null in this mode.
+ *
  * Throws a clear error if Chrome's profile lock is held (user has Chrome open).
  */
 async function launchUserChrome(
   chromium: typeof import("playwright-core").chromium,
   state: ChromiumManagerState,
-): Promise<Browser> {
+): Promise<void> {
   const { profilePath } = getBrowserSettings();
   const resolvedPath = profilePath || getDefaultChromeProfilePath();
 
   console.log(`[ChromiumManager] Launching with user Chrome profile: ${resolvedPath}`);
+  console.log("[ChromiumManager] User Chrome mode: a visible Chrome window will open. This is expected.");
 
   try {
     const context = await chromium.launchPersistentContext(resolvedPath, {
@@ -247,27 +263,23 @@ async function launchUserChrome(
       ignoreHTTPSErrors: true,
     });
 
-    const browser = context.browser();
-    if (!browser) {
-      throw new Error("Failed to get browser instance from persistent context");
-    }
-
-    browser.on("disconnected", () => {
+    // Persistent context has no separate Browser object — context.browser()
+    // returns null. Track the context directly as the top-level resource.
+    context.on("close", () => {
       const s = getState();
       s.browser = null;
       s.persistentContext = null;
       s.browserMode = null;
       s.sessions.clear();
-      console.warn("[ChromiumManager] Browser disconnected — all sessions invalidated");
+      console.warn("[ChromiumManager] Persistent context closed — all sessions invalidated");
     });
 
-    state.browser = browser;
+    state.browser = null; // No browser object for persistent contexts
     state.persistentContext = context;
     state.browserMode = "user-chrome";
     startReaper();
 
     console.log("[ChromiumManager] Launched using user Chrome profile (user-chrome mode)");
-    return browser;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
@@ -315,7 +327,10 @@ export async function getOrCreateSession(sessionId: string): Promise<BrowserSess
     page = await context.newPage();
   } else {
     // Standalone mode: create an isolated context per session
-    const browser = state.browser!;
+    if (!state.browser) {
+      throw new Error("[ChromiumManager] Browser not available after ensureBrowser() — this should not happen");
+    }
+    const browser = state.browser;
     context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent:
@@ -391,10 +406,9 @@ export async function closeSession(sessionId: string): Promise<void> {
 
   console.log(`[ChromiumManager] Session closed: ${sessionId} (active: ${state.sessions.size})`);
 
-  // If no sessions remain, close the browser to free resources
-  if (state.sessions.size === 0 && state.browser) {
-    await shutdownBrowser();
-  }
+  // Don't auto-shutdown when last session closes — a concurrent getOrCreateSession()
+  // may be past ensureBrowser() and about to use the browser (TOCTOU race).
+  // The reaper will clean up idle browsers, and shutdownAll() handles explicit teardown.
 }
 
 /**
@@ -407,15 +421,29 @@ export async function shutdownAll(): Promise<void> {
   const { stopAllScreencasts } = await import("./screencast");
   await stopAllScreencasts();
 
-  // Close all contexts
-  const closePromises = Array.from(state.sessions.values()).map(async (session) => {
-    try {
-      await session.context.close();
-    } catch {
-      // Ignore — browser may already be gone
-    }
-  });
-  await Promise.allSettled(closePromises);
+  // In user-chrome mode, all sessions share the same persistent context — don't
+  // close it N times. Just close individual pages, then shutdownBrowser() will
+  // close the persistent context once.
+  if (state.browserMode === "user-chrome") {
+    const closePromises = Array.from(state.sessions.values()).map(async (session) => {
+      try {
+        await session.page.close();
+      } catch {
+        // Ignore — page may already be closed
+      }
+    });
+    await Promise.allSettled(closePromises);
+  } else {
+    // Standalone mode: each session has its own isolated context
+    const closePromises = Array.from(state.sessions.values()).map(async (session) => {
+      try {
+        await session.context.close();
+      } catch {
+        // Ignore — browser may already be gone
+      }
+    });
+    await Promise.allSettled(closePromises);
+  }
   state.sessions.clear();
 
   await shutdownBrowser();
@@ -433,6 +461,9 @@ export function getActiveSessionCount(): number {
 async function shutdownBrowser(): Promise<void> {
   const state = getState();
   stopReaper();
+
+  // Clear sessions first — their page/context refs are about to become invalid
+  state.sessions.clear();
 
   // In user-chrome mode, close the persistent context first (closes browser too)
   if (state.persistentContext) {

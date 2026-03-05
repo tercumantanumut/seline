@@ -249,6 +249,16 @@ if (fs.existsSync(remotionSrc)) {
     console.log('Skipping @remotion folder (not found)');
 }
 
+// 5b. Remove @remotion dev-only packages that shouldn't ship in production
+const remotionDevPackages = ['studio', 'studio-server'];
+for (const pkg of remotionDevPackages) {
+    const pkgPath = path.join(remotionDest, pkg);
+    if (fs.existsSync(pkgPath)) {
+        console.log(`  Removing @remotion/${pkg} (dev-only)...`);
+        removePath(pkgPath);
+    }
+}
+
 // 6. Copy pdf-parse and its dependencies for PDF parsing support
 // pdf-parse requires: pdfjs-dist (PDF.js library) and @napi-rs/canvas (native canvas bindings)
 const pdfDependencies = [
@@ -360,6 +370,21 @@ for (const mod of nativeModuleBinaries) {
         console.log(`  Destination: ${destStats.size} bytes`);
     } else {
         console.warn(`Warning: ${mod.name} native binary not found at ${srcPath}`);
+    }
+}
+
+// 10b. Remove dev/build-time-only packages from standalone node_modules
+// These get pulled in by Next.js standalone tracing or transitive deps but aren't needed at runtime.
+// electron: duplicates the Electron framework already in Contents/Frameworks/ (~270 MB)
+// typescript: build-time compiler, not used at runtime (~19 MB)
+// webpack: dragged in by @remotion/bundler transitive deps, not used directly (~7 MB)
+console.log('Removing dev-only packages from standalone...');
+const devOnlyPackages = ['electron', 'typescript', 'webpack'];
+for (const pkg of devOnlyPackages) {
+    const pkgPath = path.join(standaloneDir, 'node_modules', pkg);
+    if (fs.existsSync(pkgPath)) {
+        console.log(`  Removing ${pkg} (dev/build-only, not needed at runtime)...`);
+        removePath(pkgPath);
     }
 }
 

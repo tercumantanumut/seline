@@ -165,15 +165,6 @@ function resolveIncomingModel(
 
   const isRunning = activity?.isRunning ?? hasActiveRun;
 
-  if (rawIndicators.length === 0 && isRunning) {
-    rawIndicators.push({
-      key: "running-fallback",
-      kind: "run",
-      label: "Working",
-      tone: "info",
-    });
-  }
-
   if (rawIndicators.length === 0) {
     return null;
   }
@@ -191,7 +182,14 @@ function resolveIncomingModel(
     return a.label.localeCompare(b.label);
   });
 
-  const [primary, secondary] = deduped;
+  // Filter out generic "run" indicators — they only produce noise (e.g. "Working").
+  // The session item shows a pulsing dot for active runs instead.
+  const display = deduped.filter(i => i.kind !== "run");
+  if (display.length === 0) {
+    return null;
+  }
+
+  const [primary, secondary] = display;
   const signature = `${primary.key}:${primary.label}:${primary.tone}|${secondary?.key ?? ""}:${secondary?.label ?? ""}|${isRunning}`;
 
   return {
@@ -439,10 +437,6 @@ export function SessionActivityBubble({
   const { primary, secondary } = visualModel;
   const Icon = indicatorIcon(primary);
   const tone = toneClasses(primary.tone);
-  const shouldSpin =
-    visualModel.isRunning &&
-    (primary.kind === "run" || primary.kind === "tool" || primary.kind === "workspace");
-
   const bubble = (
     <div
       style={{
@@ -477,7 +471,7 @@ export function SessionActivityBubble({
           visualModel.phase === "archived" && "translate-y-0 opacity-40 scale-100",
         )}
       >
-        <Icon className={cn("h-3 w-3 shrink-0", shouldSpin ? "animate-spin" : "")} />
+        <Icon className="h-3 w-3 shrink-0" />
         <span className="truncate">{primary.label}</span>
         {secondary ? (
           <span className="truncate shrink-0 max-w-[4rem] text-[9px] opacity-60">

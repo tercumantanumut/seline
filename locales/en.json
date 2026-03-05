@@ -2352,7 +2352,9 @@
         "interactiveMode": "Interactive Mode",
         "urlPlaceholder": "Enter URL and press Enter...",
         "interactiveBadge": "INTERACTIVE",
-        "userAction": "User"
+        "userAction": "User",
+        "showActions": "Show Actions",
+        "hideActions": "Hide Actions"
       },
       "devWorkspace": {
         "heading": "Developer workspace",

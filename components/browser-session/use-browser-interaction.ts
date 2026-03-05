@@ -12,7 +12,7 @@
  * We compute the mapping by comparing the image's natural size to its rendered size.
  */
 
-import { useCallback, useRef, useState, useEffect, type RefObject } from "react";
+import { useCallback, useState, useEffect, type RefObject } from "react";
 
 interface InteractPayload {
   type: "click" | "type" | "keypress" | "scroll" | "navigate";
@@ -33,6 +33,8 @@ interface UseBrowserInteractionOptions {
   imgRef: RefObject<HTMLImageElement | null>;
   /** Whether interactive mode is currently active */
   enabled: boolean;
+  /** Container element ref for attaching non-passive wheel listener */
+  containerRef?: RefObject<HTMLElement | null>;
 }
 
 interface UseBrowserInteractionReturn {
@@ -40,10 +42,10 @@ interface UseBrowserInteractionReturn {
   handleMouseDown: (e: React.MouseEvent) => void;
   /** Attach to the screencast container's onMouseMove */
   handleMouseMove: (e: React.MouseEvent) => void;
-  /** Attach to the screencast container's onWheel */
-  handleWheel: (e: React.WheelEvent) => void;
   /** Current cursor position in viewport coordinates (for overlay) */
   cursorPos: { x: number; y: number } | null;
+  /** Cursor position in display coordinates (for cursor overlay rendering) */
+  displayCursorPos: { x: number; y: number } | null;
   /** Whether a request is in-flight */
   isSending: boolean;
   /** Navigate to a URL */
@@ -101,24 +103,15 @@ export function useBrowserInteraction({
   sessionId,
   imgRef,
   enabled,
+  containerRef,
 }: UseBrowserInteractionOptions): UseBrowserInteractionReturn {
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [displayCursorPos, setDisplayCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
+  // H6: Fire-and-forget — each interaction sends independently, no abort logic.
   const sendInteraction = useCallback(async (payload: InteractPayload) => {
     if (!sessionId) return;
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
 
     setIsSending(true);
     try {
@@ -126,7 +119,6 @@ export function useBrowserInteraction({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: controller.signal,
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -154,29 +146,56 @@ export function useBrowserInteraction({
     });
   }, [enabled, imgRef, sendInteraction]);
 
+  // M7: Store both viewport coords and display coords for cursor overlay
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!enabled || !imgRef.current) return;
 
     const pos = mapToViewport(e, imgRef.current);
     setCursorPos(pos);
+    if (pos) {
+      const rect = imgRef.current.getBoundingClientRect();
+      setDisplayCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    } else {
+      setDisplayCursorPos(null);
+    }
   }, [enabled, imgRef]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (!enabled || !imgRef.current) return;
+  // L8: Non-passive wheel listener attached via useEffect so preventDefault() works
+  useEffect(() => {
+    const el = containerRef?.current;
+    if (!el || !enabled) return;
 
-    const pos = mapToViewport(e, imgRef.current);
-    if (!pos) return;
+    const onWheel = (e: WheelEvent) => {
+      const img = imgRef.current;
+      if (!img) return;
 
-    e.preventDefault();
+      const rect = img.getBoundingClientRect();
+      const naturalW = img.naturalWidth;
+      const naturalH = img.naturalHeight;
+      if (!naturalW || !naturalH) return;
 
-    void sendInteraction({
-      type: "scroll",
-      x: pos.x,
-      y: pos.y,
-      deltaX: e.deltaX,
-      deltaY: e.deltaY,
-    });
-  }, [enabled, imgRef, sendInteraction]);
+      const containerW = rect.width;
+      const containerH = rect.height;
+      const scale = Math.min(containerW / naturalW, containerH / naturalH);
+      const renderedW = naturalW * scale;
+      const renderedH = naturalH * scale;
+      const offsetX = (containerW - renderedW) / 2;
+      const offsetY = (containerH - renderedH) / 2;
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (mouseX < offsetX || mouseX > offsetX + renderedW || mouseY < offsetY || mouseY > offsetY + renderedH) return;
+
+      const viewportX = Math.round(((mouseX - offsetX) / renderedW) * naturalW);
+      const viewportY = Math.round(((mouseY - offsetY) / renderedH) * naturalH);
+
+      e.preventDefault();
+      void sendInteraction({ type: "scroll", x: viewportX, y: viewportY, deltaX: e.deltaX, deltaY: e.deltaY });
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [enabled, containerRef, imgRef, sendInteraction]);
 
   const navigate = useCallback(async (url: string) => {
     if (!url) return;
@@ -188,8 +207,8 @@ export function useBrowserInteraction({
   return {
     handleMouseDown,
     handleMouseMove,
-    handleWheel,
     cursorPos,
+    displayCursorPos,
     isSending,
     navigate,
   };

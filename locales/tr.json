@@ -2191,7 +2191,9 @@
         "interactiveMode": "Etkileşimli Mod",
         "urlPlaceholder": "URL girin ve Enter'a basın...",
         "interactiveBadge": "ETKİLEŞİMLİ",
-        "userAction": "Kullanıcı"
+        "userAction": "Kullanıcı",
+        "showActions": "Aksiyonları Göster",
+        "hideActions": "Aksiyonları Gizle"
       },
       "devWorkspace": {
         "heading": "Geliştirici çalışma alanı",
