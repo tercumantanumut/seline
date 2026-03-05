@@ -143,6 +143,22 @@ const electronAPI = {
     },
   },
 
+  // Browser session window operations
+  browserSession: {
+    open: (sessionId: string): Promise<{ success: boolean; reused?: boolean; error?: string }> => {
+      return ipcRenderer.invoke("browser-session:open", sessionId) as Promise<{ success: boolean; reused?: boolean; error?: string }>;
+    },
+    close: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("browser-session:close", sessionId) as Promise<{ success: boolean; error?: string }>;
+    },
+    isOpen: (sessionId: string): Promise<{ open: boolean }> => {
+      return ipcRenderer.invoke("browser-session:is-open", sessionId) as Promise<{ open: boolean }>;
+    },
+    saveRecording: (options?: { defaultPath?: string }): Promise<{ success: boolean; filePath?: string; canceled?: boolean }> => {
+      return ipcRenderer.invoke("browser-session:save-recording", options) as Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
+    },
+  },
+
   // Voice hotkey operations
   voiceHotkey: {
     onTriggered: (callback: () => void): (() => void) | undefined => {
@@ -386,6 +402,10 @@ const electronAPI = {
         "voice-hotkey:registerFromSettings",
         "voice-hotkey:getRegistered",
         "voice-hotkey:clear",
+        "browser-session:open",
+        "browser-session:close",
+        "browser-session:is-open",
+        "browser-session:save-recording",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);

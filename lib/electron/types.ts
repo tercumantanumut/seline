@@ -72,6 +72,13 @@ export interface ElectronModelAPI {
   }>;
 }
 
+export interface ElectronBrowserSessionAPI {
+  open: (sessionId: string) => Promise<{ success: boolean; reused?: boolean; error?: string }>;
+  close: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  isOpen: (sessionId: string) => Promise<{ open: boolean }>;
+  saveRecording: (options?: { defaultPath?: string }) => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
+}
+
 export interface ElectronAPI {
   platform: NodeJS.Platform;
   isElectron: boolean;
@@ -80,6 +87,7 @@ export interface ElectronAPI {
   shell: ElectronShellAPI;
   ipc: ElectronIpcAPI;
   model: ElectronModelAPI;
+  browserSession?: ElectronBrowserSessionAPI;
 }
 
 /**

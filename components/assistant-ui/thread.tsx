@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCharacter } from "./character-context";
 import { useOptionalDeepResearch } from "./deep-research-context";
+import { BrowserActiveProvider } from "./browser-active-context";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
 import { useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
 import {
@@ -215,6 +216,7 @@ export const Thread: FC<ThreadProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        <BrowserActiveProvider isBrowserActive={isBrowserActive} activeSessionId={sessionId}>
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
 
@@ -336,6 +338,7 @@ export const Thread: FC<ThreadProps> = ({
             />
           </div>
         </GalleryWrapper>
+        </BrowserActiveProvider>
       </ThreadPrimitive.Root>
     </TooltipProvider>
   );

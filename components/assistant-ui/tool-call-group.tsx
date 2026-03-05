@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ToolCallBadge, type ToolCallBadgeStatus } from "./tool-call-badge";
 import { getCanonicalToolName } from "./tool-name-utils";
+import { useBrowserActive } from "./browser-active-context";
 
 type ToolCallPart = Extract<MessagePartState, { type: "tool-call" }>;
 
@@ -100,6 +101,16 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   const t = useTranslations("assistantUi.tools");
   const messageParts = useAssistantState((state) => state.message.parts);
   const messageId = useMessage((state) => state.id);
+  const { isBrowserActive } = useBrowserActive();
+
+  const isAllChromium = useMemo(() => {
+    const parts = messageParts
+      .slice(startIndex, endIndex + 1)
+      .filter((part): part is ToolCallPart => part?.type === "tool-call");
+    return parts.length > 0 && parts.every((p) => getCanonicalToolName(p.toolName) === "chromiumWorkspace");
+  }, [messageParts, startIndex, endIndex]);
+
+  const useGlass = isBrowserActive && isAllChromium;
 
   const toolParts = useMemo(() => {
     return messageParts
@@ -181,7 +192,10 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   return (
     <div
       className={cn(
-        "my-2 rounded-lg bg-terminal-cream/80 p-2 shadow-sm transition-all duration-150 ease-in-out"
+        "my-2 rounded-lg p-2 shadow-sm transition-all duration-150 ease-in-out",
+        useGlass
+          ? "bg-black/20 backdrop-blur-md border border-white/10"
+          : "bg-terminal-cream/80"
       )}
     >
       <div className="flex flex-wrap items-center gap-2 pb-1">
@@ -240,7 +254,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
           variant="ghost"
           size="sm"
           onClick={handleToggleExpanded}
-          className="h-7 px-2 text-xs font-mono text-terminal-muted hover:text-terminal-dark"
+          className={cn(
+            "h-7 px-2 text-xs font-mono",
+            useGlass
+              ? "text-white/60 hover:text-white/90"
+              : "text-terminal-muted hover:text-terminal-dark"
+          )}
         >
           {isExpanded ? t("hide") : t("details")}
           {isExpanded ? (
@@ -252,7 +271,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       </div>
 
       {isExpanded && (
-        <div className="mt-2 border-t border-terminal-dark/10 pt-2">
+        <div className={cn("mt-2 border-t pt-2", useGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {children}
         </div>
       )}

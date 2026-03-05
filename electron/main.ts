@@ -168,6 +168,7 @@ import {
 import { setupIpcHandlers, setupEmbeddingModelPaths } from "./ipc-handlers";
 import { registerVoiceHotkeyFromSettings } from "./hotkey-manager";
 import { cleanupAllVoiceProcesses } from "../lib/audio/transcription";
+import { closeAllBrowserSessionWindows } from "./ipc-browser-session-handlers";
 
 // ---------------------------------------------------------------------------
 // Initialize debug log
@@ -325,6 +326,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   debugLog("[App] before-quit event - cleaning up");
   isAppQuitting = true;
+  closeAllBrowserSessionWindows();
   clearServerRestartTimer();
   stopNextServer();
   void cleanupAllVoiceProcesses().catch((err) => {
