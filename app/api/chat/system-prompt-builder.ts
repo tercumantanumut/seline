@@ -123,18 +123,58 @@ export async function buildSystemPromptForRequest(
   }
 
   // Append synced folder paths so the agent knows its indexed directories upfront
+  // When a worktree workspace is active, annotate the worktree as (active workspace)
+  // and demote the base repo to avoid the AI defaulting to base paths.
   if (characterId) {
     try {
       const { getSyncFolders } = await import("@/lib/vectordb/sync-folder-crud");
+      const { getWorkspaceInfo } = await import("@/lib/workspace/types");
+      const { normalize } = await import("path");
       const syncFolders = await getSyncFolders(characterId);
       if (syncFolders.length > 0) {
-        const folderLines = syncFolders.map((f) => {
+        // Detect active worktree from session metadata using the shared helper
+        const wsInfo = getWorkspaceInfo(sessionMetadata as Record<string, unknown> | null);
+        const activeWorktreePath = wsInfo?.worktreePath ?? null;
+
+        // Only apply worktree annotations if the worktree is actually in the sync folders list.
+        // If addSyncFolder failed during workspace creation, we shouldn't demote the primary
+        // since there'd be no active alternative.
+        const worktreeInFolders = activeWorktreePath
+          ? syncFolders.some((f) => normalize(f.folderPath) === normalize(activeWorktreePath))
+          : false;
+
+        // Track which index is the worktree for stable sorting
+        let worktreeIdx = -1;
+
+        const folderLines = syncFolders.map((f, i) => {
+          if (worktreeInFolders && activeWorktreePath) {
+            if (normalize(f.folderPath) === normalize(activeWorktreePath)) {
+              worktreeIdx = i;
+              const name = f.displayName ? ` — ${f.displayName}` : "";
+              const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
+              return `- \`${f.folderPath}\` (active workspace)${name}${files}`;
+            }
+            // Demote primary repo folder when worktree is confirmed present
+            if (f.isPrimary) {
+              const name = f.displayName ? ` — ${f.displayName}` : "";
+              const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
+              return `- \`${f.folderPath}\` (index only — do not use for file operations)${name}${files}`;
+            }
+          }
+          // Default: no active worktree, or non-primary/non-worktree folders
           const primary = f.isPrimary ? " (primary)" : "";
           const name = f.displayName ? ` — ${f.displayName}` : "";
           const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
           const status = f.status !== "synced" ? `, status: ${f.status}` : "";
           return `- \`${f.folderPath}\`${primary}${name}${files}${status}`;
         });
+
+        // When worktree is active, move it to the top of the list
+        if (worktreeIdx > 0) {
+          const [worktreeLine] = folderLines.splice(worktreeIdx, 1);
+          folderLines.unshift(worktreeLine);
+        }
+
         systemPromptValue = appendBlock(
           systemPromptValue,
           `\n\n[Synced Folders]\n` +

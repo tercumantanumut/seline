@@ -10,6 +10,7 @@ import { logToolEvent } from "@/lib/ai/tool-registry";
 import fs from "fs/promises";
 import path from "path";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getActiveWorktreePath } from "@/lib/ai/filesystem";
 import {
     executeCommandWithValidation,
     startBackgroundProcess,
@@ -204,7 +205,7 @@ const executeCommandSchema = jsonSchema<ExecuteCommandInput & { logId?: string }
  * Create the executeCommand AI tool
  */
 export function createExecuteCommandTool(options: ExecuteCommandToolOptions) {
-    const { characterId } = options;
+    const { characterId, sessionId } = options;
 
     return tool({
         description: `Execute shell commands safely within synced directories. Supports foreground and background execution.
@@ -359,11 +360,16 @@ The tool returns immediately with a processId. Poll with processId to check stat
                 };
             }
 
-            // Determine working directory
+            // Determine working directory — prefer active worktree when available
+            const worktreePath = await getActiveWorktreePath(sessionId);
             let executionDir = cwd;
             if (!executionDir) {
-                // Use first synced folder as default
-                executionDir = syncedFolders[0];
+                executionDir = worktreePath || syncedFolders[0];
+            }
+
+            // Ensure worktree path is in allowed folders for cwd validation
+            if (worktreePath && !syncedFolders.includes(worktreePath)) {
+                syncedFolders = [worktreePath, ...syncedFolders];
             }
 
             try {

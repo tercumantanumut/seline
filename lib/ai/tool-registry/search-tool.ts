@@ -182,6 +182,35 @@ const toolSearchRouterSchema = z.object({
 });
 
 type ToolSearchRouterDecision = z.infer<typeof toolSearchRouterSchema>;
+
+// JSON schema equivalent of toolSearchRouterSchema for use with generateObject.
+// Using jsonSchema<T>() instead of the raw Zod schema avoids TS2589 (excessively deep
+// type instantiation) caused by generateObject's generic inference through Zod's type
+// system under moduleResolution: "node" (electron tsconfig). The result is validated
+// with Zod's .parse() at runtime to keep the same guarantees.
+const toolSearchRouterJsonSchema = jsonSchema<ToolSearchRouterDecision>({
+  type: "object",
+  properties: {
+    directToolNames: { type: "array", items: { type: "string" }, maxItems: 12 },
+    normalizedQuery: { type: "string", minLength: 1, maxLength: 200 },
+    relatedTerms: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, maxItems: 8 },
+    rationale: { type: "string", maxLength: 320 },
+  },
+  required: ["directToolNames", "normalizedQuery", "relatedTerms", "rationale"],
+});
+
+async function callToolSearchRouter(
+  prompt: string,
+): Promise<ToolSearchRouterDecision> {
+  const { object } = await generateObject({
+    model: getUtilityModel(),
+    schema: toolSearchRouterJsonSchema,
+    temperature: 0,
+    prompt,
+  });
+  return toolSearchRouterSchema.parse(object);
+}
+
 const TOOL_SEARCH_GENERIC_TERMS = new Set([
   "search",
   "find",
@@ -321,26 +350,19 @@ async function routeToolSearchWithUtilityModel(
   ].join("\n\n");
 
   try {
-    const decisionPromise = generateObject({
-      model: getUtilityModel(),
-      schema: toolSearchRouterSchema,
-      temperature: 0,
-      prompt: routerPrompt,
-    });
-
     const decision = await Promise.race([
-      decisionPromise,
+      callToolSearchRouter(routerPrompt),
       new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), TOOL_SEARCH_ROUTER_TIMEOUT_MS)
       ),
     ]);
 
-    if (!decision || !("object" in decision)) {
+    if (!decision) {
       warnSearchTools("[searchTools] Utility router timed out; falling back to registry scoring");
       return null;
     }
 
-    return decision.object;
+    return decision;
   } catch (error) {
     warnSearchTools(
       `[searchTools] Utility router failed; falling back to registry scoring: ${error instanceof Error ? error.message : String(error)}`

@@ -9,6 +9,8 @@
 import { isAbsolute, join, normalize, resolve, sep, basename, dirname } from "path";
 import { mkdir, realpath } from "fs/promises";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getSession } from "@/lib/db/queries-sessions";
+import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, like, and } from "drizzle-orm";
@@ -127,6 +129,46 @@ export async function isPathAllowed(filePath: string, allowedFolderPaths: string
 export async function resolveSyncedFolderPaths(characterId: string): Promise<string[]> {
   const syncedFolders = await getSyncFolders(characterId);
   return syncedFolders.map((f) => f.folderPath);
+}
+
+/**
+ * Get the active worktree path from session metadata, if any.
+ * Returns null if no workspace is active or sessionId is invalid.
+ */
+export async function getActiveWorktreePath(sessionId: string): Promise<string | null> {
+  if (!sessionId || sessionId === "UNSCOPED") return null;
+  try {
+    const session = await getSession(sessionId);
+    if (!session) return null;
+    const wsInfo = getWorkspaceInfo(session.metadata as Record<string, unknown> | null);
+    if (!wsInfo?.worktreePath || typeof wsInfo.worktreePath !== "string") return null;
+    return wsInfo.worktreePath;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Workspace-aware synced folder resolution.
+ *
+ * When an active worktree exists, the worktree path is placed FIRST in the
+ * returned array so it becomes the default for tools that use `[0]`.
+ * The base repo path is still included (for index/vector lookups) but deprioritized.
+ */
+export async function resolveWorkspaceAwarePaths(
+  characterId: string,
+  sessionId: string
+): Promise<string[]> {
+  const basePaths = await resolveSyncedFolderPaths(characterId);
+  const worktreePath = await getActiveWorktreePath(sessionId);
+  if (!worktreePath) return basePaths;
+
+  // Normalize for dedup — session metadata and DB may have different trailing slashes
+  const normalizedWorktree = normalize(worktreePath);
+
+  // Put worktree first, keep other paths that aren't the worktree itself
+  // (the worktree IS inside the base repo tree, so we keep the base for path-allowed checks)
+  return [normalizedWorktree, ...basePaths.filter((p) => normalize(p) !== normalizedWorktree)];
 }
 
 /**

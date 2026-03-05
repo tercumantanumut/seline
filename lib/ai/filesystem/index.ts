@@ -7,6 +7,8 @@
 export {
   isPathAllowed,
   resolveSyncedFolderPaths,
+  resolveWorkspaceAwarePaths,
+  getActiveWorktreePath,
   ensureParentDirectories,
   findSimilarFiles,
   validatePath,
