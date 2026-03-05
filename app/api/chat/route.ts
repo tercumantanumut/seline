@@ -85,6 +85,7 @@ import {
   disableToolForSchemaRecovery,
   parseInvalidToolSchemaError,
 } from "./tool-schema-recovery";
+import { tagIntermediateDelegationParts } from "./delegation-scope-tagging";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -958,6 +959,7 @@ export async function POST(req: Request) {
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+                changed = tagIntermediateDelegationParts(streamingState, chunk.toolCallId) || changed;
                 if (provider === "claudecode" && chunk.toolName && isDelegatedToolName(chunk.toolName)) {
                   streamingState.provenance = {
                     ...(streamingState.provenance ?? {}),

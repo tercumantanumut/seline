@@ -35,6 +35,26 @@ describe("LegacyScopeHeuristic", () => {
     expect(inferred.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
+  it("infers untagged delegate observe intermediate results as delegated", () => {
+    const heuristic = new LegacyScopeHeuristic();
+
+    const inferred = heuristic.inferPart({
+      type: "tool-result",
+      toolCallId: "tc-observe-1",
+      toolName: "delegateToSubagent",
+      result: {
+        running: true,
+        completed: false,
+      },
+    });
+
+    expect(inferred).toEqual({
+      scope: "delegated",
+      confidence: 0.95,
+      reason: "delegate_observe_intermediate_running",
+    });
+  });
+
   it("classifies text while delegated call is active as delegated", () => {
     const heuristic = new LegacyScopeHeuristic();
 

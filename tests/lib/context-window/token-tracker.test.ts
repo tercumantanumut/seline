@@ -191,4 +191,143 @@ describe("TokenTracker scoped counting", () => {
 
     expect(usage.assistantMessageTokens).toBeGreaterThan(0);
   });
+
+  it("excludes delegated intermediate observe parts when delegated annotations are present", async () => {
+    const usage = await TokenTracker.calculateUsage(
+      "session-delegate-intermediate",
+      [
+        {
+          id: "assistant-delegate-intermediate",
+          sessionId: "session-delegate-intermediate",
+          role: "assistant",
+          content: [
+            { type: "tool-call", toolCallId: "delegate-1", toolName: "delegateToSubagent", contextScope: "delegated" },
+            {
+              type: "tool-result",
+              toolCallId: "delegate-1",
+              toolName: "delegateToSubagent",
+              contextScope: "delegated",
+              result: {
+                running: true,
+                completed: false,
+                allResponses: ["partial"],
+              },
+            },
+          ],
+          tokenCount: 500,
+          isCompacted: false,
+          metadata: {},
+        },
+      ] as any,
+      0,
+      null,
+      {
+        provider: "openai",
+        hasDelegatedAnnotations: true,
+      }
+    );
+
+    expect(usage.assistantMessageTokens).toBe(0);
+    expect(usage.toolCallTokens).toBe(0);
+    expect(usage.toolResultTokens).toBe(0);
+  });
+
+  it("keeps final observe results counted when they are not delegated-tagged", async () => {
+    const usage = await TokenTracker.calculateUsage(
+      "session-delegate-final",
+      [
+        {
+          id: "assistant-delegate-final",
+          sessionId: "session-delegate-final",
+          role: "assistant",
+          content: [
+            { type: "tool-call", toolCallId: "delegate-2", toolName: "delegateToSubagent", contextScope: "main" },
+            {
+              type: "tool-result",
+              toolCallId: "delegate-2",
+              toolName: "delegateToSubagent",
+              contextScope: "main",
+              result: {
+                running: false,
+                completed: true,
+                lastResponse: "done",
+              },
+            },
+          ],
+          tokenCount: 220,
+          isCompacted: false,
+          metadata: {},
+        },
+      ] as any,
+      0,
+      null,
+      {
+        provider: "openai",
+        hasDelegatedAnnotations: true,
+      }
+    );
+
+    expect(usage.assistantMessageTokens).toBeGreaterThan(0);
+  });
+
+  it("keeps behavior unchanged when no delegated annotations exist", async () => {
+    const messages = [
+      {
+        id: "assistant-main-only",
+        sessionId: "session-main-only-annotations",
+        role: "assistant",
+        content: [{ type: "text", text: "plain assistant text" }],
+        tokenCount: 50,
+        isCompacted: false,
+        metadata: { contextScope: "main" },
+      },
+    ] as any;
+
+    const withoutFlag = await TokenTracker.calculateUsage(
+      "session-main-only-annotations",
+      messages,
+      0,
+      null,
+      {
+        provider: "openai",
+      }
+    );
+
+    const withFalseFlag = await TokenTracker.calculateUsage(
+      "session-main-only-annotations",
+      messages,
+      0,
+      null,
+      {
+        provider: "openai",
+        hasDelegatedAnnotations: false,
+      }
+    );
+
+    expect(withoutFlag.totalTokens).toBe(withFalseFlag.totalTokens);
+  });
+
+  it("does not activate scoped exclusion with only main annotations", async () => {
+    const usage = await TokenTracker.calculateUsage(
+      "session-main-annotation-only",
+      [
+        {
+          id: "assistant-main-annotation",
+          sessionId: "session-main-annotation-only",
+          role: "assistant",
+          content: [{ type: "text", text: "still counted", contextScope: "main" }],
+          tokenCount: 120,
+          isCompacted: false,
+          metadata: { contextScope: "main" },
+        },
+      ] as any,
+      0,
+      null,
+      {
+        provider: "openai",
+      }
+    );
+
+    expect(usage.assistantMessageTokens).toBeGreaterThan(0);
+  });
 });
