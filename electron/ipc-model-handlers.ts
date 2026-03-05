@@ -20,7 +20,7 @@ function getParakeetBaseDir(userModelsDir: string): string {
 }
 
 function getParakeetModelDir(userModelsDir: string, model: ParakeetModel): string {
-  return path.join(getParakeetBaseDir(userModelsDir), model.extractDir);
+  return path.join(getParakeetBaseDir(userModelsDir), model.modelDir);
 }
 
 function readParakeetModelId(settingsPath: string): string | null {
@@ -336,7 +336,6 @@ export function registerModelHandlers(ctx: IpcHandlerContext): void {
     const baseDir = getParakeetBaseDir(userModelsDir);
     const modelDir = getParakeetModelDir(userModelsDir, model);
     const runtimeArchivePath = path.join(baseDir, archiveName);
-    const modelArchivePath = path.join(baseDir, path.basename(model.downloadUrl));
 
     fs.mkdirSync(baseDir, { recursive: true });
 
@@ -359,6 +358,12 @@ export function registerModelHandlers(ctx: IpcHandlerContext): void {
 
         await extractArchive(runtimeArchivePath, baseDir);
         sendProgress("downloading", 60, "runtime-extracted");
+
+        try {
+          fs.unlinkSync(runtimeArchivePath);
+        } catch {
+          // best effort
+        }
       }
 
       const resolvedBinary = getSherpaBinaryPath(userModelsDir);
@@ -366,26 +371,30 @@ export function registerModelHandlers(ctx: IpcHandlerContext): void {
         ensureExecutable(resolvedBinary);
       }
 
-      if (!fs.existsSync(path.join(modelDir, "tokens.txt"))) {
-        sendProgress("downloading", 70, path.basename(model.downloadUrl));
-        await downloadToFile(model.downloadUrl, modelArchivePath);
+      if (!model.requiredFiles.every((f) => fs.existsSync(path.join(modelDir, f)))) {
+        fs.mkdirSync(modelDir, { recursive: true });
+        const total = model.requiredFiles.length;
+        let done = 0;
 
-        sendProgress("downloading", 85, path.basename(model.downloadUrl));
-        await extractArchive(modelArchivePath, baseDir);
+        for (const filename of model.requiredFiles) {
+          if (fs.existsSync(path.join(modelDir, filename))) {
+            done++;
+            continue;
+          }
+
+          sendProgress("downloading", 70 + Math.round((done / total) * 25), filename);
+
+          const blob = await downloadFile({ repo: model.repo, path: filename });
+          if (!blob) {
+            throw new Error(`Failed to download ${filename} from ${model.repo}`);
+          }
+          const buffer = Buffer.from(await blob.arrayBuffer());
+          fs.writeFileSync(path.join(modelDir, filename), buffer);
+          done++;
+        }
       }
 
-      sendProgress("completed", 100, model.extractDir);
-
-      try {
-        fs.unlinkSync(runtimeArchivePath);
-      } catch {
-        // best effort
-      }
-      try {
-        fs.unlinkSync(modelArchivePath);
-      } catch {
-        // best effort
-      }
+      sendProgress("completed", 100, model.modelDir);
 
       return {
         success: true,

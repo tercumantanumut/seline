@@ -2416,7 +2416,9 @@
         "parakeetModelLabel": "Parakeet model",
         "parakeetAutoStartLabel": "Auto-start Parakeet server",
         "parakeetAutoStartDesc": "Starts the local websocket server at app launch when possible.",
-        "parakeetDownloadHint": "Parakeet models are managed by Electron backend downloads."
+        "parakeetDownload": "Download",
+        "parakeetDownloaded": "Downloaded",
+        "parakeetAutoDownloadHint": "Model will be downloaded automatically on first use."
       },
       "controls": {
         "title": "Dictation controls",

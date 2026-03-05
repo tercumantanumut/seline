@@ -19,6 +19,7 @@ import {
 } from "@/components/settings/settings-form-layout";
 import type { FormState, SettingsSection } from "./settings-types";
 import { WhisperModelSelector } from "./whisper-model-selector";
+import { ParakeetModelSelector } from "./parakeet-model-selector";
 import { PreferencesSection } from "./preferences-section";
 import { MemorySection } from "./memory-section";
 import { ApiKeysSection } from "./api-keys-section";
@@ -694,33 +695,7 @@ export function SettingsPanel({
                 )}
 
                 {isParakeetProvider && (
-                  <div className="rounded border border-terminal-border bg-terminal-cream/30 p-4 space-y-3">
-                    <SettingsField
-                      label={t("voice.stt.parakeetModelLabel")}
-                      htmlFor="parakeetModel"
-                    >
-                      <select
-                        id="parakeetModel"
-                        value={formState.parakeetModel}
-                        onChange={(e) => updateField("parakeetModel", e.target.value)}
-                        className={settingsInputClassName}
-                      >
-                        <option value="parakeet-tdt-0.6b-v3">Parakeet TDT 0.6B v3</option>
-                      </select>
-                    </SettingsField>
-
-                    <SettingsToggleRow
-                      id="parakeetAutoStart"
-                      label={t("voice.stt.parakeetAutoStartLabel")}
-                      description={t("voice.stt.parakeetAutoStartDesc")}
-                      checked={formState.parakeetAutoStart}
-                      onChange={(checked) => updateField("parakeetAutoStart", checked)}
-                    />
-
-                    <div className="rounded border border-terminal-border bg-terminal-bg/30 px-3 py-2 font-mono text-xs text-terminal-muted">
-                      {t("voice.stt.parakeetDownloadHint")}
-                    </div>
-                  </div>
+                  <ParakeetModelSelector formState={formState} updateField={updateField} />
                 )}
               </div>
             ) : (

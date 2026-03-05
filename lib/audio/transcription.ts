@@ -8,7 +8,12 @@ import {
   type ParakeetModel,
 } from "@/lib/voice/parakeet-models";
 import { getOrStartParakeetServer, shutdownParakeetServer } from "@/lib/voice/parakeet-server";
-import { buildWhisperPromptFromDictionary, getCustomDictionary } from "@/lib/voice/voice-utils";
+// Lazy-imported to avoid pulling better-sqlite3 into the Electron main bundle.
+// voice-utils imports lib/db/sqlite-client which requires a native module compiled
+// for the correct Node ABI — the Electron main process and Next.js dev server use
+// different ABIs, so this must stay dynamic.
+type VoiceUtils = typeof import("@/lib/voice/voice-utils");
+const getVoiceUtils = (): Promise<VoiceUtils> => import("@/lib/voice/voice-utils");
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import {
   writeFileSync,
@@ -155,10 +160,6 @@ async function transcribeWithParakeet(
     throw new Error(`Unsupported Parakeet model: ${modelId}`);
   }
 
-  if (!(process.versions as { electron?: string }).electron) {
-    throw new Error("Parakeet transcription is available only in Electron runtime");
-  }
-
   const ffmpegPath = findFfmpegBinary();
   if (!ffmpegPath) {
     throw new Error(
@@ -250,26 +251,27 @@ function resolveParakeetBaseDir(): string {
 }
 
 async function ensureParakeetModel(model: ParakeetModel, baseDir: string): Promise<string> {
-  const modelDir = join(baseDir, model.extractDir);
-  const requiredFiles = ["tokens.txt", "encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx"];
+  const modelDir = join(baseDir, model.modelDir);
 
-  if (requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
+  if (model.requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
     return modelDir;
   }
 
-  const archivePath = join(baseDir, `${model.extractDir}.tar.bz2`);
-  try {
-    if (!existsSync(archivePath)) {
-      await downloadToFile(model.downloadUrl, archivePath);
+  mkdirSync(modelDir, { recursive: true });
+
+  const { downloadFile } = await import("@huggingface/hub");
+  for (const filename of model.requiredFiles) {
+    if (existsSync(join(modelDir, filename))) continue;
+
+    const blob = await downloadFile({ repo: model.repo, path: filename });
+    if (!blob) {
+      throw new Error(`Failed to download ${filename} from ${model.repo}`);
     }
-    await extractTarBz2Archive(archivePath, baseDir);
-  } finally {
-    try {
-      unlinkSync(archivePath);
-    } catch {}
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    writeFileSync(join(modelDir, filename), buffer);
   }
 
-  if (!requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
+  if (!model.requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
     throw new Error(`Parakeet model install incomplete at ${modelDir}`);
   }
 
@@ -550,6 +552,7 @@ async function transcribeWithWhisperCpp(
     }
 
     try {
+      const { getCustomDictionary, buildWhisperPromptFromDictionary } = await getVoiceUtils();
       const customDictionary = await getCustomDictionary();
       const prompt = buildWhisperPromptFromDictionary(customDictionary);
       if (prompt) {

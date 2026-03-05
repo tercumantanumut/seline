@@ -5,8 +5,12 @@ export interface ParakeetModel {
   language: string;
   supportedLanguages: string[];
   expectedSizeBytes: number;
-  downloadUrl: string;
-  extractDir: string;
+  /** HuggingFace repo ID (e.g. "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8") */
+  repo: string;
+  /** Files that must be present for the model to be usable */
+  requiredFiles: string[];
+  /** Subdirectory name under the parakeet base dir */
+  modelDir: string;
 }
 
 export const SHERPA_ONNX_VERSION = "1.12.23";
@@ -51,10 +55,10 @@ export const PARAKEET_MODELS: ParakeetModel[] = [
       "vi",
       "zh",
     ],
-    expectedSizeBytes: 1_200_000_000,
-    downloadUrl:
-      "https://huggingface.co/k2-fsa/sherpa-onnx-parakeet-tdt-0.6b-v3/resolve/main/sherpa-onnx-parakeet-tdt-0.6b-v3.tar.bz2",
-    extractDir: "sherpa-onnx-parakeet-tdt-0.6b-v3",
+    expectedSizeBytes: 700_000_000,
+    repo: "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+    requiredFiles: ["tokens.txt", "encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx"],
+    modelDir: "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
   },
 ];
 

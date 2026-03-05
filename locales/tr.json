@@ -2251,7 +2251,13 @@
         "whisperEnglishOnly": " · Yalnızca İngilizce",
         "whisperSetupHint": "Yukarıdan bir model indirin — whisper-cli ve ffmpeg uygulama ile birlikte gelir. Dönüştürme tamamen cihazınızda gerçekleşir — API anahtarı veya internet gerekmez.",
         "providerParakeet": "Yerel (Parakeet/sherpa-onnx)",
-        "providerParakeetDesc": "sherpa-onnx websocket sunucusu ile hizli yerel cevirim."
+        "providerParakeetDesc": "sherpa-onnx websocket sunucusu ile hizli yerel cevirim.",
+        "parakeetModelLabel": "Parakeet modeli",
+        "parakeetAutoStartLabel": "Parakeet sunucusunu otomatik baslat",
+        "parakeetAutoStartDesc": "Uygulama acildiginda yerel websocket sunucusunu baslatir.",
+        "parakeetDownload": "Indir",
+        "parakeetDownloaded": "Indirildi",
+        "parakeetAutoDownloadHint": "Model ilk kullanimda otomatik olarak indirilecektir."
       },
       "controls": {
         "heading": "Dikte kontrolleri",
