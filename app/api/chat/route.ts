@@ -86,6 +86,7 @@ import {
   parseInvalidToolSchemaError,
 } from "./tool-schema-recovery";
 import { tagIntermediateDelegationParts } from "./delegation-scope-tagging";
+import { createThinkTagFilter, shouldFilterThinkTags } from "@/lib/ai/streaming/think-tag-filter";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -650,6 +651,20 @@ export async function POST(req: Request) {
     configuredProvider = provider;
     console.log(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
 
+    // Think-tag filter: strip <think>...</think> blocks from non-Anthropic providers.
+    // NOTE: This filter currently operates on text deltas as they are persisted to
+    // the DB-backed message state (via onChunk). It does NOT transform the live SSE
+    // stream sent to the client — the client receives raw text deltas and relies on
+    // the DB-persisted (already-filtered) content when it re-fetches.
+    // TODO: For true real-time filtering on the client, consider applying the filter
+    // as a TransformStream on the SSE response, or filtering client-side.
+    const thinkTagFilter = shouldFilterThinkTags(provider, currentModelId)
+      ? createThinkTagFilter()
+      : null;
+    if (thinkTagFilter) {
+      console.log(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
+    }
+
     const runFinalized = { value: false };
 
     const finalizeFailedRun = async (
@@ -930,7 +945,9 @@ export async function POST(req: Request) {
               if (!streamingState || !syncStreamingMessage) return;
               let changed = false;
               if (chunk.type === "text-delta") {
-                changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
+                const rawText = chunk.text ?? "";
+                const filteredText = thinkTagFilter ? thinkTagFilter.process(rawText) : rawText;
+                changed = appendTextPartToState(streamingState, filteredText) || changed;
               } else if (chunk.type === "tool-input-start") {
                 changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
               } else if (chunk.type === "tool-input-delta") {
@@ -971,7 +988,16 @@ export async function POST(req: Request) {
               if (changed) await syncStreamingMessage();
             }
             : undefined,
-          onFinish: createOnFinishCallback(callbackCtx),
+          onFinish: async (event) => {
+            // Flush any trailing buffered content from the think-tag filter
+            if (thinkTagFilter && streamingState) {
+              const flushed = thinkTagFilter.flush();
+              if (flushed) {
+                appendTextPartToState(streamingState, flushed);
+              }
+            }
+            return createOnFinishCallback(callbackCtx)(event);
+          },
           onAbort: createOnAbortCallback(callbackCtx) as any,
         })
       )

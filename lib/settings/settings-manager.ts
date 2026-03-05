@@ -19,10 +19,11 @@ export type PostEditHooksPreset = "off" | "fast" | "strict";
 // — with love, Seline (https://github.com/tercumantanumut/seline)
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
+    minimaxApiKey?: string;   // For MiniMax models
     openaiApiKey?: string;    // For OpenAI Whisper STT, TTS, and other OpenAI-direct services
     ollamaBaseUrl?: string;
     tavilyApiKey?: string;    // For Deep Research web search
@@ -520,6 +521,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     if (settings.kimiApiKey) {
         process.env.KIMI_API_KEY = settings.kimiApiKey;
     }
+    if (settings.minimaxApiKey) {
+        process.env.MINIMAX_API_KEY = settings.minimaxApiKey;
+    }
     if (settings.ollamaBaseUrl !== undefined) {
         process.env.OLLAMA_BASE_URL = settings.ollamaBaseUrl;
     } else {
@@ -686,6 +690,10 @@ export function hasRequiredApiKeys(): boolean {
     }
     // Kimi requires an API key from Moonshot
     if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
+        return false;
+    }
+    // MiniMax requires an API key
+    if (settings.llmProvider === "minimax" && !settings.minimaxApiKey) {
         return false;
     }
     // Claude Code requires OAuth authentication (Claude Pro/MAX subscription)

@@ -88,6 +88,7 @@ export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
   openrouter: 128000, // Varies widely, conservative default
   codex: 400000, // GPT-5 models are 400K context
   kimi: 128000, // Kimi K2 models range 128K-256K
+  minimax: 80000, // MiniMax M2.1 models with 80K context
   ollama: 32000, // Local models typically have smaller context
 };
 
@@ -203,6 +204,20 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
   },
   "kimi-k2-0905-preview": {
     maxTokens: 128000,
+    supportsStreaming: true,
+  },
+
+  // MiniMax models
+  "MiniMax-M2.1": {
+    maxTokens: 80000,
+    supportsStreaming: true,
+  },
+  "MiniMax-M2.1-lightning": {
+    maxTokens: 80000,
+    supportsStreaming: true,
+  },
+  "MiniMax-M2": {
+    maxTokens: 80000,
     supportsStreaming: true,
   },
 

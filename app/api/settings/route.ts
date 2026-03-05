@@ -16,6 +16,7 @@ export async function GET() {
       anthropicApiKey: settings.anthropicApiKey ? maskApiKey(settings.anthropicApiKey) : undefined,
       openrouterApiKey: settings.openrouterApiKey ? maskApiKey(settings.openrouterApiKey) : undefined,
       kimiApiKey: settings.kimiApiKey ? maskApiKey(settings.kimiApiKey) : undefined,
+      minimaxApiKey: settings.minimaxApiKey ? maskApiKey(settings.minimaxApiKey) : undefined,
       tavilyApiKey: settings.tavilyApiKey ? maskApiKey(settings.tavilyApiKey) : undefined,
       firecrawlApiKey: settings.firecrawlApiKey ? maskApiKey(settings.firecrawlApiKey) : undefined,
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
@@ -168,6 +169,9 @@ export async function PUT(request: NextRequest) {
     }
     if (body.kimiApiKey && !body.kimiApiKey.includes("•")) {
       updatedSettings.kimiApiKey = body.kimiApiKey;
+    }
+    if (body.minimaxApiKey && !body.minimaxApiKey.includes("•")) {
+      updatedSettings.minimaxApiKey = body.minimaxApiKey;
     }
     if (body.tavilyApiKey !== undefined && !String(body.tavilyApiKey).includes("•")) {
       const nextTavilyApiKey = String(body.tavilyApiKey).trim();

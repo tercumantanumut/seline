@@ -11,6 +11,7 @@ import { getAntigravityModels } from "@/lib/auth/antigravity-models";
 import { getCodexModels } from "@/lib/auth/codex-models";
 import { getClaudeCodeModels } from "@/lib/auth/claudecode-models";
 import { getKimiModels } from "@/lib/auth/kimi-models";
+import { getMiniMaxModels } from "@/lib/auth/minimax-models";
 import type {
   LLMProvider,
   ModelItem,
@@ -158,6 +159,20 @@ export const MODEL_METADATA: Record<
     tier: "standard",
     capabilities: { vision: false, contextWindow: "128K", speed: "standard" },
   },
+
+  // MiniMax
+  "MiniMax-M2.1": {
+    tier: "flagship",
+    capabilities: { vision: false, contextWindow: "80K", speed: "standard" },
+  },
+  "MiniMax-M2.1-lightning": {
+    tier: "utility",
+    capabilities: { vision: false, contextWindow: "80K", speed: "fast" },
+  },
+  "MiniMax-M2": {
+    tier: "standard",
+    capabilities: { vision: false, contextWindow: "80K", speed: "standard" },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -171,6 +186,7 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
   codex: "gpt-5.1-codex",
   claudecode: "claude-sonnet-4-5-20250929",
   kimi: "kimi-k2.5",
+  minimax: "MiniMax-M2.1",
   ollama: "llama3.1:8b",
 };
 
@@ -265,6 +281,7 @@ export function buildModelCatalog(
     { provider: "codex", models: getCodexModels() },
     { provider: "claudecode", models: getClaudeCodeModels() },
     { provider: "kimi", models: getKimiModels() },
+    { provider: "minimax", models: getMiniMaxModels() },
     { provider: "openrouter", models: openrouterModels },
     // ollama is free-text — handled separately in UI
   ];

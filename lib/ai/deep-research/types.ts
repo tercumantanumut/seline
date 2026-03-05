@@ -172,7 +172,7 @@ export interface DeepResearchConfig {
   searchProvider: 'tavily' | 'duckduckgo' | 'serper' | 'mock';
   modelProvider: 'anthropic' | 'openrouter' | 'codex';
   researchModel?: string;
-  sessionProvider?: 'anthropic' | 'openrouter' | 'codex' | 'claudecode' | 'antigravity' | 'kimi' | 'ollama';
+  sessionProvider?: 'anthropic' | 'openrouter' | 'codex' | 'claudecode' | 'antigravity' | 'kimi' | 'minimax' | 'ollama';
   abortSignal?: AbortSignal;
 }
 

@@ -30,6 +30,7 @@ interface SettingsData {
   codexAuth?: { isAuthenticated?: boolean };
   claudecodeAuth?: { isAuthenticated?: boolean };
   kimiApiKey?: string;
+  minimaxApiKey?: string;
   llmProvider: LLMProvider;
   chatModel?: string;
   researchModel?: string;
@@ -44,6 +45,7 @@ const ALL_PROVIDERS: LLMProvider[] = [
   "codex",
   "claudecode",
   "kimi",
+  "minimax",
   "ollama",
 ];
 
@@ -81,6 +83,7 @@ export function useModelBag() {
       codex: !!data.codexAuth?.isAuthenticated,
       claudecode: !!data.claudecodeAuth?.isAuthenticated,
       kimi: !!data.kimiApiKey,
+      minimax: !!data.minimaxApiKey,
       ollama: true,
     };
 
