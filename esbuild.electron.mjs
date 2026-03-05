@@ -20,6 +20,7 @@ await esbuild.build({
     // Native modules must stay external (they're rebuilt for Electron)
     "better-sqlite3",
     "onnxruntime-node",
+    "@lancedb/*",
   ],
   define: {
     "process.env.NODE_ENV": isDev ? '"development"' : '"production"',

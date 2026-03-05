@@ -18,12 +18,16 @@ vi.mock("@/lib/db/sqlite-character-schema", () => ({
   },
 }));
 
-vi.mock("drizzle-orm", () => ({
-  eq: vi.fn(),
-  like: vi.fn(),
-  and: vi.fn(),
-  or: vi.fn(),
-}));
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return {
+    ...actual,
+    eq: vi.fn(),
+    like: vi.fn(),
+    and: vi.fn(),
+    or: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/vectordb/sync-service", () => ({
   getSyncFolders: vi.fn(),

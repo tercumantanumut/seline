@@ -335,10 +335,14 @@ export function ToolEditorDialog({
                             <Label
                               htmlFor={`tool-${tl.id}`}
                               className="font-mono text-xs text-terminal-dark cursor-pointer block truncate"
+                              title={tl.displayName || tl.id}
                             >
                               {tl.displayName || tl.id}
                             </Label>
-                            <p className="text-[10px] font-mono text-terminal-muted line-clamp-1">
+                            <p
+                              className="text-[10px] font-mono text-terminal-muted line-clamp-2"
+                              title={tl.description || ""}
+                            >
                               {tl.description || ""}
                             </p>
                             {warning && (

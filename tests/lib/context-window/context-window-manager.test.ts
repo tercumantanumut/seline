@@ -280,12 +280,19 @@ describe("ContextWindowManager scoped counting integration", () => {
     dbMocks.getNonCompactedMessages.mockReset();
     vi.restoreAllMocks();
 
+    // Enable scoped counting so claudecode provider uses scoped tokens for decisions
+    process.env.CONTEXT_SCOPED_COUNTING_ENABLED = "true";
+
     dbMocks.getSession.mockResolvedValue({
       id: sessionId,
       summary: null,
       metadata: { provider: "claudecode" },
     });
     dbMocks.getNonCompactedMessages.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    delete process.env.CONTEXT_SCOPED_COUNTING_ENABLED;
   });
 
   it("uses scoped tokens for claudecode context status", async () => {

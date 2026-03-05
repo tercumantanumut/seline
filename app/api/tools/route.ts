@@ -61,18 +61,22 @@ export async function GET(request: Request) {
     const registry = ToolRegistry.getInstance();
     const allTools = registry.getAvailableToolsList();
 
-    // Filter out utility tools and always-load tools
+    // Filter out non-configurable internals and (optionally) always-load tools
     const configurableTools: ConfigurableTool[] = [];
+    const NON_CONFIGURABLE_TOOL_IDS = new Set([
+      "searchTools",
+      "listAllTools",
+      "retrieveFullContent",
+    ]);
 
     for (const tool of allTools) {
+      if (NON_CONFIGURABLE_TOOL_IDS.has(tool.name)) continue;
+
       // Get full tool metadata to check alwaysLoad
       const registeredTool = registry.get(tool.name);
       if (!registeredTool) continue;
 
       const { metadata } = registeredTool;
-
-      // Skip utility category tools (searchTools, listAllTools)
-      if (metadata.category === "utility") continue;
 
       // Skip always-load tools (these are always available), unless requested or custom-comfyui
       if (metadata.loading.alwaysLoad && !includeAlwaysLoad && metadata.category !== "custom-comfyui") continue;

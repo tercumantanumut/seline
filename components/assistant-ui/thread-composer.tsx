@@ -45,6 +45,7 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
+import { buildTranscriptInsertion } from "./voice-transcript-utils";
 import { VoiceWaveform } from "@/components/voice/voice-waveform";
 import { VoiceActions } from "@/components/voice/voice-actions";
 import { useGlobalVoiceHotkey } from "@/lib/hooks/use-global-hotkey";
@@ -257,13 +258,41 @@ export const Composer: FC<{
     voicePostProcessing,
     voiceAudioCues,
     voiceActivationMode,
-    onTranscript: (transcript) => {
-      setInputValue((prev) => {
-        if (!prev.trim()) return transcript;
-        return `${prev}${prev.endsWith(" ") ? "" : " "}${transcript}`;
+    onTranscript: (payload) => {
+      const textToInsert = payload.finalText;
+      if (!textToInsert) return;
+
+      // Rich text editor mode — use transaction-based insertion for proper undo/redo
+      if (isEditorMode && tiptapRef.current) {
+        tiptapRef.current.insertVoiceTranscript(textToInsert);
+        return;
+      }
+
+      // Simple textarea mode — insert at cursor with proper spacing
+      const textarea = inputRef.current;
+      const insertion = buildTranscriptInsertion({
+        currentValue: inputValue,
+        transcript: textToInsert,
+        selectionStart: textarea?.selectionStart ?? null,
+        selectionEnd: textarea?.selectionEnd ?? null,
       });
+
+      if (insertion) {
+        setInputValue(insertion.nextValue);
+        updateCursorPosition(insertion.nextCursor);
+      } else {
+        // Fallback: append
+        setInputValue((prev) => {
+          if (!prev.trim()) return textToInsert;
+          return `${prev}${prev.endsWith(" ") ? "" : " "}${textToInsert}`;
+        });
+      }
     },
     onTranscriptInserted: () => {
+      if (isEditorMode && tiptapRef.current) {
+        tiptapRef.current.focus();
+        return;
+      }
       requestAnimationFrame(() => {
         const textarea = inputRef.current;
         if (!textarea) return;

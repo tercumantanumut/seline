@@ -10,6 +10,10 @@ import {
   insertSkillRunIntent,
 } from "@/lib/skills/skill-picker-utils";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
+import {
+  finalizeTranscriptText,
+  normalizeTranscriptText,
+} from "./voice-transcript-utils";
 import type { ComposerSkillLite, SkillPickerMode } from "./composer-skill-picker";
 import { MAX_SLASH_SKILL_RESULTS } from "./composer-skill-picker";
 
@@ -17,9 +21,16 @@ import { MAX_SLASH_SKILL_RESULTS } from "./composer-skill-picker";
 // useVoiceRecording
 // ---------------------------------------------------------------------------
 
+interface VoiceTranscriptPayload {
+  transcript: string;
+  finalText: string;
+  fallbackText: string;
+  usedPostProcessing: boolean;
+}
+
 interface UseVoiceRecordingOptions {
   sttEnabled: boolean;
-  onTranscript: (text: string) => void;
+  onTranscript: (payload: VoiceTranscriptPayload) => void;
   onTranscriptInserted?: () => void;
   voicePostProcessing?: boolean;
   voiceAudioCues?: boolean;
@@ -236,7 +247,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
           // Store raw transcript for auto-learn comparison when user sends
           lastTranscriptRef.current = transcript;
 
-          let finalText = transcript;
+          let enhancedText: string | null = null;
           if (voicePostProcessing && transcript.length > 0) {
             try {
               const cleanupResponse = await fetch("/api/voice/actions", {
@@ -246,7 +257,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
               });
               const cleanupData = await cleanupResponse.json() as { success?: boolean; text?: string };
               if (cleanupData.success && typeof cleanupData.text === "string" && cleanupData.text.trim().length > 0) {
-                finalText = cleanupData.text.trim();
+                enhancedText = cleanupData.text.trim();
               }
             } catch {
               // Post-processing failed — use raw transcript
@@ -254,7 +265,18 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
             }
           }
 
-          onTranscript(finalText);
+          const result = finalizeTranscriptText({
+            transcript,
+            postProcessingEnabled: voicePostProcessing,
+            enhancedText,
+          });
+
+          onTranscript({
+            transcript: result.transcript,
+            finalText: result.finalText,
+            fallbackText: result.fallbackText,
+            usedPostProcessing: result.usedEnhancedText,
+          });
           onTranscriptInserted?.();
         } catch (error) {
           const errorMessage =

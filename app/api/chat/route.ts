@@ -975,7 +975,7 @@ export async function POST(req: Request) {
       )
     );
 
-    const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
+    const STREAM_RECOVERY_MAX_ATTEMPTS = 7;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
     const schemaRecoveredTools = new Set<string>();
     for (let attempt = 0; ; attempt += 1) {

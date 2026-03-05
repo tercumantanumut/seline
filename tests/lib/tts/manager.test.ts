@@ -139,12 +139,18 @@ describe("TTS Manager", () => {
     });
 
     it("truncates with ellipsis when no utility model available", async () => {
+      // Mock providers to return no utility model — triggers truncation fallback
+      const providers = await import("@/lib/ai/providers");
+      const spy = vi.spyOn(providers, "getUtilityModel").mockReturnValue(null);
+
       settingsMock.state.settings.ttsSummarizeThreshold = 20;
       const longText = "This is a very long text that should be truncated because it exceeds the threshold";
       const result = await summarizeForTTS(longText);
       // Should be truncated to threshold - 3 chars + "..."
       expect(result.endsWith("...")).toBe(true);
       expect(result.length).toBeLessThanOrEqual(20);
+
+      spy.mockRestore();
     });
   });
 

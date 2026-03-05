@@ -38,6 +38,7 @@ import { PlanToolUI } from "./plan-tool-ui";
 import { SpeakAloudToolUI, TranscribeToolUI } from "./voice-tool-ui";
 import { ChromiumWorkspaceToolUI } from "./chromium-workspace-tool-ui";
 import { AskFollowupQuestionToolUI } from "./ask-question-tool-ui";
+import { PromptLibraryToolUI } from "./prompt-library-tool-ui";
 import { useOptionalVoice } from "./voice-context";
 import { YouTubeInlinePreview } from "./youtube-inline";
 import { TooltipIconButton } from "./tooltip-icon-button";
@@ -356,6 +357,7 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
                   askFollowupQuestion: AskFollowupQuestionToolUI,
                   AskFollowupQuestion: AskFollowupQuestionToolUI,
                   AskUserQuestion: AskFollowupQuestionToolUI,
+                  promptLibrary: PromptLibraryToolUI,
                 }),
                 Fallback: ToolFallback,
               },

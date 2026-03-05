@@ -480,7 +480,7 @@ export class StdioClientTransport implements Transport {
     private _process?: ChildProcess;
     private _readBuffer = new ReadBuffer();
     private _serverParams: StdioServerParameters;
-    private _stderrStream: Stream | null = null;
+    private _stderrStream: PassThrough | null = null;
     onclose?: () => void;
     onerror?: (error: Error) => void;
     onmessage?: (message: JSONRPCMessage) => void;

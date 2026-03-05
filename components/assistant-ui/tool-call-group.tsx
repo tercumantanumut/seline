@@ -21,6 +21,22 @@ interface ToolCallGroupProps {
 
 const toolGroupExpansionState = new Map<string, boolean>();
 
+/**
+ * Tools whose custom UI is the primary content and should auto-expand.
+ * Without this, their rich inline UIs (audio player, interactive questions,
+ * plan steps, etc.) are hidden behind the "Details" toggle.
+ */
+const TOOLS_AUTO_EXPAND = new Set([
+  "speakAloud",
+  "askUserQuestion",
+  "askFollowupQuestion",
+  "updatePlan",
+  "showProductImages",
+  "calculator",
+  "chromiumWorkspace",
+  "promptLibrary",
+]);
+
 function getResultCount(result: unknown): number | null {
   if (!result || typeof result !== "object") return null;
   const r = result as Record<string, unknown>;
@@ -111,6 +127,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     return toolParts.some((part) => getStatus(part) === "error");
   }, [toolParts]);
 
+  const hasInteractiveUI = useMemo(() => {
+    return toolParts.some((part) =>
+      TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName))
+    );
+  }, [toolParts]);
+
   const mediaPreviews = useMemo(() => {
     if (toolParts.length === 0 || toolParts.every((part) => part.result == null)) {
       return [];
@@ -138,11 +160,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [expansionKey]);
 
   useEffect(() => {
-    if ((hasError || hasMedia) && !toolGroupExpansionState.has(expansionKey)) {
+    if ((hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
       setIsExpanded(true);
       toolGroupExpansionState.set(expansionKey, true);
     }
-  }, [expansionKey, hasError, hasMedia]);
+  }, [expansionKey, hasError, hasMedia, hasInteractiveUI]);
 
   const handleToggleExpanded = () => {
     setIsExpanded((prev) => {
