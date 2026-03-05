@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 interface BrowserActiveState {
   isBrowserActive: boolean;
@@ -16,8 +16,12 @@ export function BrowserActiveProvider({
   activeSessionId,
   children,
 }: BrowserActiveState & { children: ReactNode }) {
+  const value = useMemo(
+    () => ({ isBrowserActive, activeSessionId }),
+    [isBrowserActive, activeSessionId]
+  );
   return (
-    <BrowserActiveContext.Provider value={{ isBrowserActive, activeSessionId }}>
+    <BrowserActiveContext.Provider value={value}>
       {children}
     </BrowserActiveContext.Provider>
   );

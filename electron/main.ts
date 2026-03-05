@@ -291,12 +291,14 @@ app.whenReady().then(async () => {
     debugError("[App] Voice hotkey registration failed:", error);
   }
 
-  // On macOS, re-create window when dock icon is clicked and no windows exist
+  // On macOS, re-create window when dock icon is clicked and main window is gone.
+  // Check for main window specifically — browser session windows may still be open
+  // but shouldn't prevent re-creating the main window.
   app.on("activate", async () => {
     debugLog("[App] activate event fired");
-    const { BrowserWindow } = await import("electron");
-    if (BrowserWindow.getAllWindows().length === 0) {
-      debugLog("[App] No windows open, creating new window");
+    const { mainWindow: currentMainWindow } = require("./window-manager") as typeof import("./window-manager");
+    if (!currentMainWindow || currentMainWindow.isDestroyed()) {
+      debugLog("[App] Main window missing, creating new window");
       await createWindow({
         isDev,
         dataDir,

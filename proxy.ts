@@ -52,6 +52,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Browser session pop-out window — inject standalone header so root layout
+  // renders a minimal shell (no auth, sidebar, sync providers).
+  if (pathname.startsWith("/browser-session")) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-standalone", "1");
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // Detect locale and prepare to set header for i18n/request.ts
   const locale = detectLocale(request);
   const schedulerSecret = process.env.INTERNAL_API_SECRET || "seline-internal-scheduler";

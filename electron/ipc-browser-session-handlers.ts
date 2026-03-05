@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from "electron";
 import * as path from "path";
+import * as fs from "fs";
 import { debugLog, debugError } from "./debug-logger";
 import type { IpcHandlerContext } from "./ipc-handlers";
 import { getWindowBackgroundColor, currentThemePreference } from "./window-manager";
@@ -45,17 +46,20 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
 
       sessionWindows.set(sessionId, win);
 
+      // Attach ready-to-show BEFORE loadURL — the event fires on first paint,
+      // which happens during loadURL. If we await loadURL first, the event has
+      // already fired and the window stays hidden forever.
+      win.once("ready-to-show", () => {
+        win.show();
+        win.focus();
+      });
+
       // Load the dedicated browser session page
       const baseUrl = ctx.isDev
         ? (process.env.ELECTRON_DEV_URL || "http://localhost:3000")
         : `http://localhost:${ctx.prodServerPort}`;
 
       await win.loadURL(`${baseUrl}/browser-session?sessionId=${sessionId}`);
-
-      win.once("ready-to-show", () => {
-        win.show();
-        win.focus();
-      });
 
       win.on("closed", () => {
         sessionWindows.delete(sessionId);
@@ -73,8 +77,7 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
   ipcMain.handle("browser-session:close", (_event, sessionId: string) => {
     const win = sessionWindows.get(sessionId);
     if (win && !win.isDestroyed()) {
-      win.close();
-      sessionWindows.delete(sessionId);
+      win.close(); // The "closed" event handler owns map cleanup
       return { success: true };
     }
     return { success: false, error: "No window found" };
@@ -85,9 +88,13 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
     return { open: !!win && !win.isDestroyed() };
   });
 
-  ipcMain.handle("browser-session:save-recording", async (_event, options: { defaultPath?: string }) => {
+  ipcMain.handle("browser-session:save-recording", async (event, options: { defaultPath?: string; data?: number[] }) => {
     const { dialog } = await import("electron");
-    const result = await dialog.showSaveDialog({
+
+    // Parent the dialog to the calling window
+    const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+
+    const result = await dialog.showSaveDialog(parentWin as BrowserWindow, {
       title: "Save Browser Recording",
       defaultPath: options?.defaultPath || "browser-recording.webm",
       filters: [
@@ -100,6 +107,19 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
       return { success: false, canceled: true };
     }
 
+    // If data is provided, write directly to the user-chosen path
+    // (bypasses the sandboxed file:write handler)
+    if (options?.data) {
+      try {
+        fs.writeFileSync(result.filePath, Buffer.from(options.data));
+        debugLog(`[BrowserSession] Recording saved to: ${result.filePath}`);
+        return { success: true, filePath: result.filePath };
+      } catch (error) {
+        debugError(`[BrowserSession] Failed to save recording:`, error);
+        return { success: false, error: String(error) };
+      }
+    }
+
     return { success: true, filePath: result.filePath };
   });
 }
@@ -108,11 +128,11 @@ export function registerBrowserSessionHandlers(ctx: IpcHandlerContext): void {
  * Close all browser session windows. Called on app quit.
  */
 export function closeAllBrowserSessionWindows(): void {
-  for (const [sessionId, win] of sessionWindows) {
+  for (const [, win] of sessionWindows) {
     if (!win.isDestroyed()) {
-      win.close();
+      win.destroy(); // Force-destroy on quit — no beforeunload
     }
-    sessionWindows.delete(sessionId);
   }
+  sessionWindows.clear();
   debugLog("[BrowserSession] All session windows closed");
 }

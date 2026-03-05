@@ -204,7 +204,11 @@ export function createChromiumWorkspaceTool(options: {
 
 // ─── Action router ────────────────────────────────────────────────────────────
 
-async function executeAction(
+/**
+ * Execute a single browser action in a session.
+ * Exported for use by the replay API endpoint.
+ */
+export async function executeAction(
   sessionId: string,
   input: ChromiumWorkspaceInput,
   timeout: number,

@@ -12,9 +12,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ArrowsOut } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { isElectron, getElectronAPI } from "@/lib/electron/types";
 
 interface BrowserBackdropProps {
   /** The chat session ID — used to connect to the screencast stream */
@@ -82,12 +80,22 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
           const { data } = JSON.parse(event.data) as { data: string; ts: number };
           if (imgRef.current && data) {
             imgRef.current.src = `data:image/jpeg;base64,${data}`;
-            if (mounted && !hasFrame) setHasFrame(true);
+            if (mounted) setHasFrame(true);
           }
         } catch {
           // Malformed frame, skip
         }
       };
+
+      // Listen for explicit session-end event from server
+      es.addEventListener("session-end", () => {
+        es.close();
+        eventSourceRef.current = null;
+        if (mounted) {
+          setIsConnected(false);
+          setHasFrame(false);
+        }
+      });
 
       es.onerror = () => {
         es.close();
@@ -129,23 +137,6 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  const handlePopOut = useCallback(async () => {
-    if (!sessionId) return;
-    const api = getElectronAPI();
-    if (api) {
-      // Electron: open dedicated browser session window
-      try {
-        await api.ipc.invoke("browser-session:open", sessionId);
-      } catch {
-        // Fallback: open in new browser tab
-        window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
-      }
-    } else {
-      // Web: open in new tab
-      window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
-    }
-  }, [sessionId]);
-
   return (
     <div
       className={cn(
@@ -175,27 +166,7 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
         }}
       />
 
-      {/* Connection indicator + Pop-out button */}
-      {isConnected && (
-        <div className="pointer-events-auto absolute bottom-3 right-3 flex items-center gap-2">
-          {/* Pop-out button */}
-          <button
-            type="button"
-            onClick={handlePopOut}
-            className="flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm hover:bg-black/60 transition-colors cursor-pointer"
-            title="Open in dedicated window"
-          >
-            <ArrowsOut className="size-3.5 text-white/70" weight="bold" />
-            <span className="text-[10px] font-medium text-white/60">Pop out</span>
-          </button>
-
-          {/* LIVE indicator */}
-          <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-sm">
-            <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
-            <span className="text-[10px] font-medium text-white/60">LIVE</span>
-          </div>
-        </div>
-      )}
+      {/* Controls (Pop out + LIVE) are rendered in thread.tsx above the viewport z-layer */}
     </div>
   );
 }

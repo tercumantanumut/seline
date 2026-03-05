@@ -47,6 +47,16 @@ export async function GET(
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        unsubscribe();
+        try { controller.close(); } catch { /* already closed */ }
+      };
+
       // Send initial frame immediately if available
       const latest = getLatestFrame(sessionId);
       if (latest) {
@@ -56,24 +66,37 @@ export async function GET(
 
       // Subscribe to future frames
       const unsubscribe = subscribeToFrames(sessionId, (frame) => {
+        if (closed) return;
         try {
           const event = `data: ${JSON.stringify({ data: frame.data, ts: frame.receivedAt })}\n\n`;
           controller.enqueue(encoder.encode(event));
         } catch {
-          // Stream may be closed
-          unsubscribe();
+          cleanup();
         }
       });
 
-      // Clean up when client disconnects
-      req.signal.addEventListener("abort", () => {
-        unsubscribe();
-        try {
-          controller.close();
-        } catch {
-          // Already closed
+      // Heartbeat: detect session end and close the stream
+      // Without this, the SSE connection stays open after the session closes
+      // (stopScreencast clears listeners but can't close the ReadableStream controller)
+      const heartbeat = setInterval(() => {
+        if (!isScreencastActive(sessionId)) {
+          // Session ended — send close event and terminate stream
+          try {
+            controller.enqueue(encoder.encode(`event: session-end\ndata: {}\n\n`));
+          } catch { /* ignore */ }
+          cleanup();
+          return;
         }
-      });
+        // Keep-alive comment to prevent proxy/CDN timeouts
+        try {
+          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        } catch {
+          cleanup();
+        }
+      }, 2000);
+
+      // Clean up when client disconnects
+      req.signal.addEventListener("abort", () => cleanup());
     },
   });
 

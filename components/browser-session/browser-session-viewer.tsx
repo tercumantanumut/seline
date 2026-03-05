@@ -107,11 +107,20 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [hasFrame, setHasFrame] = useState(false);
+  const hasFrameRef = useRef(false);
   const [history, setHistory] = useState<SessionHistory | null>(null);
   const [pageTitle, setPageTitle] = useState<string>("");
   const [pageUrl, setPageUrl] = useState<string>("");
   const eventSourceRef = useRef<EventSource | null>(null);
   const historyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isReplaying, setIsReplaying] = useState(false);
+
+  // activeSessionId drives SSE + history polling.
+  // Starts as the prop sessionId, switches when replay starts.
+  const [activeSessionId, setActiveSessionId] = useState(sessionId);
+
+  // Store the original session history for the replay button
+  const originalHistoryRef = useRef<SessionHistory | null>(null);
 
   const {
     isRecording,
@@ -122,14 +131,19 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
     feedFrame,
   } = useScreencastRecorder(canvasRef);
 
-  // Connect to screencast stream
+  // Connect to screencast stream — uses activeSessionId
   useEffect(() => {
-    if (!sessionId) return;
+    if (!activeSessionId) return;
 
     let mounted = true;
 
+    // Reset frame state when switching sessions
+    hasFrameRef.current = false;
+    setHasFrame(false);
+    setIsConnected(false);
+
     const connect = () => {
-      const es = new EventSource(`/api/browser/${sessionId}/stream`);
+      const es = new EventSource(`/api/browser/${activeSessionId}/stream`);
       eventSourceRef.current = es;
 
       es.onopen = () => {
@@ -145,7 +159,10 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
               imgRef.current.src = src;
             }
             feedFrame(src);
-            if (mounted && !hasFrame) setHasFrame(true);
+            if (mounted && !hasFrameRef.current) {
+              hasFrameRef.current = true;
+              setHasFrame(true);
+            }
           }
         } catch {
           // Skip malformed frames
@@ -175,15 +192,15 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [activeSessionId]);
 
-  // Poll for action history
+  // Poll for action history — uses activeSessionId
   useEffect(() => {
-    if (!sessionId) return;
+    if (!activeSessionId) return;
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/browser/${sessionId}/history`);
+        const res = await fetch(`/api/browser/${activeSessionId}/history`);
         if (res.ok) {
           const data = await res.json() as SessionHistory;
           setHistory(data);
@@ -192,6 +209,16 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
           const lastAction = data.actions[data.actions.length - 1];
           if (lastAction?.pageTitle) setPageTitle(lastAction.pageTitle);
           if (lastAction?.pageUrl) setPageUrl(lastAction.pageUrl);
+        } else if (res.status === 404) {
+          // Session ended — stop polling
+          if (historyPollRef.current) {
+            clearInterval(historyPollRef.current);
+            historyPollRef.current = null;
+          }
+          // If this was a replay session, mark replay done
+          if (isReplaying) {
+            setIsReplaying(false);
+          }
         }
       } catch {
         // Ignore poll errors
@@ -207,27 +234,56 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
         historyPollRef.current = null;
       }
     };
-  }, [sessionId]);
+  }, [activeSessionId, isReplaying]);
 
   const handleReplay = useCallback(async () => {
-    if (!sessionId || !history) return;
+    // Use the original history (from before replay) or current history
+    const historyToReplay = originalHistoryRef.current ?? history;
+    if (!sessionId || !historyToReplay) return;
+
+    setIsReplaying(true);
+    // Store the original history before replay overwrites it
+    if (!originalHistoryRef.current) {
+      originalHistoryRef.current = historyToReplay;
+    }
+    // Clear current state for fresh replay view
+    setHistory(null);
+    setPageTitle("");
+    setPageUrl("");
+
     try {
       const res = await fetch(`/api/browser/${sessionId}/replay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ history: historyToReplay }),
       });
       if (!res.ok) {
         console.error("Replay failed:", await res.text());
+        setIsReplaying(false);
+        return;
       }
+      const data = await res.json() as { sessionId: string; totalActions: number };
+      console.log(`[Replay] Started: sessionId=${data.sessionId}, ${data.totalActions} actions`);
+
+      // Switch to the replay session for both screencast and history
+      setActiveSessionId(data.sessionId);
     } catch (err) {
       console.error("Replay error:", err);
+      setIsReplaying(false);
     }
   }, [sessionId, history]);
 
+  const handleBackToLive = useCallback(() => {
+    setActiveSessionId(sessionId);
+    setIsReplaying(false);
+    originalHistoryRef.current = null;
+  }, [sessionId]);
+
   const handleDownload = useCallback(async () => {
-    await downloadRecording(`browser-session-${sessionId.slice(0, 8)}.webm`);
-  }, [downloadRecording, sessionId]);
+    await downloadRecording(`browser-session-${activeSessionId.slice(0, 8)}.webm`);
+  }, [downloadRecording, activeSessionId]);
+
+  const isReplaySession = activeSessionId !== sessionId;
 
   return (
     <div className="flex h-full flex-col bg-black text-white">
@@ -243,7 +299,19 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
           </span>
         )}
         <div className="flex items-center gap-1.5 ml-2">
-          {isConnected ? (
+          {isReplaySession ? (
+            <>
+              <ArrowClockwise className="size-3 text-blue-400 animate-spin" weight="bold" />
+              <span className="text-[10px] font-medium text-blue-400/80">REPLAYING</span>
+              <button
+                type="button"
+                onClick={handleBackToLive}
+                className="ml-2 text-[10px] font-mono text-white/50 hover:text-white/80 underline"
+              >
+                Back to live
+              </button>
+            </>
+          ) : isConnected ? (
             <>
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
               <span className="text-[10px] font-medium text-green-400/80">LIVE</span>
@@ -279,7 +347,9 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-white/30">
                 <CircleNotch className="size-8 animate-spin" weight="bold" />
-                <span className="text-sm font-mono">Waiting for frames...</span>
+                <span className="text-sm font-mono">
+                  {isReplaying ? "Starting replay..." : "Waiting for frames..."}
+                </span>
               </div>
             </div>
           )}
@@ -341,7 +411,7 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
               {(!history || history.actions.length === 0) && (
                 <div className="px-3 py-8 text-center text-xs text-white/20 font-mono">
-                  No actions yet
+                  {isReplaying ? "Replay starting..." : "No actions yet"}
                 </div>
               )}
             </div>
@@ -405,14 +475,20 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
               )}
 
               {/* Replay */}
-              {history && history.actions.length > 0 && (
+              {((history && history.actions.length > 0) || originalHistoryRef.current) && (
                 <button
                   type="button"
                   onClick={handleReplay}
-                  className="flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-mono text-white/60 hover:bg-white/20 hover:text-white/80 transition-colors ml-auto"
+                  disabled={isReplaying}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-mono transition-colors ml-auto",
+                    isReplaying
+                      ? "bg-blue-500/20 text-blue-400 cursor-wait"
+                      : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/80"
+                  )}
                 >
-                  <ArrowClockwise className="size-3.5" weight="bold" />
-                  Replay
+                  <ArrowClockwise className={cn("size-3.5", isReplaying && "animate-spin")} weight="bold" />
+                  {isReplaying ? "Replaying..." : "Replay"}
                 </button>
               )}
             </div>

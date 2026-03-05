@@ -103,20 +103,17 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   const messageId = useMessage((state) => state.id);
   const { isBrowserActive } = useBrowserActive();
 
-  const isAllChromium = useMemo(() => {
-    const parts = messageParts
-      .slice(startIndex, endIndex + 1)
-      .filter((part): part is ToolCallPart => part?.type === "tool-call");
-    return parts.length > 0 && parts.every((p) => getCanonicalToolName(p.toolName) === "chromiumWorkspace");
-  }, [messageParts, startIndex, endIndex]);
-
-  const useGlass = isBrowserActive && isAllChromium;
-
   const toolParts = useMemo(() => {
     return messageParts
       .slice(startIndex, endIndex + 1)
       .filter((part): part is ToolCallPart => part?.type === "tool-call");
   }, [messageParts, startIndex, endIndex]);
+
+  const isAllChromium = useMemo(() => {
+    return toolParts.length > 0 && toolParts.every((p) => getCanonicalToolName(p.toolName) === "chromiumWorkspace");
+  }, [toolParts]);
+
+  const isGlass = isBrowserActive && isAllChromium;
 
   const fallbackKey = useMemo(() => {
     return toolParts
@@ -193,7 +190,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     <div
       className={cn(
         "my-2 rounded-lg p-2 shadow-sm transition-all duration-150 ease-in-out",
-        useGlass
+        isGlass
           ? "bg-black/20 backdrop-blur-md border border-white/10"
           : "bg-terminal-cream/80"
       )}
@@ -256,7 +253,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
           onClick={handleToggleExpanded}
           className={cn(
             "h-7 px-2 text-xs font-mono",
-            useGlass
+            isGlass
               ? "text-white/60 hover:text-white/90"
               : "text-terminal-muted hover:text-terminal-dark"
           )}
@@ -271,7 +268,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       </div>
 
       {isExpanded && (
-        <div className={cn("mt-2 border-t pt-2", useGlass ? "border-white/10" : "border-terminal-dark/10")}>
+        <div className={cn("mt-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {children}
         </div>
       )}

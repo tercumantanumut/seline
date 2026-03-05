@@ -1,7 +1,9 @@
 "use client";
 
 import type { FC } from "react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { ArrowsOut } from "@phosphor-icons/react";
+import { getElectronAPI } from "@/lib/electron/types";
 import {
   ThreadPrimitive,
   useThread,
@@ -219,6 +221,39 @@ export const Thread: FC<ThreadProps> = ({
         <BrowserActiveProvider isBrowserActive={isBrowserActive} activeSessionId={sessionId}>
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
+
+        {/* Browser session controls — rendered above viewport z-layer so they're clickable */}
+        {isBrowserActive && sessionId && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-end p-3">
+            <div className="pointer-events-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const api = getElectronAPI();
+                  if (api) {
+                    try {
+                      await api.ipc.invoke("browser-session:open", sessionId);
+                    } catch {
+                      window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
+                    }
+                  } else {
+                    window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
+                  }
+                }}
+                className="flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm hover:bg-black/60 transition-colors cursor-pointer"
+                title="Open in dedicated window"
+              >
+                <ArrowsOut className="size-3.5 text-white/70" weight="bold" />
+                <span className="text-[10px] font-medium text-white/60">Pop out</span>
+              </button>
+
+              <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-sm">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+                <span className="text-[10px] font-medium text-white/60">LIVE</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <DragOverlay isDragging={isDragging} isImportingSkill={isImportingSkill} />
 

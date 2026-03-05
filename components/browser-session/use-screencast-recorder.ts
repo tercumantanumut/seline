@@ -9,7 +9,7 @@
  * Zero external dependencies — uses browser-native APIs only.
  */
 
-import { useCallback, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { getElectronAPI } from "@/lib/electron/types";
 
 interface UseScreencastRecorderReturn {
@@ -30,6 +30,18 @@ export function useScreencastRecorder(
   const chunksRef = useRef<Blob[]>([]);
   const blobRef = useRef<Blob | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+  // Cleanup MediaRecorder on unmount
+  useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      mediaRecorderRef.current = null;
+    };
+  }, []);
 
   const feedFrame = useCallback((dataUrl: string) => {
     const canvas = canvasRef.current;
@@ -46,11 +58,12 @@ export function useScreencastRecorder(
       if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
+        ctxRef.current = null; // Reset context after resize
       }
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
+      if (!ctxRef.current) {
+        ctxRef.current = canvas.getContext("2d");
       }
+      ctxRef.current?.drawImage(img, 0, 0);
     };
     img.src = dataUrl;
   }, [canvasRef]);
@@ -116,20 +129,21 @@ export function useScreencastRecorder(
 
     const name = filename || "browser-recording.webm";
 
-    // Try Electron native save dialog first
+    // Try Electron native save dialog first — send data in the same IPC call
+    // so the main process writes directly to the user-chosen path.
+    // (Buffer is unavailable in sandboxed renderer, and file:write is sandboxed to mediaDir)
     const api = getElectronAPI();
     if (api) {
       try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const data = Array.from(new Uint8Array(arrayBuffer));
         const result = await api.ipc.invoke("browser-session:save-recording", {
           defaultPath: name,
+          data,
         }) as { success: boolean; filePath?: string; canceled?: boolean };
 
-        if (result.success && result.filePath) {
-          // Write the blob to disk via file API
-          const arrayBuffer = await blob.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          await api.ipc.invoke("file:write", result.filePath, buffer);
-          return;
+        if (result.success || result.canceled) {
+          return; // Saved or user cancelled — don't fall through
         }
       } catch {
         // Fall through to browser download

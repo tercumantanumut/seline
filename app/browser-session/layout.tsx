@@ -1,5 +1,3 @@
-import { ThemeProvider } from "@/components/theme/theme-provider";
-
 export const metadata = {
   title: "Browser Session — Seline",
 };
@@ -10,10 +8,8 @@ export default function BrowserSessionLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ThemeProvider initialTheme="dark">
-      <div className="h-screen w-screen overflow-hidden bg-black">
-        {children}
-      </div>
-    </ThemeProvider>
+    <div className="h-screen w-screen overflow-hidden bg-black">
+      {children}
+    </div>
   );
 }
