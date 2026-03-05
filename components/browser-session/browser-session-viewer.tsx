@@ -28,9 +28,12 @@ import {
   Stop,
   DownloadSimple,
   ArrowClockwise,
+  Hand,
+  User,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useScreencastRecorder } from "./use-screencast-recorder";
+import { useBrowserInteraction } from "./use-browser-interaction";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,7 @@ interface ActionRecord {
   pageTitle?: string;
   domSnapshot?: string;
   error?: string;
+  source?: "agent" | "user";
 }
 
 interface SessionHistory {
@@ -130,6 +134,66 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
     downloadRecording,
     feedFrame,
   } = useScreencastRecorder(canvasRef);
+
+  const [isInteractive, setIsInteractive] = useState(false);
+  const [urlBarValue, setUrlBarValue] = useState("");
+  const interactionContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    handleMouseDown,
+    handleMouseMove,
+    handleWheel,
+    cursorPos,
+    isSending,
+    navigate,
+  } = useBrowserInteraction({
+    sessionId: activeSessionId,
+    imgRef,
+    enabled: isInteractive,
+  });
+
+  // Capture keyboard events when interactive mode is on
+  useEffect(() => {
+    if (!isInteractive || !activeSessionId) return;
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Don't capture if user is typing in the URL bar
+      if (e.target instanceof HTMLInputElement) return;
+
+      e.preventDefault();
+
+      const specialKeys = new Set([
+        "Enter", "Tab", "Escape", "Backspace", "Delete",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+        "Home", "End", "PageUp", "PageDown", "Space",
+      ]);
+
+      if (specialKeys.has(e.key)) {
+        // Send as keypress
+        let modifiers = 0;
+        if (e.altKey) modifiers |= 1;
+        if (e.ctrlKey) modifiers |= 2;
+        if (e.metaKey) modifiers |= 4;
+        if (e.shiftKey) modifiers |= 8;
+
+        await fetch(`/api/browser/${activeSessionId}/interact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "keypress", key: e.key, modifiers }),
+        });
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        // Regular character — send as type
+        await fetch(`/api/browser/${activeSessionId}/interact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "type", text: e.key }),
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isInteractive, activeSessionId]);
 
   // Connect to screencast stream — uses activeSessionId
   useEffect(() => {
@@ -328,31 +392,99 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
       {/* ── Main content ── */}
       <div className="flex flex-1 min-h-0">
         {/* ── Screencast panel (left, dominant) ── */}
-        <div className="flex-1 relative flex items-center justify-center bg-black">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={imgRef}
-            alt="Live browser screencast"
-            className={cn(
-              "max-h-full max-w-full object-contain transition-opacity duration-300",
-              hasFrame ? "opacity-100" : "opacity-0"
-            )}
-          />
-
-          {/* Hidden canvas for recording */}
-          <canvas ref={canvasRef} className="hidden" />
-
-          {/* Placeholder when no frames */}
-          {!hasFrame && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 text-white/30">
-                <CircleNotch className="size-8 animate-spin" weight="bold" />
-                <span className="text-sm font-mono">
-                  {isReplaying ? "Starting replay..." : "Waiting for frames..."}
-                </span>
-              </div>
+        <div
+          ref={interactionContainerRef}
+          className={cn(
+            "flex-1 relative flex flex-col bg-black",
+            isInteractive && "cursor-crosshair"
+          )}
+        >
+          {/* URL bar — shown in interactive mode */}
+          {isInteractive && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border-b border-white/10 shrink-0">
+              <Globe className="size-3.5 text-white/40" weight="bold" />
+              <input
+                type="text"
+                value={urlBarValue}
+                onChange={(e) => setUrlBarValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && urlBarValue.trim()) {
+                    e.preventDefault();
+                    void navigate(urlBarValue.trim());
+                    setUrlBarValue("");
+                  }
+                }}
+                placeholder="Enter URL and press Enter..."
+                className="flex-1 bg-transparent text-xs font-mono text-white/80 placeholder:text-white/30 outline-none"
+              />
+              {isSending && (
+                <CircleNotch className="size-3 text-white/40 animate-spin" weight="bold" />
+              )}
             </div>
           )}
+
+          {/* Screencast image with interaction overlay */}
+          <div
+            className="flex-1 relative flex items-center justify-center"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              alt="Live browser screencast"
+              className={cn(
+                "max-h-full max-w-full object-contain transition-opacity duration-300",
+                hasFrame ? "opacity-100" : "opacity-0"
+              )}
+            />
+
+            {/* Hidden canvas for recording */}
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* Cursor position indicator in interactive mode */}
+            {isInteractive && cursorPos && hasFrame && (
+              <div
+                className="pointer-events-none absolute"
+                style={{
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+              >
+                <div
+                  className="absolute w-4 h-4 border-2 border-blue-400/60 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{
+                    left: `${cursorPos.x}px`,
+                    top: `${cursorPos.y}px`,
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Placeholder when no frames */}
+            {!hasFrame && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-white/30">
+                  <CircleNotch className="size-8 animate-spin" weight="bold" />
+                  <span className="text-sm font-mono">
+                    {isReplaying ? "Starting replay..." : "Waiting for frames..."}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Interactive mode indicator */}
+            {isInteractive && hasFrame && (
+              <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-md bg-blue-500/20 px-2 py-1 backdrop-blur-sm">
+                <Hand className="size-3 text-blue-400" weight="fill" />
+                <span className="text-[10px] font-mono text-blue-400/90 font-medium">
+                  INTERACTIVE
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Right panel: Timeline + Controls ── */}
@@ -385,6 +517,11 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
                     ) : (
                       <XCircle className="size-3 text-red-400 shrink-0" weight="fill" />
                     )}
+
+                    {/* Source indicator */}
+                    {record.source === "user" ? (
+                      <User className="size-3 text-blue-400/70 shrink-0" weight="fill" />
+                    ) : null}
 
                     {/* Icon */}
                     <Icon className="size-3 text-white/50 shrink-0" weight="bold" />
@@ -441,6 +578,21 @@ export const BrowserSessionViewer: FC<{ sessionId: string }> = ({ sessionId }) =
 
             {/* Action buttons */}
             <div className="flex items-center gap-2">
+              {/* Interactive mode toggle */}
+              <button
+                type="button"
+                onClick={() => setIsInteractive((prev) => !prev)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-mono transition-colors",
+                  isInteractive
+                    ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                    : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white/80"
+                )}
+              >
+                <Hand className={cn("size-3.5", isInteractive && "text-blue-400")} weight={isInteractive ? "fill" : "bold"} />
+                {isInteractive ? "Interactive" : "Interact"}
+              </button>
+
               {/* Record / Stop */}
               {isRecording ? (
                 <button

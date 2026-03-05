@@ -106,6 +106,9 @@ export interface FormState {
   devWorkspaceEnabled: boolean;
   devWorkspaceAutoCleanup: boolean;
   devWorkspaceAutoCleanupDays: number;
+  // Browser automation settings
+  chromiumBrowserMode: "standalone" | "user-chrome";
+  chromiumUserProfilePath: string;
   embeddingReindexRequired: boolean;
   vectorDBEnabled: boolean;
   vectorSearchHybridEnabled: boolean;
@@ -209,6 +212,8 @@ export const DEFAULT_FORM_STATE: FormState = {
   devWorkspaceEnabled: false,
   devWorkspaceAutoCleanup: true,
   devWorkspaceAutoCleanupDays: 7,
+  chromiumBrowserMode: "standalone",
+  chromiumUserProfilePath: "",
   embeddingReindexRequired: false,
   vectorDBEnabled: false,
   vectorSearchHybridEnabled: false,
@@ -310,6 +315,8 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     devWorkspaceEnabled: data.devWorkspaceEnabled ?? false,
     devWorkspaceAutoCleanup: data.devWorkspaceAutoCleanup ?? true,
     devWorkspaceAutoCleanupDays: data.devWorkspaceAutoCleanupDays ?? 7,
+    chromiumBrowserMode: data.chromiumBrowserMode ?? "standalone",
+    chromiumUserProfilePath: data.chromiumUserProfilePath ?? "",
     embeddingReindexRequired: data.embeddingReindexRequired ?? false,
     vectorDBEnabled: data.vectorDBEnabled || false,
     vectorSearchHybridEnabled: data.vectorSearchHybridEnabled ?? false,

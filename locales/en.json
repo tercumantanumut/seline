@@ -2334,6 +2334,26 @@
         "verbosityLabel": "Verbosity",
         "ultraCompact": "Ultra compact mode (-u)"
       },
+      "browserAutomation": {
+        "heading": "Browser automation",
+        "description": "Choose how the chromium workspace tool launches a browser for web tasks.",
+        "standalone": "Standalone (default)",
+        "standaloneDesc": "Launches a sandboxed headless browser. Isolated cookies, no extensions. Predictable and zero-friction.",
+        "userChrome": "Use my Chrome browser",
+        "userChromeDesc": "Launches with your real Chrome profile — inherits cookies, extensions, and browser fingerprint. Better for avoiding bot detection.",
+        "profilePathLabel": "Chrome profile path (optional)",
+        "profilePathPlaceholder": "Leave empty for OS default profile",
+        "noteLabel": "Note:",
+        "noteText": "Chrome must be fully closed before using this mode. All browser sessions will share your profile's cookies and login state."
+      },
+      "browserInteraction": {
+        "interactive": "Interactive",
+        "interact": "Interact",
+        "interactiveMode": "Interactive Mode",
+        "urlPlaceholder": "Enter URL and press Enter...",
+        "interactiveBadge": "INTERACTIVE",
+        "userAction": "User"
+      },
       "devWorkspace": {
         "heading": "Developer workspace",
         "description": "Show workspace indicators, diff views, and tools for git-based coding workflows.",

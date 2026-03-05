@@ -261,6 +261,10 @@ export interface AppSettings {
     devWorkspaceAutoCleanup?: boolean;      // Auto-remove worktrees after PR merge (default: true)
     devWorkspaceAutoCleanupDays?: number;   // Days before auto-cleanup (default: 7)
     workspaceOnboardingSeen?: boolean;      // Whether the workspace onboarding tour has been shown
+
+    // Browser automation settings
+    chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
+    chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -366,6 +370,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     devWorkspaceAutoCleanup: true,
     devWorkspaceAutoCleanupDays: 7,
     workspaceOnboardingSeen: false,
+    // Browser automation defaults
+    chromiumBrowserMode: "standalone",
+    chromiumUserProfilePath: "",
 };
 
 function getSettingsPath(): string {

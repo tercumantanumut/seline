@@ -176,6 +176,7 @@ export function createChromiumWorkspaceTool(options: {
           pageUrl: result.pageUrl,
           pageTitle: result.pageTitle,
           domSnapshot: result.domSnapshot,
+          source: "agent",
         });
 
         return {
@@ -194,6 +195,7 @@ export function createChromiumWorkspaceTool(options: {
           success: false,
           durationMs,
           error: errorMsg,
+          source: "agent",
         });
 
         return { status: "error" as const, action, durationMs, error: errorMsg };

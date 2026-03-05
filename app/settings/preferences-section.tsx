@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme/theme-provider";
 import { THEME_PRESETS } from "@/lib/personalization/theme-presets";
 import { WALLPAPERS, WALLPAPER_CATEGORIES, type BackgroundConfig } from "@/lib/personalization/wallpapers";
 import { VIDEO_WALLPAPERS, VIDEO_WALLPAPER_CATEGORIES, getVideoWallpaperById } from "@/lib/personalization/video-wallpapers";
-import { Check, X, Image as ImageIcon, Play } from "lucide-react";
+import { Check, X, Image as ImageIcon, Play, Globe } from "lucide-react";
 import type { FormState } from "./settings-types";
 
 interface PreferencesSectionProps {
@@ -801,6 +801,76 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
                   githubMcp: () => <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code>,
                   strong: (chunks) => <strong className="text-terminal-dark">{chunks}</strong>,
                 })}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Browser Automation */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-terminal-muted" />
+            <h3 className="font-mono text-base font-semibold text-terminal-dark">
+              {t("preferences.browserAutomation.heading")}
+            </h3>
+          </div>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.browserAutomation.description")}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="chromiumBrowserMode"
+              value="standalone"
+              checked={formState.chromiumBrowserMode === "standalone"}
+              onChange={() => updateField("chromiumBrowserMode", "standalone")}
+              className="mt-1 size-4 accent-terminal-green"
+            />
+            <div>
+              <span className="font-mono text-terminal-dark">{t("preferences.browserAutomation.standalone")}</span>
+              <p className="font-mono text-xs text-terminal-muted">{t("preferences.browserAutomation.standaloneDesc")}</p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="chromiumBrowserMode"
+              value="user-chrome"
+              checked={formState.chromiumBrowserMode === "user-chrome"}
+              onChange={() => updateField("chromiumBrowserMode", "user-chrome")}
+              className="mt-1 size-4 accent-terminal-green"
+            />
+            <div>
+              <span className="font-mono text-terminal-dark">{t("preferences.browserAutomation.userChrome")}</span>
+              <p className="font-mono text-xs text-terminal-muted">{t("preferences.browserAutomation.userChromeDesc")}</p>
+            </div>
+          </label>
+        </div>
+
+        {formState.chromiumBrowserMode === "user-chrome" && (
+          <div className="space-y-3 border-t border-terminal-border pt-4">
+            <div>
+              <label className="mb-1 block font-mono text-xs text-terminal-muted">
+                {t("preferences.browserAutomation.profilePathLabel")}
+              </label>
+              <input
+                type="text"
+                value={formState.chromiumUserProfilePath}
+                onChange={(e) => updateField("chromiumUserProfilePath", e.target.value)}
+                placeholder={t("preferences.browserAutomation.profilePathPlaceholder")}
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+
+            <div className="rounded border border-dashed border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 p-3">
+              <p className="font-mono text-xs text-terminal-muted">
+                <strong className="text-amber-600 dark:text-amber-400">{t("preferences.browserAutomation.noteLabel")}</strong>{" "}
+                {t("preferences.browserAutomation.noteText")}
               </p>
             </div>
           </div>

@@ -53,6 +53,9 @@ export interface ActionRecord {
 
   /** Error message if the action failed */
   error?: string;
+
+  /** Who performed this action — the AI agent or the human user */
+  source?: "agent" | "user";
 }
 
 export interface SessionHistory {
@@ -134,6 +137,7 @@ export function recordAction(
     pageTitle?: string;
     domSnapshot?: string;
     error?: string;
+    source?: "agent" | "user";
   }
 ): void {
   const store = getHistoryStore();
@@ -152,6 +156,7 @@ export function recordAction(
     pageTitle: result.pageTitle,
     domSnapshot: result.domSnapshot?.slice(0, 2000),
     error: result.error,
+    source: result.source ?? "agent",
   });
 }
 

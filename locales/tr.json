@@ -2173,6 +2173,26 @@
         "verbosityLabel": "Ayrıntı düzeyi",
         "ultraCompact": "Ultra kompakt mod (-u)"
       },
+      "browserAutomation": {
+        "heading": "Tarayıcı otomasyonu",
+        "description": "Chromium çalışma alanı aracının web görevleri için tarayıcıyı nasıl başlatacağını seçin.",
+        "standalone": "Bağımsız (varsayılan)",
+        "standaloneDesc": "Korumalı ve başsız bir tarayıcı başlatır. İzole çerezler, eklenti yok. Öngörülebilir ve sorunsuz.",
+        "userChrome": "Chrome tarayıcımı kullan",
+        "userChromeDesc": "Gerçek Chrome profilinizle başlatır — çerezleri, eklentileri ve tarayıcı parmak izini devralır. Bot algılamayı atlamak için daha iyi.",
+        "profilePathLabel": "Chrome profil yolu (isteğe bağlı)",
+        "profilePathPlaceholder": "İşletim sistemi varsayılan profili için boş bırakın",
+        "noteLabel": "Not:",
+        "noteText": "Bu modu kullanmadan önce Chrome tamamen kapatılmalıdır. Tüm tarayıcı oturumları profilinizin çerezlerini ve oturum durumunu paylaşacaktır."
+      },
+      "browserInteraction": {
+        "interactive": "Etkileşimli",
+        "interact": "Etkileşim",
+        "interactiveMode": "Etkileşimli Mod",
+        "urlPlaceholder": "URL girin ve Enter'a basın...",
+        "interactiveBadge": "ETKİLEŞİMLİ",
+        "userAction": "Kullanıcı"
+      },
       "devWorkspace": {
         "heading": "Geliştirici çalışma alanı",
         "description": "Git tabanlı kodlama iş akışları için çalışma alanı göstergeleri, fark görünümleri ve araçları göster.",
