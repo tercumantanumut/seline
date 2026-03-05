@@ -3,9 +3,10 @@
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ChevronDown, ChevronRight, Terminal, Check, X, Clock } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { TerminalBlock, TerminalPrompt, TerminalOutput } from "./terminal-prompt";
+import { useToolExpansion } from "@/components/assistant-ui/tool-expansion-context";
 
 interface CommandOutputProps {
     /** The command that was executed */
@@ -97,6 +98,17 @@ export function CommandOutput({
     const t = useTranslations("assistantUi.commandOutput");
     const shouldAutoCollapse = defaultCollapsed ?? (success && !stderr && (stdout?.length ?? 0) > 500);
     const [isCollapsed, setIsCollapsed] = useState(shouldAutoCollapse);
+
+    // React to global expand/collapse signal
+    const expansionCtx = useToolExpansion();
+    const lastSignalRef = useRef(0);
+    useEffect(() => {
+      if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+      if (expansionCtx.signal.counter === lastSignalRef.current) return;
+      lastSignalRef.current = expansionCtx.signal.counter;
+      // Note: isCollapsed is the inverse of expanded
+      setIsCollapsed(expansionCtx.signal.mode !== "expand");
+    }, [expansionCtx?.signal]);
 
     const fullCommand = [command, ...args].join(" ");
     const hasOutput = stdout || stderr || error;

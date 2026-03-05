@@ -994,6 +994,8 @@
       "toolOutputPreview": "Araç çıktı önizlemesi {index}",
       "hide": "Gizle",
       "details": "Detaylar",
+      "expandAll": "Tüm araçları aç",
+      "collapseAll": "Tüm araçları kapat",
       "workspace": "Çalışma Alanı"
     },
     "patchFile": {

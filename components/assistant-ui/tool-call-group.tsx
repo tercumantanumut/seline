@@ -1,7 +1,7 @@
 "use client";
 
 import type { FC, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useAssistantState, useMessage } from "@assistant-ui/react";
 import type { MessagePartState } from "@assistant-ui/react";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ToolCallBadge, type ToolCallBadgeStatus } from "./tool-call-badge";
 import { getCanonicalToolName } from "./tool-name-utils";
 import { useBrowserActive } from "./browser-active-context";
+import { useToolExpansion } from "./tool-expansion-context";
 
 type ToolCallPart = Extract<MessagePartState, { type: "tool-call" }>;
 
@@ -173,6 +174,18 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       toolGroupExpansionState.set(expansionKey, true);
     }
   }, [expansionKey, hasError, hasMedia, hasInteractiveUI]);
+
+  // React to global expand/collapse signal
+  const expansionCtx = useToolExpansion();
+  const lastSignalRef = useRef(0);
+  useEffect(() => {
+    if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+    if (expansionCtx.signal.counter === lastSignalRef.current) return;
+    lastSignalRef.current = expansionCtx.signal.counter;
+    const next = expansionCtx.signal.mode === "expand";
+    setIsExpanded(next);
+    toolGroupExpansionState.set(expansionKey, next);
+  }, [expansionCtx?.signal, expansionKey]);
 
   const handleToggleExpanded = () => {
     setIsExpanded((prev) => {

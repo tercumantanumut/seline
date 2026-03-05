@@ -1,9 +1,10 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { FileIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useToolExpansion } from "./tool-expansion-context";
 
 interface DiagnosticResult {
   tool: string;
@@ -55,6 +56,16 @@ export const PatchFileToolUI: ToolCallContentPartComponent = ({
   const [expanded, setExpanded] = useState(false);
   const [showFullDiagnostics, setShowFullDiagnostics] = useState<{[key: number]: boolean}>({});
   const [showFullDiff, setShowFullDiff] = useState<{[key: number]: boolean}>({});
+
+  // React to global expand/collapse signal
+  const expansionCtx = useToolExpansion();
+  const lastSignalRef = useRef(0);
+  useEffect(() => {
+    if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+    if (expansionCtx.signal.counter === lastSignalRef.current) return;
+    lastSignalRef.current = expansionCtx.signal.counter;
+    setExpanded(expansionCtx.signal.mode === "expand");
+  }, [expansionCtx?.signal]);
   const opCount = args?.operations?.length || result?.operations?.length || 0;
 
   const StatusIcon = !result

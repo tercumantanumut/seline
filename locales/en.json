@@ -996,7 +996,9 @@
       "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)",
       "toolOutputPreview": "Tool output preview {index}",
       "hide": "Hide",
-      "details": "Details"
+      "details": "Details",
+      "expandAll": "Expand all tools",
+      "collapseAll": "Collapse all tools"
     },
     "patchFile": {
       "patchLabel": "Patch",

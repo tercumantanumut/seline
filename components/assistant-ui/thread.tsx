@@ -15,6 +15,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCharacter } from "./character-context";
 import { useOptionalDeepResearch } from "./deep-research-context";
 import { BrowserActiveProvider } from "./browser-active-context";
+import { ToolExpansionProvider } from "./tool-expansion-context";
+import { ExpandAllToolsButton } from "./expand-all-tools-button";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
 import { useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
 import {
@@ -218,6 +220,7 @@ export const Thread: FC<ThreadProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        <ToolExpansionProvider>
         <BrowserActiveProvider isBrowserActive={isBrowserActive} activeSessionId={sessionId}>
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
@@ -348,6 +351,7 @@ export const Thread: FC<ThreadProps> = ({
 
           <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
+            <ExpandAllToolsButton />
             <AgentResourcesBadge />
             <Composer
               isBackgroundTaskRunning={isBackgroundTaskRunning}
@@ -374,6 +378,7 @@ export const Thread: FC<ThreadProps> = ({
           </div>
         </GalleryWrapper>
         </BrowserActiveProvider>
+        </ToolExpansionProvider>
       </ThreadPrimitive.Root>
     </TooltipProvider>
   );

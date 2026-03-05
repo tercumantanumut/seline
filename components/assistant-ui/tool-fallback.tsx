@@ -1,12 +1,13 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState, type FC } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { CircleNotch, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import { getToolIcon } from "@/components/ui/tool-icon-map";
 import { getCanonicalToolName } from "./tool-name-utils";
+import { useToolExpansion } from "./tool-expansion-context";
 // Define the tool call component type manually since it's no longer exported
 type ToolCallContentPartComponent = FC<{
   toolName: string;
@@ -812,6 +813,19 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
   const parsedResult = result as ToolResult | undefined;
   const [resolvedName, setResolvedName] = useState<string | null>(null);
   const [isArgsExpanded, setIsArgsExpanded] = useState(false);
+  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
+
+  // React to global expand/collapse signal
+  const expansionCtx = useToolExpansion();
+  const lastSignalRef = useRef(0);
+  useEffect(() => {
+    if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+    if (expansionCtx.signal.counter === lastSignalRef.current) return;
+    lastSignalRef.current = expansionCtx.signal.counter;
+    const next = expansionCtx.signal.mode === "expand";
+    setIsArgsExpanded(next);
+    setIsOutputExpanded(next);
+  }, [expansionCtx?.signal]);
 
   // Memoize the display name lookup
   const displayName = useMemo(() => {
@@ -886,7 +900,13 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
         hasVisualMedia(parsedResult) ? (
           <ToolResultDisplay toolName={toolName} result={parsedResult} />
         ) : (
-          <details className="text-xs text-terminal-muted">
+          <details
+            className="text-xs text-terminal-muted"
+            open={isOutputExpanded}
+            onToggle={(event) => {
+              setIsOutputExpanded((event.currentTarget as HTMLDetailsElement).open);
+            }}
+          >
             <summary className="cursor-pointer hover:text-terminal-dark">
               View output
             </summary>
