@@ -351,8 +351,10 @@ export const Thread: FC<ThreadProps> = ({
 
           <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
-            <ExpandAllToolsButton />
-            <AgentResourcesBadge />
+            <div className="flex w-full items-center justify-between px-1">
+              <ExpandAllToolsButton />
+              <AgentResourcesBadge />
+            </div>
             <Composer
               isBackgroundTaskRunning={isBackgroundTaskRunning}
               isProcessingInBackground={isProcessingInBackground}
