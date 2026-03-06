@@ -42,6 +42,23 @@ const CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 40;
 })();
 
+/** Anthropic Messages API usage shape (snake_case wire format). */
+type AnthropicTokenUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+};
+
+/** Shape of a "result" message from the Claude Agent SDK query iterator. */
+type ClaudeAgentResultMessage = {
+  is_error?: boolean;
+  subtype?: string;
+  result?: string;
+  errors?: string[];
+  usage?: AnthropicTokenUsage;
+};
+
 /**
  * SDK-native options that extend a basic Claude Agent SDK query.
  * These are forwarded directly to the SDK's query() call, enabling full
@@ -538,12 +555,7 @@ function isAuthError(message: string): boolean {
 function createAnthropicMessageResponse(
   text: string,
   model: string,
-  realUsage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    cache_creation_input_tokens?: number;
-  },
+  usage?: AnthropicTokenUsage,
 ): Response {
   return new Response(
     JSON.stringify({
@@ -555,14 +567,10 @@ function createAnthropicMessageResponse(
       stop_reason: "end_turn",
       stop_sequence: null,
       usage: {
-        input_tokens: realUsage?.input_tokens ?? 0,
-        output_tokens: realUsage?.output_tokens ?? 0,
-        ...(realUsage?.cache_read_input_tokens != null
-          ? { cache_read_input_tokens: realUsage.cache_read_input_tokens }
-          : {}),
-        ...(realUsage?.cache_creation_input_tokens != null
-          ? { cache_creation_input_tokens: realUsage.cache_creation_input_tokens }
-          : {}),
+        input_tokens: usage?.input_tokens ?? 0,
+        output_tokens: usage?.output_tokens ?? 0,
+        cache_read_input_tokens: usage?.cache_read_input_tokens,
+        cache_creation_input_tokens: usage?.cache_creation_input_tokens,
       },
     }),
     {
@@ -768,8 +776,7 @@ function createStreamingClaudeCodeResponse(options: {
         let nextContentIndex = 0;
         let inputTokens = 0;
         let outputTokens = 0;
-        let cacheReadInputTokens: number | undefined;
-        let cacheCreationInputTokens: number | undefined;
+        let finalUsage: AnthropicTokenUsage | undefined;
         let syntheticStreamLocalIndex = -1;
         let sawStreamTextThisTurn = false;
         const streamedToolUseIdsThisTurn = new Set<string>();
@@ -1171,18 +1178,7 @@ function createStreamingClaudeCodeResponse(options: {
           // ── result: final message ─────────────────────────────────────────
           if (message.type === "result") {
             closeOpenStreamBlocks();
-            const result = message as {
-              is_error?: boolean;
-              subtype?: string;
-              result?: string;
-              errors?: string[];
-              usage?: {
-                input_tokens?: number;
-                output_tokens?: number;
-                cache_read_input_tokens?: number;
-                cache_creation_input_tokens?: number;
-              };
-            };
+            const result = message as ClaudeAgentResultMessage;
 
             if (Array.isArray(result.errors) && result.errors.length > 0) {
               const errorText = result.errors.join("\n");
@@ -1201,18 +1197,9 @@ function createStreamingClaudeCodeResponse(options: {
             // calls above (emitTextBlock accumulates estimated outputTokens, and
             // we want the real SDK values to be the final word).
             if (result.usage) {
-              if (typeof result.usage.input_tokens === "number") {
-                inputTokens = result.usage.input_tokens;
-              }
-              if (typeof result.usage.output_tokens === "number") {
-                outputTokens = result.usage.output_tokens;
-              }
-              if (typeof result.usage.cache_read_input_tokens === "number") {
-                cacheReadInputTokens = result.usage.cache_read_input_tokens;
-              }
-              if (typeof result.usage.cache_creation_input_tokens === "number") {
-                cacheCreationInputTokens = result.usage.cache_creation_input_tokens;
-              }
+              finalUsage = result.usage;
+              inputTokens = result.usage.input_tokens ?? inputTokens;
+              outputTokens = result.usage.output_tokens ?? outputTokens;
             }
 
             if (result.is_error) {
@@ -1243,8 +1230,8 @@ function createStreamingClaudeCodeResponse(options: {
           usage: {
             input_tokens: inputTokens,
             output_tokens: outputTokens,
-            ...(cacheReadInputTokens != null ? { cache_read_input_tokens: cacheReadInputTokens } : {}),
-            ...(cacheCreationInputTokens != null ? { cache_creation_input_tokens: cacheCreationInputTokens } : {}),
+            cache_read_input_tokens: finalUsage?.cache_read_input_tokens,
+            cache_creation_input_tokens: finalUsage?.cache_creation_input_tokens,
           },
         });
         emit("message_stop", { type: "message_stop" });
@@ -1291,15 +1278,7 @@ async function runClaudeAgentQuery(options: {
   systemPrompt?: string;
   signal?: AbortSignal;
   sdkOptions?: ClaudeAgentSdkQueryOptions;
-}): Promise<{
-  text: string;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    cache_creation_input_tokens?: number;
-  };
-}> {
+}): Promise<{ text: string; usage?: AnthropicTokenUsage }> {
   const abortController = new AbortController();
   const signal = options.signal;
 
@@ -1397,12 +1376,7 @@ async function runClaudeAgentQuery(options: {
 
   let text = "";
   let sawStreamText = false;
-  let resultUsage: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    cache_creation_input_tokens?: number;
-  } | undefined;
+  let resultUsage: AnthropicTokenUsage | undefined;
 
   try {
     for await (const message of query) {
@@ -1453,18 +1427,7 @@ async function runClaudeAgentQuery(options: {
       }
 
       if (message.type === "result") {
-        const result = message as {
-          is_error?: boolean;
-          subtype?: string;
-          result?: string;
-          errors?: string[];
-          usage?: {
-            input_tokens?: number;
-            output_tokens?: number;
-            cache_read_input_tokens?: number;
-            cache_creation_input_tokens?: number;
-          };
-        };
+        const result = message as ClaudeAgentResultMessage;
 
         // Capture real usage from the SDK result
         if (result.usage) {
@@ -1651,14 +1614,14 @@ function createClaudeCodeFetch(): typeof fetch {
 
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const { text: output, usage: realUsage } = await runClaudeAgentQuery({
+        const { text: output, usage } = await runClaudeAgentQuery({
           prompt: makePrompt(),
           model,
           systemPrompt,
           signal: init.signal ?? undefined,
         });
 
-        return createAnthropicMessageResponse(output, model, realUsage);
+        return createAnthropicMessageResponse(output, model, usage);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
