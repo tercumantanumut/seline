@@ -8,6 +8,7 @@ export interface LivePromptEntry {
 const globalForLivePromptQueue = globalThis as typeof globalThis & {
   livePromptQueues?: Map<string, LivePromptEntry[]>;
   livePromptSessionIndex?: Map<string, string>; // sessionId → runId
+  livePromptQueueWaiters?: Map<string, Set<() => void>>;
 };
 
 function getQueueMap(): Map<string, LivePromptEntry[]> {
@@ -22,6 +23,13 @@ function getSessionIndex(): Map<string, string> {
     globalForLivePromptQueue.livePromptSessionIndex = new Map();
   }
   return globalForLivePromptQueue.livePromptSessionIndex;
+}
+
+function getWaiterMap(): Map<string, Set<() => void>> {
+  if (!globalForLivePromptQueue.livePromptQueueWaiters) {
+    globalForLivePromptQueue.livePromptQueueWaiters = new Map();
+  }
+  return globalForLivePromptQueue.livePromptQueueWaiters;
 }
 
 /** Call once after agentRun.id is assigned, before streaming starts. */
@@ -42,6 +50,12 @@ export function appendToLivePromptQueue(
   const queue = getQueueMap().get(runId);
   if (!queue) return false;
   queue.push({ ...entry, timestamp: Date.now() });
+  const waiters = getWaiterMap().get(runId);
+  if (waiters) {
+    for (const notify of [...waiters]) {
+      notify();
+    }
+  }
   return true;
 }
 
@@ -75,8 +89,59 @@ export function hasLivePromptQueue(runId: string): boolean {
   return getQueueMap().has(runId);
 }
 
+/**
+ * Wait until the queue receives at least one entry, or until the caller aborts.
+ * Resolves immediately when entries are already available.
+ */
+export function waitForQueueMessage(runId: string, signal?: AbortSignal): Promise<void> {
+  const queue = getQueueMap().get(runId);
+  if (!queue) {
+    return Promise.reject(new Error(`Live prompt queue not found for run ${runId}`));
+  }
+  if (queue.length > 0) {
+    return Promise.resolve();
+  }
+  if (signal?.aborted) {
+    return Promise.reject(new Error("Aborted"));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const waiters = getWaiterMap();
+    const notify = () => {
+      cleanup();
+      resolve();
+    };
+    const onAbort = () => {
+      cleanup();
+      reject(new Error("Aborted"));
+    };
+    const cleanup = () => {
+      const waiterSet = waiters.get(runId);
+      if (waiterSet) {
+        waiterSet.delete(notify);
+        if (waiterSet.size === 0) {
+          waiters.delete(runId);
+        }
+      }
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const waiterSet = waiters.get(runId) ?? new Set<() => void>();
+    waiterSet.add(notify);
+    waiters.set(runId, waiterSet);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 /** Call in onFinish, onAbort, and error cleanup paths to release memory. */
 export function removeLivePromptQueue(runId: string, sessionId: string): void {
   getQueueMap().delete(runId);
   getSessionIndex().delete(sessionId);
+  const waiters = getWaiterMap().get(runId);
+  if (waiters) {
+    for (const notify of [...waiters]) {
+      notify();
+    }
+    getWaiterMap().delete(runId);
+  }
 }

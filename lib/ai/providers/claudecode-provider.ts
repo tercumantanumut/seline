@@ -28,6 +28,16 @@ import {
   storeUserAnswer,
   popUserAnswer,
 } from "@/lib/interactive-tool-bridge";
+import {
+  drainLivePromptQueue,
+  hasLivePromptQueue,
+  type LivePromptEntry,
+  waitForQueueMessage,
+} from "@/lib/background-tasks/live-prompt-queue-registry";
+import {
+  buildStopSystemMessage,
+  buildUserInjectionContent,
+} from "@/lib/background-tasks/live-prompt-helpers";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
@@ -57,6 +67,15 @@ type ClaudeAgentResultMessage = {
   result?: string;
   errors?: string[];
   usage?: AnthropicTokenUsage;
+};
+
+type ClaudeAgentQueryStreamMessage = {
+  type?: string;
+  [key: string]: unknown;
+};
+
+type ClaudeAgentQueryStream = AsyncGenerator<ClaudeAgentQueryStreamMessage, void> & {
+  streamInput?: (stream: AsyncIterable<SDKUserMessage>) => Promise<void>;
 };
 
 /**
@@ -541,6 +560,80 @@ async function* buildMultimodalSdkPrompt(
   } as SDKUserMessage;
 }
 
+function buildSdkUserMessage(content: string, sessionId: string): SDKUserMessage {
+  return {
+    type: "user" as const,
+    message: {
+      role: "user" as const,
+      content,
+    },
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  } as SDKUserMessage;
+}
+
+async function* singleSdkUserMessage(message: SDKUserMessage): AsyncGenerator<SDKUserMessage> {
+  yield message;
+}
+
+async function pumpLivePromptQueue(options: {
+  query: ClaudeAgentQueryStream;
+  runId?: string;
+  signal: AbortSignal;
+  onQueueMessages?: (entries: LivePromptEntry[]) => Promise<void>;
+}): Promise<void> {
+  const { query, runId, signal, onQueueMessages } = options;
+  if (!runId || typeof query.streamInput !== "function") {
+    return;
+  }
+
+  const inputSessionId = crypto.randomUUID();
+
+  while (!signal.aborted && hasLivePromptQueue(runId)) {
+    let entries = drainLivePromptQueue(runId);
+    if (entries.length === 0) {
+      try {
+        await waitForQueueMessage(runId, signal);
+      } catch {
+        break;
+      }
+      if (signal.aborted || !hasLivePromptQueue(runId)) {
+        break;
+      }
+      entries = drainLivePromptQueue(runId);
+      if (entries.length === 0) {
+        continue;
+      }
+    }
+
+    try {
+      await onQueueMessages?.(entries);
+    } catch (error) {
+      console.warn("[ClaudeCode] Failed to persist queued live prompt before injection:", error);
+    }
+
+    const content = entries.some((entry) => entry.stopIntent)
+      ? buildStopSystemMessage(entries)
+      : buildUserInjectionContent(entries);
+    if (!content) {
+      continue;
+    }
+
+    try {
+      await query.streamInput(singleSdkUserMessage(buildSdkUserMessage(content, inputSessionId)));
+    } catch (error) {
+      if (!signal.aborted) {
+        console.warn("[ClaudeCode] Failed to inject queued live prompt into SDK session:", error);
+      }
+      break;
+    }
+
+    if (entries.some((entry) => entry.stopIntent)) {
+      break;
+    }
+  }
+}
+
 function isAuthError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -622,6 +715,10 @@ function createStreamingClaudeCodeResponse(options: {
         number,
         { partialJson: string; timer: ReturnType<typeof setTimeout> | null }
       >();
+
+      let livePromptAbortController: AbortController | undefined;
+      let onLivePromptAbort: (() => void) | undefined;
+      let livePromptPump: Promise<void> = Promise.resolve();
 
       try {
         const sdk = options.sdkOptions;
@@ -756,6 +853,22 @@ function createStreamingClaudeCodeResponse(options: {
             ...(sdk?.effort ? { effort: sdk.effort } : {}),
             ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
           },
+        }) as ClaudeAgentQueryStream;
+
+        livePromptAbortController = new AbortController();
+        onLivePromptAbort = () => livePromptAbortController?.abort();
+        if (options.signal) {
+          if (options.signal.aborted) {
+            livePromptAbortController.abort();
+          } else {
+            options.signal.addEventListener("abort", onLivePromptAbort, { once: true });
+          }
+        }
+        livePromptPump = pumpLivePromptQueue({
+          query,
+          runId: mcpCtx?.runId,
+          signal: livePromptAbortController.signal,
+          onQueueMessages: mcpCtx?.onQueueMessages,
         });
 
         // Emit message_start
@@ -946,7 +1059,9 @@ function createStreamingClaudeCodeResponse(options: {
           streamedToolUseNamesThisTurn.clear();
         };
 
-        for await (const message of query) {
+        for await (const rawMessage of query) {
+          const message = rawMessage as { type?: string };
+
           if (message.type === "user") {
             if (sdkToolResultBridge) {
               const bridgedResults = extractSdkToolResultsFromUserMessage(message);
@@ -1246,6 +1361,11 @@ function createStreamingClaudeCodeResponse(options: {
           // Controller may already be closed
         }
       } finally {
+        livePromptAbortController?.abort();
+        if (options.signal && onLivePromptAbort) {
+          options.signal.removeEventListener("abort", onLivePromptAbort);
+        }
+        await livePromptPump.catch(() => {});
         options.signal?.removeEventListener("abort", onAbort);
         for (const pending of pendingInputJsonDeltaByIndex.values()) {
           if (pending.timer) {
@@ -1372,6 +1492,22 @@ async function runClaudeAgentQuery(options: {
       ...(sdk?.effort ? { effort: sdk.effort } : {}),
       ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
     },
+  }) as ClaudeAgentQueryStream;
+
+  const livePromptAbortController = new AbortController();
+  const onLivePromptAbort = () => livePromptAbortController.abort();
+  if (signal) {
+    if (signal.aborted) {
+      livePromptAbortController.abort();
+    } else {
+      signal.addEventListener("abort", onLivePromptAbort, { once: true });
+    }
+  }
+  const livePromptPump = pumpLivePromptQueue({
+    query,
+    runId: mcpCtx?.runId,
+    signal: livePromptAbortController.signal,
+    onQueueMessages: mcpCtx?.onQueueMessages,
   });
 
   let text = "";
@@ -1379,7 +1515,9 @@ async function runClaudeAgentQuery(options: {
   let resultUsage: AnthropicTokenUsage | undefined;
 
   try {
-    for await (const message of query) {
+    for await (const rawMessage of query) {
+      const message = rawMessage as { type?: string };
+
       if (message.type === "stream_event") {
         const event = (message as { event?: unknown }).event;
         if (
@@ -1461,6 +1599,9 @@ async function runClaudeAgentQuery(options: {
       // We intentionally fall through without handling them.
     }
   } finally {
+    livePromptAbortController.abort();
+    signal?.removeEventListener("abort", onLivePromptAbort);
+    await livePromptPump.catch(() => {});
     signal?.removeEventListener("abort", onAbort);
   }
 

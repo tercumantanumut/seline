@@ -385,6 +385,8 @@ export async function POST(req: Request) {
     }
     chatTaskRegistered = true;
 
+    const runId = agentRun.id;
+
     // ── Edit/Reload truncation cleanup ──────────────────────────────────────
     // IMPORTANT: This must run BEFORE saving the new user message. When a user
     // edits a message, assistant-ui sends a truncated list (everything up to the
@@ -609,6 +611,7 @@ export async function POST(req: Request) {
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
+      runId,
       characterId: characterId ?? null,
       enabledTools: enabledTools ?? undefined,
       cwd: agentCwd,
@@ -637,6 +640,47 @@ export async function POST(req: Request) {
         };
       })(),
       sdkToolResultBridge,
+      onQueueMessages: (() => {
+        const _state = streamingState;
+        const _sync = syncStreamingMessage;
+        return async (entries) => {
+          if (entries.length === 0) return;
+
+          if (_state && _sync) {
+            await _sync(true);
+            if (_state.messageId) {
+              const preId = _state.messageId;
+              void updateMessage(preId, { metadata: { livePromptInjected: true } }).catch(() => {});
+            }
+            _state.messageId = undefined;
+            _state.parts = [];
+            _state.toolCallParts = new Map();
+            _state.loggedIncompleteToolCalls = new Set();
+            _state.lastBroadcastAt = 0;
+            _state.lastBroadcastSignature = "";
+            _state.pendingBroadcast = false;
+            _state.isCreating = false;
+            // Claude Code runs entirely inside streamText step 0, so any injected
+            // follow-up content must ignore canonical step reconciliation.
+            _state.stepOffset = 1;
+          }
+
+          for (const entry of entries) {
+            try {
+              const orderingIndex = await nextOrderingIndex(sessionId);
+              await createMessage({
+                sessionId,
+                role: "user",
+                content: [{ type: "text", text: entry.content }],
+                orderingIndex,
+                metadata: { livePromptInjected: true },
+              });
+            } catch (dbError) {
+              console.warn("[CHAT API] Failed to persist injected Claude Code user message:", dbError);
+            }
+          }
+        };
+      })(),
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
@@ -736,9 +780,6 @@ export async function POST(req: Request) {
         }
       }
     };
-
-    const runId = agentRun?.id;
-    if (!runId) throw new Error("Agent run unavailable for chat stream");
 
     const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
 

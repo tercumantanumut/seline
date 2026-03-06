@@ -6,6 +6,7 @@ import {
   drainLivePromptQueue,
   hasLivePromptQueue,
   removeLivePromptQueue,
+  waitForQueueMessage,
 } from "@/lib/background-tasks/live-prompt-queue-registry";
 
 const RUN_ID = "test-run-001";
@@ -161,4 +162,33 @@ describe("live-prompt-queue-registry", () => {
     // Cleanup
     removeLivePromptQueue(RUN_B, SESSION_B);
   });
+
+  it("waitForQueueMessage resolves when a new entry is appended", async () => {
+    createLivePromptQueue(RUN_ID, SESSION_ID);
+
+    const waiter = waitForQueueMessage(RUN_ID);
+    appendToLivePromptQueue(RUN_ID, { id: "w1", content: "wake", stopIntent: false });
+
+    await expect(waiter).resolves.toBeUndefined();
+  });
+
+  it("waitForQueueMessage rejects when aborted", async () => {
+    createLivePromptQueue(RUN_ID, SESSION_ID);
+
+    const controller = new AbortController();
+    const waiter = waitForQueueMessage(RUN_ID, controller.signal);
+    controller.abort();
+
+    await expect(waiter).rejects.toThrow("Aborted");
+  });
+
+  it("waitForQueueMessage rejects when queue is removed while waiting", async () => {
+    createLivePromptQueue(RUN_ID, SESSION_ID);
+
+    const waiter = waitForQueueMessage(RUN_ID);
+    removeLivePromptQueue(RUN_ID, SESSION_ID);
+
+    await expect(waiter).resolves.toBeUndefined();
+  });
+
 });
