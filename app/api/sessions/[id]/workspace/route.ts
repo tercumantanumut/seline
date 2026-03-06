@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
+import { GitService } from "@/lib/workspace/git-service";
 import type {
   WorkspaceInfo,
   WorkspaceStatus,
@@ -322,6 +323,55 @@ export async function GET(
       workspaceStatus.worktreeExists = liveStatus.worktreeExists;
     }
 
+    // Structured diff support: ?diff=true&type=unstaged&filePath=...&base=...&head=...
+    const url = new URL(req.url);
+    const wantDiff = url.searchParams.get("diff") === "true";
+
+    if (wantDiff && workspaceInfo.worktreePath) {
+      try {
+        const gitService = new GitService(workspaceInfo.worktreePath);
+
+        const diffFilter: {
+          type?: string;
+          filePath?: string;
+          base?: string;
+          head?: string;
+        } = {};
+
+        const diffType = url.searchParams.get("type");
+        if (diffType) diffFilter.type = diffType;
+
+        const diffFilePath = url.searchParams.get("filePath");
+        if (diffFilePath) diffFilter.filePath = diffFilePath;
+
+        const diffBase = url.searchParams.get("base");
+        if (diffBase) diffFilter.base = diffBase;
+
+        const diffHead = url.searchParams.get("head");
+        if (diffHead) diffFilter.head = diffHead;
+
+        const [diff, status] = await Promise.all([
+          gitService.getDiff(diffFilter),
+          gitService.getStatus(),
+        ]);
+
+        return NextResponse.json({
+          workspace: workspaceStatus,
+          diff,
+          status,
+        });
+      } catch (error) {
+        console.error("Failed to get structured diff:", error);
+        return NextResponse.json(
+          {
+            error: "Failed to get structured diff",
+            details: error instanceof Error ? error.message : String(error),
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     return NextResponse.json({ workspace: workspaceStatus });
   } catch (error) {
     console.error("Failed to get workspace info:", error);
@@ -426,7 +476,12 @@ export async function POST(
       );
     }
 
-    const body = (await req.json()) as { action: WorkspaceAction };
+    const body = (await req.json()) as {
+      action: WorkspaceAction;
+      filePath?: string;
+      hunkPatch?: string;
+      message?: string;
+    };
     const { action } = body;
 
     if (!action) {
@@ -445,6 +500,20 @@ export async function POST(
       }
       case "sync-to-local": {
         return await handleSyncToLocal(id, metadata, workspaceInfo);
+      }
+      case "stage":
+      case "unstage": {
+        return await handleStageAction(action, workspaceInfo, body.filePath, body.hunkPatch);
+      }
+      case "stage-all":
+      case "unstage-all": {
+        return await handleStageAction(action, workspaceInfo);
+      }
+      case "revert": {
+        return await handleRevert(workspaceInfo, body.filePath, body.hunkPatch);
+      }
+      case "commit": {
+        return await handleCommit(workspaceInfo, body.message);
       }
       default: {
         return NextResponse.json(
@@ -630,6 +699,128 @@ async function handleSyncToLocal(
     return NextResponse.json(
       {
         error: "Failed to sync changes to local repository",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleStageAction(
+  action: "stage" | "unstage" | "stage-all" | "unstage-all",
+  workspaceInfo: WorkspaceInfo,
+  filePath?: string,
+  hunkPatch?: string,
+) {
+  if (!workspaceInfo.worktreePath) {
+    return NextResponse.json(
+      { error: "No worktree path configured" },
+      { status: 400 }
+    );
+  }
+
+  if (!fs.existsSync(workspaceInfo.worktreePath)) {
+    return NextResponse.json(
+      { error: "Worktree directory does not exist" },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const gitService = new GitService(workspaceInfo.worktreePath);
+    await gitService.stage(action, filePath, hunkPatch);
+    const status = await gitService.getStatus();
+    return NextResponse.json({ success: true, status });
+  } catch (error) {
+    console.error(`Failed to ${action}:`, error);
+    return NextResponse.json(
+      {
+        error: `Failed to ${action}`,
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleRevert(
+  workspaceInfo: WorkspaceInfo,
+  filePath?: string,
+  hunkPatch?: string,
+) {
+  if (!workspaceInfo.worktreePath) {
+    return NextResponse.json(
+      { error: "No worktree path configured" },
+      { status: 400 }
+    );
+  }
+
+  if (!fs.existsSync(workspaceInfo.worktreePath)) {
+    return NextResponse.json(
+      { error: "Worktree directory does not exist" },
+      { status: 404 }
+    );
+  }
+
+  if (!filePath) {
+    return NextResponse.json(
+      { error: "filePath is required for revert" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const gitService = new GitService(workspaceInfo.worktreePath);
+    await gitService.revert(filePath, hunkPatch);
+    const status = await gitService.getStatus();
+    return NextResponse.json({ success: true, status });
+  } catch (error) {
+    console.error("Failed to revert:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to revert changes",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleCommit(
+  workspaceInfo: WorkspaceInfo,
+  message?: string,
+) {
+  if (!workspaceInfo.worktreePath) {
+    return NextResponse.json(
+      { error: "No worktree path configured" },
+      { status: 400 }
+    );
+  }
+
+  if (!fs.existsSync(workspaceInfo.worktreePath)) {
+    return NextResponse.json(
+      { error: "Worktree directory does not exist" },
+      { status: 404 }
+    );
+  }
+
+  if (!message || !message.trim()) {
+    return NextResponse.json(
+      { error: "Commit message is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const gitService = new GitService(workspaceInfo.worktreePath);
+    const commitResult = await gitService.commit(message);
+    const status = await gitService.getStatus();
+    return NextResponse.json({ success: true, commit: commitResult, status });
+  } catch (error) {
+    console.error("Failed to commit:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to commit changes",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

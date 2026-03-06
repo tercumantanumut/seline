@@ -143,7 +143,16 @@ export interface WorkspaceSummary {
 /**
  * Actions that can be performed via POST /api/sessions/[id]/workspace
  */
-export type WorkspaceAction = "sync-to-local" | "cleanup" | "refresh-status";
+export type WorkspaceAction =
+  | "sync-to-local"
+  | "cleanup"
+  | "refresh-status"
+  | "stage"
+  | "unstage"
+  | "stage-all"
+  | "unstage-all"
+  | "revert"
+  | "commit";
 
 /**
  * Helper to extract WorkspaceInfo from session metadata.
