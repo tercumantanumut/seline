@@ -42,7 +42,7 @@ function makeAssistantMessage(content: string): CodexInputItem {
 describe("transformCodexRequest with large tool history", () => {
   const TOOL_COUNT = 106;
 
-  it("processes input with 106 matched call/output pairs (truncated to fit limits)", async () => {
+  it("processes input with 106 matched call/output pairs (small payload, no truncation)", async () => {
     const input: CodexInputItem[] = [makeUserMessage("Search the codebase")];
 
     for (let i = 0; i < TOOL_COUNT; i++) {
@@ -71,8 +71,7 @@ describe("transformCodexRequest with large tool history", () => {
     const calls = resultInput.filter((item) => item.type === "function_call");
     const outputs = resultInput.filter((item) => item.type === "function_call_output");
 
-    // 214 items < MAX_CODEX_INPUT_ITEMS (400), and payload < 2MB,
-    // so no truncation — all matched pairs are preserved.
+    // Payload well under 990KB — no truncation, all pairs preserved.
     expect(calls.length).toBe(TOOL_COUNT);
     expect(outputs.length).toBe(TOOL_COUNT);
 
@@ -131,8 +130,9 @@ describe("transformCodexRequest with large tool history", () => {
     expect(lastItem.content).toBe("Fix the issues");
   });
 
-  it("limits input when tool history exceeds MAX_CODEX_INPUT_ITEMS", async () => {
-    // Build a conversation with far too many tool items (500+)
+  it("preserves all items when 250 small tool pairs are under byte limit", async () => {
+    // 250 pairs with small outputs — total payload well under 990KB.
+    // Truncation is purely byte-driven, so this should pass through unchanged.
     const input: CodexInputItem[] = [makeUserMessage("Search everything")];
 
     for (let i = 0; i < 250; i++) {
@@ -156,9 +156,11 @@ describe("transformCodexRequest with large tool history", () => {
 
     const resultInput = result.input as CodexInputItem[];
 
-    // After truncation, the input should be smaller
-    // The exact size depends on MAX_CODEX_INPUT_ITEMS constant
-    expect(resultInput.length).toBeLessThanOrEqual(input.length);
+    // Payload under 990KB — all items preserved (no item-count gate)
+    const calls = resultInput.filter((item) => item.type === "function_call");
+    const outputs = resultInput.filter((item) => item.type === "function_call_output");
+    expect(calls.length).toBe(250);
+    expect(outputs.length).toBe(250);
 
     // The last user message should always be preserved
     const lastItem = resultInput[resultInput.length - 1];

@@ -170,11 +170,11 @@ describe("truncateCodexInput", () => {
     expect(result).toEqual(input);
   });
 
-  it("caps oversized tool output content instead of dropping pairs", () => {
+  it("drops oldest tool pairs when payload exceeds byte limit", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    // Create 50 tool pairs with 20KB outputs each = ~1MB total (exceeds 900KB limit)
+    // Create 50 tool pairs with 20KB outputs each ≈ 1MB total (exceeds 990KB limit)
     const bigOutput = "x".repeat(20 * 1024); // 20 KB each
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "search" },
@@ -189,41 +189,44 @@ describe("truncateCodexInput", () => {
 
     // Verify payload exceeds limit before truncation
     const originalSize = JSON.stringify(input).length;
-    expect(originalSize).toBeGreaterThan(900 * 1024);
+    expect(originalSize).toBeGreaterThan(990 * 1024);
 
     const result = truncateCodexInput(input);
 
-    // All 102 items should be preserved (no pairs dropped — outputs capped instead)
-    expect(result).toHaveLength(102);
+    // Payload should be under limit after truncation
+    expect(JSON.stringify(result).length).toBeLessThanOrEqual(990 * 1024);
 
-    // Big outputs should have been capped
-    const cappedOutputs = result.filter(
-      (item) => item.type === "function_call_output" &&
-        typeof item.output === "string" &&
-        (item.output as string).includes("[... truncated")
+    // Some pairs dropped, but most preserved (only slightly over limit)
+    const calls = result.filter((item) => item.type === "function_call");
+    const outputs = result.filter((item) => item.type === "function_call_output");
+    expect(calls.length).toBeLessThan(50);
+    expect(calls.length).toBeGreaterThan(40);
+    expect(calls.length).toBe(outputs.length);
+
+    // Most recent pair preserved
+    expect(calls.some((c) => c.call_id === "call_49")).toBe(true);
+    expect(outputs.some((o) => o.call_id === "call_49")).toBe(true);
+
+    // Summary message inserted so model knows about dropped context
+    const summary = result.find(
+      (item) => item.type === "message" && item.role === "developer" &&
+        typeof item.content === "string" && (item.content as string).includes("Context trimmed")
     );
-    expect(cappedOutputs.length).toBe(50);
+    expect(summary).toBeDefined();
 
-    // Each capped output should be smaller than original
-    for (const item of cappedOutputs) {
-      expect((item.output as string).length).toBeLessThan(bigOutput.length);
-    }
-
-    // All call/output pairs preserved — model knows what it did
-    for (let i = 0; i < 50; i++) {
-      expect(result.some((item) => item.type === "function_call" && item.call_id === `call_${i}`)).toBe(true);
-      expect(result.some((item) => item.type === "function_call_output" && item.call_id === `call_${i}`)).toBe(true);
-    }
+    // User messages preserved
+    expect(result[0].content).toBe("search");
+    expect(result[result.length - 1].content).toBe("now fix it");
 
     logSpy.mockRestore();
     warnSpy.mockRestore();
   });
 
-  it("prevents amnesia: all tool call IDs remain after truncation", () => {
+  it("preserves all items unchanged when payload is under 990KB", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    // Simulate 50 tool calls with large outputs (realistic session)
+    // 50 tool pairs with 15KB outputs each ≈ 750KB (under 990KB limit)
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "Search the codebase" },
     ];
@@ -239,29 +242,52 @@ describe("truncateCodexInput", () => {
         type: "function_call_output",
         call_id: `call_${i}`,
         name: "readFile",
-        output: "x".repeat(15 * 1024), // 15 KB each — will be capped
+        output: "x".repeat(15 * 1024),
       });
     }
 
     input.push({ type: "message", role: "user", content: "Now fix everything" });
 
+    // Verify payload is under limit
+    expect(JSON.stringify(input).length).toBeLessThan(990 * 1024);
+
     const result = truncateCodexInput(input);
 
-    // Every call_id should still be present in the result
-    for (let i = 0; i < 50; i++) {
-      const callExists = result.some(
-        (item) => item.type === "function_call" && item.call_id === `call_${i}`
-      );
-      const outputExists = result.some(
-        (item) => item.type === "function_call_output" && item.call_id === `call_${i}`
-      );
-      expect(callExists).toBe(true);
-      expect(outputExists).toBe(true);
+    // All items preserved unchanged — no truncation needed
+    expect(result).toEqual(input);
+
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("does not cap individual tool outputs — only drops pairs when over byte limit", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Create 10 tool pairs with 120KB outputs each ≈ 1.2MB (exceeds 990KB limit)
+    const hugeOutput = "x".repeat(120 * 1024);
+    const input: CodexInputItem[] = [
+      { type: "message", role: "user", content: "read all" },
+    ];
+
+    for (let i = 0; i < 10; i++) {
+      input.push({ type: "function_call", call_id: `call_${i}`, name: "readFile", arguments: `{"f":"${i}"}` });
+      input.push({ type: "function_call_output", call_id: `call_${i}`, name: "readFile", output: hugeOutput });
     }
 
-    // User messages preserved
-    expect(result[0].content).toBe("Search the codebase");
-    expect(result[result.length - 1].content).toBe("Now fix everything");
+    const result = truncateCodexInput(input);
+
+    // Surviving outputs should NOT be capped — full content preserved
+    const survivingOutputs = result.filter(
+      (item) => item.type === "function_call_output"
+    );
+    for (const item of survivingOutputs) {
+      expect(item.output).toBe(hugeOutput);
+    }
+
+    // Most recent pairs preserved
+    const calls = result.filter((item) => item.type === "function_call");
+    expect(calls.some((c) => c.call_id === "call_9")).toBe(true);
 
     logSpy.mockRestore();
     warnSpy.mockRestore();

@@ -18,7 +18,6 @@ import {
   filterCodexInput,
   normalizeOrphanedToolOutputs,
   truncateCodexInput,
-  MAX_CODEX_INPUT_ITEMS,
   MAX_CODEX_PAYLOAD_BYTES,
   type CodexInputItem,
 } from "@/lib/auth/codex-input-utils";
@@ -182,8 +181,8 @@ describe("Codex large session: production failure reproduction", () => {
     consoleSpy.mockRestore();
     logSpy.mockRestore();
 
-    // Should stay within limits
-    expect(truncated.length).toBeLessThanOrEqual(MAX_CODEX_INPUT_ITEMS);
+    // Small payload — no truncation (byte-budget only, no item-count gate)
+    expect(truncated.length).toBe(normalized.length);
     const payloadSize = JSON.stringify(truncated).length;
     expect(payloadSize).toBeLessThanOrEqual(MAX_CODEX_PAYLOAD_BYTES);
 
@@ -244,10 +243,10 @@ describe("Codex large session: production failure reproduction", () => {
     // After normalization: 110 original + 106 synthetic calls = 216 items
     expect(normalized.length).toBe(input.length + TOOL_COUNT);
 
-    // Truncation: Phase 1 caps the 9KB outputs to 8KB each, then Phase 2
-    // drops oldest pairs if still over limits.
+    // Payload is under 990KB after normalization — no truncation needed.
+    // (9KB × 106 outputs ≈ 954KB + synthetic calls ≈ 970KB < 990KB)
     const truncated = truncateCodexInput(normalized);
-    expect(truncated.length).toBeLessThanOrEqual(MAX_CODEX_INPUT_ITEMS);
+    expect(truncated.length).toBe(normalized.length);
     expect(JSON.stringify(truncated).length).toBeLessThanOrEqual(MAX_CODEX_PAYLOAD_BYTES);
 
     // Last user message preserved
@@ -308,8 +307,8 @@ describe("Codex large session: production failure reproduction", () => {
     expect(result.instructions).toBe("You are helpful.");
     expect(Array.isArray(result.input)).toBe(true);
 
-    // Payload should be within limits
-    const payloadSize = JSON.stringify(result).length;
+    // Payload should be within byte limit
+    const payloadSize = JSON.stringify(result.input).length;
     expect(payloadSize).toBeLessThanOrEqual(MAX_CODEX_PAYLOAD_BYTES);
   });
 });
@@ -317,7 +316,7 @@ describe("Codex large session: production failure reproduction", () => {
 // ─── Truncation correctness ──────────────────────────────────────────────────
 
 describe("truncateCodexInput correctness", () => {
-  it("preserves all items when under limits", () => {
+  it("preserves all items when under byte limit", () => {
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "Hello" },
       { type: "function_call", call_id: "c1", name: "tool", arguments: "{}" },
@@ -329,12 +328,13 @@ describe("truncateCodexInput correctness", () => {
     expect(result).toEqual(input);
   });
 
-  it("truncates oldest tool pairs when exceeding item count", () => {
+  it("preserves 250 small tool pairs when payload is under byte limit", () => {
+    // 250 pairs with tiny outputs — payload well under 990KB.
+    // No item-count gate — truncation is byte-only.
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "Start" },
     ];
 
-    // Create 250 tool pairs (500 items) to exceed MAX_CODEX_INPUT_ITEMS (400)
     for (let i = 0; i < 250; i++) {
       input.push({ type: "function_call", call_id: `c${i}`, name: "tool", arguments: `{"i":${i}}` });
       input.push({ type: "function_call_output", call_id: `c${i}`, name: "tool", output: `r${i}` });
@@ -342,34 +342,15 @@ describe("truncateCodexInput correctness", () => {
 
     input.push({ type: "message", role: "user", content: "Continue" });
 
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(JSON.stringify(input).length).toBeLessThan(MAX_CODEX_PAYLOAD_BYTES);
+
     const result = truncateCodexInput(input);
-    consoleSpy.mockRestore();
 
-    // Should be truncated
-    expect(result.length).toBeLessThanOrEqual(MAX_CODEX_INPUT_ITEMS);
-
-    // First message preserved
-    expect(result[0].type).toBe("message");
-    expect(result[0].content).toBe("Start");
-
-    // Last message preserved
-    const lastItem = result[result.length - 1];
-    expect(lastItem.type).toBe("message");
-    expect(lastItem.content).toBe("Continue");
-
-    // Should still have some tool pairs (the most recent ones)
-    const calls = result.filter((item) => item.type === "function_call");
-    const outputs = result.filter((item) => item.type === "function_call_output");
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls.length).toBe(outputs.length);
-
-    // The most recent tool pair should be preserved (c249)
-    expect(calls.some((c) => c.call_id === "c249")).toBe(true);
-    expect(outputs.some((o) => o.call_id === "c249")).toBe(true);
+    // All items preserved — payload under limit
+    expect(result).toEqual(input);
   });
 
-  it("truncates by capping output content for large tool outputs", () => {
+  it("drops oldest pairs when large outputs push payload over byte limit", () => {
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "Start" },
     ];
@@ -388,7 +369,7 @@ describe("truncateCodexInput correctness", () => {
 
     input.push({ type: "message", role: "user", content: "Analyze" });
 
-    // Total > MAX_CODEX_PAYLOAD_BYTES (900KB)
+    // Total > MAX_CODEX_PAYLOAD_BYTES (990KB)
     const originalSize = JSON.stringify(input).length;
     expect(originalSize).toBeGreaterThan(MAX_CODEX_PAYLOAD_BYTES);
 
@@ -405,17 +386,27 @@ describe("truncateCodexInput correctness", () => {
     const lastItem = result[result.length - 1];
     expect(lastItem.content).toBe("Analyze");
 
-    // All 30 tool pairs should still be present — outputs were capped, not dropped
+    // Some pairs dropped (oldest first), recent ones preserved
     const calls = result.filter((item) => item.type === "function_call");
     const outputs = result.filter((item) => item.type === "function_call_output");
-    expect(calls.length).toBe(30);
-    expect(outputs.length).toBe(30);
+    expect(calls.length).toBeLessThan(30);
+    expect(calls.length).toBeGreaterThanOrEqual(5); // MIN_PRESERVED_TOOL_PAIRS floor
+    expect(calls.length).toBe(outputs.length);
 
-    // Outputs should be capped (contain truncation marker)
-    const cappedOutputs = outputs.filter(
-      (item) => typeof item.output === "string" && (item.output as string).includes("[... truncated")
+    // Most recent pair preserved
+    expect(calls.some((c) => c.call_id === "c29")).toBe(true);
+
+    // Surviving outputs NOT capped — full content preserved
+    for (const item of outputs) {
+      expect(item.output).toBe(largeOutput);
+    }
+
+    // Summary message present
+    const summary = result.find(
+      (item) => item.type === "message" && item.role === "developer" &&
+        typeof item.content === "string" && (item.content as string).includes("Context trimmed")
     );
-    expect(cappedOutputs.length).toBe(30);
+    expect(summary).toBeDefined();
   });
 
   it("handles edge case: no tool items in input", () => {
@@ -429,7 +420,7 @@ describe("truncateCodexInput correctness", () => {
     expect(result).toEqual(input);
   });
 
-  it("handles edge case: all items are tool items", () => {
+  it("handles edge case: all items are tool items under byte limit", () => {
     const input: CodexInputItem[] = [];
 
     for (let i = 0; i < 250; i++) {
@@ -437,15 +428,12 @@ describe("truncateCodexInput correctness", () => {
       input.push({ type: "function_call_output", call_id: `c${i}`, name: "tool", output: `r${i}` });
     }
 
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(JSON.stringify(input).length).toBeLessThan(MAX_CODEX_PAYLOAD_BYTES);
+
     const result = truncateCodexInput(input);
-    consoleSpy.mockRestore();
 
-    expect(result.length).toBeLessThanOrEqual(MAX_CODEX_INPUT_ITEMS);
-
-    // Most recent pairs preserved
-    const calls = result.filter((item) => item.type === "function_call");
-    expect(calls.some((c) => c.call_id === "c249")).toBe(true);
+    // All preserved — under byte limit
+    expect(result).toEqual(input);
   });
 });
 
@@ -515,14 +503,14 @@ describe("anchor capping prevents infinite loop", () => {
   });
 
   it("minimum tool pairs floor prevents complete history loss", () => {
-    // Even when anchors + tools exceed budget, at least MIN_PRESERVED_TOOL_PAIRS
+    // Even when tools exceed byte budget, at least MIN_PRESERVED_TOOL_PAIRS
     // (5) recent pairs must survive.
     const input: CodexInputItem[] = [
       { type: "message", role: "user", content: "Do something" },
     ];
 
-    // 100 tool pairs with 7KB outputs each (~700KB of tool data)
-    for (let i = 0; i < 100; i++) {
+    // 50 tool pairs with 25KB outputs each (~1.25MB of tool data — over 990KB)
+    for (let i = 0; i < 50; i++) {
       input.push({
         type: "function_call",
         call_id: `call_${i}`,
@@ -533,9 +521,11 @@ describe("anchor capping prevents infinite loop", () => {
         type: "function_call_output",
         call_id: `call_${i}`,
         name: "localGrep",
-        output: "y".repeat(7 * 1024),
+        output: "y".repeat(25 * 1024),
       });
     }
+
+    expect(JSON.stringify(input).length).toBeGreaterThan(MAX_CODEX_PAYLOAD_BYTES);
 
     const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -551,7 +541,7 @@ describe("anchor capping prevents infinite loop", () => {
     expect(calls.length).toBeGreaterThanOrEqual(5);
 
     // The most recent pair should always be preserved
-    expect(calls.some((c) => c.call_id === "call_99")).toBe(true);
+    expect(calls.some((c) => c.call_id === "call_49")).toBe(true);
   });
 });
 
@@ -592,6 +582,7 @@ describe("error surfacing for large sessions", () => {
 
     expect(result).toBeDefined();
     const resultInput = result.input as CodexInputItem[];
-    expect(resultInput.length).toBeLessThanOrEqual(MAX_CODEX_INPUT_ITEMS);
+    // Payload under 990KB — no truncation needed, all items preserved
+    expect(JSON.stringify(resultInput).length).toBeLessThanOrEqual(MAX_CODEX_PAYLOAD_BYTES);
   });
 });
