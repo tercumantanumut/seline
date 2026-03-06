@@ -535,9 +535,16 @@ function isAuthError(message: string): boolean {
   );
 }
 
-function createAnthropicMessageResponse(text: string, model: string): Response {
-  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
-
+function createAnthropicMessageResponse(
+  text: string,
+  model: string,
+  realUsage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  },
+): Response {
   return new Response(
     JSON.stringify({
       id: `msg_${crypto.randomUUID()}`,
@@ -548,8 +555,14 @@ function createAnthropicMessageResponse(text: string, model: string): Response {
       stop_reason: "end_turn",
       stop_sequence: null,
       usage: {
-        input_tokens: 0,
-        output_tokens: outputTokens,
+        input_tokens: realUsage?.input_tokens ?? 0,
+        output_tokens: realUsage?.output_tokens ?? 0,
+        ...(realUsage?.cache_read_input_tokens != null
+          ? { cache_read_input_tokens: realUsage.cache_read_input_tokens }
+          : {}),
+        ...(realUsage?.cache_creation_input_tokens != null
+          ? { cache_creation_input_tokens: realUsage.cache_creation_input_tokens }
+          : {}),
       },
     }),
     {
@@ -561,57 +574,7 @@ function createAnthropicMessageResponse(text: string, model: string): Response {
   );
 }
 
-function createAnthropicStreamResponse(text: string, model: string): Response {
-  const messageId = `msg_${crypto.randomUUID()}`;
-  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
-  const chunks = text.length > 0 ? text.match(/.{1,800}/gs) ?? [text] : [""];
 
-  const events: string[] = [];
-  events.push(`event: message_start\ndata: ${JSON.stringify({
-    type: "message_start",
-    message: {
-      id: messageId,
-      type: "message",
-      role: "assistant",
-      model,
-      content: [],
-      stop_reason: null,
-      stop_sequence: null,
-      usage: { input_tokens: 0, output_tokens: 0 },
-    },
-  })}\n\n`);
-
-  events.push(`event: content_block_start\ndata: ${JSON.stringify({
-    type: "content_block_start",
-    index: 0,
-    content_block: { type: "text", text: "" },
-  })}\n\n`);
-
-  for (const chunk of chunks) {
-    events.push(`event: content_block_delta\ndata: ${JSON.stringify({
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text: chunk },
-    })}\n\n`);
-  }
-
-  events.push("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
-  events.push(`event: message_delta\ndata: ${JSON.stringify({
-    type: "message_delta",
-    delta: { stop_reason: "end_turn", stop_sequence: null },
-    usage: { output_tokens: outputTokens },
-  })}\n\n`);
-  events.push("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
-
-  return new Response(events.join(""), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
-}
 
 /**
  * Create a real-time streaming Response that pipes Claude Agent SDK events
@@ -805,6 +768,8 @@ function createStreamingClaudeCodeResponse(options: {
         let nextContentIndex = 0;
         let inputTokens = 0;
         let outputTokens = 0;
+        let cacheReadInputTokens: number | undefined;
+        let cacheCreationInputTokens: number | undefined;
         let syntheticStreamLocalIndex = -1;
         let sawStreamTextThisTurn = false;
         const streamedToolUseIdsThisTurn = new Set<string>();
@@ -1219,16 +1184,6 @@ function createStreamingClaudeCodeResponse(options: {
               };
             };
 
-            // Extract real token usage from SDK result (replaces estimates)
-            if (result.usage) {
-              if (typeof result.usage.input_tokens === "number") {
-                inputTokens = result.usage.input_tokens;
-              }
-              if (typeof result.usage.output_tokens === "number") {
-                outputTokens = result.usage.output_tokens;
-              }
-            }
-
             if (Array.isArray(result.errors) && result.errors.length > 0) {
               const errorText = result.errors.join("\n");
               emitTextBlock(errorText);
@@ -1240,6 +1195,24 @@ function createStreamingClaudeCodeResponse(options: {
               result.result.length > 0
             ) {
               emitTextBlock(result.result);
+            }
+
+            // Extract real token usage from SDK result AFTER any emitTextBlock
+            // calls above (emitTextBlock accumulates estimated outputTokens, and
+            // we want the real SDK values to be the final word).
+            if (result.usage) {
+              if (typeof result.usage.input_tokens === "number") {
+                inputTokens = result.usage.input_tokens;
+              }
+              if (typeof result.usage.output_tokens === "number") {
+                outputTokens = result.usage.output_tokens;
+              }
+              if (typeof result.usage.cache_read_input_tokens === "number") {
+                cacheReadInputTokens = result.usage.cache_read_input_tokens;
+              }
+              if (typeof result.usage.cache_creation_input_tokens === "number") {
+                cacheCreationInputTokens = result.usage.cache_creation_input_tokens;
+              }
             }
 
             if (result.is_error) {
@@ -1262,12 +1235,17 @@ function createStreamingClaudeCodeResponse(options: {
           );
         }
 
-        // Close the message — include input_tokens so @ai-sdk/anthropic picks
-        // up real usage (it reads input_tokens from message_delta.usage too).
+        // Close the message — include real token counts so @ai-sdk/anthropic
+        // picks up usage (it reads input_tokens, cache tokens from message_delta.usage).
         emit("message_delta", {
           type: "message_delta",
           delta: { stop_reason: "end_turn", stop_sequence: null },
-          usage: { input_tokens: inputTokens, output_tokens: outputTokens },
+          usage: {
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            ...(cacheReadInputTokens != null ? { cache_read_input_tokens: cacheReadInputTokens } : {}),
+            ...(cacheCreationInputTokens != null ? { cache_creation_input_tokens: cacheCreationInputTokens } : {}),
+          },
         });
         emit("message_stop", { type: "message_stop" });
       } catch (error) {
@@ -1313,7 +1291,15 @@ async function runClaudeAgentQuery(options: {
   systemPrompt?: string;
   signal?: AbortSignal;
   sdkOptions?: ClaudeAgentSdkQueryOptions;
-}): Promise<string> {
+}): Promise<{
+  text: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+}> {
   const abortController = new AbortController();
   const signal = options.signal;
 
@@ -1411,6 +1397,12 @@ async function runClaudeAgentQuery(options: {
 
   let text = "";
   let sawStreamText = false;
+  let resultUsage: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  } | undefined;
 
   try {
     for await (const message of query) {
@@ -1466,7 +1458,18 @@ async function runClaudeAgentQuery(options: {
           subtype?: string;
           result?: string;
           errors?: string[];
+          usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+            cache_read_input_tokens?: number;
+            cache_creation_input_tokens?: number;
+          };
         };
+
+        // Capture real usage from the SDK result
+        if (result.usage) {
+          resultUsage = result.usage;
+        }
 
         // Some SDK versions include a final textual result summary; only use it
         // when no stream/assistant text was captured.
@@ -1498,7 +1501,7 @@ async function runClaudeAgentQuery(options: {
     signal?.removeEventListener("abort", onAbort);
   }
 
-  return text.trim();
+  return { text: text.trim(), usage: resultUsage };
 }
 
 /**
@@ -1536,13 +1539,14 @@ export async function queryWithSdkOptions(options: {
 
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await runClaudeAgentQuery({
+      const result = await runClaudeAgentQuery({
         prompt: options.prompt,
         model,
         systemPrompt: options.systemPrompt,
         signal: options.signal,
         sdkOptions: options.sdkOptions,
       });
+      return result.text;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
@@ -1647,14 +1651,14 @@ function createClaudeCodeFetch(): typeof fetch {
 
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const output = await runClaudeAgentQuery({
+        const { text: output, usage: realUsage } = await runClaudeAgentQuery({
           prompt: makePrompt(),
           model,
           systemPrompt,
           signal: init.signal ?? undefined,
         });
 
-        return createAnthropicMessageResponse(output, model);
+        return createAnthropicMessageResponse(output, model, realUsage);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
