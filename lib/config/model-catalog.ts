@@ -108,9 +108,18 @@ export const MODEL_METADATA: Record<
     capabilities: { vision: false, contextWindow: "128K", speed: "standard" },
   },
 
-  // Codex (GPT-5 models — all 400K context)
-  "gpt-5.3-codex": {
+  // Codex (GPT-5.4 — 1M context)
+  "gpt-5.4": {
     tier: "flagship",
+    capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "fast" },
+  },
+  "gpt-5.4-pro": {
+    tier: "flagship",
+    capabilities: { vision: true, thinking: true, contextWindow: "1M", speed: "standard" },
+  },
+  // Codex (GPT-5 legacy models — 400K context)
+  "gpt-5.3-codex": {
+    tier: "standard",
     capabilities: { vision: true, thinking: true, contextWindow: "400K", speed: "standard" },
   },
   "gpt-5.2-codex": {
@@ -183,7 +192,7 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-6",
-  codex: "gpt-5.1-codex",
+  codex: "gpt-5.4",
   claudecode: "claude-sonnet-4-5-20250929",
   kimi: "kimi-k2.5",
   minimax: "MiniMax-M2.1",

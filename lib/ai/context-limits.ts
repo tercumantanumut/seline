@@ -9,7 +9,7 @@ const DEFAULT_PROVIDER_LIMITS: Record<LLMProvider, number> = {
   anthropic: 200000,   // All Claude models = 200K standard (per Anthropic docs)
   openrouter: 128000,  // Safe default for most modern models
   antigravity: 200000, // Claude-based = 200K; Gemini uses model-specific overrides
-  codex: 400000,       // GPT-5 models are 400K context
+  codex: 1000000,      // GPT-5.4 models are 1M context (legacy 400K)
   claudecode: 200000,  // Claude Opus 4.6 = 200K standard
   kimi: 128000,        // Kimi standard
   minimax: 80000,      // MiniMax M2.1 80K context

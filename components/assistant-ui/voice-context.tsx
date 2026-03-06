@@ -33,13 +33,16 @@ export interface VoiceState {
  * If the handler throws, VoiceProvider falls back to HTML5 Audio.
  */
 export type ExternalAudioPlayer = (url: string) => Promise<void>;
+export type ExternalAudioStopper = () => void;
 
 interface VoiceContextValue {
   voice: VoiceState;
   /** Play audio from a URL. Stops any currently playing audio first. */
-  playAudio: (url: string) => void;
+  playAudio: (url: string) => Promise<void>;
   /** Stop the currently playing audio. */
   stopAudio: () => void;
+  /** Cancel/stop all audio playback (HTML5 + external player). Used for interrupts. */
+  cancelAudio: () => void;
   /** Set synthesizing state (used by tool result renderers). */
   setSynthesizing: (synthesizing: boolean) => void;
   /** Clear any error state. */
@@ -49,10 +52,16 @@ interface VoiceContextValue {
    * When registered, `playAudio` routes audio to the external player
    * instead of the built-in HTML5 Audio element.
    */
-  registerExternalPlayer: (player: ExternalAudioPlayer) => void;
+  registerExternalPlayer: (player: ExternalAudioPlayer, stopper?: ExternalAudioStopper) => void;
   /** Unregister any previously registered external player. */
   unregisterExternalPlayer: () => void;
 }
+
+type PlaybackSession = {
+  resolve: () => void;
+  reject: (error: Error) => void;
+  settled: boolean;
+};
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
 
@@ -73,6 +82,8 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const externalPlayerRef = useRef<ExternalAudioPlayer | null>(null);
+  const externalStopperRef = useRef<ExternalAudioStopper | null>(null);
+  const playbackSessionRef = useRef<PlaybackSession | null>(null);
 
   // Cleanup audio element on unmount
   useEffect(() => {
@@ -85,84 +96,127 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const stopAudio = useCallback(() => {
+  const settlePlayback = useCallback((error?: Error) => {
+    const session = playbackSessionRef.current;
+    if (!session || session.settled) return;
+    session.settled = true;
+    playbackSessionRef.current = null;
+    if (error) {
+      session.reject(error);
+      return;
+    }
+    session.resolve();
+  }, []);
+
+  const stopCurrentPlayback = useCallback((clearAudioElement: boolean) => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      if (clearAudioElement) {
+        audioRef.current.src = "";
+        audioRef.current = null;
+      }
     }
+
+    try {
+      externalStopperRef.current?.();
+    } catch (error) {
+      console.warn("[Voice] External stop failed:", error);
+    }
+
+    settlePlayback();
+  }, [settlePlayback]);
+
+  const stopAudio = useCallback(() => {
+    stopCurrentPlayback(false);
     setVoice((prev) => ({
       ...prev,
       isPlaying: false,
       currentAudioUrl: undefined,
     }));
-  }, []);
+  }, [stopCurrentPlayback]);
+
+  const cancelAudio = useCallback(() => {
+    stopCurrentPlayback(true);
+    setVoice({
+      isPlaying: false,
+      isSynthesizing: false,
+      currentAudioUrl: undefined,
+      error: undefined,
+    });
+  }, [stopCurrentPlayback]);
 
   const playViaHtmlAudio = useCallback(
     (url: string) => {
-      // Stop any currently playing audio
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
+      stopCurrentPlayback(true);
 
       const audio = new Audio(url);
       audioRef.current = audio;
 
-      audio.onplay = () => {
-        setVoice((prev) => ({
-          ...prev,
-          isPlaying: true,
-          isSynthesizing: false,
-          currentAudioUrl: url,
-          error: undefined,
-        }));
-      };
+      return new Promise<void>((resolve, reject) => {
+        playbackSessionRef.current = {
+          resolve,
+          reject,
+          settled: false,
+        };
 
-      audio.onended = () => {
-        setVoice((prev) => ({
-          ...prev,
-          isPlaying: false,
-          currentAudioUrl: undefined,
-        }));
-      };
+        audio.onplay = () => {
+          setVoice((prev) => ({
+            ...prev,
+            isPlaying: true,
+            isSynthesizing: false,
+            currentAudioUrl: url,
+            error: undefined,
+          }));
+        };
 
-      audio.onerror = () => {
-        setVoice((prev) => ({
-          ...prev,
-          isPlaying: false,
-          isSynthesizing: false,
-          currentAudioUrl: undefined,
-          error: t("playFailed"),
-        }));
-      };
+        audio.onended = () => {
+          setVoice((prev) => ({
+            ...prev,
+            isPlaying: false,
+            currentAudioUrl: undefined,
+          }));
+          settlePlayback();
+        };
 
-      audio.play().catch((err) => {
-        console.warn("[Voice] Audio playback failed:", err);
-        setVoice((prev) => ({
-          ...prev,
-          isPlaying: false,
-          isSynthesizing: false,
-          error: t("playbackBlocked"),
-        }));
+        audio.onerror = () => {
+          const error = new Error(t("playFailed"));
+          setVoice((prev) => ({
+            ...prev,
+            isPlaying: false,
+            isSynthesizing: false,
+            currentAudioUrl: undefined,
+            error: error.message,
+          }));
+          settlePlayback(error);
+        };
+
+        audio.play().catch((err) => {
+          console.warn("[Voice] Audio playback failed:", err);
+          const error = new Error(t("playbackBlocked"));
+          setVoice((prev) => ({
+            ...prev,
+            isPlaying: false,
+            isSynthesizing: false,
+            currentAudioUrl: undefined,
+            error: error.message,
+          }));
+          settlePlayback(error);
+        });
       });
     },
-    [],
+    [settlePlayback, stopCurrentPlayback, t],
   );
 
   const playAudio = useCallback(
-    (url: string) => {
+    async (url: string) => {
       const externalPlayer = externalPlayerRef.current;
       if (!externalPlayer) {
-        playViaHtmlAudio(url);
+        await playViaHtmlAudio(url);
         return;
       }
 
-      // Route to external player (e.g. 3D avatar)
-      // Stop any HTML5 audio first
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
+      stopCurrentPlayback(true);
 
       setVoice((prev) => ({
         ...prev,
@@ -172,21 +226,34 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
         error: undefined,
       }));
 
-      externalPlayer(url)
-        .then(() => {
-          setVoice((prev) => ({
-            ...prev,
-            isPlaying: false,
-            currentAudioUrl: undefined,
-          }));
-        })
-        .catch((err) => {
-          console.warn("[Voice] External player failed, falling back to HTML5 Audio:", err);
-          // Fall back to HTML5 Audio
-          playViaHtmlAudio(url);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          playbackSessionRef.current = {
+            resolve,
+            reject,
+            settled: false,
+          };
+
+          externalPlayer(url)
+            .then(() => {
+              setVoice((prev) => ({
+                ...prev,
+                isPlaying: false,
+                currentAudioUrl: undefined,
+              }));
+              settlePlayback();
+            })
+            .catch((err) => {
+              const error = err instanceof Error ? err : new Error(String(err));
+              settlePlayback(error);
+            });
         });
+      } catch (err) {
+        console.warn("[Voice] External player failed, falling back to HTML5 Audio:", err);
+        await playViaHtmlAudio(url);
+      }
     },
-    [playViaHtmlAudio],
+    [playViaHtmlAudio, settlePlayback, stopCurrentPlayback],
   );
 
   const setSynthesizing = useCallback((synthesizing: boolean) => {
@@ -201,12 +268,14 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
     setVoice((prev) => ({ ...prev, error: undefined }));
   }, []);
 
-  const registerExternalPlayer = useCallback((player: ExternalAudioPlayer) => {
+  const registerExternalPlayer = useCallback((player: ExternalAudioPlayer, stopper?: ExternalAudioStopper) => {
     externalPlayerRef.current = player;
+    externalStopperRef.current = stopper ?? null;
   }, []);
 
   const unregisterExternalPlayer = useCallback(() => {
     externalPlayerRef.current = null;
+    externalStopperRef.current = null;
   }, []);
 
   return (
@@ -215,6 +284,7 @@ export const VoiceProvider: FC<VoiceProviderProps> = ({ children }) => {
         voice,
         playAudio,
         stopAudio,
+        cancelAudio,
         setSynthesizing,
         clearError,
         registerExternalPlayer,

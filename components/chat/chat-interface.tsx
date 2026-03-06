@@ -20,6 +20,7 @@ import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { AvatarRenderer } from "@/components/avatar-3d/avatar-renderer";
 import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
 import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
+import { SentenceSplitter, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
@@ -105,7 +106,11 @@ const AvatarAudioBridge: FC<{
             await avatar.speak(arrayBuffer);
         };
 
-        voiceCtx.registerExternalPlayer(externalPlayer);
+        const stopExternalPlayer = () => {
+            avatarRef.current?.stopSpeaking();
+        };
+
+        voiceCtx.registerExternalPlayer(externalPlayer, stopExternalPlayer);
         return () => voiceCtx.unregisterExternalPlayer();
     }, [voiceCtx, avatarRef, mutedRef]);
 
@@ -113,63 +118,138 @@ const AvatarAudioBridge: FC<{
 };
 
 /**
- * Bridge: auto-speaks the last assistant reply when ttsAutoMode === "always"
- * and avatar is enabled. Fires after streaming finishes.
+ * Bridge: auto-speaks assistant replies sentence-by-sentence during streaming.
+ * Uses SentenceSplitter to detect sentence boundaries and StreamingTTSQueue
+ * to synthesize + play them sequentially with prefetching.
  */
-const AutoSpeakBridge: FC<{
+const StreamingAutoSpeakBridge: FC<{
     ttsAutoMode: string;
     ttsEnabled: boolean;
-}> = ({ ttsAutoMode, ttsEnabled }) => {
+    muted: boolean;
+    mutedRef: React.RefObject<boolean>;
+}> = ({ ttsAutoMode, ttsEnabled, muted, mutedRef }) => {
     const voiceCtx = useOptionalVoice();
+    const playAudio = voiceCtx?.playAudio;
+    const cancelAudio = voiceCtx?.cancelAudio;
     const isRunning = useThread((thread) => thread.isRunning);
     const threadMessages = useThread((thread) => thread.messages);
+    const splitterRef = useRef<SentenceSplitter | null>(null);
+    const queueRef = useRef<StreamingTTSQueue | null>(null);
+    const lastFullTextRef = useRef("");
+    const activeRef = useRef(false);
+    const bridgePlaybackRef = useRef(false);
     const wasRunningRef = useRef(false);
-    const lastSpokenIdRef = useRef<string | null>(null);
+    const queuedAudioRef = useRef(false);
+
+    const getLastAssistantText = useCallback(() => {
+        const lastMsg = [...threadMessages].reverse().find((message) => message.role === "assistant");
+        if (!lastMsg) return "";
+        return lastMsg.content
+            .filter((part): part is { type: "text"; text: string } => part.type === "text")
+            .map((part) => part.text)
+            .join("\n")
+            .trim();
+    }, [threadMessages]);
+
+    // Initialize splitter + queue once per stable playback callback
+    useEffect(() => {
+        if (!playAudio) return;
+
+        const queue = new StreamingTTSQueue(async (blobUrl) => {
+            if (mutedRef.current) {
+                return;
+            }
+            bridgePlaybackRef.current = true;
+            try {
+                await playAudio(blobUrl);
+            } finally {
+                bridgePlaybackRef.current = false;
+            }
+        });
+
+        const splitter = new SentenceSplitter((sentence) => {
+            if (activeRef.current && !mutedRef.current) {
+                queuedAudioRef.current = true;
+                queue.enqueue(sentence);
+            }
+        });
+
+        queueRef.current = queue;
+        splitterRef.current = splitter;
+
+        return () => {
+            queue.cancel();
+            splitter.reset();
+            bridgePlaybackRef.current = false;
+        };
+    }, [playAudio, mutedRef]);
 
     useEffect(() => {
-        // Detect streaming end: was running → now stopped
-        if (wasRunningRef.current && !isRunning) {
-            if (ttsAutoMode === "always" && ttsEnabled && voiceCtx) {
-                // Find the last assistant message
-                const lastMsg = [...threadMessages].reverse().find(
-                    (m) => m.role === "assistant"
-                );
-                if (lastMsg && lastMsg.id !== lastSpokenIdRef.current) {
-                    lastSpokenIdRef.current = lastMsg.id;
-                    // Extract text content from the message
-                    const text = lastMsg.content
-                        .filter((part): part is { type: "text"; text: string } => part.type === "text")
-                        .map((part) => part.text)
-                        .join("\n")
-                        .trim();
+        const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
+        if (!shouldSpeak || !splitterRef.current) {
+            wasRunningRef.current = isRunning;
+            return;
+        }
 
-                    if (text && text.length > 0) {
-                        // Truncate to reasonable TTS length
-                        const truncated = text.length > 1500 ? text.slice(0, 1500) : text;
-                        voiceCtx.setSynthesizing(true);
-                        fetch("/api/voice/speak", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ text: truncated }),
-                        })
-                            .then((res) => {
-                                if (!res.ok) throw new Error(`TTS failed: ${res.status}`);
-                                return res.blob();
-                            })
-                            .then((blob) => {
-                                const url = URL.createObjectURL(blob);
-                                voiceCtx.playAudio(url);
-                            })
-                            .catch((err) => {
-                                console.warn("[AutoSpeak] TTS synthesis failed:", err);
-                                voiceCtx.setSynthesizing(false);
-                            });
-                    }
-                }
+        const started = isRunning && !wasRunningRef.current;
+        const ended = !isRunning && wasRunningRef.current;
+        const fullText = getLastAssistantText();
+
+        if (started) {
+            activeRef.current = true;
+            queuedAudioRef.current = false;
+            lastFullTextRef.current = "";
+            splitterRef.current.reset();
+            queueRef.current?.reset();
+            cancelAudio?.();
+        }
+
+        if (isRunning && activeRef.current && fullText.length > 0) {
+            if (!fullText.startsWith(lastFullTextRef.current)) {
+                // Some providers rewrite the partial assistant message instead of append-only updates.
+                splitterRef.current.reset();
+                queueRef.current?.reset();
+                lastFullTextRef.current = "";
+            }
+
+            const delta = fullText.slice(lastFullTextRef.current.length);
+            if (delta.length > 0) {
+                lastFullTextRef.current = fullText;
+                splitterRef.current.feed(delta);
             }
         }
-        wasRunningRef.current = Boolean(isRunning);
-    }, [isRunning, threadMessages, ttsAutoMode, ttsEnabled, voiceCtx]);
+
+        if (ended && activeRef.current) {
+            splitterRef.current.flush();
+
+            if (!queuedAudioRef.current && fullText.length > 0) {
+                queuedAudioRef.current = true;
+                queueRef.current?.enqueue(fullText);
+            }
+
+            activeRef.current = false;
+        }
+
+        wasRunningRef.current = isRunning;
+    }, [cancelAudio, getLastAssistantText, isRunning, muted, threadMessages, ttsAutoMode, ttsEnabled]);
+
+    useEffect(() => {
+        const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
+        if (shouldSpeak) {
+            return;
+        }
+        if (!activeRef.current && !bridgePlaybackRef.current) {
+            return;
+        }
+        activeRef.current = false;
+        bridgePlaybackRef.current = false;
+        queuedAudioRef.current = false;
+        lastFullTextRef.current = "";
+        wasRunningRef.current = isRunning;
+        splitterRef.current?.reset();
+        queueRef.current?.cancel();
+        cancelAudio?.();
+    }, [cancelAudio, isRunning, muted, ttsAutoMode, ttsEnabled]);
 
     return null;
 };
@@ -827,7 +907,7 @@ export default function ChatInterface({
                             {avatarConfig.enabled && (
                                 <>
                                     <AvatarAudioBridge avatarRef={avatarRef} mutedRef={avatarMutedRef} />
-                                    <AutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} />
+                                    <StreamingAutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} muted={avatarMuted} mutedRef={avatarMutedRef} />
                                     {!avatarHidden ? (
                                         <div
                                             className="group/avatar fixed z-50 w-[280px] h-[320px] pointer-events-auto select-none"

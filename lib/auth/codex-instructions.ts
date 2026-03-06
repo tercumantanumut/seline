@@ -13,9 +13,11 @@ type CacheMetadata = {
   url: string;
 };
 
-export type CodexModelFamily = "gpt-5.2-codex" | "codex-max" | "codex" | "gpt-5.2" | "gpt-5.1";
+export type CodexModelFamily = "gpt-5.4" | "gpt-5.2-codex" | "codex-max" | "codex" | "gpt-5.2" | "gpt-5.1";
 
 const PROMPT_FILES: Record<CodexModelFamily, string> = {
+  // GPT-5.4 doesn't have its own prompt file yet; fall back to gpt-5.2-codex prompt
+  "gpt-5.4": "gpt-5.2-codex_prompt.md",
   "gpt-5.2-codex": "gpt-5.2-codex_prompt.md",
   "codex-max": "gpt-5.1-codex-max_prompt.md",
   "codex": "gpt_5_codex_prompt.md",
@@ -24,6 +26,7 @@ const PROMPT_FILES: Record<CodexModelFamily, string> = {
 };
 
 const CACHE_FILES: Record<CodexModelFamily, string> = {
+  "gpt-5.4": "gpt-5.4-instructions.md",
   "gpt-5.2-codex": "gpt-5.2-codex-instructions.md",
   "codex-max": "codex-max-instructions.md",
   "codex": "codex-instructions.md",
@@ -37,6 +40,9 @@ function getCacheDir(): string {
 }
 
 export function getModelFamily(normalizedModel: string): CodexModelFamily {
+  if (normalizedModel.includes("gpt-5.4") || normalizedModel.includes("gpt 5.4")) {
+    return "gpt-5.4";
+  }
   if (normalizedModel.includes("gpt-5.3-codex") || normalizedModel.includes("gpt 5.3 codex")) {
     return "gpt-5.2-codex";
   }
@@ -92,7 +98,7 @@ async function getLatestReleaseTag(): Promise<string> {
 }
 
 export async function getCodexInstructions(
-  normalizedModel = "gpt-5.1-codex",
+  normalizedModel = "gpt-5.4",
 ): Promise<string> {
   const modelFamily = getModelFamily(normalizedModel);
   const cacheDir = getCacheDir();

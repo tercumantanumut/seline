@@ -244,6 +244,9 @@ function createCodexFetch(): typeof fetch {
           await sleepWithAbort(delay, init?.signal ?? undefined);
           continue;
         }
+        if (effectiveResponse.status === 400) {
+          console.error("[Codex] Bad Request — response body:", errorText.slice(0, 1000));
+        }
         return effectiveResponse;
       }
 

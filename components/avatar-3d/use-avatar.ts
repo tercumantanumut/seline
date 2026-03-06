@@ -185,6 +185,23 @@ export function useAvatar(
   const headRef = useRef<TalkingHeadInstance | null>(null);
   const initCancelledRef = useRef(false);
   const isReadyRef = useRef(false);
+  const speakSequenceRef = useRef(0);
+  const speakTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speakCompletionRef = useRef<{ resolve: () => void; settled: boolean } | null>(null);
+
+  const resolvePendingSpeech = useCallback(() => {
+    if (speakTimeoutRef.current) {
+      clearTimeout(speakTimeoutRef.current);
+      speakTimeoutRef.current = null;
+    }
+
+    const pending = speakCompletionRef.current;
+    if (!pending || pending.settled) return;
+
+    pending.settled = true;
+    speakCompletionRef.current = null;
+    pending.resolve();
+  }, []);
 
   // Track config changes that affect initialization
   const modelUrlRef = useRef(config.modelUrl);
@@ -269,6 +286,7 @@ export function useAvatar(
     return () => {
       initCancelledRef.current = true;
       isReadyRef.current = false;
+      resolvePendingSpeech();
 
       if (headRef.current) {
         try {
@@ -289,7 +307,7 @@ export function useAvatar(
         }
       }
     };
-  }, [config.enabled, config.modelUrl, config.cameraDistance, lipsyncLang, containerRef]);
+  }, [config.enabled, config.modelUrl, config.cameraDistance, lipsyncLang, containerRef, resolvePendingSpeech]);
 
   // -------------------------------------------------------------------------
   // Stable method references via useCallback
@@ -327,6 +345,8 @@ export function useAvatar(
           vdurations = generated.vdurations;
         }
 
+        resolvePendingSpeech();
+        const speakSequence = ++speakSequenceRef.current;
         setIsSpeaking(true);
 
         head.speakAudio(
@@ -343,24 +363,41 @@ export function useAvatar(
         );
 
         // TalkingHead.js doesn't expose a speech-end callback, so we
-        // estimate completion from the audio duration + a small buffer
-        // to reset isSpeaking automatically.
+        // estimate completion from the audio duration + a small buffer.
         const durationMs = Math.ceil(decoded.duration * 1000) + 200;
-        setTimeout(() => {
-          // Only reset if we haven't been explicitly stopped or started new speech
-          setIsSpeaking((current) => (current ? false : current));
-        }, durationMs);
+        await new Promise<void>((resolve) => {
+          speakCompletionRef.current = { resolve, settled: false };
+          speakTimeoutRef.current = setTimeout(() => {
+            speakTimeoutRef.current = null;
+            const pending = speakCompletionRef.current;
+            if (pending && !pending.settled) {
+              pending.settled = true;
+              speakCompletionRef.current = null;
+              pending.resolve();
+            }
+            if (speakSequenceRef.current === speakSequence) {
+              setIsSpeaking(false);
+            }
+          }, durationMs);
+        });
       } catch (err) {
         console.error("[Avatar3D] speakAudio failed:", err);
         setIsSpeaking(false);
+        throw err;
       }
     },
-    [lipsyncLang],
+    [lipsyncLang, resolvePendingSpeech],
   );
 
   const stopSpeaking = useCallback(() => {
+    speakSequenceRef.current += 1;
+    resolvePendingSpeech();
+
     const head = headRef.current;
-    if (!head) return;
+    if (!head) {
+      setIsSpeaking(false);
+      return;
+    }
 
     try {
       head.stopSpeaking();
@@ -368,7 +405,7 @@ export function useAvatar(
       // Ignore if not currently speaking
     }
     setIsSpeaking(false);
-  }, []);
+  }, [resolvePendingSpeech]);
 
   const setMood = useCallback((mood: string, _intensity?: number) => {
     const head = headRef.current;

@@ -107,7 +107,7 @@ export const DEFAULT_MODELS: Record<LLMProvider, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
   openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-6", // Free via Antigravity
-  codex: "gpt-5.1-codex",
+  codex: "gpt-5.4",
   claudecode: "claude-sonnet-4-5-20250929", // Via Claude Pro/MAX OAuth
   kimi: "kimi-k2.5", // Moonshot Kimi K2.5 with 256K context
   minimax: "MiniMax-M2.1", // MiniMax flagship with 80K context
