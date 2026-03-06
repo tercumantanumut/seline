@@ -149,10 +149,31 @@ export async function getActiveWorktreePath(sessionId: string): Promise<string |
 }
 
 /**
+ * Check if a normalized path is a worktree directory
+ * (lives under a `/worktrees/` parent — the convention used by the workspace tool).
+ */
+export function isWorktreePath(p: string): boolean {
+  const normalized = normalize(p);
+  return normalized.includes(`${sep}worktrees${sep}`);
+}
+
+/**
+ * Check if a path belongs to a DIFFERENT worktree than the active one.
+ * Returns false if there is no active worktree (nothing to conflict with).
+ */
+export function isOtherWorktreePath(p: string, activeWorktreePath: string | null): boolean {
+  if (!activeWorktreePath) return false;
+  const normalized = normalize(p);
+  if (!isWorktreePath(normalized)) return false;
+  return normalized !== normalize(activeWorktreePath);
+}
+
+/**
  * Workspace-aware synced folder resolution.
  *
  * When an active worktree exists, the worktree path is placed FIRST in the
  * returned array so it becomes the default for tools that use `[0]`.
+ * Other worktree paths are EXCLUDED to prevent cross-workspace contamination.
  * The base repo path is still included (for index/vector lookups) but deprioritized.
  */
 export async function resolveWorkspaceAwarePaths(
@@ -166,9 +187,16 @@ export async function resolveWorkspaceAwarePaths(
   // Normalize for dedup — session metadata and DB may have different trailing slashes
   const normalizedWorktree = normalize(worktreePath);
 
-  // Put worktree first, keep other paths that aren't the worktree itself
-  // (the worktree IS inside the base repo tree, so we keep the base for path-allowed checks)
-  return [normalizedWorktree, ...basePaths.filter((p) => normalize(p) !== normalizedWorktree)];
+  // Put worktree first, exclude other worktrees, keep base repo for path-allowed checks
+  return [
+    normalizedWorktree,
+    ...basePaths.filter((p) => {
+      const norm = normalize(p);
+      if (norm === normalizedWorktree) return false; // dedup active worktree
+      if (isOtherWorktreePath(norm, normalizedWorktree)) return false; // exclude other worktrees
+      return true;
+    }),
+  ];
 }
 
 /**

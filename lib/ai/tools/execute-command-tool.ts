@@ -10,7 +10,7 @@ import { logToolEvent } from "@/lib/ai/tool-registry";
 import fs from "fs/promises";
 import path from "path";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
-import { getActiveWorktreePath } from "@/lib/ai/filesystem";
+import { getActiveWorktreePath, isOtherWorktreePath } from "@/lib/ai/filesystem";
 import {
     executeCommandWithValidation,
     startBackgroundProcess,
@@ -370,6 +370,13 @@ The tool returns immediately with a processId. Poll with processId to check stat
             // Ensure worktree path is in allowed folders for cwd validation
             if (worktreePath && !syncedFolders.includes(worktreePath)) {
                 syncedFolders = [worktreePath, ...syncedFolders];
+            }
+
+            // Exclude other worktree paths to prevent cross-workspace contamination
+            if (worktreePath) {
+                syncedFolders = syncedFolders.filter(
+                    (p) => !isOtherWorktreePath(p, worktreePath)
+                );
             }
 
             try {

@@ -13,6 +13,8 @@ export {
   findSimilarFiles,
   validatePath,
   normalizePath,
+  isWorktreePath,
+  isOtherWorktreePath,
 } from "./path-utils";
 
 export {

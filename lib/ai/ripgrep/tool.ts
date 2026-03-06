@@ -13,6 +13,7 @@ import { getSyncFolders } from "@/lib/vectordb/sync-service";
 import { validateSyncFolderPath } from "@/lib/vectordb/path-validation";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { logToolEvent } from "@/lib/ai/tool-registry";
+import { isOtherWorktreePath } from "@/lib/ai/filesystem/path-utils";
 
 export interface LocalGrepToolOptions {
     sessionId: string;
@@ -488,11 +489,24 @@ Respects .gitignore and skips binary files by default.`,
                     const syncedResolution = await resolveSyncedSearchPaths(characterId);
 
                     if (syncedResolution.status === "ok") {
+                        // Exclude other worktree paths to prevent cross-workspace contamination
+                        const workspacePath = searchPaths[0] ?? null;
+                        const filteredPaths = syncedResolution.paths.filter(
+                            (p) => !isOtherWorktreePath(p, workspacePath)
+                        );
+                        const excludedCount = syncedResolution.paths.length - filteredPaths.length;
+
                         skippedSyncedFolderCount += syncedResolution.skippedCount;
                         fallbackUsed = true;
                         finalPathSource = "workspace_then_synced";
-                        finalSearchPaths = syncedResolution.paths;
+                        finalSearchPaths = filteredPaths;
                         searchResult = await executeSearch(finalSearchPaths);
+
+                        if (excludedCount > 0) {
+                            infoMessages.push(
+                                `Excluded ${excludedCount} other workspace path(s) from fallback search.`
+                            );
+                        }
                     } else if (syncedResolution.status === "error") {
                         infoMessages.push(
                             "Workspace search returned 0 matches; synced folder fallback failed to load."

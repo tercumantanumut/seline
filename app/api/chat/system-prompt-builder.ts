@@ -161,6 +161,13 @@ export async function buildSystemPromptForRequest(
               return `- \`${f.folderPath}\` (index only — do not use for file operations)${name}${files}`;
             }
           }
+          // When a worktree is active, mark other worktree folders as restricted
+          // to prevent cross-workspace contamination between concurrent sessions
+          if (worktreeInFolders && f.displayName?.startsWith("Workspace:")) {
+            const name = f.displayName ? ` — ${f.displayName}` : "";
+            const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
+            return `- \`${f.folderPath}\` (other workspace — do not modify)${name}${files}`;
+          }
           // Default: no active worktree, or non-primary/non-worktree folders
           const primary = f.isPrimary ? " (primary)" : "";
           const name = f.displayName ? ` — ${f.displayName}` : "";
