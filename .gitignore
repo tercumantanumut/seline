@@ -22,7 +22,8 @@ Context-Engine/
 .env.test.local
 .env.production.local
 
-# Debug
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -107,7 +108,7 @@ appendonlydir/
 
 # Docker volumes (runtime data)
 **/volumes/redis/
-/Users/umuttan/seline/seline/docs
+docs/
 # Apple API Keys (App Store Connect / Notarization) - NEVER commit
 *.p8
 # Misc large files
@@ -117,6 +118,8 @@ appendonlydir/
 *.rar
 *.7z
 
+# Working plans / scratch files
+plan.md
 
 rtk/
 
