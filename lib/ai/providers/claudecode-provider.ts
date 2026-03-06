@@ -803,6 +803,7 @@ function createStreamingClaudeCodeResponse(options: {
         });
 
         let nextContentIndex = 0;
+        let inputTokens = 0;
         let outputTokens = 0;
         let syntheticStreamLocalIndex = -1;
         let sawStreamTextThisTurn = false;
@@ -1210,7 +1211,23 @@ function createStreamingClaudeCodeResponse(options: {
               subtype?: string;
               result?: string;
               errors?: string[];
+              usage?: {
+                input_tokens?: number;
+                output_tokens?: number;
+                cache_read_input_tokens?: number;
+                cache_creation_input_tokens?: number;
+              };
             };
+
+            // Extract real token usage from SDK result (replaces estimates)
+            if (result.usage) {
+              if (typeof result.usage.input_tokens === "number") {
+                inputTokens = result.usage.input_tokens;
+              }
+              if (typeof result.usage.output_tokens === "number") {
+                outputTokens = result.usage.output_tokens;
+              }
+            }
 
             if (Array.isArray(result.errors) && result.errors.length > 0) {
               const errorText = result.errors.join("\n");
@@ -1245,11 +1262,12 @@ function createStreamingClaudeCodeResponse(options: {
           );
         }
 
-        // Close the message
+        // Close the message — include input_tokens so @ai-sdk/anthropic picks
+        // up real usage (it reads input_tokens from message_delta.usage too).
         emit("message_delta", {
           type: "message_delta",
           delta: { stop_reason: "end_turn", stop_sequence: null },
-          usage: { output_tokens: outputTokens },
+          usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         });
         emit("message_stop", { type: "message_stop" });
       } catch (error) {
