@@ -176,6 +176,7 @@ export function createChromiumWorkspaceTool(options: {
           pageUrl: result.pageUrl,
           pageTitle: result.pageTitle,
           domSnapshot: result.domSnapshot,
+          source: "agent",
         });
 
         return {
@@ -194,6 +195,7 @@ export function createChromiumWorkspaceTool(options: {
           success: false,
           durationMs,
           error: errorMsg,
+          source: "agent",
         });
 
         return { status: "error" as const, action, durationMs, error: errorMsg };
@@ -204,7 +206,11 @@ export function createChromiumWorkspaceTool(options: {
 
 // ─── Action router ────────────────────────────────────────────────────────────
 
-async function executeAction(
+/**
+ * Execute a single browser action in a session.
+ * Exported for use by the replay API endpoint.
+ */
+export async function executeAction(
   sessionId: string,
   input: ChromiumWorkspaceInput,
   timeout: number,

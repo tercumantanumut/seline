@@ -16,7 +16,7 @@ interface TranscribeInput {
 
 export function createTranscribeTool({ sessionId }: { sessionId: string }) {
   return tool({
-    description: "Check audio transcription status and capabilities. Use when the user asks about transcription settings or audio processing. Audio attachments in channel messages are automatically transcribed; this tool reports the current configuration.",
+    description: "Check voice note transcription status for external channels (WhatsApp, Telegram, Slack, Discord). Voice notes sent through channels are auto-transcribed via Whisper — this tool reports the current configuration and provider status, not for triggering transcription.",
 
     inputSchema: jsonSchema<TranscribeInput>({
       type: "object",

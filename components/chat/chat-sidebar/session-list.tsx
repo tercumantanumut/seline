@@ -101,7 +101,18 @@ export function SessionList({
   const activeFilterCount =
     Number(channelFilter !== "all") + Number(dateRange !== "all");
 
-  const { status: contextStatus } = useContextStatus({ sessionId: currentSessionId });
+  const currentStatus = useSessionSyncStore((state) =>
+    currentSessionId ? state.sessionContextStatusById.get(currentSessionId) : undefined
+  );
+  const hasActiveRun = useSessionSyncStore((state) =>
+    currentSessionId ? state.activeRuns.has(currentSessionId) : false
+  );
+  const sidebarPollIntervalMs = hasActiveRun || Boolean(currentStatus) ? 10000 : 30000;
+  const { status: contextStatus } = useContextStatus({
+    sessionId: currentSessionId,
+    pollIntervalMs: sidebarPollIntervalMs,
+    pauseWhenHidden: true,
+  });
   const setSessionContextStatus = useSessionSyncStore((state) => state.setSessionContextStatus);
 
   useEffect(() => {

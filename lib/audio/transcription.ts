@@ -1,7 +1,33 @@
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getWhisperModel, DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
-import { execFileSync } from "node:child_process";
-import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "node:fs";
+import {
+  getParakeetModel,
+  getSherpaOnnxArchiveName,
+  getSherpaOnnxBinaryName,
+  SHERPA_ONNX_VERSION,
+  type ParakeetModel,
+} from "@/lib/voice/parakeet-models";
+import { getOrStartParakeetServer, shutdownParakeetServer } from "@/lib/voice/parakeet-server";
+// Lazy-imported to avoid pulling better-sqlite3 into the Electron main bundle.
+// voice-utils imports lib/db/sqlite-client which requires a native module compiled
+// for the correct Node ABI — the Electron main process and Next.js dev server use
+// different ABIs, so this must stay dynamic.
+type VoiceUtils = typeof import("@/lib/voice/voice-utils");
+const getVoiceUtils = (): Promise<VoiceUtils> => import("@/lib/voice/voice-utils");
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import {
+  writeFileSync,
+  readFileSync,
+  unlinkSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  chmodSync,
+  createWriteStream,
+} from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 import { join, basename, dirname } from "node:path";
 import { tmpdir, homedir, platform } from "node:os";
 
@@ -14,7 +40,7 @@ export interface TranscriptionResult {
 
 /**
  * Transcribe an audio buffer using the configured STT provider.
- * Supports OpenAI Whisper API (cloud) and whisper.cpp (local, on-device).
+ * Supports OpenAI Whisper API (cloud), whisper.cpp (local), and Parakeet (local sherpa-onnx websocket).
  */
 export async function transcribeAudio(
   audio: Buffer,
@@ -37,6 +63,10 @@ export async function transcribeAudio(
     return transcribeWithWhisperCpp(audio, mimeType, filename);
   }
 
+  if (provider === "parakeet") {
+    return transcribeWithParakeet(audio, mimeType);
+  }
+
   throw new Error(`Unsupported STT provider: ${provider}`);
 }
 
@@ -51,20 +81,17 @@ async function transcribeWithOpenAI(
 ): Promise<TranscriptionResult> {
   const settings = loadSettings();
 
-  // Priority: settings.openaiApiKey > env OPENAI_API_KEY > settings.openrouterApiKey (fallback)
   const openaiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
-  const openrouterKey = settings.openrouterApiKey;
 
-  if (!openaiKey && !openrouterKey) {
+  if (!openaiKey) {
     throw new Error(
-      "No API key configured for transcription. " +
-      "Please add your OpenAI API key in Settings → API Keys, " +
-      "or configure an OpenRouter API key as a fallback."
+      "OpenAI API key is required for Whisper transcription. " +
+      "Please add your OpenAI API key (sk-...) in Settings -> API Keys. " +
+      "Note: OpenRouter keys cannot be used for the Whisper audio API."
     );
   }
 
-  // Whisper API is only available on OpenAI directly (not OpenRouter)
-  const effectiveKey = openaiKey || openrouterKey!;
+  const effectiveKey = openaiKey;
   const baseUrl = "https://api.openai.com/v1";
 
   const extension = getExtensionForMimeType(mimeType);
@@ -90,18 +117,17 @@ async function transcribeWithOpenAI(
     const statusCode = response.status;
 
     if (statusCode === 401) {
-      const keySource = openaiKey ? "OpenAI" : "OpenRouter (fallback)";
       throw new Error(
-        `Whisper API authentication failed (401) using ${keySource} key. ` +
-        `Please verify your OpenAI API key in Settings → API Keys. ` +
-        `Note: OpenAI Whisper requires a direct OpenAI API key (sk-...), not an OpenRouter key.`
+        `Whisper API authentication failed (401). ` +
+        `Please verify your OpenAI API key in Settings -> API Keys. ` +
+        `OpenAI Whisper requires a direct OpenAI API key (sk-...).`
       );
     }
 
     throw new Error(`OpenAI Whisper API error ${statusCode}: ${errorText}`);
   }
 
-  const result = await response.json() as {
+  const result = (await response.json()) as {
     text: string;
     duration?: number;
     language?: string;
@@ -120,19 +146,342 @@ async function transcribeWithOpenAI(
 }
 
 // ---------------------------------------------------------------------------
+// Parakeet (local sherpa-onnx websocket)
+// ---------------------------------------------------------------------------
+
+async function transcribeWithParakeet(
+  audio: Buffer,
+  mimeType: string
+): Promise<TranscriptionResult> {
+  const settings = loadSettings();
+  const modelId = settings.parakeetModel || "parakeet-tdt-0.6b-v3";
+  const model = getParakeetModel(modelId);
+  if (!model) {
+    throw new Error(`Unsupported Parakeet model: ${modelId}`);
+  }
+
+  const ffmpegPath = findFfmpegBinary();
+  if (!ffmpegPath) {
+    throw new Error(
+      "ffmpeg is required for Parakeet transcription but was not found. " +
+      "Install it with your package manager and ensure it is in PATH."
+    );
+  }
+
+  const ext = getExtensionForMimeType(mimeType);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tmpIn = join(tmpdir(), `seline-parakeet-in-${id}.${ext}`);
+  const tmpWav = join(tmpdir(), `seline-parakeet-conv-${id}.wav`);
+
+  try {
+    writeFileSync(tmpIn, audio);
+
+    execFileSync(
+      ffmpegPath,
+      ["-y", "-i", tmpIn, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", tmpWav],
+      { timeout: 30000, stdio: "pipe" }
+    );
+
+    const samples = readWavAsFloat32(tmpWav);
+    const message = Buffer.alloc(8 + samples.length * 4);
+    message.writeInt32LE(16000, 0);
+    message.writeInt32LE(samples.length * 4, 4);
+    for (let i = 0; i < samples.length; i += 1) {
+      message.writeFloatLE(samples[i], 8 + i * 4);
+    }
+
+    const baseDir = resolveParakeetBaseDir();
+    if (!existsSync(baseDir)) {
+      mkdirSync(baseDir, { recursive: true });
+    }
+
+    const modelDir = await ensureParakeetModel(model, baseDir);
+    const wsBinary = await ensureParakeetRuntime(baseDir);
+
+    const endpoint = await getOrStartParakeetServer({
+      modelDir,
+      runtimeBinary: wsBinary,
+    });
+
+    const startedAt = Date.now();
+    const rawResult = await transcribeViaParakeetWebSocket(endpoint, message);
+    const elapsedSeconds = (Date.now() - startedAt) / 1000;
+
+    let text = rawResult.trim();
+    try {
+      const parsed = JSON.parse(rawResult) as { text?: string };
+      if (typeof parsed.text === "string") {
+        text = parsed.text.trim();
+      }
+    } catch {
+      // Server can return plain text for some builds.
+    }
+
+    if (!text) {
+      throw new Error("Parakeet transcription produced empty result");
+    }
+
+    console.log(`[STT] Transcribed audio (${elapsedSeconds.toFixed(1)}s) via Parakeet (${model.name})`);
+    return {
+      text,
+      provider: "parakeet",
+    };
+  } finally {
+    try {
+      unlinkSync(tmpIn);
+    } catch {}
+    try {
+      unlinkSync(tmpWav);
+    } catch {}
+  }
+}
+
+function resolveParakeetBaseDir(): string {
+  const localDataPath = process.env.LOCAL_DATA_PATH;
+  if (localDataPath) {
+    return join(localDataPath, "..", "models", "parakeet");
+  }
+
+  const userDataPath = process.env.ELECTRON_USER_DATA_PATH;
+  if (userDataPath) {
+    return join(userDataPath, "models", "parakeet");
+  }
+
+  return join(process.cwd(), ".local-data", "models", "parakeet");
+}
+
+async function ensureParakeetModel(model: ParakeetModel, baseDir: string): Promise<string> {
+  const modelDir = join(baseDir, model.modelDir);
+
+  if (model.requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
+    return modelDir;
+  }
+
+  mkdirSync(modelDir, { recursive: true });
+
+  const { downloadFile } = await import("@huggingface/hub");
+  for (const filename of model.requiredFiles) {
+    if (existsSync(join(modelDir, filename))) continue;
+
+    const blob = await downloadFile({ repo: model.repo, path: filename });
+    if (!blob) {
+      throw new Error(`Failed to download ${filename} from ${model.repo}`);
+    }
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    writeFileSync(join(modelDir, filename), buffer);
+  }
+
+  if (!model.requiredFiles.every((file) => existsSync(join(modelDir, file)))) {
+    throw new Error(`Parakeet model install incomplete at ${modelDir}`);
+  }
+
+  return modelDir;
+}
+
+async function ensureParakeetRuntime(baseDir: string): Promise<string> {
+  const binaryName = getSherpaOnnxBinaryName(process.platform, process.arch);
+  if (!binaryName) {
+    throw new Error(`Parakeet runtime is unsupported on ${process.platform}-${process.arch}`);
+  }
+
+  const existingBinary = findParakeetRuntimeBinary(baseDir, binaryName);
+  if (existingBinary) {
+    ensureExecutable(existingBinary);
+    return existingBinary;
+  }
+
+  const archiveName = getSherpaOnnxArchiveName(process.platform, process.arch);
+  if (!archiveName) {
+    throw new Error(`No sherpa-onnx runtime archive for ${process.platform}-${process.arch}`);
+  }
+
+  const archivePath = join(baseDir, archiveName);
+  const archiveUrl = `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}/${archiveName}`;
+
+  try {
+    await downloadToFile(archiveUrl, archivePath);
+    await extractTarBz2Archive(archivePath, baseDir);
+  } finally {
+    try {
+      unlinkSync(archivePath);
+    } catch {}
+  }
+
+  const installedBinary = findParakeetRuntimeBinary(baseDir, binaryName);
+  if (!installedBinary) {
+    throw new Error(`Parakeet runtime binary not found after install: ${binaryName}`);
+  }
+
+  ensureExecutable(installedBinary);
+  return installedBinary;
+}
+
+function findParakeetRuntimeBinary(baseDir: string, binaryName: string): string | null {
+  if (!existsSync(baseDir)) {
+    return null;
+  }
+
+  const stack = [baseDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (!dir) continue;
+
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const full = join(dir, entry);
+      try {
+        const stats = statSync(full);
+        if (stats.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
+        if (stats.isFile() && basename(full) === binaryName) {
+          return full;
+        }
+      } catch {
+        // Ignore race conditions while scanning.
+      }
+    }
+  }
+
+  return null;
+}
+
+function ensureExecutable(filePath: string): void {
+  if (process.platform === "win32") {
+    return;
+  }
+
+  try {
+    chmodSync(filePath, 0o755);
+  } catch {
+    // Best effort.
+  }
+}
+
+// Track active extraction processes for cleanup on shutdown.
+const activeExtractionProcesses = new Set<ChildProcess>();
+
+function extractTarBz2Archive(archivePath: string, destinationDir: string): Promise<void> {
+  const tarCmd = process.platform === "win32" ? "tar.exe" : "tar";
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(tarCmd, ["-xjf", archivePath, "-C", destinationDir], {
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
+    });
+
+    activeExtractionProcesses.add(child);
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      activeExtractionProcesses.delete(child);
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      activeExtractionProcesses.delete(child);
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`tar extraction failed (exit ${code}): ${stderr.slice(0, 400)}`));
+    });
+  });
+}
+
+async function downloadToFile(url: string, destinationPath: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Download failed (${response.status}) for ${url}`);
+  }
+
+  if (!response.body) {
+    throw new Error(`No response body for ${url}`);
+  }
+
+  const destDir = dirname(destinationPath);
+  if (!existsSync(destDir)) {
+    mkdirSync(destDir, { recursive: true });
+  }
+
+  // Stream response body directly to disk — no memory buffering
+  const readable = Readable.fromWeb(response.body as import("stream/web").ReadableStream);
+  const writable = createWriteStream(destinationPath);
+
+  await pipeline(readable, writable);
+}
+
+/**
+ * Kill all active extraction child processes and shut down the persistent
+ * Parakeet server. Call from electron/main.ts on app quit.
+ */
+export async function cleanupAllVoiceProcesses(): Promise<void> {
+  // Kill any in-flight tar extractions.
+  for (const child of activeExtractionProcesses) {
+    try {
+      child.kill();
+    } catch {}
+  }
+  activeExtractionProcesses.clear();
+
+  // Shut down the persistent Parakeet WebSocket server.
+  await shutdownParakeetServer();
+}
+
+function transcribeViaParakeetWebSocket(endpoint: string, payload: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(endpoint);
+    let receivedMessage = false;
+
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error("Parakeet websocket transcription timeout"));
+    }, 300_000);
+
+    ws.addEventListener("open", () => {
+      ws.send(payload);
+    });
+
+    ws.addEventListener("message", (event) => {
+      receivedMessage = true;
+      const data = typeof event.data === "string" ? event.data : String(event.data);
+      clearTimeout(timer);
+      ws.close();
+      resolve(data);
+    });
+
+    ws.addEventListener("error", () => {
+      clearTimeout(timer);
+      reject(new Error("Parakeet websocket communication failed"));
+    });
+
+    ws.addEventListener("close", () => {
+      if (!receivedMessage) {
+        clearTimeout(timer);
+        reject(new Error("Parakeet websocket closed without returning a transcription result"));
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // whisper.cpp (local, on-device)
 // ---------------------------------------------------------------------------
 
 /**
  * Local transcription via whisper-cli (whisper.cpp).
- *
- * Writes audio to a temp file, invokes whisper-cli with JSON output,
- * parses the result, and returns TranscriptionResult.
- *
- * Requires:
- *   - whisper-cli binary in PATH
- *     or a custom path in settings.whisperCppPath
- *   - A downloaded GGML model file (.bin)
  */
 async function transcribeWithWhisperCpp(
   audio: Buffer,
@@ -147,7 +496,7 @@ async function transcribeWithWhisperCpp(
   if (!modelPath) {
     throw new Error(
       `Whisper model "${modelInfo?.name || modelId}" not found. ` +
-      `Please download it in Settings → Voice & Audio → Whisper Model.`
+      "Please download it in Settings -> Voice & Audio -> Whisper Model."
     );
   }
 
@@ -155,21 +504,11 @@ async function transcribeWithWhisperCpp(
   if (!binaryPath) {
     throw new Error(
       "whisper-cli not found. Install whisper.cpp (macOS: brew install whisper-cpp, Windows: download whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases)\n" +
-      "Or set a custom path in Settings → Voice & Audio."
+      "Or set a custom path in Settings -> Voice & Audio."
     );
   }
 
-  // Always convert to 16kHz mono WAV via ffmpeg before passing to whisper-cli.
-  //
-  // Why not rely on whisper-cli's built-in format support?
-  //   - whisper-cli claims to support "ogg" but only handles Vorbis-in-OGG.
-  //     Telegram/WhatsApp voice notes use Opus-in-OGG, which whisper-cli
-  //     silently fails on (exit 0, no output file).
-  //   - ffmpeg handles every codec reliably and normalises to the exact
-  //     format Whisper expects internally (16 kHz, mono, PCM s16le).
-  //   - Conversion is fast (<100 ms for typical voice notes).
   const ext = getExtensionForMimeType(mimeType);
-
   const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const tmpIn = join(tmpdir(), `seline-stt-in-${id}.${ext}`);
   const tmpWav = join(tmpdir(), `seline-stt-conv-${id}.wav`);
@@ -178,7 +517,6 @@ async function transcribeWithWhisperCpp(
   try {
     writeFileSync(tmpIn, audio);
 
-    // Convert to 16kHz mono WAV — the optimal input format for Whisper
     const ffmpegPath = findFfmpegBinary();
     if (!ffmpegPath) {
       throw new Error(
@@ -190,41 +528,44 @@ async function transcribeWithWhisperCpp(
     try {
       execFileSync(ffmpegPath, [
         "-y", "-i", tmpIn,
-        "-ar", "16000",     // 16kHz sample rate (optimal for Whisper)
-        "-ac", "1",         // mono
+        "-ar", "16000",
+        "-ac", "1",
         "-c:a", "pcm_s16le",
         tmpWav,
       ], { timeout: 30000, stdio: "pipe" });
     } catch (ffmpegErr) {
       const msg = ffmpegErr instanceof Error ? ffmpegErr.message : String(ffmpegErr);
-      throw new Error(
-        `ffmpeg failed to convert audio (format: ${ext}): ${msg}`
-      );
+      throw new Error(`ffmpeg failed to convert audio (format: ${ext}): ${msg}`);
     }
 
-    const inputPath = tmpWav;
-
-    // Build whisper-cli arguments
     const args: string[] = [
       "-m", modelPath,
-      "-f", inputPath,
+      "-f", tmpWav,
       "-of", tmpOut,
-      "-oj",              // JSON output
-      "-np",              // no extra prints (clean output)
-      "--no-timestamps",  // simpler output for voice notes
+      "-oj",
+      "-np",
+      "--no-timestamps",
     ];
 
-    // Auto-detect language for multilingual models
     if (modelInfo?.language === "multilingual") {
       args.push("-l", "auto");
     }
 
-    // Run whisper-cli with a generous timeout (model loading can be slow first time)
+    try {
+      const { getCustomDictionary, buildWhisperPromptFromDictionary } = await getVoiceUtils();
+      const customDictionary = await getCustomDictionary();
+      const prompt = buildWhisperPromptFromDictionary(customDictionary);
+      if (prompt) {
+        args.push("--prompt", prompt);
+      }
+    } catch (error) {
+      console.warn("[STT] Failed to load custom dictionary for whisper.cpp:", error);
+    }
+
     const startTime = Date.now();
     const effectiveBinaryPath = runWhisperCli(binaryPath, args);
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    // Parse JSON output
     const jsonPath = `${tmpOut}.json`;
     if (!existsSync(jsonPath)) {
       throw new Error("whisper-cli did not produce output. The audio may be too short or silent.");
@@ -233,12 +574,10 @@ async function transcribeWithWhisperCpp(
     const output = JSON.parse(readFileSync(jsonPath, "utf-8")) as {
       transcription?: Array<{ text: string }>;
       result?: { language?: string };
-      // Some versions use different structure
       text?: string;
       language?: string;
     };
 
-    // Extract text — handle different whisper.cpp JSON output formats
     let text = "";
     if (output.transcription && Array.isArray(output.transcription)) {
       text = output.transcription.map((s) => s.text).join(" ").trim();
@@ -262,11 +601,9 @@ async function transcribeWithWhisperCpp(
       language: detectedLang || (modelInfo?.language === "en" ? "en" : undefined),
     };
   } finally {
-    // Cleanup temp files
     try { unlinkSync(tmpIn); } catch {}
     try { unlinkSync(tmpWav); } catch {}
     try { unlinkSync(`${tmpOut}.json`); } catch {}
-    // whisper-cli may also create .txt, .srt etc
     try { unlinkSync(`${tmpOut}.txt`); } catch {}
   }
 }
@@ -275,9 +612,6 @@ async function transcribeWithWhisperCpp(
 // Availability checks
 // ---------------------------------------------------------------------------
 
-/**
- * Check if audio transcription is available with the current settings.
- */
 export function isTranscriptionAvailable(): boolean {
   const settings = loadSettings();
   if (!settings.sttEnabled) return false;
@@ -286,14 +620,13 @@ export function isTranscriptionAvailable(): boolean {
     return isWhisperCppAvailable();
   }
 
-  // OpenAI provider — need an API key
+  if (settings.sttProvider === "parakeet") {
+    return true;
+  }
+
   return !!(settings.openaiApiKey || process.env.OPENAI_API_KEY || settings.openrouterApiKey);
 }
 
-/**
- * Check if local whisper.cpp transcription is available.
- * Verifies both the whisper-cli binary and the selected model file exist.
- */
 export function isWhisperCppAvailable(): boolean {
   try {
     const binaryPath = findWhisperBinary();
@@ -312,20 +645,14 @@ export function isWhisperCppAvailable(): boolean {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Find the whisper-cli binary.
- * Checks: settings path > bundled in Electron resources > common install paths > PATH
- */
 function findWhisperBinary(): string | null {
   const settings = loadSettings();
 
-  // 1. Custom path from settings
   if (settings.whisperCppPath && existsSync(settings.whisperCppPath)) {
     const resolved = resolvePreferredWhisperBinary(settings.whisperCppPath);
     if (resolved) return resolved;
   }
 
-  // 2. Bundled in Electron app resources (production builds)
   for (const relativePath of getWhisperBundledRelativePaths()) {
     const bundledPaths = getBundledBinaryPaths("whisper", relativePath);
     for (const p of bundledPaths) {
@@ -333,12 +660,11 @@ function findWhisperBinary(): string | null {
     }
   }
 
-  // 3. Common system install paths
   const commonPaths = [
-    "/opt/homebrew/bin/whisper-whisper-cli", // newer upstream naming
+    "/opt/homebrew/bin/whisper-whisper-cli",
     "/usr/local/bin/whisper-whisper-cli",
-    "/opt/homebrew/bin/whisper-cli",   // Apple Silicon
-    "/usr/local/bin/whisper-cli",      // Intel Mac
+    "/opt/homebrew/bin/whisper-cli",
+    "/usr/local/bin/whisper-cli",
     join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-whisper-cli.exe"),
     join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "whisper-cli.exe"),
     join(process.env.ProgramFiles || "C:\\Program Files", "whisper.cpp", "main.exe"),
@@ -349,65 +675,33 @@ function findWhisperBinary(): string | null {
     join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "whisper-cli.exe"),
     join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "Programs", "whisper.cpp", "main.exe"),
   ];
+
   for (const p of commonPaths) {
-    if (!existsSync(p)) continue;
-    const resolved = resolvePreferredWhisperBinary(p);
-    if (resolved) return resolved;
+    if (existsSync(p)) {
+      const resolved = resolvePreferredWhisperBinary(p);
+      if (resolved) return resolved;
+    }
   }
 
-  // 4. Check PATH
-  const fromPath = findExecutableInPath([
-    "whisper-whisper-cli",
-    "whisper-whisper-cli.exe",
-    "whisper-cli",
-    "whisper-cli.exe",
-    "main.exe",
-  ]);
-  if (fromPath) {
-    const resolved = resolvePreferredWhisperBinary(fromPath);
+  const inPath = findExecutableInPath(["whisper-whisper-cli", "whisper-cli", "main"]);
+  if (inPath) {
+    const resolved = resolvePreferredWhisperBinary(inPath);
     if (resolved) return resolved;
   }
 
   return null;
 }
 
-/**
- * Find the ffmpeg binary.
- * Required for converting audio to WAV before whisper-cli processing.
- * Checks: ffmpeg-static (bundled) > bundled fallback path > common install paths > PATH
- */
 function findFfmpegBinary(): string | null {
-  // 1. ffmpeg-static npm package (bundled in Electron builds)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ffmpegStaticPath = require("ffmpeg-static") as string;
-    if (ffmpegStaticPath && existsSync(ffmpegStaticPath)) return ffmpegStaticPath;
-  } catch {
-    // ffmpeg-static not installed
-  }
+  const inPath = findExecutableInPath(["ffmpeg", "ffmpeg.exe"]);
+  if (inPath) return inPath;
 
-  // 2. Bundled in Electron app resources (standalone builds)
   for (const relativePath of getFfmpegBundledRelativePaths()) {
-    const bundledPaths = getBundledBinaryPaths("standalone", relativePath);
+    const bundledPaths = getBundledBinaryPaths("ffmpeg", relativePath);
     for (const p of bundledPaths) {
       if (existsSync(p)) return p;
     }
   }
-
-  // 3. Common system paths
-  const commonPaths = [
-    "/opt/homebrew/bin/ffmpeg",   // Apple Silicon
-    "/usr/local/bin/ffmpeg",      // Intel Mac
-    join(process.env.ProgramFiles || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
-    join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "ffmpeg", "bin", "ffmpeg.exe"),
-  ];
-  for (const p of commonPaths) {
-    if (existsSync(p)) return p;
-  }
-
-  // 4. Check PATH
-  const fromPath = findExecutableInPath(["ffmpeg", "ffmpeg.exe"]);
-  if (fromPath) return fromPath;
 
   return null;
 }
@@ -446,25 +740,11 @@ function resolvePreferredWhisperBinary(binaryPath: string): string | null {
   return null;
 }
 
-function isDeprecatedWhisperStub(binaryPath: string): boolean {
-  try {
-    const output = execFileSync(binaryPath, ["--help"], {
-      timeout: 5000,
-      stdio: "pipe",
-      encoding: "utf-8",
-    });
-    return /is deprecated/i.test(output || "");
-  } catch (err) {
-    const output = getProcessErrorOutput(err);
-    return /is deprecated/i.test(output);
-  }
-}
-
 function runWhisperCli(binaryPath: string, args: string[]): string {
   const firstChoice = preferNewWhisperBinary(binaryPath);
   try {
     execFileSync(firstChoice, args, {
-      timeout: 120000, // 2 minutes max
+      timeout: 120000,
       stdio: "pipe",
       env: buildWhisperRuntimeEnv(firstChoice),
     });
@@ -487,7 +767,7 @@ function runWhisperCli(binaryPath: string, args: string[]): string {
       throw new Error(
         `Bundled whisper binary "${basename(firstChoice)}" is a deprecated launcher and exited before transcription. ` +
         `Expected replacement "${replacement}" was not found. ` +
-        `Re-bundle whisper binaries (npm run electron:bundle-whisper) or set a custom binary path in Settings -> Voice & Audio.`
+        "Re-bundle whisper binaries (npm run electron:bundle-whisper) or set a custom binary path in Settings -> Voice & Audio."
       );
     }
 
@@ -498,7 +778,6 @@ function runWhisperCli(binaryPath: string, args: string[]): string {
 function buildWhisperRuntimeEnv(binaryPath: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
 
-  // Windows loader requires dependent DLL directories in PATH.
   if (platform() === "win32") {
     const libDir = join(dirname(binaryPath), "..", "lib");
     if (existsSync(libDir)) {
@@ -545,6 +824,89 @@ function resolveReplacementWhisperBinary(currentBinaryPath: string, replacementN
   return null;
 }
 
+function isDeprecatedWhisperStub(binaryPath: string): boolean {
+  try {
+    const output = execFileSync(binaryPath, ["--help"], {
+      timeout: 5000,
+      stdio: "pipe",
+      encoding: "utf-8",
+    });
+    return /is deprecated/i.test(output || "");
+  } catch (err) {
+    const output = getProcessErrorOutput(err);
+    return /is deprecated/i.test(output);
+  }
+}
+
+function readWavAsFloat32(wavPath: string): Float32Array {
+  const buffer = readFileSync(wavPath);
+  if (buffer.length < 44) {
+    throw new Error("Invalid WAV file: header too short");
+  }
+
+  const riff = buffer.toString("ascii", 0, 4);
+  const wave = buffer.toString("ascii", 8, 12);
+  if (riff !== "RIFF" || wave !== "WAVE") {
+    throw new Error("Invalid WAV file: missing RIFF/WAVE headers");
+  }
+
+  let offset = 12;
+  let audioFormat = 0;
+  let channels = 0;
+  let bitsPerSample = 0;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  while (offset + 8 <= buffer.length) {
+    const chunkId = buffer.toString("ascii", offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    const chunkDataOffset = offset + 8;
+
+    if (chunkId === "fmt " && chunkSize >= 16) {
+      audioFormat = buffer.readUInt16LE(chunkDataOffset);
+      channels = buffer.readUInt16LE(chunkDataOffset + 2);
+      bitsPerSample = buffer.readUInt16LE(chunkDataOffset + 14);
+    } else if (chunkId === "data") {
+      dataOffset = chunkDataOffset;
+      dataSize = chunkSize;
+      break;
+    }
+
+    offset = chunkDataOffset + chunkSize + (chunkSize % 2);
+  }
+
+  if (dataOffset < 0 || dataSize <= 0) {
+    throw new Error("Invalid WAV file: data chunk not found");
+  }
+
+  if (audioFormat !== 1) {
+    throw new Error(`Unsupported WAV encoding: expected PCM (1), received ${audioFormat}`);
+  }
+
+  if (bitsPerSample !== 16) {
+    throw new Error(`Unsupported WAV bit depth: expected 16-bit PCM, received ${bitsPerSample}`);
+  }
+
+  if (channels < 1) {
+    throw new Error("Invalid WAV file: channel count is zero");
+  }
+
+  const frameSize = channels * 2;
+  const frameCount = Math.floor(dataSize / frameSize);
+  const samples = new Float32Array(frameCount);
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const frameStart = dataOffset + i * frameSize;
+    let monoSum = 0;
+    for (let ch = 0; ch < channels; ch += 1) {
+      monoSum += buffer.readInt16LE(frameStart + ch * 2);
+    }
+    samples[i] = (monoSum / channels) / 32768;
+  }
+
+  return samples;
+}
+
 function getFfmpegBundledRelativePaths(): string[] {
   return [
     join("node_modules", ".bin", "ffmpeg"),
@@ -574,43 +936,26 @@ function findExecutableInPath(candidates: string[]): string | null {
   return null;
 }
 
-/**
- * Get possible paths for bundled binaries in Electron app resources.
- * In production Electron builds, binaries are in:
- *   - resources/binaries/<name>/<relativePath>   (extraResources)
- *   - resources/standalone/binaries/<name>/<relativePath> (inside standalone)
- */
 function getBundledBinaryPaths(name: string, relativePath: string): string[] {
   const paths: string[] = [];
 
-  // ELECTRON_RESOURCES_PATH is set by Electron main process
   const resourcesPath = process.env.ELECTRON_RESOURCES_PATH;
   if (resourcesPath) {
     paths.push(join(resourcesPath, "binaries", name, relativePath));
     paths.push(join(resourcesPath, "standalone", "binaries", name, relativePath));
   }
 
-  // Also check relative to the running server (standalone dir)
   const cwd = process.cwd();
   paths.push(join(cwd, "binaries", name, relativePath));
-
-  // Dev mode: check project root
   paths.push(join(cwd, "..", "binaries", name, relativePath));
 
   return paths;
 }
 
-/**
- * Resolve the full path to a whisper model .bin file.
- * Checks Electron models dir and common system locations.
- * Returns null if the model file is not found.
- */
 function resolveWhisperModelPath(modelId: string): string | null {
   const modelInfo = getWhisperModel(modelId);
   const filename = modelInfo?.hfFile || `${modelId}.bin`;
 
-  // 1. Electron user data models dir via LOCAL_DATA_PATH env var
-  //    In production Electron, LOCAL_DATA_PATH = ~/Library/Application Support/seline/data
   const electronModelsDir = process.env.LOCAL_DATA_PATH
     ? join(process.env.LOCAL_DATA_PATH, "..", "models", "whisper")
     : null;
@@ -619,20 +964,15 @@ function resolveWhisperModelPath(modelId: string): string | null {
     if (existsSync(p)) return p;
   }
 
-  // 2. Platform-specific Electron userData fallback
-  //    In electron:dev, the Next.js server doesn't inherit LOCAL_DATA_PATH
-  //    from the Electron main process, so we compute the path directly.
   const electronUserDataFallback = getElectronUserDataModelsDir();
   if (electronUserDataFallback) {
     const p = join(electronUserDataFallback, filename);
     if (existsSync(p)) return p;
   }
 
-  // 3. Standard .local-data/models/whisper/ (dev mode)
   const devPath = join(process.cwd(), ".local-data", "models", "whisper", filename);
   if (existsSync(devPath)) return devPath;
 
-  // 4. Homebrew whisper-cpp default model location
   const brewModelPaths = [
     join("/opt/homebrew/share/whisper-cpp/models", filename),
     join("/usr/local/share/whisper-cpp/models", filename),
@@ -641,66 +981,61 @@ function resolveWhisperModelPath(modelId: string): string | null {
     if (existsSync(p)) return p;
   }
 
-  // 5. WHISPER_CPP_MODEL env var (used by openclaw tests)
-  if (process.env.WHISPER_CPP_MODEL && existsSync(process.env.WHISPER_CPP_MODEL)) {
-    return process.env.WHISPER_CPP_MODEL;
+  const commonPaths = [
+    join(homedir(), ".cache", "whisper", filename),
+    join(homedir(), ".local", "share", "whisper", filename),
+    join(process.cwd(), "models", filename),
+    join(process.cwd(), "whisper.cpp", "models", filename),
+  ];
+
+  for (const p of commonPaths) {
+    if (existsSync(p)) return p;
   }
 
   return null;
 }
 
-/**
- * Compute the platform-specific Electron userData models/whisper directory.
- * This mirrors Electron's app.getPath("userData") logic so the Next.js server
- * can find models even when LOCAL_DATA_PATH isn't set (e.g., electron:dev).
- */
 function getElectronUserDataModelsDir(): string | null {
-  // If ELECTRON_USER_DATA_PATH is set, use it directly
-  if (process.env.ELECTRON_USER_DATA_PATH) {
-    return join(process.env.ELECTRON_USER_DATA_PATH, "models", "whisper");
-  }
-
-  // Compute platform-specific userData path (mirrors Electron's app.getPath("userData"))
+  const p = platform();
+  const home = homedir();
   const appName = "seline";
-  const appNameCandidates = [appName];
-  if (process.env.NODE_ENV === "development") {
-    appNameCandidates.unshift(`${appName}-dev`);
+
+  if (p === "darwin") {
+    return join(home, "Library", "Application Support", appName, "models", "whisper");
   }
-  const os = platform();
-  let userDataDir: string | null = null;
-
-  for (const name of appNameCandidates) {
-    if (os === "darwin") {
-      userDataDir = join(homedir(), "Library", "Application Support", name);
-    } else if (os === "win32") {
-      userDataDir = join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), name);
-    } else {
-      // Linux: ~/.config/<appName>
-      userDataDir = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), name);
-    }
-
-    if (userDataDir) {
-      const modelsDir = join(userDataDir, "models", "whisper");
-      if (existsSync(modelsDir)) return modelsDir;
-    }
+  if (p === "win32") {
+    const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
+    return join(appData, appName, "models", "whisper");
   }
-
+  if (p === "linux") {
+    const xdgDataHome = process.env.XDG_DATA_HOME || join(home, ".config");
+    return join(xdgDataHome, appName, "models", "whisper");
+  }
   return null;
 }
 
 function getExtensionForMimeType(mimeType: string): string {
-  const base = mimeType.split(";")[0].trim();
   const map: Record<string, string> = {
-    "audio/ogg": "ogg",
-    "audio/mpeg": "mp3",
-    "audio/mp4": "m4a",
-    "audio/x-m4a": "m4a",
-    "audio/wav": "wav",
     "audio/webm": "webm",
-    "audio/opus": "opus",
+    "audio/webm;codecs=opus": "webm",
+    "audio/ogg": "ogg",
+    "audio/ogg;codecs=opus": "ogg",
+    "audio/wav": "wav",
+    "audio/wave": "wav",
+    "audio/x-wav": "wav",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/mp4": "m4a",
+    "audio/m4a": "m4a",
     "audio/aac": "aac",
     "audio/flac": "flac",
+    "audio/x-flac": "flac",
+    "audio/opus": "opus",
   };
+
+  if (map[mimeType]) return map[mimeType];
+
+  const base = mimeType.split(";")[0]?.trim();
   return map[base] || "webm";
 }
 

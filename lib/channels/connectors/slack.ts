@@ -128,19 +128,35 @@ export class SlackConnector implements ChannelConnector {
     const fileAttachment = imageAttachment || audioAttachment;
 
     if (fileAttachment) {
-      const uploadArgs: any = {
-        channels: payload.peerId,
-        file: fileAttachment.data,
-        filename: fileAttachment.filename,
-        filetype: fileAttachment.mimeType,
-        initial_comment: text || undefined,
-      };
-      if (payload.threadId) {
-        uploadArgs.thread_ts = payload.threadId;
+      try {
+        const uploadArgs: Record<string, unknown> = {
+          channel_id: payload.peerId,
+          file: fileAttachment.data,
+          filename: fileAttachment.filename,
+          initial_comment: text || undefined,
+        };
+        if (payload.threadId) {
+          uploadArgs.thread_ts = payload.threadId;
+        }
+        const uploaded = await this.app.client.files.uploadV2(uploadArgs as any);
+        const uploadResult = uploaded as unknown as Record<string, unknown>;
+        const fileId = (uploadResult.files as Array<{ id?: string }> | undefined)?.[0]?.id
+          || (uploadResult.file as { id?: string } | undefined)?.id
+          || `${payload.peerId}:${Date.now()}`;
+        return { externalMessageId: String(fileId) };
+      } catch (uploadError) {
+        // Fallback: send text-only via chat.postMessage if file upload fails
+        console.warn("[Slack] File upload failed, falling back to text-only:", uploadError);
+        if (text) {
+          const sent = await this.app.client.chat.postMessage({
+            channel: payload.peerId,
+            text,
+            thread_ts: payload.threadId || undefined,
+          });
+          return { externalMessageId: String(sent.ts || `${payload.peerId}:${Date.now()}`) };
+        }
+        throw uploadError;
       }
-      const uploaded = await this.app.client.files.upload(uploadArgs);
-      const fileId = (uploaded.file as { id?: string })?.id || `${payload.peerId}:${Date.now()}`;
-      return { externalMessageId: String(fileId) };
     }
 
     const sent = await this.app.client.chat.postMessage({
@@ -151,15 +167,8 @@ export class SlackConnector implements ChannelConnector {
     return { externalMessageId: String(sent.ts || `${payload.peerId}:${Date.now()}`) };
   }
 
-  async sendTyping(peerId: string): Promise<void> {
-    try {
-      await (this.app.client as { apiCall: (method: string, options?: Record<string, unknown>) => Promise<unknown> }).apiCall(
-        "chat.typing",
-        { channel: peerId }
-      );
-    } catch (error) {
-      console.warn("[Slack] Failed to send typing status:", error);
-    }
+  async sendTyping(_peerId: string): Promise<void> {
+    // Slack Web API does not support typing indicators for bots — no-op
   }
 
   setInteractiveAnswerHandler(handler: (data: InteractiveAnswerData) => void): void {

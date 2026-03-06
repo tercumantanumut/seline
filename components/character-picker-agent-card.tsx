@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageCircle, PlusCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +12,7 @@ import { ToolBadge, getTopTools } from "@/components/ui/tool-badge";
 import { useTranslations } from "next-intl";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AgentOverflowMenu } from "@/components/character-picker-agent-overflow-menu";
+import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
 import type { CharacterSummary } from "@/components/character-picker-types";
 
 export function AgentCardInWorkflow({
@@ -34,6 +37,7 @@ export function AgentCardInWorkflow({
   removeFromWorkflowLabel,
   router,
   dataAnimateCard,
+  hasWallpaper = false,
 }: {
   character: CharacterSummary;
   role?: "initiator" | "subagent";
@@ -56,6 +60,7 @@ export function AgentCardInWorkflow({
   removeFromWorkflowLabel?: string;
   router: ReturnType<typeof useRouter>;
   dataAnimateCard?: boolean;
+  hasWallpaper?: boolean;
 }) {
   const initials = getCharacterInitials(character.name);
   const enabledTools = character.metadata?.enabledTools || [];
@@ -66,12 +71,31 @@ export function AgentCardInWorkflow({
   const avatarImage = character.images?.find((img) => img.imageType === "avatar");
   const imageUrl = avatarImage?.url || primaryImage?.url;
 
+  // Deterministic accent color based on character ID (or manual override from metadata)
+  const accentColor = useMemo(
+    () => getAgentAccentColor(character.id, (character.metadata as Record<string, unknown>)?.accentColor as string | undefined),
+    [character.id, character.metadata]
+  );
+
   return (
     <AnimatedCard
       data-animate-card={dataAnimateCard ? true : undefined}
       hoverLift
-      className="group relative w-full border-0 bg-terminal-cream/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+      className={cn(
+        "group relative w-full overflow-hidden",
+        hasWallpaper
+          ? "border border-white/[0.15] bg-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+          : "border border-terminal-border/30 bg-terminal-cream/90 shadow-sm"
+      )}
     >
+      {/* Subtle accent gradient strip at top */}
+      <div
+        className="h-[2px] w-full"
+        style={{
+          background: `linear-gradient(90deg, ${accentColor.hex}60, ${accentColor.hex}15, transparent 80%)`,
+        }}
+      />
+
       <div className="p-4 pb-2">
         <AgentOverflowMenu
           character={character}
@@ -94,9 +118,20 @@ export function AgentCardInWorkflow({
 
         <div className="flex min-h-9 items-center gap-3">
           <div className="relative">
-            <Avatar className="h-10 w-10 shadow-sm">
+            <Avatar
+              className="h-10 w-10"
+              style={{
+                boxShadow: `0 0 0 1.5px ${accentColor.hex}30, 0 0 12px ${accentColor.hex}15`,
+              }}
+            >
               {imageUrl ? <AvatarImage src={imageUrl} alt={character.name} /> : null}
-              <AvatarFallback className="bg-terminal-green/10 font-mono text-xs text-terminal-green">
+              <AvatarFallback
+                className="font-mono text-xs font-semibold"
+                style={{
+                  backgroundColor: `${accentColor.hex}20`,
+                  color: accentColor.hex,
+                }}
+              >
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -172,6 +207,7 @@ export function AgentCardInWorkflow({
           variant="outline"
           className="h-7 w-7 px-0 font-mono text-xs text-terminal-dark hover:bg-terminal-dark/5"
           onClick={() => onNewChat(character.id)}
+          aria-label={t("startNew")}
         >
           <PlusCircle className="h-3 w-3" />
         </AnimatedButton>

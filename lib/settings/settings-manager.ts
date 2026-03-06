@@ -19,10 +19,11 @@ export type PostEditHooksPreset = "off" | "fast" | "strict";
 // — with love, Seline (https://github.com/tercumantanumut/seline)
 export interface AppSettings {
     // AI Provider settings
-    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "ollama" | "claudecode";
+    llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
     anthropicApiKey?: string;
     openrouterApiKey?: string;
     kimiApiKey?: string;      // For Moonshot Kimi models
+    minimaxApiKey?: string;   // For MiniMax models
     openaiApiKey?: string;    // For OpenAI Whisper STT, TTS, and other OpenAI-direct services
     ollamaBaseUrl?: string;
     tavilyApiKey?: string;    // For Deep Research web search
@@ -221,9 +222,30 @@ export interface AppSettings {
 
     // Audio Transcription (STT) settings
     sttEnabled?: boolean;
-    sttProvider?: "openai" | "local";
+    sttProvider?: "openai" | "local" | "parakeet";
     sttLocalModel?: string;          // Selected whisper.cpp model ID (default: "ggml-tiny.en")
     whisperCppPath?: string;         // Custom path to whisper-cli binary (auto-detected if empty)
+    voicePostProcessing?: boolean;
+    voiceAgentName?: string;
+    voiceAudioCues?: boolean;
+    voiceAutoLearn?: boolean;
+    voiceActivationMode?: "tap" | "push";
+    parakeetModel?: string;
+    parakeetAutoStart?: boolean;
+    parakeetServerPort?: number;
+    voiceHotkey?: string;
+    customDictionary?: string[];
+    voiceHistoryEnabled?: boolean;
+    voiceHistoryLimit?: number;
+    voiceHistoryRetentionDays?: number;
+    voiceHistoryPreviewLength?: number;
+    voiceActionsEnabled?: boolean;
+    voiceActionDefaultLanguage?: string;
+    voiceActionPreserveStyle?: boolean;
+    voiceActionConfirmDestructive?: boolean;
+    voiceActionFormalTone?: "auto" | "business" | "casual";
+    voiceActionTranslationStyle?: "natural" | "literal";
+    voiceActionSummarizeLength?: "short" | "medium" | "long";
 
     // Memory settings
     memoryAutoApprove?: boolean;     // Auto-approve background-extracted memories (default: false)
@@ -240,6 +262,17 @@ export interface AppSettings {
     devWorkspaceAutoCleanup?: boolean;      // Auto-remove worktrees after PR merge (default: true)
     devWorkspaceAutoCleanupDays?: number;   // Days before auto-cleanup (default: 7)
     workspaceOnboardingSeen?: boolean;      // Whether the workspace onboarding tour has been shown
+
+    // 3D Avatar
+    avatar3dEnabled?: boolean;              // Enable 3D talking head avatar in chat interface
+
+    // EverMemOS (shared memory)
+    everMemOSEnabled?: boolean;             // Enable EverMemOS integration
+    everMemOSServerUrl?: string;            // EverMemOS server URL
+
+    // Browser automation settings
+    chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
+    chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -314,6 +347,27 @@ const DEFAULT_SETTINGS: AppSettings = {
     sttEnabled: true,
     sttProvider: "local",
     sttLocalModel: "ggml-tiny.en",
+    voicePostProcessing: true,
+    voiceAgentName: "Seline",
+    voiceAudioCues: true,
+    voiceAutoLearn: true,
+    voiceActivationMode: "tap",
+    parakeetModel: "parakeet-tdt-0.6b-v3",
+    parakeetAutoStart: true,
+    voiceHotkey: "CommandOrControl+Shift+Space",
+    customDictionary: [],
+    voiceHistoryEnabled: true,
+    voiceHistoryLimit: 200,
+    voiceHistoryRetentionDays: 30,
+    voiceHistoryPreviewLength: 140,
+    voiceActionsEnabled: true,
+    voiceActionDefaultLanguage: "English",
+    voiceActionPreserveStyle: true,
+    voiceActionConfirmDestructive: true,
+    voiceActionFormalTone: "auto",
+    voiceActionTranslationStyle: "natural",
+    voiceActionSummarizeLength: "medium",
+    parakeetServerPort: 0,
     // RTK defaults
     rtkEnabled: false,
     rtkInstalled: false,
@@ -324,6 +378,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     devWorkspaceAutoCleanup: true,
     devWorkspaceAutoCleanupDays: 7,
     workspaceOnboardingSeen: false,
+    // Browser automation defaults
+    chromiumBrowserMode: "standalone",
+    chromiumUserProfilePath: "",
 };
 
 function getSettingsPath(): string {
@@ -421,6 +478,13 @@ export function saveSettings(settings: AppSettings): void {
         mkdirSync(dir, { recursive: true });
     }
 
+    // Sanitize browser profile path: strip null bytes and trim whitespace
+    if (settings.chromiumUserProfilePath) {
+        settings.chromiumUserProfilePath = settings.chromiumUserProfilePath
+            .replace(/\0/g, "")
+            .trim();
+    }
+
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     cachedSettings = settings;
     cachedSettingsTimestamp = Date.now();
@@ -463,6 +527,9 @@ function updateEnvFromSettings(settings: AppSettings): void {
     }
     if (settings.kimiApiKey) {
         process.env.KIMI_API_KEY = settings.kimiApiKey;
+    }
+    if (settings.minimaxApiKey) {
+        process.env.MINIMAX_API_KEY = settings.minimaxApiKey;
     }
     if (settings.ollamaBaseUrl !== undefined) {
         process.env.OLLAMA_BASE_URL = settings.ollamaBaseUrl;
@@ -630,6 +697,10 @@ export function hasRequiredApiKeys(): boolean {
     }
     // Kimi requires an API key from Moonshot
     if (settings.llmProvider === "kimi" && !settings.kimiApiKey) {
+        return false;
+    }
+    // MiniMax requires an API key
+    if (settings.llmProvider === "minimax" && !settings.minimaxApiKey) {
         return false;
     }
     // Claude Code requires OAuth authentication (Claude Pro/MAX subscription)

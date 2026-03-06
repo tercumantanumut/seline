@@ -53,6 +53,9 @@ export interface ActionRecord {
 
   /** Error message if the action failed */
   error?: string;
+
+  /** Who performed this action — the AI agent or the human user */
+  source?: "agent" | "user";
 }
 
 export interface SessionHistory {
@@ -90,9 +93,15 @@ export interface ReplayOptions {
   verifyOutputs?: boolean;
 }
 
+// ─── Action event pub/sub types ──────────────────────────────────────────────
+
+export type ActionEvent = { sessionId: string; record: ActionRecord };
+export type ActionEventListener = (event: ActionEvent) => void;
+
 // ─── Global singleton state ───────────────────────────────────────────────────
 
 const GLOBAL_KEY = "__seline_browser_history__" as const;
+const LISTENERS_KEY = "__seline_action_event_listeners__" as const;
 
 function getHistoryStore(): Map<string, SessionHistory> {
   const g = globalThis as unknown as Record<string, Map<string, SessionHistory>>;
@@ -100,6 +109,14 @@ function getHistoryStore(): Map<string, SessionHistory> {
     g[GLOBAL_KEY] = new Map();
   }
   return g[GLOBAL_KEY];
+}
+
+function getListenerStore(): Map<string, Set<ActionEventListener>> {
+  const g = globalThis as unknown as Record<string, Map<string, Set<ActionEventListener>>>;
+  if (!g[LISTENERS_KEY]) {
+    g[LISTENERS_KEY] = new Map();
+  }
+  return g[LISTENERS_KEY];
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -120,6 +137,47 @@ export function initHistory(sessionId: string, agentId?: string): void {
 }
 
 /**
+ * Subscribe to live action events for a session.
+ * Returns an unsubscribe function.
+ */
+export function subscribeToActions(
+  sessionId: string,
+  listener: ActionEventListener
+): () => void {
+  const store = getListenerStore();
+  let listeners = store.get(sessionId);
+  if (!listeners) {
+    listeners = new Set();
+    store.set(sessionId, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners!.delete(listener);
+    if (listeners!.size === 0) store.delete(sessionId);
+  };
+}
+
+/**
+ * Remove all action event listeners for a session.
+ */
+export function cleanupActionListeners(sessionId: string): void {
+  getListenerStore().delete(sessionId);
+}
+
+function emitActionEvent(sessionId: string, record: ActionRecord): void {
+  const listeners = getListenerStore().get(sessionId);
+  if (!listeners) return;
+  const event: ActionEvent = { sessionId, record };
+  for (const listener of listeners) {
+    try {
+      listener(event);
+    } catch {
+      // listener errors should not break recording
+    }
+  }
+}
+
+/**
  * Record a completed action with full input/output/snapshot data.
  */
 export function recordAction(
@@ -134,13 +192,14 @@ export function recordAction(
     pageTitle?: string;
     domSnapshot?: string;
     error?: string;
+    source?: "agent" | "user";
   }
 ): void {
   const store = getHistoryStore();
   const history = store.get(sessionId);
   if (!history) return; // session not tracked — no-op
 
-  history.actions.push({
+  const record: ActionRecord = {
     seq: history.actions.length + 1,
     timestamp: new Date().toISOString(),
     action,
@@ -152,7 +211,11 @@ export function recordAction(
     pageTitle: result.pageTitle,
     domSnapshot: result.domSnapshot?.slice(0, 2000),
     error: result.error,
-  });
+    source: result.source ?? "agent",
+  };
+
+  history.actions.push(record);
+  emitActionEvent(sessionId, record);
 }
 
 /**
@@ -169,6 +232,7 @@ export function finalizeHistory(sessionId: string): SessionHistory | null {
     new Date(endedAt).getTime() - new Date(history.startedAt).getTime();
 
   store.delete(sessionId);
+  cleanupActionListeners(sessionId);
   return history;
 }
 
@@ -182,7 +246,7 @@ export function peekHistory(sessionId: string): SessionHistory | null {
 
   return {
     ...history,
-    actions: [...history.actions],
+    actions: history.actions.map((a) => ({ ...a })),
   };
 }
 
@@ -195,7 +259,7 @@ export function buildReplayPlan(
   history: SessionHistory
 ): Array<{ action: string; input: Record<string, unknown>; expectedOutput: unknown }> {
   return history.actions
-    .filter((a) => a.success) // only replay successful actions
+    .filter((a) => a.success && a.source !== "user") // only replay successful agent actions
     .map((a) => ({
       action: a.action,
       input: a.input,

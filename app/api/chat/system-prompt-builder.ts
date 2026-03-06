@@ -122,6 +122,77 @@ export async function buildSystemPromptForRequest(
       : getSystemPrompt({ stylyApiEnabled: hasStylyApiKey(), toolLoadingMode });
   }
 
+  // Append synced folder paths so the agent knows its indexed directories upfront
+  // When a worktree workspace is active, annotate the worktree as (active workspace)
+  // and demote the base repo to avoid the AI defaulting to base paths.
+  if (characterId) {
+    try {
+      const { getSyncFolders } = await import("@/lib/vectordb/sync-folder-crud");
+      const { getWorkspaceInfo } = await import("@/lib/workspace/types");
+      const { normalize } = await import("path");
+      const syncFolders = await getSyncFolders(characterId);
+      if (syncFolders.length > 0) {
+        const { isWorktreePath } = await import("@/lib/ai/filesystem");
+        // Detect active worktree from session metadata using the shared helper
+        const wsInfo = getWorkspaceInfo(sessionMetadata as Record<string, unknown> | null);
+        const activeWorktreePath = wsInfo?.worktreePath ?? null;
+
+        // Only apply worktree scoping if the worktree is actually in the sync folders list.
+        // If addSyncFolder failed during workspace creation, we shouldn't demote the primary
+        // since there'd be no active alternative.
+        const worktreeInFolders = activeWorktreePath
+          ? syncFolders.some((f) => normalize(f.folderPath) === normalize(activeWorktreePath))
+          : false;
+
+        // Filter folders: hide worktrees that don't belong to this session.
+        // - Session HAS workspace → only show active worktree + non-worktree folders
+        // - Session has NO workspace → hide all worktrees (they belong to other sessions)
+        const visibleFolders = syncFolders.filter((f) => {
+          const fp = normalize(f.folderPath);
+          if (!isWorktreePath(fp)) return true; // non-worktree folders always visible
+          if (worktreeInFolders && activeWorktreePath && fp === normalize(activeWorktreePath)) return true; // own worktree
+          return false; // other worktrees → hidden
+        });
+
+        const folderLines = visibleFolders.map((f) => {
+          const fp = normalize(f.folderPath);
+          const name = f.displayName ? ` — ${f.displayName}` : "";
+          const files = f.fileCount ? `, ${f.fileCount} files indexed` : "";
+
+          if (worktreeInFolders && activeWorktreePath && fp === normalize(activeWorktreePath)) {
+            return `- \`${f.folderPath}\` (active workspace)${name}${files}`;
+          }
+          // Demote primary repo folder when worktree is confirmed present
+          if (worktreeInFolders && f.isPrimary) {
+            return `- \`${f.folderPath}\` (index only — do not use for file operations)${name}${files}`;
+          }
+          // Default: no active worktree, or non-worktree folders
+          const primary = f.isPrimary ? " (primary)" : "";
+          const status = f.status !== "synced" ? `, status: ${f.status}` : "";
+          return `- \`${f.folderPath}\`${primary}${name}${files}${status}`;
+        });
+
+        // Ensure active workspace is listed first
+        if (worktreeInFolders && activeWorktreePath) {
+          const wtIdx = folderLines.findIndex((l) => l.includes("(active workspace)"));
+          if (wtIdx > 0) {
+            const [wtLine] = folderLines.splice(wtIdx, 1);
+            folderLines.unshift(wtLine);
+          }
+        }
+
+        systemPromptValue = appendBlock(
+          systemPromptValue,
+          `\n\n[Synced Folders]\n` +
+            `These directories are indexed and available to you via localGrep, vectorSearch, and readFile:\n` +
+            folderLines.join("\n")
+        );
+      }
+    } catch (e) {
+      console.warn("[CHAT API] Failed to fetch sync folders for prompt:", e);
+    }
+  }
+
   // Append context-window block
   systemPromptValue = appendBlock(
     systemPromptValue,

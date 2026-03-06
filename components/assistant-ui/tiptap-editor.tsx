@@ -10,6 +10,14 @@ import {
 } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
+import type { Editor } from "@tiptap/react";
+import {
+  TextSelection,
+  type EditorState,
+  type Transaction,
+} from "@tiptap/pm/state";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import { padTranscriptText } from "./voice-transcript-utils";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -50,6 +58,8 @@ export interface TiptapEditorHandle {
   getContentArray: () => ContentPart[];
   /** Check if the editor has any meaningful content */
   hasContent: () => boolean;
+  /** Insert plain-text transcript at the active selection using a history-aware transaction */
+  insertVoiceTranscript: (text: string) => boolean;
   /** Clear the editor */
   clear: () => void;
   /** Focus the editor */
@@ -362,6 +372,83 @@ function serializeToContentArray(
   return serializeDocToContentArray(editor.getJSON());
 }
 
+export function buildTranscriptInsertionTransaction(
+  state: EditorState,
+  transcriptText: string,
+): Transaction | null {
+  const transcriptDoc = plainTextToTiptapDoc(transcriptText);
+  if (!transcriptDoc || !Array.isArray(transcriptDoc.content) || transcriptDoc.content.length === 0) {
+    return null;
+  }
+
+  const { from, to } = state.selection;
+  const normalizedFrom = Math.max(0, Math.min(from, state.doc.content.size));
+  const normalizedTo = Math.max(normalizedFrom, Math.min(to, state.doc.content.size));
+  const leftContext = state.doc.textBetween(Math.max(0, normalizedFrom - 1), normalizedFrom, "", "");
+  const rightContext = state.doc.textBetween(normalizedTo, Math.min(state.doc.content.size, normalizedTo + 1), "", "");
+
+  const isSingleParagraph =
+    transcriptDoc.content.length === 1
+    && transcriptDoc.content[0]?.type === "paragraph";
+
+  if (isSingleParagraph) {
+    const paragraph = transcriptDoc.content[0];
+    const paragraphText = Array.isArray(paragraph.content)
+      ? paragraph.content
+        .filter(
+          (node): node is { type?: string; text?: string } =>
+            node?.type === "text" && typeof node.text === "string",
+        )
+        .map((node) => node.text)
+        .join("")
+      : "";
+
+    if (!paragraphText) {
+      return null;
+    }
+
+    const replacementText = padTranscriptText(paragraphText, leftContext, rightContext);
+    if (!replacementText) {
+      return null;
+    }
+
+    let tr = state.tr.insertText(replacementText, normalizedFrom, normalizedTo);
+    tr = tr.setSelection(
+      TextSelection.near(tr.doc.resolve(normalizedFrom + replacementText.length)),
+    );
+    tr.setMeta("addToHistory", true);
+    return tr.scrollIntoView();
+  }
+
+  const fragmentNodes = transcriptDoc.content.map((node) =>
+    state.schema.nodeFromJSON(node),
+  );
+
+  if (fragmentNodes.length === 0) {
+    return null;
+  }
+
+  const slice = new Slice(Fragment.fromArray(fragmentNodes), 0, 0);
+  let tr = state.tr.replaceRange(normalizedFrom, normalizedTo, slice);
+  const cursorPosition = tr.mapping.map(normalizedFrom + slice.size);
+  tr = tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPosition)));
+  tr.setMeta("addToHistory", true);
+  return tr.scrollIntoView();
+}
+
+export function insertTranscriptIntoEditor(
+  editor: Editor,
+  transcriptText: string,
+): boolean {
+  const transaction = buildTranscriptInsertionTransaction(editor.state, transcriptText);
+  if (!transaction) {
+    return false;
+  }
+
+  editor.view.dispatch(transaction);
+  return true;
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -584,6 +671,10 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
       hasContent: () => {
         if (!editor) return false;
         return !editor.isEmpty;
+      },
+      insertVoiceTranscript: (text: string) => {
+        if (!editor) return false;
+        return insertTranscriptIntoEditor(editor, text);
       },
       clear: () => {
         editor?.commands.clearContent();

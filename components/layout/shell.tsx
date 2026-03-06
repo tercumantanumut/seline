@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GlobalBackButton } from "@/components/ui/global-back-button";
 import { useAuth } from "@/components/auth/auth-provider";
+import type { BackgroundConfig } from "@/lib/personalization/wallpapers";
+import { BackgroundLayer } from "@/components/ui/background-layer";
 import { WindowsTitleBar } from "@/components/layout/windows-titlebar";
 import {
   DropdownMenu,
@@ -63,6 +65,8 @@ interface ShellProps {
   children: ReactNode;
   /** Hide navigation (header, sidebar) - used for full-screen experiences like onboarding */
   hideNav?: boolean;
+  /** When set, renders a full-viewport wallpaper behind all Shell panels */
+  background?: BackgroundConfig;
 }
 
 export const Shell: FC<ShellProps> = ({
@@ -70,7 +74,9 @@ export const Shell: FC<ShellProps> = ({
   sidebarHeader,
   children,
   hideNav = false,
+  background,
 }) => {
+  const hasBackground = !!background && background.type !== "none";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isElectronApp, setIsElectronApp] = useState(false);
   const [electronPlatform, setElectronPlatform] = useState<string | null>(null);
@@ -171,7 +177,8 @@ export const Shell: FC<ShellProps> = ({
   }
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-terminal-cream">
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-terminal-cream">
+      {hasBackground && <BackgroundLayer config={background} />}
       <WindowsTitleBar />
       {/* Mobile overlay - only when sidebar exists */}
       {hasSidebar && sidebarOpen && (
@@ -186,7 +193,12 @@ export const Shell: FC<ShellProps> = ({
         {hasSidebar && (
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 transform bg-terminal-cream/80 backdrop-blur-sm transition-all duration-300 ease-in-out md:relative md:translate-x-0 shadow-sm flex flex-col",
+              "fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col",
+              hasBackground && desktopCollapsed
+                ? "bg-transparent"
+                : hasBackground
+                  ? "bg-terminal-cream/50 backdrop-blur-md shadow-sm"
+                  : "bg-terminal-cream/80 backdrop-blur-sm shadow-sm",
               sidebarOpen ? "translate-x-0" : "-translate-x-full",
               // Desktop width based on collapsed state (only apply after hydration to prevent flash)
               isHydrated && desktopCollapsed ? "md:w-16" : "w-72",
@@ -243,7 +255,12 @@ export const Shell: FC<ShellProps> = ({
             {user && (
               <div
                 className={cn(
-                  "shrink-0 border-t border-terminal-dark/10 bg-terminal-cream/90",
+                  "shrink-0",
+                  hasBackground && desktopCollapsed
+                    ? "bg-transparent"
+                    : hasBackground
+                      ? "bg-transparent border-t border-terminal-dark/10"
+                      : "bg-terminal-cream/90 border-t border-terminal-dark/10",
                   desktopCollapsed ? "md:p-2" : "p-3",
                 )}
               >
@@ -347,7 +364,10 @@ export const Shell: FC<ShellProps> = ({
           {/* Header - Three-zone layout: Left (Back), Center (Logo), Right (User Menu) */}
           <header
             className={cn(
-              "flex h-14 shrink-0 items-center bg-terminal-cream/90 backdrop-blur-sm px-4 shadow-sm md:h-16 md:px-6",
+              "flex h-14 shrink-0 items-center px-4 md:h-16 md:px-6",
+              hasBackground
+                ? "bg-transparent"
+                : "bg-terminal-cream/90 backdrop-blur-sm shadow-sm",
               hasSidebar ? "md:hidden" : "",
               isElectronApp && "webkit-app-region-drag",
               isMac && "mt-8",
@@ -492,7 +512,7 @@ export const Shell: FC<ShellProps> = ({
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-terminal-cream">
+          <main className={cn("flex-1 overflow-x-hidden overflow-y-auto", hasBackground ? "bg-transparent" : "bg-terminal-cream")}>
             {children}
           </main>
         </div>

@@ -8,6 +8,11 @@ export interface DroppedImportFile {
 export interface VoiceUiSettings {
   ttsEnabled: boolean;
   sttEnabled: boolean;
+  voicePostProcessing: boolean;
+  voiceActionsEnabled: boolean;
+  voiceAudioCues: boolean;
+  voiceActivationMode: "tap" | "push";
+  voiceHotkey: string;
 }
 
 export interface ComfyWorkflowImportPreview {

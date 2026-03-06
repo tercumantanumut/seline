@@ -106,9 +106,15 @@ export async function recoverStuckSyncingFolders(): Promise<number> {
       continue; // Skip - actually in progress
     }
 
-    // Check if the folder has been "syncing" for too long
+    // If the folder is NOT tracked in memory, it's definitely stuck — recover
+    // immediately regardless of how recently it was updated. The 30-minute
+    // cutoff only applies as a safety net for folders that ARE in memory
+    // (e.g., a very slow sync that hasn't timed out yet).
     const updatedAt = folder.updatedAt || folder.createdAt;
-    if (updatedAt < cutoffTime) {
+    const isStaleEnough = updatedAt < cutoffTime;
+    const isOrphanedOnStartup = !syncingFolders.has(folder.id);
+
+    if (isStaleEnough || isOrphanedOnStartup) {
       console.log(`[SyncService] Recovering stuck syncing folder: ${folder.id} (${folder.folderPath})`);
 
       let newStatus: "synced" | "error" | "paused" = (folder.fileCount ?? 0) > 0 ? "synced" : "error";

@@ -36,9 +36,37 @@ function buildAuthStateFromSdkStatus(status: ClaudeAgentSdkAuthStatus): ClaudeCo
   };
 }
 
+function isAuthoritativeAuthFailure(status: ClaudeAgentSdkAuthStatus): boolean {
+  if (status.authenticated) return false;
+  const error = status.error?.toLowerCase();
+  if (!error) return false;
+
+  return (
+    error.includes("authentication_failed")
+    || error.includes("not_authenticated")
+    || error.includes("login_required")
+  );
+}
+
 function persistAuthState(status: ClaudeAgentSdkAuthStatus): ClaudeCodeAuthState {
   const settings = loadSettings();
-  const authState = buildAuthStateFromSdkStatus(status);
+  const previousState = settings.claudecodeAuth;
+  let authState = buildAuthStateFromSdkStatus(status);
+
+  // Avoid auth-state flapping when SDK status checks fail transiently.
+  // We only flip to signed-out when the SDK reports an explicit auth failure.
+  if (
+    !authState.isAuthenticated
+    && previousState?.isAuthenticated
+    && !isAuthoritativeAuthFailure(status)
+  ) {
+    authState = {
+      ...authState,
+      isAuthenticated: true,
+      email: authState.email || previousState.email,
+    };
+  }
+
   settings.claudecodeAuth = authState;
 
   // Clean up legacy app-managed OAuth fields from old versions.

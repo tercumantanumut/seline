@@ -1,7 +1,7 @@
 "use client";
 
 import type { FC, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useAssistantState, useMessage } from "@assistant-ui/react";
 import type { MessagePartState } from "@assistant-ui/react";
@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ToolCallBadge, type ToolCallBadgeStatus } from "./tool-call-badge";
 import { getCanonicalToolName } from "./tool-name-utils";
+import { useBrowserActive } from "./browser-active-context";
+import { useToolExpansion } from "./tool-expansion-context";
 
 type ToolCallPart = Extract<MessagePartState, { type: "tool-call" }>;
 
@@ -20,6 +22,22 @@ interface ToolCallGroupProps {
 }
 
 const toolGroupExpansionState = new Map<string, boolean>();
+
+/**
+ * Tools whose custom UI is the primary content and should auto-expand.
+ * Without this, their rich inline UIs (audio player, interactive questions,
+ * plan steps, etc.) are hidden behind the "Details" toggle.
+ */
+const TOOLS_AUTO_EXPAND = new Set([
+  "speakAloud",
+  "askUserQuestion",
+  "askFollowupQuestion",
+  "updatePlan",
+  "showProductImages",
+  "calculator",
+  "chromiumWorkspace",
+  "promptLibrary",
+]);
 
 function getResultCount(result: unknown): number | null {
   if (!result || typeof result !== "object") return null;
@@ -84,12 +102,19 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   const t = useTranslations("assistantUi.tools");
   const messageParts = useAssistantState((state) => state.message.parts);
   const messageId = useMessage((state) => state.id);
+  const { isBrowserActive } = useBrowserActive();
 
   const toolParts = useMemo(() => {
     return messageParts
       .slice(startIndex, endIndex + 1)
       .filter((part): part is ToolCallPart => part?.type === "tool-call");
   }, [messageParts, startIndex, endIndex]);
+
+  const isAllChromium = useMemo(() => {
+    return toolParts.length > 0 && toolParts.every((p) => getCanonicalToolName(p.toolName) === "chromiumWorkspace");
+  }, [toolParts]);
+
+  const isGlass = isBrowserActive && isAllChromium;
 
   const fallbackKey = useMemo(() => {
     return toolParts
@@ -109,6 +134,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
 
   const hasError = useMemo(() => {
     return toolParts.some((part) => getStatus(part) === "error");
+  }, [toolParts]);
+
+  const hasInteractiveUI = useMemo(() => {
+    return toolParts.some((part) =>
+      TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName))
+    );
   }, [toolParts]);
 
   const mediaPreviews = useMemo(() => {
@@ -138,11 +169,23 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [expansionKey]);
 
   useEffect(() => {
-    if ((hasError || hasMedia) && !toolGroupExpansionState.has(expansionKey)) {
+    if ((hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
       setIsExpanded(true);
       toolGroupExpansionState.set(expansionKey, true);
     }
-  }, [expansionKey, hasError, hasMedia]);
+  }, [expansionKey, hasError, hasMedia, hasInteractiveUI]);
+
+  // React to global expand/collapse signal
+  const expansionCtx = useToolExpansion();
+  const lastSignalRef = useRef(0);
+  useEffect(() => {
+    if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+    if (expansionCtx.signal.counter === lastSignalRef.current) return;
+    lastSignalRef.current = expansionCtx.signal.counter;
+    const next = expansionCtx.signal.mode === "expand";
+    setIsExpanded(next);
+    toolGroupExpansionState.set(expansionKey, next);
+  }, [expansionCtx?.signal, expansionKey]);
 
   const handleToggleExpanded = () => {
     setIsExpanded((prev) => {
@@ -159,7 +202,10 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   return (
     <div
       className={cn(
-        "my-2 rounded-lg bg-terminal-cream/80 p-2 shadow-sm transition-all duration-150 ease-in-out"
+        "my-2 rounded-lg p-2 shadow-sm transition-all duration-150 ease-in-out",
+        isGlass
+          ? "bg-black/20 backdrop-blur-md border border-white/10"
+          : "bg-terminal-cream/80"
       )}
     >
       <div className="flex flex-wrap items-center gap-2 pb-1">
@@ -218,7 +264,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
           variant="ghost"
           size="sm"
           onClick={handleToggleExpanded}
-          className="h-7 px-2 text-xs font-mono text-terminal-muted hover:text-terminal-dark"
+          className={cn(
+            "h-7 px-2 text-xs font-mono",
+            isGlass
+              ? "text-white/60 hover:text-white/90"
+              : "text-terminal-muted hover:text-terminal-dark"
+          )}
         >
           {isExpanded ? t("hide") : t("details")}
           {isExpanded ? (
@@ -230,7 +281,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       </div>
 
       {isExpanded && (
-        <div className="mt-2 border-t border-terminal-dark/10 pt-2">
+        <div className={cn("mt-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {children}
         </div>
       )}

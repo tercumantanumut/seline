@@ -12,6 +12,8 @@ import { registerComfyUIHandlers } from "./ipc-comfyui-handlers";
 import { registerFlux2Handlers } from "./ipc-flux2-handlers";
 import { registerModelHandlers } from "./ipc-model-handlers";
 import { registerFileHandlers } from "./ipc-file-handlers";
+import { registerVoiceHotkeyHandlers } from "./ipc-voice-hotkey-handlers";
+import { registerBrowserSessionHandlers } from "./ipc-browser-session-handlers";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,8 +157,10 @@ export function setupIpcHandlers(ctx: IpcHandlerContext): void {
 
   registerFileHandlers(ctx);
   registerModelHandlers(ctx);
+  registerVoiceHotkeyHandlers(ctx);
   registerComfyUIHandlers(ctx);
   registerFlux2Handlers(ctx);
+  registerBrowserSessionHandlers(ctx);
 }
 
 // ---------------------------------------------------------------------------

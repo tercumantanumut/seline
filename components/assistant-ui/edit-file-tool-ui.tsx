@@ -1,9 +1,10 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import { FileIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, PencilIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { useToolExpansion } from "./tool-expansion-context";
 
 interface DiagnosticResult {
   tool: string;
@@ -49,6 +50,16 @@ export const EditFileToolUI: ToolCallContentPartComponent = ({
   const [expanded, setExpanded] = useState(false);
   const [showFullDiff, setShowFullDiff] = useState(false);
   const [showFullDiagnostics, setShowFullDiagnostics] = useState(false);
+
+  // React to global expand/collapse signal
+  const expansionCtx = useToolExpansion();
+  const lastSignalRef = useRef(0);
+  useEffect(() => {
+    if (!expansionCtx || expansionCtx.signal.counter === 0) return;
+    if (expansionCtx.signal.counter === lastSignalRef.current) return;
+    lastSignalRef.current = expansionCtx.signal.counter;
+    setExpanded(expansionCtx.signal.mode === "expand");
+  }, [expansionCtx?.signal]);
   const filePath = (args?.filePath as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
 

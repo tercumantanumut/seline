@@ -1,5 +1,5 @@
-export const RETRY_SCHEDULE_MS = [10_000, 30_000, 60_000, 120_000, 180_000] as const;
-export const RETRY_MAX_DELAY_MS = 300_000;
+export const RETRY_SCHEDULE_MS = [10_000, 30_000, 60_000, 120_000, 300_000, 600_000] as const;
+export const RETRY_MAX_DELAY_MS = 600_000;
 
 const RECOVERABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const CONFLICT_STATUS_CODE = 409;
@@ -24,6 +24,10 @@ const TRANSIENT_PAYLOAD_PATTERNS = [
   /econnreset/i,
   /etimedout/i,
   /eai_again/i,
+  /other side closed/i,
+  /UND_ERR_SOCKET/i,
+  /broken pipe/i,
+  /failed to pipe/i,
 ];
 
 const TERMINAL_PAYLOAD_PATTERNS = [

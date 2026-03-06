@@ -14,7 +14,7 @@ import { readFile, open } from "fs/promises";
 import { basename, extname } from "path";
 import {
   isPathAllowed,
-  resolveSyncedFolderPaths,
+  resolveWorkspaceAwarePaths,
   recordFileRead,
   findSimilarFiles,
 } from "@/lib/ai/filesystem";
@@ -328,10 +328,10 @@ export function createReadFileTool(options: ReadFileToolOptions) {
         return kbResult;
       }
 
-      // STEP 2: Synced Folders
+      // STEP 2: Synced Folders (workspace-aware — worktree path is included if active)
       let syncedFolders: string[];
       try {
-        syncedFolders = await resolveSyncedFolderPaths(characterId);
+        syncedFolders = await resolveWorkspaceAwarePaths(characterId, sessionId);
         if (syncedFolders.length === 0) {
           return {
             status: "error",

@@ -912,6 +912,7 @@
       "readAloud": "Sesli oku",
       "stopAudio": "Sesi durdur",
       "voiceInput": "Sesle yaz",
+      "voiceInputHold": "Kaydetmek için basılı tut",
       "stopVoiceInput": "Kaydı durdur",
       "transcribingAudio": "Ses yazıya dönüştürülüyor..."
     },
@@ -993,6 +994,8 @@
       "toolOutputPreview": "Araç çıktı önizlemesi {index}",
       "hide": "Gizle",
       "details": "Detaylar",
+      "expandAll": "Tüm araçları aç",
+      "collapseAll": "Tüm araçları kapat",
       "workspace": "Çalışma Alanı"
     },
     "patchFile": {
@@ -1177,6 +1180,26 @@
       "searchAriaLabel": "Becerilerde ara",
       "noSkillsYet": "Henüz beceri yok - bir .md beceri dosyası bırakın veya Ayarlar → Eklentiler bölümünü ziyaret edin.",
       "noMatch": "\"{query}\" ile eşleşen beceri yok"
+    },
+    "skillsPage": {
+      "title": "Beceriler",
+      "subtitle": "Seline'e süper güçler ver.",
+      "learnMore": "Daha fazla bilgi",
+      "refresh": "Yenile",
+      "newSkill": "Yeni beceri",
+      "searchPlaceholder": "Becerilerde ara...",
+      "installed": "Yuklu",
+      "recommended": "Onerilen",
+      "noResults": "Aramanizla eslesen beceri yok.",
+      "install": "Yukle",
+      "installing": "Yukleniyor...",
+      "installSuccess": "Beceri basariyla yuklendi",
+      "uninstall": "Kaldir",
+      "uninstallConfirm": "Bu beceriyi kaldirmak istediginizden emin misiniz?",
+      "disable": "Devre disi birak",
+      "enable": "Etkinlestir",
+      "try": "Dene",
+      "openFolder": "Klasoru ac"
     },
     "editFileTool": {
       "creating": "Oluşturuluyor...",
@@ -1647,6 +1670,8 @@
         "memorize": "Hafıza",
         "memorizeDesc": "Gelecek konuşmalarda hatırlanacak gerçekleri veya tercihleri kaydedin",
         "workspace": "Çalışma Alanı",
+        "askUserQuestion": "Kullanıcıya Soru Sor",
+        "askFollowupQuestion": "Takip Sorusu Sor",
         "workspaceDesc": "Yalıtılmış kod değişiklikleri için git worktree çalışma alanları oluştur ve yönet",
         "delegateToSubagent": "Alt Ajana Devret",
         "delegateToSubagentDesc": "Görevleri iş akışı alt ajanlarına gönder ve yanıtlarını al"
@@ -2101,6 +2126,26 @@
         "light": "Aydınlık",
         "system": "Sistem"
       },
+      "colorPalette": {
+        "heading": "Renk Paleti",
+        "description": "Genel görünümü değiştirmek için bir renk paleti seçin"
+      },
+      "backgrounds": {
+        "heading": "Arka Planlar",
+        "description": "Ana sayfa ve sohbet arayüzü için duvar kağıdı ayarlayın",
+        "homepage": "Ana Sayfa",
+        "chat": "Sohbet",
+        "opacity": "Opaklık",
+        "wallpaper": "Duvar kağıdı",
+        "color": "Renk",
+        "customUrl": "Özel URL",
+        "none": "Yok",
+        "all": "Tümü",
+        "clearBackground": "Arka planı temizle",
+        "images": "Görseller",
+        "videos": "Videolar",
+        "videoLabel": "Video"
+      },
       "language": {
         "label": "Dil",
         "en": "English",
@@ -2150,6 +2195,28 @@
         "verbosityLabel": "Ayrıntı düzeyi",
         "ultraCompact": "Ultra kompakt mod (-u)"
       },
+      "browserAutomation": {
+        "heading": "Tarayıcı otomasyonu",
+        "description": "Chromium çalışma alanı aracının web görevleri için tarayıcıyı nasıl başlatacağını seçin.",
+        "standalone": "Bağımsız (varsayılan)",
+        "standaloneDesc": "Korumalı ve başsız bir tarayıcı başlatır. İzole çerezler, eklenti yok. Öngörülebilir ve sorunsuz.",
+        "userChrome": "Chrome tarayıcımı kullan",
+        "userChromeDesc": "Gerçek Chrome profilinizle başlatır — çerezleri, eklentileri ve tarayıcı parmak izini devralır. Bot algılamayı atlamak için daha iyi.",
+        "profilePathLabel": "Chrome profil yolu (isteğe bağlı)",
+        "profilePathPlaceholder": "İşletim sistemi varsayılan profili için boş bırakın",
+        "noteLabel": "Not:",
+        "noteText": "Bu modu kullanmadan önce Chrome tamamen kapatılmalıdır. Tüm tarayıcı oturumları profilinizin çerezlerini ve oturum durumunu paylaşacaktır."
+      },
+      "browserInteraction": {
+        "interactive": "Etkileşimli",
+        "interact": "Etkileşim",
+        "interactiveMode": "Etkileşimli Mod",
+        "urlPlaceholder": "URL girin ve Enter'a basın...",
+        "interactiveBadge": "ETKİLEŞİMLİ",
+        "userAction": "Kullanıcı",
+        "showActions": "Aksiyonları Göster",
+        "hideActions": "Aksiyonları Gizle"
+      },
       "devWorkspace": {
         "heading": "Geliştirici çalışma alanı",
         "description": "Git tabanlı kodlama iş akışları için çalışma alanı göstergeleri, fark görünümleri ve araçları göster.",
@@ -2159,7 +2226,7 @@
         "autoCleanDesc": "Birleştirmeden sonra veya belirli gün sayısından sonra eski çalışma ağaçlarını otomatik kaldır.",
         "cleanupDaysLabel": "Sonra temizle (gün)",
         "recommendedServers": "Önerilen araç sunucuları:",
-        "recommendedServersDesc": "Çalışma ağacı yönetimi için {worktreeTools} veya pull request iş akışları için {githubMcp} yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
+        "recommendedServersDesc": "Çalışma ağacı yönetimi için <worktreeTools/> veya pull request iş akışları için <githubMcp/> yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
       }
     },
     "memory": {
@@ -2226,8 +2293,90 @@
         "whisperSelectModel": "Bir model seçin",
         "whisperMultilingual": " · ~99 dili destekler",
         "whisperEnglishOnly": " · Yalnızca İngilizce",
-        "whisperSetupHint": "Yukarıdan bir model indirin — whisper-cli ve ffmpeg uygulama ile birlikte gelir. Dönüştürme tamamen cihazınızda gerçekleşir — API anahtarı veya internet gerekmez."
-      }
+        "whisperSetupHint": "Yukarıdan bir model indirin — whisper-cli ve ffmpeg uygulama ile birlikte gelir. Dönüştürme tamamen cihazınızda gerçekleşir — API anahtarı veya internet gerekmez.",
+        "providerParakeet": "Yerel (Parakeet/sherpa-onnx)",
+        "providerParakeetDesc": "sherpa-onnx websocket sunucusu ile hizli yerel cevirim.",
+        "parakeetModelLabel": "Parakeet modeli",
+        "parakeetAutoStartLabel": "Parakeet sunucusunu otomatik baslat",
+        "parakeetAutoStartDesc": "Uygulama acildiginda yerel websocket sunucusunu baslatir.",
+        "parakeetDownload": "Indir",
+        "parakeetDownloaded": "Indirildi",
+        "parakeetAutoDownloadHint": "Model ilk kullanimda otomatik olarak indirilecektir."
+      },
+      "controls": {
+        "heading": "Dikte kontrolleri",
+        "description": "Bas-konuş, ses işaretleri ve metin temizleme davranisini ayarla.",
+        "postProcessingLabel": "Transkripti utility model ile temizle",
+        "postProcessingDesc": "Dolgu kelimeleri temizler, noktalama ekler ve anlami korur.",
+        "audioCuesLabel": "Kayit baslat/durdur ses işaretleri",
+        "audioCuesDesc": "Dikte baslarken ve biterken kisa bir ses calar.",
+        "autoLearnLabel": "Duzenlemelerden ozel sozluk ogren",
+        "autoLearnDesc": "Transkript duzeltmelerinden isim ve jargon yakalar.",
+        "hotkeyLabel": "Global kisayol",
+        "hotkeyHelper": "Electron globalShortcut formati, ornek: CommandOrControl+Shift+Space",
+        "activationTitle": "Aktivasyon modu",
+        "activationTap": "Dokun-ac/kapat",
+        "activationTapDesc": "Bir kez basla, tekrar bas durdur.",
+        "activationPush": "Bas-konuş",
+        "activationPushDesc": "Tus basiliyken kayit acik kalir.",
+        "agentNameLabel": "Duzeltme ajan adi",
+        "agentNameHelper": "Temizleme isteminde kullanilan ajan kimligi."
+      },
+      "dictionary": {
+        "title": "Kisisel sozluk",
+        "description": "Isim, teknik terim ve kisaltma ekleyerek tanimayi iyilestirin.",
+        "placeholder": "Virgulle ayirarak kelime ekleyin",
+        "helper": "Kelime ekleyin veya kaldirin; whisper.cpp istemine ipucu olarak gider."
+      },
+      "history": {
+        "title": "Transkripsiyon gecmisi",
+        "description": "Kayit gecmisi tutma, saklama suresi ve onizleme uzunlugu ayarlari.",
+        "enabledLabel": "Gecmisi kaydet",
+        "limitLabel": "Maks kayit sayisi",
+        "retentionLabel": "Saklama (gun)",
+        "previewLabel": "Onizleme karakter siniri"
+      },
+      "actions": {
+        "title": "Hizli metin eylemleri",
+        "description": "Transkript metnini tek tikla duzenle, ozetle veya cevir.",
+        "enabledLabel": "Hizli eylemleri etkinlestir",
+        "targetLanguageLabel": "Varsayilan ceviri dili",
+        "preserveStyleLabel": "Yazar stilini koru",
+        "confirmDangerLabel": "Yikici eylemlerde onay iste",
+        "formalToneLabel": "Profesyonel ton tercih",
+        "formalToneAuto": "Otomatik",
+        "formalToneBusiness": "Is dili",
+        "formalToneCasual": "Gundelik",
+        "translationStyleLabel": "Ceviri stili",
+        "translationNatural": "Dogal",
+        "translationLiteral": "Birebir",
+        "summaryLengthLabel": "Ozet uzunlugu",
+        "summaryShort": "Kisa",
+        "summaryMedium": "Orta",
+        "summaryLong": "Uzun"
+      },
+      "parakeet": {
+        "modelLabel": "Parakeet modeli",
+        "modelHelper": "sherpa-onnx tarafinda kullanilan model klasoru.",
+        "autoStartLabel": "Parakeet sunucuyu uygulama acilisinda baslat",
+        "autoStartDesc": "Parakeet seciliyken ilk transkripsiyon gecikmesini azaltir.",
+        "portLabel": "Parakeet websocket portu",
+        "portHelper": "0 ise uygun bir port otomatik secilir."
+      },
+      "historyCopied": "Panoya kopyalandı",
+      "historyCopyFailed": "Kopyalama başarısız",
+      "historyDeleted": "Kayıt silindi",
+      "historyDeleteFailed": "Kayıt silinemedi",
+      "historyEmpty": "Henüz transkripsiyon geçmişi yok",
+      "dictionaryAdded": "\"{word}\" sözlüğe eklendi",
+      "dictionaryRemoved": "\"{word}\" sözlükten çıkarıldı",
+      "dictionaryAddFailed": "Kelime eklenemedi",
+      "dictionaryRemoveFailed": "Kelime silinemedi",
+      "dictionaryPlaceholder": "Kelime veya isim ekle...",
+      "dictionaryAutoLearnHint": "Düzeltmelerinizden otomatik öğrenir",
+      "dictionaryEmpty": "Henüz özel kelime yok",
+      "dictionaryCount": "{count} kelime",
+      "actionComplete": "İşlem tamamlandı"
     },
     "localGrep": {
       "heading": "Yerel grep (tam kod araması)",
@@ -3164,6 +3313,7 @@
       "copySuccess": "Beceri başarıyla kopyalandı.",
       "copyFailed": "Beceri kopyalanamadı"
     },
+    "library": "Kutuphane",
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",
     "importSuccess": "Yetenek başarıyla içe aktarıldı",

@@ -7,6 +7,21 @@
 
 import { existsSync } from "fs";
 import { basename, isAbsolute, join } from "path";
+import { getResolvedShellEnvironment } from "@/lib/shell-env/resolver";
+
+const BLOCKED_ENV_KEYS = new Set([
+    "ELECTRON_RUN_AS_NODE",
+    "ELECTRON_NO_ATTACH_CONSOLE",
+    "ELECTRON_ENABLE_LOGGING",
+]);
+
+function sanitizeEnvironment(env: Record<string, string | undefined>): Record<string, string | undefined> {
+    const sanitized = { ...env };
+    for (const key of BLOCKED_ENV_KEYS) {
+        delete sanitized[key];
+    }
+    return sanitized;
+}
 
 export type BundledRuntimeInfo = {
     resourcesPath: string | null;
@@ -65,24 +80,22 @@ export function prependBundledPaths(pathValue: string, runtime: BundledRuntimeIn
  * Includes bundled Node.js binaries in PATH for packaged apps.
  */
 export function buildSafeEnvironment(runtime: BundledRuntimeInfo): Record<string, string | undefined> {
-    const pathValue = prependBundledPaths(process.env.PATH || "", runtime);
+    const shellEnv = getResolvedShellEnvironment();
+    const baseEnv = { ...process.env, ...shellEnv } as Record<string, string | undefined>;
+    const pathValue = prependBundledPaths(baseEnv.PATH || "", runtime);
+
     if (runtime.bundledBinDirs.length > 0) {
         console.log(`[Command Executor] Prepending bundled binaries to PATH: ${runtime.bundledBinDirs.join(", ")}`);
     }
 
-    return {
+    return sanitizeEnvironment({
+        ...baseEnv,
         PATH: pathValue,
-        HOME: process.env.HOME || process.env.USERPROFILE,
-        USER: process.env.USER || process.env.USERNAME,
-        LANG: process.env.LANG,
-        TERM: process.env.TERM || "xterm-256color",
-        SYSTEMROOT: process.env.SYSTEMROOT,
-        COMSPEC: process.env.COMSPEC,
-        TEMP: process.env.TEMP,
-        TMP: process.env.TMP,
-        USERPROFILE: process.env.USERPROFILE,
-        ELECTRON_RESOURCES_PATH: process.env.ELECTRON_RESOURCES_PATH,
-    };
+        TERM: baseEnv.TERM || "xterm-256color",
+        HOME: baseEnv.HOME || baseEnv.USERPROFILE,
+        USER: baseEnv.USER || baseEnv.USERNAME,
+        ELECTRON_RESOURCES_PATH: process.env.ELECTRON_RESOURCES_PATH || runtime.resourcesPath || undefined,
+    });
 }
 
 export function normalizeExecutable(command: string): string {

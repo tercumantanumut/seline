@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
             data: event,
           });
 
-          // Safety guard: drop excessively large SSE messages (> 1MB)
-          const MAX_SSE_MESSAGE_BYTES = 1_000_000;
+          // Safety guard: drop excessively large SSE messages (> 10MB)
+          const MAX_SSE_MESSAGE_BYTES = 10_000_000;
           if (message.length > MAX_SSE_MESSAGE_BYTES) {
             console.error(
               `[SSE] Dropping oversized progress event (${(message.length / 1024).toFixed(0)}KB) for run ${runId}. ` +

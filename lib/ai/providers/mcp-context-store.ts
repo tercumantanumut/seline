@@ -8,6 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "async_hooks";
+import type { LivePromptEntry } from "@/lib/background-tasks/live-prompt-queue-registry";
 
 export interface SdkToolResultRecord {
   output: unknown;
@@ -42,6 +43,8 @@ export interface SelineMcpContext {
   userId: string;
   /** Current chat session ID */
   sessionId: string;
+  /** Current agent run ID (used for live prompt injection into SDK sessions). */
+  runId?: string;
   /** Active character / agent ID (null for the default assistant) */
   characterId: string | null;
   /**
@@ -108,6 +111,12 @@ export interface SelineMcpContext {
    * back into Vercel AI SDK tool execution lifecycle.
    */
   sdkToolResultBridge?: SdkToolResultBridge;
+
+  /**
+   * Callback fired before queued live-prompt entries are injected into an active
+   * Claude Agent SDK session, so the chat route can split/persist messages.
+   */
+  onQueueMessages?: (entries: LivePromptEntry[]) => Promise<void>;
 }
 
 export const mcpContextStore = new AsyncLocalStorage<SelineMcpContext>();

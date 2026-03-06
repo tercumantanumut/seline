@@ -191,6 +191,14 @@ export async function initializeVectorSync(): Promise<void> {
     // 1c. Clean up orphaned vector tables that no longer map to a character.
     await cleanupOrphanedVectorTables();
 
+    // 1d. Compact LanceDB tables to reclaim space and improve query performance.
+    //     Runs async so it doesn't block startup.
+    import("./collections").then(({ compactAllAgentTables }) =>
+      compactAllAgentTables().catch(err =>
+        console.error("[BackgroundSync] LanceDB compaction error:", err)
+      )
+    );
+
     // 2. Restart file watchers for all synced folders
     await restartAllWatchers();
 

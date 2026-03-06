@@ -28,7 +28,6 @@ import {
 
 interface UseBackgroundProcessingOptions {
     sessionId: string;
-    refreshSessionTimestamp: (id: string) => void;
     notifySessionUpdate: (id: string, data: Record<string, unknown>) => void;
     setSessionState: React.Dispatch<React.SetStateAction<SessionState>>;
     chatSetMessagesRef: React.MutableRefObject<((msgs: UIMessage[]) => void) | null>;
@@ -37,7 +36,6 @@ interface UseBackgroundProcessingOptions {
 
 export function useBackgroundProcessing({
     sessionId,
-    refreshSessionTimestamp,
     notifySessionUpdate,
     setSessionState,
     chatSetMessagesRef,
@@ -87,9 +85,7 @@ export function useBackgroundProcessing({
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
         const conversationMessageCount = data.messages.filter((message) => message.role === "user" || message.role === "assistant").length;
 
-        refreshSessionTimestamp(sessionId);
         notifySessionUpdate(sessionId, {
-            updatedAt: new Date().toISOString(),
             messageCount: conversationMessageCount,
         });
 
@@ -100,7 +96,7 @@ export function useBackgroundProcessing({
         if (chatSetMessagesRef.current) {
             chatSetMessagesRef.current(uiMessages);
         }
-    }, [sessionId, refreshSessionTimestamp, notifySessionUpdate, setSessionState, chatSetMessagesRef, shouldSkipBackgroundRefresh]);
+    }, [sessionId, notifySessionUpdate, setSessionState, chatSetMessagesRef, shouldSkipBackgroundRefresh]);
 
     // isChatFading is local to this hook's refreshMessages but needs to be surfaced
     // back to the component. We keep a state for it here too.
@@ -398,6 +394,21 @@ export function useSessionManager({
         setIsCancellingBackgroundRun(false);
     }, [pollingIntervalRef, setIsProcessingInBackground, setProcessingRunId, setIsZombieRun, setIsCancellingBackgroundRun]);
 
+    // Session switches should not trigger an App Router navigation because that remounts
+    // the chat shell and restarts ambient video backgrounds.
+    const replaceSessionUrl = useCallback((targetSessionId: string) => {
+        const chatPathSuffix = `/chat/${character.id}`;
+        const nextUrl = `${chatPathSuffix}?sessionId=${targetSessionId}`;
+        if (typeof window !== "undefined") {
+            const currentPath = window.location.pathname.replace(/\/$/, "");
+            if (currentPath.endsWith(chatPathSuffix)) {
+                window.history.replaceState(window.history.state, "", nextUrl);
+                return;
+            }
+        }
+        router.replace(nextUrl, { scroll: false });
+    }, [character.id, router]);
+
     const switchSession = useCallback(async (newSessionId: string) => {
         // Guard: clicking the same session while a run is active must be a no-op.
         // clearBackgroundState() would drop processingRunId / isProcessingInBackground,
@@ -413,13 +424,13 @@ export function useSessionManager({
             notifySessionUpdate(newSessionId, {
                 messageCount: sessionPayload.conversationalMessageCount,
             });
-            router.replace(`/chat/${character.id}?sessionId=${newSessionId}`, { scroll: false });
+            replaceSessionUrl(newSessionId);
         } catch (err) {
             console.error("Failed to switch session:", err);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, character.id, router, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, setSessionState]);
+    }, [sessionId, fetchSessionMessages, clearBackgroundState, notifySessionUpdate, replaceSessionUrl, setSessionState]);
 
     const createNewSession = useCallback(async () => {
         try {
@@ -434,7 +445,7 @@ export function useSessionManager({
                 setSessionState({ sessionId: session.id, messages: [] });
                 syncSessions([session]);
                 await loadSessions();
-                router.replace(`/chat/${character.id}?sessionId=${session.id}`, { scroll: false });
+                replaceSessionUrl(session.id);
             }
         } catch (err) {
             console.error("Failed to create new session:", err);

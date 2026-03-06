@@ -50,3 +50,10 @@ export {
   createOpenRouterGemini3ProImageEdit,
   createOpenRouterGemini3ProImageReference,
 } from "@/lib/ai/tools/openrouter-image-tools";
+
+// Interactive question tools
+export {
+  createAskUserQuestionTool,
+  type AskUserQuestionToolOptions,
+  type AskUserQuestionArgs,
+} from "@/lib/ai/tools/ask-user-question-tool";

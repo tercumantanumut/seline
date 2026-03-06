@@ -234,6 +234,9 @@ export * from "./sqlite-plugins-schema";
 // Re-export workflows schema
 export * from "./sqlite-workflows-schema";
 
+// Re-export voice schema
+export * from "./sqlite-voice-schema";
+
 // ============================================================================
 // TYPES
 // ============================================================================

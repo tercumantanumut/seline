@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { isAudioMimeType, transcribeAudio } from "@/lib/audio/transcription";
+import { saveTranscriptionToHistory } from "@/lib/voice/voice-utils";
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
@@ -36,6 +37,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await transcribeAudio(buffer, mimeType, file.name || undefined);
+
+    // Save to voice history (fire-and-forget, non-blocking)
+    void saveTranscriptionToHistory({
+      provider: result.provider,
+      text: result.text,
+      language: result.language ?? null,
+      durationMs: result.durationSeconds != null ? Math.round(result.durationSeconds * 1000) : null,
+    }).catch((err) => {
+      console.error("[Voice API] Failed to save transcription to history:", err);
+    });
 
     return NextResponse.json({
       success: true,

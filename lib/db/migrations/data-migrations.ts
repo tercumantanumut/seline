@@ -102,8 +102,9 @@ export function runDataMigrations(sqlite: Database.Database): void {
         version INTEGER NOT NULL DEFAULT 1,
         copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL,
         copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL,
-        source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template')),
+        source_type TEXT NOT NULL DEFAULT 'conversation' CHECK(source_type IN ('conversation', 'manual', 'template', 'catalog')),
         source_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        catalog_id TEXT,
         run_count INTEGER NOT NULL DEFAULT 0,
         success_count INTEGER NOT NULL DEFAULT 0,
         last_run_at TEXT,
@@ -129,6 +130,7 @@ export function runDataMigrations(sqlite: Database.Database): void {
       { name: "version", sql: "ALTER TABLE skills ADD COLUMN version INTEGER NOT NULL DEFAULT 1" },
       { name: "copied_from_skill_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_skill_id TEXT REFERENCES skills(id) ON DELETE SET NULL" },
       { name: "copied_from_character_id", sql: "ALTER TABLE skills ADD COLUMN copied_from_character_id TEXT REFERENCES characters(id) ON DELETE SET NULL" },
+      { name: "catalog_id", sql: "ALTER TABLE skills ADD COLUMN catalog_id TEXT" },
     ];
 
     for (const column of skillColumnsToAdd) {
@@ -145,6 +147,10 @@ export function runDataMigrations(sqlite: Database.Database): void {
     sqlite.exec(`
       CREATE INDEX IF NOT EXISTS idx_skills_user_category
       ON skills (user_id, category)
+    `);
+    sqlite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_skills_catalog_id
+      ON skills (catalog_id)
     `);
 
     sqlite.exec(`

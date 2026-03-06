@@ -55,6 +55,34 @@ interface ElectronAPI {
         getModelsDir: () => Promise<string>;
         checkExists: (modelId: string) => Promise<boolean>;
         download: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+        checkFileExists: (opts: { modelId: string; filename: string }) => Promise<boolean>;
+        downloadFile: (opts: { modelId: string; repo: string; filename: string }) => Promise<{ success: boolean; error?: string }>;
+        parakeetGetStatus: (modelId?: string) => Promise<{
+            installed: boolean;
+            running: boolean;
+            modelId: string | null;
+            modelDir: string | null;
+            wsBinary: string | null;
+            wsAvailable: boolean;
+            cpuThreads: number;
+            baseDir: string;
+        }>;
+        parakeetResolvePaths: (modelId?: string) => Promise<{
+            success: boolean;
+            error?: string;
+            modelId?: string;
+            modelDir?: string;
+            wsBinary?: string | null;
+            modelInstalled?: boolean;
+            wsAvailable?: boolean;
+        }>;
+        parakeetDownloadModel: (modelId?: string) => Promise<{
+            success: boolean;
+            error?: string;
+            modelId?: string;
+            modelDir?: string;
+            wsBinary?: string | null;
+        }>;
         onProgress: (callback: (data: { modelId: string; status: string; progress?: number; file?: string; error?: string }) => void) => void;
         removeProgressListener: () => void;
     };

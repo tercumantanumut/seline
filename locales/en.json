@@ -912,6 +912,7 @@
       "readAloud": "Read aloud",
       "stopAudio": "Stop audio",
       "voiceInput": "Voice input",
+      "voiceInputHold": "Hold to record",
       "stopVoiceInput": "Stop recording",
       "transcribingAudio": "Transcribing audio..."
     },
@@ -969,6 +970,8 @@
       "calculator": "Calculator",
       "updatePlan": "Update Plan",
       "workspace": "Workspace",
+      "askUserQuestion": "Ask User Question",
+      "askFollowupQuestion": "Ask Follow-up Question",
       "generateImageFlux2Flex": "Generate (Flux.2 Flex)",
       "editImageFlux2Flex": "Edit (Flux.2 Flex)",
       "referenceImageFlux2Flex": "Reference (Flux.2 Flex)",
@@ -993,7 +996,9 @@
       "referenceImageFlux2Klein9B": "Reference (FLUX.2 Klein 9B)",
       "toolOutputPreview": "Tool output preview {index}",
       "hide": "Hide",
-      "details": "Details"
+      "details": "Details",
+      "expandAll": "Expand all tools",
+      "collapseAll": "Collapse all tools"
     },
     "patchFile": {
       "patchLabel": "Patch",
@@ -1177,6 +1182,26 @@
       "searchAriaLabel": "Search skills",
       "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings → Plugins.",
       "noMatch": "No skills match \"{query}\""
+    },
+    "skillsPage": {
+      "title": "Skills",
+      "subtitle": "Give Seline superpowers.",
+      "learnMore": "Learn more",
+      "refresh": "Refresh",
+      "newSkill": "New skill",
+      "searchPlaceholder": "Search skills...",
+      "installed": "Installed",
+      "recommended": "Recommended",
+      "noResults": "No skills match your search.",
+      "install": "Install",
+      "installing": "Installing...",
+      "installSuccess": "Skill installed successfully",
+      "uninstall": "Uninstall",
+      "uninstallConfirm": "Are you sure you want to uninstall this skill?",
+      "disable": "Disable",
+      "enable": "Enable",
+      "try": "Try",
+      "openFolder": "Open folder"
     },
     "editFileTool": {
       "creating": "Creating...",
@@ -1864,6 +1889,7 @@
       "anthropic": "Anthropic (Claude API)",
       "openrouter": "OpenRouter",
       "kimi": "Moonshot Kimi",
+      "minimax": "MiniMax",
       "ollama": "Ollama (local)",
       "keysTitle": "Provider keys",
       "auth": {
@@ -1911,6 +1937,11 @@
           "label": "Moonshot API Key",
           "placeholder": "sk-...",
           "helper": "Create a key in your Moonshot account."
+        },
+        "minimax": {
+          "label": "MiniMax API Key",
+          "placeholder": "eyJ...",
+          "helper": "Get your key from the MiniMax platform."
         },
         "webSearchProvider": {
           "label": "Web search source",
@@ -2262,6 +2293,26 @@
         "light": "Light",
         "system": "System"
       },
+      "colorPalette": {
+        "heading": "Color Palette",
+        "description": "Choose a color palette to change the overall look and feel"
+      },
+      "backgrounds": {
+        "heading": "Backgrounds",
+        "description": "Set wallpaper backgrounds for the homepage and chat interface",
+        "homepage": "Homepage",
+        "chat": "Chat",
+        "opacity": "Opacity",
+        "wallpaper": "Wallpaper",
+        "color": "Color",
+        "customUrl": "Custom URL",
+        "none": "None",
+        "all": "All",
+        "clearBackground": "Clear background",
+        "images": "Images",
+        "videos": "Videos",
+        "videoLabel": "Video"
+      },
       "language": {
         "label": "Language",
         "en": "English",
@@ -2311,6 +2362,43 @@
         "verbosityLabel": "Verbosity",
         "ultraCompact": "Ultra compact mode (-u)"
       },
+      "browserAutomation": {
+        "heading": "Browser automation",
+        "description": "Choose how the chromium workspace tool launches a browser for web tasks.",
+        "standalone": "Standalone (default)",
+        "standaloneDesc": "Launches a sandboxed headless browser. Isolated cookies, no extensions. Predictable and zero-friction.",
+        "userChrome": "Use my Chrome browser",
+        "userChromeDesc": "Launches with your real Chrome profile — inherits cookies, extensions, and browser fingerprint. Better for avoiding bot detection.",
+        "profilePathLabel": "Chrome profile path (optional)",
+        "profilePathPlaceholder": "Leave empty for OS default profile",
+        "noteLabel": "Note:",
+        "noteText": "Chrome must be fully closed before using this mode. All browser sessions will share your profile's cookies and login state."
+      },
+      "browserInteraction": {
+        "interactive": "Interactive",
+        "interact": "Interact",
+        "interactiveMode": "Interactive Mode",
+        "urlPlaceholder": "Enter URL and press Enter...",
+        "interactiveBadge": "INTERACTIVE",
+        "userAction": "User",
+        "showActions": "Show Actions",
+        "hideActions": "Hide Actions"
+      },
+      "avatar3d": {
+        "heading": "3D Avatar",
+        "description": "Enable a 3D talking head avatar that lip-syncs to TTS audio and reflects detected emotions.",
+        "enableLabel": "Enable 3D avatar",
+        "enableDesc": "Shows an animated 3D avatar in the chat interface."
+      },
+      "everMemOS": {
+        "heading": "Shared memory (EverMemOS)",
+        "description": "Connect to an EverMemOS server for cross-agent shared memory. Local memory is always used; EverMemOS adds shared recall.",
+        "enableLabel": "Enable EverMemOS",
+        "enableDesc": "Pushes memories to a shared EverMemOS server in addition to local storage.",
+        "serverUrlLabel": "EverMemOS server URL",
+        "serverUrlPlaceholder": "http://localhost:8765",
+        "serverUrlHelper": "The base URL of your running EverMemOS instance."
+      },
       "devWorkspace": {
         "heading": "Developer workspace",
         "description": "Show workspace indicators, diff views, and tools for git-based coding workflows.",
@@ -2320,7 +2408,7 @@
         "autoCleanDesc": "Remove old worktrees automatically after merge or after a set number of days.",
         "cleanupDaysLabel": "Clean up after (days)",
         "recommendedServers": "Recommended tool servers:",
-        "recommendedServersDesc": "Install {worktreeTools} for worktree management or {githubMcp} for pull request workflows. Configure them in Tool servers (MCP)."
+        "recommendedServersDesc": "Install <worktreeTools/> for worktree management or <githubMcp/> for pull request workflows. Configure them in Tool servers (MCP)."
       }
     },
     "memory": {
@@ -2387,8 +2475,88 @@
         "whisperSelectModel": "Select a model",
         "whisperMultilingual": " · Supports ~99 languages",
         "whisperEnglishOnly": " · English only",
-        "whisperSetupHint": "Download a model above — whisper-cli and ffmpeg are bundled with the app. Transcription runs entirely on your device — no API key or internet needed."
-      }
+        "whisperSetupHint": "Download a model above — whisper-cli and ffmpeg are bundled with the app. Transcription runs entirely on your device — no API key or internet needed.",
+        "providerParakeet": "Local (Parakeet/sherpa-onnx)",
+        "providerParakeetDesc": "Fast local transcription via sherpa-onnx websocket server.",
+        "parakeetModelLabel": "Parakeet model",
+        "parakeetAutoStartLabel": "Auto-start Parakeet server",
+        "parakeetAutoStartDesc": "Starts the local websocket server at app launch when possible.",
+        "parakeetDownload": "Download",
+        "parakeetDownloaded": "Downloaded",
+        "parakeetAutoDownloadHint": "Model will be downloaded automatically on first use."
+      },
+      "controls": {
+        "title": "Dictation controls",
+        "description": "Configure push-to-talk, cues, and cleanup behavior.",
+        "postProcessingLabel": "Clean up transcription with utility model",
+        "postProcessingDesc": "Removes filler words and fixes punctuation before insertion.",
+        "agentNameLabel": "Assistant name for cleanup prompts",
+        "agentNameDesc": "Used by the post-processing prompt persona.",
+        "audioCuesLabel": "Play start/stop audio cues",
+        "audioCuesDesc": "Plays two short tones when recording starts and stops.",
+        "autoLearnLabel": "Auto-learn dictionary from manual corrections",
+        "autoLearnDesc": "When you edit transcripts, corrected words are suggested into your dictionary.",
+        "activationTitle": "Activation mode",
+        "activationTap": "Tap to toggle",
+        "activationTapDesc": "Press once to start recording, press again to stop.",
+        "activationPush": "Push to talk",
+        "activationPushDesc": "Hold the hotkey while speaking. Release to transcribe.",
+        "hotkeyLabel": "Global dictation hotkey",
+        "hotkeyDesc": "Works app-wide in Electron builds.",
+        "hotkeyPlaceholder": "CommandOrControl+Shift+Space"
+      },
+      "dictionary": {
+        "title": "Personal dictionary",
+        "description": "Words and names to bias local transcription.",
+        "helper": "Separate with commas. Saved words are used as whisper/parakeet hints.",
+        "placeholder": "e.g. Seline, k8s, OpenWhispr",
+        "add": "Add words",
+        "empty": "No dictionary words yet.",
+        "remove": "Remove"
+      },
+      "history": {
+        "title": "Voice history",
+        "description": "Store recent transcript operations for quick recall.",
+        "enabledLabel": "Enable history",
+        "enabledDesc": "Saves transformed transcripts and actions locally.",
+        "limitLabel": "Max entries",
+        "retentionLabel": "Retention days",
+        "previewLabel": "Preview length"
+      },
+      "actions": {
+        "title": "Quick actions",
+        "description": "Configure one-tap text transformations.",
+        "enabledLabel": "Enable quick actions",
+        "enabledDesc": "Shows Fix, Professional, Summarize, and Translate actions in composer.",
+        "defaultLanguageLabel": "Default translation language",
+        "preserveStyleLabel": "Preserve original style",
+        "confirmDestructiveLabel": "Confirm destructive actions",
+        "formalToneLabel": "Professional rewrite tone",
+        "formalToneAuto": "Adaptive",
+        "formalToneBusiness": "Business",
+        "formalToneCasual": "Casual",
+        "translationStyleLabel": "Translation style",
+        "translationNatural": "Natural",
+        "translationLiteral": "Literal",
+        "summaryLengthLabel": "Summary length",
+        "summaryShort": "Short",
+        "summaryMedium": "Medium",
+        "summaryLong": "Long"
+      },
+      "historyCopied": "Copied to clipboard",
+      "historyCopyFailed": "Failed to copy",
+      "historyDeleted": "Entry deleted",
+      "historyDeleteFailed": "Failed to delete entry",
+      "historyEmpty": "No transcription history yet",
+      "dictionaryAdded": "Added \"{word}\" to dictionary",
+      "dictionaryRemoved": "Removed \"{word}\" from dictionary",
+      "dictionaryAddFailed": "Failed to add word",
+      "dictionaryRemoveFailed": "Failed to remove word",
+      "dictionaryPlaceholder": "Add a word or name...",
+      "dictionaryAutoLearnHint": "Auto-learns from your corrections",
+      "dictionaryEmpty": "No custom words yet",
+      "dictionaryCount": "{count} words",
+      "actionComplete": "Action completed"
     },
     "localGrep": {
       "heading": "Local grep (exact code search)",
@@ -3167,6 +3335,7 @@
       "copyFailed": "Failed to copy skill"
     },
     "mySkills": "My Skills",
+    "library": "Library",
     "importPackage": "Import Package",
     "hideImport": "Hide Import",
     "importSuccess": "Skill imported successfully",
@@ -3268,6 +3437,33 @@
       "saveFailed": "Failed to save skill",
       "runFailed": "Failed to run skill",
       "copyFailed": "Failed to copy skill"
+    },
+    "catalog": {
+      "title": "Skill Catalog",
+      "description": "Browse and install skills to extend your agents.",
+      "search": "Search skills...",
+      "selectAgent": "Select agent",
+      "noResults": "No skills match your search.",
+      "noSkills": "No skills available.",
+      "install": "Install",
+      "installing": "Installing...",
+      "installed": "Installed",
+      "installSuccess": "{name} installed",
+      "installFailed": "Install failed",
+      "alreadyInstalled": "Already installed",
+      "requirements": "Requirements",
+      "source": "Source",
+      "bundled": "Bundled",
+      "platforms": "Platforms",
+      "categories": {
+        "design": "Design",
+        "deploy": "Deploy",
+        "dev-tools": "Dev Tools",
+        "productivity": "Productivity",
+        "creative": "Creative",
+        "docs": "Docs",
+        "security": "Security"
+      }
     }
   },
   "schedules": {

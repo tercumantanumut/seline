@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const skillStatusSchema = z.enum(["draft", "active", "archived"]);
-export const skillSourceTypeSchema = z.enum(["conversation", "manual", "template"]);
+export const skillSourceTypeSchema = z.enum(["conversation", "manual", "template", "catalog"]);
 
 export const skillInputParameterSchema = z.object({
   name: z.string().min(1).max(80),

@@ -9,6 +9,8 @@
 import { isAbsolute, join, normalize, resolve, sep, basename, dirname } from "path";
 import { mkdir, realpath } from "fs/promises";
 import { getSyncFolders } from "@/lib/vectordb/sync-service";
+import { getSession } from "@/lib/db/queries-sessions";
+import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFiles } from "@/lib/db/sqlite-character-schema";
 import { eq, like, and } from "drizzle-orm";
@@ -127,6 +129,74 @@ export async function isPathAllowed(filePath: string, allowedFolderPaths: string
 export async function resolveSyncedFolderPaths(characterId: string): Promise<string[]> {
   const syncedFolders = await getSyncFolders(characterId);
   return syncedFolders.map((f) => f.folderPath);
+}
+
+/**
+ * Get the active worktree path from session metadata, if any.
+ * Returns null if no workspace is active or sessionId is invalid.
+ */
+export async function getActiveWorktreePath(sessionId: string): Promise<string | null> {
+  if (!sessionId || sessionId === "UNSCOPED") return null;
+  try {
+    const session = await getSession(sessionId);
+    if (!session) return null;
+    const wsInfo = getWorkspaceInfo(session.metadata as Record<string, unknown> | null);
+    if (!wsInfo?.worktreePath || typeof wsInfo.worktreePath !== "string") return null;
+    return wsInfo.worktreePath;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a normalized path is a worktree directory
+ * (lives under a `/worktrees/` parent — the convention used by the workspace tool).
+ */
+export function isWorktreePath(p: string): boolean {
+  const normalized = normalize(p);
+  return normalized.includes(`${sep}worktrees${sep}`);
+}
+
+/**
+ * Check if a path belongs to a DIFFERENT worktree than the active one.
+ * Returns false if there is no active worktree (nothing to conflict with).
+ */
+export function isOtherWorktreePath(p: string, activeWorktreePath: string | null): boolean {
+  if (!activeWorktreePath) return false;
+  const normalized = normalize(p);
+  if (!isWorktreePath(normalized)) return false;
+  return normalized !== normalize(activeWorktreePath);
+}
+
+/**
+ * Workspace-aware synced folder resolution.
+ *
+ * When an active worktree exists, the worktree path is placed FIRST in the
+ * returned array so it becomes the default for tools that use `[0]`.
+ * Other worktree paths are EXCLUDED to prevent cross-workspace contamination.
+ * The base repo path is still included (for index/vector lookups) but deprioritized.
+ */
+export async function resolveWorkspaceAwarePaths(
+  characterId: string,
+  sessionId: string
+): Promise<string[]> {
+  const basePaths = await resolveSyncedFolderPaths(characterId);
+  const worktreePath = await getActiveWorktreePath(sessionId);
+  if (!worktreePath) return basePaths;
+
+  // Normalize for dedup — session metadata and DB may have different trailing slashes
+  const normalizedWorktree = normalize(worktreePath);
+
+  // Put worktree first, exclude other worktrees, keep base repo for path-allowed checks
+  return [
+    normalizedWorktree,
+    ...basePaths.filter((p) => {
+      const norm = normalize(p);
+      if (norm === normalizedWorktree) return false; // dedup active worktree
+      if (isOtherWorktreePath(norm, normalizedWorktree)) return false; // exclude other worktrees
+      return true;
+    }),
+  ];
 }
 
 /**

@@ -109,6 +109,77 @@ const electronAPI = {
     downloadFile: (opts: { modelId: string; repo: string; filename: string }): Promise<{ success: boolean; error?: string }> => {
       return ipcRenderer.invoke("model:downloadFile", opts);
     },
+    parakeetGetStatus: (modelId?: string): Promise<{
+      installed: boolean;
+      running: boolean;
+      modelId: string | null;
+      modelDir: string | null;
+      wsBinary: string | null;
+      wsAvailable: boolean;
+      cpuThreads: number;
+      baseDir: string;
+    }> => {
+      return ipcRenderer.invoke("parakeet:getStatus", modelId);
+    },
+    parakeetResolvePaths: (modelId?: string): Promise<{
+      success: boolean;
+      error?: string;
+      modelId?: string;
+      modelDir?: string;
+      wsBinary?: string | null;
+      modelInstalled?: boolean;
+      wsAvailable?: boolean;
+    }> => {
+      return ipcRenderer.invoke("parakeet:resolvePaths", modelId);
+    },
+    parakeetDownloadModel: (modelId?: string): Promise<{
+      success: boolean;
+      error?: string;
+      modelId?: string;
+      modelDir?: string;
+      wsBinary?: string | null;
+    }> => {
+      return ipcRenderer.invoke("parakeet:downloadModel", modelId);
+    },
+  },
+
+  // Browser session window operations
+  browserSession: {
+    open: (sessionId: string): Promise<{ success: boolean; reused?: boolean; error?: string }> => {
+      return ipcRenderer.invoke("browser-session:open", sessionId) as Promise<{ success: boolean; reused?: boolean; error?: string }>;
+    },
+    close: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke("browser-session:close", sessionId) as Promise<{ success: boolean; error?: string }>;
+    },
+    isOpen: (sessionId: string): Promise<{ open: boolean }> => {
+      return ipcRenderer.invoke("browser-session:is-open", sessionId) as Promise<{ open: boolean }>;
+    },
+    saveRecording: (options?: { defaultPath?: string }): Promise<{ success: boolean; filePath?: string; canceled?: boolean }> => {
+      return ipcRenderer.invoke("browser-session:save-recording", options) as Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
+    },
+  },
+
+  // Voice hotkey operations
+  voiceHotkey: {
+    onTriggered: (callback: () => void): (() => void) | undefined => {
+      const handler = () => callback();
+      ipcRenderer.on("voice-hotkey:triggered", handler);
+      return () => {
+        ipcRenderer.removeListener("voice-hotkey:triggered", handler);
+      };
+    },
+    register: (accelerator: string): Promise<{ success: boolean; accelerator: string; error?: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:register", accelerator);
+    },
+    registerFromSettings: (): Promise<{ success: boolean; accelerator: string; error?: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:registerFromSettings");
+    },
+    getRegistered: (): Promise<{ accelerator: string }> => {
+      return ipcRenderer.invoke("voice-hotkey:getRegistered");
+    },
+    clear: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke("voice-hotkey:clear");
+    },
   },
 
   // ComfyUI local backend operations
@@ -327,6 +398,14 @@ const electronAPI = {
         "comfyui:fullSetup",
         "comfyuiCustom:detect",
         "comfyuiCustom:resolve",
+        "voice-hotkey:register",
+        "voice-hotkey:registerFromSettings",
+        "voice-hotkey:getRegistered",
+        "voice-hotkey:clear",
+        "browser-session:open",
+        "browser-session:close",
+        "browser-session:is-open",
+        "browser-session:save-recording",
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -335,13 +414,13 @@ const electronAPI = {
     },
     on: (channel: string, callback: (...args: unknown[]) => void): void => {
       // Whitelist of allowed channels
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, (_event, ...args) => callback(...args));
       }
     },
     removeAllListeners: (channel: string): void => {
-      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress"];
+      const validChannels = ["window:maximized-changed", "model:downloadProgress", "logs:entry", "logs:critical", "comfyui:installProgress", "voice-hotkey:triggered"];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel);
       }

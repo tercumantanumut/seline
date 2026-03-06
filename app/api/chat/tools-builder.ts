@@ -173,6 +173,8 @@ export async function buildToolsForRequest(
     discoveredTools,
     enabledTools: enabledTools ? new Set(enabledTools) : undefined,
     subagentDirectory: workflowPromptContextInput?.subagentDirectory,
+    enableAnthropicToolReferences:
+      useDeferredLoading && ctx.provider === "anthropic",
   };
 
   // Build tools object with context-aware overrides.

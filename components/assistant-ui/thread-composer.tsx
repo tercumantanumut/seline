@@ -16,6 +16,8 @@ import {
   Loader2Icon,
   CircleStopIcon,
   CheckCircleIcon,
+  SparklesIcon,
+  UndoIcon,
 } from "lucide-react";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
@@ -28,6 +30,7 @@ import { animate } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
+import { useTheme } from "@/components/theme/theme-provider";
 import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
 import { useSessionComposerEditorState } from "@/lib/hooks/use-session-composer-editor-state";
@@ -42,6 +45,10 @@ import {
   usePastedTexts,
   usePromptEnhancement,
 } from "./composer-hooks";
+import { buildTranscriptInsertion } from "./voice-transcript-utils";
+import { VoiceWaveform } from "@/components/voice/voice-waveform";
+import { VoiceActions } from "@/components/voice/voice-actions";
+import { useGlobalVoiceHotkey } from "@/lib/hooks/use-global-hotkey";
 import {
   TiptapEditor,
   contentPartsToComposerText,
@@ -68,6 +75,11 @@ export const Composer: FC<{
   sessionId?: string;
   activeRunId?: string | null;
   sttEnabled?: boolean;
+  voicePostProcessing?: boolean;
+  voiceActionsEnabled?: boolean;
+  voiceAudioCues?: boolean;
+  voiceActivationMode?: "tap" | "push";
+  voiceHotkey?: string;
   onCancelBackgroundRun?: () => void;
   isCancellingBackgroundRun?: boolean;
   canCancelBackgroundRun?: boolean;
@@ -84,6 +96,11 @@ export const Composer: FC<{
   sessionId,
   activeRunId,
   sttEnabled = false,
+  voicePostProcessing = true,
+  voiceActionsEnabled = true,
+  voiceAudioCues = true,
+  voiceActivationMode = "tap",
+  voiceHotkey = "CommandOrControl+Shift+Space",
   onCancelBackgroundRun,
   isCancellingBackgroundRun = false,
   canCancelBackgroundRun = false,
@@ -100,6 +117,8 @@ export const Composer: FC<{
   const mentionRef = useRef<HTMLDivElement>(null);
   const tiptapRef = useRef<TiptapEditorHandle>(null);
   const prefersReducedMotion = useReducedMotion();
+  const { chatBackground } = useTheme();
+  const hasWallpaper = chatBackground.type !== "none";
   const simpleDraftAtRichModeEntryRef = useRef<string | null>(null);
 
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
@@ -234,15 +253,46 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef } = useVoiceRecording({
     sttEnabled,
-    onTranscript: (transcript) => {
-      setInputValue((prev) => {
-        if (!prev.trim()) return transcript;
-        return `${prev}${prev.endsWith(" ") ? "" : " "}${transcript}`;
+    voicePostProcessing,
+    voiceAudioCues,
+    voiceActivationMode,
+    onTranscript: (payload) => {
+      const textToInsert = payload.finalText;
+      if (!textToInsert) return;
+
+      // Rich text editor mode — use transaction-based insertion for proper undo/redo
+      if (isEditorMode && tiptapRef.current) {
+        tiptapRef.current.insertVoiceTranscript(textToInsert);
+        return;
+      }
+
+      // Simple textarea mode — insert at cursor with proper spacing
+      const textarea = inputRef.current;
+      const insertion = buildTranscriptInsertion({
+        currentValue: inputValue,
+        transcript: textToInsert,
+        selectionStart: textarea?.selectionStart ?? null,
+        selectionEnd: textarea?.selectionEnd ?? null,
       });
+
+      if (insertion) {
+        setInputValue(insertion.nextValue);
+        updateCursorPosition(insertion.nextCursor);
+      } else {
+        // Fallback: append
+        setInputValue((prev) => {
+          if (!prev.trim()) return textToInsert;
+          return `${prev}${prev.endsWith(" ") ? "" : " "}${textToInsert}`;
+        });
+      }
     },
     onTranscriptInserted: () => {
+      if (isEditorMode && tiptapRef.current) {
+        tiptapRef.current.focus();
+        return;
+      }
       requestAnimationFrame(() => {
         const textarea = inputRef.current;
         if (!textarea) return;
@@ -252,6 +302,13 @@ export const Composer: FC<{
         updateCursorPosition(cursor);
       });
     },
+  });
+
+  // Global voice hotkey (Electron global shortcut + browser fallback)
+  useGlobalVoiceHotkey({
+    enabled: sttEnabled,
+    onTrigger: () => { void handleVoiceInput(); },
+    hotkey: voiceHotkey,
   });
 
   // Process queued messages when AI finishes
@@ -300,6 +357,18 @@ export const Composer: FC<{
         clearDraft();
         updateCursorPosition(0);
         return;
+      }
+
+      // Auto-learn from voice corrections: if user edited a voice transcript before sending,
+      // submit the diff to the learn endpoint (fire-and-forget)
+      const rawTranscript = lastTranscriptRef.current;
+      if (rawTranscript && hasText && rawTranscript !== inputValue.trim()) {
+        void fetch("/api/voice/learn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ originalText: rawTranscript, editedText: inputValue.trim() }),
+        }).catch(() => {});
+        lastTranscriptRef.current = null;
       }
 
       const messageToSend = enhancedContext || inputValue.trim();
@@ -380,6 +449,7 @@ export const Composer: FC<{
       updateCursorPosition,
       clearEnhancement,
       clearPastedTexts,
+      lastTranscriptRef,
     ]
   );
 
@@ -832,7 +902,7 @@ export const Composer: FC<{
           "relative flex w-full flex-col rounded-lg shadow-md transition-shadow focus-within:shadow-lg transform-gpu",
           isDeepResearchMode
             ? "bg-purple-50/80 focus-within:bg-purple-50 border border-purple-200"
-            : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
+            : hasWallpaper ? "bg-terminal-cream/50 backdrop-blur-sm focus-within:bg-terminal-cream/60" : "bg-terminal-cream/80 focus-within:bg-terminal-cream"
         )}
         onFocus={handleFocus}
       >
@@ -878,6 +948,51 @@ export const Composer: FC<{
           </div>
         )}
 
+        {isRecordingVoice && (
+          <VoiceWaveform
+            isRecording={isRecordingVoice}
+            analyserNode={analyserNode}
+            className="border-b border-terminal-dark/10"
+          />
+        )}
+
+        {!isRecordingVoice && !isTranscribingVoice && sttEnabled && voiceActionsEnabled && inputValue.trim().length > 0 && (
+          <VoiceActions
+            text={inputValue}
+            sessionId={sessionId}
+            onResult={(text) => setInputValue(text)}
+            className="px-3 py-1.5 border-b border-terminal-dark/10"
+          />
+        )}
+
+        {/* I7: Transcribing state indicator */}
+        {isTranscribingVoice && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-mono text-terminal-muted border-b border-terminal-dark/10">
+            <Loader2Icon className="size-3 animate-spin flex-shrink-0" />
+            <span>Transcribing...</span>
+          </div>
+        )}
+
+        {/* I5: AI-cleaned undo indicator */}
+        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && lastTranscriptRef.current !== inputValue.trim() && (
+          <div className="flex items-center gap-1.5 px-3 py-1 border-b border-terminal-dark/10">
+            <SparklesIcon className="size-3 text-amber-500" />
+            <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (lastTranscriptRef.current) {
+                  setInputValue(lastTranscriptRef.current);
+                }
+              }}
+              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1"
+            >
+              <UndoIcon className="size-3" />
+              Undo
+            </button>
+          </div>
+        )}
+
         {isEditorMode ? (
           /* ---- Tiptap rich editor mode ---- */
           <div className="flex flex-col">
@@ -909,6 +1024,9 @@ export const Composer: FC<{
                 isRecordingVoice={isRecordingVoice}
                 isTranscribingVoice={isTranscribingVoice}
                 onVoiceInput={handleVoiceInput}
+                voiceActivationMode={voiceActivationMode}
+                onVoiceStart={handleVoiceStart}
+                onVoiceStop={handleVoiceStop}
                 inputHasText={tiptapRef.current?.hasContent() ?? false}
                 attachmentCount={attachmentCount}
                 showEnhanceButton={false}
@@ -966,6 +1084,9 @@ export const Composer: FC<{
               isRecordingVoice={isRecordingVoice}
               isTranscribingVoice={isTranscribingVoice}
               onVoiceInput={handleVoiceInput}
+              voiceActivationMode={voiceActivationMode}
+              onVoiceStart={handleVoiceStart}
+              onVoiceStop={handleVoiceStop}
               inputHasText={inputValue.trim().length > 2}
               attachmentCount={attachmentCount}
               showEnhanceButton={!!(character?.id && character.id !== "default")}

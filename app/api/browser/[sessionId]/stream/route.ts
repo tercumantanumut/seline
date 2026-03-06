@@ -12,6 +12,7 @@
 
 import { NextRequest } from "next/server";
 import { subscribeToFrames, isScreencastActive, getLatestFrame } from "@/lib/browser/screencast";
+import { subscribeToActions } from "@/lib/browser/action-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,17 @@ export async function GET(
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        unsubscribeFrames();
+        unsubscribeActions();
+        try { controller.close(); } catch { /* already closed */ }
+      };
+
       // Send initial frame immediately if available
       const latest = getLatestFrame(sessionId);
       if (latest) {
@@ -55,25 +67,58 @@ export async function GET(
       }
 
       // Subscribe to future frames
-      const unsubscribe = subscribeToFrames(sessionId, (frame) => {
+      const unsubscribeFrames = subscribeToFrames(sessionId, (frame) => {
+        if (closed) return;
         try {
           const event = `data: ${JSON.stringify({ data: frame.data, ts: frame.receivedAt })}\n\n`;
           controller.enqueue(encoder.encode(event));
         } catch {
-          // Stream may be closed
-          unsubscribe();
+          cleanup();
         }
       });
 
-      // Clean up when client disconnects
-      req.signal.addEventListener("abort", () => {
-        unsubscribe();
+      // Subscribe to action events for visual indicators
+      const unsubscribeActions = subscribeToActions(sessionId, ({ record }) => {
+        if (closed) return;
         try {
-          controller.close();
+          const payload = {
+            seq: record.seq,
+            action: record.action,
+            input: record.input,
+            source: record.source,
+            timestamp: record.timestamp,
+            success: record.success,
+            durationMs: record.durationMs,
+          };
+          const event = `event: action\ndata: ${JSON.stringify(payload)}\n\n`;
+          controller.enqueue(encoder.encode(event));
         } catch {
-          // Already closed
+          cleanup();
         }
       });
+
+      // Heartbeat: detect session end and close the stream
+      // Without this, the SSE connection stays open after the session closes
+      // (stopScreencast clears listeners but can't close the ReadableStream controller)
+      const heartbeat = setInterval(() => {
+        if (!isScreencastActive(sessionId)) {
+          // Session ended — send close event and terminate stream
+          try {
+            controller.enqueue(encoder.encode(`event: session-end\ndata: {}\n\n`));
+          } catch { /* ignore */ }
+          cleanup();
+          return;
+        }
+        // Keep-alive comment to prevent proxy/CDN timeouts
+        try {
+          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        } catch {
+          cleanup();
+        }
+      }, 2000);
+
+      // Clean up when client disconnects
+      req.signal.addEventListener("abort", () => cleanup());
     },
   });
 

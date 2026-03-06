@@ -12,6 +12,7 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getLocale } from "next-intl/server";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { GlobalSyncWrapper } from "@/components/vector-search";
@@ -59,21 +60,44 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
+  const headersList = await headers();
+  const isStandalone = headersList.get("x-standalone") === "1";
+
+  // Standalone pages (e.g. browser-session pop-out window) skip the full
+  // app shell — no auth, sync, task providers, sidebar, toaster, etc.
+  if (isStandalone) {
+    return (
+      <html
+        lang={locale}
+        data-theme="dark"
+        className={`${inter.variable} ${jetbrainsMono.variable} dark`}
+        suppressHydrationWarning
+      >
+        <body className="bg-black overflow-hidden antialiased font-sans">
+          <ThemeProvider initialTheme="dark">
+            {children}
+          </ThemeProvider>
+        </body>
+      </html>
+    );
+  }
+
   const messages = await getMessages();
   const settings = loadSettings();
   const initialTheme = settings.theme ?? "system";
   const themeScript = `
 (() => {
   try {
-    const storageKey = "seline-theme";
     const root = document.documentElement;
-    const stored = localStorage.getItem(storageKey);
+    const stored = localStorage.getItem("seline-theme");
     const preference = stored || root.dataset.theme || "system";
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const resolved = preference === "system" ? (prefersDark ? "dark" : "light") : preference;
     root.classList.toggle("dark", resolved === "dark");
     root.style.colorScheme = resolved;
     root.dataset.theme = preference;
+    const preset = localStorage.getItem("seline-theme-preset");
+    if (preset && preset !== "ember") root.dataset.themePreset = preset;
   } catch {}
 })();
   `;
@@ -85,6 +109,7 @@ export default async function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
+      <head />
       <body className="min-h-dvh antialiased font-sans">
         <Script id="theme-script" strategy="beforeInteractive">
           {themeScript}

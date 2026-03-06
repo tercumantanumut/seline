@@ -80,12 +80,22 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
           const { data } = JSON.parse(event.data) as { data: string; ts: number };
           if (imgRef.current && data) {
             imgRef.current.src = `data:image/jpeg;base64,${data}`;
-            if (mounted && !hasFrame) setHasFrame(true);
+            if (mounted) setHasFrame(true);
           }
         } catch {
           // Malformed frame, skip
         }
       };
+
+      // Listen for explicit session-end event from server
+      es.addEventListener("session-end", () => {
+        es.close();
+        eventSourceRef.current = null;
+        if (mounted) {
+          setIsConnected(false);
+          setHasFrame(false);
+        }
+      });
 
       es.onerror = () => {
         es.close();
@@ -143,7 +153,7 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
         alt=""
         className="h-full w-full object-cover"
         style={{
-          filter: "brightness(0.7) saturate(1.1)",
+          filter: "brightness(0.8) saturate(1.1)",
         }}
       />
 
@@ -152,17 +162,11 @@ export function BrowserBackdrop({ sessionId, className, onActiveChange }: Browse
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0.2) 100%)",
+            "linear-gradient(to bottom, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.04) 30%, rgba(0,0,0,0.04) 70%, rgba(0,0,0,0.18) 100%)",
         }}
       />
 
-      {/* Connection indicator */}
-      {isConnected && (
-        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-sm">
-          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
-          <span className="text-[10px] font-medium text-white/60">LIVE</span>
-        </div>
-      )}
+      {/* Controls (Pop out + LIVE) are rendered in thread.tsx above the viewport z-layer */}
     </div>
   );
 }

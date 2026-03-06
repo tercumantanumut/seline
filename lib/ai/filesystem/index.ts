@@ -7,10 +7,14 @@
 export {
   isPathAllowed,
   resolveSyncedFolderPaths,
+  resolveWorkspaceAwarePaths,
+  getActiveWorktreePath,
   ensureParentDirectories,
   findSimilarFiles,
   validatePath,
   normalizePath,
+  isWorktreePath,
+  isOtherWorktreePath,
 } from "./path-utils";
 
 export {

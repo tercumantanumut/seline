@@ -16,6 +16,7 @@ export async function GET() {
       anthropicApiKey: settings.anthropicApiKey ? maskApiKey(settings.anthropicApiKey) : undefined,
       openrouterApiKey: settings.openrouterApiKey ? maskApiKey(settings.openrouterApiKey) : undefined,
       kimiApiKey: settings.kimiApiKey ? maskApiKey(settings.kimiApiKey) : undefined,
+      minimaxApiKey: settings.minimaxApiKey ? maskApiKey(settings.minimaxApiKey) : undefined,
       tavilyApiKey: settings.tavilyApiKey ? maskApiKey(settings.tavilyApiKey) : undefined,
       firecrawlApiKey: settings.firecrawlApiKey ? maskApiKey(settings.firecrawlApiKey) : undefined,
       stylyAiApiKey: settings.stylyAiApiKey ? maskApiKey(settings.stylyAiApiKey) : undefined,
@@ -130,11 +131,37 @@ export async function PUT(request: NextRequest) {
       sttProvider: body.sttProvider !== undefined ? body.sttProvider : currentSettings.sttProvider,
       sttLocalModel: body.sttLocalModel !== undefined ? body.sttLocalModel : currentSettings.sttLocalModel,
       whisperCppPath: body.whisperCppPath !== undefined ? body.whisperCppPath : currentSettings.whisperCppPath,
+      voicePostProcessing: body.voicePostProcessing !== undefined ? body.voicePostProcessing : currentSettings.voicePostProcessing,
+      voiceAgentName: body.voiceAgentName !== undefined ? body.voiceAgentName : currentSettings.voiceAgentName,
+      voiceAudioCues: body.voiceAudioCues !== undefined ? body.voiceAudioCues : currentSettings.voiceAudioCues,
+      voiceAutoLearn: body.voiceAutoLearn !== undefined ? body.voiceAutoLearn : currentSettings.voiceAutoLearn,
+      voiceActivationMode: body.voiceActivationMode !== undefined ? body.voiceActivationMode : currentSettings.voiceActivationMode,
+      parakeetModel: body.parakeetModel !== undefined ? body.parakeetModel : currentSettings.parakeetModel,
+      parakeetAutoStart: body.parakeetAutoStart !== undefined ? body.parakeetAutoStart : currentSettings.parakeetAutoStart,
+      parakeetServerPort: body.parakeetServerPort !== undefined ? body.parakeetServerPort : currentSettings.parakeetServerPort,
+      voiceHotkey: body.voiceHotkey !== undefined ? body.voiceHotkey : currentSettings.voiceHotkey,
+      customDictionary: Array.isArray(body.customDictionary) ? body.customDictionary : (currentSettings.customDictionary ?? []),
+      voiceHistoryEnabled: body.voiceHistoryEnabled !== undefined ? body.voiceHistoryEnabled : currentSettings.voiceHistoryEnabled,
+      voiceHistoryLimit: body.voiceHistoryLimit !== undefined ? body.voiceHistoryLimit : currentSettings.voiceHistoryLimit,
+      voiceHistoryRetentionDays: body.voiceHistoryRetentionDays !== undefined ? body.voiceHistoryRetentionDays : currentSettings.voiceHistoryRetentionDays,
+      voiceHistoryPreviewLength: body.voiceHistoryPreviewLength !== undefined ? body.voiceHistoryPreviewLength : currentSettings.voiceHistoryPreviewLength,
+      voiceActionsEnabled: body.voiceActionsEnabled !== undefined ? body.voiceActionsEnabled : currentSettings.voiceActionsEnabled,
+      voiceActionDefaultLanguage: body.voiceActionDefaultLanguage !== undefined ? body.voiceActionDefaultLanguage : currentSettings.voiceActionDefaultLanguage,
+      voiceActionPreserveStyle: body.voiceActionPreserveStyle !== undefined ? body.voiceActionPreserveStyle : currentSettings.voiceActionPreserveStyle,
+      voiceActionConfirmDestructive: body.voiceActionConfirmDestructive !== undefined ? body.voiceActionConfirmDestructive : currentSettings.voiceActionConfirmDestructive,
+      voiceActionFormalTone: body.voiceActionFormalTone !== undefined ? body.voiceActionFormalTone : currentSettings.voiceActionFormalTone,
+      voiceActionTranslationStyle: body.voiceActionTranslationStyle !== undefined ? body.voiceActionTranslationStyle : currentSettings.voiceActionTranslationStyle,
+      voiceActionSummarizeLength: body.voiceActionSummarizeLength !== undefined ? body.voiceActionSummarizeLength : currentSettings.voiceActionSummarizeLength,
       // Developer Workspace
       devWorkspaceEnabled: body.devWorkspaceEnabled !== undefined ? body.devWorkspaceEnabled : currentSettings.devWorkspaceEnabled,
       devWorkspaceAutoCleanup: body.devWorkspaceAutoCleanup !== undefined ? body.devWorkspaceAutoCleanup : currentSettings.devWorkspaceAutoCleanup,
       devWorkspaceAutoCleanupDays: body.devWorkspaceAutoCleanupDays !== undefined ? body.devWorkspaceAutoCleanupDays : currentSettings.devWorkspaceAutoCleanupDays,
       workspaceOnboardingSeen: body.workspaceOnboardingSeen !== undefined ? body.workspaceOnboardingSeen : currentSettings.workspaceOnboardingSeen,
+      // 3D Avatar
+      avatar3dEnabled: body.avatar3dEnabled !== undefined ? body.avatar3dEnabled : currentSettings.avatar3dEnabled,
+      // EverMemOS
+      everMemOSEnabled: body.everMemOSEnabled !== undefined ? body.everMemOSEnabled : currentSettings.everMemOSEnabled,
+      everMemOSServerUrl: body.everMemOSServerUrl !== undefined ? body.everMemOSServerUrl : currentSettings.everMemOSServerUrl,
     };
 
     // Only update API keys if they're provided and not masked
@@ -147,6 +174,9 @@ export async function PUT(request: NextRequest) {
     }
     if (body.kimiApiKey && !body.kimiApiKey.includes("•")) {
       updatedSettings.kimiApiKey = body.kimiApiKey;
+    }
+    if (body.minimaxApiKey && !body.minimaxApiKey.includes("•")) {
+      updatedSettings.minimaxApiKey = body.minimaxApiKey;
     }
     if (body.tavilyApiKey !== undefined && !String(body.tavilyApiKey).includes("•")) {
       const nextTavilyApiKey = String(body.tavilyApiKey).trim();

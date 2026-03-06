@@ -168,8 +168,8 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
           "img-src 'self' data: blob: https: http://localhost:*; " +
-          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net http://localhost:*; " +
-          "connect-src 'self' https://api.anthropic.com https://openrouter.ai ws://localhost:* http://localhost:*; " +
+          "media-src 'self' data: blob: https://*.amazonaws.com https://*.cloudfront.net https://assets.mixkit.co https://*.mixkit.co http://localhost:*; " +
+          "connect-src 'self' blob: https://api.anthropic.com https://openrouter.ai ws://localhost:* http://localhost:*; " +
           "worker-src 'self' blob:; " +
           "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com;",
         ],

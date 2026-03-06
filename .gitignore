@@ -95,6 +95,7 @@ models/**
 *.db-shm
 *.sqlite
 *.sqlite3
+.claude/
 
 # Meilisearch data
 data.ms/

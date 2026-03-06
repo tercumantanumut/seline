@@ -1,7 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { locales, localeCookieName, type Locale } from "@/i18n/config";
+import { useTheme } from "@/components/theme/theme-provider";
+import { THEME_PRESETS } from "@/lib/personalization/theme-presets";
+import { WALLPAPERS, WALLPAPER_CATEGORIES, type BackgroundConfig } from "@/lib/personalization/wallpapers";
+import { VIDEO_WALLPAPERS, VIDEO_WALLPAPER_CATEGORIES, getVideoWallpaperById } from "@/lib/personalization/video-wallpapers";
+import { Check, X, Image as ImageIcon, Play, Globe } from "lucide-react";
 import type { FormState } from "./settings-types";
 
 interface PreferencesSectionProps {
@@ -12,10 +18,38 @@ interface PreferencesSectionProps {
 export function PreferencesSection({ formState, updateField }: PreferencesSectionProps) {
   const t = useTranslations("settings");
   const currentLocale = useLocale() as Locale;
+  const { themePreset, setThemePreset, homepageBackground, setHomepageBackground, chatBackground, setChatBackground } = useTheme();
+  const [bgTab, setBgTab] = useState<"homepage" | "chat">("homepage");
+  const [bgMediaType, setBgMediaType] = useState<"images" | "videos">("images");
+  const [wallpaperCategory, setWallpaperCategory] = useState<string>("all");
+  const [videoCategory, setVideoCategory] = useState<string>("all");
 
   const handleLocaleChange = (newLocale: Locale) => {
     document.cookie = `${localeCookieName}=${newLocale}; path=/; max-age=31536000`;
     window.location.reload();
+  };
+
+  const activeBg = bgTab === "homepage" ? homepageBackground : chatBackground;
+  const setActiveBg = bgTab === "homepage" ? setHomepageBackground : setChatBackground;
+
+  const filteredWallpapers = wallpaperCategory === "all"
+    ? WALLPAPERS
+    : WALLPAPERS.filter((w) => w.category === wallpaperCategory);
+
+  const filteredVideos = videoCategory === "all"
+    ? VIDEO_WALLPAPERS
+    : VIDEO_WALLPAPERS.filter((v) => v.category === videoCategory);
+
+  const handleSelectWallpaper = (wallpaperId: string, url: string) => {
+    setActiveBg({ type: "wallpaper", wallpaperId, url, opacity: 30, blur: 0 });
+  };
+
+  const handleSelectVideo = (videoId: string) => {
+    setActiveBg({ type: "video", videoId, opacity: 30, blur: 0 });
+  };
+
+  const handleClearBackground = () => {
+    setActiveBg({ type: "none" });
   };
 
   return (
@@ -44,6 +78,333 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
             </label>
           ))}
         </div>
+      </div>
+
+      {/* Theme Palette Presets */}
+      <div className="space-y-3 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("preferences.colorPalette.heading")}</h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.colorPalette.description")}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {THEME_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => setThemePreset(preset.id)}
+              className={`group/preset relative flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all ${
+                themePreset === preset.id
+                  ? "border-terminal-green bg-terminal-green/10 shadow-sm"
+                  : "border-terminal-border hover:border-terminal-green/40 hover:bg-terminal-cream/50"
+              }`}
+            >
+              <div className="flex gap-1">
+                {preset.swatches.map((color, i) => (
+                  <div
+                    key={i}
+                    className="h-5 w-5 rounded-full border border-black/10 shadow-sm"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+              <span className="font-mono text-[11px] font-medium text-terminal-dark">{preset.label}</span>
+              {themePreset === preset.id && (
+                <div className="absolute -right-1 -top-1">
+                  <div className="flex h-4 w-4 items-center justify-center rounded-full bg-terminal-green text-white">
+                    <Check className="h-2.5 w-2.5" />
+                  </div>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Background Wallpapers */}
+      <div className="space-y-3 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">{t("preferences.backgrounds.heading")}</h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.backgrounds.description")}
+          </p>
+        </div>
+
+        {/* Tab selector */}
+        <div className="flex gap-1 rounded-lg bg-terminal-cream/60 p-1" role="tablist">
+          {(["homepage", "chat"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={bgTab === tab}
+              onClick={() => setBgTab(tab)}
+              className={`flex-1 rounded-md px-3 py-1.5 font-mono text-xs font-medium transition-all ${
+                bgTab === tab
+                  ? "bg-terminal-dark text-terminal-cream shadow-sm"
+                  : "text-terminal-muted hover:text-terminal-dark"
+              }`}
+            >
+              {t(`preferences.backgrounds.${tab}`)}
+            </button>
+          ))}
+        </div>
+
+        {/* Current background preview */}
+        {activeBg.type !== "none" && (
+          <div className="relative overflow-hidden rounded-lg border border-terminal-border">
+            <div className="h-20 w-full bg-terminal-cream" style={(() => {
+              if (activeBg.type === "video" && activeBg.videoId) {
+                const vid = getVideoWallpaperById(activeBg.videoId);
+                return vid ? {
+                  backgroundImage: `url(${vid.posterUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  opacity: (activeBg.opacity ?? 30) / 100,
+                  filter: activeBg.blur ? `blur(${activeBg.blur}px)` : undefined,
+                } : undefined;
+              }
+              if (activeBg.url) return {
+                backgroundImage: `url(${activeBg.url})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                opacity: (activeBg.opacity ?? 30) / 100,
+                filter: activeBg.blur ? `blur(${activeBg.blur}px)` : undefined,
+              };
+              if (activeBg.color) return { backgroundColor: activeBg.color };
+              return undefined;
+            })()} />
+            <button
+              type="button"
+              onClick={handleClearBackground}
+              aria-label={t("preferences.backgrounds.clearBackground")}
+              className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+            >
+              <X className="h-3 w-3" />
+            </button>
+            <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+              {activeBg.type === "video" ? (
+                <Play className="h-3 w-3 text-white/80" />
+              ) : (
+                <ImageIcon className="h-3 w-3 text-white/80" />
+              )}
+              <span className="font-mono text-[10px] text-white/80">
+                {activeBg.type === "wallpaper" ? t("preferences.backgrounds.wallpaper") : activeBg.type === "video" ? t("preferences.backgrounds.videoLabel") : activeBg.type === "color" ? t("preferences.backgrounds.color") : t("preferences.backgrounds.customUrl")}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Opacity slider */}
+        {activeBg.type !== "none" && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="bg-opacity-slider" className="font-mono text-xs text-terminal-muted whitespace-nowrap">{t("preferences.backgrounds.opacity")}</label>
+            <input
+              id="bg-opacity-slider"
+              type="range"
+              min={5}
+              max={100}
+              value={activeBg.opacity ?? 30}
+              onChange={(e) => setActiveBg({ ...activeBg, opacity: Number(e.target.value) })}
+              className="flex-1 accent-terminal-green"
+            />
+            <span className="w-8 text-right font-mono text-xs text-terminal-muted">{activeBg.opacity ?? 30}%</span>
+          </div>
+        )}
+
+        {/* Media type toggle (Images / Videos) */}
+        <div className="flex gap-1 rounded-lg bg-terminal-cream/60 p-1" role="tablist">
+          {(["images", "videos"] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              role="tab"
+              aria-selected={bgMediaType === type}
+              onClick={() => setBgMediaType(type)}
+              className={`flex-1 rounded-md px-3 py-1.5 font-mono text-xs font-medium transition-all ${
+                bgMediaType === type
+                  ? "bg-terminal-dark text-terminal-cream shadow-sm"
+                  : "text-terminal-muted hover:text-terminal-dark"
+              }`}
+            >
+              {type === "images" ? t("preferences.backgrounds.images") : t("preferences.backgrounds.videos")}
+            </button>
+          ))}
+        </div>
+
+        {bgMediaType === "images" ? (
+          <>
+            {/* Image category filter */}
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setWallpaperCategory("all")}
+                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                  wallpaperCategory === "all"
+                    ? "bg-terminal-dark text-terminal-cream"
+                    : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                }`}
+              >
+                {t("preferences.backgrounds.all")}
+              </button>
+              {WALLPAPER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setWallpaperCategory(cat.id)}
+                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                    wallpaperCategory === cat.id
+                      ? "bg-terminal-dark text-terminal-cream"
+                      : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Wallpaper grid */}
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {/* None option */}
+              <button
+                type="button"
+                onClick={handleClearBackground}
+                className={`relative flex h-16 items-center justify-center rounded-lg border transition-all ${
+                  activeBg.type === "none"
+                    ? "border-terminal-green bg-terminal-green/10"
+                    : "border-terminal-border hover:border-terminal-green/40"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-terminal-muted">{t("preferences.backgrounds.none")}</span>
+                {activeBg.type === "none" && (
+                  <div className="absolute -right-1 -top-1">
+                    <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                      <Check className="h-2 w-2" />
+                    </div>
+                  </div>
+                )}
+              </button>
+              {filteredWallpapers.map((wp) => (
+                <button
+                  key={wp.id}
+                  type="button"
+                  onClick={() => handleSelectWallpaper(wp.id, wp.url)}
+                  className={`relative h-16 overflow-hidden rounded-lg border transition-all ${
+                    activeBg.wallpaperId === wp.id
+                      ? "border-terminal-green ring-1 ring-terminal-green"
+                      : "border-terminal-border hover:border-terminal-green/40"
+                  }`}
+                >
+                  <img
+                    src={wp.thumbnailUrl}
+                    alt={wp.label}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    style={{ backgroundColor: wp.dominantColor }}
+                  />
+                  {activeBg.wallpaperId === wp.id && (
+                    <div className="absolute -right-0.5 -top-0.5">
+                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                        <Check className="h-2 w-2" />
+                      </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Video category filter */}
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setVideoCategory("all")}
+                className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                  videoCategory === "all"
+                    ? "bg-terminal-dark text-terminal-cream"
+                    : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                }`}
+              >
+                {t("preferences.backgrounds.all")}
+              </button>
+              {VIDEO_WALLPAPER_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setVideoCategory(cat.id)}
+                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] transition-all ${
+                    videoCategory === cat.id
+                      ? "bg-terminal-dark text-terminal-cream"
+                      : "bg-terminal-cream/60 text-terminal-muted hover:text-terminal-dark"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Video wallpaper grid */}
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {/* None option */}
+              <button
+                type="button"
+                onClick={handleClearBackground}
+                className={`relative flex h-16 items-center justify-center rounded-lg border transition-all ${
+                  activeBg.type === "none"
+                    ? "border-terminal-green bg-terminal-green/10"
+                    : "border-terminal-border hover:border-terminal-green/40"
+                }`}
+              >
+                <span className="font-mono text-[10px] text-terminal-muted">{t("preferences.backgrounds.none")}</span>
+                {activeBg.type === "none" && (
+                  <div className="absolute -right-1 -top-1">
+                    <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                      <Check className="h-2 w-2" />
+                    </div>
+                  </div>
+                )}
+              </button>
+              {filteredVideos.map((vid) => (
+                <button
+                  key={vid.id}
+                  type="button"
+                  onClick={() => handleSelectVideo(vid.id)}
+                  className={`group relative h-16 overflow-hidden rounded-lg border transition-all ${
+                    activeBg.videoId === vid.id
+                      ? "border-terminal-green ring-1 ring-terminal-green"
+                      : "border-terminal-border hover:border-terminal-green/40"
+                  }`}
+                  title={vid.label}
+                >
+                  <img
+                    src={vid.posterUrl}
+                    alt={vid.label}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    style={{ backgroundColor: vid.dominantColor }}
+                  />
+                  {/* Play icon overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Play className="h-4 w-4 fill-white text-white" />
+                  </div>
+                  {/* Duration badge */}
+                  <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 px-1 py-px font-mono text-[8px] text-white">
+                    {vid.duration}s
+                  </span>
+                  {activeBg.videoId === vid.id && (
+                    <div className="absolute -right-0.5 -top-0.5">
+                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-terminal-green text-white">
+                        <Check className="h-2 w-2" />
+                      </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div>
@@ -438,7 +799,105 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
                 {t.rich("preferences.devWorkspace.recommendedServersDesc", {
                   worktreeTools: () => <code className="rounded bg-terminal-border/30 px-1">worktree-tools-mcp</code>,
                   githubMcp: () => <code className="rounded bg-terminal-border/30 px-1">github-mcp-server</code>,
+                  strong: (chunks) => <strong className="text-terminal-dark">{chunks}</strong>,
                 })}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3D Avatar */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <h3 className="font-mono text-base font-semibold text-terminal-dark">
+            {t("preferences.avatar3d.heading")}
+          </h3>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.avatar3d.description")}
+          </p>
+        </div>
+
+        <label className="flex items-center justify-between gap-3">
+          <div>
+            <span className="font-mono text-sm text-terminal-dark">{t("preferences.avatar3d.enableLabel")}</span>
+            <p className="mt-1 font-mono text-xs text-terminal-muted">
+              {t("preferences.avatar3d.enableDesc")}
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={formState.avatar3dEnabled}
+            onChange={(e) => updateField("avatar3dEnabled", e.target.checked)}
+            className="size-5 accent-terminal-green"
+          />
+        </label>
+      </div>
+
+      {/* Browser Automation */}
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-terminal-muted" />
+            <h3 className="font-mono text-base font-semibold text-terminal-dark">
+              {t("preferences.browserAutomation.heading")}
+            </h3>
+          </div>
+          <p className="mt-1 font-mono text-xs text-terminal-muted">
+            {t("preferences.browserAutomation.description")}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="chromiumBrowserMode"
+              value="standalone"
+              checked={formState.chromiumBrowserMode === "standalone"}
+              onChange={() => updateField("chromiumBrowserMode", "standalone")}
+              className="mt-1 size-4 accent-terminal-green"
+            />
+            <div>
+              <span className="font-mono text-terminal-dark">{t("preferences.browserAutomation.standalone")}</span>
+              <p className="font-mono text-xs text-terminal-muted">{t("preferences.browserAutomation.standaloneDesc")}</p>
+            </div>
+          </label>
+          <label className="flex items-start gap-3">
+            <input
+              type="radio"
+              name="chromiumBrowserMode"
+              value="user-chrome"
+              checked={formState.chromiumBrowserMode === "user-chrome"}
+              onChange={() => updateField("chromiumBrowserMode", "user-chrome")}
+              className="mt-1 size-4 accent-terminal-green"
+            />
+            <div>
+              <span className="font-mono text-terminal-dark">{t("preferences.browserAutomation.userChrome")}</span>
+              <p className="font-mono text-xs text-terminal-muted">{t("preferences.browserAutomation.userChromeDesc")}</p>
+            </div>
+          </label>
+        </div>
+
+        {formState.chromiumBrowserMode === "user-chrome" && (
+          <div className="space-y-3 border-t border-terminal-border pt-4">
+            <div>
+              <label className="mb-1 block font-mono text-xs text-terminal-muted">
+                {t("preferences.browserAutomation.profilePathLabel")}
+              </label>
+              <input
+                type="text"
+                value={formState.chromiumUserProfilePath}
+                onChange={(e) => updateField("chromiumUserProfilePath", e.target.value)}
+                placeholder={t("preferences.browserAutomation.profilePathPlaceholder")}
+                className="w-full rounded border border-terminal-border bg-terminal-cream/95 dark:bg-terminal-cream-dark/50 px-3 py-2 font-mono text-sm text-terminal-dark placeholder:text-terminal-muted/50 focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
+              />
+            </div>
+
+            <div className="rounded border border-dashed border-amber-400/50 bg-amber-50/30 dark:bg-amber-900/10 p-3">
+              <p className="font-mono text-xs text-terminal-muted">
+                <strong className="text-amber-600 dark:text-amber-400">&#9888; {t("preferences.browserAutomation.noteLabel")}</strong>{" "}
+                {t("preferences.browserAutomation.noteText")}
               </p>
             </div>
           </div>

@@ -233,17 +233,65 @@ export function mergeCanonicalAssistantContent(
     }
 
     if (incoming.type === "text") {
-      let latestExistingText: string | undefined;
-      for (let i = base.length - 1; i >= 0; i -= 1) {
+      const incomingTrimmed = incoming.text.trim();
+      if (!incomingTrimmed) continue;
+
+      // Scan existing text parts for overlap with the incoming text.
+      // Track how many existing parts the incoming text subsumes.
+      let exactMatch = false;
+      let existingSupersetOfIncoming = false;
+      const subsumedIndices: number[] = [];
+
+      for (let i = 0; i < base.length; i += 1) {
         const part = base[i];
-        if (part.type === "text") {
-          latestExistingText = part.text;
+        if (part.type !== "text") continue;
+        // Sanitize existing text the same way step text is sanitized so the
+        // comparison isn't thrown off by fake tool-call JSON that only exists
+        // in the streaming copy (Fix #2: stripFakeToolCallJson divergence).
+        const existingTrimmed = stripFakeToolCallJson(part.text).trim();
+
+        // Skip empty text parts — `"hello".includes("")` is always true in JS,
+        // which would cause every non-empty incoming text to count empty parts
+        // as "subsumed" and trigger the blob-drop heuristic (Fix #1).
+        if (!existingTrimmed) continue;
+
+        if (existingTrimmed === incomingTrimmed) {
+          exactMatch = true;
           break;
         }
+        if (existingTrimmed.includes(incomingTrimmed)) {
+          existingSupersetOfIncoming = true;
+          break;
+        }
+        if (incomingTrimmed.includes(existingTrimmed)) {
+          subsumedIndices.push(i);
+        }
       }
-      if (latestExistingText === incoming.text) {
+
+      if (exactMatch || existingSupersetOfIncoming) {
+        // Already covered by existing content — skip incoming.
         continue;
       }
+
+      if (subsumedIndices.length >= 2) {
+        // Incoming subsumes multiple existing text parts — this is a
+        // concatenated step-text blob produced by the AI SDK (it joins
+        // all intra-step text blocks into one string). The streaming
+        // state already has the correct, granular representation with
+        // individual text parts properly interleaved with tool calls.
+        // Dropping the blob prevents double-rendered responses.
+        continue;
+      }
+
+      if (subsumedIndices.length === 1) {
+        // Incoming extends a single existing text part (e.g. streaming
+        // captured a truncated prefix, step text has the full version).
+        // Replace the existing with the more complete incoming.
+        base[subsumedIndices[0]] = incoming;
+        continue;
+      }
+
+      // No overlap — genuinely new content.
       base.push(incoming);
       continue;
     }

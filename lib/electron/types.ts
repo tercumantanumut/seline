@@ -42,6 +42,41 @@ export interface ElectronModelAPI {
   download: (modelId: string) => Promise<{ success: boolean; error?: string }>;
   onProgress: (callback: (data: ModelDownloadProgress) => void) => void;
   removeProgressListener: () => void;
+  checkFileExists: (opts: { modelId: string; filename: string }) => Promise<boolean>;
+  downloadFile: (opts: { modelId: string; repo: string; filename: string }) => Promise<{ success: boolean; error?: string }>;
+  parakeetGetStatus: (modelId?: string) => Promise<{
+    installed: boolean;
+    running: boolean;
+    modelId: string | null;
+    modelDir: string | null;
+    wsBinary: string | null;
+    wsAvailable: boolean;
+    cpuThreads: number;
+    baseDir: string;
+  }>;
+  parakeetResolvePaths: (modelId?: string) => Promise<{
+    success: boolean;
+    error?: string;
+    modelId?: string;
+    modelDir?: string;
+    wsBinary?: string | null;
+    modelInstalled?: boolean;
+    wsAvailable?: boolean;
+  }>;
+  parakeetDownloadModel: (modelId?: string) => Promise<{
+    success: boolean;
+    error?: string;
+    modelId?: string;
+    modelDir?: string;
+    wsBinary?: string | null;
+  }>;
+}
+
+export interface ElectronBrowserSessionAPI {
+  open: (sessionId: string) => Promise<{ success: boolean; reused?: boolean; error?: string }>;
+  close: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  isOpen: (sessionId: string) => Promise<{ open: boolean }>;
+  saveRecording: (options?: { defaultPath?: string }) => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>;
 }
 
 export interface ElectronAPI {
@@ -52,6 +87,7 @@ export interface ElectronAPI {
   shell: ElectronShellAPI;
   ipc: ElectronIpcAPI;
   model: ElectronModelAPI;
+  browserSession?: ElectronBrowserSessionAPI;
 }
 
 /**

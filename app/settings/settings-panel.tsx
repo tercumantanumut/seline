@@ -19,6 +19,7 @@ import {
 } from "@/components/settings/settings-form-layout";
 import type { FormState, SettingsSection } from "./settings-types";
 import { WhisperModelSelector } from "./whisper-model-selector";
+import { ParakeetModelSelector } from "./parakeet-model-selector";
 import { PreferencesSection } from "./preferences-section";
 import { MemorySection } from "./memory-section";
 import { ApiKeysSection } from "./api-keys-section";
@@ -507,7 +508,10 @@ export function SettingsPanel({
     const sttProviderOptions = [
       { value: "openai" as const, label: t("voice.stt.providerOpenAI"), description: t("voice.stt.providerOpenAIDesc") },
       { value: "local" as const, label: t("voice.stt.providerLocal"), description: t("voice.stt.providerLocalDesc") },
+      { value: "parakeet" as const, label: t("voice.stt.providerParakeet"), description: t("voice.stt.providerParakeetDesc") },
     ];
+
+    const isParakeetProvider = formState.sttProvider === "parakeet";
 
     return (
       <div className={settingsSectionShellClassName}>
@@ -688,6 +692,10 @@ export function SettingsPanel({
 
                 {formState.sttProvider === "local" && (
                   <WhisperModelSelector formState={formState} updateField={updateField} />
+                )}
+
+                {isParakeetProvider && (
+                  <ParakeetModelSelector formState={formState} updateField={updateField} />
                 )}
               </div>
             ) : (

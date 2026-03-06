@@ -33,8 +33,12 @@ export interface SyncStreamingMessageContext {
   /** Reference to the current agentRun — may be set after factory is called. */
   getAgentRunId: () => string | undefined;
   streamingState: StreamingMessageState;
-  /** Pre-generated ID so frontend stream and DB share the same assistant message UUID. */
-  assistantMessageId?: string;
+  /**
+   * Returns the assistant UUID that should be used when the next streaming DB
+   * record is created. This allows live-prompt splits to rotate the frontend/DB
+   * message ID so post-injection assistant segments do not reuse the original ID.
+   */
+  getAssistantMessageId?: () => string | undefined;
 }
 
 /**
@@ -54,7 +58,7 @@ export function createSyncStreamingMessage(
     scheduledTaskName,
     getAgentRunId,
     streamingState,
-    assistantMessageId,
+    getAssistantMessageId,
   } = ctx;
 
   const syncStreamingMessage = async (force = false): Promise<void> => {
@@ -131,6 +135,7 @@ export function createSyncStreamingMessage(
       streamingState.isCreating = true;
       try {
         const assistantMessageIndex = await nextOrderingIndex(sessionId);
+        const assistantMessageId = getAssistantMessageId?.();
         const created = await createMessage({
           ...(assistantMessageId ? { id: assistantMessageId } : {}),
           sessionId,

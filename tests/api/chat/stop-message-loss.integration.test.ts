@@ -32,6 +32,7 @@ import {
 } from "@/lib/db/queries";
 import { nextOrderingIndex } from "@/lib/session/message-ordering";
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
+import { sanitizeMessagesForInit } from "@/components/chat-provider";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -594,5 +595,83 @@ describe("Stop Message Loss Prevention", () => {
     // System message survives (deleteMessagesNotIn only deletes user/assistant)
     const systemMsgs = remaining.filter((m) => m.role === "system");
     expect(systemMsgs).toHaveLength(1);
+  });
+
+  it("preserves interrupted browser tool context through converter + sanitizer", async () => {
+    const session = await createSession({
+      title: "Stop Loss - Browser Tool Context",
+      userId: TEST_USER_ID,
+    });
+    if (!session) throw new Error("Failed to create session");
+
+    await createMessage({
+      id: crypto.randomUUID(),
+      sessionId: session.id,
+      role: "user",
+      content: [{ type: "text", text: "Open example.com and summarize" }],
+      orderingIndex: await nextOrderingIndex(session.id),
+    });
+
+    const browserToolCallId = "tool-browser-stop-1";
+    await createMessage({
+      id: crypto.randomUUID(),
+      sessionId: session.id,
+      role: "assistant",
+      content: [
+        { type: "text", text: "Opening browser now." },
+        {
+          type: "tool-call",
+          toolCallId: browserToolCallId,
+          toolName: "chromiumWorkspace",
+          state: "input-available",
+          args: { action: "open", url: "https://example.com" },
+        },
+        {
+          type: "tool-result",
+          toolCallId: browserToolCallId,
+          toolName: "chromiumWorkspace",
+          state: "output-available",
+          result: {
+            status: "success",
+            data: "Browser session opened. Navigated to: https://example.com",
+            pageUrl: "https://example.com",
+          },
+        },
+      ],
+      orderingIndex: await nextOrderingIndex(session.id),
+      metadata: { interrupted: true },
+    });
+
+    const dbMessages = await getMessages(session.id);
+    const uiMessages = convertDBMessagesToUIMessages(dbMessages as any);
+
+    // Reproduce the stop/hydration edge shape where tool payload is present as
+    // `result` but not `output` on the UI part.
+    const assistantWithTool = uiMessages.find(
+      (msg) => msg.role === "assistant" && msg.parts.some((part: any) => part.toolCallId === browserToolCallId)
+    );
+    expect(assistantWithTool).toBeDefined();
+
+    const targetPart = assistantWithTool!.parts.find(
+      (part: any) => part.toolCallId === browserToolCallId
+    ) as any;
+    expect(targetPart).toBeDefined();
+    targetPart.result = targetPart.output;
+    delete targetPart.output;
+    targetPart.state = "input-available";
+
+    const sanitized = sanitizeMessagesForInit(uiMessages as any);
+    const sanitizedAssistant = sanitized.find((msg) => msg.id === assistantWithTool!.id);
+    expect(sanitizedAssistant).toBeDefined();
+
+    const keptToolPart = sanitizedAssistant!.parts.find(
+      (part: any) => part.toolCallId === browserToolCallId
+    ) as any;
+    expect(keptToolPart).toBeDefined();
+    expect(keptToolPart.result).toEqual({
+      status: "success",
+      data: "Browser session opened. Navigated to: https://example.com",
+      pageUrl: "https://example.com",
+    });
   });
 });

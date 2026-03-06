@@ -15,7 +15,7 @@ import { readFile, access } from "fs/promises";
 import { basename } from "path";
 import {
   isPathAllowed,
-  resolveSyncedFolderPaths,
+  resolveWorkspaceAwarePaths,
   ensureParentDirectories,
   recordFileRead,
   recordFileWrite,
@@ -157,10 +157,10 @@ export function createEditFileTool(options: EditFileToolOptions) {
         };
       }
 
-      // Get synced folders
+      // Get synced folders (workspace-aware — worktree path is included if active)
       let syncedFolders: string[];
       try {
-        syncedFolders = await resolveSyncedFolderPaths(characterId);
+        syncedFolders = await resolveWorkspaceAwarePaths(characterId, sessionId);
         if (syncedFolders.length === 0) {
           return {
             status: "no_folders",

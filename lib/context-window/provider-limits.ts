@@ -86,8 +86,9 @@ export const PROVIDER_DEFAULT_LIMITS: Record<LLMProvider, number> = {
   claudecode: 200000, // 200K for Claude Code (Claude Opus 4.6 = 200K standard)
   antigravity: 200000, // Claude-based models = 200K; Gemini models use model-specific overrides
   openrouter: 128000, // Varies widely, conservative default
-  codex: 400000, // GPT-5 models are 400K context
+  codex: 1000000, // GPT-5.4 models are 1M context (legacy models 400K)
   kimi: 128000, // Kimi K2 models range 128K-256K
+  minimax: 80000, // MiniMax M2.1 models with 80K context
   ollama: 32000, // Local models typically have smaller context
 };
 
@@ -154,7 +155,22 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
     supportsStreaming: true,
   },
 
-  // Codex (GPT-5 models — all 400K context)
+  // Codex (GPT-5.4 — 1M context)
+  "gpt-5.4": {
+    maxTokens: 1000000,
+    supportsStreaming: true,
+    warningThreshold: 0.80,
+    criticalThreshold: 0.92,
+    hardLimit: 0.97,
+  },
+  "gpt-5.4-pro": {
+    maxTokens: 1000000,
+    supportsStreaming: true,
+    warningThreshold: 0.80,
+    criticalThreshold: 0.92,
+    hardLimit: 0.97,
+  },
+  // Codex (GPT-5 legacy models — 400K context)
   "gpt-5.3-codex": {
     maxTokens: 400000,
     supportsStreaming: true,
@@ -203,6 +219,20 @@ export const MODEL_CONTEXT_CONFIGS: Record<string, Partial<ContextWindowConfig>>
   },
   "kimi-k2-0905-preview": {
     maxTokens: 128000,
+    supportsStreaming: true,
+  },
+
+  // MiniMax models
+  "MiniMax-M2.1": {
+    maxTokens: 80000,
+    supportsStreaming: true,
+  },
+  "MiniMax-M2.1-lightning": {
+    maxTokens: 80000,
+    supportsStreaming: true,
+  },
+  "MiniMax-M2": {
+    maxTokens: 80000,
     supportsStreaming: true,
   },
 

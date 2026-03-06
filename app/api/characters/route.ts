@@ -12,6 +12,7 @@ import {
   createCharacterSchema,
   agentMetadataSchema,
 } from "@/lib/characters/validation";
+import { autoInstallSystemSkills } from "@/lib/skills/catalog/auto-install";
 import { z } from "zod";
 
 // Full character creation schema - includes optional previewImageUrl and metadata
@@ -109,6 +110,11 @@ export async function POST(req: Request) {
     }
 
     await Promise.all(promises);
+
+    // Auto-install system skills (fire-and-forget, don't block character creation)
+    void autoInstallSystemSkills(dbUser.id, character.id).catch((error) => {
+      console.error("[Characters API] System skills auto-install failed:", error);
+    });
 
     return NextResponse.json({
       success: true,

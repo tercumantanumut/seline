@@ -34,6 +34,7 @@ const MODEL_PREFIXES: Record<LLMProvider, string[]> = {
   claudecode: ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"],
   codex: ["gpt-5", "codex"],
   kimi: ["kimi-", "moonshot-"],
+  minimax: ["minimax-"],
   antigravity: [], // uses exact match
   ollama: [],      // accepts any model name
   openrouter: [],  // accepts anything
@@ -97,6 +98,11 @@ export function isModelCompatibleWithProvider(
     return MODEL_PREFIXES.kimi.some((p) => lowerModel.startsWith(p));
   }
 
+  // MiniMax: minimax-*
+  if (provider === "minimax") {
+    return MODEL_PREFIXES.minimax.some((p) => lowerModel.startsWith(p));
+  }
+
   // Ollama: accepts any model name
   if (provider === "ollama") return true;
 
@@ -107,7 +113,8 @@ export function isModelCompatibleWithProvider(
     if (
       ANTIGRAVITY_EXACT_MODELS.has(lowerModel) ||
       MODEL_PREFIXES.codex.some((p) => lowerModel.startsWith(p)) ||
-      MODEL_PREFIXES.kimi.some((p) => lowerModel.startsWith(p))
+      MODEL_PREFIXES.kimi.some((p) => lowerModel.startsWith(p)) ||
+      MODEL_PREFIXES.minimax.some((p) => lowerModel.startsWith(p))
     ) {
       return false;
     }

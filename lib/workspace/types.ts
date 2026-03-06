@@ -67,6 +67,60 @@ export interface WorkspaceStatus extends WorkspaceInfo {
   worktreeExists?: boolean;
 }
 
+export interface GitFileStatus {
+  path: string;
+  oldPath?: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "copied";
+  additions: number;
+  deletions: number;
+}
+
+export interface GitDiffLine {
+  type: "add" | "delete" | "normal";
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+export interface GitDiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: GitDiffLine[];
+  patch: string;
+}
+
+export interface GitDiffFile {
+  path: string;
+  oldPath?: string;
+  status: GitFileStatus["status"];
+  additions: number;
+  deletions: number;
+  isBinary: boolean;
+  hunks: GitDiffHunk[];
+}
+
+export interface GitDiffResult {
+  files: GitDiffFile[];
+  stats: {
+    additions: number;
+    deletions: number;
+    filesChanged: number;
+  };
+}
+
+export interface GitStatusResult {
+  unstaged: GitFileStatus[];
+  staged: GitFileStatus[];
+  stats: {
+    additions: number;
+    deletions: number;
+    filesChanged: number;
+  };
+}
+
 /**
  * Workspace summary for the dashboard (aggregated across sessions).
  */

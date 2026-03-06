@@ -10,6 +10,7 @@
  */
 
 import { tool, jsonSchema, generateObject } from "ai";
+import type { ToolResultOutput } from "@ai-sdk/provider-utils";
 import { z } from "zod";
 import { getUtilityModel } from "@/lib/ai/providers";
 import { ToolRegistry } from "./registry";
@@ -48,6 +49,13 @@ export interface ToolSearchContext {
   discoveredTools?: Set<string>;
 
   /**
+   * Enables Anthropic tool-reference output bridging for deferred tools.
+   * When enabled, searchTools emits tool_reference blocks via toModelOutput
+   * so Anthropic can load deferred schemas server-side.
+   */
+  enableAnthropicToolReferences?: boolean;
+
+  /**
    * Set of tool names that are enabled for this specific agent/character.
    * If provided, search results are filtered to only show tools in this set
    * (plus tools with alwaysLoad: true like searchTools/listAllTools).
@@ -72,14 +80,16 @@ export interface ToolSearchContext {
   subagentDirectory?: string[];
 }
 
-/**
- * Schema for the tool search input
- */
-const toolSearchSchema = jsonSchema<{
+type ToolSearchInput = {
   query: string;
   category?: ToolCategory;
   limit?: number;
-}>({
+};
+
+/**
+ * Schema for the tool search input
+ */
+const toolSearchSchema = jsonSchema<ToolSearchInput>({
   type: "object",
   title: "searchToolsInput",
   description: "Input schema for searching available tools",
@@ -151,6 +161,13 @@ interface SearchToolResult {
   summary?: string;
 }
 
+function asJsonToolOutput(value: unknown): ToolResultOutput {
+  return {
+    type: "json",
+    value: value as any,
+  };
+}
+
 const TOOL_SEARCH_ROUTER_MODEL_ENABLED =
   process.env.TOOL_SEARCH_ROUTER_MODEL !== "false";
 
@@ -165,6 +182,35 @@ const toolSearchRouterSchema = z.object({
 });
 
 type ToolSearchRouterDecision = z.infer<typeof toolSearchRouterSchema>;
+
+// JSON schema equivalent of toolSearchRouterSchema for use with generateObject.
+// Using jsonSchema<T>() instead of the raw Zod schema avoids TS2589 (excessively deep
+// type instantiation) caused by generateObject's generic inference through Zod's type
+// system under moduleResolution: "node" (electron tsconfig). The result is validated
+// with Zod's .parse() at runtime to keep the same guarantees.
+const toolSearchRouterJsonSchema = jsonSchema<ToolSearchRouterDecision>({
+  type: "object",
+  properties: {
+    directToolNames: { type: "array", items: { type: "string" }, maxItems: 12 },
+    normalizedQuery: { type: "string", minLength: 1, maxLength: 200 },
+    relatedTerms: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, maxItems: 8 },
+    rationale: { type: "string", maxLength: 320 },
+  },
+  required: ["directToolNames", "normalizedQuery", "relatedTerms", "rationale"],
+});
+
+async function callToolSearchRouter(
+  prompt: string,
+): Promise<ToolSearchRouterDecision> {
+  const { object } = await generateObject({
+    model: getUtilityModel(),
+    schema: toolSearchRouterJsonSchema,
+    temperature: 0,
+    prompt,
+  });
+  return toolSearchRouterSchema.parse(object);
+}
+
 const TOOL_SEARCH_GENERIC_TERMS = new Set([
   "search",
   "find",
@@ -304,26 +350,19 @@ async function routeToolSearchWithUtilityModel(
   ].join("\n\n");
 
   try {
-    const decisionPromise = generateObject({
-      model: getUtilityModel(),
-      schema: toolSearchRouterSchema,
-      temperature: 0,
-      prompt: routerPrompt,
-    });
-
     const decision = await Promise.race([
-      decisionPromise,
+      callToolSearchRouter(routerPrompt),
       new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), TOOL_SEARCH_ROUTER_TIMEOUT_MS)
       ),
     ]);
 
-    if (!decision || !("object" in decision)) {
+    if (!decision) {
       warnSearchTools("[searchTools] Utility router timed out; falling back to registry scoring");
       return null;
     }
 
-    return decision.object;
+    return decision;
   } catch (error) {
     warnSearchTools(
       `[searchTools] Utility router failed; falling back to registry scoring: ${error instanceof Error ? error.message : String(error)}`
@@ -375,6 +414,8 @@ export function createToolSearchTool(context?: ToolSearchContext) {
   const discoveredTools = context?.discoveredTools;
   const enabledTools = context?.enabledTools;
   const subagentDirectory = context?.subagentDirectory;
+  const enableAnthropicToolReferences =
+    context?.enableAnthropicToolReferences === true;
 
   return tool({
     description: `Search for available AI tools by functionality.
@@ -400,7 +441,7 @@ export function createToolSearchTool(context?: ToolSearchContext) {
 
 **After finding a tool:** Use it immediately. Do NOT call searchTools again for the same task.`,
     inputSchema: toolSearchSchema,
-    execute: async ({ query, category, limit = 20 }): Promise<SearchToolResult> => {
+    execute: async ({ query, category, limit = 20 }: ToolSearchInput): Promise<SearchToolResult> => {
       const effectiveLimit = Math.min(Math.max(limit, 1), 50);
 
       // Start with a broad candidate set, then let the utility model narrow and rank.
@@ -598,6 +639,62 @@ export function createToolSearchTool(context?: ToolSearchContext) {
         summary,
       };
     },
+    ...(enableAnthropicToolReferences
+      ? {
+          toModelOutput: async ({ output }) => {
+            const result = output as SearchToolResult;
+            if (!result || result.status !== "success" || !Array.isArray(result.results)) {
+              return asJsonToolOutput(output);
+            }
+
+            // Keep subagent lookups in JSON mode so the model can read full metadata.
+            const hasSubagentResults = result.results.some(
+              (entry) => entry.resultType === "subagent"
+            );
+            if (hasSubagentResults) {
+              return asJsonToolOutput(output);
+            }
+
+            const referencedToolNames = Array.from(
+              new Set(
+                result.results
+                  .filter(
+                    (entry): entry is SearchResultWithAvailability =>
+                      entry.resultType === "tool"
+                  )
+                  .map((entry) => entry.name)
+                  .filter(
+                    (toolName) =>
+                      registry.get(toolName)?.metadata.loading.deferLoading === true
+                  )
+              )
+            );
+
+            if (referencedToolNames.length === 0) {
+              return asJsonToolOutput(output);
+            }
+
+            return {
+              type: "content",
+              value: [
+                {
+                  type: "text",
+                  text: result.message,
+                },
+                ...referencedToolNames.map((toolName) => ({
+                  type: "custom" as const,
+                  providerOptions: {
+                    anthropic: {
+                      type: "tool-reference",
+                      toolName,
+                    },
+                  },
+                })),
+              ],
+            };
+          },
+        }
+      : {}),
   });
 }
 

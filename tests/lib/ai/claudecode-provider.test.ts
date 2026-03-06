@@ -507,3 +507,76 @@ describe("queryWithSdkOptions — async agent lifecycle (sdk-tools AgentOutput)"
     expect(text).toBe("Async task launched.");
   });
 });
+
+
+describe("queryWithSdkOptions — live prompt queue injection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("injects queued live prompts into the SDK session via streamInput", async () => {
+    const pendingMessages: Array<{ resolve: (value: IteratorResult<SDKMessage, void>) => void }> = [];
+
+    const query = {
+      async *[Symbol.asyncIterator]() {
+        yield {
+          type: "stream_event",
+          event: { type: "content_block_delta", delta: { type: "text_delta", text: "done" } },
+        };
+        yield { type: "result", subtype: "success", is_error: false, result: "", errors: [] };
+      },
+      async streamInput(stream: AsyncIterable<any>) {
+        const seen: any[] = [];
+        for await (const message of stream) {
+          seen.push(message);
+        }
+        pendingMessages.push({
+          resolve: (() => {
+            if (seen.length !== 1) {
+              throw new Error(`Expected exactly one injected message, got ${seen.length}`);
+            }
+            const content = seen[0]?.message?.content;
+            if (typeof content !== "string" || !content.includes("follow-up request")) {
+              throw new Error(`Unexpected injected content: ${JSON.stringify(content)}`);
+            }
+            return () => ({ value: undefined, done: true });
+          })(),
+        });
+      },
+    };
+
+    (mockQuery as MockedFunction<typeof mockQuery>).mockReturnValue(query as any);
+
+    const { createLivePromptQueue, appendToLivePromptQueue, removeLivePromptQueue } = await import(
+      "@/lib/background-tasks/live-prompt-queue-registry"
+    );
+
+    const runId = "run-live-prompt-1";
+    const sessionId = "session-live-prompt-1";
+    createLivePromptQueue(runId, sessionId);
+
+    const resultPromise = queryWithSdkOptions({
+      prompt: "start",
+      sdkOptions: {
+        mcpContext: {
+          userId: "user-1",
+          sessionId,
+          runId,
+          characterId: null,
+        },
+      },
+    });
+
+    appendToLivePromptQueue(runId, {
+      id: "live-1",
+      content: "follow-up request",
+      stopIntent: false,
+    });
+
+    const text = await resultPromise;
+    expect(text).toBe("done");
+    expect((mockQuery as MockedFunction<typeof mockQuery>).mock.calls).toHaveLength(1);
+
+    removeLivePromptQueue(runId, sessionId);
+  });
+});

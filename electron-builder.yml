@@ -70,6 +70,12 @@ extraResources:
       - "!**/test/**"
       - "!**/tests/**"
       - "!**/__tests__/**"
+      # Dev/build-only packages (also removed in electron-prepare.js as primary defense)
+      - "!electron/**"
+      - "!typescript/**"
+      - "!webpack/**"
+      - "!@remotion/studio/**"
+      - "!@remotion/studio-server/**"
   # Turbopack external module wrappers (lives inside .next/node_modules, excluded by the !**/node_modules filter above)
   - from: ".next/standalone/.next/node_modules"
     to: "standalone/.next/node_modules"

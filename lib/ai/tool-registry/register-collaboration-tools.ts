@@ -12,6 +12,9 @@ import { createCalculatorTool } from "../tools/calculator-tool";
 import { createUpdatePlanTool } from "../tools/update-plan-tool";
 import { createWorkspaceTool } from "../tools/workspace-tool";
 import { createChromiumWorkspaceTool } from "../tools/chromium-workspace-tool";
+import { createAskUserQuestionTool } from "../tools/ask-user-question-tool";
+import { createPromptLibraryTool } from "../tools/prompt-library-tool";
+import { getPromptLibraryRulesSummary, getSceneGuideSummary } from "@/data/prompt-library/optimization-rules";
 
 export function registerCollaborationTools(registry: ToolRegistry): void {
   // Execute Command Tool - Run shell commands safely within synced directories
@@ -440,6 +443,92 @@ File tools (readFile, editFile, writeFile, localGrep) automatically work in the 
         sessionId: sessionId || "UNSCOPED",
         characterId: characterId || "UNSCOPED",
         userId: userId || "UNSCOPED",
+      })
+  );
+
+  // Ask User Question Tool - Interactive user clarification with selectable options
+
+
+  // Prompt Library Tool - curated image generation prompt references
+  registry.register(
+    "promptLibrary",
+    {
+      displayName: "Prompt Library",
+      category: "knowledge",
+      keywords: [
+        "prompt",
+        "image",
+        "generation",
+        "nanobanana",
+        "trending",
+        "photography",
+        "portrait",
+        "cinematic",
+        "template",
+        "inspiration",
+        "style",
+        "composition",
+        "creative",
+        "reference",
+        "example",
+      ],
+      shortDescription:
+        "Search and retrieve proven image generation prompts from trending community library",
+      fullInstructions: `## Prompt Library — Image Generation Prompt Reference
+
+Multi-action tool for discovering and using proven image generation prompts.
+
+**Actions:**
+- \`search\` — Find prompts by keyword/category. Returns previews (first 200 chars).
+- \`trending\` — Get top prompts by popularity. Returns previews.
+- \`random\` — Get random prompts, optionally filtered by category.
+- \`categories\` — List all categories with counts.
+- \`get\` — Retrieve full prompt text by ID. Use after finding via search/trending.
+
+**Prompt Enhancement Rules (apply when crafting/adapting prompts):**
+${getPromptLibraryRulesSummary()}
+
+**Scene Quick-Reference:**
+${getSceneGuideSummary()}
+
+**Prompt Formats:** 44% are structured JSON templates (camera, lighting, mood sections) — ideal for adapting. 56% are natural language.
+
+**Workflow:** search/trending -> pick prompt -> get full text -> adapt/combine with user's intent -> generate.`,
+      loading: { deferLoading: true },
+      requiresSession: false,
+    } satisfies ToolMetadata,
+    ({ sessionId }) => createPromptLibraryTool({
+      sessionId: sessionId || "UNSCOPED",
+    })
+  );
+
+  registry.register(
+    "askUserQuestion",
+    {
+      displayName: "Ask User Question",
+      category: "utility",
+      keywords: [
+        "ask",
+        "question",
+        "user",
+        "interactive",
+        "clarify",
+        "clarification",
+        "options",
+        "select",
+        "multiple choice",
+        "preference",
+        "choice",
+        "confirm",
+      ],
+      shortDescription:
+        "Ask the user interactive questions with selectable options and wait for their response",
+      loading: { alwaysLoad: true },
+      requiresSession: true,
+    } satisfies ToolMetadata,
+    ({ sessionId }) =>
+      createAskUserQuestionTool({
+        sessionId: sessionId || "UNSCOPED",
       })
   );
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { createReadFileTool } from "@/lib/ai/tools/read-file-tool";
 import { readFile, open } from "fs/promises";
-import { isPathAllowed, resolveSyncedFolderPaths } from "@/lib/ai/filesystem";
+import { isPathAllowed, resolveWorkspaceAwarePaths } from "@/lib/ai/filesystem";
 
 // Mock dependencies
 vi.mock("fs/promises");
@@ -24,7 +24,7 @@ describe("readFile Tool", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (resolveSyncedFolderPaths as any).mockResolvedValue(["/mock/root"]);
+    (resolveWorkspaceAwarePaths as any).mockResolvedValue(["/mock/root"]);
     (isPathAllowed as any).mockResolvedValue("/mock/root/file.txt");
   });
 

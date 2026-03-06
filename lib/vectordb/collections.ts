@@ -225,6 +225,74 @@ export async function listAgentTables(): Promise<string[]> {
 }
 
 /**
+ * Compact and clean up an agent's LanceDB table.
+ * Merges fragmented transaction files and removes old versions.
+ * Should be called periodically to prevent unbounded table growth.
+ */
+export async function compactAgentTable(characterId: string): Promise<{
+  compacted: boolean;
+  fragmentsRemoved: number;
+  fragmentsAdded: number;
+} | null> {
+  const db = await getLanceDB();
+  if (!db) return null;
+
+  const tableName = getAgentTableName(characterId);
+  const existingTables = await db.tableNames();
+
+  if (!existingTables.includes(tableName)) {
+    return { compacted: false, fragmentsRemoved: 0, fragmentsAdded: 0 };
+  }
+
+  try {
+    const table = await db.openTable(tableName);
+    const stats = await table.optimize({ cleanupOlderThan: new Date() });
+    console.log(
+      `[VectorDB] Compacted table ${tableName}: ` +
+      `${stats.compaction.fragmentsRemoved} fragments removed, ` +
+      `${stats.compaction.fragmentsAdded} added`
+    );
+    return {
+      compacted: true,
+      fragmentsRemoved: stats.compaction.fragmentsRemoved,
+      fragmentsAdded: stats.compaction.fragmentsAdded,
+    };
+  } catch (error) {
+    console.error(`[VectorDB] Failed to compact table ${tableName}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Compact all agent tables. Returns summary of compaction results.
+ */
+export async function compactAllAgentTables(): Promise<{
+  tablesCompacted: number;
+  totalFragmentsRemoved: number;
+}> {
+  const tables = await listAgentTables();
+  let tablesCompacted = 0;
+  let totalFragmentsRemoved = 0;
+
+  for (const tableName of tables) {
+    const characterId = tableName.replace(TABLE_PREFIX, "").replace(/_/g, "-");
+    const result = await compactAgentTable(characterId);
+    if (result?.compacted) {
+      tablesCompacted++;
+      totalFragmentsRemoved += result.fragmentsRemoved;
+    }
+  }
+
+  if (tablesCompacted > 0) {
+    console.log(
+      `[VectorDB] Compaction complete: ${tablesCompacted} tables, ${totalFragmentsRemoved} fragments removed`
+    );
+  }
+
+  return { tablesCompacted, totalFragmentsRemoved };
+}
+
+/**
  * Get table statistics for an agent
  */
 export async function getAgentTableStats(characterId: string): Promise<{

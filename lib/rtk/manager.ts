@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { loadSettings, updateSetting } from "@/lib/settings/settings-manager";
 
 function getLocalDataDir(): string {
@@ -60,6 +60,19 @@ function getRTKSpawnEnv(baseEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env = { ...(baseEnv || process.env) };
   env.RTK_DB_PATH = getRTKDbPath();
   return env;
+}
+
+function isRTKBinaryUsable(binaryPath: string): boolean {
+  try {
+    const probe = spawnSync(binaryPath, ["--version"], {
+      stdio: "ignore",
+      timeout: 2000,
+      env: getRTKSpawnEnv(),
+    });
+    return !probe.error && probe.status === 0;
+  } catch {
+    return false;
+  }
 }
 
 export function getRTKEnvironment(baseEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -125,7 +138,16 @@ export function getRTKBinary(): string | null {
   if (!settings.rtkEnabled || !settings.rtkInstalled) {
     return null;
   }
-  return resolveRTKBinaryPath();
+
+  const binaryPath = resolveRTKBinaryPath();
+  if (!isRTKBinaryUsable(binaryPath)) {
+    // The persisted settings can become stale across dev/prod transitions.
+    // Disable RTK eagerly so command execution falls back to direct mode.
+    updateSetting("rtkInstalled", false);
+    return null;
+  }
+
+  return binaryPath;
 }
 
 export function getRTKFlags(): string[] {

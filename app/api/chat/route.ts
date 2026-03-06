@@ -1,11 +1,12 @@
+import { stat } from "node:fs/promises";
 import { consumeStream, streamText, stepCountIs, type ModelMessage, type Tool, type UserModelMessage } from "ai";
-import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid } from "@/lib/ai/providers";
+import { ensureAntigravityTokenValid, ensureClaudeCodeTokenValid, ensureCodexTokenValid } from "@/lib/ai/providers";
 import { registerAllTools } from "@/lib/ai/tool-registry";
 import { AI_CONFIG } from "@/lib/ai/config";
 import { getPrimarySyncFolder } from "@/lib/vectordb/sync-folder-crud";
 import { shouldUseCache } from "@/lib/ai/cache/config";
 import { applyCacheToMessages, estimateCacheSavings } from "@/lib/ai/cache/message-cache";
-import { ContextWindowManager } from "@/lib/context-window";
+import { ContextWindowManager, isDelegatedToolName } from "@/lib/context-window";
 import { getSessionModelId, getSessionProvider, resolveSessionLanguageModel, getSessionDisplayName, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { generateSessionTitle } from "@/lib/ai/title-generator";
 import { createSession, createMessage, updateMessage, getSession, getOrCreateLocalUser, updateSession, deleteMessagesNotIn, getInjectedMessageIds } from "@/lib/db/queries";
@@ -84,6 +85,9 @@ import {
   disableToolForSchemaRecovery,
   parseInvalidToolSchemaError,
 } from "./tool-schema-recovery";
+import { tagIntermediateDelegationParts } from "./delegation-scope-tagging";
+import { createThinkTagFilter, shouldFilterThinkTags } from "@/lib/ai/streaming/think-tag-filter";
+import { detectEmotion } from "@/lib/emotion";
 
 // Initialize tool event handler for observability (once per runtime)
 initializeToolEventHandler();
@@ -173,6 +177,16 @@ export async function POST(req: Request) {
         if (!tokenValid) {
           return new Response(
             JSON.stringify({ error: "Claude Code authentication expired. Please re-authenticate in Settings." }),
+            { status: 401, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      if (selectedProvider === "codex") {
+        const tokenValid = await ensureCodexTokenValid();
+        if (!tokenValid) {
+          return new Response(
+            JSON.stringify({ error: "Codex authentication expired. Please re-authenticate in Settings." }),
             { status: 401, headers: { "Content-Type": "application/json" } }
           );
         }
@@ -269,13 +283,17 @@ export async function POST(req: Request) {
         messageId: undefined,
         lastBroadcastAt: 0,
         lastBroadcastSignature: "",
+        provenance: {
+          contextScope: sessionMetadata?.isDelegation === true ? "delegated" : "main",
+          provenanceVersion: 1,
+        },
       }
       : null;
 
     // Pre-generate the assistant message ID so frontend stream and DB share
-    // the same UUID.  This prevents deleteMessagesNotIn() from treating the
-    // DB-side assistant message as "unknown" and silently deleting it.
-    const assistantMessageId = crypto.randomUUID();
+    // the same UUID. When a live prompt splits the run, we rotate this ID so
+    // each assistant segment keeps a stable, unique frontend/DB identity.
+    let assistantMessageId = crypto.randomUUID();
 
     const syncStreamingMessage = shouldEmitProgress && streamingState
       ? createSyncStreamingMessage({
@@ -287,7 +305,7 @@ export async function POST(req: Request) {
           scheduledTaskName,
           getAgentRunId: () => agentRun?.id,
           streamingState,
-          assistantMessageId,
+          getAssistantMessageId: () => assistantMessageId,
         })
       : undefined;
 
@@ -367,6 +385,8 @@ export async function POST(req: Request) {
     }
     chatTaskRegistered = true;
 
+    const runId = agentRun.id;
+
     // ── Edit/Reload truncation cleanup ──────────────────────────────────────
     // IMPORTANT: This must run BEFORE saving the new user message. When a user
     // edits a message, assistant-ui sends a truncated list (everything up to the
@@ -439,6 +459,9 @@ export async function POST(req: Request) {
       if ((isNewSession || userMessageCount === 1) && plainTextContent.length > 0) {
         void generateSessionTitle(sessionId, plainTextContent);
       }
+
+      // Fire-and-forget emotion detection
+      detectEmotion(plainTextContent, [], { conversationId: sessionId }).catch(() => {});
     }
 
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────
@@ -562,7 +585,16 @@ export async function POST(req: Request) {
     if (characterId) {
       const primaryFolder = await getPrimarySyncFolder(characterId);
       if (primaryFolder?.folderPath) {
-        agentCwd = primaryFolder.folderPath;
+        try {
+          const stats = await stat(primaryFolder.folderPath);
+          if (stats.isDirectory()) {
+            agentCwd = primaryFolder.folderPath;
+          } else {
+            console.warn(`[CHAT API] Primary sync folder is not a directory: ${primaryFolder.folderPath}`);
+          }
+        } catch {
+          console.warn(`[CHAT API] Primary sync folder path does not exist, falling back to process.cwd(): ${primaryFolder.folderPath}`);
+        }
       }
     }
 
@@ -579,6 +611,7 @@ export async function POST(req: Request) {
     const mcpCtx: SelineMcpContext = {
       userId: dbUser.id,
       sessionId,
+      runId,
       characterId: characterId ?? null,
       enabledTools: enabledTools ?? undefined,
       cwd: agentCwd,
@@ -607,6 +640,48 @@ export async function POST(req: Request) {
         };
       })(),
       sdkToolResultBridge,
+      onQueueMessages: (() => {
+        const _state = streamingState;
+        const _sync = syncStreamingMessage;
+        return async (entries) => {
+          if (entries.length === 0) return;
+
+          if (_state && _sync) {
+            await _sync(true);
+            if (_state.messageId) {
+              const preId = _state.messageId;
+              void updateMessage(preId, { metadata: { livePromptInjected: true } }).catch(() => {});
+            }
+            _state.messageId = undefined;
+            _state.parts = [];
+            _state.toolCallParts = new Map();
+            _state.loggedIncompleteToolCalls = new Set();
+            _state.lastBroadcastAt = 0;
+            _state.lastBroadcastSignature = "";
+            _state.pendingBroadcast = false;
+            _state.isCreating = false;
+            assistantMessageId = crypto.randomUUID();
+            // Claude Code runs entirely inside streamText step 0, so any injected
+            // follow-up content must ignore canonical step reconciliation.
+            _state.stepOffset = 1;
+          }
+
+          for (const entry of entries) {
+            try {
+              const orderingIndex = await nextOrderingIndex(sessionId);
+              await createMessage({
+                sessionId,
+                role: "user",
+                content: [{ type: "text", text: entry.content }],
+                orderingIndex,
+                metadata: { livePromptInjected: true },
+              });
+            } catch (dbError) {
+              console.warn("[CHAT API] Failed to persist injected Claude Code user message:", dbError);
+            }
+          }
+        };
+      })(),
     };
 
     // ── Apply caching to messages ──────────────────────────────────────────────
@@ -624,6 +699,20 @@ export async function POST(req: Request) {
     const provider = getSessionProvider(sessionMetadata);
     configuredProvider = provider;
     console.log(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
+
+    // Think-tag filter: strip <think>...</think> blocks from non-Anthropic providers.
+    // NOTE: This filter currently operates on text deltas as they are persisted to
+    // the DB-backed message state (via onChunk). It does NOT transform the live SSE
+    // stream sent to the client — the client receives raw text deltas and relies on
+    // the DB-persisted (already-filtered) content when it re-fetches.
+    // TODO: For true real-time filtering on the client, consider applying the filter
+    // as a TransformStream on the SSE response, or filtering client-side.
+    const thinkTagFilter = shouldFilterThinkTags(provider, currentModelId)
+      ? createThinkTagFilter()
+      : null;
+    if (thinkTagFilter) {
+      console.log(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
+    }
 
     const runFinalized = { value: false };
 
@@ -692,9 +781,6 @@ export async function POST(req: Request) {
         }
       }
     };
-
-    const runId = agentRun?.id;
-    if (!runId) throw new Error("Agent run unavailable for chat stream");
 
     const streamAbortSignal = combineAbortSignals([req.signal, chatAbortController.signal]);
 
@@ -880,6 +966,18 @@ export async function POST(req: Request) {
           },
           onError: async ({ error }) => {
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            // Always log the full error so it's visible in debug.log — prevents
+            // silent swallowing that previously made failures impossible to diagnose.
+            console.error(`[CHAT API] Stream onError: ${errorMessage}`, {
+              provider,
+              sessionId,
+              runId,
+              errorType: error?.constructor?.name,
+              stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
+              // When error is a plain object (not Error), log its contents so we
+              // can actually see what the provider returned (e.g. Codex API errors).
+              raw: !(error instanceof Error) ? JSON.stringify(error, null, 2)?.slice(0, 2000) : undefined,
+            });
             // Claude Code SDK agents self-correct after tool validation failures —
             // the stream stays open and onFinish will finalize the run properly.
             if (provider === "claudecode" && isNonFatalToolError(error)) {
@@ -893,7 +991,9 @@ export async function POST(req: Request) {
               if (!streamingState || !syncStreamingMessage) return;
               let changed = false;
               if (chunk.type === "text-delta") {
-                changed = appendTextPartToState(streamingState, chunk.text ?? "") || changed;
+                const rawText = chunk.text ?? "";
+                const filteredText = thinkTagFilter ? thinkTagFilter.process(rawText) : rawText;
+                changed = appendTextPartToState(streamingState, filteredText) || changed;
               } else if (chunk.type === "tool-input-start") {
                 changed = recordToolInputStart(streamingState, chunk.id, chunk.toolName) || changed;
               } else if (chunk.type === "tool-input-delta") {
@@ -912,20 +1012,44 @@ export async function POST(req: Request) {
                     );
                   }
                 }
+                if (provider === "claudecode" && chunk.toolName && isDelegatedToolName(chunk.toolName)) {
+                  streamingState.provenance = {
+                    ...(streamingState.provenance ?? {}),
+                    contextScope: "delegated",
+                    provenanceVersion: 1,
+                  };
+                }
                 changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
+                changed = tagIntermediateDelegationParts(streamingState, chunk.toolCallId) || changed;
+                if (provider === "claudecode" && chunk.toolName && isDelegatedToolName(chunk.toolName)) {
+                  streamingState.provenance = {
+                    ...(streamingState.provenance ?? {}),
+                    contextScope: "main",
+                    provenanceVersion: 1,
+                  };
+                }
               }
               if (changed) await syncStreamingMessage();
             }
             : undefined,
-          onFinish: createOnFinishCallback(callbackCtx),
+          onFinish: async (event) => {
+            // Flush any trailing buffered content from the think-tag filter
+            if (thinkTagFilter && streamingState) {
+              const flushed = thinkTagFilter.flush();
+              if (flushed) {
+                appendTextPartToState(streamingState, flushed);
+              }
+            }
+            return createOnFinishCallback(callbackCtx)(event);
+          },
           onAbort: createOnAbortCallback(callbackCtx) as any,
         })
       )
     );
 
-    const STREAM_RECOVERY_MAX_ATTEMPTS = 3;
+    const STREAM_RECOVERY_MAX_ATTEMPTS = 7;
     let result: Awaited<ReturnType<typeof createStreamResult>>;
     const schemaRecoveredTools = new Set<string>();
     for (let attempt = 0; ; attempt += 1) {
@@ -1041,7 +1165,13 @@ export async function POST(req: Request) {
     if (sdkToolResultBridge) {
       sdkToolResultBridge.dispose?.();
     }
-    console.error("Chat API error:", error);
+    console.error("[CHAT API] Unhandled error in POST handler:", {
+      message: error instanceof Error ? error.message : String(error),
+      type: error?.constructor?.name,
+      stack: error instanceof Error ? error.stack?.split("\n").slice(0, 8).join("\n") : undefined,
+      provider: configuredProvider,
+      sessionId,
+    });
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     const isCreditError = detectCreditError(errorMessage);

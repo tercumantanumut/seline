@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -6,6 +7,7 @@ import type {
   HookEvent,
   HookCallbackMatcher,
   SdkPluginConfig,
+  SDKUserMessage,
   OutputFormat,
   ThinkingConfig,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -26,6 +28,16 @@ import {
   storeUserAnswer,
   popUserAnswer,
 } from "@/lib/interactive-tool-bridge";
+import {
+  drainLivePromptQueue,
+  hasLivePromptQueue,
+  type LivePromptEntry,
+  waitForQueueMessage,
+} from "@/lib/background-tasks/live-prompt-queue-registry";
+import {
+  buildStopSystemMessage,
+  buildUserInjectionContent,
+} from "@/lib/background-tasks/live-prompt-helpers";
 
 const CLAUDECODE_MAX_RETRY_ATTEMPTS = 5;
 const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
@@ -39,6 +51,32 @@ const CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS = (() => {
   const parsed = Number(process.env.CLAUDECODE_INPUT_DELTA_BATCH_INTERVAL_MS);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 40;
 })();
+
+/** Anthropic Messages API usage shape (snake_case wire format). */
+type AnthropicTokenUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+};
+
+/** Shape of a "result" message from the Claude Agent SDK query iterator. */
+type ClaudeAgentResultMessage = {
+  is_error?: boolean;
+  subtype?: string;
+  result?: string;
+  errors?: string[];
+  usage?: AnthropicTokenUsage;
+};
+
+type ClaudeAgentQueryStreamMessage = {
+  type?: string;
+  [key: string]: unknown;
+};
+
+type ClaudeAgentQueryStream = AsyncGenerator<ClaudeAgentQueryStreamMessage, void> & {
+  streamInput?: (stream: AsyncIterable<SDKUserMessage>) => Promise<void>;
+};
 
 /**
  * SDK-native options that extend a basic Claude Agent SDK query.
@@ -422,6 +460,180 @@ function buildPromptFromMessages(messages: unknown): string {
   return lines.join("\n\n");
 }
 
+/**
+ * Detect whether intercepted Anthropic API messages contain image content blocks.
+ * When images are present, we must use the SDK's multimodal prompt path instead
+ * of flattening to a text-only string (which silently drops image data).
+ */
+function hasImageContent(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  for (const message of messages) {
+    if (!isDictionary(message)) continue;
+    const content = message.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (isDictionary(part) && part.type === "image") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Build an AsyncIterable<SDKUserMessage> that preserves image content blocks
+ * from intercepted Anthropic API messages. This allows the Claude Agent SDK's
+ * query() to process multimodal prompts (text + images) natively.
+ *
+ * Consolidates the full conversation (user + assistant messages) into a single
+ * SDKUserMessage. Assistant turns are included as text context blocks so the
+ * model retains conversation history, while user image blocks are preserved.
+ * SDKUserMessage.type must be 'user' — the SDK's streamInput only accepts that.
+ */
+async function* buildMultimodalSdkPrompt(
+  messages: unknown[],
+): AsyncGenerator<SDKUserMessage> {
+  const sessionId = crypto.randomUUID();
+
+  // Collect all content blocks across the conversation into a single message.
+  // This mirrors buildPromptFromMessages (single string) but preserves images.
+  const contentBlocks: unknown[] = [];
+
+  for (const message of messages) {
+    if (!isDictionary(message)) continue;
+
+    const role = message.role === "assistant" ? "ASSISTANT" : "USER";
+    const content = message.content;
+
+    if (typeof content === "string" && content.trim().length > 0) {
+      contentBlocks.push({ type: "text", text: `${role}: ${content}` });
+      continue;
+    }
+
+    if (Array.isArray(content)) {
+      // Flatten all structured blocks to text, except image blocks which
+      // are preserved as native content (the whole point of this path).
+      const textFragments: string[] = [];
+
+      for (const part of content) {
+        if (!isDictionary(part) || typeof part.type !== "string") continue;
+
+        if (part.type === "text" && typeof part.text === "string") {
+          textFragments.push(part.text);
+        } else if (part.type === "image") {
+          // Safety guard: if the image base64 payload exceeds the API limit
+          // (should have been resized upstream, but catch edge cases here)
+          const imageData: unknown = (part as Record<string, unknown>).image;
+          if (typeof imageData === "string" && imageData.length > 5 * 1024 * 1024) {
+            console.warn(
+              `[CLAUDECODE] Image block too large (${Math.round(imageData.length / 1024)}KB), replacing with placeholder`,
+            );
+            contentBlocks.push({ type: "text", text: "[Image omitted — exceeded provider size limit]" });
+          } else {
+            contentBlocks.push(part);
+          }
+        } else if (part.type === "tool_use") {
+          const toolName = normalizeClaudeSdkToolName(part.name) || "tool";
+          textFragments.push(`[tool_use:${toolName}]`);
+        } else if (part.type === "tool_result") {
+          textFragments.push("[tool_result]");
+        }
+      }
+
+      if (textFragments.length > 0) {
+        contentBlocks.push({
+          type: "text",
+          text: `${role}: ${textFragments.join("\n")}`,
+        });
+      }
+    }
+  }
+
+  if (contentBlocks.length === 0) return;
+
+  yield {
+    type: "user" as const,
+    message: {
+      role: "user" as const,
+      content: contentBlocks,
+    },
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  } as SDKUserMessage;
+}
+
+function buildSdkUserMessage(content: string, sessionId: string): SDKUserMessage {
+  return {
+    type: "user" as const,
+    message: {
+      role: "user" as const,
+      content,
+    },
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  } as SDKUserMessage;
+}
+
+async function* singleSdkUserMessage(message: SDKUserMessage): AsyncGenerator<SDKUserMessage> {
+  yield message;
+}
+
+async function pumpLivePromptQueue(options: {
+  query: ClaudeAgentQueryStream;
+  runId?: string;
+  signal: AbortSignal;
+  onQueueMessages?: (entries: LivePromptEntry[]) => Promise<void>;
+}): Promise<void> {
+  const { query, runId, signal, onQueueMessages } = options;
+  if (!runId || typeof query.streamInput !== "function") {
+    return;
+  }
+
+  const inputSessionId = crypto.randomUUID();
+
+  while (!signal.aborted && hasLivePromptQueue(runId)) {
+    let entries = drainLivePromptQueue(runId);
+    if (entries.length === 0) {
+      try {
+        await waitForQueueMessage(runId, signal);
+      } catch {
+        break;
+      }
+      if (signal.aborted || !hasLivePromptQueue(runId)) {
+        break;
+      }
+      entries = drainLivePromptQueue(runId);
+      if (entries.length === 0) {
+        continue;
+      }
+    }
+
+    try {
+      await onQueueMessages?.(entries);
+    } catch (error) {
+      console.warn("[ClaudeCode] Failed to persist queued live prompt before injection:", error);
+    }
+
+    const content = entries.some((entry) => entry.stopIntent)
+      ? buildStopSystemMessage(entries)
+      : buildUserInjectionContent(entries);
+    if (!content) {
+      continue;
+    }
+
+    try {
+      await query.streamInput(singleSdkUserMessage(buildSdkUserMessage(content, inputSessionId)));
+    } catch (error) {
+      if (!signal.aborted) {
+        console.warn("[ClaudeCode] Failed to inject queued live prompt into SDK session:", error);
+      }
+      break;
+    }
+
+    if (entries.some((entry) => entry.stopIntent)) {
+      break;
+    }
+  }
+}
+
 function isAuthError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -433,9 +645,11 @@ function isAuthError(message: string): boolean {
   );
 }
 
-function createAnthropicMessageResponse(text: string, model: string): Response {
-  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
-
+function createAnthropicMessageResponse(
+  text: string,
+  model: string,
+  usage?: AnthropicTokenUsage,
+): Response {
   return new Response(
     JSON.stringify({
       id: `msg_${crypto.randomUUID()}`,
@@ -446,8 +660,10 @@ function createAnthropicMessageResponse(text: string, model: string): Response {
       stop_reason: "end_turn",
       stop_sequence: null,
       usage: {
-        input_tokens: 0,
-        output_tokens: outputTokens,
+        input_tokens: usage?.input_tokens ?? 0,
+        output_tokens: usage?.output_tokens ?? 0,
+        cache_read_input_tokens: usage?.cache_read_input_tokens,
+        cache_creation_input_tokens: usage?.cache_creation_input_tokens,
       },
     }),
     {
@@ -459,57 +675,7 @@ function createAnthropicMessageResponse(text: string, model: string): Response {
   );
 }
 
-function createAnthropicStreamResponse(text: string, model: string): Response {
-  const messageId = `msg_${crypto.randomUUID()}`;
-  const outputTokens = Math.max(1, Math.ceil(text.length / 4));
-  const chunks = text.length > 0 ? text.match(/.{1,800}/gs) ?? [text] : [""];
 
-  const events: string[] = [];
-  events.push(`event: message_start\ndata: ${JSON.stringify({
-    type: "message_start",
-    message: {
-      id: messageId,
-      type: "message",
-      role: "assistant",
-      model,
-      content: [],
-      stop_reason: null,
-      stop_sequence: null,
-      usage: { input_tokens: 0, output_tokens: 0 },
-    },
-  })}\n\n`);
-
-  events.push(`event: content_block_start\ndata: ${JSON.stringify({
-    type: "content_block_start",
-    index: 0,
-    content_block: { type: "text", text: "" },
-  })}\n\n`);
-
-  for (const chunk of chunks) {
-    events.push(`event: content_block_delta\ndata: ${JSON.stringify({
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text: chunk },
-    })}\n\n`);
-  }
-
-  events.push("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
-  events.push(`event: message_delta\ndata: ${JSON.stringify({
-    type: "message_delta",
-    delta: { stop_reason: "end_turn", stop_sequence: null },
-    usage: { output_tokens: outputTokens },
-  })}\n\n`);
-  events.push("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n");
-
-  return new Response(events.join(""), {
-    status: 200,
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
-}
 
 /**
  * Create a real-time streaming Response that pipes Claude Agent SDK events
@@ -520,7 +686,7 @@ function createAnthropicStreamResponse(text: string, model: string): Response {
  * chat UI to show intermediate tool steps in real-time.
  */
 function createStreamingClaudeCodeResponse(options: {
-  prompt: string;
+  prompt: string | AsyncIterable<SDKUserMessage>;
   model: string;
   systemPrompt?: string;
   signal?: AbortSignal;
@@ -550,6 +716,10 @@ function createStreamingClaudeCodeResponse(options: {
         { partialJson: string; timer: ReturnType<typeof setTimeout> | null }
       >();
 
+      let livePromptAbortController: AbortController | undefined;
+      let onLivePromptAbort: (() => void) | undefined;
+      let livePromptPump: Promise<void> = Promise.resolve();
+
       try {
         const sdk = options.sdkOptions;
         const mcpCtx: SelineMcpContext | undefined =
@@ -560,7 +730,11 @@ function createStreamingClaudeCodeResponse(options: {
           ? { "seline-platform": createSelineSdkMcpServer(mcpCtx) }
           : undefined;
 
-        const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+        const candidateCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+        const resolvedCwd = existsSync(candidateCwd) ? candidateCwd : process.cwd();
+        if (resolvedCwd !== candidateCwd) {
+          console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
+        }
 
         // Bridge Seline plugin cache paths → SDK plugin configs
         const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
@@ -679,6 +853,22 @@ function createStreamingClaudeCodeResponse(options: {
             ...(sdk?.effort ? { effort: sdk.effort } : {}),
             ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
           },
+        }) as ClaudeAgentQueryStream;
+
+        livePromptAbortController = new AbortController();
+        onLivePromptAbort = () => livePromptAbortController?.abort();
+        if (options.signal) {
+          if (options.signal.aborted) {
+            livePromptAbortController.abort();
+          } else {
+            options.signal.addEventListener("abort", onLivePromptAbort, { once: true });
+          }
+        }
+        livePromptPump = pumpLivePromptQueue({
+          query,
+          runId: mcpCtx?.runId,
+          signal: livePromptAbortController.signal,
+          onQueueMessages: mcpCtx?.onQueueMessages,
         });
 
         // Emit message_start
@@ -697,7 +887,9 @@ function createStreamingClaudeCodeResponse(options: {
         });
 
         let nextContentIndex = 0;
+        let inputTokens = 0;
         let outputTokens = 0;
+        let finalUsage: AnthropicTokenUsage | undefined;
         let syntheticStreamLocalIndex = -1;
         let sawStreamTextThisTurn = false;
         const streamedToolUseIdsThisTurn = new Set<string>();
@@ -867,7 +1059,9 @@ function createStreamingClaudeCodeResponse(options: {
           streamedToolUseNamesThisTurn.clear();
         };
 
-        for await (const message of query) {
+        for await (const rawMessage of query) {
+          const message = rawMessage as { type?: string };
+
           if (message.type === "user") {
             if (sdkToolResultBridge) {
               const bridgedResults = extractSdkToolResultsFromUserMessage(message);
@@ -1099,12 +1293,7 @@ function createStreamingClaudeCodeResponse(options: {
           // ── result: final message ─────────────────────────────────────────
           if (message.type === "result") {
             closeOpenStreamBlocks();
-            const result = message as {
-              is_error?: boolean;
-              subtype?: string;
-              result?: string;
-              errors?: string[];
-            };
+            const result = message as ClaudeAgentResultMessage;
 
             if (Array.isArray(result.errors) && result.errors.length > 0) {
               const errorText = result.errors.join("\n");
@@ -1117,6 +1306,15 @@ function createStreamingClaudeCodeResponse(options: {
               result.result.length > 0
             ) {
               emitTextBlock(result.result);
+            }
+
+            // Extract real token usage from SDK result AFTER any emitTextBlock
+            // calls above (emitTextBlock accumulates estimated outputTokens, and
+            // we want the real SDK values to be the final word).
+            if (result.usage) {
+              finalUsage = result.usage;
+              inputTokens = result.usage.input_tokens ?? inputTokens;
+              outputTokens = result.usage.output_tokens ?? outputTokens;
             }
 
             if (result.is_error) {
@@ -1139,11 +1337,17 @@ function createStreamingClaudeCodeResponse(options: {
           );
         }
 
-        // Close the message
+        // Close the message — include real token counts so @ai-sdk/anthropic
+        // picks up usage (it reads input_tokens, cache tokens from message_delta.usage).
         emit("message_delta", {
           type: "message_delta",
           delta: { stop_reason: "end_turn", stop_sequence: null },
-          usage: { output_tokens: outputTokens },
+          usage: {
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            cache_read_input_tokens: finalUsage?.cache_read_input_tokens,
+            cache_creation_input_tokens: finalUsage?.cache_creation_input_tokens,
+          },
         });
         emit("message_stop", { type: "message_stop" });
       } catch (error) {
@@ -1157,6 +1361,11 @@ function createStreamingClaudeCodeResponse(options: {
           // Controller may already be closed
         }
       } finally {
+        livePromptAbortController?.abort();
+        if (options.signal && onLivePromptAbort) {
+          options.signal.removeEventListener("abort", onLivePromptAbort);
+        }
+        await livePromptPump.catch(() => {});
         options.signal?.removeEventListener("abort", onAbort);
         for (const pending of pendingInputJsonDeltaByIndex.values()) {
           if (pending.timer) {
@@ -1184,12 +1393,12 @@ function createStreamingClaudeCodeResponse(options: {
 }
 
 async function runClaudeAgentQuery(options: {
-  prompt: string;
+  prompt: string | AsyncIterable<SDKUserMessage>;
   model: string;
   systemPrompt?: string;
   signal?: AbortSignal;
   sdkOptions?: ClaudeAgentSdkQueryOptions;
-}): Promise<string> {
+}): Promise<{ text: string; usage?: AnthropicTokenUsage }> {
   const abortController = new AbortController();
   const signal = options.signal;
 
@@ -1216,7 +1425,11 @@ async function runClaudeAgentQuery(options: {
     : undefined;
 
   // Resolve working directory: explicit SDK option > MCP context > process.cwd()
-  const resolvedCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+  const candidateCwd = sdk?.cwd ?? mcpCtx?.cwd ?? process.cwd();
+  const resolvedCwd = existsSync(candidateCwd) ? candidateCwd : process.cwd();
+  if (resolvedCwd !== candidateCwd) {
+    console.warn(`[ClaudeCode] cwd "${candidateCwd}" does not exist, falling back to process.cwd()`);
+  }
 
   // Bridge Seline plugin cache paths → SDK plugin configs
   const selinePluginConfigs: SdkPluginConfig[] = (mcpCtx?.pluginPaths ?? [])
@@ -1279,13 +1492,32 @@ async function runClaudeAgentQuery(options: {
       ...(sdk?.effort ? { effort: sdk.effort } : {}),
       ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
     },
+  }) as ClaudeAgentQueryStream;
+
+  const livePromptAbortController = new AbortController();
+  const onLivePromptAbort = () => livePromptAbortController.abort();
+  if (signal) {
+    if (signal.aborted) {
+      livePromptAbortController.abort();
+    } else {
+      signal.addEventListener("abort", onLivePromptAbort, { once: true });
+    }
+  }
+  const livePromptPump = pumpLivePromptQueue({
+    query,
+    runId: mcpCtx?.runId,
+    signal: livePromptAbortController.signal,
+    onQueueMessages: mcpCtx?.onQueueMessages,
   });
 
   let text = "";
   let sawStreamText = false;
+  let resultUsage: AnthropicTokenUsage | undefined;
 
   try {
-    for await (const message of query) {
+    for await (const rawMessage of query) {
+      const message = rawMessage as { type?: string };
+
       if (message.type === "stream_event") {
         const event = (message as { event?: unknown }).event;
         if (
@@ -1333,12 +1565,12 @@ async function runClaudeAgentQuery(options: {
       }
 
       if (message.type === "result") {
-        const result = message as {
-          is_error?: boolean;
-          subtype?: string;
-          result?: string;
-          errors?: string[];
-        };
+        const result = message as ClaudeAgentResultMessage;
+
+        // Capture real usage from the SDK result
+        if (result.usage) {
+          resultUsage = result.usage;
+        }
 
         // Some SDK versions include a final textual result summary; only use it
         // when no stream/assistant text was captured.
@@ -1367,10 +1599,13 @@ async function runClaudeAgentQuery(options: {
       // We intentionally fall through without handling them.
     }
   } finally {
+    livePromptAbortController.abort();
+    signal?.removeEventListener("abort", onLivePromptAbort);
+    await livePromptPump.catch(() => {});
     signal?.removeEventListener("abort", onAbort);
   }
 
-  return text.trim();
+  return { text: text.trim(), usage: resultUsage };
 }
 
 /**
@@ -1408,13 +1643,14 @@ export async function queryWithSdkOptions(options: {
 
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await runClaudeAgentQuery({
+      const result = await runClaudeAgentQuery({
         prompt: options.prompt,
         model,
         systemPrompt: options.systemPrompt,
         signal: options.signal,
         sdkOptions: options.sdkOptions,
       });
+      return result.text;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
@@ -1490,16 +1726,27 @@ function createClaudeCodeFetch(): typeof fetch {
     }
 
     const requestBody = sanitizedBody.value as Record<string, unknown>;
-    const prompt = buildPromptFromMessages(requestBody.messages);
     const model = typeof requestBody.model === "string" ? requestBody.model : DEFAULT_MODEL;
     const systemPrompt = buildSystemPrompt(requestBody.system);
     const isStream = requestBody.stream === true;
+
+    // When messages contain image content blocks (e.g. describeImage tool),
+    // use the SDK's native multimodal prompt path to preserve image data.
+    // For text-only messages, use the existing string flattening (zero blast radius).
+    const isMultimodal = hasImageContent(requestBody.messages);
+    // Text prompt is computed once; multimodal generators are rebuilt per-attempt
+    // since AsyncGenerator is single-use and retries need a fresh iterable.
+    const textPrompt = isMultimodal ? undefined : buildPromptFromMessages(requestBody.messages);
+    const makePrompt = (): string | AsyncIterable<SDKUserMessage> =>
+      isMultimodal
+        ? buildMultimodalSdkPrompt(requestBody.messages as unknown[])
+        : textPrompt!;
 
     // For streaming requests, use the real-time streaming path that pipes SDK
     // events (including tool_use blocks) directly to the client as SSE.
     if (isStream) {
       return createStreamingClaudeCodeResponse({
-        prompt,
+        prompt: makePrompt(),
         model,
         systemPrompt,
         signal: init.signal ?? undefined,
@@ -1508,14 +1755,14 @@ function createClaudeCodeFetch(): typeof fetch {
 
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const output = await runClaudeAgentQuery({
-          prompt,
+        const { text: output, usage } = await runClaudeAgentQuery({
+          prompt: makePrompt(),
           model,
           systemPrompt,
           signal: init.signal ?? undefined,
         });
 
-        return createAnthropicMessageResponse(output, model);
+        return createAnthropicMessageResponse(output, model, usage);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 

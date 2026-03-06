@@ -10,6 +10,10 @@ import {
   insertSkillRunIntent,
 } from "@/lib/skills/skill-picker-utils";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
+import {
+  finalizeTranscriptText,
+  normalizeTranscriptText,
+} from "./voice-transcript-utils";
 import type { ComposerSkillLite, SkillPickerMode } from "./composer-skill-picker";
 import { MAX_SLASH_SKILL_RESULTS } from "./composer-skill-picker";
 
@@ -17,29 +21,50 @@ import { MAX_SLASH_SKILL_RESULTS } from "./composer-skill-picker";
 // useVoiceRecording
 // ---------------------------------------------------------------------------
 
+interface VoiceTranscriptPayload {
+  transcript: string;
+  finalText: string;
+  fallbackText: string;
+  usedPostProcessing: boolean;
+}
+
 interface UseVoiceRecordingOptions {
   sttEnabled: boolean;
-  onTranscript: (text: string) => void;
+  onTranscript: (payload: VoiceTranscriptPayload) => void;
   onTranscriptInserted?: () => void;
+  voicePostProcessing?: boolean;
+  voiceAudioCues?: boolean;
+  voiceActivationMode?: "tap" | "push";
 }
 
 export interface UseVoiceRecordingReturn {
   isRecordingVoice: boolean;
   isTranscribingVoice: boolean;
   handleVoiceInput: () => Promise<void>;
+  /** Push mode: start recording only (never stops). Use with onMouseDown/onTouchStart. */
+  handleVoiceStart: () => Promise<void>;
+  /** Push mode: stop recording only. Use with onMouseUp/onMouseLeave/onTouchEnd. */
+  handleVoiceStop: () => void;
+  analyserNode: AnalyserNode | null;
+  /** The raw transcript from the last voice input (before post-processing), for auto-learn comparison */
+  lastTranscriptRef: React.RefObject<string | null>;
 }
 
-export function useVoiceRecording({
-  sttEnabled,
-  onTranscript,
-  onTranscriptInserted,
-}: UseVoiceRecordingOptions): UseVoiceRecordingReturn {
+export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRecordingReturn {
+  const { sttEnabled, onTranscript, onTranscriptInserted } = options;
+  const voiceAudioCues = options.voiceAudioCues ?? true;
+  const voicePostProcessing = options.voicePostProcessing ?? false;
+
   const t = useTranslations("assistantUi");
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
+  const isRecordingRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastTranscriptRef = useRef<string | null>(null);
 
   const stopRecordingStream = useCallback(() => {
     if (recordingStreamRef.current) {
@@ -48,7 +73,32 @@ export function useVoiceRecording({
       }
       recordingStreamRef.current = null;
     }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch {}
+      audioContextRef.current = null;
+    }
+    setAnalyserNode(null);
   }, []);
+
+  const playTone = useCallback((frequency: number, duration: number, type: OscillatorType = "sine") => {
+    if (!voiceAudioCues) return;
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = frequency;
+      gain.gain.value = 0.08;
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+      osc.onended = () => { try { ctx.close(); } catch {} };
+    } catch {
+      // Audio cue failed — non-critical
+    }
+  }, [voiceAudioCues]);
 
   useEffect(() => {
     return () => {
@@ -63,17 +113,22 @@ export function useVoiceRecording({
       stopRecordingStream();
       recordingChunksRef.current = [];
       mediaRecorderRef.current = null;
+      if (audioContextRef.current) {
+        try { audioContextRef.current.close(); } catch {}
+        audioContextRef.current = null;
+      }
+      setAnalyserNode(null);
     };
   }, [stopRecordingStream]);
 
-  const handleVoiceInput = useCallback(async () => {
+  // Shared helper: start a new recording session (mic access, MediaRecorder setup, etc.)
+  const startRecording = useCallback(async () => {
     if (!sttEnabled || isTranscribingVoice) {
       return;
     }
 
-    const activeRecorder = mediaRecorderRef.current;
-    if (isRecordingVoice && activeRecorder && activeRecorder.state !== "inactive") {
-      activeRecorder.stop();
+    // Already recording — bail out (use ref to avoid stale closure)
+    if (isRecordingRef.current) {
       return;
     }
 
@@ -88,6 +143,21 @@ export function useVoiceRecording({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Create audio analyser for waveform visualization
+      try {
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.8;
+        source.connect(analyser);
+        audioContextRef.current = audioCtx;
+        setAnalyserNode(analyser);
+      } catch {
+        // Waveform not available — recording still works
+      }
+
       const preferredMimeTypes = [
         "audio/webm;codecs=opus",
         "audio/webm",
@@ -111,16 +181,24 @@ export function useVoiceRecording({
       };
 
       recorder.onerror = () => {
+        isRecordingRef.current = false;
         setIsRecordingVoice(false);
         setIsTranscribingVoice(false);
         mediaRecorderRef.current = null;
         recordingChunksRef.current = [];
         stopRecordingStream();
+        if (audioContextRef.current) {
+          try { audioContextRef.current.close(); } catch {}
+          audioContextRef.current = null;
+        }
+        setAnalyserNode(null);
         toast.error(t("audio.voiceRecordingFailed"));
       };
 
       recorder.onstop = async () => {
+        isRecordingRef.current = false;
         setIsRecordingVoice(false);
+        playTone(440, 0.15);
         const mimeType = recorder.mimeType || "audio/webm";
         const chunks = recordingChunksRef.current;
         recordingChunksRef.current = [];
@@ -166,7 +244,39 @@ export function useVoiceRecording({
             throw new Error(t("toast.noSpeechDetected"));
           }
 
-          onTranscript(transcript);
+          // Store raw transcript for auto-learn comparison when user sends
+          lastTranscriptRef.current = transcript;
+
+          let enhancedText: string | null = null;
+          if (voicePostProcessing && transcript.length > 0) {
+            try {
+              const cleanupResponse = await fetch("/api/voice/actions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: transcript, action: "fix-grammar" }),
+              });
+              const cleanupData = await cleanupResponse.json() as { success?: boolean; text?: string };
+              if (cleanupData.success && typeof cleanupData.text === "string" && cleanupData.text.trim().length > 0) {
+                enhancedText = cleanupData.text.trim();
+              }
+            } catch {
+              // Post-processing failed — use raw transcript
+              toast.info("Grammar cleanup unavailable. Using raw transcription.");
+            }
+          }
+
+          const result = finalizeTranscriptText({
+            transcript,
+            postProcessingEnabled: voicePostProcessing,
+            enhancedText,
+          });
+
+          onTranscript({
+            transcript: result.transcript,
+            finalText: result.finalText,
+            fallbackText: result.fallbackText,
+            usedPostProcessing: result.usedEnhancedText,
+          });
           onTranscriptInserted?.();
         } catch (error) {
           const errorMessage =
@@ -178,20 +288,72 @@ export function useVoiceRecording({
       };
 
       recorder.start(250);
+      playTone(880, 0.12);
+      isRecordingRef.current = true;
       setIsRecordingVoice(true);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : t("toast.micAccessFailed");
+      let errorMessage: string;
+      if (error instanceof DOMException) {
+        switch (error.name) {
+          case "NotAllowedError":
+            errorMessage = "Microphone access denied. Check your browser and system privacy settings.";
+            break;
+          case "NotFoundError":
+            errorMessage = "No microphone detected. Please connect a microphone.";
+            break;
+          case "NotReadableError":
+            errorMessage = "Microphone is in use by another application.";
+            break;
+          default:
+            errorMessage = "Failed to access microphone.";
+        }
+      } else {
+        errorMessage = "Failed to access microphone.";
+      }
       toast.error(errorMessage);
+      isRecordingRef.current = false;
       setIsRecordingVoice(false);
       setIsTranscribingVoice(false);
       mediaRecorderRef.current = null;
       recordingChunksRef.current = [];
       stopRecordingStream();
     }
-  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, t]);
+  }, [isTranscribingVoice, sttEnabled, stopRecordingStream, onTranscript, onTranscriptInserted, playTone, voicePostProcessing, t]);
 
-  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput };
+  // Shared helper: stop an active recording
+  const stopRecording = useCallback(() => {
+    const activeRecorder = mediaRecorderRef.current;
+    if (activeRecorder && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+    }
+  }, []);
+
+  // Tap mode: toggle recording on/off
+  const handleVoiceInput = useCallback(async () => {
+    if (!sttEnabled || isTranscribingVoice) {
+      return;
+    }
+
+    const activeRecorder = mediaRecorderRef.current;
+    if (isRecordingVoice && activeRecorder && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+      return;
+    }
+
+    await startRecording();
+  }, [isRecordingVoice, isTranscribingVoice, sttEnabled, startRecording]);
+
+  // Push mode: start recording only (never stops)
+  const handleVoiceStart = useCallback(async () => {
+    await startRecording();
+  }, [startRecording]);
+
+  // Push mode: stop recording only
+  const handleVoiceStop = useCallback(() => {
+    stopRecording();
+  }, [stopRecording]);
+
+  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef };
 }
 
 // ---------------------------------------------------------------------------

@@ -619,6 +619,10 @@ class BufferedAssistantChatTransport extends AssistantChatTransport<UIMessage> {
  * assistant message may contain tool-call parts in "input-available" state
  * with no matching result. The @assistant-ui/react runtime can throw when
  * it encounters these during initialization.
+ *
+ * IMPORTANT: Keep interrupted tool calls/results so chromiumWorkspace/browser
+ * sessions remain visible after a user presses Stop. We only drop truly
+ * incomplete parts that can crash hydration.
  */
 export function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
   if (!messages || messages.length === 0) return messages;
@@ -646,10 +650,15 @@ export function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
         break;
       }
       if (state === "input-available" && p.output === undefined) {
-        // Tool call with args but no result — mark as needing sanitization
-        // only if this is the LAST assistant message (active streaming context)
-        needsSanitization = true;
-        break;
+        const hasAnyOutput =
+          p.output !== undefined ||
+          p.errorText !== undefined ||
+          p.result !== undefined;
+        if (!hasAnyOutput) {
+          // Tool call with args but no output payload is incomplete and can break hydration.
+          needsSanitization = true;
+          break;
+        }
       }
     }
 
@@ -676,12 +685,18 @@ export function sanitizeMessagesForInit(messages: UIMessage[]): UIMessage[] {
         return false;
       }
       if (state === "input-available" && p.output === undefined) {
-        const key = `input-available:${toolCallId}`;
-        if (!loggedSanitizerToolCallIds.has(key)) {
-          loggedSanitizerToolCallIds.add(key);
-          console.warn("[ChatProvider] Removing dangling input-available tool part:", toolCallId);
+        const hasAnyOutput =
+          p.output !== undefined ||
+          p.errorText !== undefined ||
+          p.result !== undefined;
+        if (!hasAnyOutput) {
+          const key = `input-available:${toolCallId}`;
+          if (!loggedSanitizerToolCallIds.has(key)) {
+            loggedSanitizerToolCallIds.add(key);
+            console.warn("[ChatProvider] Removing dangling input-available tool part:", toolCallId);
+          }
+          return false;
         }
-        return false;
       }
       // Keep all other parts (including input-available with output)
       return true;

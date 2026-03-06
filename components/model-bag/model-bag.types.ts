@@ -12,6 +12,7 @@ export type LLMProvider =
   | "antigravity"
   | "codex"
   | "kimi"
+  | "minimax"
   | "ollama"
   | "claudecode";
 

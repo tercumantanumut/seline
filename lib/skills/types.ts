@@ -1,5 +1,5 @@
 export type SkillStatus = "draft" | "active" | "archived";
-export type SkillSourceType = "conversation" | "manual" | "template";
+export type SkillSourceType = "conversation" | "manual" | "template" | "catalog";
 
 export interface SkillInputParameter {
   name: string;
@@ -36,6 +36,7 @@ export interface SkillRecord {
   copiedFromCharacterId: string | null;
   sourceType: SkillSourceType;
   sourceSessionId: string | null;
+  catalogId: string | null;
   runCount: number;
   successCount: number;
   lastRunAt: string | null;
@@ -71,6 +72,7 @@ export interface CreateSkillInput {
   copiedFromCharacterId?: string | null;
   sourceType?: SkillSourceType;
   sourceSessionId?: string | null;
+  catalogId?: string | null;
   status?: SkillStatus;
 }
 

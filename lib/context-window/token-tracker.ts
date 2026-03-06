@@ -9,6 +9,14 @@
 
 import { estimateMessageTokens } from "@/lib/utils";
 import type { Message } from "@/lib/db/schema";
+import {
+  getScopedFallbackMinConfidence,
+  isScopedFallbackEnabled,
+  shouldUseScopedCounting,
+  type ContextScope,
+  type ScopedCountOptions,
+} from "./scoped-counting-contract";
+import { LegacyScopeHeuristic } from "./fallback-scope-parser";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,6 +91,131 @@ const MESSAGE_OVERHEAD_TOKENS = 4;
 const TOOL_CALL_OVERHEAD_TOKENS = 10;
 
 const LEGACY_ASSISTANT_TOKEN_RATIO_THRESHOLD = 1.3;
+
+function isScopedModeActive(options: ScopedCountOptions): boolean {
+  if (options.scopedMode === "legacy") return false;
+  if (options.scopedMode === "scoped") return true;
+  if (options.hasDelegatedAnnotations) return true;
+  return shouldUseScopedCounting(options.provider);
+}
+
+interface ContentPartLike {
+  type?: string;
+  text?: string;
+  contextScope?: string;
+}
+
+function getPartScope(part: unknown): "main" | "delegated" | undefined {
+  if (!part || typeof part !== "object" || Array.isArray(part)) return undefined;
+  const scope = (part as { contextScope?: unknown }).contextScope;
+  return scope === "main" || scope === "delegated" ? scope : undefined;
+}
+
+function hasPartScopes(content: unknown): boolean {
+  if (!Array.isArray(content)) return false;
+  return content.some((part) => getPartScope(part) !== undefined);
+}
+
+function estimateMessageTokensForScope(
+  msg: Message,
+  includePart: (part: unknown) => boolean
+): number {
+  if (!Array.isArray(msg.content)) {
+    return estimateContentTokens(msg.content);
+  }
+
+  const scopedParts = (msg.content as unknown[]).filter(includePart);
+  if (scopedParts.length === 0) return 0;
+  return estimateContentTokens(scopedParts);
+}
+
+function resolveLegacyMessageScope(
+  msg: Message,
+  heuristic: LegacyScopeHeuristic
+): { scope: "main" | "delegated"; confidence: number } {
+  if (Array.isArray(msg.content) && msg.content.length > 0) {
+    let delegatedVotes = 0;
+    let mainVotes = 0;
+    let confidenceTotal = 0;
+    for (const part of msg.content) {
+      const inferred = heuristic.inferPart(part);
+      confidenceTotal += inferred.confidence;
+      if (inferred.scope === "delegated") delegatedVotes += 1;
+      else mainVotes += 1;
+    }
+
+    const avgConfidence = confidenceTotal / msg.content.length;
+    if (delegatedVotes > mainVotes) {
+      return { scope: "delegated", confidence: avgConfidence };
+    }
+    return { scope: "main", confidence: avgConfidence };
+  }
+
+  const inferred = heuristic.inferMessage(msg);
+  return { scope: inferred.scope, confidence: inferred.confidence };
+}
+
+function resolveMessageScopeInclusion(
+  msg: Message,
+  options: ScopedCountOptions,
+  heuristic: LegacyScopeHeuristic
+): boolean {
+  if (!isScopedModeActive(options)) {
+    return true;
+  }
+
+  if (msg.role === "system") {
+    return true;
+  }
+
+  const metadata = msg.metadata && typeof msg.metadata === "object" && !Array.isArray(msg.metadata)
+    ? (msg.metadata as Record<string, unknown>)
+    : null;
+
+  const metadataScope = metadata?.contextScope;
+  if (metadataScope === "main") return true;
+  if (metadataScope === "delegated") return false;
+
+  const fallbackEnabled = options.fallbackEnabled ?? isScopedFallbackEnabled();
+  const minConfidence = options.fallbackMinConfidence ?? getScopedFallbackMinConfidence();
+
+  if (Array.isArray(msg.content) && hasPartScopes(msg.content)) {
+    const scopedParts = msg.content as unknown[];
+    const mainParts = scopedParts.filter((part) => getPartScope(part) === "main");
+    const delegatedParts = scopedParts.filter((part) => getPartScope(part) === "delegated");
+
+    if (mainParts.length > 0 && delegatedParts.length === 0) return true;
+    if (delegatedParts.length > 0 && mainParts.length === 0) return false;
+
+    // Mixed rows remain counted conservatively unless fallback heuristics are enabled and confident.
+    if (!fallbackEnabled) return true;
+  }
+
+  if (!fallbackEnabled) {
+    return true;
+  }
+
+  const inferred = resolveLegacyMessageScope(msg, heuristic);
+  if (inferred.confidence < minConfidence) {
+    return true;
+  }
+
+  return inferred.scope === "main";
+}
+
+function countToolCallOverheadForMainScope(
+  content: unknown,
+  includePart: (part: unknown) => boolean
+): number {
+  if (!Array.isArray(content)) return 0;
+  let total = 0;
+  for (const part of content as ContentPartLike[]) {
+    if (part?.type === "tool-call" && includePart(part)) {
+      total += TOOL_CALL_OVERHEAD_TOKENS;
+    }
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------------------
 // Token Estimation Helpers
@@ -251,8 +384,10 @@ export class TokenTracker {
     sessionId: string,
     messages: Message[],
     systemPromptLength: number,
-    sessionSummary?: string | null
+    sessionSummary?: string | null,
+    options?: ScopedCountOptions
   ): Promise<TokenUsage> {
+    const resolvedOptions: ScopedCountOptions = options ?? {};
     const usage: TokenUsage = {
       systemPromptTokens: Math.ceil(systemPromptLength / CHARS_PER_TOKEN) + MESSAGE_OVERHEAD_TOKENS,
       userMessageTokens: 0,
@@ -265,12 +400,32 @@ export class TokenTracker {
       totalTokens: 0,
     };
 
+    const heuristic = new LegacyScopeHeuristic(resolvedOptions.sessionMetadata);
+
     for (const msg of messages) {
       // Skip compacted messages - they're represented in the summary
       if (msg.isCompacted || isSyntheticToolResultMessage(msg)) continue;
 
+      const includeMessage = resolveMessageScopeInclusion(msg, resolvedOptions, heuristic);
+      if (!includeMessage && isScopedModeActive(resolvedOptions)) {
+        continue;
+      }
+
+      const includePart = (part: unknown): boolean => {
+        if (!isScopedModeActive(resolvedOptions)) return true;
+        const scope = getPartScope(part);
+        if (scope === "main") return true;
+        if (scope === "delegated") return false;
+        return includeMessage;
+      };
+
       // Ignore legacy assistant rows where tokenCount stores request-level totals.
-      const baseTokens = getReliableMessageTokenCount(msg);
+      const baseTokens = isScopedModeActive(resolvedOptions)
+        ? estimateMessageTokensForScope(msg, includePart)
+        : getReliableMessageTokenCount(msg);
+      if (baseTokens <= 0 && msg.role !== "system") {
+        continue;
+      }
       const messageTokens = baseTokens + MESSAGE_OVERHEAD_TOKENS;
 
       switch (msg.role) {
@@ -280,14 +435,7 @@ export class TokenTracker {
 
         case "assistant":
           usage.assistantMessageTokens += messageTokens;
-          // Also count tool calls within assistant messages
-          if (Array.isArray(msg.content)) {
-            for (const part of msg.content as Array<{ type?: string }>) {
-              if (part.type === "tool-call") {
-                usage.toolCallTokens += TOOL_CALL_OVERHEAD_TOKENS;
-              }
-            }
-          }
+          usage.toolCallTokens += countToolCallOverheadForMainScope(msg.content, includePart);
           break;
 
         case "tool":

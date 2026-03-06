@@ -401,7 +401,7 @@ TTS must be enabled in Settings → Voice & Audio. Audio plays automatically in 
         "transcribe", "transcription", "stt", "speech to text",
         "voice note", "audio", "whisper", "dictation",
       ],
-      shortDescription: "Check audio transcription capabilities and status",
+      shortDescription: "Check channel voice note transcription status (WhatsApp, Telegram, Slack, Discord)",
       fullInstructions: `## Transcribe
 
 Audio transcription status. Voice notes (WhatsApp, Telegram, Slack, Discord) are auto-transcribed via Whisper — no manual trigger needed.`,

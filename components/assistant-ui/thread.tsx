@@ -1,7 +1,9 @@
 "use client";
 
 import type { FC } from "react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { ArrowsOut } from "@phosphor-icons/react";
+import { getElectronAPI } from "@/lib/electron/types";
 import {
   ThreadPrimitive,
   useThread,
@@ -9,16 +11,14 @@ import {
 } from "@assistant-ui/react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCharacter } from "./character-context";
 import { useOptionalDeepResearch } from "./deep-research-context";
-import { useTranslations } from "next-intl";
+import { BrowserActiveProvider } from "./browser-active-context";
+import { ToolExpansionProvider } from "./tool-expansion-context";
+import { ExpandAllToolsButton } from "./expand-all-tools-button";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
+import { useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
 import {
   ContextWindowBlockedBanner,
   type ContextWindowBlockedPayload,
@@ -42,6 +42,7 @@ import {
 } from "./thread-message-components";
 import { Composer } from "./thread-composer";
 import { BrowserBackdrop } from "./browser-backdrop";
+import { useTheme } from "@/components/theme/theme-provider";
 
 interface ThreadProps {
   onSessionActivity?: (message: { id?: string; role: "user" | "assistant" }) => void;
@@ -76,7 +77,6 @@ export const Thread: FC<ThreadProps> = ({
   const router = useRouter();
   const { character } = useCharacter();
   const threadRuntime = useThreadRuntime();
-  const t = useTranslations("assistantUi");
 
   // Deep research mode (for drag-drop gating)
   const deepResearch = useOptionalDeepResearch();
@@ -85,10 +85,16 @@ export const Thread: FC<ThreadProps> = ({
   const [voiceUiSettings, setVoiceUiSettings] = useState<VoiceUiSettings>({
     ttsEnabled: false,
     sttEnabled: false,
+    voicePostProcessing: true,
+    voiceActionsEnabled: true,
+    voiceAudioCues: true,
+    voiceActivationMode: "tap",
+    voiceHotkey: "CommandOrControl+Shift+Space",
   });
 
   // Browser backdrop active — when true, make backgrounds transparent
   const [isBrowserActive, setIsBrowserActive] = useState(false);
+  const { chatBackground } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +103,11 @@ export const Thread: FC<ThreadProps> = ({
       const { data, error } = await resilientFetch<{
         ttsEnabled?: boolean;
         sttEnabled?: boolean;
+        voicePostProcessing?: boolean;
+        voiceActionsEnabled?: boolean;
+        voiceAudioCues?: boolean;
+        voiceActivationMode?: "tap" | "push";
+        voiceHotkey?: string;
       }>("/api/settings", {
         timeout: 10_000,
         retries: 0,
@@ -109,6 +120,14 @@ export const Thread: FC<ThreadProps> = ({
       setVoiceUiSettings({
         ttsEnabled: Boolean(data.ttsEnabled),
         sttEnabled: Boolean(data.sttEnabled),
+        voicePostProcessing: data.voicePostProcessing !== false,
+        voiceActionsEnabled: data.voiceActionsEnabled !== false,
+        voiceAudioCues: data.voiceAudioCues !== false,
+        voiceActivationMode: data.voiceActivationMode === "push" ? "push" : "tap",
+        voiceHotkey:
+          typeof data.voiceHotkey === "string" && data.voiceHotkey.trim().length > 0
+            ? data.voiceHotkey.trim()
+            : "CommandOrControl+Shift+Space",
       });
     };
 
@@ -155,6 +174,9 @@ export const Thread: FC<ThreadProps> = ({
     router,
   });
 
+  const hasActiveRun = useSessionHasActiveRun(sessionId ?? null);
+  const contextPollIntervalMs = hasActiveRun ? 5000 : 30000;
+
   // Context window status tracking
   const {
     status: contextStatus,
@@ -162,7 +184,11 @@ export const Thread: FC<ThreadProps> = ({
     refresh: refreshContextStatus,
     compact: triggerCompact,
     isCompacting,
-  } = useContextStatus({ sessionId });
+  } = useContextStatus({
+    sessionId,
+    pollIntervalMs: contextPollIntervalMs,
+    pauseWhenHidden: true,
+  });
 
   // Blocked banner state — set when a 413 error is received
   const [blockedPayload, setBlockedPayload] =
@@ -188,14 +214,49 @@ export const Thread: FC<ThreadProps> = ({
   return (
     <TooltipProvider>
       <ThreadPrimitive.Root
-        className={cn("relative flex h-full flex-col transition-colors duration-700", isBrowserActive ? "bg-transparent" : "bg-terminal-cream")}
+        className={cn("isolate relative flex h-full flex-col transition-colors duration-700", (isBrowserActive || chatBackground.type !== "none") ? "bg-transparent" : "bg-terminal-cream")}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        <ToolExpansionProvider>
+        <BrowserActiveProvider isBrowserActive={isBrowserActive} activeSessionId={sessionId}>
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
+
+        {/* Browser session controls — rendered above viewport z-layer so they're clickable */}
+        {isBrowserActive && sessionId && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex justify-end p-3">
+            <div className="pointer-events-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const api = getElectronAPI();
+                  if (api) {
+                    try {
+                      await api.ipc.invoke("browser-session:open", sessionId);
+                    } catch {
+                      window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
+                    }
+                  } else {
+                    window.open(`/browser-session?sessionId=${sessionId}`, "_blank");
+                  }
+                }}
+                className="flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm hover:bg-black/60 transition-colors cursor-pointer"
+                title="Open in dedicated window"
+              >
+                <ArrowsOut className="size-3.5 text-white/70" weight="bold" />
+                <span className="text-[10px] font-medium text-white/60">Pop out</span>
+              </button>
+
+              <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-sm">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+                <span className="text-[10px] font-medium text-white/60">LIVE</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <DragOverlay isDragging={isDragging} isImportingSkill={isImportingSkill} />
 
@@ -288,15 +349,23 @@ export const Thread: FC<ThreadProps> = ({
             <div className="min-h-8 flex-shrink-0 [overflow-anchor:auto]" />
           </ThreadPrimitive.Viewport>
 
-          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : "bg-terminal-cream")}>
+          <div className={cn("sticky bottom-0 z-10 mt-3 flex w-full max-w-4xl flex-col items-center justify-end rounded-t-lg pb-4 mx-auto px-4 transition-colors duration-700", isBrowserActive ? "bg-black/30 backdrop-blur-sm" : chatBackground.type !== "none" ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
             <ThreadScrollToBottom />
-            <AgentResourcesBadge />
+            <div className="flex w-full items-center justify-between px-1">
+              <ExpandAllToolsButton />
+              <AgentResourcesBadge />
+            </div>
             <Composer
               isBackgroundTaskRunning={isBackgroundTaskRunning}
               isProcessingInBackground={isProcessingInBackground}
               sessionId={sessionId}
               activeRunId={activeRunId}
               sttEnabled={voiceUiSettings.sttEnabled}
+              voicePostProcessing={voiceUiSettings.voicePostProcessing}
+              voiceActionsEnabled={voiceUiSettings.voiceActionsEnabled}
+              voiceAudioCues={voiceUiSettings.voiceAudioCues}
+              voiceActivationMode={voiceUiSettings.voiceActivationMode}
+              voiceHotkey={voiceUiSettings.voiceHotkey}
               onCancelBackgroundRun={onCancelBackgroundRun}
               isCancellingBackgroundRun={isCancellingBackgroundRun}
               canCancelBackgroundRun={canCancelBackgroundRun}
@@ -310,6 +379,8 @@ export const Thread: FC<ThreadProps> = ({
             />
           </div>
         </GalleryWrapper>
+        </BrowserActiveProvider>
+        </ToolExpansionProvider>
       </ThreadPrimitive.Root>
     </TooltipProvider>
   );

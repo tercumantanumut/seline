@@ -19,6 +19,7 @@ import {
   Clock,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useBrowserActive } from "./browser-active-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,8 +109,98 @@ function getActionLabel(action: string): string {
   return labels[action] ?? action;
 }
 
-// ─── Action summary ───────────────────────────────────────────────────────────
+// ─── Human-readable summaries ─────────────────────────────────────────────────
 
+/**
+ * Parse CSS selector into a human-readable target description.
+ * Examples:
+ *   button:has-text("Continue")  → `"Continue" button`
+ *   input[type="password"]       → `password field`
+ *   input[placeholder*="email"]  → `email field`
+ *   #login-form                  → `#login-form`
+ */
+function humanizeSelector(selector: string): string {
+  if (!selector) return "";
+
+  // Try has-text("...") — most descriptive
+  const hasTextMatch = selector.match(/:has-text\("([^"]+)"\)/);
+  if (hasTextMatch) {
+    return `"${hasTextMatch[1]}"`;
+  }
+
+  // Try placeholder*="..."
+  const placeholderMatch = selector.match(/placeholder\*?="([^"]+)"/i);
+  if (placeholderMatch) {
+    return `${placeholderMatch[1].toLowerCase()} field`;
+  }
+
+  // Try type="..."
+  const typeMatch = selector.match(/type="([^"]+)"/);
+  if (typeMatch) {
+    return `${typeMatch[1]} field`;
+  }
+
+  // Try name="..."
+  const nameMatch = selector.match(/name="([^"]+)"/);
+  if (nameMatch) {
+    return `${nameMatch[1]} field`;
+  }
+
+  // Try role="..."
+  const roleMatch = selector.match(/role="([^"]+)"/);
+  if (roleMatch) {
+    return roleMatch[1];
+  }
+
+  // For compound selectors (comma-separated), parse only the first
+  const firstSelector = selector.split(",")[0].trim();
+  if (firstSelector !== selector) {
+    return humanizeSelector(firstSelector);
+  }
+
+  // Short enough to show as-is
+  if (selector.length <= 25) return selector;
+
+  return selector.slice(0, 22) + "...";
+}
+
+function getHumanSummary(args?: ChromiumWorkspaceArgs): string {
+  if (!args?.action) return "Browser action";
+
+  switch (args.action) {
+    case "open":
+    case "navigate":
+      return args.url ? truncateUrl(args.url, 40) : args.action === "open" ? "Opening browser" : "Navigating";
+    case "click": {
+      const target = args.selector ? humanizeSelector(args.selector) : "";
+      return target ? `Clicking ${target}` : "Clicking";
+    }
+    case "type": {
+      const field = args.selector ? humanizeSelector(args.selector) : "field";
+      // Mask password fields
+      const isPassword = args.selector?.includes('type="password"') || args.selector?.includes("password");
+      if (isPassword) return `Typing into ${field}`;
+      const text = args.text ? `"${args.text.slice(0, 20)}${(args.text.length ?? 0) > 20 ? "..." : ""}"` : "";
+      return text ? `Typing ${text} into ${field}` : `Typing into ${field}`;
+    }
+    case "snapshot":
+      return "Capturing page snapshot";
+    case "extract": {
+      const extractTarget = args.selector ? humanizeSelector(args.selector) : "";
+      return extractTarget ? `Extracting ${extractTarget}` : "Extracting content";
+    }
+    case "evaluate":
+      return args.expression
+        ? `Running: ${args.expression.slice(0, 30)}${args.expression.length > 30 ? "..." : ""}`
+        : "Running JS";
+    case "close":
+      return "Closing session";
+    default:
+      return args.action;
+  }
+}
+
+/** Legacy raw summary — still used for full card details view */
 function getActionSummary(args?: ChromiumWorkspaceArgs): string {
   if (!args?.action) return "Browser action";
 
@@ -160,6 +251,61 @@ function truncateUrl(url: string, maxLen: number): string {
     return url.slice(0, maxLen);
   }
 }
+
+// ─── Compact action row (glass mode) ─────────────────────────────────────────
+
+/** Minimal single-line row for completed actions during live backdrop */
+const CompactActionRow: FC<{
+  args?: ChromiumWorkspaceArgs;
+  result?: ChromiumWorkspaceResult;
+}> = memo(({ args, result }) => {
+  const isRunning = result === undefined;
+  const parsed = result as ChromiumWorkspaceResult | undefined;
+  const isError = parsed?.status === "error";
+  const ActionIcon = getActionIcon(args?.action ?? "open");
+  const summary = getHumanSummary(args);
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1 font-mono">
+      {/* Status icon */}
+      {isRunning ? (
+        <CircleNotch className="size-3 animate-spin text-green-400 shrink-0" weight="bold" />
+      ) : isError ? (
+        <XCircle className="size-3 text-red-400 shrink-0" weight="fill" />
+      ) : (
+        <CheckCircle className="size-3 text-green-400 shrink-0" weight="fill" />
+      )}
+
+      {/* Action icon */}
+      <ActionIcon className="size-3 text-white/60 shrink-0" weight="bold" />
+
+      {/* Label */}
+      <span className="text-xs text-white/80 font-medium shrink-0">
+        {getActionLabel(args?.action ?? "")}
+      </span>
+
+      {/* Summary */}
+      <span className="text-xs text-white/50 truncate">
+        {summary}
+      </span>
+
+      {/* Duration */}
+      {parsed?.durationMs != null && (
+        <span className="ml-auto text-[10px] text-white/30 font-mono shrink-0">
+          {parsed.durationMs}ms
+        </span>
+      )}
+
+      {/* Running indicator */}
+      {isRunning && (
+        <span className="ml-auto text-[10px] text-green-400/80 font-mono shrink-0">
+          running...
+        </span>
+      )}
+    </div>
+  );
+});
+CompactActionRow.displayName = "CompactActionRow";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -359,11 +505,15 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
   args,
   result,
 }) => {
+  const { isBrowserActive } = useBrowserActive();
   const isRunning = result === undefined;
   const parsed = result as ChromiumWorkspaceResult | undefined;
   const isClose = args?.action === "close";
   const isReplay = args?.action === "replay";
   const isError = parsed?.status === "error";
+
+  // In glass/compact mode: render a single-line row for non-close/non-replay completed actions
+  const useCompact = isBrowserActive && !isClose && !isReplay;
 
   // Extract history from close action result
   const history = useMemo<HistorySummary | null>(() => {
@@ -394,13 +544,22 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
     };
   }, [isReplay, parsed]);
 
+  // ── Compact mode: single-line row ──
+  if (useCompact) {
+    return <CompactActionRow args={args} result={result as ChromiumWorkspaceResult | undefined} />;
+  }
+
+  // ── Full card mode (default / non-active backdrop) ──
   const ActionIcon = getActionIcon(args?.action ?? "open");
-  const summary = getActionSummary(args);
+  const summary = isBrowserActive ? getHumanSummary(args) : getActionSummary(args);
 
   return (
     <div
       className={cn(
-        "my-2 rounded-lg bg-terminal-cream/80 p-3 font-mono shadow-sm transition-all duration-150",
+        "my-2 rounded-lg p-3 font-mono shadow-sm transition-all duration-150",
+        isBrowserActive
+          ? "bg-black/20 backdrop-blur-md border border-white/10"
+          : "bg-terminal-cream/80",
         isRunning && "animate-pulse"
       )}
     >
@@ -408,16 +567,16 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
       <div className="flex items-center gap-2 mb-1">
         {isRunning ? (
           <CircleNotch
-            className="size-4 animate-spin text-terminal-green"
+            className={cn("size-4 animate-spin", isBrowserActive ? "text-green-400" : "text-terminal-green")}
             weight="bold"
           />
         ) : isError ? (
           <XCircle className="size-4 text-red-500" weight="fill" />
         ) : (
-          <ActionIcon className="size-4 text-terminal-green" weight="bold" />
+          <ActionIcon className={cn("size-4", isBrowserActive ? "text-green-400" : "text-terminal-green")} weight="bold" />
         )}
 
-        <span className="text-sm font-medium text-terminal-dark">
+        <span className={cn("text-sm font-medium", isBrowserActive ? "text-white" : "text-terminal-dark")}>
           {isClose ? "Browser Session" : getActionLabel(args?.action ?? "")}
         </span>
 
@@ -426,10 +585,10 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
           className={cn(
             "ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium",
             isRunning
-              ? "bg-terminal-green/10 text-terminal-green"
+              ? isBrowserActive ? "bg-green-400/20 text-green-400" : "bg-terminal-green/10 text-terminal-green"
               : isError
                 ? "bg-red-50 text-red-600"
-                : "bg-terminal-green/10 text-terminal-green"
+                : isBrowserActive ? "bg-green-400/20 text-green-400" : "bg-terminal-green/10 text-terminal-green"
           )}
         >
           {isRunning ? "running" : isError ? "failed" : "done"}
@@ -437,7 +596,7 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
 
         {/* Duration */}
         {parsed?.durationMs != null && (
-          <span className="text-[10px] text-terminal-muted/60">
+          <span className={cn("text-[10px]", isBrowserActive ? "text-white/40" : "text-terminal-muted/60")}>
             {parsed.durationMs}ms
           </span>
         )}
@@ -445,16 +604,16 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
 
       {/* Action summary (non-close) */}
       {!isClose && (
-        <div className="text-xs text-terminal-muted ml-6 mb-1 truncate">
+        <div className={cn("text-xs ml-6 mb-1 truncate", isBrowserActive ? "text-white/50" : "text-terminal-muted")}>
           {summary}
         </div>
       )}
 
       {/* Page info */}
       {parsed?.pageUrl && !isClose && (
-        <div className="text-[10px] text-terminal-muted/60 ml-6 truncate">
+        <div className={cn("text-[10px] ml-6 truncate", isBrowserActive ? "text-white/30" : "text-terminal-muted/60")}>
           {parsed.pageTitle && (
-            <span className="text-terminal-dark mr-2">{parsed.pageTitle}</span>
+            <span className={cn("mr-2", isBrowserActive ? "text-white/60" : "text-terminal-dark")}>{parsed.pageTitle}</span>
           )}
           {truncateUrl(parsed.pageUrl, 60)}
         </div>
@@ -469,11 +628,11 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
 
       {/* Snapshot data (collapsible) */}
       {!isClose && parsed?.data != null && typeof parsed.data === "object" && "accessibilityTree" in (parsed.data as Record<string, unknown>) && (
-        <details className="mt-2 text-xs text-terminal-muted">
-          <summary className="cursor-pointer hover:text-terminal-dark ml-6">
+        <details className={cn("mt-2 text-xs", isBrowserActive ? "text-white/50" : "text-terminal-muted")}>
+          <summary className={cn("cursor-pointer ml-6", isBrowserActive ? "hover:text-white/80" : "hover:text-terminal-dark")}>
             View accessibility tree
           </summary>
-          <pre className="mt-1 ml-6 max-h-48 overflow-y-auto rounded bg-terminal-dark/5 p-2 text-[10px] text-terminal-dark whitespace-pre-wrap break-words">
+          <pre className={cn("mt-1 ml-6 max-h-48 overflow-y-auto rounded p-2 text-[10px] whitespace-pre-wrap break-words", isBrowserActive ? "bg-black/20 text-white/70" : "bg-terminal-dark/5 text-terminal-dark")}>
             {((parsed.data as Record<string, unknown>).accessibilityTree as string)?.slice(0, 3000)}
           </pre>
         </details>
@@ -481,11 +640,11 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
 
       {/* Extract/evaluate data (collapsible) */}
       {!isClose && parsed?.data != null && typeof parsed.data === "string" && (parsed.data as string).length > 80 && (
-        <details className="mt-2 text-xs text-terminal-muted">
-          <summary className="cursor-pointer hover:text-terminal-dark ml-6">
+        <details className={cn("mt-2 text-xs", isBrowserActive ? "text-white/50" : "text-terminal-muted")}>
+          <summary className={cn("cursor-pointer ml-6", isBrowserActive ? "hover:text-white/80" : "hover:text-terminal-dark")}>
             View output
           </summary>
-          <pre className="mt-1 ml-6 max-h-48 overflow-y-auto rounded bg-terminal-dark/5 p-2 text-[10px] text-terminal-dark whitespace-pre-wrap break-words">
+          <pre className={cn("mt-1 ml-6 max-h-48 overflow-y-auto rounded p-2 text-[10px] whitespace-pre-wrap break-words", isBrowserActive ? "bg-black/20 text-white/70" : "bg-terminal-dark/5 text-terminal-dark")}>
             {(parsed.data as string).slice(0, 3000)}
           </pre>
         </details>
@@ -493,15 +652,15 @@ export const ChromiumWorkspaceToolUI: ToolCallContentPartComponent = memo(({
 
       {/* Execution History (close action with full history) */}
       {isClose && history && (
-        <div className="mt-2 border-t border-terminal-dark/10 pt-2">
+        <div className={cn("mt-2 border-t pt-2", isBrowserActive ? "border-white/10" : "border-terminal-dark/10")}>
           <ExecutionHistory history={history} />
         </div>
       )}
 
       {/* Replay Results */}
       {isReplay && replayData && (
-        <div className="mt-2 border-t border-terminal-dark/10 pt-2 space-y-2">
-          <div className="text-xs font-mono text-terminal-dark">
+        <div className={cn("mt-2 border-t pt-2 space-y-2", isBrowserActive ? "border-white/10" : "border-terminal-dark/10")}>
+          <div className={cn("text-xs font-mono", isBrowserActive ? "text-white" : "text-terminal-dark")}>
             {replayData.message}
           </div>
           <div className="flex items-center gap-3 text-xs font-mono">

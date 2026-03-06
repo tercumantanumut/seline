@@ -122,24 +122,34 @@ export function looksLikeBase64ImageData(text: string): boolean {
 
 /**
  * Strip fake tool call JSON from model text output.
- * The LLM sometimes outputs raw JSON like {"type":"tool-call",...} or {"type":"tool-result",...}
- * as plain text instead of using structured tool calls. This creates a feedback loop where
- * the next turn sees this text and mimics it. Stripping it breaks the cycle.
+ *
+ * Legacy safeguard: early models sometimes output raw JSON like {"type":"tool-call",...}
+ * as plain text instead of using structured tool calls, creating a feedback loop.
+ * Modern models (Claude 3+, GPT-4+) no longer exhibit this behavior.
+ *
+ * Gated behind STRIP_FAKE_TOOL_JSON=true (disabled by default).
+ * When disabled, only the internal tool history leak check runs.
  *
  * Also strips [SYSTEM: Tool ...] markers that the model may echo from previous context.
  */
+const STRIP_FAKE_TOOL_JSON_ENABLED = process.env.STRIP_FAKE_TOOL_JSON === "true";
+
 export function stripFakeToolCallJson(text: string): string {
+  if (!STRIP_FAKE_TOOL_JSON_ENABLED) {
+    // Only run the cheap internal-tool-history leak check
+    const trimmed = text.trim();
+    return isInternalToolHistoryLeakText(trimmed) ? "" : trimmed;
+  }
+
   // Pattern 1: Multi-line JSON objects with type:tool-call or type:tool-result
-  // Uses lazy matching with [\s\S] to handle newlines within JSON
   const multilineJsonPattern = /\{\s*"type"\s*:\s*"tool-(call|result)"[\s\S]*?\}/g;
   let cleaned = text.replace(multilineJsonPattern, '');
 
   // Pattern 2: [SYSTEM: Tool ...] markers that the model may echo
-  // These are internal markers injected into context - the model should never output them
   const systemMarkerPattern = /\[SYSTEM:\s*Tool\s+[^\]]+\]/gi;
   cleaned = cleaned.replace(systemMarkerPattern, '');
 
-  // Pattern 3: Legacy single-line patterns (kept as fallback)
+  // Pattern 3: Legacy single-line patterns
   const linePattern = /^\s*\{[^}]*"type"\s*:\s*"tool-(call|result)"[^\n]*\}\s*$/gm;
   cleaned = cleaned.replace(linePattern, '');
 

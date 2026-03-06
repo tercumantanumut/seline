@@ -2,6 +2,7 @@ import { normalizeCodexModel } from "@/lib/auth/codex-models";
 import {
   filterCodexInput,
   normalizeOrphanedToolOutputs,
+  truncateCodexInput,
   type CodexInputItem,
 } from "@/lib/auth/codex-input-utils";
 
@@ -28,6 +29,10 @@ function getReasoningConfig(
 ): { effort: "none" | "low" | "medium" | "high" | "xhigh"; summary: ReasoningSummary } {
   const normalizedName = modelName?.toLowerCase() ?? "";
 
+  const isGpt54 =
+    normalizedName.includes("gpt-5.4") || normalizedName.includes("gpt 5.4");
+  const isGpt54Pro =
+    normalizedName.includes("gpt-5.4-pro") || normalizedName.includes("gpt 5.4 pro");
   const isGpt52Codex =
     normalizedName.includes("gpt-5.2-codex") || normalizedName.includes("gpt 5.2 codex");
   const isGpt53Codex =
@@ -54,11 +59,15 @@ function getReasoningConfig(
     !isCodexMax &&
     !isCodexMini;
 
-  const supportsXhigh = isGpt53General || isGpt53Codex || isGpt52General || isGpt52Codex || isCodexMax;
-  const supportsNone = isGpt53General || isGpt52General || isGpt51General;
+  const supportsXhigh = isGpt54 || isGpt53General || isGpt53Codex || isGpt52General || isGpt52Codex || isCodexMax;
+  const supportsNone = isGpt54 || isGpt53General || isGpt52General || isGpt51General;
 
-  const defaultEffort: ReasoningEffort = isCodexMini
-    ? "medium"
+  const defaultEffort: ReasoningEffort = isGpt54Pro
+    ? "high"
+    : isGpt54
+      ? "medium"
+    : isCodexMini
+      ? "medium"
     : prefersMediumDefault
       ? "medium"
     : supportsXhigh
@@ -134,7 +143,8 @@ export async function transformCodexRequest(
 
   if (Array.isArray(body.input)) {
     const filtered = filterCodexInput(body.input as CodexInputItem[]) || [];
-    body.input = normalizeOrphanedToolOutputs(filtered);
+    const normalized = normalizeOrphanedToolOutputs(filtered);
+    body.input = truncateCodexInput(normalized);
   }
 
   const requestedEffort =
@@ -152,16 +162,29 @@ export async function transformCodexRequest(
     ...reasoningConfig,
   };
 
-  body.text = {
-    ...body.text,
-    verbosity: resolveTextVerbosity(body),
-  };
+  // GPT-5.4 doesn't expose support_verbosity via bundled metadata yet;
+  // only send text.verbosity for models we know support it.
+  const modelSupportsVerbosity = !normalizedModel.startsWith("gpt-5.4");
+  if (modelSupportsVerbosity) {
+    body.text = {
+      ...body.text,
+      verbosity: resolveTextVerbosity(body),
+    };
+  } else {
+    delete body.text;
+  }
 
   body.include = resolveInclude(body);
 
   delete body.temperature;
   delete body.max_output_tokens;
   delete body.max_completion_tokens;
+
+  console.log(
+    `[CODEX] Final request: model=${body.model}, reasoning=${JSON.stringify(body.reasoning)}, ` +
+    `text=${JSON.stringify(body.text)}, include=${JSON.stringify(body.include)}, ` +
+    `hasInstructions=${!!body.instructions}, stream=${body.stream}`
+  );
 
   return body;
 }

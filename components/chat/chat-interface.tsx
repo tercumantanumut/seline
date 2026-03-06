@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useThread } from "@assistant-ui/react";
 import { Shell } from "@/components/layout/shell";
 import { Thread } from "@/components/assistant-ui/thread";
+import { useTheme } from "@/components/theme/theme-provider";
 import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
 import { Loader2 } from "lucide-react";
@@ -16,6 +17,10 @@ import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import { AvatarRenderer } from "@/components/avatar-3d/avatar-renderer";
+import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
+import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
+import { SentenceSplitter, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
 import type { UIMessage } from "ai";
 import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupResponse } from "@/components/chat/chat-interface-types";
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
@@ -75,6 +80,180 @@ const ForegroundStreamingBridge: FC<{
     return null;
 };
 
+/**
+ * Bridge: routes TTS audio to the 3D avatar instead of HTML5 Audio.
+ * Must be rendered inside VoiceProvider (via ChatProvider).
+ */
+const AvatarAudioBridge: FC<{
+    avatarRef: React.RefObject<Avatar3DRef | null>;
+    mutedRef: React.RefObject<boolean>;
+}> = ({ avatarRef, mutedRef }) => {
+    const voiceCtx = useOptionalVoice();
+
+    useEffect(() => {
+        if (!voiceCtx) return;
+
+        const externalPlayer = async (url: string) => {
+            if (mutedRef.current) {
+                throw new Error("Avatar muted — fall back to HTML5 Audio");
+            }
+            const avatar = avatarRef.current;
+            if (!avatar?.isReady) {
+                throw new Error("Avatar not ready — fall back to HTML5 Audio");
+            }
+            const res = await fetch(url);
+            const arrayBuffer = await res.arrayBuffer();
+            await avatar.speak(arrayBuffer);
+        };
+
+        const stopExternalPlayer = () => {
+            avatarRef.current?.stopSpeaking();
+        };
+
+        voiceCtx.registerExternalPlayer(externalPlayer, stopExternalPlayer);
+        return () => voiceCtx.unregisterExternalPlayer();
+    }, [voiceCtx, avatarRef, mutedRef]);
+
+    return null;
+};
+
+/**
+ * Bridge: auto-speaks assistant replies sentence-by-sentence during streaming.
+ * Uses SentenceSplitter to detect sentence boundaries and StreamingTTSQueue
+ * to synthesize + play them sequentially with prefetching.
+ */
+const StreamingAutoSpeakBridge: FC<{
+    ttsAutoMode: string;
+    ttsEnabled: boolean;
+    muted: boolean;
+    mutedRef: React.RefObject<boolean>;
+}> = ({ ttsAutoMode, ttsEnabled, muted, mutedRef }) => {
+    const voiceCtx = useOptionalVoice();
+    const playAudio = voiceCtx?.playAudio;
+    const cancelAudio = voiceCtx?.cancelAudio;
+    const isRunning = useThread((thread) => thread.isRunning);
+    const threadMessages = useThread((thread) => thread.messages);
+    const splitterRef = useRef<SentenceSplitter | null>(null);
+    const queueRef = useRef<StreamingTTSQueue | null>(null);
+    const lastFullTextRef = useRef("");
+    const activeRef = useRef(false);
+    const bridgePlaybackRef = useRef(false);
+    const wasRunningRef = useRef(false);
+    const queuedAudioRef = useRef(false);
+
+    const getLastAssistantText = useCallback(() => {
+        const lastMsg = [...threadMessages].reverse().find((message) => message.role === "assistant");
+        if (!lastMsg) return "";
+        return lastMsg.content
+            .filter((part): part is { type: "text"; text: string } => part.type === "text")
+            .map((part) => part.text)
+            .join("\n")
+            .trim();
+    }, [threadMessages]);
+
+    // Initialize splitter + queue once per stable playback callback
+    useEffect(() => {
+        if (!playAudio) return;
+
+        const queue = new StreamingTTSQueue(async (blobUrl) => {
+            if (mutedRef.current) {
+                return;
+            }
+            bridgePlaybackRef.current = true;
+            try {
+                await playAudio(blobUrl);
+            } finally {
+                bridgePlaybackRef.current = false;
+            }
+        });
+
+        const splitter = new SentenceSplitter((sentence) => {
+            if (activeRef.current && !mutedRef.current) {
+                queuedAudioRef.current = true;
+                queue.enqueue(sentence);
+            }
+        });
+
+        queueRef.current = queue;
+        splitterRef.current = splitter;
+
+        return () => {
+            queue.cancel();
+            splitter.reset();
+            bridgePlaybackRef.current = false;
+        };
+    }, [playAudio, mutedRef]);
+
+    useEffect(() => {
+        const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
+        if (!shouldSpeak || !splitterRef.current) {
+            wasRunningRef.current = isRunning;
+            return;
+        }
+
+        const started = isRunning && !wasRunningRef.current;
+        const ended = !isRunning && wasRunningRef.current;
+        const fullText = getLastAssistantText();
+
+        if (started) {
+            activeRef.current = true;
+            queuedAudioRef.current = false;
+            lastFullTextRef.current = "";
+            splitterRef.current.reset();
+            queueRef.current?.reset();
+            cancelAudio?.();
+        }
+
+        if (isRunning && activeRef.current && fullText.length > 0) {
+            if (!fullText.startsWith(lastFullTextRef.current)) {
+                // Some providers rewrite the partial assistant message instead of append-only updates.
+                splitterRef.current.reset();
+                queueRef.current?.reset();
+                lastFullTextRef.current = "";
+            }
+
+            const delta = fullText.slice(lastFullTextRef.current.length);
+            if (delta.length > 0) {
+                lastFullTextRef.current = fullText;
+                splitterRef.current.feed(delta);
+            }
+        }
+
+        if (ended && activeRef.current) {
+            splitterRef.current.flush();
+
+            if (!queuedAudioRef.current && fullText.length > 0) {
+                queuedAudioRef.current = true;
+                queueRef.current?.enqueue(fullText);
+            }
+
+            activeRef.current = false;
+        }
+
+        wasRunningRef.current = isRunning;
+    }, [cancelAudio, getLastAssistantText, isRunning, muted, threadMessages, ttsAutoMode, ttsEnabled]);
+
+    useEffect(() => {
+        const shouldSpeak = ttsAutoMode === "always" && ttsEnabled && !muted;
+        if (shouldSpeak) {
+            return;
+        }
+        if (!activeRef.current && !bridgePlaybackRef.current) {
+            return;
+        }
+        activeRef.current = false;
+        bridgePlaybackRef.current = false;
+        queuedAudioRef.current = false;
+        lastFullTextRef.current = "";
+        wasRunningRef.current = isRunning;
+        splitterRef.current?.reset();
+        queueRef.current?.cancel();
+        cancelAudio?.();
+    }, [cancelAudio, isRunning, muted, ttsAutoMode, ttsEnabled]);
+
+    return null;
+};
+
 export default function ChatInterface({
     character,
     initialSessionId,
@@ -88,6 +267,7 @@ export default function ChatInterface({
     const pathname = usePathname();
     const t = useTranslations("chat");
     const tc = useTranslations("common");
+    const { chatBackground } = useTheme();
 
     // Combined state to prevent race conditions where sessionId changes
     // but messages haven't updated yet
@@ -101,7 +281,68 @@ export default function ChatInterface({
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
+    const [avatarConfig, setAvatarConfig] = useState<Avatar3DConfig>({ enabled: false });
+    const [avatarHidden, setAvatarHidden] = useState(false);
+    const [avatarMuted, setAvatarMuted] = useState(false);
+    const avatarMutedRef = useRef(false);
+    const avatarRef = useRef<Avatar3DRef>(null);
     const isForegroundStreamingRef = useRef(false);
+    const [ttsAutoMode, setTtsAutoMode] = useState<string>("off");
+    const [ttsEnabled, setTtsEnabled] = useState(false);
+
+    // Keep muted ref in sync with state (bridge reads ref, not state)
+    useEffect(() => { avatarMutedRef.current = avatarMuted; }, [avatarMuted]);
+
+    // ── Draggable avatar state ──
+    const [avatarPos, setAvatarPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
+    const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+    // Initialize avatar position centered at top after first render
+    useEffect(() => {
+        if (avatarPos.x === -1 && typeof window !== "undefined") {
+            setAvatarPos({ x: Math.round(window.innerWidth / 2 - 140), y: 16 });
+        }
+    }, [avatarPos.x]);
+
+    const handleAvatarPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+        // Only primary button
+        if (e.button !== 0) return;
+        e.preventDefault();
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        dragRef.current = { startX: e.clientX, startY: e.clientY, origX: avatarPos.x, origY: avatarPos.y };
+    }, [avatarPos]);
+
+    useEffect(() => {
+        const handlePointerMove = (e: globalThis.PointerEvent) => {
+            if (!dragRef.current) return;
+            const dx = e.clientX - dragRef.current.startX;
+            const dy = e.clientY - dragRef.current.startY;
+            setAvatarPos({
+                x: dragRef.current.origX + dx,
+                y: dragRef.current.origY + dy,
+            });
+        };
+        const handlePointerUp = () => { dragRef.current = null; };
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+    }, []);
+
+    useEffect(() => {
+        fetch("/api/settings")
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => {
+                if (data?.avatar3dEnabled) {
+                    setAvatarConfig({ enabled: true, lipsyncLang: "en" });
+                }
+                if (data?.ttsAutoMode) setTtsAutoMode(data.ttsAutoMode);
+                if (data?.ttsEnabled != null) setTtsEnabled(data.ttsEnabled);
+            })
+            .catch(() => {});
+    }, []);
 
     const activeTasks = useUnifiedTasksStore((state) => state.tasks);
     const completeTask = useUnifiedTasksStore((state) => state.completeTask);
@@ -114,15 +355,12 @@ export default function ChatInterface({
     // Using refs ensures the callbacks passed to useBackgroundProcessing never change
     // identity, keeping startPollingForCompletion stable and preventing checkActiveRun
     // from firing on every render.
-    const refreshSessionTimestampRef = useRef<(id: string) => void>(() => {});
     const notifySessionUpdateRef = useRef<(id: string, data: Record<string, unknown>) => void>(() => {});
-    const stableRefreshSessionTimestamp = useCallback((id: string) => refreshSessionTimestampRef.current(id), []);
     const stableNotifySessionUpdate = useCallback((id: string, data: Record<string, unknown>) => notifySessionUpdateRef.current(id, data), []);
 
     // ── Background processing (polling, refresh, cancel) ──
     const bg = useBackgroundProcessing({
         sessionId,
-        refreshSessionTimestamp: stableRefreshSessionTimestamp,
         notifySessionUpdate: stableNotifySessionUpdate,
         setSessionState,
         chatSetMessagesRef,
@@ -143,8 +381,7 @@ export default function ChatInterface({
         setIsCancellingBackgroundRun: bg.setIsCancellingBackgroundRun,
     });
 
-    // Wire up refs to real implementations now that sm is initialized
-    refreshSessionTimestampRef.current = sm.refreshSessionTimestamp;
+    // Wire up ref to real implementation now that sm is initialized
     notifySessionUpdateRef.current = sm.notifySessionUpdate;
 
     const isChannelSession = Boolean(
@@ -595,6 +832,7 @@ export default function ChatInterface({
 
     return (
         <Shell
+            background={chatBackground}
             sidebarHeader={<ChatSidebarHeader label={tc("back")} onBack={() => router.push("/")} />}
             sidebar={
                 <CharacterSidebar
@@ -665,6 +903,46 @@ export default function ChatInterface({
                                         cancelling={isCancellingRun}
                                     />
                                 </div>
+                            )}
+                            {avatarConfig.enabled && (
+                                <>
+                                    <AvatarAudioBridge avatarRef={avatarRef} mutedRef={avatarMutedRef} />
+                                    <StreamingAutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} muted={avatarMuted} mutedRef={avatarMutedRef} />
+                                    {!avatarHidden ? (
+                                        <div
+                                            className="group/avatar fixed z-50 w-[280px] h-[320px] pointer-events-auto select-none"
+                                            style={{ left: avatarPos.x, top: avatarPos.y, cursor: dragRef.current ? "grabbing" : "grab" }}
+                                            onPointerDown={handleAvatarPointerDown}
+                                        >
+                                            <AvatarRenderer ref={avatarRef} config={avatarConfig} className="rounded-2xl" />
+                                            {/* Controls — appear on hover */}
+                                            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setAvatarMuted((m) => !m); }}
+                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
+                                                    title={avatarMuted ? "Unmute avatar" : "Mute avatar"}
+                                                >
+                                                    {avatarMuted ? "🔇" : "🔊"}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setAvatarHidden(true); }}
+                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
+                                                    title="Hide avatar"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setAvatarHidden(false)}
+                                            className="fixed top-4 right-4 z-50 px-3 py-1.5 rounded-full bg-primary/90 text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary transition-colors pointer-events-auto"
+                                            title="Show avatar"
+                                        >
+                                            Show Avatar
+                                        </button>
+                                    )}
+                                </>
                             )}
                             <Thread
                                 onSessionActivity={handleSessionActivity}

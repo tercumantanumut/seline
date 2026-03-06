@@ -166,6 +166,9 @@ import {
   PROD_SERVER_PORT,
 } from "./next-server";
 import { setupIpcHandlers, setupEmbeddingModelPaths } from "./ipc-handlers";
+import { registerVoiceHotkeyFromSettings } from "./hotkey-manager";
+import { cleanupAllVoiceProcesses } from "../lib/audio/transcription";
+import { closeAllBrowserSessionWindows } from "./ipc-browser-session-handlers";
 
 // ---------------------------------------------------------------------------
 // Initialize debug log
@@ -272,12 +275,30 @@ app.whenReady().then(async () => {
   });
   debugLog("[App] Main window created");
 
-  // On macOS, re-create window when dock icon is clicked and no windows exist
+  // Register global voice hotkey from user settings
+  try {
+    const hotkeyResult = registerVoiceHotkeyFromSettings({
+      dataDir,
+      onTrigger: () => {
+        const { mainWindow } = require("./window-manager") as typeof import("./window-manager");
+        if (mainWindow) {
+          mainWindow.webContents.send("voice-hotkey:triggered");
+        }
+      },
+    });
+    debugLog(`[App] Voice hotkey registered: ${hotkeyResult.accelerator} (success: ${hotkeyResult.success})`);
+  } catch (error) {
+    debugError("[App] Voice hotkey registration failed:", error);
+  }
+
+  // On macOS, re-create window when dock icon is clicked and main window is gone.
+  // Check for main window specifically — browser session windows may still be open
+  // but shouldn't prevent re-creating the main window.
   app.on("activate", async () => {
     debugLog("[App] activate event fired");
-    const { BrowserWindow } = await import("electron");
-    if (BrowserWindow.getAllWindows().length === 0) {
-      debugLog("[App] No windows open, creating new window");
+    const { mainWindow: currentMainWindow } = require("./window-manager") as typeof import("./window-manager");
+    if (!currentMainWindow || currentMainWindow.isDestroyed()) {
+      debugLog("[App] Main window missing, creating new window");
       await createWindow({
         isDev,
         dataDir,
@@ -307,8 +328,12 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   debugLog("[App] before-quit event - cleaning up");
   isAppQuitting = true;
+  closeAllBrowserSessionWindows();
   clearServerRestartTimer();
   stopNextServer();
+  void cleanupAllVoiceProcesses().catch((err) => {
+    debugError("[App] Voice process cleanup failed:", err);
+  });
 });
 
 // Security: Prevent new webview creation
