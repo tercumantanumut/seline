@@ -307,6 +307,15 @@ export class TelegramConnector implements ChannelConnector {
     return { externalMessageId: String(sent.message_id) };
   }
 
+  private dispatchInboundMessage(message: ChannelInboundMessage): void {
+    // grammY long polling processes updates sequentially. If we await the full
+    // channel pipeline here, Telegram cannot deliver a later /stop until the
+    // current run finishes streaming.
+    void Promise.resolve(this.onMessage(message)).catch((error) => {
+      console.error("[Telegram] Failed to process inbound message:", error);
+    });
+  }
+
   private attachHandlers(): void {
     if (this.handlersAttached) {
       return;
@@ -340,7 +349,8 @@ export class TelegramConnector implements ChannelConnector {
         timestamp: ctx.message?.date ? new Date(ctx.message.date * 1000).toISOString() : undefined,
       };
 
-      await this.onMessage(inbound);
+      this.dispatchInboundMessage(inbound);
+      return;
     });
 
     // Handle inline keyboard button clicks for interactive questions
