@@ -1183,6 +1183,26 @@
       "noSkillsYet": "No skills available yet - drop a .md skill file or visit Settings → Plugins.",
       "noMatch": "No skills match \"{query}\""
     },
+    "skillsPage": {
+      "title": "Skills",
+      "subtitle": "Give Seline superpowers.",
+      "learnMore": "Learn more",
+      "refresh": "Refresh",
+      "newSkill": "New skill",
+      "searchPlaceholder": "Search skills...",
+      "installed": "Installed",
+      "recommended": "Recommended",
+      "noResults": "No skills match your search.",
+      "install": "Install",
+      "installing": "Installing...",
+      "installSuccess": "Skill installed successfully",
+      "uninstall": "Uninstall",
+      "uninstallConfirm": "Are you sure you want to uninstall this skill?",
+      "disable": "Disable",
+      "enable": "Enable",
+      "try": "Try",
+      "openFolder": "Open folder"
+    },
     "editFileTool": {
       "creating": "Creating...",
       "writing": "Writing...",
@@ -3315,6 +3335,7 @@
       "copyFailed": "Failed to copy skill"
     },
     "mySkills": "My Skills",
+    "library": "Library",
     "importPackage": "Import Package",
     "hideImport": "Hide Import",
     "importSuccess": "Skill imported successfully",
@@ -3416,6 +3437,33 @@
       "saveFailed": "Failed to save skill",
       "runFailed": "Failed to run skill",
       "copyFailed": "Failed to copy skill"
+    },
+    "catalog": {
+      "title": "Skill Catalog",
+      "description": "Browse and install skills to extend your agents.",
+      "search": "Search skills...",
+      "selectAgent": "Select agent",
+      "noResults": "No skills match your search.",
+      "noSkills": "No skills available.",
+      "install": "Install",
+      "installing": "Installing...",
+      "installed": "Installed",
+      "installSuccess": "{name} installed",
+      "installFailed": "Install failed",
+      "alreadyInstalled": "Already installed",
+      "requirements": "Requirements",
+      "source": "Source",
+      "bundled": "Bundled",
+      "platforms": "Platforms",
+      "categories": {
+        "design": "Design",
+        "deploy": "Deploy",
+        "dev-tools": "Dev Tools",
+        "productivity": "Productivity",
+        "creative": "Creative",
+        "docs": "Docs",
+        "security": "Security"
+      }
     }
   },
   "schedules": {

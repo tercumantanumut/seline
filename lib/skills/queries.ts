@@ -15,6 +15,7 @@ import type {
   SkillListPage,
   SkillRecord,
   SkillRunHistoryItem,
+  SkillSourceType,
   SkillStatus,
   SkillUpdateField,
   SkillUpdateResult,
@@ -66,6 +67,7 @@ function mapSkillRecord(row: typeof skills.$inferSelect): SkillRecord {
     copiedFromCharacterId: row.copiedFromCharacterId,
     sourceType: row.sourceType,
     sourceSessionId: row.sourceSessionId,
+    catalogId: row.catalogId,
     runCount: row.runCount,
     successCount: row.successCount,
     lastRunAt: row.lastRunAt,
@@ -134,6 +136,7 @@ export async function createSkill(input: CreateSkillInput): Promise<SkillRecord>
       copiedFromCharacterId: input.copiedFromCharacterId || null,
       sourceType: input.sourceType || "conversation",
       sourceSessionId: input.sourceSessionId || null,
+      catalogId: input.catalogId || null,
       status: input.status || "active",
     })
     .returning();
@@ -402,6 +405,7 @@ export async function listSkillLibrary(
   const items = await listSkillsForUser(userId, { ...filters, all: true, limit: 500 });
 
   const filtered = items.filter((item) => {
+    if (item.sourceType === "catalog") return false;
     if (filters.usageBucket === "unused" && item.runCount !== 0) return false;
     if (filters.usageBucket === "low" && !(item.runCount > 0 && item.runCount <= 5)) return false;
     if (filters.usageBucket === "medium" && !(item.runCount > 5 && item.runCount <= 20)) return false;
@@ -560,8 +564,33 @@ export async function importSkillPackage(input: {
   userId: string;
   characterId: string;
   parsedSkill: ParsedSkillPackage;
+  sourceType?: SkillSourceType;
+  catalogId?: string | null;
+  icon?: string | null;
+  status?: SkillStatus;
+  categoryOverride?: string;
+  nameOverride?: string;
+  descriptionOverride?: string;
 }): Promise<SkillRecord> {
-  const { userId, characterId, parsedSkill } = input;
+  const {
+    userId,
+    characterId,
+    parsedSkill,
+    sourceType = "manual",
+    catalogId = null,
+    icon = null,
+    status = "active",
+    categoryOverride,
+    nameOverride,
+    descriptionOverride,
+  } = input;
+
+  const resolvedCategory = (categoryOverride || parsedSkill.metadata?.category || "general")
+    .toString()
+    .trim();
+  const resolvedName = (nameOverride || parsedSkill.name).trim();
+  const resolvedDescription = (descriptionOverride || parsedSkill.description).trim();
+  const normalizedStatus: SkillStatus = status === "archived" ? "archived" : "active";
 
   // Detect script languages
   const scriptLanguages = Array.from(
@@ -584,19 +613,22 @@ export async function importSkillPackage(input: {
     .values({
       userId,
       characterId,
-      name: parsedSkill.name,
-      description: parsedSkill.description,
+      name: resolvedName,
+      description: resolvedDescription,
+      icon,
       promptTemplate: parsedSkill.promptTemplate,
+      category: resolvedCategory || "general",
       sourceFormat: "agentskills-package",
-      sourceType: "manual",
+      sourceType,
+      catalogId,
       hasScripts: parsedSkill.scripts.length > 0,
       hasReferences: parsedSkill.references.length > 0,
       hasAssets: parsedSkill.assets.length > 0,
-      scriptLanguages: scriptLanguages,
+      scriptLanguages,
       license: parsedSkill.license || null,
       compatibility: parsedSkill.compatibility || null,
       toolHints: parsedSkill.allowedTools || [],
-      status: "active",
+      status,
     })
     .returning();
 

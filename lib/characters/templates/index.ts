@@ -18,6 +18,7 @@ import {
   setDefaultCharacter,
 } from "../queries";
 import { createSkill } from "@/lib/skills/queries";
+import { autoInstallSystemSkills } from "@/lib/skills/catalog/auto-install";
 import { AgentMemoryManager } from "@/lib/agent-memory";
 import { addSyncFolder, getSyncFolders, setPrimaryFolder } from "@/lib/vectordb/sync-service";
 import { getUserWorkspacePath } from "@/lib/workspace/setup";
@@ -245,31 +246,37 @@ export async function createAgentFromTemplate(
 }
 
 async function seedTemplateSkills(userId: string, characterId: string, template: AgentTemplate): Promise<void> {
-  if (!template.exampleSkills || template.exampleSkills.length === 0) return;
-
-  for (const skill of template.exampleSkills) {
-    try {
-      await createSkill({
-        userId,
-        characterId,
-        name: skill.name,
-        description: skill.description,
-        promptTemplate: skill.promptTemplate,
-        inputParameters: (skill.inputParameters || []).map((item) => ({
-          name: item.name,
-          type: item.type,
-          defaultValue: item.default ?? null,
-        })),
-        toolHints: skill.toolHints || [],
-        triggerExamples: skill.triggerExamples || [],
-        category: skill.category || template.category || "general",
-        sourceType: "template",
-        status: "active",
-      });
-    } catch (error) {
-      console.warn(`[Templates] Failed to seed skill ${skill.name} for ${template.id}:`, error);
+  // Seed template-specific example skills
+  if (template.exampleSkills && template.exampleSkills.length > 0) {
+    for (const skill of template.exampleSkills) {
+      try {
+        await createSkill({
+          userId,
+          characterId,
+          name: skill.name,
+          description: skill.description,
+          promptTemplate: skill.promptTemplate,
+          inputParameters: (skill.inputParameters || []).map((item) => ({
+            name: item.name,
+            type: item.type,
+            defaultValue: item.default ?? null,
+          })),
+          toolHints: skill.toolHints || [],
+          triggerExamples: skill.triggerExamples || [],
+          category: skill.category || template.category || "general",
+          sourceType: "template",
+          status: "active",
+        });
+      } catch (error) {
+        console.warn(`[Templates] Failed to seed skill ${skill.name} for ${template.id}:`, error);
+      }
     }
   }
+
+  // Auto-install system skills from the catalog (fire-and-forget, consistent with direct character creation)
+  void autoInstallSystemSkills(userId, characterId).catch((error) => {
+    console.warn("[Templates] System skills auto-install failed:", error);
+  });
 }
 
 async function seedTemplateMemories(

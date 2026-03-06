@@ -1181,6 +1181,26 @@
       "noSkillsYet": "Henüz beceri yok - bir .md beceri dosyası bırakın veya Ayarlar → Eklentiler bölümünü ziyaret edin.",
       "noMatch": "\"{query}\" ile eşleşen beceri yok"
     },
+    "skillsPage": {
+      "title": "Beceriler",
+      "subtitle": "Seline'e süper güçler ver.",
+      "learnMore": "Daha fazla bilgi",
+      "refresh": "Yenile",
+      "newSkill": "Yeni beceri",
+      "searchPlaceholder": "Becerilerde ara...",
+      "installed": "Yuklu",
+      "recommended": "Onerilen",
+      "noResults": "Aramanizla eslesen beceri yok.",
+      "install": "Yukle",
+      "installing": "Yukleniyor...",
+      "installSuccess": "Beceri basariyla yuklendi",
+      "uninstall": "Kaldir",
+      "uninstallConfirm": "Bu beceriyi kaldirmak istediginizden emin misiniz?",
+      "disable": "Devre disi birak",
+      "enable": "Etkinlestir",
+      "try": "Dene",
+      "openFolder": "Klasoru ac"
+    },
     "editFileTool": {
       "creating": "Oluşturuluyor...",
       "writing": "Yazılıyor...",
@@ -3293,6 +3313,7 @@
       "copySuccess": "Beceri başarıyla kopyalandı.",
       "copyFailed": "Beceri kopyalanamadı"
     },
+    "library": "Kutuphane",
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",
     "importSuccess": "Yetenek başarıyla içe aktarıldı",

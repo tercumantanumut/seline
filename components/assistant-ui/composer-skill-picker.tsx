@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { SkillRecord } from "@/lib/skills/types";
 import { getRequiredSkillInputs } from "@/lib/skills/skill-picker-utils";
+import { SkillIcon } from "@/components/skills/skill-icon";
 
 export interface ComposerSkillLite {
   id: string;
   name: string;
   description: string | null;
   category: string;
+  icon?: string | null;
   inputParameters: SkillRecord["inputParameters"];
 }
 
@@ -162,9 +164,12 @@ export const ComposerSkillPicker: FC<ComposerSkillPickerProps> = ({
                 onMouseEnter={() => onSelectedIndexChange(() => index)}
                 aria-selected={index === selectedSkillIndex}
               >
-                <div className="mt-0.5 rounded-md border border-terminal-green/30 bg-terminal-green/10 px-1.5 py-0.5 text-[10px] font-mono text-terminal-green">
-                  /
-                </div>
+                <SkillIcon
+                  icon={skill.icon ?? null}
+                  displayName={skill.name}
+                  size={24}
+                  className="mt-0.5 shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold font-mono text-terminal-dark">

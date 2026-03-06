@@ -20,8 +20,9 @@ export const skills = sqliteTable(
     version: integer("version").default(1).notNull(),
     copiedFromSkillId: text("copied_from_skill_id").references((): AnySQLiteColumn => skills.id, { onDelete: "set null" }),
     copiedFromCharacterId: text("copied_from_character_id").references(() => characters.id, { onDelete: "set null" }),
-    sourceType: text("source_type", { enum: ["conversation", "manual", "template"] }).default("conversation").notNull(),
+    sourceType: text("source_type", { enum: ["conversation", "manual", "template", "catalog"] }).default("conversation").notNull(),
     sourceSessionId: text("source_session_id").references(() => sessions.id, { onDelete: "set null" }),
+    catalogId: text("catalog_id"),
     sourceFormat: text("source_format", { enum: ["prompt-only", "agentskills-package"] }).default("prompt-only").notNull(),
     hasScripts: integer("has_scripts", { mode: "boolean" }).default(false).notNull(),
     hasReferences: integer("has_references", { mode: "boolean" }).default(false).notNull(),
@@ -42,6 +43,7 @@ export const skills = sqliteTable(
     characterNameIdx: index("idx_skills_character_name").on(table.characterId, table.name),
     userUpdatedIdx: index("idx_skills_user_updated").on(table.userId, table.updatedAt),
     userCategoryIdx: index("idx_skills_user_category").on(table.userId, table.category),
+    catalogIdIdx: index("idx_skills_catalog_id").on(table.catalogId),
   })
 );
 
