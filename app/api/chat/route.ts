@@ -291,9 +291,9 @@ export async function POST(req: Request) {
       : null;
 
     // Pre-generate the assistant message ID so frontend stream and DB share
-    // the same UUID.  This prevents deleteMessagesNotIn() from treating the
-    // DB-side assistant message as "unknown" and silently deleting it.
-    const assistantMessageId = crypto.randomUUID();
+    // the same UUID. When a live prompt splits the run, we rotate this ID so
+    // each assistant segment keeps a stable, unique frontend/DB identity.
+    let assistantMessageId = crypto.randomUUID();
 
     const syncStreamingMessage = shouldEmitProgress && streamingState
       ? createSyncStreamingMessage({
@@ -305,7 +305,7 @@ export async function POST(req: Request) {
           scheduledTaskName,
           getAgentRunId: () => agentRun?.id,
           streamingState,
-          assistantMessageId,
+          getAssistantMessageId: () => assistantMessageId,
         })
       : undefined;
 
@@ -660,6 +660,7 @@ export async function POST(req: Request) {
             _state.lastBroadcastSignature = "";
             _state.pendingBroadcast = false;
             _state.isCreating = false;
+            assistantMessageId = crypto.randomUUID();
             // Claude Code runs entirely inside streamText step 0, so any injected
             // follow-up content must ignore canonical step reconciliation.
             _state.stepOffset = 1;
