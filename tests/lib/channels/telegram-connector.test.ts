@@ -8,6 +8,7 @@ const sendVoice = vi.fn();
 
 vi.mock("grammy", () => {
   class Bot {
+    handlers = new Map<string, (...args: any[]) => any>();
     api = {
       sendMessage,
       sendPhoto,
@@ -15,10 +16,12 @@ vi.mock("grammy", () => {
       getMe: vi.fn(),
     };
     constructor(_token: string) {}
-    start = vi.fn();
-    stop = vi.fn();
+    start = vi.fn(async () => undefined);
+    stop = vi.fn(async () => undefined);
     catch = vi.fn();
-    on = vi.fn();
+    on = vi.fn((event: string, handler: (...args: any[]) => any) => {
+      this.handlers.set(event, handler);
+    });
   }
 
   class InputFile {
@@ -295,6 +298,57 @@ describe("TelegramConnector voice caption truncation", () => {
     expect(sendVoice).toHaveBeenCalledTimes(1);
     expect(sendVoice.mock.calls[0][2].caption).toBeUndefined();
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("TelegramConnector inbound dispatch", () => {
+  beforeEach(() => {
+    sendMessage.mockReset();
+    sendPhoto.mockReset();
+    sendVoice.mockReset();
+  });
+
+  it("does not await channel processing before returning to grammY", async () => {
+    let resolveInbound: (() => void) | undefined;
+    const onMessage = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveInbound = resolve;
+      })
+    );
+    const connector = new TelegramConnector({
+      connectionId: "conn-1",
+      characterId: "char-1",
+      config: { type: "telegram", botToken: "token" },
+      onMessage,
+      onStatus: () => {},
+    });
+
+    await connector.connect();
+
+    const messageHandler = ((connector as any).bot.handlers as Map<string, (...args: any[]) => any>).get("message");
+    expect(messageHandler).toBeTypeOf("function");
+
+    const handlerPromise = messageHandler?.({
+      from: { is_bot: false, first_name: "Peer" },
+      chat: { id: 123 },
+      message: {
+        message_id: 456,
+        text: "/stop",
+        date: 1,
+      },
+    });
+
+    const returnedBeforeInboundFinished = await Promise.race([
+      handlerPromise?.then(() => true) ?? Promise.resolve(false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 0)),
+    ]);
+
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(returnedBeforeInboundFinished).toBe(true);
+
+    resolveInbound?.();
+    await Promise.resolve();
+    await handlerPromise;
   });
 });
 
