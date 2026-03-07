@@ -1,6 +1,6 @@
 import { SYSTEM_SKILLS } from "./system-skills";
 import { getCatalogSkillById } from "./index";
-import { loadBundledSkillMarkdown } from "./bundled-loader";
+import { loadBundledSkillMarkdown, loadBundledSkillFiles } from "./bundled-loader";
 import { parseSingleSkillMd } from "../import-parser";
 import { importSkillPackage, listSkillsForUser } from "../queries";
 
@@ -60,6 +60,14 @@ export async function autoInstallSystemSkills(
         Buffer.from(markdown, "utf-8"),
         `${catalogSkill.id}.md`
       );
+
+      // Attach bundled script/reference files if the skill has a directory layout
+      const bundledFiles = await loadBundledSkillFiles(catalogSkill.id);
+      if (bundledFiles.length > 0) {
+        parsedSkill.scripts = bundledFiles.filter(f => f.relativePath.startsWith("scripts/"));
+        parsedSkill.references = bundledFiles.filter(f => f.relativePath.startsWith("references/"));
+        parsedSkill.files = bundledFiles;
+      }
 
       await importSkillPackage({
         userId,

@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth/local-auth";
 import { getOrCreateLocalUser } from "@/lib/db/queries";
 import { loadSettings } from "@/lib/settings/settings-manager";
 import { getCatalogSkillById } from "@/lib/skills/catalog";
-import { loadBundledSkillMarkdown } from "@/lib/skills/catalog/bundled-loader";
+import { loadBundledSkillMarkdown, loadBundledSkillFiles } from "@/lib/skills/catalog/bundled-loader";
 import { fetchSkillFromGitHub } from "@/lib/skills/catalog/github-fetch";
 import type { CatalogInstallRequest } from "@/lib/skills/catalog/types";
 import { parseSingleSkillMd } from "@/lib/skills/import-parser";
@@ -60,6 +60,16 @@ export async function POST(req: NextRequest) {
         : await fetchSkillFromGitHub(catalogSkill.installSource);
 
     const parsedSkill = await parseSingleSkillMd(Buffer.from(markdown, "utf-8"), `${catalogSkill.id}.md`);
+
+    // Attach bundled script/reference files if the skill has a directory layout
+    if (catalogSkill.installSource.type === "bundled") {
+      const bundledFiles = await loadBundledSkillFiles(catalogSkill.id);
+      if (bundledFiles.length > 0) {
+        parsedSkill.scripts = bundledFiles.filter(f => f.relativePath.startsWith("scripts/"));
+        parsedSkill.references = bundledFiles.filter(f => f.relativePath.startsWith("references/"));
+        parsedSkill.files = bundledFiles;
+      }
+    }
 
     const installed = await importSkillPackage({
       userId: dbUser.id,

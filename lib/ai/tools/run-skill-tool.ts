@@ -6,6 +6,7 @@ import { getScheduler } from "@/lib/scheduler/scheduler-service";
 import { renderSkillPrompt } from "@/lib/skills/runtime";
 import { trackSkillTelemetryEvent } from "@/lib/skills/telemetry";
 import { updateSkillRunStats } from "@/lib/skills/queries";
+import { getBundledSkillRootPath } from "@/lib/skills/catalog/bundled-loader";
 import {
   listRuntimeSkills,
   resolveRuntimeSkill,
@@ -106,6 +107,16 @@ function injectPluginRoot(
   if (!pluginCachePath) return renderedPrompt;
   const pluginRoot = path.resolve(pluginCachePath);
   return renderedPrompt.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, pluginRoot);
+}
+
+function injectSkillRoot(
+  renderedPrompt: string,
+  catalogId: string | null | undefined
+): string {
+  if (!catalogId) return renderedPrompt;
+  if (!renderedPrompt.includes("SELINE_SKILL_ROOT")) return renderedPrompt;
+  const skillRoot = getBundledSkillRootPath(catalogId);
+  return renderedPrompt.replace(/\$\{SELINE_SKILL_ROOT\}/g, skillRoot);
 }
 
 function normalizeAction(input: RunSkillInput): RunSkillAction {
@@ -237,7 +248,7 @@ export function createRunSkillTool(options: RunSkillToolOptions) {
           ? (() => {
               const dbRender = renderSkillPrompt(runtimeSkill.dbSkill, parameters);
               return {
-                renderedPrompt: dbRender.prompt,
+                renderedPrompt: injectSkillRoot(dbRender.prompt, runtimeSkill.dbSkill.catalogId),
                 missingParameters: dbRender.missingParameters,
                 resolvedParameters: dbRender.resolvedParameters,
               };
