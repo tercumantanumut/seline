@@ -2420,6 +2420,12 @@
         "enableLabel": "Enable 3D avatar",
         "enableDesc": "Shows an animated 3D avatar in the chat interface."
       },
+      "emotionDetection": {
+        "heading": "Emotion Detection",
+        "description": "Detect emotional tone in your messages to drive avatar expressions and mood-aware responses. Uses a utility model call per message.",
+        "enableLabel": "Enable emotion detection",
+        "enableDesc": "Classifies emotional tone on each message. Requires 3D avatar for visual feedback."
+      },
       "everMemOS": {
         "heading": "Shared memory (EverMemOS)",
         "description": "Connect to an EverMemOS server for cross-agent shared memory. Local memory is always used; EverMemOS adds shared recall.",

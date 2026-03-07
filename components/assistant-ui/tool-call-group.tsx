@@ -59,6 +59,7 @@ const TOOLS_AUTO_EXPAND = new Set([
   "askUserQuestion",
   "askFollowupQuestion",
   "updatePlan",
+  "ExitPlanMode",
   "showProductImages",
   "calculator",
   "chromiumWorkspace",
@@ -314,10 +315,8 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   return (
     <div
       className={cn(
-        "my-2 rounded-lg p-2 shadow-sm transition-all duration-150 ease-in-out",
-        isGlass
-          ? "border border-white/10 bg-black/20 backdrop-blur-md"
-          : "bg-terminal-cream/80"
+        "my-2 border-l-2 pl-3 transition-all duration-150 ease-in-out",
+        isGlass ? "border-white/15" : "border-terminal-dark/8"
       )}
       onMouseEnter={() => setIsCompactRevealHovered(true)}
       onMouseLeave={() => setIsCompactRevealHovered(false)}
@@ -436,17 +435,17 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         </div>
       )}
 
-      <div className="mt-2 flex justify-end">
+      <div className="mt-1 flex justify-end">
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={handleToggleExpanded}
           className={cn(
-            "h-7 px-2 text-xs font-mono",
+            "h-6 px-2 text-[11px] font-mono rounded-md",
             isGlass
-              ? "text-white/60 hover:text-white/90"
-              : "text-terminal-muted hover:text-terminal-dark"
+              ? "text-white/50 hover:text-white/80 hover:bg-white/5"
+              : "text-terminal-muted/70 hover:text-terminal-dark hover:bg-terminal-dark/5"
           )}
         >
           {showChildren ? t("hide") : t("details")}

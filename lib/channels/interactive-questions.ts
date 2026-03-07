@@ -1,7 +1,7 @@
 /**
  * Channel interactive question orchestrator.
  *
- * Tracks pending AskUserQuestion tool calls for channel conversations,
+ * Tracks pending interactive prompts for channel conversations,
  * formats questions as numbered text (fallback) or native interactive
  * elements (Telegram/Slack/Discord), and parses user responses.
  */
@@ -23,10 +23,20 @@ export interface ParsedQuestion {
   multiSelect: boolean;
 }
 
+export interface PlanApprovalPrompt {
+  type: "plan_approval";
+  toolName: "ExitPlanMode";
+  plan: string;
+  question?: string;
+  options: QuestionOption[];
+}
+
+export type InteractivePromptPayload = ParsedQuestion[] | PlanApprovalPrompt;
+
 export interface PendingChannelQuestion {
   sessionId: string;
   toolUseId: string;
-  questions: ParsedQuestion[];
+  prompt: InteractivePromptPayload;
   conversationKey: string;
   connectionId: string;
   peerId: string;
@@ -35,7 +45,7 @@ export interface PendingChannelQuestion {
 }
 
 // ---------------------------------------------------------------------------
-// Pending question state — keyed by conversation key
+// Pending question state - keyed by conversation key
 // ---------------------------------------------------------------------------
 
 const pendingChannelQuestions = new Map<string, PendingChannelQuestion>();
@@ -73,7 +83,7 @@ export function clearPendingQuestionBySession(sessionId: string, toolUseId: stri
 }
 
 // ---------------------------------------------------------------------------
-// Question parsing — normalize AskUserQuestion tool input
+// Interactive prompt parsing
 // ---------------------------------------------------------------------------
 
 interface RawToolInput {
@@ -85,6 +95,48 @@ interface RawToolInput {
   }>;
   question?: string;
   options?: QuestionOption[];
+}
+
+function isQuestionOptionArray(value: unknown): value is QuestionOption[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const option = item as { label?: unknown; description?: unknown };
+    return typeof option.label === "string" && typeof option.description === "string";
+  });
+}
+
+function isPlanApprovalPrompt(value: unknown): value is PlanApprovalPrompt {
+  if (!value || typeof value !== "object") return false;
+  const prompt = value as {
+    type?: unknown;
+    toolName?: unknown;
+    plan?: unknown;
+    question?: unknown;
+    options?: unknown;
+  };
+
+  return (
+    prompt.type === "plan_approval" &&
+    prompt.toolName === "ExitPlanMode" &&
+    typeof prompt.plan === "string" &&
+    (prompt.question === undefined || typeof prompt.question === "string") &&
+    isQuestionOptionArray(prompt.options)
+  );
+}
+
+function normalizePlanApprovalPrompt(toolInput: unknown): PlanApprovalPrompt | null {
+  let input = toolInput;
+
+  if (typeof input === "string") {
+    const parsed = parseNestedJsonString(input);
+    if (parsed && typeof parsed === "object") {
+      input = parsed;
+    } else {
+      return null;
+    }
+  }
+
+  return isPlanApprovalPrompt(input) ? input : null;
 }
 
 export function parseToolInputToQuestions(toolInput: unknown): ParsedQuestion[] {
@@ -128,8 +180,16 @@ export function parseToolInputToQuestions(toolInput: unknown): ParsedQuestion[] 
   return [];
 }
 
+export function parseInteractivePromptInput(toolInput: unknown): InteractivePromptPayload | null {
+  const planPrompt = normalizePlanApprovalPrompt(toolInput);
+  if (planPrompt) return planPrompt;
+
+  const questions = parseToolInputToQuestions(toolInput);
+  return questions.length > 0 ? questions : null;
+}
+
 // ---------------------------------------------------------------------------
-// Text formatting — fallback for WhatsApp or when native elements unavailable
+// Text formatting - fallback for WhatsApp or when native elements unavailable
 // ---------------------------------------------------------------------------
 
 export function formatQuestionsForChannel(questions: ParsedQuestion[]): string {
@@ -148,10 +208,9 @@ export function formatQuestionsForChannel(questions: ParsedQuestion[]): string {
       parts.push(`  ${oi + 1}. ${opt.label}${desc}`);
     }
 
-    parts.push(""); // blank line
+    parts.push("");
   }
 
-  // Instruction
   if (questions.length === 1) {
     const q = questions[0];
     if (q.multiSelect) {
@@ -166,8 +225,45 @@ export function formatQuestionsForChannel(questions: ParsedQuestion[]): string {
   return parts.join("\n");
 }
 
+export function getInteractivePromptQuestionText(prompt: InteractivePromptPayload): string {
+  if (Array.isArray(prompt)) {
+    if (prompt.length === 0) return "";
+    return prompt.length === 1 ? prompt[0].question : formatQuestionsForChannel(prompt).split("\n\nReply")[0];
+  }
+
+  return prompt.question ?? "Review the plan and choose how to continue.";
+}
+
+export function getInteractivePromptInstructionText(prompt: InteractivePromptPayload): string {
+  if (Array.isArray(prompt)) {
+    if (prompt.length === 0) return "";
+    const firstQ = prompt[0];
+    return firstQ.multiSelect
+      ? "Select your answer (or reply with numbers separated by commas)"
+      : `Select your answer (or reply with a number 1-${firstQ.options.length})`;
+  }
+
+  return `Choose an option (1-${prompt.options.length}) or reply with feedback.`;
+}
+
+export function formatInteractivePromptForChannel(prompt: InteractivePromptPayload): string {
+  if (Array.isArray(prompt)) {
+    return formatQuestionsForChannel(prompt);
+  }
+
+  const question = getInteractivePromptQuestionText(prompt);
+  const lines = [question, "", prompt.plan.trim(), ""];
+  prompt.options.forEach((opt, index) => {
+    const desc = opt.description ? ` - ${opt.description}` : "";
+    lines.push(`  ${index + 1}. ${opt.label}${desc}`);
+  });
+  lines.push("");
+  lines.push(`Reply with a number (1-${prompt.options.length}) or send feedback.`);
+  return lines.join("\n");
+}
+
 // ---------------------------------------------------------------------------
-// Response parsing — match user text to question options
+// Response parsing - match user text to question options
 // ---------------------------------------------------------------------------
 
 export function parseUserResponseToAnswers(
@@ -183,7 +279,6 @@ export function parseUserResponseToAnswers(
     return answers;
   }
 
-  // Multiple questions: parse "Q1=2, Q2=1,3" or "Q1=React, Q2=Vue,Svelte"
   const multiPattern = /Q(\d+)\s*=\s*([^,Q]+(?:,\s*[^,Q]+)*)/gi;
   let match;
   while ((match = multiPattern.exec(trimmed)) !== null) {
@@ -194,7 +289,6 @@ export function parseUserResponseToAnswers(
     }
   }
 
-  // If no multi-format matches found, try sequential numbers for single-select questions
   if (Object.keys(answers).length === 0) {
     const numbers = trimmed.split(/[\s,]+/).map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
     for (let i = 0; i < Math.min(numbers.length, questions.length); i++) {
@@ -206,7 +300,6 @@ export function parseUserResponseToAnswers(
     }
   }
 
-  // Fill in any unanswered questions with first option
   for (const q of questions) {
     if (!answers[q.question] && q.options.length > 0) {
       answers[q.question] = q.options[0].label;
@@ -217,7 +310,6 @@ export function parseUserResponseToAnswers(
 }
 
 function parseSingleQuestionResponse(text: string, q: ParsedQuestion): string {
-  // Try number-based: "2" or "1,3" for multi-select
   const numbers = text.match(/\d+/g);
   if (numbers) {
     const labels = numbers
@@ -229,7 +321,6 @@ function parseSingleQuestionResponse(text: string, q: ParsedQuestion): string {
     }
   }
 
-  // Fallback: text matching against option labels (case-insensitive)
   const matchedOption = q.options.find(
     (o) => o.label.toLowerCase() === text.toLowerCase(),
   );
@@ -237,8 +328,33 @@ function parseSingleQuestionResponse(text: string, q: ParsedQuestion): string {
     return matchedOption.label;
   }
 
-  // Last resort: use raw text as answer
   return text;
+}
+
+export function parseInteractiveResponseToAnswers(
+  text: string,
+  prompt: InteractivePromptPayload,
+): Record<string, string> {
+  if (Array.isArray(prompt)) {
+    return parseUserResponseToAnswers(text, prompt);
+  }
+
+  const trimmed = text.trim();
+  const numbers = trimmed.match(/\d+/g);
+  if (numbers && numbers.length > 0) {
+    const first = parseInt(numbers[0], 10);
+    if (first >= 1 && first <= prompt.options.length) {
+      const selected = prompt.options[first - 1]?.label;
+      if (selected) {
+        return { action: selected };
+      }
+    }
+  }
+
+  return {
+    action: "Reject / Edit",
+    message: trimmed,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +368,6 @@ export function mapIndicesToAnswers(
   const answers: Record<string, string> = {};
   if (questions.length === 0) return answers;
 
-  // For single-question, all indices map to that question's options
   if (questions.length === 1) {
     const q = questions[0];
     const labels = selectedIndices
@@ -264,7 +379,6 @@ export function mapIndicesToAnswers(
     return answers;
   }
 
-  // For multi-question, indices are assumed to be sequential answers
   for (let i = 0; i < Math.min(selectedIndices.length, questions.length); i++) {
     const q = questions[i];
     const idx = selectedIndices[i];
@@ -276,6 +390,22 @@ export function mapIndicesToAnswers(
   return answers;
 }
 
+export function mapIndicesToInteractiveAnswers(
+  selectedIndices: number[],
+  prompt: InteractivePromptPayload,
+): Record<string, string> {
+  if (Array.isArray(prompt)) {
+    return mapIndicesToAnswers(selectedIndices, prompt);
+  }
+
+  const index = selectedIndices[0];
+  if (index >= 1 && index <= prompt.options.length) {
+    return { action: prompt.options[index - 1].label };
+  }
+
+  return {};
+}
+
 export function formatAnswerConfirmation(
   answers: Record<string, string>,
   questions: ParsedQuestion[],
@@ -284,6 +414,28 @@ export function formatAnswerConfirmation(
   if (values.length === 0) return "Got it. Continuing...";
   if (values.length === 1) return `Got it: ${values[0]}. Continuing...`;
   return `Got it: ${values.join("; ")}. Continuing...`;
+}
+
+export function formatInteractiveAnswerConfirmation(
+  answers: Record<string, string>,
+  prompt: InteractivePromptPayload,
+): string {
+  if (Array.isArray(prompt)) {
+    return formatAnswerConfirmation(answers, prompt);
+  }
+
+  const action = answers.action;
+  if (action === "Approve & Continue") {
+    return "Plan approved. Continuing...";
+  }
+  if (action === "Reject / Edit") {
+    const feedback = answers.message?.trim();
+    return feedback ? `Plan feedback received: ${feedback}` : "Plan feedback received. Revising...";
+  }
+  if (action) {
+    return `Got it: ${action}. Continuing...`;
+  }
+  return "Got it. Continuing...";
 }
 
 // ---------------------------------------------------------------------------

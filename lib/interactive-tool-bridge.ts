@@ -14,12 +14,6 @@
 import { EventEmitter } from "events";
 
 // ---------------------------------------------------------------------------
-// Event emitter — notifies channel integrations about pending questions
-// ---------------------------------------------------------------------------
-
-export const interactiveBridgeEvents = new EventEmitter();
-
-// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -27,13 +21,35 @@ interface PendingInteractiveWait {
   resolve: (answers: Record<string, string>) => void;
   questions: unknown;
   createdAt: number;
+  abortCleanup?: () => void;
 }
 
 // ---------------------------------------------------------------------------
-// Pending waits — keyed by `${sessionId}__${toolUseId}`
+// Global state — survives Next.js HMR re-evaluations in dev mode.
+// Without this, the streaming chat route and the tool-result route can
+// end up with different module instances (different Maps), so the tool-result
+// endpoint never finds the pending wait registered by the streaming route.
+// Same pattern as lib/vectordb/file-watcher.ts (globalThis.fileWatchers).
 // ---------------------------------------------------------------------------
 
-const pendingWaits = new Map<string, PendingInteractiveWait>();
+const globalForBridge = globalThis as unknown as {
+  interactiveBridgeEvents?: EventEmitter;
+  interactivePendingWaits?: Map<string, PendingInteractiveWait>;
+  interactiveUserAnswers?: Map<string, Record<string, string>>;
+};
+
+if (!globalForBridge.interactiveBridgeEvents) {
+  globalForBridge.interactiveBridgeEvents = new EventEmitter();
+}
+if (!globalForBridge.interactivePendingWaits) {
+  globalForBridge.interactivePendingWaits = new Map<string, PendingInteractiveWait>();
+}
+if (!globalForBridge.interactiveUserAnswers) {
+  globalForBridge.interactiveUserAnswers = new Map<string, Record<string, string>>();
+}
+
+export const interactiveBridgeEvents = globalForBridge.interactiveBridgeEvents;
+const pendingWaits = globalForBridge.interactivePendingWaits;
 
 function makeKey(sessionId: string, toolUseId: string): string {
   return `${sessionId}__${toolUseId}`;
@@ -47,6 +63,7 @@ export function registerInteractiveWait(
   sessionId: string,
   toolUseId: string,
   questions: unknown,
+  options?: { abortSignal?: AbortSignal },
 ): Promise<Record<string, string>> {
   const key = makeKey(sessionId, toolUseId);
   // Clean up stale entries opportunistically
@@ -55,10 +72,34 @@ export function registerInteractiveWait(
   const existing = pendingWaits.get(key);
   if (existing) {
     pendingWaits.delete(key);
+    existing.abortCleanup?.();
     existing.resolve({});
   }
   return new Promise<Record<string, string>>((resolve) => {
-    pendingWaits.set(key, { resolve, questions, createdAt: Date.now() });
+    const abortSignal = options?.abortSignal;
+    const onAbort = () => {
+      const entry = pendingWaits.get(key);
+      if (!entry) return;
+      pendingWaits.delete(key);
+      entry.abortCleanup?.();
+      entry.resolve({});
+      interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
+    };
+
+    const abortCleanup = abortSignal
+      ? () => abortSignal.removeEventListener("abort", onAbort)
+      : undefined;
+
+    if (abortSignal?.aborted) {
+      resolve({});
+      return;
+    }
+
+    if (abortSignal) {
+      abortSignal.addEventListener("abort", onAbort, { once: true });
+    }
+
+    pendingWaits.set(key, { resolve, questions, createdAt: Date.now(), abortCleanup });
     interactiveBridgeEvents.emit("pending", { sessionId, toolUseId, questions });
   });
 }
@@ -77,9 +118,18 @@ export function resolveInteractiveWait(
   const entry = pendingWaits.get(key);
   if (!entry) return false;
   pendingWaits.delete(key);
+  entry.abortCleanup?.();
   entry.resolve(answers);
   interactiveBridgeEvents.emit("resolved", { sessionId, toolUseId });
   return true;
+}
+
+export function getPendingInteractivePrompt(
+  sessionId: string,
+  toolUseId: string,
+): unknown | undefined {
+  const entry = pendingWaits.get(makeKey(sessionId, toolUseId));
+  return entry?.questions;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +138,7 @@ export function resolveInteractiveWait(
 // extractSdkToolResultsFromUserMessage can override the SDK's auto-answer.
 // ---------------------------------------------------------------------------
 
-const userAnswers = new Map<string, Record<string, string>>();
+const userAnswers = globalForBridge.interactiveUserAnswers;
 
 export function storeUserAnswer(
   sessionId: string,
@@ -123,6 +173,7 @@ export function cleanupStaleEntries(): void {
   for (const [key, entry] of pendingWaits) {
     if (now - entry.createdAt > STALE_THRESHOLD_MS) {
       pendingWaits.delete(key);
+      entry.abortCleanup?.();
       // Resolve with empty answers so the hook unblocks
       entry.resolve({});
     }

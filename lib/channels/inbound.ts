@@ -30,11 +30,13 @@ import { nowISO } from "@/lib/utils/timestamp";
 import { transcribeAudio, isTranscriptionAvailable, isAudioMimeType } from "@/lib/audio/transcription";
 import { interactiveBridgeEvents, resolveInteractiveWait, storeUserAnswer } from "@/lib/interactive-tool-bridge";
 import {
-  parseToolInputToQuestions,
-  formatQuestionsForChannel,
-  formatAnswerConfirmation,
-  parseUserResponseToAnswers,
-  mapIndicesToAnswers,
+  parseInteractivePromptInput,
+  getInteractivePromptQuestionText,
+  getInteractivePromptInstructionText,
+  formatInteractivePromptForChannel,
+  formatInteractiveAnswerConfirmation,
+  parseInteractiveResponseToAnswers,
+  mapIndicesToInteractiveAnswers,
   setPendingQuestion,
   getPendingQuestion,
   clearPendingQuestion,
@@ -60,8 +62,8 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
     const connection = await getChannelConnection(conversation.connectionId);
     if (!connection) return;
 
-    const parsed = parseToolInputToQuestions(questions);
-    if (parsed.length === 0) return;
+    const prompt = parseInteractivePromptInput(questions);
+    if (!prompt) return;
 
     const manager = getChannelManager();
     const connector = manager.getConnector(conversation.connectionId);
@@ -72,7 +74,7 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
         const pending = findPendingQuestionByToolUseId(data.toolUseId);
         if (!pending) return;
 
-        const answers = mapIndicesToAnswers(data.selectedIndices, pending.data.questions);
+        const answers = mapIndicesToInteractiveAnswers(data.selectedIndices, pending.data.prompt);
         storeUserAnswer(pending.data.sessionId, pending.data.toolUseId, answers);
         resolveInteractiveWait(pending.data.sessionId, pending.data.toolUseId, answers);
         clearPendingQuestion(pending.key);
@@ -81,7 +83,7 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
         manager.sendMessage(connection.id, {
           peerId: data.peerId,
           threadId: data.threadId,
-          text: formatAnswerConfirmation(answers, pending.data.questions),
+          text: formatInteractiveAnswerConfirmation(answers, pending.data.prompt),
         }).catch((err) => console.warn("[Channels] Failed to send answer confirmation:", err));
       });
     }
@@ -92,17 +94,12 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
       threadId: conversation.threadId,
     });
 
-    // For the first question only (multi-question is rare with interactive elements)
-    const firstQ = parsed[0];
-    const questionText = parsed.length === 1
-      ? firstQ.question
-      : formatQuestionsForChannel(parsed).split("\n\nReply")[0];
+    const firstPrompt = Array.isArray(prompt) ? prompt[0] : prompt;
+    const questionText = getInteractivePromptQuestionText(prompt);
+    const instructionText = getInteractivePromptInstructionText(prompt);
+    const multiSelect = Array.isArray(prompt) ? (prompt[0]?.multiSelect ?? false) : false;
 
-    const instructionText = firstQ.multiSelect
-      ? "Select your answer (or reply with numbers separated by commas)"
-      : `Select your answer (or reply with a number 1-${firstQ.options.length})`;
-
-    const options = firstQ.options.map((opt, i) => ({
+    const options = firstPrompt.options.map((opt, i) => ({
       index: i + 1,
       label: opt.label,
       description: opt.description,
@@ -116,7 +113,7 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
         toolUseId,
         questionText,
         options,
-        multiSelect: firstQ.multiSelect,
+        multiSelect,
         instructionText,
       });
     } else {
@@ -124,7 +121,7 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
       await manager.sendMessage(connection.id, {
         peerId: conversation.peerId,
         threadId: conversation.threadId,
-        text: formatQuestionsForChannel(parsed),
+        text: formatInteractivePromptForChannel(prompt),
       });
     }
 
@@ -132,7 +129,7 @@ interactiveBridgeEvents.on("pending", async ({ sessionId, toolUseId, questions }
     setPendingQuestion(key, {
       sessionId,
       toolUseId,
-      questions: parsed,
+      prompt,
       conversationKey: key,
       connectionId: conversation.connectionId,
       peerId: conversation.peerId,
@@ -251,7 +248,7 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
   const pendingQ = getPendingQuestion(conversationKey);
   if (pendingQ && normalizedText) {
     clearPendingQuestion(conversationKey);
-    const answers = parseUserResponseToAnswers(normalizedText, pendingQ.questions);
+    const answers = parseInteractiveResponseToAnswers(normalizedText, pendingQ.prompt);
     storeUserAnswer(pendingQ.sessionId, pendingQ.toolUseId, answers);
     resolveInteractiveWait(pendingQ.sessionId, pendingQ.toolUseId, answers);
 
@@ -261,7 +258,7 @@ async function processInboundMessage(message: ChannelInboundMessage): Promise<vo
       await manager.sendMessage(message.connectionId, {
         peerId: message.peerId,
         threadId: message.threadId,
-        text: formatAnswerConfirmation(answers, pendingQ.questions),
+        text: formatInteractiveAnswerConfirmation(answers, pendingQ.prompt),
       });
     } catch (err) {
       console.warn("[Channels] Failed to send answer confirmation:", err);

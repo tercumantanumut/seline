@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
 import type {
@@ -20,7 +22,10 @@ import {
 } from "@/lib/ai/retry/stream-recovery";
 import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
 import { isElectronProduction } from "@/lib/utils/environment";
-import { mcpContextStore, type SelineMcpContext } from "./mcp-context-store";
+import {
+  mcpContextStore,
+  type SelineMcpContext,
+} from "./mcp-context-store";
 import { createSelineSdkMcpServer } from "./seline-sdk-mcp-server";
 import { buildSdkHooksFromSeline, mergeHooks } from "@/lib/plugins/sdk-hook-adapter";
 import {
@@ -276,6 +281,75 @@ export function normalizeClaudeSdkToolName(raw: unknown): string | undefined {
   const quoteIndex = unwrapped.search(/["']/);
   const candidate = (quoteIndex >= 0 ? unwrapped.slice(0, quoteIndex) : unwrapped).trim();
   return candidate || undefined;
+}
+
+function readPlanModeFile(cwd: string): string {
+  // Claude Code SDK writes plans to ~/.claude/plans/<name>.md.
+  // Check both home dir and cwd; pick the most recently modified file.
+  const dirs = [
+    join(homedir(), ".claude", "plans"),
+    join(cwd, ".claude", "plans"),
+  ];
+  let bestPath = "";
+  let bestMtime = 0;
+  for (const dir of dirs) {
+    try {
+      for (const entry of readdirSync(dir)) {
+        if (!entry.endsWith(".md")) continue;
+        const full = join(dir, entry);
+        try {
+          const mt = statSync(full).mtimeMs;
+          if (mt > bestMtime) {
+            bestMtime = mt;
+            bestPath = full;
+          }
+        } catch { /* skip unreadable */ }
+      }
+    } catch { /* dir doesn't exist */ }
+  }
+  if (bestPath) {
+    try {
+      return readFileSync(bestPath, "utf8").trim();
+    } catch { /* fall through */ }
+  }
+  // Legacy fallback: .claude/plan (singular)
+  try {
+    return readFileSync(join(cwd, ".claude", "plan"), "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function buildPlanApprovalPrompt(plan: string): Record<string, unknown> {
+  return {
+    type: "plan_approval",
+    toolName: "ExitPlanMode",
+    question: "Review the plan and choose how to continue.",
+    plan,
+    options: [
+      {
+        label: "Approve & Continue",
+        description: "Approve this plan and let the agent start implementing.",
+      },
+      {
+        label: "Reject / Edit",
+        description: "Send feedback and keep the agent in planning mode.",
+      },
+    ],
+  };
+}
+
+function buildPlanApprovalResult(answers: Record<string, string>): Record<string, unknown> {
+  const action = answers.action === "Approve & Continue" ? "Approve & Continue" : "Reject / Edit";
+  const approved = action === "Approve & Continue";
+  const message = answers.message?.trim();
+
+  return {
+    status: approved ? "success" : "cancelled",
+    action,
+    approved,
+    ...(message ? { message } : {}),
+  };
 }
 
 function extractSdkToolResultsFromUserMessage(
@@ -731,6 +805,7 @@ function createStreamingClaudeCodeResponse(options: {
         number,
         { partialJson: string; timer: ReturnType<typeof setTimeout> | null }
       >();
+      const syntheticToolInputIndices = new Set<number>();
 
       let livePromptAbortController: AbortController | undefined;
       let onLivePromptAbort: (() => void) | undefined;
@@ -769,13 +844,59 @@ function createStreamingClaudeCodeResponse(options: {
           : undefined;
         const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
 
-        // ── Interactive tool gate: pause SDK for AskUserQuestion ──────────
+        // ── Interactive tool gate: pause SDK for AskUserQuestion / ExitPlanMode ──
         // The async PreToolUse hook blocks the SDK from auto-executing
-        // AskUserQuestion / AskFollowupQuestion until the real user answers
-        // via the /api/chat/tool-result endpoint.
+        // interactive tools until the real user answers via the
+        // /api/chat/tool-result endpoint.
         const interactiveSessionId = mcpCtx?.sessionId ?? "";
         const interactiveToolHook: HookCallback = async (input, toolUseId) => {
           const toolName = (input as Record<string, unknown>).tool_name as string;
+
+          // ── ExitPlanMode: plan approval gate ──
+          if (toolName === "ExitPlanMode") {
+            if (!toolUseId || !interactiveSessionId) return {};
+
+            const approvalPrompt = buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd));
+
+            console.log(
+              `[ClaudeCode] Interactive tool gate: blocking ExitPlanMode (${toolUseId}) until user approves plan`,
+            );
+
+            const answers = await registerInteractiveWait(
+              interactiveSessionId,
+              toolUseId,
+              approvalPrompt,
+            );
+
+            const result = buildPlanApprovalResult(answers);
+            sdkToolResultBridge?.publish(toolUseId, result, toolName);
+
+            const approved = result.approved === true;
+            const userFeedback =
+              typeof result.message === "string" && result.message.length > 0
+                ? result.message
+                : "";
+
+            console.log(
+              `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — approved=${approved}`,
+            );
+
+            // Always return "allow" so the SDK processes the tool and Claude
+            // sees the user's decision. Using "deny" causes the SDK to emit a
+            // generic "Blocked by hook" message and Claude never receives the
+            // user's feedback.
+            return {
+              hookSpecificOutput: {
+                hookEventName: "PreToolUse" as const,
+                permissionDecision: "allow" as const,
+                additionalContext: approved
+                  ? "The user approved the plan. Proceed with implementation."
+                  : `The user REJECTED this plan.${userFeedback ? ` Their feedback: "${userFeedback}".` : ""} Re-enter plan mode using EnterPlanMode and revise the plan based on their feedback.`,
+              },
+            };
+          }
+
+          // ── AskUserQuestion / AskFollowupQuestion gate ──
           if (
             toolName !== "AskUserQuestion" &&
             toolName !== "AskFollowupQuestion"
@@ -829,6 +950,11 @@ function createStreamingClaudeCodeResponse(options: {
             },
             {
               matcher: "AskFollowupQuestion",
+              hooks: [interactiveToolHook],
+              timeout: 300,
+            },
+            {
+              matcher: "ExitPlanMode",
               hooks: [interactiveToolHook],
               timeout: 300,
             },
@@ -1170,6 +1296,17 @@ function createStreamingClaudeCodeResponse(options: {
                     name: toolName,
                   },
                 });
+                if (toolName === "ExitPlanMode") {
+                  syntheticToolInputIndices.add(globalIndex);
+                  emit("content_block_delta", {
+                    type: "content_block_delta",
+                    index: globalIndex,
+                    delta: {
+                      type: "input_json_delta",
+                      partial_json: JSON.stringify(buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd))),
+                    },
+                  });
+                }
                 streamedToolUseIdsThisTurn.add(toolUseId);
                 streamedToolUseNamesThisTurn.add(toolName);
               } else {
@@ -1218,7 +1355,9 @@ function createStreamingClaudeCodeResponse(options: {
                 });
                 outputTokens += Math.max(1, Math.ceil(String(event.delta.text).length / 4));
               } else if (event.delta.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
-                emitInputJsonDelta(globalIndex, event.delta.partial_json);
+                if (!syntheticToolInputIndices.has(globalIndex)) {
+                  emitInputJsonDelta(globalIndex, event.delta.partial_json);
+                }
               }
               continue;
             }
@@ -1238,6 +1377,7 @@ function createStreamingClaudeCodeResponse(options: {
               emit("content_block_stop", { type: "content_block_stop", index: globalIndex });
               closedGlobalIndices.add(globalIndex);
               clearPendingInputDelta(globalIndex);
+              syntheticToolInputIndices.delete(globalIndex);
               openStreamLocalIndices.delete(localIndex);
               continue;
             }
@@ -1298,7 +1438,13 @@ function createStreamingClaudeCodeResponse(options: {
                   if (duplicateById || duplicateByName) {
                     continue;
                   }
-                  emitToolUseBlock(block.id, normalizedBlockName, JSON.stringify(block.input ?? {}));
+                  emitToolUseBlock(
+                    block.id,
+                    normalizedBlockName,
+                    normalizedBlockName === "ExitPlanMode"
+                      ? JSON.stringify(buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd)))
+                      : JSON.stringify(block.input ?? {}),
+                  );
                 } else if (block.type === "text" && block.text) {
                   // Avoid duplicate assistant text only when stream text was
                   // already emitted via deltas at any point during this session.
@@ -1516,7 +1662,7 @@ async function runClaudeAgentQuery(options: {
       ...(sdk?.persistSession !== undefined ? { persistSession: sdk.persistSession } : {}),
     },
   }) as ClaudeAgentQueryStream;
-
+      
   const livePromptAbortController = new AbortController();
   const onLivePromptAbort = () => livePromptAbortController.abort();
   if (signal) {

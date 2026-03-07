@@ -18,6 +18,7 @@ import {
   CheckCircleIcon,
   SparklesIcon,
   UndoIcon,
+  MicIcon,
 } from "lucide-react";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
@@ -253,7 +254,7 @@ export const Composer: FC<{
   });
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef, wasAiEnhancedRef } = useVoiceRecording({
     sttEnabled,
     voicePostProcessing,
     voiceAudioCues,
@@ -368,8 +369,10 @@ export const Composer: FC<{
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ originalText: rawTranscript, editedText: inputValue.trim() }),
         }).catch(() => {});
-        lastTranscriptRef.current = null;
       }
+      // Always clear transcript refs on send — bar disappears after message is sent
+      lastTranscriptRef.current = null;
+      wasAiEnhancedRef.current = false;
 
       const messageToSend = enhancedContext || inputValue.trim();
       const expandedMessage = expandPlaceholders(messageToSend);
@@ -450,6 +453,7 @@ export const Composer: FC<{
       clearEnhancement,
       clearPastedTexts,
       lastTranscriptRef,
+      wasAiEnhancedRef,
     ]
   );
 
@@ -956,11 +960,14 @@ export const Composer: FC<{
           />
         )}
 
-        {!isRecordingVoice && !isTranscribingVoice && sttEnabled && voiceActionsEnabled && inputValue.trim().length > 0 && (
+        {!isRecordingVoice && !isTranscribingVoice && (sttEnabled || pastedTexts.length > 0) && voiceActionsEnabled && inputValue.trim().length > 0 && (
           <VoiceActions
-            text={inputValue}
+            text={expandPlaceholders(inputValue)}
             sessionId={sessionId}
-            onResult={(text) => setInputValue(text)}
+            onResult={(text) => {
+              setInputValue(text);
+              clearPastedTexts();
+            }}
             className="px-3 py-1.5 border-b border-terminal-dark/10"
           />
         )}
@@ -973,22 +980,32 @@ export const Composer: FC<{
           </div>
         )}
 
-        {/* I5: AI-cleaned undo indicator */}
-        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && lastTranscriptRef.current !== inputValue.trim() && (
+        {/* I5: Voice transcript indicator — always visible when a transcript is stored */}
+        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && (
           <div className="flex items-center gap-1.5 px-3 py-1 border-b border-terminal-dark/10">
-            <SparklesIcon className="size-3 text-amber-500" />
-            <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+            {wasAiEnhancedRef.current && lastTranscriptRef.current !== inputValue.trim() ? (
+              <>
+                <SparklesIcon className="size-3 text-amber-500" />
+                <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+              </>
+            ) : (
+              <>
+                <MicIcon className="size-3 text-terminal-muted" />
+                <span className="text-[10px] font-mono text-terminal-muted">Voice transcript</span>
+              </>
+            )}
             <button
               type="button"
+              disabled={lastTranscriptRef.current === inputValue.trim()}
               onClick={() => {
                 if (lastTranscriptRef.current) {
                   setInputValue(lastTranscriptRef.current);
                 }
               }}
-              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1"
+              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1 disabled:opacity-30 disabled:cursor-default disabled:hover:text-terminal-muted"
             >
               <UndoIcon className="size-3" />
-              Undo
+              Restore
             </button>
           </div>
         )}

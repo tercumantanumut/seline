@@ -149,6 +149,8 @@ export interface FormState {
   comfyuiCustomBaseUrl: string;
   // 3D Avatar settings
   avatar3dEnabled: boolean;
+  // Emotion Detection (Seline Fun)
+  emotionDetectionEnabled: boolean;
   // EverMemOS shared memory settings
   everMemOSEnabled: boolean;
   everMemOSServerUrl: string;
@@ -257,6 +259,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   comfyuiCustomAutoDetect: true,
   comfyuiCustomBaseUrl: "",
   avatar3dEnabled: false,
+  emotionDetectionEnabled: false,
   everMemOSEnabled: false,
   everMemOSServerUrl: "",
   ttsEnabled: true,
@@ -365,6 +368,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
     comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
     avatar3dEnabled: data.avatar3dEnabled ?? false,
+    emotionDetectionEnabled: data.emotionDetectionEnabled ?? false,
     everMemOSEnabled: data.everMemOSEnabled ?? false,
     everMemOSServerUrl: data.everMemOSServerUrl ?? "",
     ttsEnabled: data.ttsEnabled ?? true,

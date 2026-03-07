@@ -460,8 +460,10 @@ export async function POST(req: Request) {
         void generateSessionTitle(sessionId, plainTextContent);
       }
 
-      // Fire-and-forget emotion detection
-      detectEmotion(plainTextContent, [], { conversationId: sessionId }).catch(() => {});
+      // Fire-and-forget emotion detection (gated behind Seline Fun setting)
+      if (appSettings.emotionDetectionEnabled) {
+        detectEmotion(plainTextContent, [], { conversationId: sessionId }).catch(() => {});
+      }
     }
 
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────
@@ -1004,7 +1006,8 @@ export async function POST(req: Request) {
                 const existingPart = streamingState.toolCallParts.get(chunk.toolCallId);
                 if (existingPart?.argsText && existingPart.argsText.length > 0) {
                   const newArgsText = JSON.stringify(chunk.input ?? {});
-                  if (!newArgsText.startsWith(existingPart.argsText)) {
+                  // ExitPlanMode uses synthetic argsText (plan approval data) — skip conflict warning
+                  if (chunk.toolName !== "ExitPlanMode" && !newArgsText.startsWith(existingPart.argsText)) {
                     console.warn(
                       `[CHAT API] argsText conflict for ${chunk.toolName} (${chunk.toolCallId}): ` +
                         `streaming argsText (${existingPart.argsText.length} chars) replaced by structured input. ` +
@@ -1019,7 +1022,16 @@ export async function POST(req: Request) {
                     provenanceVersion: 1,
                   };
                 }
-                changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, chunk.input) || changed;
+                // For ExitPlanMode, preserve the synthetic plan approval data
+                // that was injected during streaming. The SDK's raw input ({})
+                // would overwrite the plan content needed by the approval UI.
+                let effectiveInput = chunk.input;
+                if (chunk.toolName === "ExitPlanMode" && existingPart?.argsText && existingPart.argsText.length > 10) {
+                  try {
+                    effectiveInput = JSON.parse(existingPart.argsText);
+                  } catch { /* fall through to original input */ }
+                }
+                changed = recordStructuredToolCall(streamingState, chunk.toolCallId, chunk.toolName, effectiveInput) || changed;
               } else if (chunk.type === "tool-result") {
                 changed = recordToolResultChunk(streamingState, chunk.toolCallId, chunk.toolName, chunk.output, chunk.preliminary) || changed;
                 changed = tagIntermediateDelegationParts(streamingState, chunk.toolCallId) || changed;

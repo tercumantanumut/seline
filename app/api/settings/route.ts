@@ -160,6 +160,8 @@ export async function PUT(request: NextRequest) {
       workspaceOnboardingSeen: body.workspaceOnboardingSeen !== undefined ? body.workspaceOnboardingSeen : currentSettings.workspaceOnboardingSeen,
       // 3D Avatar
       avatar3dEnabled: body.avatar3dEnabled !== undefined ? body.avatar3dEnabled : currentSettings.avatar3dEnabled,
+      // Emotion Detection
+      emotionDetectionEnabled: body.emotionDetectionEnabled !== undefined ? body.emotionDetectionEnabled : currentSettings.emotionDetectionEnabled,
       // EverMemOS
       everMemOSEnabled: body.everMemOSEnabled !== undefined ? body.everMemOSEnabled : currentSettings.everMemOSEnabled,
       everMemOSServerUrl: body.everMemOSServerUrl !== undefined ? body.everMemOSServerUrl : currentSettings.everMemOSServerUrl,

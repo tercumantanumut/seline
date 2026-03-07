@@ -48,6 +48,8 @@ export interface UseVoiceRecordingReturn {
   analyserNode: AnalyserNode | null;
   /** The raw transcript from the last voice input (before post-processing), for auto-learn comparison */
   lastTranscriptRef: React.RefObject<string | null>;
+  /** Whether the last transcript was AI-enhanced (post-processed) */
+  wasAiEnhancedRef: React.RefObject<boolean>;
 }
 
 export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRecordingReturn {
@@ -65,6 +67,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastTranscriptRef = useRef<string | null>(null);
+  const wasAiEnhancedRef = useRef(false);
 
   const stopRecordingStream = useCallback(() => {
     if (recordingStreamRef.current) {
@@ -271,6 +274,8 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
             enhancedText,
           });
 
+          wasAiEnhancedRef.current = result.usedEnhancedText;
+
           onTranscript({
             transcript: result.transcript,
             finalText: result.finalText,
@@ -353,7 +358,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions): UseVoiceRe
     stopRecording();
   }, [stopRecording]);
 
-  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef };
+  return { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef, wasAiEnhancedRef };
 }
 
 // ---------------------------------------------------------------------------

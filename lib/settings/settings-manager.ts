@@ -267,6 +267,9 @@ export interface AppSettings {
     // 3D Avatar
     avatar3dEnabled?: boolean;              // Enable 3D talking head avatar in chat interface
 
+    // Emotion Detection (Seline Fun)
+    emotionDetectionEnabled?: boolean;      // Enable LLM-based emotion detection on user messages
+
     // EverMemOS (shared memory)
     everMemOSEnabled?: boolean;             // Enable EverMemOS integration
     everMemOSServerUrl?: string;            // EverMemOS server URL
