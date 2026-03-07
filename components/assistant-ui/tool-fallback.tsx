@@ -861,7 +861,7 @@ export const ToolFallback: ToolCallContentPartComponent = memo(({
 
   return (
     <div className={cn(
-      "my-2 min-w-0 rounded-lg bg-terminal-cream/80 p-4 font-mono shadow-sm transition-all duration-150 ease-in-out [contain:layout_style]",
+      "my-2 min-w-0 rounded-lg bg-terminal-cream/90 backdrop-blur-sm p-4 font-mono shadow-sm transition-all duration-150 ease-in-out [contain:layout_style]",
       isRunning && "min-h-[60px]"
     )}>
       <div className="mb-2 flex min-w-0 items-center gap-2 transition-opacity duration-150">

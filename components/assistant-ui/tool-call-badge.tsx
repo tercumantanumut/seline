@@ -13,9 +13,9 @@ interface ToolCallBadgeProps {
 }
 
 const statusStyles: Record<ToolCallBadgeStatus, string> = {
-  running: "bg-terminal-amber/20 text-terminal-amber",
-  completed: "bg-terminal-green/15 text-terminal-green",
-  error: "bg-red-50 text-red-600",
+  running: "bg-terminal-amber/25 text-terminal-amber backdrop-blur-sm",
+  completed: "bg-terminal-green/25 text-terminal-green backdrop-blur-sm",
+  error: "bg-red-100/90 text-red-600 backdrop-blur-sm",
 };
 
 const statusIcons: Record<ToolCallBadgeStatus, FC<{ className?: string }>> = {
@@ -29,7 +29,7 @@ export const ToolCallBadge: FC<ToolCallBadgeProps> = ({ label, status, count }) 
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-terminal-dark/10 px-2.5 py-1 text-xs font-mono shadow-sm",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/20 px-2.5 py-1 text-xs font-mono shadow-sm",
         statusStyles[status]
       )}
     >

@@ -132,14 +132,14 @@ function phaseToBadgeStatus(phase: LiveToolPhase): ToolCallBadgeStatus {
 function phaseToAccentClass(phase: LiveToolPhase): string {
   switch (phase) {
     case "error":
-      return "border-red-200 bg-red-50/80 text-red-700";
+      return "border-red-300 bg-red-50/90 text-red-700 backdrop-blur-sm";
     case "completed":
-      return "border-terminal-green/20 bg-terminal-green/10 text-terminal-green";
+      return "border-terminal-green/30 bg-terminal-green/20 text-terminal-green backdrop-blur-sm";
     case "preparing":
-      return "border-terminal-dark/10 bg-terminal-dark/5 text-terminal-muted";
+      return "border-terminal-dark/15 bg-terminal-dark/10 text-terminal-muted backdrop-blur-sm";
     case "running":
     default:
-      return "border-terminal-amber/20 bg-terminal-amber/10 text-terminal-amber";
+      return "border-terminal-amber/30 bg-terminal-amber/20 text-terminal-amber backdrop-blur-sm";
   }
 }
 
@@ -316,7 +316,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     <div
       className={cn(
         "my-2 border-l-2 pl-3 transition-all duration-150 ease-in-out",
-        isGlass ? "border-white/15" : "border-terminal-dark/8"
+        isGlass ? "border-white/20" : "border-terminal-dark/15"
       )}
       onMouseEnter={() => setIsCompactRevealHovered(true)}
       onMouseLeave={() => setIsCompactRevealHovered(false)}
