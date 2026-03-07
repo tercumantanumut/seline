@@ -153,6 +153,7 @@ function createNoOpRef(): Avatar3DRef {
     stopSpeaking: () => {},
     setMood: () => {},
     setExpression: () => {},
+    setView: () => {},
     isReady: false,
     isSpeaking: false,
   };
@@ -248,8 +249,12 @@ export function useAvatar(
         head = new mod.TalkingHead(containerRef.current, {
           lipsyncModules: [],
           modelFPS: 30,
-          cameraView: "upper",
+          cameraView: config.cameraView ?? "upper",
           cameraDistance: config.cameraDistance ?? DEFAULT_CAMERA_DISTANCE,
+          cameraY: 0.5,
+          cameraRotateEnable: true,
+          cameraPanEnable: true,
+          cameraZoomEnable: true,
         });
 
         if (initCancelledRef.current) {
@@ -259,7 +264,7 @@ export function useAvatar(
 
         await head.showAvatar({
           url: config.modelUrl ?? DEFAULT_MODEL_URL,
-          body: "F",
+          body: config.bodyType ?? "F",
           avatarMood: "neutral",
           lipsyncLang,
         });
@@ -268,6 +273,10 @@ export function useAvatar(
           head.hideAvatar();
           return;
         }
+
+        // Shift avatar up in frame by moving the armature
+        try { head.armature.position.y += 0.3; } catch { /* best-effort */ }
+        try { head.setAutoRotateSpeed(0.4); } catch { /* best-effort */ }
 
         headRef.current = head;
         isReadyRef.current = true;
@@ -307,7 +316,7 @@ export function useAvatar(
         }
       }
     };
-  }, [config.enabled, config.modelUrl, config.cameraDistance, lipsyncLang, containerRef, resolvePendingSpeech]);
+  }, [config.enabled, config.modelUrl, config.bodyType, config.cameraDistance, lipsyncLang, containerRef, resolvePendingSpeech]);
 
   // -------------------------------------------------------------------------
   // Stable method references via useCallback
@@ -427,6 +436,12 @@ export function useAvatar(
     [],
   );
 
+  const setView = useCallback((view: string) => {
+    const head = headRef.current;
+    if (!head || !isReadyRef.current) return;
+    try { head.setView(view); } catch { /* best-effort */ }
+  }, []);
+
   // -------------------------------------------------------------------------
   // Build the ref object
   // -------------------------------------------------------------------------
@@ -439,6 +454,7 @@ export function useAvatar(
         stopSpeaking,
         setMood,
         setExpression,
+        setView,
         isReady: true,
         isSpeaking,
       }

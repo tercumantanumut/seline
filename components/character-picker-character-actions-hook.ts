@@ -46,6 +46,10 @@ export function useCharacterActions(
   const [mcpToolsBeingRemoved, setMcpToolsBeingRemoved] = useState<string[]>([]);
   const [isSavingMcp, setIsSavingMcp] = useState(false);
 
+  // 3D Avatar selector state
+  const [avatar3dSelectorOpen, setAvatar3dSelectorOpen] = useState(false);
+  const [avatar3dSelectorCharacter, setAvatar3dSelectorCharacter] = useState<CharacterSummary | null>(null);
+
   // Plugin assignment editor state
   const [pluginEditorOpen, setPluginEditorOpen] = useState(false);
   const [pluginEditingCharacter, setPluginEditingCharacter] = useState<CharacterSummary | null>(null);
@@ -58,6 +62,12 @@ export function useCharacterActions(
   }>>([]);
   const [loadingAgentPlugins, setLoadingAgentPlugins] = useState(false);
   const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
+
+  // 3D Avatar selector actions
+  const openAvatar3dSelector = (character: CharacterSummary) => {
+    setAvatar3dSelectorCharacter(character);
+    setAvatar3dSelectorOpen(true);
+  };
 
   // Identity actions
   const openIdentityEditor = async (character: CharacterSummary) => {
@@ -334,6 +344,12 @@ export function useCharacterActions(
     savingPluginId,
     openPluginEditor,
     toggleAgentPlugin,
+
+    // 3D Avatar selector
+    avatar3dSelectorOpen,
+    setAvatar3dSelectorOpen,
+    avatar3dSelectorCharacter,
+    openAvatar3dSelector,
 
     // Duplicate
     isDuplicating,

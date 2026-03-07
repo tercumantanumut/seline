@@ -50,6 +50,7 @@ export function WorkflowCard({
   onEditFolders,
   onEditMcp,
   onEditPlugins,
+  onEditAvatar3d,
   onDuplicate,
   isDuplicating,
   onDeleteCharacter,
@@ -77,6 +78,7 @@ export function WorkflowCard({
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
+  onEditAvatar3d: (c: CharacterSummary) => void;
   onDuplicate: (id: string) => void;
   isDuplicating: boolean;
   onDeleteCharacter: (c: CharacterSummary) => void;
@@ -303,6 +305,7 @@ export function WorkflowCard({
                     onEditFolders={onEditFolders}
                     onEditMcp={onEditMcp}
                     onEditPlugins={onEditPlugins}
+                    onEditAvatar3d={onEditAvatar3d}
                     onDuplicate={onDuplicate}
                     isDuplicating={isDuplicating}
                     onDelete={onDeleteCharacter}
@@ -342,6 +345,7 @@ export function WorkflowCard({
                         onEditFolders={onEditFolders}
                         onEditMcp={onEditMcp}
                         onEditPlugins={onEditPlugins}
+                        onEditAvatar3d={onEditAvatar3d}
                         onDuplicate={onDuplicate}
                         isDuplicating={isDuplicating}
                         onDelete={onDeleteCharacter}
@@ -394,6 +398,7 @@ export function WorkflowSection({
   onEditFolders,
   onEditMcp,
   onEditPlugins,
+  onEditAvatar3d,
   onDuplicate,
   isDuplicating,
   onDeleteCharacter,
@@ -427,6 +432,7 @@ export function WorkflowSection({
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
+  onEditAvatar3d: (c: CharacterSummary) => void;
   onDuplicate: (id: string) => void;
   isDuplicating: boolean;
   onDeleteCharacter: (c: CharacterSummary) => void;
@@ -506,6 +512,7 @@ export function WorkflowSection({
               onEditFolders={onEditFolders}
               onEditMcp={onEditMcp}
               onEditPlugins={onEditPlugins}
+              onEditAvatar3d={onEditAvatar3d}
               onDuplicate={onDuplicate}
               isDuplicating={isDuplicating}
               onDeleteCharacter={onDeleteCharacter}

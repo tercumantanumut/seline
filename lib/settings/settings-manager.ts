@@ -7,7 +7,6 @@ import {
   validateAllModelsForProvider,
   type BatchValidationResult,
 } from "@/lib/ai/model-validation";
-import type { TaskRewardRecord } from "@/lib/rewards/reward-calculator";
 
 export type PostEditHooksPreset = "off" | "fast" | "strict";
 
@@ -201,13 +200,7 @@ export interface AppSettings {
     onboardingComplete?: boolean;
     onboardingCompletedAt?: string; // ISO timestamp
     onboardingVersion?: number;      // For future migrations
-
-    // Global memory preferences (applied to new agents and synced to existing)
-    globalMemoryDefaults?: {
-        visual_preferences?: string[];    // e.g., ["Prefer dark mode", "16:9 aspect ratio"]
-        communication_style?: string[];   // e.g., ["Concise responses", "Use code blocks"]
-        workflow_patterns?: string[];
-    };
+    selineMode?: "dev" | "fun";      // Selected path from onboarding
 
     // Settings UI preferences
     settingsExpandedSections?: string[]; // Remember which sections are expanded
@@ -279,8 +272,6 @@ export interface AppSettings {
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
 
-    // Task rewards
-    taskRewards?: TaskRewardRecord[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -390,8 +381,6 @@ const DEFAULT_SETTINGS: AppSettings = {
     // Browser automation defaults
     chromiumBrowserMode: "standalone",
     chromiumUserProfilePath: "",
-    // Task rewards defaults
-    taskRewards: [],
 };
 
 function getSettingsPath(): string {

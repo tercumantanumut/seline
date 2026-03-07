@@ -121,31 +121,9 @@
       "back": "Geri",
       "continue": "Devam"
     },
-    "personalization": {
-      "title": "Deneyiminizi Kişiselleştirin",
-      "subtitle": "Ajanların tercihlerinizi anlamasına yardımcı olun (isteğe bağlı)",
-      "categories": {
-        "visual_preferences": {
-          "title": "Görsel Tercihler"
-        },
-        "communication_style": {
-          "title": "İletişim Tarzı"
-        },
-        "workflow_patterns": {
-          "title": "İş Akışı Kalıpları"
-        }
-      },
-      "skip": "Kişiselleştirmeyi geç",
-      "addPlaceholder": "{category} ekle...",
-      "add": "Ekle",
-      "exampleHint": "Veya bir örnek eklemek için tıklayın:",
-      "preferencesCount": "Tercihleriniz ({count}):",
-      "back": "Geri",
-      "continue": "Devam"
-    },
     "features": {
-      "title": "Seline'in Tüm Yetenekleri",
-      "subtitle": "Eksiksiz bir AI platformu — birçok özellik hazır çalışır, diğerleri API anahtarıyla etkinleşir.",
+      "title": "Yolunu Seç",
+      "subtitle": "Bir başlangıç noktası seç — istediğin zaman Ayarlar'dan değiştir.",
       "legend": {
         "ready": "Hazır çalışır",
         "configurable": "Ayarlardan yapılandır"
@@ -211,7 +189,47 @@
         "toolSearch": "Araç Keşfi"
       },
       "back": "Geri",
-      "continue": "Devam"
+      "continue": "Devam",
+      "startChatting": "Sohbete Basla"
+    },
+    "pathSelection": {
+      "label": "YOLUNU_SEC",
+      "title": "Yolunu Sec",
+      "subtitle": "Her yol farkli yetenekleri acar. Ayarlar'dan istedigin zaman degistirebilirsin.",
+      "dev": {
+        "title": "Seline Dev",
+        "tagline": "Yapay zeka es programcisiyla kod yaz"
+      },
+      "fun": {
+        "title": "Seline Fun",
+        "tagline": "Kisilikli yapay zeka arkadaslari"
+      },
+      "work": {
+        "title": "Seline Work",
+        "tagline": "Organizasyonuz icin takim ajanlari",
+        "comingSoon": "Yakinda"
+      },
+      "config": {
+        "devWorkspace": "Git calisma alani izolasyonu",
+        "devWorkspaceDesc": "Izole worktree'lerle paralel gelistirme",
+        "browserAutomation": "Dahili Chromium tarayici",
+        "browserAutomationDesc": "Ajan sayfalarda gezer, tiklar, konsol loglarini okur",
+        "sttProvider": "Konusmadan metne",
+        "sttLocal": "Yerel (Whisper.cpp)",
+        "sttCloud": "Bulut (OpenAI)",
+        "sttParakeet": "Parakeet",
+        "ttsProvider": "Metinden konusmaya",
+        "ttsEdge": "Edge TTS (ucretsiz)",
+        "ttsOpenai": "OpenAI TTS",
+        "ttsElevenlabs": "ElevenLabs",
+        "avatar3d": "3D animasyonlu avatar",
+        "avatar3dDesc": "Ajanla konusan dudak senkronize yuz",
+        "emotionDetection": "Duygu algilama",
+        "emotionDetectionDesc": "Avatar sohbet ruh haline gore tepki verir",
+        "telegramToken": "Telegram bot tokeni",
+        "telegramTokenPlaceholder": "@BotFather tokenini yapistir...",
+        "telegramTokenHint": "Istege bagli"
+      }
     },
     "complete": {
       "title": "Her şey hazır!",
@@ -377,7 +395,8 @@
       "plugins": "Eklentiler",
       "dashboard": "Kontrol Paneli",
       "duplicate": "Çoğalt",
-      "delete": "Sil"
+      "delete": "Sil",
+      "avatar3d": "3D Avatar"
     },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
@@ -798,8 +817,8 @@
   },
   "avatar": {
     "dialog": {
-      "title": "{name} için Avatar",
-      "subtitle": "Mevcut bir görsel seçin veya yeni bir avatar yükleyin"
+      "title": "{name} Profil Resmi",
+      "subtitle": "Mevcut bir görsel seçin veya yeni bir tane yükleyin"
     },
     "error": {
       "fetch": "Görseller getirilemedi",
@@ -812,11 +831,11 @@
     },
     "empty": "Henüz görsel yok. Aşağıdan yükleyin.",
     "actions": {
-      "upload": "Yeni Avatar Yükle",
+      "upload": "Görsel Yükle",
       "uploading": "Yükleniyor..."
     },
     "delete": "Sil",
-    "setAsPrimary": "{name} için birincil avatar olarak ayarla",
+    "setAsPrimary": "{name} için birincil olarak ayarla",
     "note": "PNG, JPEG veya WebP · En fazla 10MB"
   },
   "documents": {
@@ -1298,7 +1317,12 @@
       "hoursAgo": "{n} sa önce",
       "daysAgo": "{n} gün önce",
       "noChanges": "Değişiklik yok",
-      "filesChanged": "{count} dosya değişti"
+      "filesChanged": "{count} dosya değişti",
+      "confirmCleanupTitle": "Çalışma alanını sil?",
+      "confirmCleanupDesc": "\"{branch}\" dalında kaydedilmemiş değişiklikler olabilir ve kalıcı olarak silinecektir.",
+      "confirmCancel": "İptal",
+      "confirmRemove": "Sil",
+      "cleanAll": "{count} tanesini temizle"
     },
     "onboarding": {
       "step1": {
@@ -1884,8 +1908,7 @@
       "plugins": "Eklentiler",
       "voice": "Ses & Audio",
       "preferences": "Uygulama ve Araç Tercihleri",
-      "memory": "Hafıza",
-      "rewards": "Ödüller"
+      "memory": "Hafıza"
     },
     "errors": {
       "load": "Ayarlar yüklenemedi",
@@ -2267,13 +2290,6 @@
         "recommendedServersDesc": "Çalışma ağacı yönetimi için <worktreeTools/> veya pull request iş akışları için <githubMcp/> yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
       }
     },
-    "memory": {
-      "categoryLabels": {
-        "visual_preferences": "Görsel stil",
-        "communication_style": "İletişim tarzı",
-        "workflow_patterns": "Çalışma alışkanlıkları"
-      }
-    },
     "voice": {
       "heading": "Ses & Ses",
       "description": "Sesli yanıtlar ve ses dönüştürmeyi kolay varsayılanlarla yapılandırın.",
@@ -2445,14 +2461,6 @@
       "description": "Ayarlarınızı yeniden yapılandırmak için kurulum sihirbazını tekrar çalıştırın",
       "cta": "Kurulum Sihirbazını Tekrar Çalıştır"
     },
-    "memoryDefaults": {
-      "title": "Genel Hafıza Varsayılanları",
-      "description": "Tüm ajanlara uygulanacak varsayılan tercihleri belirleyin. Bu hafızalar ajanların tercihlerinizi anlamasına yardımcı olur.",
-      "addNew": "Yeni bir tercih ekle",
-      "placeholder": "ör. \"Kod örneklerinde her zaman TypeScript kullan\"",
-      "add": "Ekle",
-      "empty": "Genel hafıza varsayılanı yok. Ajanlarınızı kişiselleştirmek için tercih ekleyin."
-    },
     "mcp": {
       "configWarning": "Yapılandırma Uyarısı",
       "disableServer": "Sunucuyu devre dışı bırak",
@@ -2597,34 +2605,6 @@
           "name": "Everything",
           "description": "Pek çok örnek aracı olan örnek sunucu"
         }
-      }
-    },
-    "rewards": {
-      "title": "Görev ödülleri",
-      "subtitle": "Tamamlanan işler için önerilen ödemeyi takip et.",
-      "emptyTitle": "Henüz kayıtlı ödül yok",
-      "emptyBody": "Sohbette anlamlı bir görevi bitir, Seline önerilen ödülü burada kaydetsin.",
-      "stats": {
-        "total": "Toplam alacak",
-        "week": "Bu hafta",
-        "month": "Bu ay"
-      },
-      "historyTitle": "Ödül geçmişi",
-      "historySubtitle": "{count, plural, one {# tamamlanan görev} other {# tamamlanan görev}}",
-      "earned": "Kazanılan",
-      "showDetails": "Detayları göster",
-      "hideDetails": "Detayları gizle",
-      "bands": {
-        "small": "Hızlı iş",
-        "medium": "Odaklı iş",
-        "large": "Geniş kapsam",
-        "epic": "Destansı kapsam"
-      },
-      "breakdown": {
-        "base": "Temel tahmin",
-        "toolBonus": "Araç bonusu ({count})",
-        "tokenBonus": "Token bonusu ({count} token)",
-        "steps": "Prompt boyutu / adımlar ({count})"
       }
     }
   },
@@ -2848,7 +2828,7 @@
       "goHome": "Ana sayfaya dön"
     },
     "sidebar": {
-      "changeAvatar": "Avatarı değiştirmek için tıklayın",
+      "changeAvatar": "Profil resmini değiştir",
       "history": "Sohbet Geçmişi",
       "agentMemory": "Ajan Hafızası",
       "schedules": "Zamanlanmış Görevler",
@@ -3946,5 +3926,32 @@
   },
   "dev": {
     "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
+  },
+  "avatar3dModels": {
+    "dialog": {
+      "title": "{name} için 3D Avatar",
+      "subtitle": "Hazır bir model seçin veya özel Ready Player Me GLB yükleyin"
+    },
+    "presets": {
+      "default": "Varsayılan",
+      "brunette": "Esmer",
+      "aria": "Aria",
+      "kai": "Kai",
+      "marcus": "Marcus",
+      "playerzero": "Player Zero"
+    },
+    "custom": {
+      "upload": "Özel GLB yükle",
+      "uploading": "Yükleniyor...",
+      "current": "Özel model",
+      "remove": "Kaldır"
+    },
+    "selected": "Tamam",
+    "error": {
+      "tooLarge": "Maksimum 20MB",
+      "invalidType": "Sadece .glb dosyaları",
+      "upload": "Yükleme başarısız",
+      "save": "Kaydetme başarısız"
+    }
   }
 }

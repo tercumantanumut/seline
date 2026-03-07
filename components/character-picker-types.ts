@@ -16,6 +16,12 @@ export interface CharacterSummary {
     enabledPlugins?: string[];
     purpose?: string;
     isSystemAgent?: boolean;
+    avatarConfig?: {
+      source: string;
+      presetId?: string;
+      modelUrl: string;
+      bodyType: string;
+    };
   };
   images?: Array<{
     url: string;

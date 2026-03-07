@@ -13,6 +13,7 @@ const contentTypes: Record<string, string> = {
   mp4: "video/mp4",
   webm: "video/webm",
   mov: "video/quicktime",
+  glb: "model/gltf-binary",
 };
 
 // Video extensions that need Range request support

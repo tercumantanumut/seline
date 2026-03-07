@@ -10,6 +10,10 @@ const BLOCKED_ENV_KEYS = new Set([
 
 let cachedShellEnv: Record<string, string> | null = null;
 let shellEnvResolutionAttempted = false;
+let lastResolutionAttemptMs = 0;
+
+/** Minimum interval between retry attempts when previous resolution returned empty. */
+const RETRY_INTERVAL_MS = 5000;
 
 function getCandidateShells(): string[] {
     const candidates = [process.env.SHELL];
@@ -77,7 +81,26 @@ function resolveShellEnvironmentOnce(): Record<string, string> {
 export function getResolvedShellEnvironment(): Record<string, string> {
     if (!shellEnvResolutionAttempted) {
         shellEnvResolutionAttempted = true;
+        lastResolutionAttemptMs = Date.now();
         cachedShellEnv = resolveShellEnvironmentOnce();
+
+        // If resolution returned empty (likely spawn failure due to EBADF/EMFILE),
+        // allow retrying after a cooldown instead of permanently caching the failure.
+        if (cachedShellEnv && Object.keys(cachedShellEnv).length === 0) {
+            shellEnvResolutionAttempted = false;
+            cachedShellEnv = null;
+        }
+    } else if (
+        cachedShellEnv === null &&
+        Date.now() - lastResolutionAttemptMs >= RETRY_INTERVAL_MS
+    ) {
+        // Retry: previous attempt failed and cooldown has elapsed.
+        lastResolutionAttemptMs = Date.now();
+        const result = resolveShellEnvironmentOnce();
+        if (Object.keys(result).length > 0) {
+            cachedShellEnv = result;
+            shellEnvResolutionAttempted = true;
+        }
     }
 
     return cachedShellEnv ?? {};

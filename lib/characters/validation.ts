@@ -150,6 +150,17 @@ export const agentMetadataSchema = z.object({
   pluginAgentSeed: pluginAgentSeedSchema.optional(),
 
   /**
+   * Per-agent 3D avatar configuration
+   * Selects which GLB model and body type to use for TalkingHead.js
+   */
+  avatarConfig: z.object({
+    source: z.enum(["preset", "custom"]),
+    presetId: z.string().optional(),
+    modelUrl: z.string(),
+    bodyType: z.enum(["M", "F"]),
+  }).optional(),
+
+  /**
    * Whether task scheduling is enabled for this agent
    * When enabled, the agent can use the scheduleTask tool
    */

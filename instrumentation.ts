@@ -139,7 +139,20 @@ export async function register() {
     // Initialize settings first
     const { initializeSettings } = await import("@/lib/settings/settings-manager");
     initializeSettings();
-    
+
+    // Pre-resolve the user's shell environment while FDs are still available.
+    // The vector sync that follows can exhaust file descriptors (EBADF), so
+    // caching the shell PATH now ensures SDK auth can resolve 'node' later.
+    if (process.env.SELINE_PRODUCTION_BUILD === "1") {
+      try {
+        const { getResolvedShellEnvironment } = await import("@/lib/shell-env/resolver");
+        const shellEnv = getResolvedShellEnvironment();
+        console.log("[Instrumentation] Shell env pre-cached, PATH available:", !!shellEnv.PATH);
+      } catch (error) {
+        console.error("[Instrumentation] Shell env pre-cache failed:", error);
+      }
+    }
+
     // Initialize vector sync system (file watchers + background sync)
     // Delay slightly to allow database to be ready
     setTimeout(async () => {

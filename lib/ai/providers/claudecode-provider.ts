@@ -20,8 +20,7 @@ import {
   shouldRetry,
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
-import { readClaudeAgentSdkAuthStatus } from "@/lib/auth/claude-agent-sdk-auth";
-import { isElectronProduction } from "@/lib/utils/environment";
+import { readClaudeAgentSdkAuthStatus, getSdkExecutableConfig } from "@/lib/auth/claude-agent-sdk-auth";
 import {
   mcpContextStore,
   type SelineMcpContext,
@@ -961,26 +960,22 @@ function createStreamingClaudeCodeResponse(options: {
           ],
         });
 
+        const { executable: sdkExecutable, env: sdkEnv } = getSdkExecutableConfig();
+
         const query = claudeAgentQuery({
           prompt: options.prompt,
           options: {
             abortController,
             cwd: resolvedCwd,
             ...(resolvedCwd !== process.cwd() ? { additionalDirectories: [resolvedCwd] } : {}),
-            executable: "node",
+            executable: sdkExecutable,
             includePartialMessages: true,
             settingSources: ["project"] as ("user" | "project" | "local")[],
             maxTurns: sdk?.maxTurns ?? 1000,
             model: options.model,
             permissionMode: sdk?.permissionMode ?? "bypassPermissions",
             allowDangerouslySkipPermissions: true,
-            env: (() => {
-              const e: Record<string, string | undefined> = { ...process.env };
-              delete e.ANTHROPIC_API_KEY;
-              delete e.CLAUDECODE;
-              if (isElectronProduction()) e.ELECTRON_RUN_AS_NODE = "1";
-              return e;
-            })(),
+            env: sdkEnv,
             ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
             ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
             ...(sdk?.agents ? { agents: sdk.agents } : {}),
@@ -1617,13 +1612,15 @@ async function runClaudeAgentQuery(options: {
     : undefined;
   const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
 
+  const { executable: sdkExecutable, env: sdkEnv } = getSdkExecutableConfig();
+
   const query = claudeAgentQuery({
     prompt: options.prompt,
     options: {
       abortController,
       cwd: resolvedCwd,
       ...(resolvedCwd !== process.cwd() ? { additionalDirectories: [resolvedCwd] } : {}),
-      executable: "node",
+      executable: sdkExecutable,
       includePartialMessages: true,
       // Allow multi-step agentic work (read → plan → write → verify).
       maxTurns: sdk?.maxTurns ?? 1000,
@@ -1634,17 +1631,7 @@ async function runClaudeAgentQuery(options: {
       // asking clarifying questions instead of executing.
       permissionMode: sdk?.permissionMode ?? "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      // Always provide a sanitized env:
-      // - Strip ANTHROPIC_API_KEY so the SDK uses OAuth, not the app-level key
-      // - Strip CLAUDECODE to avoid "nested session" errors
-      // - In Electron production, set ELECTRON_RUN_AS_NODE=1 (Electron binary → Node mode)
-      env: (() => {
-        const e: Record<string, string | undefined> = { ...process.env };
-        delete e.ANTHROPIC_API_KEY;
-        delete e.CLAUDECODE;
-        if (isElectronProduction()) e.ELECTRON_RUN_AS_NODE = "1";
-        return e;
-      })(),
+      env: sdkEnv,
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       // Seline platform tools exposed via in-process MCP server
       ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),

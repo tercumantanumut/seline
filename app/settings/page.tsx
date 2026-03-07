@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, PlugIcon, Volume2Icon, PackageIcon, TrophyIcon } from "lucide-react";
+import { SaveIcon, Loader2Icon, CheckIcon, KeyIcon, PaletteIcon, CpuIcon, DatabaseIcon, ImageIcon, BrainIcon, PlugIcon, Volume2Icon, PackageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -61,38 +61,6 @@ export default function SettingsPage() {
     loadCodexAuth();
     loadClaudeCodeAuth({ forceRefresh: true });
   }, []);
-
-  useEffect(() => {
-    if (activeSection !== "rewards") {
-      return;
-    }
-
-    let cancelled = false;
-    const refreshRewards = async () => {
-      try {
-        const response = await fetch("/api/settings", { cache: "no-store" });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (cancelled) return;
-        setFormState((prev) => ({
-          ...prev,
-          taskRewards: Array.isArray(data.taskRewards) ? data.taskRewards : prev.taskRewards,
-        }));
-      } catch {
-        // Keep the existing dashboard data if polling fails.
-      }
-    };
-
-    void refreshRewards();
-    const intervalId = window.setInterval(() => {
-      void refreshRewards();
-    }, 15000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [activeSection]);
 
   const loadSettings = async () => {
     try {
@@ -580,7 +548,6 @@ export default function SettingsPage() {
     { id: "mcp" as const, label: t("nav.mcp"), icon: PlugIcon },
     { id: "plugins" as const, label: t("nav.plugins"), icon: PackageIcon },
     { id: "voice" as const, label: t("nav.voice"), icon: Volume2Icon },
-    { id: "rewards" as const, label: t("nav.rewards"), icon: TrophyIcon },
     { id: "preferences" as const, label: t("nav.preferences"), icon: PaletteIcon },
     { id: "memory" as const, label: t("nav.memory"), icon: BrainIcon },
   ];

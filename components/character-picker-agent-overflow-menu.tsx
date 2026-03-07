@@ -6,6 +6,7 @@ import {
   ChartBar,
   Trash,
   Plug as PhosphorPlug,
+  UserCircle,
 } from "@phosphor-icons/react";
 import { Pencil } from "@phosphor-icons/react";
 import { GitBranchPlus, MoreHorizontal, Copy, Puzzle, Unlink } from "lucide-react";
@@ -31,6 +32,7 @@ export type AgentOverflowMenuProps = {
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
+  onEditAvatar3d: (c: CharacterSummary) => void;
   onNavigateDashboard: () => void;
   onDuplicate: (characterId: string) => void;
   isDuplicating?: boolean;
@@ -50,6 +52,7 @@ export function AgentOverflowMenu({
   onEditFolders,
   onEditMcp,
   onEditPlugins,
+  onEditAvatar3d,
   onNavigateDashboard,
   onDuplicate,
   isDuplicating = false,
@@ -99,6 +102,10 @@ export function AgentOverflowMenu({
         <DropdownMenuItem onSelect={() => onEditPlugins(character)}>
           <Puzzle className="w-3.5 h-3.5 mr-2" />
           {t("menu.plugins")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEditAvatar3d(character)}>
+          <UserCircle className="w-3.5 h-3.5 mr-2" />
+          {t("menu.avatar3d")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onNavigateDashboard}>
           <BarChart2 className="w-3.5 h-3.5 mr-2" />

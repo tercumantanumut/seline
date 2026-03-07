@@ -1,6 +1,4 @@
 import { DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
-import type { TaskRewardRecord } from "@/lib/rewards/reward-calculator";
-
 export interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey?: string;
@@ -70,13 +68,11 @@ export interface AppSettings {
     accountId?: string;
     expiresAt?: number;
   };
-  taskRewards?: TaskRewardRecord[];
 }
 
-export type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "plugins" | "voice" | "rewards";
+export type SettingsSection = "api-keys" | "models" | "vector-search" | "comfyui" | "preferences" | "memory" | "mcp" | "plugins" | "voice";
 
 export interface FormState {
-  taskRewards: TaskRewardRecord[];
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey: string;
   openrouterApiKey: string;
@@ -192,7 +188,6 @@ export interface FormState {
 }
 
 export const DEFAULT_FORM_STATE: FormState = {
-  taskRewards: [],
   llmProvider: "anthropic",
   anthropicApiKey: "",
   openrouterApiKey: "",
@@ -302,7 +297,6 @@ export const DEFAULT_FORM_STATE: FormState = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildFormStateFromData(data: Record<string, any>): FormState {
   return {
-    taskRewards: Array.isArray(data.taskRewards) ? data.taskRewards : [],
     llmProvider: data.llmProvider || "anthropic",
     anthropicApiKey: data.anthropicApiKey || "",
     openrouterApiKey: data.openrouterApiKey || "",

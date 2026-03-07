@@ -48,6 +48,7 @@ import { useWorkflowManager } from "@/components/character-picker-workflow-hook"
 import { useToolEditor } from "@/components/character-picker-tool-editor-hook";
 import { useCharacterActions } from "@/components/character-picker-character-actions-hook";
 import { useTheme } from "@/components/theme/theme-provider";
+import { Avatar3DModelSelector } from "@/components/avatar-3d/avatar-model-selector";
 
 export function CharacterPicker() {
   const router = useRouter();
@@ -380,6 +381,7 @@ export function CharacterPicker() {
             onEditFolders={charActions.openFolderManager}
             onEditMcp={charActions.openMcpToolEditor}
             onEditPlugins={charActions.openPluginEditor}
+            onEditAvatar3d={charActions.openAvatar3dSelector}
             onDuplicate={charActions.handleDuplicate}
             isDuplicating={charActions.isDuplicating}
             onDeleteCharacter={charActions.openDeleteDialog}
@@ -445,6 +447,7 @@ export function CharacterPicker() {
               onEditFolders={charActions.openFolderManager}
               onEditMcp={charActions.openMcpToolEditor}
               onEditPlugins={charActions.openPluginEditor}
+              onEditAvatar3d={charActions.openAvatar3dSelector}
               onDuplicate={charActions.handleDuplicate}
               isDuplicating={charActions.isDuplicating}
               addToWorkflowLabel={t("workflows.addToWorkflow")}
@@ -591,6 +594,17 @@ export function CharacterPicker() {
             charActions.performMcpToolSave();
           }}
         />
+
+        {charActions.avatar3dSelectorCharacter && (
+          <Avatar3DModelSelector
+            open={charActions.avatar3dSelectorOpen}
+            onOpenChange={charActions.setAvatar3dSelectorOpen}
+            characterId={charActions.avatar3dSelectorCharacter.id}
+            characterName={charActions.avatar3dSelectorCharacter.displayName || charActions.avatar3dSelectorCharacter.name}
+            currentAvatarConfig={charActions.avatar3dSelectorCharacter.metadata?.avatarConfig as any}
+            onAvatarConfigChange={() => { void loadCharacters(); }}
+          />
+        )}
 
         <DeleteAgentDialog
           open={charActions.deleteDialogOpen}

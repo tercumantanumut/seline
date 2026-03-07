@@ -41,11 +41,27 @@ function isAuthoritativeAuthFailure(status: ClaudeAgentSdkAuthStatus): boolean {
   const error = status.error?.toLowerCase();
   if (!error) return false;
 
-  return (
+  // Explicit auth failures from the SDK
+  if (
     error.includes("authentication_failed")
     || error.includes("not_authenticated")
     || error.includes("login_required")
-  );
+  ) {
+    return true;
+  }
+
+  // Subprocess spawn failures (wrong executable, missing binary, fd exhaustion).
+  // These indicate the SDK couldn't even start — the previous auth state is stale.
+  if (
+    error.includes("spawn")
+    || error.includes("enoent")
+    || error.includes("eacces")
+    || error.includes("ebadf")
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function persistAuthState(status: ClaudeAgentSdkAuthStatus): ClaudeCodeAuthState {

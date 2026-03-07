@@ -8,6 +8,16 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 import type { WorkspaceSummary } from "@/lib/workspace/types";
 
@@ -109,6 +119,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [cleaningUp, setCleaningUp] = useState<Set<string>>(new Set());
+  const [confirmCleanup, setConfirmCleanup] = useState<WorkspaceSummary | null>(null);
 
   // ---- Fetch -----------------------------------------------------------
 
@@ -158,12 +169,21 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
     }
   };
 
+  const requestCleanup = (ws: WorkspaceSummary) => {
+    if (ws.status === "active" || ws.status === "changes-ready") {
+      setConfirmCleanup(ws);
+    } else {
+      handleCleanup(ws.sessionId);
+    }
+  };
+
   // ---- Render ----------------------------------------------------------
 
   if (!loaded || workspaces.length === 0) return null;
 
   const visible = expanded ? workspaces : workspaces.slice(0, COLLAPSED_COUNT);
   const hasMore = workspaces.length > COLLAPSED_COUNT;
+  const staleCount = workspaces.filter((ws) => ws.status === "merged" || ws.status === "cleanup-pending").length;
 
   return (
     <section className="mb-6">
@@ -176,6 +196,21 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
         <Badge variant="outline" className="font-mono text-xs text-terminal-muted">
           {workspaces.length}
         </Badge>
+        {staleCount > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-6 text-[10px] font-mono text-terminal-muted hover:text-red-600"
+            onClick={() => {
+              workspaces
+                .filter((ws) => ws.status === "merged" || ws.status === "cleanup-pending")
+                .forEach((ws) => handleCleanup(ws.sessionId));
+            }}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            {t("cleanAll", { count: staleCount })}
+          </Button>
+        )}
       </div>
 
       {/* Grid */}
@@ -184,6 +219,8 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
           {visible.map((ws, i) => {
             const style = STATUS_STYLES[ws.status] ?? STATUS_STYLES.active;
             const isCleaning = cleaningUp.has(ws.sessionId);
+            const ageMs = Date.now() - new Date(ws.lastSyncedAt ?? ws.createdAt ?? Date.now()).getTime();
+            const isStale = ws.status !== "active" && ageMs > 7 * 24 * 60 * 60 * 1000;
 
             return (
               <motion.div
@@ -196,6 +233,7 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                   "rounded-lg border p-3 transition-colors",
                   "border-terminal-border bg-terminal-cream/50",
                   "hover:border-terminal-dark/20 hover:shadow-sm",
+                  isStale && "opacity-60",
                 )}
               >
                 {/* Top row: avatar + agent name + status badge */}
@@ -253,24 +291,23 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
                   )}
                 </div>
 
-                {/* Action button */}
-                <div className="flex justify-end">
-                  {(ws.status === "merged" || ws.status === "cleanup-pending") ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs font-mono text-terminal-muted hover:text-red-600"
-                      disabled={isCleaning}
-                      onClick={() => handleCleanup(ws.sessionId)}
-                    >
-                      {isCleaning ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3 w-3 mr-1" />
-                      )}
-                      {t("cleanup")}
-                    </Button>
-                  ) : ws.status === "pr-open" && ws.prUrl ? (
+                {/* Action buttons */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-terminal-muted/40 hover:text-red-500"
+                    disabled={isCleaning}
+                    onClick={() => requestCleanup(ws)}
+                    title={t("cleanup")}
+                  >
+                    {isCleaning ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                  {ws.status === "pr-open" && ws.prUrl ? (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -323,6 +360,32 @@ export function WorkspaceDashboard({ onNavigateToSession }: WorkspaceDashboardPr
           </Button>
         </div>
       )}
+      <AlertDialog open={!!confirmCleanup} onOpenChange={(open) => { if (!open) setConfirmCleanup(null); }}>
+        <AlertDialogContent className="font-mono">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-terminal-dark">
+              {t("confirmCleanupTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-terminal-muted">
+              {t("confirmCleanupDesc", { branch: confirmCleanup?.branch ?? "unknown" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-mono">
+              {t("confirmCancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="font-mono bg-red-600 text-white hover:bg-red-600/90"
+              onClick={() => {
+                if (confirmCleanup) handleCleanup(confirmCleanup.sessionId);
+                setConfirmCleanup(null);
+              }}
+            >
+              {t("confirmRemove")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

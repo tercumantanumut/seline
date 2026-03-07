@@ -25,7 +25,6 @@ import { MemorySection } from "./memory-section";
 import { ApiKeysSection } from "./api-keys-section";
 import { ModelsSection } from "./models-section";
 import { LocalEmbeddingModelSelector } from "./embedding-model-selector";
-import { RewardsSection } from "./rewards-section";
 
 export interface SettingsPanelProps {
   section: SettingsSection;
@@ -491,10 +490,6 @@ export function SettingsPanel({
         <PluginSettings />
       </div>
     );
-  }
-
-  if (section === "rewards") {
-    return <RewardsSection rewards={formState.taskRewards} />;
   }
 
   if (section === "voice") {

@@ -8,6 +8,7 @@ export interface CharacterFullData {
     displayName?: string | null;
     tagline?: string | null;
     status: string;
+    metadata?: Record<string, unknown> | null;
     voice?: {
         exampleGreeting?: string | null;
     } | null;

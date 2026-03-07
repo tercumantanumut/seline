@@ -1,18 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
     ArrowLeft,
     ArrowRight,
+    Rocket,
     RefreshCw,
     Search,
-    Plug,
     Wrench,
     Puzzle,
     Brain,
     Clock,
-    Globe,
     Sparkles,
     BookOpen,
     Layers,
@@ -22,9 +22,15 @@ import {
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
+import {
+    PathSelector,
+    DEFAULT_PATH_CONFIG,
+    PATH_HIGHLIGHT_MAP,
+} from "./path-selector";
+import type { SelinePath, PathConfigState } from "./path-selector";
 
 interface FeaturesStepProps {
-    onContinue: () => void;
+    onContinue: (pathData: { path: SelinePath | null; config: PathConfigState }) => void;
     onBack: () => void;
 }
 
@@ -190,33 +196,59 @@ function FeatureChip({ feature, t }: { feature: Feature; t: ReturnType<typeof us
 
 export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
     const t = useTranslations("onboarding.features");
+    const [selectedPath, setSelectedPath] = useState<SelinePath | null>(null);
+    const [pathConfig, setPathConfig] = useState<PathConfigState>(DEFAULT_PATH_CONFIG);
 
     return (
-        <div className="flex flex-col items-center min-h-full px-[5%] py-12">
+        <div className="relative flex flex-col items-center min-h-full px-[5%] py-12">
+            {/* Navigation — pinned top */}
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="sticky top-0 z-20 flex w-full items-center justify-between py-3 mb-4"
+            >
+                <Button
+                    variant="ghost"
+                    onClick={onBack}
+                    className="gap-2 font-mono text-terminal-muted hover:text-terminal-dark"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    {t("back")}
+                </Button>
+                <Button
+                    onClick={() => onContinue({ path: selectedPath, config: pathConfig })}
+                    className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
+                >
+                    {selectedPath ? t("startChatting") : t("continue")}
+                    {selectedPath ? <Rocket className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                </Button>
+            </motion.div>
+
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center w-full"
             >
-                {/* Section label */}
-                <p className="font-mono text-[11px] tracking-[0.3em] uppercase text-terminal-muted mb-3">
-                    SYS_CAPABILITIES
-                </p>
-
                 <h1 className="text-2xl font-light text-terminal-dark mb-2 font-mono">
                     {t("title")}
                 </h1>
-                <p className="text-terminal-muted mb-6 font-mono text-sm font-light">
+                <p className="text-terminal-muted mb-8 font-mono text-sm font-light">
                     {t("subtitle")}
                 </p>
 
+                {/* Path selection */}
+                <PathSelector
+                    selectedPath={selectedPath}
+                    onSelectPath={setSelectedPath}
+                    pathConfig={pathConfig}
+                    onPathConfigChange={(updates) =>
+                        setPathConfig((prev) => ({ ...prev, ...updates }))
+                    }
+                />
+
                 {/* Status legend */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex items-center justify-center gap-6 mb-8 font-mono text-xs text-terminal-muted"
-                >
+                <div className="flex items-center justify-center gap-6 mb-6 font-mono text-xs text-terminal-muted">
                     <span className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-terminal-green" />
                         {t("legend.ready")}
@@ -225,7 +257,7 @@ export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
                         <span className="w-2 h-2 rounded-full bg-terminal-amber" />
                         {t("legend.configurable")}
                     </span>
-                </motion.div>
+                </div>
 
                 {/* Categories grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10 text-left">
@@ -235,7 +267,12 @@ export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 + i * 0.04 }}
-                            className="p-4 rounded-2xl bg-white/50 border border-terminal-border/30"
+                            className={cn(
+                                "p-4 rounded-2xl bg-white/50 border border-terminal-border/30 transition-opacity duration-500",
+                                selectedPath &&
+                                    !PATH_HIGHLIGHT_MAP[selectedPath].includes(category.titleKey) &&
+                                    "opacity-40"
+                            )}
                         >
                             <h3 className="font-mono text-[10px] font-medium text-terminal-muted uppercase tracking-[0.2em] mb-3">
                                 {t(`categories.${category.titleKey}`)}
@@ -253,29 +290,6 @@ export function FeaturesStep({ onContinue, onBack }: FeaturesStepProps) {
                     ))}
                 </div>
 
-                {/* Navigation */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.8 }}
-                    className="flex justify-between"
-                >
-                    <Button
-                        variant="ghost"
-                        onClick={onBack}
-                        className="gap-2 font-mono text-terminal-muted hover:text-terminal-dark"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        {t("back")}
-                    </Button>
-                    <Button
-                        onClick={onContinue}
-                        className="gap-2 bg-terminal-green text-white hover:bg-terminal-green/90 font-mono"
-                    >
-                        {t("continue")}
-                        <ArrowRight className="w-4 h-4" />
-                    </Button>
-                </motion.div>
             </motion.div>
         </div>
     );

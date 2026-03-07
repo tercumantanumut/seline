@@ -165,7 +165,6 @@ export async function PUT(request: NextRequest) {
       // EverMemOS
       everMemOSEnabled: body.everMemOSEnabled !== undefined ? body.everMemOSEnabled : currentSettings.everMemOSEnabled,
       everMemOSServerUrl: body.everMemOSServerUrl !== undefined ? body.everMemOSServerUrl : currentSettings.everMemOSServerUrl,
-      taskRewards: Array.isArray(body.taskRewards) ? body.taskRewards : currentSettings.taskRewards,
     };
 
     // Only update API keys if they're provided and not masked

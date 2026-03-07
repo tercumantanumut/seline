@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type MutableRefObject, type FC } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useThread } from "@assistant-ui/react";
 import { Shell } from "@/components/layout/shell";
@@ -18,7 +18,7 @@ import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import type { WorkspaceInfo, WorkspaceStatus } from "@/lib/workspace/types";
-import { AvatarRenderer } from "@/components/avatar-3d/avatar-renderer";
+import { AvatarPipWidget } from "@/components/avatar-3d/avatar-pip-widget";
 import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
 import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
 import { SentenceSplitter, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
@@ -305,50 +305,20 @@ export default function ChatInterface({
     // Keep muted ref in sync with state (bridge reads ref, not state)
     useEffect(() => { avatarMutedRef.current = avatarMuted; }, [avatarMuted]);
 
-    // ── Draggable avatar state ──
-    const [avatarPos, setAvatarPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
-    const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-
-    // Initialize avatar position centered at top after first render
-    useEffect(() => {
-        if (avatarPos.x === -1 && typeof window !== "undefined") {
-            setAvatarPos({ x: Math.round(window.innerWidth / 2 - 140), y: 16 });
-        }
-    }, [avatarPos.x]);
-
-    const handleAvatarPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-        // Only primary button
-        if (e.button !== 0) return;
-        e.preventDefault();
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-        dragRef.current = { startX: e.clientX, startY: e.clientY, origX: avatarPos.x, origY: avatarPos.y };
-    }, [avatarPos]);
-
-    useEffect(() => {
-        const handlePointerMove = (e: globalThis.PointerEvent) => {
-            if (!dragRef.current) return;
-            const dx = e.clientX - dragRef.current.startX;
-            const dy = e.clientY - dragRef.current.startY;
-            setAvatarPos({
-                x: dragRef.current.origX + dx,
-                y: dragRef.current.origY + dy,
-            });
-        };
-        const handlePointerUp = () => { dragRef.current = null; };
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-        return () => {
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-        };
-    }, []);
 
     useEffect(() => {
         fetch("/api/settings")
             .then((res) => res.ok ? res.json() : null)
             .then((data) => {
                 if (data?.avatar3dEnabled) {
-                    setAvatarConfig({ enabled: true, lipsyncLang: "en" });
+                    const meta = character.metadata as Record<string, unknown> | null;
+                    const ac = meta?.avatarConfig as { modelUrl?: string; bodyType?: string } | undefined;
+                    setAvatarConfig({
+                        enabled: true,
+                        modelUrl: ac?.modelUrl,
+                        bodyType: (ac?.bodyType as "M" | "F") ?? "F",
+                        lipsyncLang: "en",
+                    });
                 }
                 if (data?.ttsAutoMode) setTtsAutoMode(data.ttsAutoMode);
                 if (data?.ttsEnabled != null) setTtsEnabled(data.ttsEnabled);
@@ -1023,40 +993,15 @@ export default function ChatInterface({
                                 <>
                                     <AvatarAudioBridge avatarRef={avatarRef} mutedRef={avatarMutedRef} />
                                     <StreamingAutoSpeakBridge ttsAutoMode={ttsAutoMode} ttsEnabled={ttsEnabled} muted={avatarMuted} mutedRef={avatarMutedRef} />
-                                    {!avatarHidden ? (
-                                        <div
-                                            className="group/avatar fixed z-50 w-[280px] h-[320px] pointer-events-auto select-none"
-                                            style={{ left: avatarPos.x, top: avatarPos.y, cursor: dragRef.current ? "grabbing" : "grab" }}
-                                            onPointerDown={handleAvatarPointerDown}
-                                        >
-                                            <AvatarRenderer ref={avatarRef} config={avatarConfig} className="rounded-2xl" />
-                                            {/* Controls — appear on hover */}
-                                            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setAvatarMuted((m) => !m); }}
-                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
-                                                    title={avatarMuted ? "Unmute avatar" : "Mute avatar"}
-                                                >
-                                                    {avatarMuted ? "🔇" : "🔊"}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setAvatarHidden(true); }}
-                                                    className="px-2 py-1 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium hover:bg-black/70 cursor-pointer"
-                                                    title="Hide avatar"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => setAvatarHidden(false)}
-                                            className="fixed top-4 right-4 z-50 px-3 py-1.5 rounded-full bg-primary/90 text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary transition-colors pointer-events-auto"
-                                            title="Show avatar"
-                                        >
-                                            Show Avatar
-                                        </button>
-                                    )}
+                                    <AvatarPipWidget
+                                        avatarRef={avatarRef}
+                                        config={avatarConfig}
+                                        muted={avatarMuted}
+                                        hidden={avatarHidden}
+                                        onMuteToggle={() => setAvatarMuted((m) => !m)}
+                                        onHide={() => setAvatarHidden(true)}
+                                        onShow={() => setAvatarHidden(false)}
+                                    />
                                 </>
                             )}
                             <Thread
