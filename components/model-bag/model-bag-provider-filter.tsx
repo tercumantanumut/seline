@@ -63,11 +63,8 @@ export function ModelBagProviderFilter({
               !p.isAuthenticated && "opacity-50",
             )}
           >
-            <span className="text-[9px]">{p.iconEmoji}</span>
-            <span className="hidden sm:inline">{p.displayName}</span>
-            {p.isActive && (
-              <span className="size-1.5 rounded-full bg-terminal-green" />
-            )}
+            <span className={cn("hidden sm:inline", p.isActive && "font-bold")}>{p.displayName}</span>
+            <span className={cn("sm:hidden", p.isActive && "font-bold")}>{p.displayName.slice(0, 3)}</span>
             {p.modelCount > 0 && (
               <span className="text-[8px] text-terminal-muted">
                 {p.modelCount}

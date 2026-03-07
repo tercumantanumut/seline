@@ -4,19 +4,8 @@
 
 import type { ModelItem, ModelRole } from "./model-bag.types";
 
-/** Generate a visual letter/emoji icon from a model name */
+/** First letter of the model name, uppercased */
 export function getModelIcon(model: ModelItem): string {
-  const name = model.name.toLowerCase();
-  if (name.includes("opus")) return "◆";
-  if (name.includes("sonnet")) return "S";
-  if (name.includes("haiku")) return "H";
-  if (name.includes("claude")) return "C";
-  if (name.includes("gemini")) return "G";
-  if (name.includes("gpt") || name.includes("codex")) return "⊕";
-  if (name.includes("kimi")) return "K";
-  if (name.includes("moonshot")) return "M";
-  if (name.includes("llama")) return "🦙";
-  if (name.includes("grok")) return "X";
   return model.name.charAt(0).toUpperCase();
 }
 
@@ -45,11 +34,11 @@ export function invertAssignments(
 export function speedLabel(speed?: "fast" | "standard" | "slow"): string {
   switch (speed) {
     case "fast":
-      return "⚡ Fast";
+      return "Fast";
     case "slow":
-      return "🐢 Slow";
+      return "Slow";
     default:
-      return "🔄 Standard";
+      return "Standard";
   }
 }
 
@@ -57,12 +46,12 @@ export function speedLabel(speed?: "fast" | "standard" | "slow"): string {
 export function tierLabel(tier: ModelItem["tier"]): string {
   switch (tier) {
     case "flagship":
-      return "★ Flagship";
+      return "Flagship";
     case "utility":
-      return "⚡ Utility";
+      return "Utility";
     case "legacy":
-      return "📦 Legacy";
+      return "Legacy";
     default:
-      return "● Standard";
+      return "Standard";
   }
 }

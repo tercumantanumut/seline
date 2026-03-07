@@ -49,21 +49,13 @@ export function ModelBagItem({
         setShowMenu(!showMenu);
       }}
     >
-      {/* Provider badge */}
+      {/* Provider dot */}
       <span
         className={cn(
-          "absolute -right-1 -top-1 rounded-full px-1 py-0.5 font-mono text-[9px] font-bold leading-none",
+          "absolute -right-0.5 -top-0.5 size-2 rounded-full",
           theme.badgeColor,
-          "text-terminal-dark",
         )}
-      >
-        {theme.iconEmoji}
-      </span>
-
-      {/* Flagship star */}
-      {model.tier === "flagship" && (
-        <div className="absolute -left-0.5 -top-0.5 size-2 rounded-full bg-yellow-400 shadow-sm shadow-yellow-400/50" />
-      )}
+      />
 
       {/* Default badge */}
       {model.isDefault && (
@@ -72,12 +64,18 @@ export function ModelBagItem({
         </div>
       )}
 
-      {/* Model icon — RPG item slot aesthetic */}
+      {/* Flagship label */}
+      {model.tier === "flagship" && !model.isDefault && (
+        <div className="absolute left-0 top-0 rounded-br-md rounded-tl-md bg-yellow-400/20 px-1 font-mono text-[7px] font-bold text-yellow-600">
+          Flagship
+        </div>
+      )}
+
+      {/* Model icon */}
       <div
         className={cn(
           "flex size-10 items-center justify-center rounded-md",
-          "bg-gradient-to-br from-white/80 to-transparent",
-          "border border-terminal-border/50",
+          "border border-terminal-border/50 bg-white/50",
           "font-mono text-lg font-bold text-terminal-dark/60",
         )}
       >
@@ -98,7 +96,7 @@ export function ModelBagItem({
               className="rounded bg-terminal-green/20 px-1 font-mono text-[8px] font-bold text-terminal-green"
               title={ROLE_THEME[role].label}
             >
-              {ROLE_THEME[role].iconEmoji}
+              {ROLE_THEME[role].label.charAt(0)}
             </span>
           ))}
         </div>
@@ -129,10 +127,9 @@ export function ModelBagItem({
                   "bg-terminal-green/10 font-bold text-terminal-green",
               )}
             >
-              <span>{ROLE_THEME[role].iconEmoji}</span>
               <span>{ROLE_THEME[role].label}</span>
               {model.assignedRoles.includes(role) && (
-                <span className="ml-auto">✓</span>
+                <span className="ml-auto font-mono text-[9px]">x</span>
               )}
             </button>
           ))}
