@@ -1259,7 +1259,19 @@
       "creatingPR": "PR oluşturuluyor...",
       "pushAndCreatePR": "Push & PR Oluştur ({count})",
       "pushOnly": "Push ({count})",
-      "viewPR": "PR #{number} Görüntüle"
+      "viewPR": "PR #{number} Görüntüle",
+      "auth": {
+        "title": "GitHub kimlik doğrulaması gerekli",
+        "installTitle": "GitHub CLI gerekli",
+        "copyCommand": "Giriş komutunu kopyala",
+        "openDocs": "Auth dokümanını aç",
+        "installGh": "GitHub CLI kur",
+        "retry": "PR oluşturmayı tekrar dene",
+        "copySuccess": "Giriş komutu kopyalandı",
+        "copyFailed": "Giriş komutu kopyalanamadı",
+        "openDocsFailed": "GitHub dokümanı açılamadı",
+        "partialSuccess": "Branch push edildi. PR açmak için hâlâ GitHub kimlik doğrulaması gerekiyor."
+      }
     },
     "dashboard": {
       "activeWorkspaces": "Aktif Çalışma Alanları",

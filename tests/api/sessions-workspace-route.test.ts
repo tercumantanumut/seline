@@ -213,6 +213,91 @@ describe("/api/sessions/[id]/workspace route", () => {
     expect(dbMocks.updateSession).toHaveBeenCalledWith("session-1", { metadata: {} });
   });
 
+  it("returns auth recovery metadata when gh auth is missing", async () => {
+    dbMocks.getSession.mockResolvedValue({
+      ...baseSession,
+      metadata: {
+        workspaceInfo: {
+          type: "local",
+          branch: "feature/dev-git-mode",
+          baseBranch: "main",
+          worktreePath: "/repo/primary",
+          status: "active",
+        },
+      },
+    });
+
+    childProcessMocks.execFileAsync
+      .mockResolvedValueOnce({ stdout: "gh version 2.0.0\n", stderr: "" })
+      .mockRejectedValueOnce(new Error("not logged in"));
+
+    await POST(
+      {
+        json: async () => ({ action: "push-and-create-pr" }),
+      } as never,
+      { params: Promise.resolve({ id: "session-1" }) }
+    );
+
+    expect(nextJsonMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        errorCode: "GH_AUTH_REQUIRED",
+        authCommand: "gh auth login",
+        authCheckCommand: "gh auth status",
+        docsUrl: "https://cli.github.com/manual/gh_auth_login",
+      }),
+      { status: 401 }
+    );
+  });
+
+  it("returns partial success when the branch is pushed but no PR can be created yet", async () => {
+    const pushMock = vi.fn().mockResolvedValue(undefined);
+    const getCommitLogMock = vi.fn().mockResolvedValue("");
+    gitServiceMocks.GitService.mockImplementation(function GitServiceMock() {
+      return {
+        push: pushMock,
+        getAheadBehind: vi.fn().mockResolvedValue({ ahead: 0, behind: 0, hasUpstream: true, comparisonRef: "origin/feature/dev-git-mode" }),
+        getDiff: vi.fn().mockResolvedValue({ files: [], stats: { additions: 0, deletions: 0, filesChanged: 0 } }),
+        getStatus: vi.fn().mockResolvedValue({ staged: [], unstaged: [], stats: { additions: 0, deletions: 0, filesChanged: 0 } }),
+        getCommitLog: getCommitLogMock,
+      };
+    });
+
+    dbMocks.getSession.mockResolvedValue({
+      ...baseSession,
+      metadata: {
+        workspaceInfo: {
+          type: "local",
+          branch: "feature/dev-git-mode",
+          baseBranch: "main",
+          worktreePath: "/repo/primary",
+          status: "active",
+        },
+      },
+    });
+
+    childProcessMocks.execFileAsync
+      .mockResolvedValueOnce({ stdout: "gh version 2.0.0\n", stderr: "" })
+      .mockResolvedValueOnce({ stdout: "Logged in\n", stderr: "" })
+      .mockResolvedValueOnce({ stdout: JSON.stringify([]), stderr: "" });
+
+    await POST(
+      {
+        json: async () => ({ action: "push-and-create-pr" }),
+      } as never,
+      { params: Promise.resolve({ id: "session-1" }) }
+    );
+
+    expect(pushMock).toHaveBeenCalledWith("origin", "feature/dev-git-mode");
+    expect(nextJsonMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        errorCode: "NO_COMMITS_FOR_PR",
+        partialSuccess: true,
+        pushed: true,
+      }),
+      { status: 400 }
+    );
+  });
+
   it("pushes and reuses an existing PR instead of creating a duplicate", async () => {
     const pushMock = vi.fn().mockResolvedValue(undefined);
     const getAheadBehindMock = vi.fn().mockResolvedValue({ ahead: 0, behind: 0, hasUpstream: true, comparisonRef: "origin/feature/dev-git-mode" });

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
+import { openExternalUrl } from "@/lib/electron/types";
 import { toast } from "sonner";
 import type {
   WorkspaceInfo,
@@ -59,6 +61,15 @@ interface WorkspaceActionResponse {
   workspace?: WorkspaceStatus;
   prUrl?: string;
   prNumber?: number;
+  error?: string;
+  details?: string;
+  errorCode?: string;
+  installUrl?: string;
+  docsUrl?: string;
+  authCommand?: string;
+  authCheckCommand?: string;
+  partialSuccess?: boolean;
+  pushed?: boolean;
 }
 
 function getActionErrorMessage(
@@ -66,7 +77,8 @@ function getActionErrorMessage(
   data: WorkspaceActionResponse | null,
   fallback: string,
 ): string {
-  if (typeof data?.workspace === "object") return fallback;
+  if (typeof data?.error === "string" && data.error.trim()) return data.error;
+  if (typeof data?.details === "string" && data.details.trim()) return data.details;
   if (typeof error === "string" && error.trim()) return error;
   return fallback;
 }
@@ -245,6 +257,7 @@ export function DiffReviewPanel({
   const [isCommitting, setIsCommitting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isCreatingPr, setIsCreatingPr] = useState(false);
+  const [authResolution, setAuthResolution] = useState<WorkspaceActionResponse | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
 
   const effectiveWorkspace = (workspaceStatus ?? workspaceInfo) as WorkspaceInfo | WorkspaceStatus;
@@ -253,6 +266,9 @@ export function DiffReviewPanel({
   const hasOpenPr = Boolean(effectiveWorkspace.prUrl && effectiveWorkspace.prNumber);
   const canCreatePr = shouldOfferPullRequest(effectiveWorkspace);
   const showSyncButton = shouldShowSyncButton(effectiveWorkspace);
+  const showCreatePrOnly = !hasOpenPr && commitsAhead === 0 && canCreatePr;
+  const needsGhAuth = authResolution?.errorCode === "GH_AUTH_REQUIRED";
+  const needsGhInstall = authResolution?.errorCode === "GH_NOT_INSTALLED";
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -485,9 +501,19 @@ export function DiffReviewPanel({
     try {
       const result = await postWorkspaceAction({ action: "push-and-create-pr" });
       if (!result.ok) {
+        setAuthResolution(result.data ?? null);
+        if (result.data?.workspace) {
+          setWorkspaceStatus(result.data.workspace);
+        }
+        if (result.data?.partialSuccess && result.data?.pushed) {
+          toast.error(result.errorMessage || t("auth.partialSuccess"));
+          await refreshWorkspaceData();
+          return;
+        }
         toast.error(result.errorMessage || t("createPRFailed"));
         return;
       }
+      setAuthResolution(null);
       if (result.data?.workspace) {
         setWorkspaceStatus(result.data.workspace);
       }
@@ -504,6 +530,29 @@ export function DiffReviewPanel({
     }
   }, [postWorkspaceAction, refreshWorkspaceData, t]);
 
+  const handleCopyAuthCommand = useCallback(async () => {
+    const command = authResolution?.authCommand;
+    if (!command) return;
+
+    try {
+      await navigator.clipboard.writeText(command);
+      toast.success(t("auth.copySuccess"));
+    } catch {
+      toast.error(t("auth.copyFailed"));
+    }
+  }, [authResolution?.authCommand, t]);
+
+  const handleOpenAuthDocs = useCallback(async () => {
+    const targetUrl = authResolution?.docsUrl || authResolution?.installUrl;
+    if (!targetUrl) return;
+
+    try {
+      await openExternalUrl(targetUrl);
+    } catch {
+      toast.error(t("auth.openDocsFailed"));
+    }
+  }, [authResolution?.docsUrl, authResolution?.installUrl, t]);
+
   const handleSyncToLocal = useCallback(async () => {
     if (onSyncToLocal) {
       onSyncToLocal();
@@ -518,6 +567,7 @@ export function DiffReviewPanel({
       if (syncError) {
         toast.error(t("syncFailed"));
       } else {
+        setAuthResolution(null);
         toast.success(t("syncSuccess"));
         await refreshWorkspaceData();
       }
@@ -538,6 +588,7 @@ export function DiffReviewPanel({
       if (cleanupError) {
         toast.error(t("discardFailed"));
       } else {
+        setAuthResolution(null);
         toast.success(t("discardSuccess"));
         window.dispatchEvent(
           new CustomEvent("workspace-status-changed", { detail: { sessionId } })
@@ -966,6 +1017,60 @@ export function DiffReviewPanel({
                 </div>
               )}
 
+              {authResolution && (
+                <div className="border-t border-terminal-border bg-terminal-cream/70 px-4 py-3">
+                  <Alert variant={needsGhAuth || needsGhInstall ? "default" : "destructive"}>
+                    <AlertCircleIcon className="h-4 w-4" />
+                    <AlertTitle>
+                      {needsGhInstall ? t("auth.installTitle") : t("auth.title")}
+                    </AlertTitle>
+                    <AlertDescription className="space-y-3">
+                      <p>{authResolution.error || authResolution.details || t("createPRFailed")}</p>
+                      {authResolution.details && authResolution.details !== authResolution.error && (
+                        <p className="font-mono text-xs opacity-80">{authResolution.details}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {authResolution.authCommand && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void handleCopyAuthCommand()}
+                          >
+                            <CopyIcon className="w-3.5 h-3.5" />
+                            {t("auth.copyCommand")}
+                          </Button>
+                        )}
+                        {(authResolution.docsUrl || authResolution.installUrl) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void handleOpenAuthDocs()}
+                          >
+                            <AlertCircleIcon className="w-3.5 h-3.5" />
+                            {needsGhInstall ? t("auth.installGh") : t("auth.openDocs")}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => void handlePushAndCreatePr()}
+                          disabled={isCreatingPr}
+                        >
+                          {isCreatingPr ? (
+                            <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <GitPullRequestIcon className="w-3.5 h-3.5" />
+                          )}
+                          {t("auth.retry")}
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
               {/* Actions footer */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-terminal-border bg-terminal-cream">
                 {hasOpenPr && effectiveWorkspace.prUrl ? (
@@ -990,6 +1095,20 @@ export function DiffReviewPanel({
                       <GitPullRequestIcon className="w-3.5 h-3.5" />
                     )}
                     {isCreatingPr ? t("creatingPR") : t("pushAndCreatePR", { count: commitsAhead })}
+                  </Button>
+                ) : showCreatePrOnly ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePushAndCreatePr}
+                    disabled={isCreatingPr}
+                  >
+                    {isCreatingPr ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isCreatingPr ? t("creatingPR") : t("createPR")}
                   </Button>
                 ) : commitsAhead > 0 ? (
                   <Button

@@ -136,6 +136,8 @@ const GIT_TIMEOUT_MS = 30_000;
 const GIT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const GH_TIMEOUT_MS = 30_000;
 const GH_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+const GH_INSTALL_URL = "https://cli.github.com/";
+const GH_AUTH_DOCS_URL = "https://cli.github.com/manual/gh_auth_login";
 const PR_TEMPLATE_CANDIDATES = [
   ".github/pull_request_template.md",
   ".github/PULL_REQUEST_TEMPLATE.md",
@@ -1314,7 +1316,9 @@ async function handlePushAndCreatePR(
       return NextResponse.json(
         {
           error: "GitHub CLI is not installed. Install gh to create pull requests from the workspace UI.",
-          installUrl: "https://cli.github.com/",
+          errorCode: "GH_NOT_INSTALLED",
+          installUrl: GH_INSTALL_URL,
+          docsUrl: GH_INSTALL_URL,
         },
         { status: 422 }
       );
@@ -1335,6 +1339,10 @@ async function handlePushAndCreatePR(
       {
         error: "GitHub CLI is not authenticated. Run `gh auth login` and try again.",
         details: error instanceof Error ? error.message : String(error),
+        errorCode: "GH_AUTH_REQUIRED",
+        authCommand: "gh auth login",
+        authCheckCommand: "gh auth status",
+        docsUrl: GH_AUTH_DOCS_URL,
       },
       { status: 401 }
     );
@@ -1364,7 +1372,16 @@ async function handlePushAndCreatePR(
     const commitLog = (await gitService.getCommitLog(workspaceInfo.baseBranch, 20)).trim();
     if (!commitLog) {
       return NextResponse.json(
-        { error: "No commits are available to open a pull request" },
+        {
+          error: "No commits are available to open a pull request",
+          errorCode: "NO_COMMITS_FOR_PR",
+          partialSuccess: true,
+          pushed: true,
+          workspace: await buildWorkspaceStatus({
+            ...workspaceInfo,
+            lastSyncedAt: new Date().toISOString(),
+          }),
+        },
         { status: 400 }
       );
     }
@@ -1411,12 +1428,26 @@ async function handlePushAndCreatePR(
         prBody,
       );
     } catch (error) {
+      const details = error instanceof Error ? error.message : String(error);
+      const requiresAuth = /gh auth login|not logged in|authentication|authenticate|scope|token/i.test(details);
       return NextResponse.json(
         {
-          error: "Failed to create pull request",
-          details: error instanceof Error ? error.message : String(error),
+          error: requiresAuth
+            ? "GitHub CLI needs additional authentication before a pull request can be created."
+            : "Failed to create pull request",
+          details,
+          errorCode: requiresAuth ? "GH_AUTH_REQUIRED" : "GH_PR_CREATE_FAILED",
+          authCommand: requiresAuth ? "gh auth login" : undefined,
+          authCheckCommand: requiresAuth ? "gh auth status" : undefined,
+          docsUrl: requiresAuth ? GH_AUTH_DOCS_URL : undefined,
+          partialSuccess: true,
+          pushed: true,
+          workspace: await buildWorkspaceStatus({
+            ...workspaceInfo,
+            lastSyncedAt: new Date().toISOString(),
+          }),
         },
-        { status: 500 }
+        { status: requiresAuth ? 401 : 500 }
       );
     }
 

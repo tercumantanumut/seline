@@ -1261,7 +1261,19 @@
       "creatingPR": "Creating PR...",
       "pushAndCreatePR": "Push & Create PR ({count})",
       "pushOnly": "Push ({count})",
-      "viewPR": "View PR #{number}"
+      "viewPR": "View PR #{number}",
+      "auth": {
+        "title": "GitHub authentication required",
+        "installTitle": "GitHub CLI required",
+        "copyCommand": "Copy login command",
+        "openDocs": "Open auth docs",
+        "installGh": "Install GitHub CLI",
+        "retry": "Retry PR creation",
+        "copySuccess": "Login command copied",
+        "copyFailed": "Failed to copy login command",
+        "openDocsFailed": "Failed to open GitHub docs",
+        "partialSuccess": "Branch pushed. GitHub authentication is still required to open the PR."
+      }
     },
     "dashboard": {
       "activeWorkspaces": "Active Workspaces",
