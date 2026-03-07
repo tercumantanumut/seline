@@ -33,8 +33,8 @@ describe("Context Window Fix Validation", () => {
       expect(PROVIDER_DEFAULT_LIMITS.antigravity).toBe(200000);
     });
 
-    it("should set codex provider limit to 400K (GPT-5 models)", () => {
-      expect(PROVIDER_DEFAULT_LIMITS.codex).toBe(400000);
+    it("should set codex provider limit to 1M (GPT-5.4 models)", () => {
+      expect(PROVIDER_DEFAULT_LIMITS.codex).toBe(1000000);
     });
   });
 

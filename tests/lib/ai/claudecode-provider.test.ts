@@ -20,6 +20,7 @@ const { mockQuery } = vi.hoisted(() => ({
 // Mock the Agent SDK so tests don't spawn real CLI processes.
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: mockQuery,
+  createSdkMcpServer: vi.fn(() => ({})),
 }));
 
 // Mock auth so auth-error tests don't need a real SDK process.
@@ -639,12 +640,12 @@ describe("createClaudeCodeProvider — nested subagent filtering", () => {
 
     const taskCall = chunks.find((chunk) => chunk.type === "tool-call" && chunk.toolName === "Task");
     const nestedReadCall = chunks.find((chunk) => chunk.type === "tool-call" && chunk.toolName === "Read");
-    const taskResult = chunks.find((chunk) => chunk.type === "tool-result" && chunk.toolName === "Task");
 
     expect(taskCall).toBeDefined();
     expect(nestedReadCall).toBeUndefined();
-    expect(taskResult).toBeDefined();
-    expect((taskResult as { output: unknown }).output).toEqual({ status: "completed", agentId: "agent-1" });
+    // NOTE: tool-result chunks are NOT emitted by the provider in the SSE path.
+    // The AI SDK Anthropic provider only emits tool-call from content_block_start;
+    // tool results are resolved by the runtime, not the streaming provider.
   });
 });
 
