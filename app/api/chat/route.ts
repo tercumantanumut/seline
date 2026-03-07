@@ -123,6 +123,7 @@ export async function POST(req: Request) {
   let configuredProvider: string | undefined;
   let activeSessionId: string | undefined;
   let sessionId = "";
+  let latestUserPromptText = "";
   let sdkToolResultBridge: ReturnType<typeof createSdkToolResultBridge> | null = null;
   try {
     const isScheduledRun = req.headers.get("X-Scheduled-Run") === "true";
@@ -456,6 +457,7 @@ export async function POST(req: Request) {
       }
 
       const plainTextContent = getPlainTextFromContent(extractedContent);
+      latestUserPromptText = plainTextContent;
       if ((isNewSession || userMessageCount === 1) && plainTextContent.length > 0) {
         void generateSessionTitle(sessionId, plainTextContent);
       }
@@ -811,6 +813,8 @@ export async function POST(req: Request) {
       provider,
       streamAbortSignal,
       disposeSdkToolResultBridge: sdkToolResultBridge.dispose,
+      latestUserPromptText,
+      persistedUserMessageId,
     };
 
     const createStreamResult = () =>

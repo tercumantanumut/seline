@@ -7,6 +7,7 @@ import {
   validateAllModelsForProvider,
   type BatchValidationResult,
 } from "@/lib/ai/model-validation";
+import type { TaskRewardRecord } from "@/lib/rewards/reward-calculator";
 
 export type PostEditHooksPreset = "off" | "fast" | "strict";
 
@@ -273,6 +274,9 @@ export interface AppSettings {
     // Browser automation settings
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
+
+    // Task rewards
+    taskRewards?: TaskRewardRecord[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -381,6 +385,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     // Browser automation defaults
     chromiumBrowserMode: "standalone",
     chromiumUserProfilePath: "",
+    // Task rewards defaults
+    taskRewards: [],
 };
 
 function getSettingsPath(): string {
