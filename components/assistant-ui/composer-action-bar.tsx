@@ -23,8 +23,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTranslations } from "next-intl";
-import { ModelBagPopover } from "./model-bag-popover";
-
 interface ComposerActionBarProps {
   // Operation state
   isOperationRunning: boolean;
@@ -36,8 +34,6 @@ interface ComposerActionBarProps {
   isDeepResearchLoading: boolean;
   mcpIsReloading: boolean;
   mcpEstimatedTimeRemaining: number;
-  // Session / model
-  sessionId?: string;
   // Deep research
   onToggleDeepResearch?: () => void;
   // Voice
@@ -75,7 +71,6 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
   isDeepResearchLoading,
   mcpIsReloading,
   mcpEstimatedTimeRemaining: _mcpEstimatedTimeRemaining,
-  sessionId,
   onToggleDeepResearch,
   sttEnabled,
   isRecordingVoice,
@@ -124,8 +119,6 @@ export const ComposerActionBar: FC<ComposerActionBarProps> = ({
           </TooltipContent>
         </Tooltip>
       )}
-
-      {sessionId && <ModelBagPopover sessionId={sessionId} />}
 
       {onToggleDeepResearch && (
         <Tooltip>

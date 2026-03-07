@@ -46,12 +46,12 @@ export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
       {/* Capabilities */}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {caps.contextWindow && (
-          <Badge label={`📐 ${caps.contextWindow}`} />
+          <Badge label={caps.contextWindow} />
         )}
         <Badge label={speedLabel(caps.speed)} />
-        {caps.vision && <Badge label={`👁️ ${t("vision")}`} />}
-        {caps.thinking && <Badge label={`🧠 ${t("thinking")}`} />}
-        {caps.toolUse && <Badge label={`🔧 ${t("tools")}`} />}
+        {caps.vision && <Badge label={t("vision")} />}
+        {caps.thinking && <Badge label={t("thinking")} />}
+        {caps.toolUse && <Badge label={t("tools")} />}
       </div>
 
       {/* Assigned roles */}
@@ -65,7 +65,7 @@ export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
               key={role}
               className="rounded bg-terminal-green/15 px-1 font-mono text-[9px] font-bold text-terminal-green"
             >
-              {ROLE_THEME[role].iconEmoji} {ROLE_THEME[role].label}
+              {ROLE_THEME[role].label}
             </span>
           ))}
         </div>
@@ -73,7 +73,7 @@ export function ModelBagTooltip({ model }: ModelBagTooltipProps) {
 
       {!model.isAvailable && (
         <p className="mt-2 font-mono text-[10px] text-red-500">
-          ⚠ {t("notConfigured")}
+          {t("notConfigured")}
         </p>
       )}
     </div>
