@@ -879,7 +879,14 @@
       "removePastedText": "Yapıştırılan metni kaldır",
       "textPasted": "Büyük metin alındı ({lines} satır)",
       "editorEnable": "Zengin editor",
-      "editorDisable": "Basit mod"
+      "editorDisable": "Basit mod",
+      "rewardSuggestion": "Tamamlandığında: +{amount} · {reason}",
+      "rewardBands": {
+        "small": "Hızlı iş",
+        "medium": "Odaklı iş",
+        "large": "Geniş kapsam",
+        "epic": "Destansı kapsam"
+      }
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada",
@@ -1877,7 +1884,8 @@
       "plugins": "Eklentiler",
       "voice": "Ses & Audio",
       "preferences": "Uygulama ve Araç Tercihleri",
-      "memory": "Hafıza"
+      "memory": "Hafıza",
+      "rewards": "Ödüller"
     },
     "errors": {
       "load": "Ayarlar yüklenemedi",
@@ -2589,6 +2597,34 @@
           "name": "Everything",
           "description": "Pek çok örnek aracı olan örnek sunucu"
         }
+      }
+    },
+    "rewards": {
+      "title": "Görev ödülleri",
+      "subtitle": "Tamamlanan işler için önerilen ödemeyi takip et.",
+      "emptyTitle": "Henüz kayıtlı ödül yok",
+      "emptyBody": "Sohbette anlamlı bir görevi bitir, Seline önerilen ödülü burada kaydetsin.",
+      "stats": {
+        "total": "Toplam alacak",
+        "week": "Bu hafta",
+        "month": "Bu ay"
+      },
+      "historyTitle": "Ödül geçmişi",
+      "historySubtitle": "{count, plural, one {# tamamlanan görev} other {# tamamlanan görev}}",
+      "earned": "Kazanılan",
+      "showDetails": "Detayları göster",
+      "hideDetails": "Detayları gizle",
+      "bands": {
+        "small": "Hızlı iş",
+        "medium": "Odaklı iş",
+        "large": "Geniş kapsam",
+        "epic": "Destansı kapsam"
+      },
+      "breakdown": {
+        "base": "Temel tahmin",
+        "toolBonus": "Araç bonusu ({count})",
+        "tokenBonus": "Token bonusu ({count} token)",
+        "steps": "Prompt boyutu / adımlar ({count})"
       }
     }
   },
@@ -3325,24 +3361,6 @@
   "skills": {
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
-    "library": {
-      "title": "Çapraz Ajan Beceri Kütüphanesi",
-      "searchPlaceholder": "Beceri ara",
-      "allCategories": "Tüm kategoriler",
-      "applyFilters": "Filtreleri Uygula",
-      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
-      "noDescription": "Açıklama yok",
-      "category": "Kategori",
-      "categoryGeneral": "genel",
-      "runs": "Çalışma",
-      "success": "Başarı",
-      "updated": "Güncellendi",
-      "selectAgent": "Hedef ajan seçin",
-      "copy": "Kopyala",
-      "open": "Aç",
-      "copySuccess": "Beceri başarıyla kopyalandı.",
-      "copyFailed": "Beceri kopyalanamadı"
-    },
     "library": "Kutuphane",
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",

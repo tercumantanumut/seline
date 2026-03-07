@@ -879,7 +879,14 @@
       "removePastedText": "Remove pasted text",
       "textPasted": "Large text captured ({lines} lines)",
       "editorEnable": "Rich editor",
-      "editorDisable": "Simple mode"
+      "editorDisable": "Simple mode",
+      "rewardSuggestion": "Upon completion: +{amount} · {reason}",
+      "rewardBands": {
+        "small": "Quick win",
+        "medium": "Focused build",
+        "large": "Large scope",
+        "epic": "Epic scope"
+      }
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
@@ -1877,7 +1884,8 @@
       "plugins": "Plugins",
       "voice": "Voice & Audio",
       "preferences": "App & Tool Preferences",
-      "memory": "Memory Defaults"
+      "memory": "Memory Defaults",
+      "rewards": "Rewards"
     },
     "onboarding": {
       "title": "Onboarding",
@@ -2617,6 +2625,34 @@
       "primaryFlowDesc": "Import ComfyUI workflows directly in chat. We analyze the graph, suggest names, and attach tools automatically.",
       "advancedSetupTitle": "Advanced setup",
       "advancedSetupDesc": "Manual backend toggles and workflow schema tuning for power users."
+    },
+    "rewards": {
+      "title": "Task rewards",
+      "subtitle": "Track suggested payout for completed work.",
+      "emptyTitle": "No rewards tracked yet",
+      "emptyBody": "Finish a meaningful task in chat and Seline will log a suggested reward here.",
+      "stats": {
+        "total": "Total owed",
+        "week": "This week",
+        "month": "This month"
+      },
+      "historyTitle": "Reward history",
+      "historySubtitle": "{count, plural, one {# completed task} other {# completed tasks}}",
+      "earned": "Earned",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
+      "bands": {
+        "small": "Quick win",
+        "medium": "Focused build",
+        "large": "Large scope",
+        "epic": "Epic scope"
+      },
+      "breakdown": {
+        "base": "Base estimate",
+        "toolBonus": "Tool bonus ({count})",
+        "tokenBonus": "Token bonus ({count} tokens)",
+        "steps": "Prompt size / steps ({count})"
+      }
     }
   },
   "modelBag": {
@@ -3352,26 +3388,8 @@
   "skills": {
     "title": "Skills",
     "pageDescription": "Manage reusable skill recipes for {name}.",
-    "library": {
-      "title": "Cross-Agent Skill Library",
-      "searchPlaceholder": "Search skills",
-      "allCategories": "All categories",
-      "applyFilters": "Apply Filters",
-      "noMatch": "No skills matched your current filters.",
-      "noDescription": "No description",
-      "category": "Category",
-      "categoryGeneral": "general",
-      "runs": "Runs",
-      "success": "Success",
-      "updated": "Updated",
-      "selectAgent": "Select target agent",
-      "copy": "Copy",
-      "open": "Open",
-      "copySuccess": "Skill copied successfully.",
-      "copyFailed": "Failed to copy skill"
-    },
-    "mySkills": "My Skills",
     "library": "Library",
+    "mySkills": "My Skills",
     "importPackage": "Import Package",
     "hideImport": "Hide Import",
     "importSuccess": "Skill imported successfully",

@@ -54,9 +54,14 @@ import {
   TiptapEditor,
   contentPartsToComposerText,
   plainTextToTiptapDoc,
+  serializeDocToContentArray,
   type TiptapEditorHandle,
   type ContentPart,
 } from "./tiptap-editor";
+import {
+  estimateTaskRewardSuggestion,
+  type RewardSuggestion,
+} from "@/lib/rewards/reward-calculator";
 
 // Interface for queued messages
 interface QueuedMessage {
@@ -252,6 +257,53 @@ export const Composer: FC<{
     recentMessages,
     expandInput: expandPlaceholders,
   });
+  const [rewardSuggestion, setRewardSuggestion] = useState<RewardSuggestion | null>(null);
+  const [showRewardSuggestion, setShowRewardSuggestion] = useState(false);
+  const composerTextForReward = useMemo(() => {
+    if (isEditorMode) {
+      return contentPartsToComposerText(serializeDocToContentArray(tiptapDraft));
+    }
+    return inputValue.trim();
+  }, [inputValue, isEditorMode, tiptapDraft]);
+  const rewardReasonLabel = useMemo(() => {
+    if (!rewardSuggestion) {
+      return "";
+    }
+    return t(`composer.rewardBands.${rewardSuggestion.complexityBand}`);
+  }, [rewardSuggestion, t]);
+
+  const syncRewardSuggestion = useCallback(
+    (textOverride?: string) => {
+      const nextText = (textOverride ?? composerTextForReward).trim();
+      if (!nextText) {
+        setRewardSuggestion(null);
+        setShowRewardSuggestion(false);
+        return;
+      }
+
+      const nextSuggestion = estimateTaskRewardSuggestion(nextText);
+      setRewardSuggestion(nextSuggestion);
+      setShowRewardSuggestion(Boolean(nextSuggestion));
+    },
+    [composerTextForReward]
+  );
+
+  useEffect(() => {
+    if (!composerTextForReward.trim()) {
+      setRewardSuggestion(null);
+      setShowRewardSuggestion(false);
+      return;
+    }
+
+    setShowRewardSuggestion(false);
+    const timeoutId = window.setTimeout(() => {
+      syncRewardSuggestion(composerTextForReward);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [composerTextForReward, syncRewardSuggestion]);
 
   // Voice recording
   const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef, wasAiEnhancedRef } = useVoiceRecording({
@@ -933,6 +985,20 @@ export const Composer: FC<{
           <ComposerPrimitive.Attachments components={{ Attachment: ComposerAttachment }} />
         </div>
 
+        {showRewardSuggestion && rewardSuggestion && (
+          <div className="px-3 pb-1">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-terminal-border/60 bg-terminal-dark/5 px-3 py-1 text-[11px] font-mono text-terminal-muted">
+              <SparklesIcon className="size-3 shrink-0 text-terminal-amber" />
+              <span className="truncate">
+                {t("composer.rewardSuggestion", {
+                  amount: rewardSuggestion.amountLabel,
+                  reason: rewardReasonLabel || rewardSuggestion.reasonLabel,
+                })}
+              </span>
+            </div>
+          </div>
+        )}
+
         {pastedTexts.length > 0 && (
           <div className="flex flex-wrap gap-2 px-2 pb-1">
             {pastedTexts.map((item) => (
@@ -1077,6 +1143,7 @@ export const Composer: FC<{
               }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              onBlur={() => syncRewardSuggestion()}
               autoFocus
               placeholder={getPlaceholder()}
               rows={1}
