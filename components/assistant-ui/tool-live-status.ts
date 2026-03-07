@@ -102,13 +102,34 @@ function getLatestToolPart(event: TaskProgressEvent): ProgressToolPartLike | nul
   return null;
 }
 
+function getToolScopedProgressDetail(event: TaskProgressEvent, toolName: string): string | undefined {
+  const progressLabel = typeof event.progressText === "string" ? event.progressText.trim() : "";
+  if (!progressLabel) return undefined;
+
+  const lower = progressLabel.toLowerCase();
+  const canonicalToolName = getCanonicalToolName(toolName).toLowerCase();
+  const rawToolName = toolName.toLowerCase();
+
+  // Ignore generic assistant prose snapshots; they often represent the final
+  // response body rather than the active tool state.
+  if (
+    lower.startsWith("running ") ||
+    lower.startsWith("preparing ") ||
+    lower.includes(rawToolName) ||
+    lower.includes(canonicalToolName)
+  ) {
+    return progressLabel;
+  }
+
+  return undefined;
+}
+
 function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus | null {
   const part = getLatestToolPart(event);
   if (!part?.toolName || typeof part.toolName !== "string") return null;
 
   const canonicalToolName = getCanonicalToolName(part.toolName);
-  const progressLabel = typeof event.progressText === "string" ? event.progressText.trim() : "";
-  const fallbackDetail = progressLabel || undefined;
+  const scopedDetail = getToolScopedProgressDetail(event, part.toolName);
 
   if (part.type === "tool-result") {
     const rawStatus = typeof part.status === "string" ? part.status.toLowerCase() : "";
@@ -119,7 +140,7 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
       canonicalToolName,
       phase: isError ? "error" : "completed",
       label: isError ? "Failed" : "Completed",
-      detail: typeof part.errorText === "string" ? summarizeString(part.errorText, 120) : fallbackDetail,
+      detail: typeof part.errorText === "string" ? summarizeString(part.errorText, 120) : scopedDetail,
       outputPreview: summarizeToolOutput(part.result ?? part.output),
       updatedAt: Date.now(),
     };
@@ -136,7 +157,7 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
     canonicalToolName,
     phase,
     label: phase === "preparing" ? "Preparing" : "Running",
-    detail: fallbackDetail,
+    detail: scopedDetail,
     argsPreview: summarizeToolInput(part.input ?? part.args ?? part.argsText),
     updatedAt: Date.now(),
   };
