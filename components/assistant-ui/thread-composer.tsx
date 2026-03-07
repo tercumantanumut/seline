@@ -458,7 +458,13 @@ export const Composer: FC<{
   // -----------------------------------------------------------------------
   const handleEditorSubmit = useCallback(
     (contentParts: ContentPart[]) => {
-      if (contentParts.length === 0) return;
+      // Composer attachments (from the paperclip button) live in the
+      // threadRuntime composer state — tiptap's own inline images are
+      // already part of contentParts, but composer-level attachments
+      // are not, so we must merge them manually.
+      const composerAttachments = threadRuntime.composer.getState().attachments ?? [];
+
+      if (contentParts.length === 0 && composerAttachments.length === 0) return;
 
       // Deep research mode only takes text — extract text parts
       if (isDeepResearchMode && deepResearch && !isQueueBlocked) {
@@ -488,6 +494,17 @@ export const Composer: FC<{
         }
       }
 
+      // Merge composer attachments (uploaded via the attachment button)
+      for (const attachment of composerAttachments) {
+        if (attachment.content) {
+          for (const part of attachment.content) {
+            if (part.type === "image" && "image" in part) {
+              apiContent.push({ type: "image", image: (part as { type: "image"; image: string }).image });
+            }
+          }
+        }
+      }
+
       if (apiContent.length === 0) return;
 
       // Extract text for queue display
@@ -512,6 +529,9 @@ export const Composer: FC<{
         }
         tiptapRef.current?.clear();
         clearTiptapDraft();
+        if (composerAttachments.length > 0) {
+          threadRuntime.composer.clearAttachments();
+        }
         return;
       }
 
@@ -524,6 +544,9 @@ export const Composer: FC<{
       tiptapRef.current?.clear();
       clearTiptapDraft();
       clearEnhancement();
+      if (composerAttachments.length > 0) {
+        threadRuntime.composer.clearAttachments();
+      }
     },
     [
       isQueueBlocked,
@@ -532,6 +555,7 @@ export const Composer: FC<{
       threadRuntime,
       clearEnhancement,
       clearTiptapDraft,
+      attachmentCount,
     ]
   );
 
