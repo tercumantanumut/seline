@@ -22,22 +22,22 @@ export interface AccentColor {
 }
 
 export const ACCENT_COLORS: AccentColor[] = [
-  { id: "terracotta",  label: "Terracotta",  hsl: "18 49% 54%",  hslDark: "18 49% 58%",  hex: "#C2714F" },
-  { id: "ocean",       label: "Ocean",       hsl: "200 80% 50%", hslDark: "200 80% 55%", hex: "#1A8FE3" },
-  { id: "emerald",     label: "Emerald",     hsl: "152 60% 42%", hslDark: "152 60% 48%", hex: "#2BA36B" },
-  { id: "violet",      label: "Violet",      hsl: "262 60% 58%", hslDark: "262 60% 64%", hex: "#7C5CBF" },
-  { id: "amber",       label: "Amber",       hsl: "41 100% 50%", hslDark: "41 100% 55%", hex: "#FFB000" },
-  { id: "rose",        label: "Rose",        hsl: "340 65% 55%", hslDark: "340 65% 60%", hex: "#D44A7A" },
-  { id: "cyan",        label: "Cyan",        hsl: "185 70% 45%", hslDark: "185 70% 52%", hex: "#22A3B3" },
-  { id: "coral",       label: "Coral",       hsl: "10 75% 60%",  hslDark: "10 75% 65%",  hex: "#E6704A" },
-  { id: "indigo",      label: "Indigo",      hsl: "230 65% 55%", hslDark: "230 65% 62%", hex: "#4A5AC7" },
-  { id: "lime",        label: "Lime",        hsl: "82 60% 45%",  hslDark: "82 60% 52%",  hex: "#6BA332" },
-  { id: "fuchsia",     label: "Fuchsia",     hsl: "292 60% 55%", hslDark: "292 60% 62%", hex: "#B34ABF" },
-  { id: "teal",        label: "Teal",        hsl: "170 55% 42%", hslDark: "170 55% 50%", hex: "#30A396" },
-  { id: "gold",        label: "Gold",        hsl: "48 85% 50%",  hslDark: "48 85% 55%",  hex: "#EBBD17" },
-  { id: "slate",       label: "Slate",       hsl: "215 20% 50%", hslDark: "215 20% 58%", hex: "#667788" },
-  { id: "crimson",     label: "Crimson",     hsl: "0 72% 50%",   hslDark: "0 72% 56%",   hex: "#DC2828" },
-  { id: "sage",        label: "Sage",        hsl: "140 25% 50%", hslDark: "140 25% 58%", hex: "#60996E" },
+  { id: "scuderia",    label: "Scuderia",    hsl: "0 85% 48%",   hslDark: "0 85% 54%",   hex: "#DC2626" },
+  { id: "papaya",      label: "Papaya",      hsl: "25 95% 53%",  hslDark: "25 95% 58%",  hex: "#F97316" },
+  { id: "petronas",    label: "Petronas",    hsl: "174 85% 42%", hslDark: "174 85% 50%", hex: "#10B4A6" },
+  { id: "alpine",      label: "Alpine",      hsl: "215 90% 55%", hslDark: "215 90% 62%", hex: "#2563EB" },
+  { id: "racinggreen", label: "Racing Green", hsl: "152 80% 35%", hslDark: "152 80% 44%", hex: "#0D9255" },
+  { id: "pitlane",     label: "Pit Lane",    hsl: "270 80% 58%", hslDark: "270 80% 64%", hex: "#8B5CF6" },
+  { id: "podium",      label: "Podium",      hsl: "42 95% 50%",  hslDark: "42 95% 55%",  hex: "#EAB308" },
+  { id: "haas",        label: "Haas",        hsl: "345 85% 50%", hslDark: "345 85% 56%", hex: "#E11D48" },
+  { id: "gulf",        label: "Gulf",        hsl: "195 85% 52%", hslDark: "195 85% 58%", hex: "#0EA5E9" },
+  { id: "marshalsafe", label: "Marshal",     hsl: "55 90% 48%",  hslDark: "55 90% 54%",  hex: "#CAAD08" },
+  { id: "drs",         label: "DRS",         hsl: "142 75% 40%", hslDark: "142 75% 48%", hex: "#16A34A" },
+  { id: "slick",       label: "Slick",       hsl: "240 70% 55%", hslDark: "240 70% 62%", hex: "#4F46E5" },
+  { id: "champagne",   label: "Champagne",   hsl: "330 80% 55%", hslDark: "330 80% 62%", hex: "#DB2777" },
+  { id: "monaco",      label: "Monaco",      hsl: "12 90% 52%",  hslDark: "12 90% 58%",  hex: "#EA580C" },
+  { id: "titanium",    label: "Titanium",    hsl: "200 30% 48%", hslDark: "200 30% 56%", hex: "#5586A0" },
+  { id: "carbon",      label: "Carbon",      hsl: "295 75% 52%", hslDark: "295 75% 60%", hex: "#A855F7" },
 ];
 
 /** Simple FNV-1a-like hash for deterministic color assignment */

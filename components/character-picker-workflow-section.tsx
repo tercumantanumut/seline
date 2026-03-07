@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { GitBranchPlus, Crown, MoreHorizontal, MessageCircle, UserPlus, Unlink, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Database } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedButton } from "@/components/ui/animated-button";
@@ -20,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTranslations } from "next-intl";
-import { useTheme } from "@/components/theme/theme-provider";
 import { hasMissingInitiator, shouldDisableInitiatorActions } from "@/lib/characters/picker-sections";
 import { AgentCardInWorkflow } from "@/components/character-picker-agent-card";
 import type { CharacterSummary, WorkflowGroup } from "@/components/character-picker-types";
@@ -84,8 +82,6 @@ export function WorkflowCard({
   onDeleteCharacter: (c: CharacterSummary) => void;
   onOpenFolderManager: (c: CharacterSummary) => void;
 }) {
-  const { homepageBackground } = useTheme();
-  const hasWallpaper = homepageBackground.type !== "none";
   const agentIds = wf.agents.map((a) => a.id);
   const missingInitiator = hasMissingInitiator(wf.initiatorId, agentIds);
   const disableInitiatorActions = shouldDisableInitiatorActions(missingInitiator);
@@ -100,7 +96,7 @@ export function WorkflowCard({
       : "bg-gray-100 text-gray-500 border-gray-200";
 
   return (
-    <Card className={cn("transition-all border-terminal-border", hasWallpaper ? "bg-terminal-cream/60 backdrop-blur-md" : "bg-terminal-cream")}>
+    <Card className="transition-all border-terminal-border bg-terminal-cream">
       <CardHeader className="pb-3">
         <div
           role="button"
@@ -193,7 +189,7 @@ export function WorkflowCard({
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-4 border-t border-terminal-border/20 pt-4">
-            <div className={cn("rounded-lg p-3", hasWallpaper ? "bg-terminal-bg/10 backdrop-blur-sm" : "bg-terminal-bg/5")}>
+            <div className="rounded-lg p-3 bg-terminal-bg/5">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <select
@@ -201,7 +197,7 @@ export function WorkflowCard({
                     onChange={(event) =>
                       onUpdateDraft(wf.id, { addAgentId: event.target.value })
                     }
-                    className={cn("h-8 min-w-0 flex-1 rounded border border-terminal-border px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none", hasWallpaper ? "bg-white/70 backdrop-blur-sm" : "bg-white")}
+                    className="h-8 min-w-0 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
                     disabled={workflowMutationBusy === wf.id}
                   >
                     <option value="">{t("workflows.addSubagentPlaceholder")}</option>
@@ -229,7 +225,7 @@ export function WorkflowCard({
                     onChange={(event) =>
                       onUpdateDraft(wf.id, { initiatorId: event.target.value })
                     }
-                    className={cn("h-8 min-w-0 flex-1 rounded border border-terminal-border px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none", hasWallpaper ? "bg-white/70 backdrop-blur-sm" : "bg-white")}
+                    className="h-8 min-w-0 flex-1 rounded border border-terminal-border bg-white px-2 font-mono text-xs text-terminal-dark focus:border-terminal-green focus:outline-none"
                     disabled={workflowMutationBusy === wf.id}
                   >
                     {wf.agents.map((agent) => (
@@ -309,7 +305,6 @@ export function WorkflowCard({
                     onDuplicate={onDuplicate}
                     isDuplicating={isDuplicating}
                     onDelete={onDeleteCharacter}
-                    hasWallpaper={hasWallpaper}
                     router={router}
                   />
                 </div>
@@ -353,8 +348,7 @@ export function WorkflowCard({
                           onSetPendingMemberRemoval({ workflowId: wf.id, agentId: agent.id });
                         }}
                         removeFromWorkflowLabel={t("workflows.removeSubagent")}
-                        hasWallpaper={hasWallpaper}
-                        router={router}
+                            router={router}
                       />
                     </div>
                   ))}

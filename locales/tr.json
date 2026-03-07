@@ -375,6 +375,8 @@
     "create": "Yeni Ajan Oluştur",
     "createDescription": "Kendi AI ajanınızı yapılandırın",
     "continue": "Devam",
+    "resumeChat": "Devam Et",
+    "startChat": "Sohbet",
     "startNew": "Yeni sohbet başlat",
     "edit": "Düzenle",
     "delete": "Sil",

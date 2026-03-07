@@ -410,25 +410,29 @@ export function CharacterPicker() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && setSearchQuery("")}
               placeholder={t("searchPlaceholder")}
-              className="w-full pl-10 pr-4 py-2 bg-terminal-bg/30 border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
+              className="w-full pl-10 pr-4 py-2 bg-terminal-cream border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
             />
           </div>
         )}
 
-        <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          <AnimatedCard data-animate-card hoverLift className={cn(homepageBackground.type !== "none" ? "bg-terminal-cream/30 backdrop-blur-md hover:bg-terminal-cream/40" : "bg-terminal-cream/50 hover:bg-terminal-cream")}>
+        <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <AnimatedCard data-animate-card hoverLift className={cn(
+            "flex flex-col min-h-[180px]",
+            "border border-terminal-border/30 bg-terminal-cream shadow-sm"
+          )}>
+            <div className="h-[2px] w-full bg-gradient-to-r from-terminal-green/40 to-transparent" />
             <button
               type="button"
               onClick={() => setCreateModalOpen(true)}
               aria-label={t("create")}
-              className="flex h-full min-h-[200px] w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-lg p-6 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green focus-visible:ring-offset-2 focus-visible:ring-offset-terminal-cream"
+              className="flex flex-1 w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg p-4 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green"
             >
-              <div className="w-16 h-16 rounded-full bg-terminal-green/10 flex items-center justify-center shadow-sm">
-                <Plus className="w-8 h-8 text-terminal-green" />
+              <div className="w-10 h-10 rounded-full bg-terminal-green/10 flex items-center justify-center border border-terminal-green/20">
+                <Plus className="w-5 h-5 text-terminal-green" />
               </div>
               <div className="text-center">
-                <p className="font-medium font-mono text-terminal-dark">{t("create")}</p>
-                <p className="text-sm text-terminal-muted font-mono">{t("createDescription")}</p>
+                <p className="font-medium font-mono text-sm text-terminal-dark">{t("create")}</p>
+                <p className="text-xs text-terminal-muted font-mono mt-0.5">{t("createDescription")}</p>
               </div>
             </button>
           </AnimatedCard>
@@ -454,7 +458,6 @@ export function CharacterPicker() {
               onAddToWorkflow={openAddToWorkflowDialog}
               canAddToWorkflow={(availableWorkflowsByAgentId.get(character.id) || []).length > 0}
               onDelete={charActions.openDeleteDialog}
-              hasWallpaper={homepageBackground.type !== "none"}
               router={router}
             />
           ))}
