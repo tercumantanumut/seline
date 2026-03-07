@@ -26,9 +26,13 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 // Mock auth so auth-error tests don't need a real SDK process.
 vi.mock("@/lib/auth/claude-agent-sdk-auth", () => ({
   readClaudeAgentSdkAuthStatus: vi.fn(async () => ({
-    authenticated: false,
-    authUrl: "https://claude.ai/auth",
+    authenticated: true,
+    authUrl: undefined,
     output: [],
+  })),
+  getSdkExecutableConfig: vi.fn(() => ({
+    executable: "node",
+    env: {},
   })),
 }));
 
