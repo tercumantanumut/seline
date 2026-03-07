@@ -8,7 +8,11 @@
   "overrides": {
     "ai": "^6.0.7",
     "keyv": "5.6.0",
-    "tar": ">=7.5.9",
+    "tar": ">=7.5.10",
+    "hono": ">=4.12.5",
+    "@hono/node-server": ">=1.19.11",
+    "express-rate-limit": ">=8.3.0",
+    "serialize-javascript": ">=7.0.4",
     "minimatch": ">=10.2.2",
     "undici": ">=6.23.0",
     "@electron/asar": ">=4.0.1",

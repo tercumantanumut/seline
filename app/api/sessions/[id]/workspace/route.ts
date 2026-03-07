@@ -863,6 +863,9 @@ export async function POST(
       case "push-and-create-pr": {
         return await handlePushAndCreatePR(id, session, metadata, workspaceInfo);
       }
+      case "push-base-branch": {
+        return await handlePushBaseBranch(workspaceInfo);
+      }
       default: {
         return NextResponse.json(
           { error: `Unknown action: ${action}` },
@@ -1282,6 +1285,31 @@ async function handlePush(
   }
 }
 
+async function handlePushBaseBranch(workspaceInfo: WorkspaceInfo) {
+  if (!workspaceInfo.worktreePath || !workspaceInfo.baseBranch) {
+    return NextResponse.json(
+      { error: "Worktree path and base branch are required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Push the base branch from the main repo root (worktree shares the same git objects)
+    await runGitCommand(workspaceInfo.worktreePath, [
+      "push", "-u", "origin", workspaceInfo.baseBranch,
+    ]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "Failed to push base branch",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
 async function handlePushAndCreatePR(
   sessionId: string,
   session: Awaited<ReturnType<typeof getSession>>,
@@ -1360,6 +1388,32 @@ async function handlePushAndCreatePR(
       },
       { status: 500 }
     );
+  }
+
+  // Check if the base branch exists on the remote before attempting PR creation
+  try {
+    const lsRemoteOutput = await runGitCommand(workspaceInfo.worktreePath, [
+      "ls-remote", "--heads", "origin", workspaceInfo.baseBranch,
+    ]);
+    if (!lsRemoteOutput.trim()) {
+      return NextResponse.json(
+        {
+          error: `Base branch '${workspaceInfo.baseBranch}' does not exist on the remote. Push it before creating a pull request.`,
+          errorCode: "BASE_BRANCH_NOT_ON_REMOTE",
+          baseBranch: workspaceInfo.baseBranch,
+          partialSuccess: true,
+          pushed: true,
+          workspace: await buildWorkspaceStatus({
+            ...workspaceInfo,
+            lastSyncedAt: new Date().toISOString(),
+          }),
+        },
+        { status: 422 }
+      );
+    }
+  } catch {
+    // If ls-remote fails (e.g. network), let the PR creation attempt proceed
+    // and surface a more specific error from gh
   }
 
   let pullRequest = await getExistingPullRequest(

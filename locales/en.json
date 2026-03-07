@@ -1279,7 +1279,12 @@
         "copySuccess": "Login command copied",
         "copyFailed": "Failed to copy login command",
         "openDocsFailed": "Failed to open GitHub docs",
-        "partialSuccess": "Branch pushed. GitHub authentication is still required to open the PR."
+        "partialSuccess": "Branch pushed. GitHub authentication is still required to open the PR.",
+        "baseBranchTitle": "Base branch not on remote",
+        "pushBaseBranch": "Push {branch} to remote",
+        "pushingBaseBranch": "Pushing...",
+        "baseBranchPushed": "Base branch pushed to remote",
+        "pushBaseBranchFailed": "Failed to push base branch to remote"
       }
     },
     "dashboard": {

@@ -259,6 +259,8 @@ export const Composer: FC<{
   });
   const [rewardSuggestion, setRewardSuggestion] = useState<RewardSuggestion | null>(null);
   const [showRewardSuggestion, setShowRewardSuggestion] = useState(false);
+  const [rewardDismissed, setRewardDismissed] = useState(false);
+  const ghostScrollRef = useRef<HTMLDivElement>(null);
   const composerTextForReward = useMemo(() => {
     if (isEditorMode) {
       return contentPartsToComposerText(serializeDocToContentArray(tiptapDraft));
@@ -271,6 +273,15 @@ export const Composer: FC<{
     }
     return t(`composer.rewardBands.${rewardSuggestion.complexityBand}`);
   }, [rewardSuggestion, t]);
+
+  // Ghost text string for the inline reward suggestion
+  const rewardGhostText = useMemo(() => {
+    if (!showRewardSuggestion || !rewardSuggestion || rewardDismissed) return "";
+    return t("composer.rewardSuggestion", {
+      amount: rewardSuggestion.amountLabel,
+      reason: rewardReasonLabel || rewardSuggestion.reasonLabel,
+    });
+  }, [showRewardSuggestion, rewardSuggestion, rewardDismissed, rewardReasonLabel, t]);
 
   const syncRewardSuggestion = useCallback(
     (textOverride?: string) => {
@@ -292,10 +303,13 @@ export const Composer: FC<{
     if (!composerTextForReward.trim()) {
       setRewardSuggestion(null);
       setShowRewardSuggestion(false);
+      setRewardDismissed(false); // Reset only when input is fully cleared (new message)
       return;
     }
 
     setShowRewardSuggestion(false);
+    // Don't reset rewardDismissed here — once accepted/dismissed via Tab/Escape,
+    // stay dismissed until the input is fully cleared (handled above)
     const timeoutId = window.setTimeout(() => {
       syncRewardSuggestion(composerTextForReward);
     }, 900);
@@ -671,12 +685,28 @@ export const Composer: FC<{
         if (handler && handler(e)) return;
       }
 
+      // Tab → accept reward ghost text
+      if (e.key === "Tab" && rewardGhostText) {
+        e.preventDefault();
+        const suffix = `\n${rewardGhostText}`;
+        setInputValue((prev) => prev + suffix);
+        setRewardDismissed(true);
+        return;
+      }
+
+      // Escape → dismiss reward ghost text
+      if (e.key === "Escape" && rewardGhostText) {
+        e.preventDefault();
+        setRewardDismissed(true);
+        return;
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [handleSubmit, rewardGhostText, setInputValue]
   );
 
   const handlePaste = useCallback(
@@ -985,19 +1015,7 @@ export const Composer: FC<{
           <ComposerPrimitive.Attachments components={{ Attachment: ComposerAttachment }} />
         </div>
 
-        {showRewardSuggestion && rewardSuggestion && (
-          <div className="px-3 pb-1">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-terminal-border/60 bg-terminal-dark/5 px-3 py-1 text-[11px] font-mono text-terminal-muted">
-              <SparklesIcon className="size-3 shrink-0 text-terminal-amber" />
-              <span className="truncate">
-                {t("composer.rewardSuggestion", {
-                  amount: rewardSuggestion.amountLabel,
-                  reason: rewardReasonLabel || rewardSuggestion.reasonLabel,
-                })}
-              </span>
-            </div>
-          </div>
-        )}
+{/* Reward suggestion is shown as inline ghost text in the textarea */}
 
         {pastedTexts.length > 0 && (
           <div className="flex flex-wrap gap-2 px-2 pb-1">
@@ -1129,27 +1147,48 @@ export const Composer: FC<{
         ) : (
           /* ---- Simple textarea mode (default) ---- */
           <div className="flex items-end">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
-                if (enhancedContext || enhancementInfo) clearEnhancement();
-              }}
-              onSelect={(e) => {
-                const textarea = e.target as HTMLTextAreaElement;
-                updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onBlur={() => syncRewardSuggestion()}
-              autoFocus
-              placeholder={getPlaceholder()}
-              rows={1}
-              className="flex-1 resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
-              style={{ minHeight: "36px", maxHeight: "192px" }}
-            />
+            <div className="relative flex-1">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
+                  if (enhancedContext || enhancementInfo) clearEnhancement();
+                }}
+                onSelect={(e) => {
+                  const textarea = e.target as HTMLTextAreaElement;
+                  updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                onBlur={() => syncRewardSuggestion()}
+                onScroll={() => {
+                  if (ghostScrollRef.current && inputRef.current) {
+                    ghostScrollRef.current.scrollTop = inputRef.current.scrollTop;
+                  }
+                }}
+                autoFocus
+                placeholder={getPlaceholder()}
+                rows={1}
+                className="w-full resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
+                style={{ minHeight: "36px", maxHeight: "192px" }}
+              />
+              {/* Ghost text overlay for reward suggestion */}
+              {rewardGhostText && inputValue.trim() && (
+                <div
+                  ref={ghostScrollRef}
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 overflow-hidden p-4 text-sm font-mono whitespace-pre-wrap break-words"
+                  style={{ minHeight: "36px", maxHeight: "192px" }}
+                >
+                  {/* Invisible mirror of real text to position ghost suffix */}
+                  <span className="invisible">{inputValue}</span>
+                  <span className="text-terminal-muted/50 select-none">{`\n${rewardGhostText}`}</span>
+                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 text-[10px] text-terminal-muted/40 bg-terminal-muted/8 border border-terminal-muted/15 rounded select-none font-sans align-middle">Tab ↵</span>
+                </div>
+              )}
+            </div>
 
             <ComposerActionBar
               isOperationRunning={isOperationRunning}

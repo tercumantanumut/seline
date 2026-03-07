@@ -405,6 +405,24 @@ export async function extractContent(
             toolName: part.toolName,
             output: toModelToolResultOutput(normalizedOutput),
           });
+
+          // For image/video generation tools, add a natural language reference so AI can use the URLs
+          const toolCallOutput = rawOutput as { images?: Array<{ url: string }>; videos?: Array<{ url: string }> } | null;
+          if (toolCallOutput?.images && toolCallOutput.images.length > 0) {
+            const urlList = toolCallOutput.images.map((img, idx) => `  ${idx + 1}. ${img.url}`).join("\n");
+            console.log(`[EXTRACT] Adding generated image URLs to context (tool-call path): ${urlList}`);
+            contentParts.push({
+              type: "text",
+              text: `Previously generated ${toolCallOutput.images.length} image(s) using ${part.toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW image generation, call the tool.`,
+            });
+          } else if (toolCallOutput?.videos && toolCallOutput.videos.length > 0) {
+            const urlList = toolCallOutput.videos.map((vid, idx) => `  ${idx + 1}. ${vid.url}`).join("\n");
+            console.log(`[EXTRACT] Adding generated video URLs to context (tool-call path): ${urlList}`);
+            contentParts.push({
+              type: "text",
+              text: `Previously generated ${toolCallOutput.videos.length} video(s) using ${part.toolName}:\n${urlList}\nUse these URLs for EDITING requests. For NEW video generation, call the tool.`,
+            });
+          }
         }
       } else if (part.type === "tool-result" && part.toolCallId && part.toolName) {
         const normalizedInput = normalizeToolCallInput(part.input, part.toolName, part.toolCallId) ?? {};

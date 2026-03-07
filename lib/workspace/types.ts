@@ -158,7 +158,8 @@ export type WorkspaceAction =
   | "revert"
   | "commit"
   | "push"
-  | "push-and-create-pr";
+  | "push-and-create-pr"
+  | "push-base-branch";
 /**
  * Helper to extract WorkspaceInfo from session metadata.
  */

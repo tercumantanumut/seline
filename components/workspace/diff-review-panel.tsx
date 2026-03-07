@@ -70,6 +70,7 @@ interface WorkspaceActionResponse {
   authCheckCommand?: string;
   partialSuccess?: boolean;
   pushed?: boolean;
+  baseBranch?: string;
 }
 
 function getActionErrorMessage(
@@ -269,6 +270,7 @@ export function DiffReviewPanel({
   const showCreatePrOnly = !hasOpenPr && commitsAhead === 0 && canCreatePr;
   const needsGhAuth = authResolution?.errorCode === "GH_AUTH_REQUIRED";
   const needsGhInstall = authResolution?.errorCode === "GH_NOT_INSTALLED";
+  const needsBaseBranchPush = authResolution?.errorCode === "BASE_BRANCH_NOT_ON_REMOTE";
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -552,6 +554,27 @@ export function DiffReviewPanel({
       toast.error(t("auth.openDocsFailed"));
     }
   }, [authResolution?.docsUrl, authResolution?.installUrl, t]);
+
+  const [isPushingBaseBranch, setIsPushingBaseBranch] = useState(false);
+
+  const handlePushBaseBranch = useCallback(async () => {
+    setIsPushingBaseBranch(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push-base-branch" });
+      if (!result.ok) {
+        toast.error(result.errorMessage || t("auth.pushBaseBranchFailed"));
+        return;
+      }
+      toast.success(t("auth.baseBranchPushed"));
+      setAuthResolution(null);
+      // Retry PR creation now that the base branch is on remote
+      await handlePushAndCreatePr();
+    } catch {
+      toast.error(t("auth.pushBaseBranchFailed"));
+    } finally {
+      setIsPushingBaseBranch(false);
+    }
+  }, [postWorkspaceAction, handlePushAndCreatePr, t]);
 
   const handleSyncToLocal = useCallback(async () => {
     if (onSyncToLocal) {
@@ -1019,10 +1042,14 @@ export function DiffReviewPanel({
 
               {authResolution && (
                 <div className="border-t border-terminal-border bg-terminal-cream/70 px-4 py-3">
-                  <Alert variant={needsGhAuth || needsGhInstall ? "default" : "destructive"}>
+                  <Alert variant={needsGhAuth || needsGhInstall || needsBaseBranchPush ? "default" : "destructive"}>
                     <AlertCircleIcon className="h-4 w-4" />
                     <AlertTitle>
-                      {needsGhInstall ? t("auth.installTitle") : t("auth.title")}
+                      {needsBaseBranchPush
+                        ? t("auth.baseBranchTitle")
+                        : needsGhInstall
+                          ? t("auth.installTitle")
+                          : t("auth.title")}
                     </AlertTitle>
                     <AlertDescription className="space-y-3">
                       <p>{authResolution.error || authResolution.details || t("createPRFailed")}</p>
@@ -1030,6 +1057,23 @@ export function DiffReviewPanel({
                         <p className="font-mono text-xs opacity-80">{authResolution.details}</p>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
+                        {needsBaseBranchPush && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => void handlePushBaseBranch()}
+                            disabled={isPushingBaseBranch || isCreatingPr}
+                          >
+                            {isPushingBaseBranch ? (
+                              <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <DownloadIcon className="w-3.5 h-3.5 rotate-180" />
+                            )}
+                            {isPushingBaseBranch
+                              ? t("auth.pushingBaseBranch")
+                              : t("auth.pushBaseBranch", { branch: authResolution.baseBranch ?? "" })}
+                          </Button>
+                        )}
                         {authResolution.authCommand && (
                           <Button
                             size="sm"
@@ -1052,19 +1096,21 @@ export function DiffReviewPanel({
                             {needsGhInstall ? t("auth.installGh") : t("auth.openDocs")}
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          className="gap-1.5"
-                          onClick={() => void handlePushAndCreatePr()}
-                          disabled={isCreatingPr}
-                        >
-                          {isCreatingPr ? (
-                            <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <GitPullRequestIcon className="w-3.5 h-3.5" />
-                          )}
-                          {t("auth.retry")}
-                        </Button>
+                        {!needsBaseBranchPush && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => void handlePushAndCreatePr()}
+                            disabled={isCreatingPr}
+                          >
+                            {isCreatingPr ? (
+                              <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <GitPullRequestIcon className="w-3.5 h-3.5" />
+                            )}
+                            {t("auth.retry")}
+                          </Button>
+                        )}
                       </div>
                     </AlertDescription>
                   </Alert>

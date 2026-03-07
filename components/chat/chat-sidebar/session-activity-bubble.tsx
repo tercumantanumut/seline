@@ -433,19 +433,17 @@ export function SessionActivityBubble({
 
       const bubbleWidth = bubbleRef.current?.offsetWidth ?? 0;
       const bubbleHeight = bubbleRef.current?.offsetHeight ?? 0;
-      const chatViewport = document.querySelector("[data-chat-viewport='true']") as HTMLElement | null;
-      const chatRect = chatViewport?.getBoundingClientRect();
 
+      // Position to the right of the session item (into/over the chat area).
+      // The bubble is a small transient notification — slightly overlapping the
+      // chat viewport is acceptable and far better than being pushed back inside
+      // the sidebar where it blocks session items.
       let left = rect.right + 8;
-      if (chatRect && bubbleWidth > 0) {
-        const maxLeftBeforeChat = chatRect.left - bubbleWidth - 16;
-        if (left > maxLeftBeforeChat) {
-          left = rect.left - bubbleWidth - 12;
-        }
-        left = Math.min(left, maxLeftBeforeChat);
-      }
 
-      left = Math.max(12, Math.min(left, window.innerWidth - bubbleWidth - 12));
+      // Only clamp to keep the bubble on-screen to the right
+      left = Math.min(left, window.innerWidth - Math.max(bubbleWidth, 28) - 12);
+      // Never push back inside the sidebar
+      left = Math.max(left, rect.right + 4);
 
       let top = rect.top + rect.height / 2 - Math.max(14, bubbleHeight / 2);
       top = Math.max(12, Math.min(top, window.innerHeight - Math.max(bubbleHeight, 28) - 12));

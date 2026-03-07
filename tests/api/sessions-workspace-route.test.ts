@@ -278,6 +278,7 @@ describe("/api/sessions/[id]/workspace route", () => {
     childProcessMocks.execFileAsync
       .mockResolvedValueOnce({ stdout: "gh version 2.0.0\n", stderr: "" })
       .mockResolvedValueOnce({ stdout: "Logged in\n", stderr: "" })
+      .mockResolvedValueOnce({ stdout: "abc123\trefs/heads/main\n", stderr: "" }) // git ls-remote --heads origin main
       .mockResolvedValueOnce({ stdout: JSON.stringify([]), stderr: "" });
 
     await POST(
@@ -330,6 +331,7 @@ describe("/api/sessions/[id]/workspace route", () => {
     childProcessMocks.execFileAsync
       .mockResolvedValueOnce({ stdout: "gh version 2.0.0\n", stderr: "" })
       .mockResolvedValueOnce({ stdout: "Logged in\n", stderr: "" })
+      .mockResolvedValueOnce({ stdout: "abc123\trefs/heads/main\n", stderr: "" }) // git ls-remote --heads origin main
       .mockResolvedValueOnce({
         stdout: JSON.stringify([
           { number: 17, url: "https://github.com/acme/repo/pull/17", isDraft: true, state: "OPEN" },
