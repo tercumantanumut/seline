@@ -901,7 +901,7 @@ export default function ChatInterface({
 
     const handlePostCancel = useCallback(() => {
         if (!sessionId) return;
-        void reloadSessionMessages(sessionId, { force: true });
+        void reloadSessionMessages(sessionId, { force: true }).catch(() => {});
     }, [sessionId, reloadSessionMessages]);
 
     const handleForegroundRunFinished = useCallback(() => {

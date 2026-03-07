@@ -13,9 +13,15 @@ interface ToolCallBadgeProps {
 }
 
 const statusStyles: Record<ToolCallBadgeStatus, string> = {
-  running: "bg-terminal-amber/25 text-terminal-amber backdrop-blur-sm",
-  completed: "bg-terminal-green/25 text-terminal-green backdrop-blur-sm",
-  error: "bg-red-100/90 text-red-600 backdrop-blur-sm",
+  running: "bg-background/80 backdrop-blur-md border-terminal-amber/40",
+  completed: "bg-background/80 backdrop-blur-md border-terminal-green/40",
+  error: "bg-background/80 backdrop-blur-md border-red-400/40",
+};
+
+const statusIconStyles: Record<ToolCallBadgeStatus, string> = {
+  running: "text-terminal-amber",
+  completed: "text-terminal-green",
+  error: "text-red-500",
 };
 
 const statusIcons: Record<ToolCallBadgeStatus, FC<{ className?: string }>> = {
@@ -29,11 +35,11 @@ export const ToolCallBadge: FC<ToolCallBadgeProps> = ({ label, status, count }) 
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/20 px-2.5 py-1 text-xs font-mono shadow-sm",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-mono text-foreground shadow-sm",
         statusStyles[status]
       )}
     >
-      <Icon className={cn("size-3 shrink-0", status === "running" && "animate-spin")} />
+      <Icon className={cn("size-3 shrink-0", statusIconStyles[status], status === "running" && "animate-spin")} />
       <span className="whitespace-nowrap">{label}</span>
       {typeof count === "number" && (
         <span className="rounded-full bg-terminal-dark/10 px-1.5 py-0.5 text-[10px] leading-none text-terminal-muted tabular-nums">

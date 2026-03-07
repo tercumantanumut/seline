@@ -132,14 +132,14 @@ function phaseToBadgeStatus(phase: LiveToolPhase): ToolCallBadgeStatus {
 function phaseToAccentClass(phase: LiveToolPhase): string {
   switch (phase) {
     case "error":
-      return "border-red-300 bg-red-50/90 text-red-700 backdrop-blur-sm";
+      return "border-red-400/40 bg-background/80 text-foreground backdrop-blur-md";
     case "completed":
-      return "border-terminal-green/30 bg-terminal-green/20 text-terminal-green backdrop-blur-sm";
+      return "border-terminal-green/40 bg-background/80 text-foreground backdrop-blur-md";
     case "preparing":
-      return "border-terminal-dark/15 bg-terminal-dark/10 text-terminal-muted backdrop-blur-sm";
+      return "border-terminal-dark/20 bg-background/80 text-foreground backdrop-blur-md";
     case "running":
     default:
-      return "border-terminal-amber/30 bg-terminal-amber/20 text-terminal-amber backdrop-blur-sm";
+      return "border-terminal-amber/40 bg-background/80 text-foreground backdrop-blur-md";
   }
 }
 
@@ -259,7 +259,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   const hasCompactReveal = !isDetailedMode && summaryItems.some(
     (item) => item.detail || item.inputPreview || item.outputPreview
   );
-  const showCompactReveal = hasCompactReveal && (isCompactRevealHovered || isCompactRevealPinned);
+  const showCompactReveal = hasCompactReveal && !isExpanded && (isCompactRevealHovered || isCompactRevealPinned);
   const showChildren = isDetailedMode || isExpanded;
 
   useEffect(() => {

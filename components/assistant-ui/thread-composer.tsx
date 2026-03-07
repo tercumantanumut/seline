@@ -788,7 +788,9 @@ export const Composer: FC<{
   const handleCancel = useCallback(() => {
     if (!isOperationRunning || isCancelling) return;
     setIsCancelling(true);
-    if (isRunning) threadRuntime.cancelRun();
+    if (isRunning) {
+      try { threadRuntime.cancelRun(); } catch { /* pre-init abort — no-op */ }
+    }
     if (deepResearch && (isDeepResearchActive || isDeepResearchLoading)) {
       deepResearch.cancelResearch();
     }
