@@ -178,6 +178,15 @@ function areContextStatusesEqual(
   );
 }
 
+function parseSessionSortTimestamp(value: string | null | undefined): number {
+  const timestamp = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getSessionSortTimestamp(session: Pick<SessionSyncData, "lastMessageAt" | "updatedAt">): string {
+  return session.lastMessageAt ?? session.updatedAt;
+}
+
 export const useSessionSyncStore = create<SessionSyncState>((set, get) => ({
   sessionsById: new Map(),
   sessionsByCharacter: new Map(),
@@ -360,7 +369,7 @@ export const useSessionSyncStore = create<SessionSyncState>((set, get) => ({
 
   markSessionUpdated: (sessionId) => {
     const now = new Date().toISOString();
-    get().updateSession(sessionId, { updatedAt: now, lastMessageAt: now });
+    get().updateSession(sessionId, { updatedAt: now });
   },
 
   triggerRefresh: (characterId) => {
@@ -406,10 +415,21 @@ export const useSessionSyncStore = create<SessionSyncState>((set, get) => ({
       if (session) sessions.push(session);
     }
 
-    // Sort by updatedAt descending
-    return sessions.sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    return sessions.sort((a, b) => {
+      const activityDiff =
+        parseSessionSortTimestamp(getSessionSortTimestamp(b)) -
+        parseSessionSortTimestamp(getSessionSortTimestamp(a));
+      if (activityDiff !== 0) {
+        return activityDiff;
+      }
+
+      const updatedDiff = parseSessionSortTimestamp(b.updatedAt) - parseSessionSortTimestamp(a.updatedAt);
+      if (updatedDiff !== 0) {
+        return updatedDiff;
+      }
+
+      return b.id.localeCompare(a.id);
+    });
   },
 
   hasActiveRun: (sessionId) => get().activeRuns.has(sessionId),

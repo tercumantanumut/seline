@@ -1,13 +1,43 @@
 import type { UIMessage } from "ai";
 import type { SessionInfo } from "@/components/chat/chat-sidebar/types";
 
+const parseSessionTimestamp = (value: string | null | undefined) => {
+    const timestamp = value ? Date.parse(value) : Number.NaN;
+    return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+export const getSessionActivityTimestamp = (session: Pick<SessionInfo, "lastMessageAt" | "updatedAt">) =>
+    session.lastMessageAt ?? session.updatedAt;
+
+const compareSessionsByActivity = (left: SessionInfo, right: SessionInfo) => {
+    const activityDiff =
+        parseSessionTimestamp(getSessionActivityTimestamp(right)) -
+        parseSessionTimestamp(getSessionActivityTimestamp(left));
+    if (activityDiff !== 0) {
+        return activityDiff;
+    }
+
+    const updatedDiff = parseSessionTimestamp(right.updatedAt) - parseSessionTimestamp(left.updatedAt);
+    if (updatedDiff !== 0) {
+        return updatedDiff;
+    }
+
+    const createdDiff = parseSessionTimestamp(right.createdAt) - parseSessionTimestamp(left.createdAt);
+    if (createdDiff !== 0) {
+        return createdDiff;
+    }
+
+    return right.id.localeCompare(left.id);
+};
+
 export const sortSessionsByUpdatedAt = (sessions: SessionInfo[]) =>
-    [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    [...sessions].sort(compareSessionsByActivity);
 
 export const getSessionSignature = (session: SessionInfo) =>
     [
         session.id,
         session.updatedAt,
+        session.lastMessageAt ?? "",
         session.title ?? "",
         session.metadata?.channelType ?? "",
         session.metadata?.channelPeerId ?? "",
