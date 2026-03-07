@@ -1,5 +1,4 @@
 import { DEFAULT_WHISPER_MODEL } from "@/lib/config/whisper-models";
-
 export interface AppSettings {
   llmProvider: "anthropic" | "openrouter" | "antigravity" | "codex" | "kimi" | "minimax" | "ollama" | "claudecode";
   anthropicApiKey?: string;
@@ -22,6 +21,7 @@ export interface AppSettings {
   utilityModel?: string;
   embeddingReindexRequired?: boolean;
   theme: "dark" | "light" | "system";
+  toolDisplayMode?: "compact" | "detailed";
   localUserId: string;
   localUserEmail: string;
   promptCachingEnabled?: boolean;
@@ -95,6 +95,7 @@ export interface FormState {
   openrouterArgs: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
+  toolDisplayMode: "compact" | "detailed";
   postEditHooksPreset: "off" | "fast" | "strict";
   postEditHooksEnabled: boolean;
   postEditTypecheckEnabled: boolean;
@@ -147,6 +148,8 @@ export interface FormState {
   comfyuiCustomBaseUrl: string;
   // 3D Avatar settings
   avatar3dEnabled: boolean;
+  // Emotion Detection (Seline Fun)
+  emotionDetectionEnabled: boolean;
   // EverMemOS shared memory settings
   everMemOSEnabled: boolean;
   everMemOSServerUrl: string;
@@ -207,6 +210,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   openrouterArgs: "{}",
   theme: "dark",
   toolLoadingMode: "deferred",
+  toolDisplayMode: "compact",
   postEditHooksPreset: "off",
   postEditHooksEnabled: false,
   postEditTypecheckEnabled: false,
@@ -254,6 +258,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   comfyuiCustomAutoDetect: true,
   comfyuiCustomBaseUrl: "",
   avatar3dEnabled: false,
+  emotionDetectionEnabled: false,
   everMemOSEnabled: false,
   everMemOSServerUrl: "",
   ttsEnabled: true,
@@ -314,6 +319,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     openrouterArgs: data.openrouterArgs || "{}",
     theme: data.theme || "dark",
     toolLoadingMode: data.toolLoadingMode || "deferred",
+    toolDisplayMode: data.toolDisplayMode === "detailed" ? "detailed" : "compact",
     postEditHooksPreset: data.postEditHooksPreset ?? "off",
     postEditHooksEnabled: data.postEditHooksEnabled ?? false,
     postEditTypecheckEnabled: data.postEditTypecheckEnabled ?? false,
@@ -361,6 +367,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     comfyuiCustomAutoDetect: data.comfyuiCustomAutoDetect ?? true,
     comfyuiCustomBaseUrl: data.comfyuiCustomBaseUrl ?? "",
     avatar3dEnabled: data.avatar3dEnabled ?? false,
+    emotionDetectionEnabled: data.emotionDetectionEnabled ?? false,
     everMemOSEnabled: data.everMemOSEnabled ?? false,
     everMemOSServerUrl: data.everMemOSServerUrl ?? "",
     ttsEnabled: data.ttsEnabled ?? true,

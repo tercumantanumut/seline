@@ -17,6 +17,7 @@ import { useOptionalDeepResearch } from "./deep-research-context";
 import { BrowserActiveProvider } from "./browser-active-context";
 import { ToolExpansionProvider } from "./tool-expansion-context";
 import { ExpandAllToolsButton } from "./expand-all-tools-button";
+import { ToolDisplayProvider, type ToolDisplayMode } from "./tool-display-context";
 import { useContextStatus } from "@/lib/hooks/use-context-status";
 import { useSessionHasActiveRun } from "@/lib/stores/session-sync-store";
 import {
@@ -57,6 +58,7 @@ interface ThreadProps {
   isZombieBackgroundRun?: boolean;
   onLivePromptInjected?: () => void | Promise<void | boolean>;
   onPostCancel?: () => void;
+  isWorkspaceContext?: boolean;
 }
 
 export const Thread: FC<ThreadProps> = ({
@@ -91,6 +93,8 @@ export const Thread: FC<ThreadProps> = ({
     voiceActivationMode: "tap",
     voiceHotkey: "CommandOrControl+Shift+Space",
   });
+  const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>("compact");
+  const [devWorkspaceEnabled, setDevWorkspaceEnabled] = useState(false);
 
   // Browser backdrop active — when true, make backgrounds transparent
   const [isBrowserActive, setIsBrowserActive] = useState(false);
@@ -108,6 +112,8 @@ export const Thread: FC<ThreadProps> = ({
         voiceAudioCues?: boolean;
         voiceActivationMode?: "tap" | "push";
         voiceHotkey?: string;
+        toolDisplayMode?: ToolDisplayMode;
+        devWorkspaceEnabled?: boolean;
       }>("/api/settings", {
         timeout: 10_000,
         retries: 0,
@@ -129,6 +135,8 @@ export const Thread: FC<ThreadProps> = ({
             ? data.voiceHotkey.trim()
             : "CommandOrControl+Shift+Space",
       });
+      setToolDisplayMode(data.toolDisplayMode === "detailed" ? "detailed" : "compact");
+      setDevWorkspaceEnabled(data.devWorkspaceEnabled === true);
     };
 
     void loadVoiceSettings();
@@ -221,6 +229,7 @@ export const Thread: FC<ThreadProps> = ({
         onDrop={handleDrop}
       >
         <ToolExpansionProvider>
+        <ToolDisplayProvider displayMode={toolDisplayMode} devWorkspaceEnabled={devWorkspaceEnabled}>
         <BrowserActiveProvider isBrowserActive={isBrowserActive} activeSessionId={sessionId}>
         {/* Live browser video backdrop — auto-detects active screencast */}
         <BrowserBackdrop sessionId={sessionId} onActiveChange={setIsBrowserActive} />
@@ -380,6 +389,7 @@ export const Thread: FC<ThreadProps> = ({
           </div>
         </GalleryWrapper>
         </BrowserActiveProvider>
+        </ToolDisplayProvider>
         </ToolExpansionProvider>
       </ThreadPrimitive.Root>
     </TooltipProvider>

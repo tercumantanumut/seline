@@ -64,6 +64,7 @@ describe("mcpToolToMetadata", () => {
             const preference: MCPToolLoadingPreference = {
                 enabled: true,
                 loadingMode: "deferred",
+                displayMode: "compact",
             };
 
             const metadata = mcpToolToMetadata(tool, preference);
@@ -77,6 +78,7 @@ describe("mcpToolToMetadata", () => {
             const preference: MCPToolLoadingPreference = {
                 enabled: false,
                 loadingMode: "always",
+                displayMode: "compact",
             };
 
             // Note: mcpToolToMetadata doesn't filter - that happens in loadMCPToolsForCharacter

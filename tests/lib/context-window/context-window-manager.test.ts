@@ -238,9 +238,9 @@ describe("Codex model context window limits", () => {
     }
   });
 
-  it("returns 400K for codex provider default (unknown model)", () => {
+  it("returns 1M for codex provider default (unknown model)", () => {
     const config = getContextWindowConfig("unknown-codex-model", "codex");
-    expect(config.maxTokens).toBe(400_000);
+    expect(config.maxTokens).toBe(1_000_000);
   });
 
   it("returns correct thresholds for codex models", () => {

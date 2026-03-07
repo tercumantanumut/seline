@@ -71,7 +71,7 @@ export function ModelBagGrid({
       {models.length > 0 && (
         <div
           className={cn(
-            "grid gap-2 overflow-y-auto rounded-lg border border-terminal-border bg-terminal-dark/5 p-3",
+            "grid gap-2 overflow-y-auto rounded-lg border border-terminal-border/50 p-3",
             "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5",
             "max-h-[360px]",
           )}

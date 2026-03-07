@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { convertDBMessagesToUIMessages } from "@/lib/messages/converter";
@@ -68,30 +66,9 @@ describe("converter internal tool history guard", () => {
     expect(assistantToolParts.length).toBeGreaterThan(0);
   });
 
-  it("replays exported fixture without leaking internal fallback text into assistant UI", () => {
-    const fixturePath = path.join(
-      process.cwd(),
-      "docs/dev/auth-and-vector-engine-audit-162c03ba.json"
-    );
-    const raw = fs.readFileSync(fixturePath, "utf8");
-    const fixture = JSON.parse(raw) as { messages: unknown[] };
-
-    const uiMessages = convertDBMessagesToUIMessages(
-      (fixture.messages ?? []) as any
-    );
-
-    const assistant = uiMessages.find((msg) => msg.role === "assistant");
-    expect(assistant).toBeTruthy();
-
-    const assistantTextParts = (assistant?.parts ?? []).filter(
-      (part): part is { type: "text"; text: string } =>
-        part.type === "text" && typeof (part as { text?: unknown }).text === "string"
-    );
-    expect(assistantTextParts.some((part) => isInternalToolHistoryLeakText(part.text))).toBe(false);
-    expect(
-      assistantTextParts.some((part) => part.text.includes("[Previous tool result; call_id="))
-    ).toBe(false);
-  });
+  // Fixture-based test removed: docs/dev/auth-and-vector-engine-audit-162c03ba.json
+  // was cleaned up in repo cleanup (6b474e5). The inline test above covers the
+  // same converter guard logic without depending on an external fixture file.
 
   it("keeps assistant messages as empty placeholders when all parts are sanitized", () => {
     const now = new Date().toISOString();

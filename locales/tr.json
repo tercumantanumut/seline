@@ -121,31 +121,9 @@
       "back": "Geri",
       "continue": "Devam"
     },
-    "personalization": {
-      "title": "Deneyiminizi Kişiselleştirin",
-      "subtitle": "Ajanların tercihlerinizi anlamasına yardımcı olun (isteğe bağlı)",
-      "categories": {
-        "visual_preferences": {
-          "title": "Görsel Tercihler"
-        },
-        "communication_style": {
-          "title": "İletişim Tarzı"
-        },
-        "workflow_patterns": {
-          "title": "İş Akışı Kalıpları"
-        }
-      },
-      "skip": "Kişiselleştirmeyi geç",
-      "addPlaceholder": "{category} ekle...",
-      "add": "Ekle",
-      "exampleHint": "Veya bir örnek eklemek için tıklayın:",
-      "preferencesCount": "Tercihleriniz ({count}):",
-      "back": "Geri",
-      "continue": "Devam"
-    },
     "features": {
-      "title": "Seline'in Tüm Yetenekleri",
-      "subtitle": "Eksiksiz bir AI platformu — birçok özellik hazır çalışır, diğerleri API anahtarıyla etkinleşir.",
+      "title": "Yolunu Seç",
+      "subtitle": "Bir başlangıç noktası seç — istediğin zaman Ayarlar'dan değiştir.",
       "legend": {
         "ready": "Hazır çalışır",
         "configurable": "Ayarlardan yapılandır"
@@ -211,7 +189,47 @@
         "toolSearch": "Araç Keşfi"
       },
       "back": "Geri",
-      "continue": "Devam"
+      "continue": "Devam",
+      "startChatting": "Sohbete Basla"
+    },
+    "pathSelection": {
+      "label": "YOLUNU_SEC",
+      "title": "Yolunu Sec",
+      "subtitle": "Her yol farkli yetenekleri acar. Ayarlar'dan istedigin zaman degistirebilirsin.",
+      "dev": {
+        "title": "Seline Dev",
+        "tagline": "Yapay zeka es programcisiyla kod yaz"
+      },
+      "fun": {
+        "title": "Seline Fun",
+        "tagline": "Kisilikli yapay zeka arkadaslari"
+      },
+      "work": {
+        "title": "Seline Work",
+        "tagline": "Organizasyonuz icin takim ajanlari",
+        "comingSoon": "Yakinda"
+      },
+      "config": {
+        "devWorkspace": "Git calisma alani izolasyonu",
+        "devWorkspaceDesc": "Izole worktree'lerle paralel gelistirme",
+        "browserAutomation": "Dahili Chromium tarayici",
+        "browserAutomationDesc": "Ajan sayfalarda gezer, tiklar, konsol loglarini okur",
+        "sttProvider": "Konusmadan metne",
+        "sttLocal": "Yerel (Whisper.cpp)",
+        "sttCloud": "Bulut (OpenAI)",
+        "sttParakeet": "Parakeet",
+        "ttsProvider": "Metinden konusmaya",
+        "ttsEdge": "Edge TTS (ucretsiz)",
+        "ttsOpenai": "OpenAI TTS",
+        "ttsElevenlabs": "ElevenLabs",
+        "avatar3d": "3D animasyonlu avatar",
+        "avatar3dDesc": "Ajanla konusan dudak senkronize yuz",
+        "emotionDetection": "Duygu algilama",
+        "emotionDetectionDesc": "Avatar sohbet ruh haline gore tepki verir",
+        "telegramToken": "Telegram bot tokeni",
+        "telegramTokenPlaceholder": "@BotFather tokenini yapistir...",
+        "telegramTokenHint": "Istege bagli"
+      }
     },
     "complete": {
       "title": "Her şey hazır!",
@@ -357,6 +375,8 @@
     "create": "Yeni Ajan Oluştur",
     "createDescription": "Kendi AI ajanınızı yapılandırın",
     "continue": "Devam",
+    "resumeChat": "Devam Et",
+    "startChat": "Sohbet",
     "startNew": "Yeni sohbet başlat",
     "edit": "Düzenle",
     "delete": "Sil",
@@ -377,7 +397,8 @@
       "plugins": "Eklentiler",
       "dashboard": "Kontrol Paneli",
       "duplicate": "Çoğalt",
-      "delete": "Sil"
+      "delete": "Sil",
+      "avatar3d": "3D Avatar"
     },
     "mcpToolsTitle": "MCP Araçlarını Yapılandır",
     "plugins": {
@@ -798,8 +819,8 @@
   },
   "avatar": {
     "dialog": {
-      "title": "{name} için Avatar",
-      "subtitle": "Mevcut bir görsel seçin veya yeni bir avatar yükleyin"
+      "title": "{name} Profil Resmi",
+      "subtitle": "Mevcut bir görsel seçin veya yeni bir tane yükleyin"
     },
     "error": {
       "fetch": "Görseller getirilemedi",
@@ -812,11 +833,11 @@
     },
     "empty": "Henüz görsel yok. Aşağıdan yükleyin.",
     "actions": {
-      "upload": "Yeni Avatar Yükle",
+      "upload": "Görsel Yükle",
       "uploading": "Yükleniyor..."
     },
     "delete": "Sil",
-    "setAsPrimary": "{name} için birincil avatar olarak ayarla",
+    "setAsPrimary": "{name} için birincil olarak ayarla",
     "note": "PNG, JPEG veya WebP · En fazla 10MB"
   },
   "documents": {
@@ -879,7 +900,14 @@
       "removePastedText": "Yapıştırılan metni kaldır",
       "textPasted": "Büyük metin alındı ({lines} satır)",
       "editorEnable": "Zengin editor",
-      "editorDisable": "Basit mod"
+      "editorDisable": "Basit mod",
+      "rewardSuggestion": "Tamamlandığında: +{amount} · {reason}",
+      "rewardBands": {
+        "small": "Hızlı iş",
+        "medium": "Odaklı iş",
+        "large": "Geniş kapsam",
+        "epic": "Destansı kapsam"
+      }
     },
     "queue": {
       "messagesQueued": "{count} mesaj sırada",
@@ -1250,7 +1278,28 @@
       "cancel": "İptal",
       "discarding": "İptal ediliyor...",
       "discardChanges": "Değişiklikleri İptal Et",
-      "fetchFailed": "Çalışma alanı durumu alınamadı"
+      "fetchFailed": "Çalışma alanı durumu alınamadı",
+      "pushFailed": "Dal push edilemedi",
+      "pushSuccess": "Dal başarıyla push edildi",
+      "pushing": "Push ediliyor...",
+      "createPRFailed": "PR oluşturulamadı",
+      "createPRSuccess": "PR hazır",
+      "creatingPR": "PR oluşturuluyor...",
+      "pushAndCreatePR": "Push & PR Oluştur ({count})",
+      "pushOnly": "Push ({count})",
+      "viewPR": "PR #{number} Görüntüle",
+      "auth": {
+        "title": "GitHub kimlik doğrulaması gerekli",
+        "installTitle": "GitHub CLI gerekli",
+        "copyCommand": "Giriş komutunu kopyala",
+        "openDocs": "Auth dokümanını aç",
+        "installGh": "GitHub CLI kur",
+        "retry": "PR oluşturmayı tekrar dene",
+        "copySuccess": "Giriş komutu kopyalandı",
+        "copyFailed": "Giriş komutu kopyalanamadı",
+        "openDocsFailed": "GitHub dokümanı açılamadı",
+        "partialSuccess": "Branch push edildi. PR açmak için hâlâ GitHub kimlik doğrulaması gerekiyor."
+      }
     },
     "dashboard": {
       "activeWorkspaces": "Aktif Çalışma Alanları",
@@ -1270,7 +1319,12 @@
       "hoursAgo": "{n} sa önce",
       "daysAgo": "{n} gün önce",
       "noChanges": "Değişiklik yok",
-      "filesChanged": "{count} dosya değişti"
+      "filesChanged": "{count} dosya değişti",
+      "confirmCleanupTitle": "Çalışma alanını sil?",
+      "confirmCleanupDesc": "\"{branch}\" dalında kaydedilmemiş değişiklikler olabilir ve kalıcı olarak silinecektir.",
+      "confirmCancel": "İptal",
+      "confirmRemove": "Sil",
+      "cleanAll": "{count} tanesini temizle"
     },
     "onboarding": {
       "step1": {
@@ -1304,6 +1358,7 @@
       "cleanupWorkspace": "Çalışma Alanını Temizle",
       "cleanupTitle": "Çalışma Alanını Temizle",
       "cleanupDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri atacaktır. Bu işlem geri alınamaz.",
+      "cleanupDescriptionLocal": "Bu işlem bu oturum için <strong>{branch}</strong> dalındaki Git Modu'nu kapatır. Depo ve dosyalarınız yerinde kalır.",
       "cancel": "İptal",
       "cleaningUp": "Temizleniyor...",
       "cleanup": "Temizle"
@@ -2158,6 +2213,14 @@
         "always": "Her Zaman Dahil Et",
         "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
       },
+      "toolDisplay": {
+        "label": "Araç kartlarının görünümü",
+        "compact": "Kompakt kartlar",
+        "compactHelper": "Minimal görünümü korur; detaylar hover veya dokunma ile açılır.",
+        "detailed": "Detaylı canlı durum",
+        "detailedHelper": "Parametreleri, ilerlemeyi ve çıktı önizlemesini RPG tarzı canlı satırlarda gösterir.",
+        "devWorkspaceOverride": "Geliştirici çalışma alanı etkin olduğunda, çalışma alanı bağlamlarında araç kartları detaylı modda kalır."
+      },
       "postEditHooks": {
         "heading": "Düzenleme sonrası kontroller",
         "description": "AI değişikliklerinden sonra hangi kontrollerin otomatik çalışacağını seçin.",
@@ -2227,13 +2290,6 @@
         "cleanupDaysLabel": "Sonra temizle (gün)",
         "recommendedServers": "Önerilen araç sunucuları:",
         "recommendedServersDesc": "Çalışma ağacı yönetimi için <worktreeTools/> veya pull request iş akışları için <githubMcp/> yükleyin. Araç sunucuları (MCP) bölümünden yapılandırın."
-      }
-    },
-    "memory": {
-      "categoryLabels": {
-        "visual_preferences": "Görsel stil",
-        "communication_style": "İletişim tarzı",
-        "workflow_patterns": "Çalışma alışkanlıkları"
       }
     },
     "voice": {
@@ -2406,14 +2462,6 @@
       "title": "Kurulum",
       "description": "Ayarlarınızı yeniden yapılandırmak için kurulum sihirbazını tekrar çalıştırın",
       "cta": "Kurulum Sihirbazını Tekrar Çalıştır"
-    },
-    "memoryDefaults": {
-      "title": "Genel Hafıza Varsayılanları",
-      "description": "Tüm ajanlara uygulanacak varsayılan tercihleri belirleyin. Bu hafızalar ajanların tercihlerinizi anlamasına yardımcı olur.",
-      "addNew": "Yeni bir tercih ekle",
-      "placeholder": "ör. \"Kod örneklerinde her zaman TypeScript kullan\"",
-      "add": "Ekle",
-      "empty": "Genel hafıza varsayılanı yok. Ajanlarınızı kişiselleştirmek için tercih ekleyin."
     },
     "mcp": {
       "configWarning": "Yapılandırma Uyarısı",
@@ -2782,7 +2830,7 @@
       "goHome": "Ana sayfaya dön"
     },
     "sidebar": {
-      "changeAvatar": "Avatarı değiştirmek için tıklayın",
+      "changeAvatar": "Profil resmini değiştir",
       "history": "Sohbet Geçmişi",
       "agentMemory": "Ajan Hafızası",
       "schedules": "Zamanlanmış Görevler",
@@ -3295,24 +3343,6 @@
   "skills": {
     "title": "Yetenekler",
     "pageDescription": "{name} icin tekrar kullanilabilir yetenek recetelerini yonetin.",
-    "library": {
-      "title": "Çapraz Ajan Beceri Kütüphanesi",
-      "searchPlaceholder": "Beceri ara",
-      "allCategories": "Tüm kategoriler",
-      "applyFilters": "Filtreleri Uygula",
-      "noMatch": "Mevcut filtrelerinizle eşleşen beceri bulunamadı.",
-      "noDescription": "Açıklama yok",
-      "category": "Kategori",
-      "categoryGeneral": "genel",
-      "runs": "Çalışma",
-      "success": "Başarı",
-      "updated": "Güncellendi",
-      "selectAgent": "Hedef ajan seçin",
-      "copy": "Kopyala",
-      "open": "Aç",
-      "copySuccess": "Beceri başarıyla kopyalandı.",
-      "copyFailed": "Beceri kopyalanamadı"
-    },
     "library": "Kutuphane",
     "importPackage": "Paket İçe Aktar",
     "hideImport": "İçe Aktarmayı Gizle",
@@ -3898,5 +3928,32 @@
   },
   "dev": {
     "dimensionMismatch": "Gömme boyutu uyuşmazlığı. Düzeltmek için Ayarlar'da klasörlerinizi yeniden senkronize edin."
+  },
+  "avatar3dModels": {
+    "dialog": {
+      "title": "{name} için 3D Avatar",
+      "subtitle": "Hazır bir model seçin veya özel Ready Player Me GLB yükleyin"
+    },
+    "presets": {
+      "default": "Varsayılan",
+      "brunette": "Esmer",
+      "aria": "Aria",
+      "kai": "Kai",
+      "marcus": "Marcus",
+      "playerzero": "Player Zero"
+    },
+    "custom": {
+      "upload": "Özel GLB yükle",
+      "uploading": "Yükleniyor...",
+      "current": "Özel model",
+      "remove": "Kaldır"
+    },
+    "selected": "Tamam",
+    "error": {
+      "tooLarge": "Maksimum 20MB",
+      "invalidType": "Sadece .glb dosyaları",
+      "upload": "Yükleme başarısız",
+      "save": "Kaydetme başarısız"
+    }
   }
 }

@@ -48,6 +48,7 @@ export function useBackgroundProcessing({
     const [isZombieRun, setIsZombieRun] = useState(false);
     const [isCancellingBackgroundRun, setIsCancellingBackgroundRun] = useState(false);
     const lastMessageSigRef = useRef<string>("");
+    const isRunActiveRef = useRef(false);
 
     const refreshMessages = useCallback(async () => {
         if (shouldSkipBackgroundRefresh?.()) {
@@ -80,6 +81,31 @@ export function useBackgroundProcessing({
             })
             .join("|");
         if (sig === lastMessageSigRef.current) return;
+
+        // If a background run is active and the message set includes a live-prompt-
+        // injected user message, skip pushing to the thread. This prevents the
+        // injected message from appearing mid-run (matching foreground behavior
+        // where shouldSkipBackgroundRefresh blocks all updates). The sig is
+        // intentionally NOT updated so the final refresh (after the run completes)
+        // sees a changed sig and processes normally.
+        if (isRunActiveRef.current) {
+            const hasInjectedMessage = data.messages.some((m: any) => {
+                try {
+                    const meta = typeof m.metadata === "string" ? JSON.parse(m.metadata) : m.metadata;
+                    return meta?.livePromptInjected === true;
+                } catch {
+                    return false;
+                }
+            });
+            if (hasInjectedMessage) {
+                const conversationMessageCount = data.messages.filter(
+                    (m: any) => m.role === "user" || m.role === "assistant"
+                ).length;
+                notifySessionUpdate(sessionId, { messageCount: conversationMessageCount });
+                return;
+            }
+        }
+
         lastMessageSigRef.current = sig;
 
         const uiMessages = convertDBMessagesToUIMessages(data.messages);
@@ -109,6 +135,7 @@ export function useBackgroundProcessing({
     useEffect(() => { refreshMessagesRef.current = refreshMessages; }, [refreshMessages]);
 
     const startPollingForCompletion = useCallback((runId: string) => {
+        isRunActiveRef.current = true;
         if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
         }
@@ -146,6 +173,7 @@ export function useBackgroundProcessing({
                 setIsProcessingInBackground(false);
                 setProcessingRunId(null);
                 setIsZombieRun(false);
+                isRunActiveRef.current = false;
                 await refreshMessagesRef.current();
             } catch (error) {
                 console.error("[Background Processing] Polling error:", error);
@@ -162,6 +190,14 @@ export function useBackgroundProcessing({
             }
         };
     }, []);
+
+    // Safety net: reset isRunActiveRef when background processing ends
+    // (covers session switches via clearBackgroundState)
+    useEffect(() => {
+        if (!isProcessingInBackground) {
+            isRunActiveRef.current = false;
+        }
+    }, [isProcessingInBackground]);
 
     const handleCancelBackgroundRun = useCallback(async () => {
         const runId = processingRunId;
@@ -186,6 +222,7 @@ export function useBackgroundProcessing({
             setIsProcessingInBackground(false);
             setProcessingRunId(null);
             setIsZombieRun(false);
+            isRunActiveRef.current = false;
             await refreshMessages();
         } catch (err) {
             console.error("Failed to cancel background run:", err);
@@ -272,15 +309,22 @@ export function useSessionManager({
         }
     }, [sessions, character.id, setSyncSessions]);
 
-    const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
+    const refreshSessionTimestamp = useCallback((
+        targetSessionId: string,
+        options?: { includeActivity?: boolean }
+    ) => {
         const nextUpdatedAt = new Date().toISOString();
-        notifySessionUpdate(targetSessionId, { updatedAt: nextUpdatedAt });
+        const updates = options?.includeActivity
+            ? { updatedAt: nextUpdatedAt, lastMessageAt: nextUpdatedAt }
+            : { updatedAt: nextUpdatedAt };
+
+        notifySessionUpdate(targetSessionId, updates);
         setSessions((prev) => {
             let updated = false;
             const next = prev.map((session) => {
                 if (session.id !== targetSessionId) return session;
                 updated = true;
-                return { ...session, updatedAt: nextUpdatedAt };
+                return { ...session, ...updates };
             });
             if (!updated) return prev;
             return sortSessionsByUpdatedAt(next);

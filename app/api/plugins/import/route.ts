@@ -32,7 +32,7 @@ interface InheritedAgentConfig {
   enabledPlugins?: string[];
   enabledMcpServers?: string[];
   enabledMcpTools?: string[];
-  mcpToolPreferences?: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>;
+  mcpToolPreferences?: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>;
   workflowSandboxPolicy?: {
     allowSharedFolders?: boolean;
     allowSharedMcp?: boolean;

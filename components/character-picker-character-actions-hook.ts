@@ -39,12 +39,16 @@ export function useCharacterActions(
   // MCP tools editor state
   const [mcpToolEditorOpen, setMcpToolEditorOpen] = useState(false);
   const [mcpEditingCharacter, setMcpEditingCharacter] = useState<CharacterSummary | null>(null);
-  const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>>({});
+  const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>>({});
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpTools, setMcpTools] = useState<string[]>([]);
   const [mcpRemovalWarningOpen, setMcpRemovalWarningOpen] = useState(false);
   const [mcpToolsBeingRemoved, setMcpToolsBeingRemoved] = useState<string[]>([]);
   const [isSavingMcp, setIsSavingMcp] = useState(false);
+
+  // 3D Avatar selector state
+  const [avatar3dSelectorOpen, setAvatar3dSelectorOpen] = useState(false);
+  const [avatar3dSelectorCharacter, setAvatar3dSelectorCharacter] = useState<CharacterSummary | null>(null);
 
   // Plugin assignment editor state
   const [pluginEditorOpen, setPluginEditorOpen] = useState(false);
@@ -58,6 +62,12 @@ export function useCharacterActions(
   }>>([]);
   const [loadingAgentPlugins, setLoadingAgentPlugins] = useState(false);
   const [savingPluginId, setSavingPluginId] = useState<string | null>(null);
+
+  // 3D Avatar selector actions
+  const openAvatar3dSelector = (character: CharacterSummary) => {
+    setAvatar3dSelectorCharacter(character);
+    setAvatar3dSelectorOpen(true);
+  };
 
   // Identity actions
   const openIdentityEditor = async (character: CharacterSummary) => {
@@ -319,7 +329,7 @@ export function useCharacterActions(
     openMcpToolEditor,
     saveMcpTools,
     performMcpToolSave,
-    onUpdateMcp: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>) => {
+    onUpdateMcp: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>) => {
       setMcpServers(servers);
       setMcpTools(tools);
       setMcpToolPreferences(prefs);
@@ -334,6 +344,12 @@ export function useCharacterActions(
     savingPluginId,
     openPluginEditor,
     toggleAgentPlugin,
+
+    // 3D Avatar selector
+    avatar3dSelectorOpen,
+    setAvatar3dSelectorOpen,
+    avatar3dSelectorCharacter,
+    openAvatar3dSelector,
 
     // Duplicate
     isDuplicating,

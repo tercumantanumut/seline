@@ -4,20 +4,20 @@ import { useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { resilientPost } from "@/lib/utils/resilient-fetch";
+import { resilientPost, resilientFetch } from "@/lib/utils/resilient-fetch";
 import { Shell } from "@/components/layout/shell";
 import {
     WelcomeStep,
     ProviderStep,
     AuthStep,
     FeaturesStep,
-    CompleteStep,
 } from "./steps";
-import { Sparkles, Key, Layers, CheckCircle2 } from "lucide-react";
+import { Sparkles, Key, Layers } from "lucide-react";
 
 import type { LLMProvider } from "./steps/provider-step";
+import type { SelinePath, PathConfigState } from "./steps/path-selector";
 
-type OnboardingStep = "welcome" | "provider" | "auth" | "features" | "complete";
+type OnboardingStep = "welcome" | "provider" | "auth" | "features";
 
 interface OnboardingState {
     llmProvider: LLMProvider;
@@ -30,7 +30,6 @@ const ONBOARDING_STEP_IDS = [
     { id: "provider", icon: <Key className="w-4 h-4" /> },
     { id: "auth", icon: <Key className="w-4 h-4" /> },
     { id: "features", icon: <Layers className="w-4 h-4" /> },
-    { id: "complete", icon: <CheckCircle2 className="w-4 h-4" /> },
 ];
 
 const pageVariants = {
@@ -55,7 +54,6 @@ export function OnboardingWizard() {
         { ...ONBOARDING_STEP_IDS[1], label: t("stepProvider") },
         { ...ONBOARDING_STEP_IDS[2], label: t("stepConnect") },
         { ...ONBOARDING_STEP_IDS[3], label: t("stepFeatures") },
-        { ...ONBOARDING_STEP_IDS[4], label: t("stepReady") },
     ];
     const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
     const [direction, setDirection] = useState(0);
@@ -72,12 +70,28 @@ export function OnboardingWizard() {
         setCurrentStep(step);
     }, []);
 
-    const handleComplete = async () => {
+    const handleComplete = async (pathData?: { path: SelinePath | null; config: PathConfigState }) => {
         try {
-            await resilientPost("/api/onboarding", {
+            const result = await resilientPost("/api/onboarding", {
                 llmProvider: state.llmProvider,
+                selectedPath: pathData?.path,
+                pathConfig: pathData?.config,
             });
-            router.push("/");
+            if (result.error) {
+                console.error("Failed to save onboarding settings:", result.error);
+            }
+
+            // Get default agent and redirect directly to chat
+            const { data } = await resilientFetch<{
+                characters: Array<{ id: string; isDefault: boolean }>;
+            }>("/api/characters");
+            const defaultAgent = data?.characters?.find((c) => c.isDefault);
+
+            if (defaultAgent?.id) {
+                router.push(`/chat/${defaultAgent.id}`);
+            } else {
+                router.push("/");
+            }
         } catch (error) {
             console.error("Failed to complete onboarding:", error);
             router.push("/");
@@ -85,7 +99,7 @@ export function OnboardingWizard() {
     };
 
     const currentStepIndex = ONBOARDING_STEPS.findIndex(s => s.id === currentStep);
-    const showProgress = currentStep !== "welcome" && currentStep !== "complete";
+    const showProgress = currentStep !== "welcome";
 
     return (
         <Shell hideNav>
@@ -94,7 +108,7 @@ export function OnboardingWizard() {
                 {showProgress && (
                     <div className="relative z-40 border-b border-terminal-border bg-terminal-cream/80 backdrop-blur-sm">
                         <div className="flex items-center justify-center gap-2 px-6 py-4">
-                            {ONBOARDING_STEPS.slice(1, -1).map((step, index) => {
+                            {ONBOARDING_STEPS.slice(1).map((step, index) => {
                                 const stepIndex = index + 1;
                                 const isActive = stepIndex === currentStepIndex;
                                 const isCompleted = stepIndex < currentStepIndex;
@@ -112,7 +126,7 @@ export function OnboardingWizard() {
                                             {step.icon}
                                             <span className="hidden sm:inline">{step.label}</span>
                                         </div>
-                                        {index < ONBOARDING_STEPS.slice(1, -1).length - 1 && (
+                                        {index < ONBOARDING_STEPS.slice(1).length - 1 && (
                                             <div
                                                 className={`w-8 h-0.5 mx-2 transition-colors ${stepIndex < currentStepIndex
                                                     ? "bg-terminal-green"
@@ -164,12 +178,9 @@ export function OnboardingWizard() {
                             )}
                             {currentStep === "features" && (
                                 <FeaturesStep
-                                    onContinue={() => navigateTo("complete")}
+                                    onContinue={handleComplete}
                                     onBack={() => navigateTo("auth", -1)}
                                 />
-                            )}
-                            {currentStep === "complete" && (
-                                <CompleteStep onComplete={handleComplete} />
                             )}
                         </motion.div>
                     </AnimatePresence>

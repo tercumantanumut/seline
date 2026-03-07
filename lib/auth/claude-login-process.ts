@@ -146,13 +146,43 @@ function killActive(): void {
   setActive(null);
 }
 
+const MAX_EBADF_RETRIES = 3;
+const EBADF_RETRY_DELAY_MS = 2000;
+
 /**
  * Starts `claude login` as a persistent subprocess with stdin pipe.
  * Waits up to `urlTimeoutMs` for the auth URL to appear in output,
  * then returns it so the caller can open a browser.
+ *
+ * Retries on EBADF/EMFILE (FD exhaustion) which can happen when the
+ * background sync is consuming file descriptors.
  */
 export async function startClaudeLoginProcess(
   urlTimeoutMs = 15_000,
+): Promise<{ url: string | null; output: string[] }> {
+  for (let attempt = 0; attempt <= MAX_EBADF_RETRIES; attempt++) {
+    const result = await startClaudeLoginProcessOnce(urlTimeoutMs);
+
+    // If spawn failed with EBADF/EMFILE, retry after a delay
+    const hasSpawnError = result.output.some((line) =>
+      /ebadf|emfile|enfile/i.test(line),
+    );
+    if (!result.url && hasSpawnError && attempt < MAX_EBADF_RETRIES) {
+      console.log(
+        `[claude-login] FD exhaustion — retrying in ${EBADF_RETRY_DELAY_MS}ms (${attempt + 1}/${MAX_EBADF_RETRIES})`,
+      );
+      await new Promise((r) => setTimeout(r, EBADF_RETRY_DELAY_MS));
+      continue;
+    }
+
+    return result;
+  }
+
+  return startClaudeLoginProcessOnce(urlTimeoutMs);
+}
+
+async function startClaudeLoginProcessOnce(
+  urlTimeoutMs: number,
 ): Promise<{ url: string | null; output: string[] }> {
   killActive();
 
@@ -180,6 +210,7 @@ export async function startClaudeLoginProcess(
   // Handle spawn errors to prevent unhandled crashes
   state.process.once("error", (err) => {
     console.error("[claude-login] spawn error:", err.message);
+    state.outputLines.push(`spawn error: ${err.message}`);
     state.resolved = true;
   });
 

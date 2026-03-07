@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
+import { openExternalUrl } from "@/lib/electron/types";
 import { toast } from "sonner";
 import type {
   WorkspaceInfo,
@@ -51,8 +53,45 @@ interface DiffReviewPanelProps {
   workspaceInfo: WorkspaceInfo;
   isOpen: boolean;
   onClose: () => void;
-  onCreatePR?: () => void;
   onSyncToLocal?: () => void;
+}
+
+interface WorkspaceActionResponse {
+  success?: boolean;
+  workspace?: WorkspaceStatus;
+  prUrl?: string;
+  prNumber?: number;
+  error?: string;
+  details?: string;
+  errorCode?: string;
+  installUrl?: string;
+  docsUrl?: string;
+  authCommand?: string;
+  authCheckCommand?: string;
+  partialSuccess?: boolean;
+  pushed?: boolean;
+  baseBranch?: string;
+}
+
+function getActionErrorMessage(
+  error: string | null,
+  data: WorkspaceActionResponse | null,
+  fallback: string,
+): string {
+  if (typeof data?.error === "string" && data.error.trim()) return data.error;
+  if (typeof data?.details === "string" && data.details.trim()) return data.details;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
+function shouldOfferPullRequest(workspace: WorkspaceStatus | WorkspaceInfo | null): boolean {
+  if (!workspace?.branch || !workspace.baseBranch) return false;
+  if (workspace.branch === workspace.baseBranch) return false;
+  return true;
+}
+
+function shouldShowSyncButton(workspace: WorkspaceStatus | WorkspaceInfo | null): boolean {
+  return workspace?.type !== "local";
 }
 
 type FileStatusType = "added" | "modified" | "deleted" | "renamed" | "copied";
@@ -195,7 +234,6 @@ export function DiffReviewPanel({
   workspaceInfo,
   isOpen,
   onClose,
-  onCreatePR,
   onSyncToLocal,
 }: DiffReviewPanelProps) {
   const t = useTranslations("workspace.diff");
@@ -218,9 +256,21 @@ export function DiffReviewPanel({
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [isStaging, setIsStaging] = useState<string | null>(null); // filePath or "all"
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
+  const [isCreatingPr, setIsCreatingPr] = useState(false);
+  const [authResolution, setAuthResolution] = useState<WorkspaceActionResponse | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
 
-  const branch = workspaceInfo.branch || "unknown";
+  const effectiveWorkspace = (workspaceStatus ?? workspaceInfo) as WorkspaceInfo | WorkspaceStatus;
+  const branch = effectiveWorkspace.branch || "unknown";
+  const commitsAhead = workspaceStatus?.commitsAhead ?? 0;
+  const hasOpenPr = Boolean(effectiveWorkspace.prUrl && effectiveWorkspace.prNumber);
+  const canCreatePr = shouldOfferPullRequest(effectiveWorkspace);
+  const showSyncButton = shouldShowSyncButton(effectiveWorkspace);
+  const showCreatePrOnly = !hasOpenPr && commitsAhead === 0 && canCreatePr;
+  const needsGhAuth = authResolution?.errorCode === "GH_AUTH_REQUIRED";
+  const needsGhInstall = authResolution?.errorCode === "GH_NOT_INSTALLED";
+  const needsBaseBranchPush = authResolution?.errorCode === "BASE_BRANCH_NOT_ON_REMOTE";
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -393,6 +443,139 @@ export function DiffReviewPanel({
 
   // ─── Existing actions ───────────────────────────────────────────────────
 
+  const postWorkspaceAction = useCallback(async (body: Record<string, unknown>) => {
+    const response = await fetch(`/api/sessions/${sessionId}/workspace`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    let data: WorkspaceActionResponse | null = null;
+    try {
+      data = (await response.json()) as WorkspaceActionResponse;
+    } catch {
+      data = null;
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      errorMessage: response.ok
+        ? null
+        : getActionErrorMessage(
+            response.status ? `HTTP ${response.status}` : null,
+            data,
+            `HTTP ${response.status}`
+          ),
+    };
+  }, [sessionId]);
+
+  const refreshWorkspaceData = useCallback(async () => {
+    await fetchDiffData();
+    window.dispatchEvent(
+      new CustomEvent("workspace-status-changed", { detail: { sessionId } })
+    );
+  }, [fetchDiffData, sessionId]);
+
+  const handlePush = useCallback(async () => {
+    setIsPushing(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push" });
+      if (!result.ok) {
+        toast.error(result.errorMessage || t("pushFailed"));
+        return;
+      }
+      if (result.data?.workspace) {
+        setWorkspaceStatus(result.data.workspace);
+      }
+      toast.success(t("pushSuccess"));
+      await refreshWorkspaceData();
+    } catch {
+      toast.error(t("pushFailed"));
+    } finally {
+      setIsPushing(false);
+    }
+  }, [postWorkspaceAction, refreshWorkspaceData, t]);
+
+  const handlePushAndCreatePr = useCallback(async () => {
+    setIsCreatingPr(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push-and-create-pr" });
+      if (!result.ok) {
+        setAuthResolution(result.data ?? null);
+        if (result.data?.workspace) {
+          setWorkspaceStatus(result.data.workspace);
+        }
+        if (result.data?.partialSuccess && result.data?.pushed) {
+          toast.error(result.errorMessage || t("auth.partialSuccess"));
+          await refreshWorkspaceData();
+          return;
+        }
+        toast.error(result.errorMessage || t("createPRFailed"));
+        return;
+      }
+      setAuthResolution(null);
+      if (result.data?.workspace) {
+        setWorkspaceStatus(result.data.workspace);
+      }
+      const prUrl = result.data?.prUrl ?? result.data?.workspace?.prUrl;
+      if (prUrl) {
+        window.open(prUrl, "_blank", "noopener,noreferrer");
+      }
+      toast.success(t("createPRSuccess"));
+      await refreshWorkspaceData();
+    } catch {
+      toast.error(t("createPRFailed"));
+    } finally {
+      setIsCreatingPr(false);
+    }
+  }, [postWorkspaceAction, refreshWorkspaceData, t]);
+
+  const handleCopyAuthCommand = useCallback(async () => {
+    const command = authResolution?.authCommand;
+    if (!command) return;
+
+    try {
+      await navigator.clipboard.writeText(command);
+      toast.success(t("auth.copySuccess"));
+    } catch {
+      toast.error(t("auth.copyFailed"));
+    }
+  }, [authResolution?.authCommand, t]);
+
+  const handleOpenAuthDocs = useCallback(async () => {
+    const targetUrl = authResolution?.docsUrl || authResolution?.installUrl;
+    if (!targetUrl) return;
+
+    try {
+      await openExternalUrl(targetUrl);
+    } catch {
+      toast.error(t("auth.openDocsFailed"));
+    }
+  }, [authResolution?.docsUrl, authResolution?.installUrl, t]);
+
+  const [isPushingBaseBranch, setIsPushingBaseBranch] = useState(false);
+
+  const handlePushBaseBranch = useCallback(async () => {
+    setIsPushingBaseBranch(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push-base-branch" });
+      if (!result.ok) {
+        toast.error(result.errorMessage || t("auth.pushBaseBranchFailed"));
+        return;
+      }
+      toast.success(t("auth.baseBranchPushed"));
+      setAuthResolution(null);
+      // Retry PR creation now that the base branch is on remote
+      await handlePushAndCreatePr();
+    } catch {
+      toast.error(t("auth.pushBaseBranchFailed"));
+    } finally {
+      setIsPushingBaseBranch(false);
+    }
+  }, [postWorkspaceAction, handlePushAndCreatePr, t]);
+
   const handleSyncToLocal = useCallback(async () => {
     if (onSyncToLocal) {
       onSyncToLocal();
@@ -407,7 +590,9 @@ export function DiffReviewPanel({
       if (syncError) {
         toast.error(t("syncFailed"));
       } else {
+        setAuthResolution(null);
         toast.success(t("syncSuccess"));
+        await refreshWorkspaceData();
       }
     } catch {
       toast.error(t("syncFailed"));
@@ -426,6 +611,7 @@ export function DiffReviewPanel({
       if (cleanupError) {
         toast.error(t("discardFailed"));
       } else {
+        setAuthResolution(null);
         toast.success(t("discardSuccess"));
         window.dispatchEvent(
           new CustomEvent("workspace-status-changed", { detail: { sessionId } })
@@ -854,33 +1040,154 @@ export function DiffReviewPanel({
                 </div>
               )}
 
+              {authResolution && (
+                <div className="border-t border-terminal-border bg-terminal-cream/70 px-4 py-3">
+                  <Alert variant={needsGhAuth || needsGhInstall || needsBaseBranchPush ? "default" : "destructive"}>
+                    <AlertCircleIcon className="h-4 w-4" />
+                    <AlertTitle>
+                      {needsBaseBranchPush
+                        ? t("auth.baseBranchTitle")
+                        : needsGhInstall
+                          ? t("auth.installTitle")
+                          : t("auth.title")}
+                    </AlertTitle>
+                    <AlertDescription className="space-y-3">
+                      <p>{authResolution.error || authResolution.details || t("createPRFailed")}</p>
+                      {authResolution.details && authResolution.details !== authResolution.error && (
+                        <p className="font-mono text-xs opacity-80">{authResolution.details}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {needsBaseBranchPush && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => void handlePushBaseBranch()}
+                            disabled={isPushingBaseBranch || isCreatingPr}
+                          >
+                            {isPushingBaseBranch ? (
+                              <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <DownloadIcon className="w-3.5 h-3.5 rotate-180" />
+                            )}
+                            {isPushingBaseBranch
+                              ? t("auth.pushingBaseBranch")
+                              : t("auth.pushBaseBranch", { branch: authResolution.baseBranch ?? "" })}
+                          </Button>
+                        )}
+                        {authResolution.authCommand && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void handleCopyAuthCommand()}
+                          >
+                            <CopyIcon className="w-3.5 h-3.5" />
+                            {t("auth.copyCommand")}
+                          </Button>
+                        )}
+                        {(authResolution.docsUrl || authResolution.installUrl) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void handleOpenAuthDocs()}
+                          >
+                            <AlertCircleIcon className="w-3.5 h-3.5" />
+                            {needsGhInstall ? t("auth.installGh") : t("auth.openDocs")}
+                          </Button>
+                        )}
+                        {!needsBaseBranchPush && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => void handlePushAndCreatePr()}
+                            disabled={isCreatingPr}
+                          >
+                            {isCreatingPr ? (
+                              <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <GitPullRequestIcon className="w-3.5 h-3.5" />
+                            )}
+                            {t("auth.retry")}
+                          </Button>
+                        )}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+
               {/* Actions footer */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-terminal-border bg-terminal-cream">
-                {onCreatePR && (
+                {hasOpenPr && effectiveWorkspace.prUrl ? (
                   <Button
                     size="sm"
                     className="gap-1.5"
-                    onClick={onCreatePR}
+                    onClick={() => window.open(effectiveWorkspace.prUrl!, "_blank", "noopener,noreferrer")}
                   >
                     <GitPullRequestIcon className="w-3.5 h-3.5" />
-                    {t("createPR")}
+                    {t("viewPR", { number: effectiveWorkspace.prNumber ?? "" })}
+                  </Button>
+                ) : commitsAhead > 0 && canCreatePr ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePushAndCreatePr}
+                    disabled={isCreatingPr || isPushing}
+                  >
+                    {isCreatingPr ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isCreatingPr ? t("creatingPR") : t("pushAndCreatePR", { count: commitsAhead })}
+                  </Button>
+                ) : showCreatePrOnly ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePushAndCreatePr}
+                    disabled={isCreatingPr}
+                  >
+                    {isCreatingPr ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isCreatingPr ? t("creatingPR") : t("createPR")}
+                  </Button>
+                ) : commitsAhead > 0 ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePush}
+                    disabled={isPushing || isCreatingPr}
+                  >
+                    {isPushing ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isPushing ? t("pushing") : t("pushOnly", { count: commitsAhead })}
+                  </Button>
+                ) : null}
+
+                {showSyncButton && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleSyncToLocal}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <DownloadIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isSyncing ? t("syncing") : t("syncToLocal")}
                   </Button>
                 )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={handleSyncToLocal}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <DownloadIcon className="w-3.5 h-3.5" />
-                  )}
-                  {isSyncing ? t("syncing") : t("syncToLocal")}
-                </Button>
 
                 <div className="flex-1" />
 

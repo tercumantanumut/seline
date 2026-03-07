@@ -36,7 +36,7 @@ export function ModelBagSlot({
     >
       {/* Role label */}
       <span className={cn("font-mono text-[10px] font-bold", roleInfo.color)}>
-        {roleInfo.iconEmoji} {roleInfo.label}
+        {roleInfo.label}
       </span>
 
       {/* Assigned model or empty */}
@@ -44,12 +44,10 @@ export function ModelBagSlot({
         <div className="flex items-center gap-1">
           <span
             className={cn(
-              "rounded px-1 py-0.5 font-mono text-[9px]",
+              "inline-block size-1.5 rounded-full",
               PROVIDER_THEME[assignedModel.provider].badgeColor,
             )}
-          >
-            {PROVIDER_THEME[assignedModel.provider].iconEmoji}
-          </span>
+          />
           <span className="max-w-[80px] truncate font-mono text-[10px] text-terminal-dark">
             {assignedModel.name}
           </span>

@@ -445,6 +445,7 @@ export const MCP_TOOL_CATEGORY = "mcp" as const;
 export interface MCPToolLoadingPreference {
     enabled: boolean;
     loadingMode: "always" | "deferred";
+    displayMode?: "compact" | "detailed";
 }
 
 /**

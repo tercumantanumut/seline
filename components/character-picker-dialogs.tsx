@@ -562,8 +562,8 @@ export function McpToolEditorDialog({
   editingCharacter: CharacterSummary | null;
   mcpServers: string[];
   mcpTools: string[];
-  mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>;
-  onUpdate: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>) => void;
+  mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>;
+  onUpdate: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>) => void;
   onComplete: () => void;
 }) {
   const t = useTranslations("picker");

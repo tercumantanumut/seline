@@ -84,6 +84,8 @@ export interface StreamCallbackContext {
   rawMode?: boolean;
   /** Pre-generated ID so frontend stream and DB share the same assistant message UUID. */
   assistantMessageId?: string;
+  latestUserPromptText?: string;
+  persistedUserMessageId?: string;
 }
 
 // ─── onFinish callback factory ────────────────────────────────────────────────
@@ -303,13 +305,16 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
 
     // Complete the agent run with success
     if (ctx.agentRun) {
+      const stepCount = steps?.length || 0;
+      const toolCallCount =
+        steps?.reduce(
+          (acc, s) => acc + ((s as any).toolCalls?.length || 0),
+          0
+        ) || 0;
+
       await completeAgentRun(ctx.agentRun.id, "succeeded", {
-        stepCount: steps?.length || 0,
-        toolCallCount:
-          steps?.reduce(
-            (acc, s) => acc + ((s as any).toolCalls?.length || 0),
-            0
-          ) || 0,
+        stepCount,
+        toolCallCount,
         usage: usage
           ? {
               inputTokens: usage.inputTokens,
@@ -319,6 +324,7 @@ export function createOnFinishCallback(ctx: StreamCallbackContext) {
           : undefined,
         ...(cacheMetrics ? { cache: cacheMetrics } : {}),
       });
+
       const registryTask = taskRegistry.get(ctx.agentRun.id);
       const registryDurationMs = registryTask
         ? Date.now() - new Date(registryTask.startedAt).getTime()

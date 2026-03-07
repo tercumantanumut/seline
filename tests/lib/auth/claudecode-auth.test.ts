@@ -100,6 +100,60 @@ describe("claudecode-auth Agent SDK integration", () => {
     expect(state.authUrl).toBe("https://example.com/auth");
   });
 
+  it("treats spawn errors as authoritative failures (no anti-flapping)", async () => {
+    // Simulate previous authenticated state
+    settingsMocks.state.settings = {
+      claudecodeAuth: {
+        isAuthenticated: true,
+        email: "user@example.com",
+      },
+    };
+
+    // SDK returns unauthenticated with a spawn error (e.g. wrong binary)
+    sdkMocks.readClaudeAgentSdkAuthStatus.mockResolvedValue({
+      authenticated: false,
+      isAuthenticating: false,
+      output: [],
+      email: undefined,
+      tokenSource: undefined,
+      apiKeySource: undefined,
+      authUrl: undefined,
+      error: "spawn ENOENT",
+    });
+
+    const status = await getClaudeCodeAuthStatus();
+
+    expect(status.authenticated).toBe(false);
+    // Anti-flapping should NOT preserve the stale "authenticated" state
+    expect(settingsMocks.state.settings.claudecodeAuth?.isAuthenticated).toBe(false);
+  });
+
+  it("preserves auth state on transient non-spawn errors (anti-flapping)", async () => {
+    settingsMocks.state.settings = {
+      claudecodeAuth: {
+        isAuthenticated: true,
+        email: "user@example.com",
+      },
+    };
+
+    // SDK returns unauthenticated with a generic timeout error
+    sdkMocks.readClaudeAgentSdkAuthStatus.mockResolvedValue({
+      authenticated: false,
+      isAuthenticating: false,
+      output: [],
+      email: undefined,
+      tokenSource: undefined,
+      apiKeySource: undefined,
+      authUrl: undefined,
+      error: "The operation was aborted",
+    });
+
+    await getClaudeCodeAuthStatus();
+
+    // Anti-flapping SHOULD preserve the previous authenticated state
+    expect(settingsMocks.state.settings.claudecodeAuth?.isAuthenticated).toBe(true);
+  });
+
   it("clearClaudeCodeAuth resets local state and triggers best-effort SDK logout", () => {
     settingsMocks.state.settings = {
       claudecodeAuth: {

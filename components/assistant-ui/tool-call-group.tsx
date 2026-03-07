@@ -8,17 +8,43 @@ import type { MessagePartState } from "@assistant-ui/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useChatSessionId } from "@/components/chat-provider";
 import { ToolCallBadge, type ToolCallBadgeStatus } from "./tool-call-badge";
-import { getCanonicalToolName } from "./tool-name-utils";
 import { useBrowserActive } from "./browser-active-context";
+import { useToolDisplayPreferences } from "./tool-display-context";
 import { useToolExpansion } from "./tool-expansion-context";
+import {
+  getFallbackToolPhase,
+  summarizeToolInput,
+  summarizeToolOutput,
+  useLiveToolStatuses,
+  type LiveToolPhase,
+} from "./tool-live-status";
+import { getCanonicalToolName } from "./tool-name-utils";
 
 type ToolCallPart = Extract<MessagePartState, { type: "tool-call" }>;
+type ToolCallPartLike = ToolCallPart & {
+  toolCallId?: string;
+  args?: unknown;
+  input?: unknown;
+  argsText?: string;
+};
 
 interface ToolCallGroupProps {
   startIndex: number;
   endIndex: number;
   children?: ReactNode;
+}
+
+interface ToolSummaryItem {
+  key: string;
+  label: string;
+  badgeStatus: ToolCallBadgeStatus;
+  phase: LiveToolPhase;
+  count: number | null;
+  detail?: string;
+  inputPreview?: string;
+  outputPreview?: string;
 }
 
 const toolGroupExpansionState = new Map<string, boolean>();
@@ -33,6 +59,7 @@ const TOOLS_AUTO_EXPAND = new Set([
   "askUserQuestion",
   "askFollowupQuestion",
   "updatePlan",
+  "ExitPlanMode",
   "showProductImages",
   "calculator",
   "chromiumWorkspace",
@@ -41,13 +68,13 @@ const TOOLS_AUTO_EXPAND = new Set([
 
 function getResultCount(result: unknown): number | null {
   if (!result || typeof result !== "object") return null;
-  const r = result as Record<string, unknown>;
+  const record = result as Record<string, unknown>;
 
-  if (Array.isArray(r.sources)) return r.sources.length;
-  if (Array.isArray(r.results)) return r.results.length;
-  if (Array.isArray(r.images)) return r.images.length;
-  if (Array.isArray(r.videos)) return r.videos.length;
-  if (typeof r.matchCount === "number") return r.matchCount;
+  if (Array.isArray(record.sources)) return record.sources.length;
+  if (Array.isArray(record.results)) return record.results.length;
+  if (Array.isArray(record.images)) return record.images.length;
+  if (Array.isArray(record.videos)) return record.videos.length;
+  if (typeof record.matchCount === "number") return record.matchCount;
 
   return null;
 }
@@ -68,30 +95,65 @@ function getStatus(part: ToolCallPart): ToolCallBadgeStatus {
 
 function extractMediaFromResult(result: unknown): Array<{ type: "image" | "video"; url: string }> {
   if (!result || typeof result !== "object") return [];
-  const r = result as Record<string, unknown>;
+  const record = result as Record<string, unknown>;
   const media: Array<{ type: "image" | "video"; url: string }> = [];
 
-  if (Array.isArray(r.images)) {
-    for (const item of r.images) {
+  if (Array.isArray(record.images)) {
+    for (const item of record.images) {
       if (item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string") {
         media.push({ type: "image", url: (item as { url: string }).url });
       }
     }
   }
-  if (Array.isArray(r.videos)) {
-    for (const item of r.videos) {
+
+  if (Array.isArray(record.videos)) {
+    for (const item of record.videos) {
       if (item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string") {
         media.push({ type: "video", url: (item as { url: string }).url });
       }
     }
   }
-  if (Array.isArray(r.results)) {
-    for (const nested of r.results) {
+
+  if (Array.isArray(record.results)) {
+    for (const nested of record.results) {
       media.push(...extractMediaFromResult(nested));
     }
   }
 
   return media;
+}
+
+function phaseToBadgeStatus(phase: LiveToolPhase): ToolCallBadgeStatus {
+  if (phase === "error") return "error";
+  if (phase === "completed") return "completed";
+  return "running";
+}
+
+function phaseToAccentClass(phase: LiveToolPhase): string {
+  switch (phase) {
+    case "error":
+      return "border-red-400/40 bg-background/80 text-foreground backdrop-blur-md";
+    case "completed":
+      return "border-terminal-green/40 bg-background/80 text-foreground backdrop-blur-md";
+    case "preparing":
+      return "border-terminal-dark/20 bg-background/80 text-foreground backdrop-blur-md";
+    case "running":
+    default:
+      return "border-terminal-amber/40 bg-background/80 text-foreground backdrop-blur-md";
+  }
+}
+
+function phaseToStatusText(tStatus: ReturnType<typeof useTranslations>, phase: LiveToolPhase): string {
+  switch (phase) {
+    case "error":
+      return tStatus("failed");
+    case "completed":
+      return tStatus("completed");
+    case "preparing":
+    case "running":
+    default:
+      return tStatus("processing");
+  }
 }
 
 export const ToolCallGroup: FC<ToolCallGroupProps> = ({
@@ -100,9 +162,16 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   children,
 }) => {
   const t = useTranslations("assistantUi.tools");
+  const tStatus = useTranslations("assistantUi.toolStatus");
+  const sessionId = useChatSessionId();
+  const liveStatuses = useLiveToolStatuses(sessionId);
+  const { effectiveDisplayMode } = useToolDisplayPreferences();
+  const isDetailedMode = effectiveDisplayMode === "detailed";
   const messageParts = useAssistantState((state) => state.message.parts);
   const messageId = useMessage((state) => state.id);
   const { isBrowserActive } = useBrowserActive();
+  const [isCompactRevealPinned, setIsCompactRevealPinned] = useState(false);
+  const [isCompactRevealHovered, setIsCompactRevealHovered] = useState(false);
 
   const toolParts = useMemo(() => {
     return messageParts
@@ -111,7 +180,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [messageParts, startIndex, endIndex]);
 
   const isAllChromium = useMemo(() => {
-    return toolParts.length > 0 && toolParts.every((p) => getCanonicalToolName(p.toolName) === "chromiumWorkspace");
+    return toolParts.length > 0 && toolParts.every((part) => getCanonicalToolName(part.toolName) === "chromiumWorkspace");
   }, [toolParts]);
 
   const isGlass = isBrowserActive && isAllChromium;
@@ -123,8 +192,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [toolParts]);
 
   const expansionKey = useMemo(() => {
-    const resolvedMessageId =
-      typeof messageId === "string" ? messageId : fallbackKey || "unknown-message";
+    const resolvedMessageId = typeof messageId === "string" ? messageId : fallbackKey || "unknown-message";
     return `${resolvedMessageId}:${startIndex}`;
   }, [fallbackKey, messageId, startIndex]);
 
@@ -137,17 +205,17 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [toolParts]);
 
   const hasInteractiveUI = useMemo(() => {
-    return toolParts.some((part) =>
-      TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName))
-    );
+    return toolParts.some((part) => TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName)));
   }, [toolParts]);
 
   const mediaPreviews = useMemo(() => {
     if (toolParts.length === 0 || toolParts.every((part) => part.result == null)) {
       return [];
     }
+
     const seen = new Set<string>();
     const collected: Array<{ type: "image" | "video"; url: string }> = [];
+
     for (const part of toolParts) {
       for (const media of extractMediaFromResult(part.result)) {
         if (seen.has(media.url)) continue;
@@ -155,10 +223,44 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         collected.push(media);
       }
     }
+
     return collected;
   }, [toolParts]);
 
+  const summaryItems = useMemo<ToolSummaryItem[]>(() => {
+    return toolParts.map((part, index) => {
+      const partLike = part as ToolCallPartLike;
+      const canonicalToolName = getCanonicalToolName(part.toolName);
+      const label = t.has(canonicalToolName)
+        ? t(canonicalToolName)
+        : t.has(part.toolName)
+          ? t(part.toolName)
+          : canonicalToolName;
+      const liveStatus = partLike.toolCallId ? liveStatuses[partLike.toolCallId] : undefined;
+      const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, getStatus(part) === "running");
+      const detail = liveStatus?.detail;
+      const inputPreview = liveStatus?.argsPreview ?? summarizeToolInput(partLike.input ?? partLike.args ?? partLike.argsText);
+      const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result);
+
+      return {
+        key: partLike.toolCallId ?? `${part.toolName}-${index}`,
+        label,
+        badgeStatus: liveStatus ? phaseToBadgeStatus(liveStatus.phase) : getStatus(part),
+        phase,
+        count: getResultCount(part.result),
+        detail,
+        inputPreview,
+        outputPreview,
+      };
+    });
+  }, [liveStatuses, t, toolParts]);
+
   const hasMedia = mediaPreviews.length > 0;
+  const hasCompactReveal = !isDetailedMode && summaryItems.some(
+    (item) => item.detail || item.inputPreview || item.outputPreview
+  );
+  const showCompactReveal = hasCompactReveal && !isExpanded && (isCompactRevealHovered || isCompactRevealPinned);
+  const showChildren = isDetailedMode || isExpanded;
 
   useEffect(() => {
     if (toolGroupExpansionState.has(expansionKey)) {
@@ -169,13 +271,12 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [expansionKey]);
 
   useEffect(() => {
-    if ((hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
+    if ((isDetailedMode || hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
       setIsExpanded(true);
       toolGroupExpansionState.set(expansionKey, true);
     }
-  }, [expansionKey, hasError, hasMedia, hasInteractiveUI]);
+  }, [expansionKey, hasError, hasInteractiveUI, hasMedia, isDetailedMode]);
 
-  // React to global expand/collapse signal
   const expansionCtx = useToolExpansion();
   const lastSignalRef = useRef(0);
   useEffect(() => {
@@ -187,12 +288,24 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     toolGroupExpansionState.set(expansionKey, next);
   }, [expansionCtx?.signal, expansionKey]);
 
+  useEffect(() => {
+    if (isDetailedMode) {
+      setIsCompactRevealPinned(false);
+      setIsCompactRevealHovered(false);
+    }
+  }, [isDetailedMode]);
+
   const handleToggleExpanded = () => {
-    setIsExpanded((prev) => {
-      const next = !prev;
+    setIsExpanded((previous) => {
+      const next = !previous;
       toolGroupExpansionState.set(expansionKey, next);
       return next;
     });
+  };
+
+  const handleCompactPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isDetailedMode || event.pointerType === "mouse" || !hasCompactReveal) return;
+    setIsCompactRevealPinned((previous) => !previous);
   };
 
   if (toolParts.length === 0) {
@@ -202,34 +315,58 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   return (
     <div
       className={cn(
-        "my-2 rounded-lg p-2 shadow-sm transition-all duration-150 ease-in-out",
-        isGlass
-          ? "bg-black/20 backdrop-blur-md border border-white/10"
-          : "bg-terminal-cream/80"
+        "my-2 border-l-2 pl-3 transition-all duration-150 ease-in-out",
+        isGlass ? "border-white/20" : "border-terminal-dark/15"
       )}
+      onMouseEnter={() => setIsCompactRevealHovered(true)}
+      onMouseLeave={() => setIsCompactRevealHovered(false)}
+      onFocusCapture={() => setIsCompactRevealHovered(true)}
+      onBlurCapture={() => setIsCompactRevealHovered(false)}
     >
-      <div className="flex flex-wrap items-center gap-2 pb-1">
-        {toolParts.map((part, index) => {
-          const canonicalToolName = getCanonicalToolName(part.toolName);
-          const label = t.has(canonicalToolName)
-            ? t(canonicalToolName)
-            : t.has(part.toolName)
-              ? t(part.toolName)
-              : canonicalToolName;
-          const status = getStatus(part);
-          const count = getResultCount(part.result);
-          return (
-            <ToolCallBadge
-              key={`${part.toolName}-${index}`}
-              label={label}
-              status={status}
-              count={count}
-            />
-          );
-        })}
+      <div
+        className="flex flex-wrap items-center gap-2 pb-1"
+        onPointerDown={handleCompactPointerDown}
+      >
+        {summaryItems.map((item) => (
+          <ToolCallBadge
+            key={item.key}
+            label={item.label}
+            status={item.badgeStatus}
+            count={item.count}
+          />
+        ))}
       </div>
 
-      {!isExpanded && mediaPreviews.length > 0 && (
+      {showCompactReveal && (
+        <div className={cn("mt-2 space-y-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
+          {summaryItems.map((item) => {
+            const previewText = item.detail ?? item.inputPreview ?? item.outputPreview;
+            if (!previewText) return null;
+
+            return (
+              <div
+                key={`reveal-${item.key}`}
+                className={cn(
+                  "rounded-md border px-3 py-2 font-mono text-xs shadow-sm",
+                  phaseToAccentClass(item.phase)
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{item.label}</span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] opacity-80">
+                    {phaseToStatusText(tStatus, item.phase)}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed opacity-90 [overflow-wrap:anywhere]">
+                  {previewText}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!showChildren && mediaPreviews.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
           {mediaPreviews.map((media, index) =>
             media.type === "image" ? (
@@ -258,21 +395,61 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         </div>
       )}
 
-      <div className="mt-2 flex justify-end">
+      {isDetailedMode && (
+        <div className={cn("mt-2 space-y-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
+          {summaryItems.map((item) => (
+            <div
+              key={`detailed-${item.key}`}
+              className={cn(
+                "rounded-lg border px-3 py-2.5 font-mono shadow-sm",
+                phaseToAccentClass(item.phase)
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-semibold uppercase tracking-[0.14em] opacity-80">
+                    {item.label}
+                  </div>
+                  {(item.detail || item.inputPreview || item.outputPreview) && (
+                    <p className="mt-1 text-sm leading-relaxed [overflow-wrap:anywhere]">
+                      {item.detail ?? item.inputPreview ?? item.outputPreview}
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 rounded-full border border-current/15 bg-white/30 px-2 py-1 text-[10px] uppercase tracking-[0.14em]">
+                  {phaseToStatusText(tStatus, item.phase)}
+                </div>
+              </div>
+              {item.inputPreview && item.detail !== item.inputPreview && (
+                <div className="mt-2 text-[11px] opacity-85">
+                  <span className="font-semibold">Input:</span> {item.inputPreview}
+                </div>
+              )}
+              {item.outputPreview && item.detail !== item.outputPreview && item.outputPreview !== item.inputPreview && (
+                <div className="mt-1 text-[11px] opacity-85">
+                  <span className="font-semibold">Output:</span> {item.outputPreview}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-1 flex justify-end">
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={handleToggleExpanded}
           className={cn(
-            "h-7 px-2 text-xs font-mono",
+            "h-6 px-2 text-[11px] font-mono rounded-md",
             isGlass
-              ? "text-white/60 hover:text-white/90"
-              : "text-terminal-muted hover:text-terminal-dark"
+              ? "text-white/50 hover:text-white/80 hover:bg-white/5"
+              : "text-terminal-muted/70 hover:text-terminal-dark hover:bg-terminal-dark/5"
           )}
         >
-          {isExpanded ? t("hide") : t("details")}
-          {isExpanded ? (
+          {showChildren ? t("hide") : t("details")}
+          {showChildren ? (
             <ChevronUpIcon className="ml-1 size-3" />
           ) : (
             <ChevronDownIcon className="ml-1 size-3" />
@@ -280,7 +457,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         </Button>
       </div>
 
-      {isExpanded && (
+      {showChildren && (
         <div className={cn("mt-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {children}
         </div>

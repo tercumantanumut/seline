@@ -184,6 +184,7 @@ export interface AppSettings {
     // App preferences
     theme: "dark" | "light" | "system";
     toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
+    toolDisplayMode?: "compact" | "detailed"; // Tool card rendering strategy in chat UI
     postEditHooksPreset?: PostEditHooksPreset;   // Quick mode for post-edit checks: off, fast, strict
     postEditHooksEnabled?: boolean;              // Master toggle for all post-edit checks
     postEditTypecheckEnabled?: boolean;          // Run TypeScript typecheck after edits
@@ -199,13 +200,7 @@ export interface AppSettings {
     onboardingComplete?: boolean;
     onboardingCompletedAt?: string; // ISO timestamp
     onboardingVersion?: number;      // For future migrations
-
-    // Global memory preferences (applied to new agents and synced to existing)
-    globalMemoryDefaults?: {
-        visual_preferences?: string[];    // e.g., ["Prefer dark mode", "16:9 aspect ratio"]
-        communication_style?: string[];   // e.g., ["Concise responses", "Use code blocks"]
-        workflow_patterns?: string[];
-    };
+    selineMode?: "dev" | "fun";      // Selected path from onboarding
 
     // Settings UI preferences
     settingsExpandedSections?: string[]; // Remember which sections are expanded
@@ -266,6 +261,9 @@ export interface AppSettings {
     // 3D Avatar
     avatar3dEnabled?: boolean;              // Enable 3D talking head avatar in chat interface
 
+    // Emotion Detection (Seline Fun)
+    emotionDetectionEnabled?: boolean;      // Enable LLM-based emotion detection on user messages
+
     // EverMemOS (shared memory)
     everMemOSEnabled?: boolean;             // Enable EverMemOS integration
     everMemOSServerUrl?: string;            // EverMemOS server URL
@@ -273,6 +271,7 @@ export interface AppSettings {
     // Browser automation settings
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
+
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -282,6 +281,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
     toolLoadingMode: "deferred",  // Default to deferred loading to save tokens
+    toolDisplayMode: "compact",
     postEditHooksPreset: "off",
     postEditHooksEnabled: false,
     postEditTypecheckEnabled: false,

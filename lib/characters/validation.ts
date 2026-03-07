@@ -131,6 +131,8 @@ export const agentMetadataSchema = z.object({
       enabled: z.boolean().default(true),
       /** Loading mode: "always" loads immediately, "deferred" requires discovery */
       loadingMode: z.enum(["always", "deferred"]).default("deferred"),
+      /** Preferred visual tool card mode for this MCP tool in chat UIs */
+      displayMode: z.enum(["compact", "detailed"]).default("compact"),
     })
   ).optional(),
 
@@ -146,6 +148,17 @@ export const agentMetadataSchema = z.object({
   workflowSandboxPolicy: workflowSandboxPolicySchema.optional(),
   inheritedResources: inheritedResourcesSchema.optional(),
   pluginAgentSeed: pluginAgentSeedSchema.optional(),
+
+  /**
+   * Per-agent 3D avatar configuration
+   * Selects which GLB model and body type to use for TalkingHead.js
+   */
+  avatarConfig: z.object({
+    source: z.enum(["preset", "custom"]),
+    presetId: z.string().optional(),
+    modelUrl: z.string(),
+    bodyType: z.enum(["M", "F"]),
+  }).optional(),
 
   /**
    * Whether task scheduling is enabled for this agent

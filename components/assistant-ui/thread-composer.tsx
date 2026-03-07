@@ -18,6 +18,7 @@ import {
   CheckCircleIcon,
   SparklesIcon,
   UndoIcon,
+  MicIcon,
 } from "lucide-react";
 import { resilientPost } from "@/lib/utils/resilient-fetch";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
 import { useSessionComposerEditorState } from "@/lib/hooks/use-session-composer-editor-state";
 import { ContextWindowIndicator } from "./context-window-indicator";
-import { ActiveModelIndicator } from "./active-model-indicator";
+import { ModelSelector } from "./model-selector";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 import FileMentionAutocomplete from "./file-mention-autocomplete";
 import { ComposerAttachment } from "./thread-message-components";
@@ -53,9 +54,14 @@ import {
   TiptapEditor,
   contentPartsToComposerText,
   plainTextToTiptapDoc,
+  serializeDocToContentArray,
   type TiptapEditorHandle,
   type ContentPart,
 } from "./tiptap-editor";
+import {
+  estimateTaskRewardSuggestion,
+  type RewardSuggestion,
+} from "@/lib/rewards/reward-calculator";
 
 // Interface for queued messages
 interface QueuedMessage {
@@ -251,9 +257,70 @@ export const Composer: FC<{
     recentMessages,
     expandInput: expandPlaceholders,
   });
+  const [rewardSuggestion, setRewardSuggestion] = useState<RewardSuggestion | null>(null);
+  const [showRewardSuggestion, setShowRewardSuggestion] = useState(false);
+  const [rewardDismissed, setRewardDismissed] = useState(false);
+  const ghostScrollRef = useRef<HTMLDivElement>(null);
+  const composerTextForReward = useMemo(() => {
+    if (isEditorMode) {
+      return contentPartsToComposerText(serializeDocToContentArray(tiptapDraft));
+    }
+    return inputValue.trim();
+  }, [inputValue, isEditorMode, tiptapDraft]);
+  const rewardReasonLabel = useMemo(() => {
+    if (!rewardSuggestion) {
+      return "";
+    }
+    return t(`composer.rewardBands.${rewardSuggestion.complexityBand}`);
+  }, [rewardSuggestion, t]);
+
+  // Ghost text string for the inline reward suggestion
+  const rewardGhostText = useMemo(() => {
+    if (!showRewardSuggestion || !rewardSuggestion || rewardDismissed) return "";
+    return t("composer.rewardSuggestion", {
+      amount: rewardSuggestion.amountLabel,
+      reason: rewardReasonLabel || rewardSuggestion.reasonLabel,
+    });
+  }, [showRewardSuggestion, rewardSuggestion, rewardDismissed, rewardReasonLabel, t]);
+
+  const syncRewardSuggestion = useCallback(
+    (textOverride?: string) => {
+      const nextText = (textOverride ?? composerTextForReward).trim();
+      if (!nextText) {
+        setRewardSuggestion(null);
+        setShowRewardSuggestion(false);
+        return;
+      }
+
+      const nextSuggestion = estimateTaskRewardSuggestion(nextText);
+      setRewardSuggestion(nextSuggestion);
+      setShowRewardSuggestion(Boolean(nextSuggestion));
+    },
+    [composerTextForReward]
+  );
+
+  useEffect(() => {
+    if (!composerTextForReward.trim()) {
+      setRewardSuggestion(null);
+      setShowRewardSuggestion(false);
+      setRewardDismissed(false); // Reset only when input is fully cleared (new message)
+      return;
+    }
+
+    setShowRewardSuggestion(false);
+    // Don't reset rewardDismissed here — once accepted/dismissed via Tab/Escape,
+    // stay dismissed until the input is fully cleared (handled above)
+    const timeoutId = window.setTimeout(() => {
+      syncRewardSuggestion(composerTextForReward);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [composerTextForReward, syncRewardSuggestion]);
 
   // Voice recording
-  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef } = useVoiceRecording({
+  const { isRecordingVoice, isTranscribingVoice, handleVoiceInput, handleVoiceStart, handleVoiceStop, analyserNode, lastTranscriptRef, wasAiEnhancedRef } = useVoiceRecording({
     sttEnabled,
     voicePostProcessing,
     voiceAudioCues,
@@ -368,8 +435,10 @@ export const Composer: FC<{
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ originalText: rawTranscript, editedText: inputValue.trim() }),
         }).catch(() => {});
-        lastTranscriptRef.current = null;
       }
+      // Always clear transcript refs on send — bar disappears after message is sent
+      lastTranscriptRef.current = null;
+      wasAiEnhancedRef.current = false;
 
       const messageToSend = enhancedContext || inputValue.trim();
       const expandedMessage = expandPlaceholders(messageToSend);
@@ -450,6 +519,7 @@ export const Composer: FC<{
       clearEnhancement,
       clearPastedTexts,
       lastTranscriptRef,
+      wasAiEnhancedRef,
     ]
   );
 
@@ -458,7 +528,13 @@ export const Composer: FC<{
   // -----------------------------------------------------------------------
   const handleEditorSubmit = useCallback(
     (contentParts: ContentPart[]) => {
-      if (contentParts.length === 0) return;
+      // Composer attachments (from the paperclip button) live in the
+      // threadRuntime composer state — tiptap's own inline images are
+      // already part of contentParts, but composer-level attachments
+      // are not, so we must merge them manually.
+      const composerAttachments = threadRuntime.composer.getState().attachments ?? [];
+
+      if (contentParts.length === 0 && composerAttachments.length === 0) return;
 
       // Deep research mode only takes text — extract text parts
       if (isDeepResearchMode && deepResearch && !isQueueBlocked) {
@@ -488,6 +564,17 @@ export const Composer: FC<{
         }
       }
 
+      // Merge composer attachments (uploaded via the attachment button)
+      for (const attachment of composerAttachments) {
+        if (attachment.content) {
+          for (const part of attachment.content) {
+            if (part.type === "image" && "image" in part) {
+              apiContent.push({ type: "image", image: (part as { type: "image"; image: string }).image });
+            }
+          }
+        }
+      }
+
       if (apiContent.length === 0) return;
 
       // Extract text for queue display
@@ -512,6 +599,9 @@ export const Composer: FC<{
         }
         tiptapRef.current?.clear();
         clearTiptapDraft();
+        if (composerAttachments.length > 0) {
+          threadRuntime.composer.clearAttachments();
+        }
         return;
       }
 
@@ -524,6 +614,9 @@ export const Composer: FC<{
       tiptapRef.current?.clear();
       clearTiptapDraft();
       clearEnhancement();
+      if (composerAttachments.length > 0) {
+        threadRuntime.composer.clearAttachments();
+      }
     },
     [
       isQueueBlocked,
@@ -532,6 +625,7 @@ export const Composer: FC<{
       threadRuntime,
       clearEnhancement,
       clearTiptapDraft,
+      attachmentCount,
     ]
   );
 
@@ -615,12 +709,28 @@ export const Composer: FC<{
         if (handler && handler(e)) return;
       }
 
+      // Tab → accept reward ghost text
+      if (e.key === "Tab" && rewardGhostText) {
+        e.preventDefault();
+        const suffix = `\n${rewardGhostText}`;
+        setInputValue((prev) => prev + suffix);
+        setRewardDismissed(true);
+        return;
+      }
+
+      // Escape → dismiss reward ghost text
+      if (e.key === "Escape" && rewardGhostText) {
+        e.preventDefault();
+        setRewardDismissed(true);
+        return;
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [handleSubmit, rewardGhostText, setInputValue]
   );
 
   const handlePaste = useCallback(
@@ -678,7 +788,9 @@ export const Composer: FC<{
   const handleCancel = useCallback(() => {
     if (!isOperationRunning || isCancelling) return;
     setIsCancelling(true);
-    if (isRunning) threadRuntime.cancelRun();
+    if (isRunning) {
+      try { threadRuntime.cancelRun(); } catch { /* pre-init abort — no-op */ }
+    }
     if (deepResearch && (isDeepResearchActive || isDeepResearchLoading)) {
       deepResearch.cancelResearch();
     }
@@ -929,6 +1041,8 @@ export const Composer: FC<{
           <ComposerPrimitive.Attachments components={{ Attachment: ComposerAttachment }} />
         </div>
 
+{/* Reward suggestion is shown as inline ghost text in the textarea */}
+
         {pastedTexts.length > 0 && (
           <div className="flex flex-wrap gap-2 px-2 pb-1">
             {pastedTexts.map((item) => (
@@ -956,11 +1070,14 @@ export const Composer: FC<{
           />
         )}
 
-        {!isRecordingVoice && !isTranscribingVoice && sttEnabled && voiceActionsEnabled && inputValue.trim().length > 0 && (
+        {!isRecordingVoice && !isTranscribingVoice && (sttEnabled || pastedTexts.length > 0) && voiceActionsEnabled && inputValue.trim().length > 0 && (
           <VoiceActions
-            text={inputValue}
+            text={expandPlaceholders(inputValue)}
             sessionId={sessionId}
-            onResult={(text) => setInputValue(text)}
+            onResult={(text) => {
+              setInputValue(text);
+              clearPastedTexts();
+            }}
             className="px-3 py-1.5 border-b border-terminal-dark/10"
           />
         )}
@@ -973,22 +1090,32 @@ export const Composer: FC<{
           </div>
         )}
 
-        {/* I5: AI-cleaned undo indicator */}
-        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && lastTranscriptRef.current !== inputValue.trim() && (
+        {/* I5: Voice transcript indicator — always visible when a transcript is stored */}
+        {!isRecordingVoice && !isTranscribingVoice && lastTranscriptRef.current && (
           <div className="flex items-center gap-1.5 px-3 py-1 border-b border-terminal-dark/10">
-            <SparklesIcon className="size-3 text-amber-500" />
-            <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+            {wasAiEnhancedRef.current && lastTranscriptRef.current !== inputValue.trim() ? (
+              <>
+                <SparklesIcon className="size-3 text-amber-500" />
+                <span className="text-[10px] font-mono text-terminal-muted">AI-cleaned</span>
+              </>
+            ) : (
+              <>
+                <MicIcon className="size-3 text-terminal-muted" />
+                <span className="text-[10px] font-mono text-terminal-muted">Voice transcript</span>
+              </>
+            )}
             <button
               type="button"
+              disabled={lastTranscriptRef.current === inputValue.trim()}
               onClick={() => {
                 if (lastTranscriptRef.current) {
                   setInputValue(lastTranscriptRef.current);
                 }
               }}
-              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1"
+              className="flex items-center gap-0.5 text-[10px] font-mono text-terminal-muted hover:text-terminal-dark transition-colors ml-1 disabled:opacity-30 disabled:cursor-default disabled:hover:text-terminal-muted"
             >
               <UndoIcon className="size-3" />
-              Undo
+              Restore
             </button>
           </div>
         )}
@@ -1018,7 +1145,6 @@ export const Composer: FC<{
                 isDeepResearchLoading={isDeepResearchLoading}
                 mcpIsReloading={mcpStatus.isReloading}
                 mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-                sessionId={sessionId}
                 onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
                 sttEnabled={sttEnabled}
                 isRecordingVoice={isRecordingVoice}
@@ -1047,26 +1173,48 @@ export const Composer: FC<{
         ) : (
           /* ---- Simple textarea mode (default) ---- */
           <div className="flex items-end">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
-                if (enhancedContext || enhancementInfo) clearEnhancement();
-              }}
-              onSelect={(e) => {
-                const textarea = e.target as HTMLTextAreaElement;
-                updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              autoFocus
-              placeholder={getPlaceholder()}
-              rows={1}
-              className="flex-1 resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
-              style={{ minHeight: "36px", maxHeight: "192px" }}
-            />
+            <div className="relative flex-1">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  updateCursorPosition(e.target.selectionStart ?? 0, e.target.selectionEnd ?? e.target.selectionStart ?? 0);
+                  if (enhancedContext || enhancementInfo) clearEnhancement();
+                }}
+                onSelect={(e) => {
+                  const textarea = e.target as HTMLTextAreaElement;
+                  updateCursorPosition(textarea.selectionStart ?? 0, textarea.selectionEnd ?? textarea.selectionStart ?? 0);
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                onBlur={() => syncRewardSuggestion()}
+                onScroll={() => {
+                  if (ghostScrollRef.current && inputRef.current) {
+                    ghostScrollRef.current.scrollTop = inputRef.current.scrollTop;
+                  }
+                }}
+                autoFocus
+                placeholder={getPlaceholder()}
+                rows={1}
+                className="w-full resize-none bg-transparent p-4 text-sm font-mono outline-none placeholder:text-terminal-muted text-terminal-dark overflow-y-auto transition-[height] duration-150 ease-out"
+                style={{ minHeight: "36px", maxHeight: "192px" }}
+              />
+              {/* Ghost text overlay for reward suggestion */}
+              {rewardGhostText && inputValue.trim() && (
+                <div
+                  ref={ghostScrollRef}
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 overflow-hidden p-4 text-sm font-mono whitespace-pre-wrap break-words"
+                  style={{ minHeight: "36px", maxHeight: "192px" }}
+                >
+                  {/* Invisible mirror of real text to position ghost suffix */}
+                  <span className="invisible">{inputValue}</span>
+                  <span className="text-terminal-muted/50 select-none">{`\n${rewardGhostText}`}</span>
+                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 text-[10px] text-terminal-muted/40 bg-terminal-muted/8 border border-terminal-muted/15 rounded select-none font-sans align-middle">Tab ↵</span>
+                </div>
+              )}
+            </div>
 
             <ComposerActionBar
               isOperationRunning={isOperationRunning}
@@ -1078,7 +1226,6 @@ export const Composer: FC<{
               isDeepResearchLoading={isDeepResearchLoading}
               mcpIsReloading={mcpStatus.isReloading}
               mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-              sessionId={sessionId}
               onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
               sttEnabled={sttEnabled}
               isRecordingVoice={isRecordingVoice}
@@ -1114,7 +1261,7 @@ export const Composer: FC<{
               compact
             />
           </div>
-          <ActiveModelIndicator status={contextStatus} />
+          {sessionId && <ModelSelector sessionId={sessionId} status={contextStatus} />}
         </div>
       )}
 

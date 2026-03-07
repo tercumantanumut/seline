@@ -166,6 +166,7 @@ export async function loadMCPToolsForCharacter(
         const preference = mcpToolPreferences[toolKey] ?? {
             enabled: true,
             loadingMode: "deferred" as const,
+            displayMode: "compact" as const,
         };
 
         // Skip disabled tools

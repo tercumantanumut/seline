@@ -13,6 +13,8 @@ import { useTranslations } from "next-intl";
 import { getCharacterInitials } from "@/components/assistant-ui/character-context";
 import { AgentOverflowMenu } from "@/components/character-picker-agent-overflow-menu";
 import { getAgentAccentColor } from "@/lib/personalization/accent-colors";
+import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
+import type { GradientColor } from "@/components/ui/noisy-gradient-backgrounds";
 import type { CharacterSummary } from "@/components/character-picker-types";
 
 export function AgentCardInWorkflow({
@@ -27,6 +29,7 @@ export function AgentCardInWorkflow({
   onEditFolders,
   onEditMcp,
   onEditPlugins,
+  onEditAvatar3d,
   onDuplicate,
   isDuplicating = false,
   addToWorkflowLabel,
@@ -37,7 +40,6 @@ export function AgentCardInWorkflow({
   removeFromWorkflowLabel,
   router,
   dataAnimateCard,
-  hasWallpaper = false,
 }: {
   character: CharacterSummary;
   role?: "initiator" | "subagent";
@@ -50,6 +52,7 @@ export function AgentCardInWorkflow({
   onEditFolders: (c: CharacterSummary) => void;
   onEditMcp: (c: CharacterSummary) => void;
   onEditPlugins: (c: CharacterSummary) => void;
+  onEditAvatar3d: (c: CharacterSummary) => void;
   onDuplicate: (characterId: string) => void;
   isDuplicating?: boolean;
   addToWorkflowLabel?: string;
@@ -60,7 +63,6 @@ export function AgentCardInWorkflow({
   removeFromWorkflowLabel?: string;
   router: ReturnType<typeof useRouter>;
   dataAnimateCard?: boolean;
-  hasWallpaper?: boolean;
 }) {
   const initials = getCharacterInitials(character.name);
   const enabledTools = character.metadata?.enabledTools || [];
@@ -77,15 +79,29 @@ export function AgentCardInWorkflow({
     [character.id, character.metadata]
   );
 
+  // Generate noisy gradient colors for avatar (same look as onboarding path cards)
+  const avatarGradientColors = useMemo((): GradientColor[] => {
+    const hex = accentColor.hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const dr = Math.max(0, Math.round(r * 0.3));
+    const dg = Math.max(0, Math.round(g * 0.3));
+    const db = Math.max(0, Math.round(b * 0.3));
+    return [
+      { color: `rgba(${dr},${dg},${db},1)`, stop: "0%" },
+      { color: `rgba(${r},${g},${b},1)`, stop: "60%" },
+      { color: `rgba(${Math.min(255, r + 30)},${Math.min(255, g + 30)},${Math.min(255, b + 30)},1)`, stop: "100%" },
+    ];
+  }, [accentColor.hex]);
+
   return (
     <AnimatedCard
       data-animate-card={dataAnimateCard ? true : undefined}
       hoverLift
       className={cn(
-        "group relative w-full overflow-hidden",
-        hasWallpaper
-          ? "border border-white/[0.15] bg-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl"
-          : "border border-terminal-border/30 bg-terminal-cream/90 shadow-sm"
+        "group relative w-full overflow-hidden flex flex-col min-h-[180px]",
+        "border border-terminal-border/30 bg-terminal-cream shadow-sm"
       )}
     >
       {/* Subtle accent gradient strip at top */}
@@ -96,7 +112,7 @@ export function AgentCardInWorkflow({
         }}
       />
 
-      <div className="p-4 pb-2">
+      <div className="flex-1 p-4 pb-2">
         <AgentOverflowMenu
           character={character}
           onEditIdentity={onEditIdentity}
@@ -104,6 +120,7 @@ export function AgentCardInWorkflow({
           onEditFolders={onEditFolders}
           onEditMcp={onEditMcp}
           onEditPlugins={onEditPlugins}
+          onEditAvatar3d={onEditAvatar3d}
           onNavigateDashboard={() => router.push("/dashboard")}
           onDuplicate={onDuplicate}
           isDuplicating={isDuplicating}
@@ -118,23 +135,28 @@ export function AgentCardInWorkflow({
 
         <div className="flex min-h-9 items-center gap-3">
           <div className="relative">
-            <Avatar
-              className="h-10 w-10"
-              style={{
-                boxShadow: `0 0 0 1.5px ${accentColor.hex}30, 0 0 12px ${accentColor.hex}15`,
-              }}
-            >
-              {imageUrl ? <AvatarImage src={imageUrl} alt={character.name} /> : null}
-              <AvatarFallback
-                className="font-mono text-xs font-semibold"
-                style={{
-                  backgroundColor: `${accentColor.hex}20`,
-                  color: accentColor.hex,
-                }}
-              >
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            {imageUrl ? (
+              <Avatar className="h-14 w-14">
+                <AvatarImage src={imageUrl} alt={character.name} />
+                <AvatarFallback className="font-mono text-sm font-semibold text-white" style={{ backgroundColor: accentColor.hex }}>
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <div className="relative h-14 w-14 shrink-0 rounded-full overflow-hidden">
+                <GradientBackground
+                  colors={avatarGradientColors}
+                  gradientOrigin="bottom-middle"
+                  gradientSize="150% 150%"
+                  noiseIntensity={0.9}
+                  noisePatternAlpha={45}
+                  noisePatternSize={60}
+                  noisePatternRefreshInterval={7}
+                  className="rounded-full"
+                />
+                <span className="relative z-10 flex h-full w-full items-center justify-center" />
+              </div>
+            )}
             {hasActiveSession(character.id, character.hasActiveSession) && (
               <div className="absolute -right-1 -top-1 z-10">
                 <div className="flex h-4 w-4 items-center justify-center rounded-full bg-green-500 shadow-md">
@@ -175,22 +197,21 @@ export function AgentCardInWorkflow({
           </div>
         </div>
 
-        {purpose && (
-          <p className="mt-1.5 line-clamp-1 pl-0.5 font-mono text-[11px] text-terminal-muted/80">
-            {purpose}
-          </p>
-        )}
+        <p className={cn(
+          "mt-1.5 line-clamp-2 pl-0.5 font-mono text-[11px] text-terminal-muted/80",
+          !purpose && "invisible"
+        )}>
+          {purpose || "\u00A0"}
+        </p>
 
-        {topTools.length > 0 && (
-          <div className="mt-1.5 flex items-center gap-1">
-            {topTools.map((toolId) => (
-              <ToolBadge key={toolId} toolId={toolId} size="xs" />
-            ))}
-            {enabledTools.length > 3 && (
-              <span className="font-mono text-[10px] text-terminal-muted">+{enabledTools.length - 3}</span>
-            )}
-          </div>
-        )}
+        <div className="mt-1.5 flex items-center gap-1 min-h-[24px]">
+          {topTools.map((toolId) => (
+            <ToolBadge key={toolId} toolId={toolId} size="sm" />
+          ))}
+          {enabledTools.length > 3 && (
+            <span className="font-mono text-[10px] text-terminal-muted">+{enabledTools.length - 3}</span>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-start gap-1.5 px-4 pb-3 pt-0">
@@ -200,7 +221,7 @@ export function AgentCardInWorkflow({
           onClick={() => onContinueChat(character.id)}
         >
           <MessageCircle className="h-3 w-3" />
-          {t("continue")}
+          {hasActiveSession(character.id, character.hasActiveSession) ? t("resumeChat") : t("startChat")}
         </AnimatedButton>
         <AnimatedButton
           size="sm"

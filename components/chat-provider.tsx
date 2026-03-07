@@ -50,7 +50,10 @@ function toError(error: unknown): Error {
  * auto-retry rather than crash the page.
  */
 function isRecoverableStreamingError(error: Error): boolean {
+  // Abort errors from user-initiated stop (especially pre-initialization)
+  if (error.name === "AbortError") return true;
   const msg = error.message || "";
+  if (msg.includes("aborted")) return true;
   const classification = classifyRecoverability({
     provider: "client-ui",
     error,

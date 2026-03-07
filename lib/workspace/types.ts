@@ -57,6 +57,9 @@ export interface WorkspaceStatus extends WorkspaceInfo {
   /** Output of `git diff --stat` — summary of changes */
   diffStat?: string;
 
+  /** Count of local commits not yet pushed to the tracked upstream branch */
+  commitsAhead?: number;
+
   /** List of changed files with their status */
   changedFileList?: Array<{
     path: string;
@@ -144,6 +147,7 @@ export interface WorkspaceSummary {
  * Actions that can be performed via POST /api/sessions/[id]/workspace
  */
 export type WorkspaceAction =
+  | "enable-git"
   | "sync-to-local"
   | "cleanup"
   | "refresh-status"
@@ -152,8 +156,10 @@ export type WorkspaceAction =
   | "stage-all"
   | "unstage-all"
   | "revert"
-  | "commit";
-
+  | "commit"
+  | "push"
+  | "push-and-create-pr"
+  | "push-base-branch";
 /**
  * Helper to extract WorkspaceInfo from session metadata.
  */

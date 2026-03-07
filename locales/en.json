@@ -121,31 +121,9 @@
       "back": "Back",
       "continue": "Continue"
     },
-    "personalization": {
-      "title": "Personalize Your Experience",
-      "subtitle": "Help your agents understand your preferences (optional)",
-      "categories": {
-        "visual_preferences": {
-          "title": "Visual Preferences"
-        },
-        "communication_style": {
-          "title": "Communication Style"
-        },
-        "workflow_patterns": {
-          "title": "Workflow Patterns"
-        }
-      },
-      "skip": "Skip personalization",
-      "addPlaceholder": "Add a {category}...",
-      "add": "Add",
-      "exampleHint": "Or click to add an example:",
-      "preferencesCount": "Your preferences ({count}):",
-      "back": "Back",
-      "continue": "Continue"
-    },
     "features": {
-      "title": "Everything Seline Can Do",
-      "subtitle": "A complete AI platform — many features work out of the box, others unlock with an API key.",
+      "title": "Choose Your Path",
+      "subtitle": "Pick a starting point — change anytime in Settings.",
       "legend": {
         "ready": "Works out of the box",
         "configurable": "Configure in Settings"
@@ -211,7 +189,47 @@
         "toolSearch": "Tool Discovery"
       },
       "back": "Back",
-      "continue": "Continue"
+      "continue": "Continue",
+      "startChatting": "Start Chatting"
+    },
+    "pathSelection": {
+      "label": "CHOOSE_YOUR_PATH",
+      "title": "Choose Your Path",
+      "subtitle": "Each path unlocks different capabilities. Change anytime in Settings.",
+      "dev": {
+        "title": "Seline Dev",
+        "tagline": "Ship code with an AI pair programmer"
+      },
+      "fun": {
+        "title": "Seline Fun",
+        "tagline": "Personal AI companions with personality"
+      },
+      "work": {
+        "title": "Seline Work",
+        "tagline": "Team agents for your organization",
+        "comingSoon": "Coming Soon"
+      },
+      "config": {
+        "devWorkspace": "Git workspace isolation",
+        "devWorkspaceDesc": "Parallel development with isolated worktrees",
+        "browserAutomation": "Built-in Chromium browser",
+        "browserAutomationDesc": "Agent navigates, clicks, reads console logs",
+        "sttProvider": "Speech-to-text",
+        "sttLocal": "Local (Whisper.cpp)",
+        "sttCloud": "Cloud (OpenAI)",
+        "sttParakeet": "Parakeet",
+        "ttsProvider": "Text-to-speech",
+        "ttsEdge": "Edge TTS (free)",
+        "ttsOpenai": "OpenAI TTS",
+        "ttsElevenlabs": "ElevenLabs",
+        "avatar3d": "3D animated avatar",
+        "avatar3dDesc": "Lip-synced face that speaks with the agent",
+        "emotionDetection": "Emotion detection",
+        "emotionDetectionDesc": "Avatar reacts based on conversation mood",
+        "telegramToken": "Telegram bot token",
+        "telegramTokenPlaceholder": "Paste your @BotFather token...",
+        "telegramTokenHint": "Optional"
+      }
     },
     "complete": {
       "title": "You're All Set!",
@@ -357,6 +375,8 @@
     "create": "Create New Agent",
     "createDescription": "Configure your own AI agent",
     "continue": "Continue",
+    "resumeChat": "Resume",
+    "startChat": "Chat",
     "startNew": "Start new chat",
     "edit": "Edit",
     "delete": "Delete",
@@ -377,7 +397,8 @@
       "plugins": "Plugins",
       "dashboard": "Dashboard",
       "duplicate": "Duplicate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "avatar3d": "3D Avatar"
     },
     "mcpToolsTitle": "Configure MCP Tools",
     "plugins": {
@@ -798,8 +819,8 @@
   },
   "avatar": {
     "dialog": {
-      "title": "Avatar for {name}",
-      "subtitle": "Select an existing image or upload a new avatar"
+      "title": "Profile Picture for {name}",
+      "subtitle": "Select an existing image or upload a new one"
     },
     "error": {
       "fetch": "Failed to fetch images",
@@ -812,11 +833,11 @@
     },
     "empty": "No images yet. Upload one below.",
     "actions": {
-      "upload": "Upload New Avatar",
+      "upload": "Upload Image",
       "uploading": "Uploading..."
     },
     "delete": "Delete",
-    "setAsPrimary": "Set {name} as primary avatar",
+    "setAsPrimary": "Set as primary for {name}",
     "note": "PNG, JPEG, or WebP · Max 10MB"
   },
   "documents": {
@@ -879,7 +900,14 @@
       "removePastedText": "Remove pasted text",
       "textPasted": "Large text captured ({lines} lines)",
       "editorEnable": "Rich editor",
-      "editorDisable": "Simple mode"
+      "editorDisable": "Simple mode",
+      "rewardSuggestion": "Upon completion: +{amount} · {reason}",
+      "rewardBands": {
+        "small": "Quick win",
+        "medium": "Focused build",
+        "large": "Large scope",
+        "epic": "Epic scope"
+      }
     },
     "queue": {
       "messagesQueued": "{count} message{count, plural, one {} other {s}} queued",
@@ -1252,7 +1280,33 @@
       "cancel": "Cancel",
       "discarding": "Discarding...",
       "discardChanges": "Discard Changes",
-      "fetchFailed": "Failed to fetch workspace status"
+      "fetchFailed": "Failed to fetch workspace status",
+      "pushFailed": "Failed to push branch",
+      "pushSuccess": "Branch pushed successfully",
+      "pushing": "Pushing...",
+      "createPRFailed": "Failed to create pull request",
+      "createPRSuccess": "Pull request ready",
+      "creatingPR": "Creating PR...",
+      "pushAndCreatePR": "Push & Create PR ({count})",
+      "pushOnly": "Push ({count})",
+      "viewPR": "View PR #{number}",
+      "auth": {
+        "title": "GitHub authentication required",
+        "installTitle": "GitHub CLI required",
+        "copyCommand": "Copy login command",
+        "openDocs": "Open auth docs",
+        "installGh": "Install GitHub CLI",
+        "retry": "Retry PR creation",
+        "copySuccess": "Login command copied",
+        "copyFailed": "Failed to copy login command",
+        "openDocsFailed": "Failed to open GitHub docs",
+        "partialSuccess": "Branch pushed. GitHub authentication is still required to open the PR.",
+        "baseBranchTitle": "Base branch not on remote",
+        "pushBaseBranch": "Push {branch} to remote",
+        "pushingBaseBranch": "Pushing...",
+        "baseBranchPushed": "Base branch pushed to remote",
+        "pushBaseBranchFailed": "Failed to push base branch to remote"
+      }
     },
     "dashboard": {
       "activeWorkspaces": "Active Workspaces",
@@ -1272,7 +1326,12 @@
       "hoursAgo": "{n}h ago",
       "daysAgo": "{n}d ago",
       "noChanges": "No changes",
-      "filesChanged": "{count, plural, one {# file changed} other {# files changed}}"
+      "filesChanged": "{count, plural, one {# file changed} other {# files changed}}",
+      "confirmCleanupTitle": "Remove workspace?",
+      "confirmCleanupDesc": "Branch \"{branch}\" may have uncommitted changes that will be permanently lost.",
+      "confirmCancel": "Cancel",
+      "confirmRemove": "Remove",
+      "cleanAll": "Clean up {count}"
     },
     "onboarding": {
       "step1": {
@@ -1306,6 +1365,7 @@
       "cleanupWorkspace": "Cleanup Workspace",
       "cleanupTitle": "Cleanup Workspace",
       "cleanupDescription": "This will remove the git worktree for branch <strong>{branch}</strong> and discard any uncommitted changes. This action cannot be undone.",
+      "cleanupDescriptionLocal": "This will disable Git Mode for branch <strong>{branch}</strong> in this session. Your repository and files stay exactly where they are.",
       "cancel": "Cancel",
       "cleaningUp": "Cleaning up...",
       "cleanup": "Cleanup"
@@ -1862,14 +1922,6 @@
       "description": "Run setup again if you want to update your initial choices",
       "cta": "Re-run Setup Wizard"
     },
-    "memoryDefaults": {
-      "title": "Default memory for new agents",
-      "description": "Add preferences that should be included automatically when new agents are created.",
-      "addNew": "Add a default memory",
-      "placeholder": "e.g. Keep answers short and practical",
-      "add": "Add",
-      "empty": "No default memory yet. Add one to personalize future agents."
-    },
     "errors": {
       "load": "Failed to load settings",
       "save": "Failed to save settings",
@@ -2325,6 +2377,14 @@
         "always": "Load all tools up front",
         "alwaysHelper": "Makes every tool immediately available, but each request uses more tokens."
       },
+      "toolDisplay": {
+        "label": "How tool cards look",
+        "compact": "Compact cards",
+        "compactHelper": "Shows the minimal chip view and reveals details on hover or tap.",
+        "detailed": "Detailed live status",
+        "detailedHelper": "Shows RPG-style live status rows with parameters, progress, and output preview inline.",
+        "devWorkspaceOverride": "Developer workspace is enabled, so tool cards stay in detailed mode in workspace contexts."
+      },
       "postEditHooks": {
         "heading": "After-edit checks",
         "description": "Choose which checks run automatically after AI changes.",
@@ -2390,6 +2450,12 @@
         "enableLabel": "Enable 3D avatar",
         "enableDesc": "Shows an animated 3D avatar in the chat interface."
       },
+      "emotionDetection": {
+        "heading": "Emotion Detection",
+        "description": "Detect emotional tone in your messages to drive avatar expressions and mood-aware responses. Uses a utility model call per message.",
+        "enableLabel": "Enable emotion detection",
+        "enableDesc": "Classifies emotional tone on each message. Requires 3D avatar for visual feedback."
+      },
       "everMemOS": {
         "heading": "Shared memory (EverMemOS)",
         "description": "Connect to an EverMemOS server for cross-agent shared memory. Local memory is always used; EverMemOS adds shared recall.",
@@ -2409,13 +2475,6 @@
         "cleanupDaysLabel": "Clean up after (days)",
         "recommendedServers": "Recommended tool servers:",
         "recommendedServersDesc": "Install <worktreeTools/> for worktree management or <githubMcp/> for pull request workflows. Configure them in Tool servers (MCP)."
-      }
-    },
-    "memory": {
-      "categoryLabels": {
-        "visual_preferences": "Visual style",
-        "communication_style": "Communication style",
-        "workflow_patterns": "Workflow habits"
       }
     },
     "voice": {
@@ -2803,7 +2862,7 @@
       "goHome": "Go Home"
     },
     "sidebar": {
-      "changeAvatar": "Click to change avatar",
+      "changeAvatar": "Change profile picture",
       "history": "Chat History",
       "agentMemory": "Agent Memory",
       "schedules": "Scheduled Tasks",
@@ -3316,26 +3375,8 @@
   "skills": {
     "title": "Skills",
     "pageDescription": "Manage reusable skill recipes for {name}.",
-    "library": {
-      "title": "Cross-Agent Skill Library",
-      "searchPlaceholder": "Search skills",
-      "allCategories": "All categories",
-      "applyFilters": "Apply Filters",
-      "noMatch": "No skills matched your current filters.",
-      "noDescription": "No description",
-      "category": "Category",
-      "categoryGeneral": "general",
-      "runs": "Runs",
-      "success": "Success",
-      "updated": "Updated",
-      "selectAgent": "Select target agent",
-      "copy": "Copy",
-      "open": "Open",
-      "copySuccess": "Skill copied successfully.",
-      "copyFailed": "Failed to copy skill"
-    },
-    "mySkills": "My Skills",
     "library": "Library",
+    "mySkills": "My Skills",
     "importPackage": "Import Package",
     "hideImport": "Hide Import",
     "importSuccess": "Skill imported successfully",
@@ -3947,5 +3988,32 @@
   },
   "dev": {
     "dimensionMismatch": "Embedding dimension mismatch. Re-sync your folders in Settings to fix."
+  },
+  "avatar3dModels": {
+    "dialog": {
+      "title": "3D Avatar for {name}",
+      "subtitle": "Choose a preset or upload a custom Ready Player Me GLB"
+    },
+    "presets": {
+      "default": "Default",
+      "brunette": "Brunette",
+      "aria": "Aria",
+      "kai": "Kai",
+      "marcus": "Marcus",
+      "playerzero": "Player Zero"
+    },
+    "custom": {
+      "upload": "Upload custom GLB",
+      "uploading": "Uploading...",
+      "current": "Custom model",
+      "remove": "Remove"
+    },
+    "selected": "Done",
+    "error": {
+      "tooLarge": "Max 20MB",
+      "invalidType": "Only .glb files",
+      "upload": "Upload failed",
+      "save": "Save failed"
+    }
   }
 }

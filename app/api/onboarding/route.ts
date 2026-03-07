@@ -57,10 +57,6 @@ function applyOnboardingProviderSelection(settings: ReturnType<typeof loadSettin
 }
 
 function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, body: Record<string, unknown>) {
-    if (body.globalMemoryDefaults) {
-        settings.globalMemoryDefaults = body.globalMemoryDefaults as typeof settings.globalMemoryDefaults;
-    }
-
     if (body.tavilyApiKey && typeof body.tavilyApiKey === "string") {
         settings.tavilyApiKey = body.tavilyApiKey.trim();
     }
@@ -71,6 +67,46 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
 
     if (body.firecrawlApiKey && typeof body.firecrawlApiKey === "string") {
         settings.firecrawlApiKey = body.firecrawlApiKey.trim();
+    }
+
+    // Apply path selection from onboarding
+    if (body.selectedPath === "dev" || body.selectedPath === "fun") {
+        settings.selineMode = body.selectedPath;
+    }
+
+    const pathConfig = body.pathConfig as Record<string, unknown> | undefined;
+    if (pathConfig) {
+        // Dev path settings
+        if (typeof pathConfig.devWorkspaceEnabled === "boolean") {
+            settings.devWorkspaceEnabled = pathConfig.devWorkspaceEnabled;
+        }
+        if (pathConfig.browserAutomationEnabled === true) {
+            settings.chromiumBrowserMode = "standalone";
+        }
+
+        // Fun path settings
+        if (
+            pathConfig.sttProvider === "openai" ||
+            pathConfig.sttProvider === "local" ||
+            pathConfig.sttProvider === "parakeet"
+        ) {
+            settings.sttProvider = pathConfig.sttProvider;
+            settings.sttEnabled = true;
+        }
+        if (
+            pathConfig.ttsProvider === "elevenlabs" ||
+            pathConfig.ttsProvider === "openai" ||
+            pathConfig.ttsProvider === "edge"
+        ) {
+            settings.ttsProvider = pathConfig.ttsProvider;
+            settings.ttsEnabled = true;
+        }
+        if (typeof pathConfig.avatar3dEnabled === "boolean") {
+            settings.avatar3dEnabled = pathConfig.avatar3dEnabled;
+        }
+        if (typeof pathConfig.emotionDetectionEnabled === "boolean") {
+            settings.emotionDetectionEnabled = pathConfig.emotionDetectionEnabled;
+        }
     }
 }
 

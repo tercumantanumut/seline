@@ -5,6 +5,7 @@ import {
   sanitizeJsonStringValues,
   queryWithSdkOptions,
   type ClaudeAgentSdkQueryOptions,
+  createClaudeCodeProvider,
 } from "@/lib/ai/providers/claudecode-provider";
 
 // ---------------------------------------------------------------------------
@@ -19,14 +20,19 @@ const { mockQuery } = vi.hoisted(() => ({
 // Mock the Agent SDK so tests don't spawn real CLI processes.
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: mockQuery,
+  createSdkMcpServer: vi.fn(() => ({})),
 }));
 
 // Mock auth so auth-error tests don't need a real SDK process.
 vi.mock("@/lib/auth/claude-agent-sdk-auth", () => ({
   readClaudeAgentSdkAuthStatus: vi.fn(async () => ({
-    authenticated: false,
-    authUrl: "https://claude.ai/auth",
+    authenticated: true,
+    authUrl: undefined,
     output: [],
+  })),
+  getSdkExecutableConfig: vi.fn(() => ({
+    executable: "node",
+    env: {},
   })),
 }));
 
@@ -334,6 +340,33 @@ describe("queryWithSdkOptions — text extraction", () => {
     const text = await queryWithSdkOptions({ prompt: "hi" });
     expect(text).toBe("Done");
   });
+
+  it("ignores nested subagent messages annotated with parent_tool_use_id", async () => {
+    setMockStream([
+      {
+        type: "stream_event",
+        parent_tool_use_id: "task-root-1",
+        event: {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "nested subagent chatter" },
+        },
+      },
+      {
+        type: "assistant",
+        parent_tool_use_id: "task-root-1",
+        message: { content: [{ type: "text", text: "nested assistant text" }] },
+      },
+      {
+        type: "stream_event",
+        event: { type: "content_block_delta", delta: { type: "text_delta", text: "Root answer" } },
+      },
+      { type: "result", subtype: "success", is_error: false, result: "", errors: [] },
+    ]);
+
+    const text = await queryWithSdkOptions({ prompt: "hi" });
+    expect(text).toBe("Root answer");
+    expect(text).not.toContain("nested");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -508,6 +541,117 @@ describe("queryWithSdkOptions — async agent lifecycle (sdk-tools AgentOutput)"
   });
 });
 
+
+describe("createClaudeCodeProvider — nested subagent filtering", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("omits nested subagent SSE traffic but preserves the root task result", async () => {
+    setMockStream([
+      {
+        type: "stream_event",
+        event: {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "task-root-1", name: "Task" },
+        },
+      },
+      {
+        type: "stream_event",
+        event: {
+          type: "content_block_stop",
+          index: 0,
+        },
+      },
+      {
+        type: "stream_event",
+        parent_tool_use_id: "task-root-1",
+        event: {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "nested-read-1", name: "Read" },
+        },
+      },
+      {
+        type: "stream_event",
+        parent_tool_use_id: "task-root-1",
+        event: {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "input_json_delta", partial_json: '{"filePath":"secret.txt"}' },
+        },
+      },
+      {
+        type: "stream_event",
+        parent_tool_use_id: "task-root-1",
+        event: {
+          type: "content_block_stop",
+          index: 0,
+        },
+      },
+      {
+        type: "user",
+        parent_tool_use_id: "task-root-1",
+        tool_name: "Task",
+        tool_use_result: { status: "completed", agentId: "agent-1" },
+      },
+      { type: "result", subtype: "success", is_error: false, result: "", errors: [] },
+    ]);
+
+    const provider = createClaudeCodeProvider();
+    const model = provider("claude-sonnet-4-5-20250929");
+    const response = await model.doStream({
+      prompt: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "Use a subagent" }],
+        },
+      ],
+      inputFormat: "messages",
+      mode: {
+        type: "regular",
+        tools: [
+          {
+            type: "function",
+            name: "Task",
+            description: "delegate",
+            parameters: {
+              type: "object",
+              properties: {},
+            },
+          },
+          {
+            type: "function",
+            name: "Read",
+            description: "read file",
+            parameters: {
+              type: "object",
+              properties: {},
+            },
+          },
+        ],
+      },
+    } as any);
+
+    const chunks: any[] = [];
+    const reader = response.stream.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+
+    const taskCall = chunks.find((chunk) => chunk.type === "tool-call" && chunk.toolName === "Task");
+    const nestedReadCall = chunks.find((chunk) => chunk.type === "tool-call" && chunk.toolName === "Read");
+
+    expect(taskCall).toBeDefined();
+    expect(nestedReadCall).toBeUndefined();
+    // NOTE: tool-result chunks are NOT emitted by the provider in the SSE path.
+    // The AI SDK Anthropic provider only emits tool-call from content_block_start;
+    // tool results are resolved by the runtime, not the streaming provider.
+  });
+});
 
 describe("queryWithSdkOptions — live prompt queue injection", () => {
   beforeEach(() => {

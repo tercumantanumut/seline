@@ -20,10 +20,14 @@ export interface Avatar3DConfig {
   cameraDistance?: number;
   /** Camera height relative to the avatar. Default: 1.6 */
   cameraHeight?: number;
+  /** Body type for TalkingHead.js skeleton rig. Default: "F" */
+  bodyType?: "M" | "F";
   /** Whether the 3D avatar is enabled */
   enabled: boolean;
   /** Lipsync language code for TalkingHead.js. Default: "en" */
   lipsyncLang?: string;
+  /** Initial camera view. Default: "upper" */
+  cameraView?: "head" | "upper" | "mid" | "full";
 }
 
 /**
@@ -38,6 +42,8 @@ export interface Avatar3DRef {
   setMood: (mood: string, intensity?: number) => void;
   /** Set a specific facial expression blend shape */
   setExpression: (expression: string, weight?: number) => void;
+  /** Switch camera view at runtime */
+  setView: (view: string) => void;
   /** Whether the TalkingHead instance has initialized successfully */
   isReady: boolean;
   /** Whether the avatar is currently performing lip-sync */
@@ -77,6 +83,11 @@ export interface TalkingHeadConstructorOptions {
   cameraView?: string;
   cameraDistance?: number;
   cameraTarget?: [number, number, number];
+  cameraX?: number;
+  cameraY?: number;
+  cameraRotateEnable?: boolean;
+  cameraPanEnable?: boolean;
+  cameraZoomEnable?: boolean;
 }
 
 /**
@@ -103,12 +114,20 @@ export interface TalkingHeadInstance {
   stopSpeaking: () => void;
   /** Set the avatar mood (affects idle animation style) */
   setMood: (mood: string) => void;
+  /** Switch camera view (e.g. 'head', 'upper', 'mid', 'full') */
+  setView: (view: string, opt?: object) => void;
+  /** Set auto-rotation speed (0 = disabled) */
+  setAutoRotateSpeed: (speed: number) => void;
+  /** Get current auto-rotation speed */
+  getAutoRotateSpeed: () => number;
   /** Load and display an avatar model */
   showAvatar: (options: TalkingHeadShowAvatarOptions) => Promise<void>;
   /** Hide and unload the current avatar */
   hideAvatar: () => void;
   /** The internal AudioContext used for audio decoding */
   audioCtx: AudioContext;
+  /** The Three.js armature object (root skeleton) */
+  armature: { position: { x: number; y: number; z: number } };
 }
 
 /**

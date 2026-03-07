@@ -18,8 +18,8 @@ export async function createMessage(data: NewMessage) {
       await db
         .update(sessions)
         .set({
-          updatedAt: nowIso,
-          lastMessageAt: nowIso,
+          updatedAt: shouldIncrementMessageCount ? nowIso : sessions.updatedAt,
+          lastMessageAt: shouldIncrementMessageCount ? nowIso : sessions.lastMessageAt,
           messageCount: shouldIncrementMessageCount
             ? sql`${sessions.messageCount} + 1`
             : sessions.messageCount,

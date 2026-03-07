@@ -7,7 +7,7 @@ export function CharacterPickerLoadingSkeleton() {
         <div className="h-7 w-48 bg-muted rounded mx-auto animate-pulse" />
         <div className="h-4 w-72 bg-muted/60 rounded mx-auto animate-pulse" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="rounded-xl border border-terminal-border/40 bg-terminal-cream/60 p-4 space-y-3 animate-pulse">
             <div className="flex items-center gap-3">

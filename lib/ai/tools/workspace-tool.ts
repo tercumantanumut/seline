@@ -606,8 +606,10 @@ async function handleDelete(sessionId: string) {
     return { status: "error" as const, error: "No workspace to delete." };
   }
 
-  // 1. Remove sync folder (stops watcher if any, cleans DB — no vectors to clean)
-  if (workspaceInfo.syncFolderId) {
+  const isLocalWorkspace = workspaceInfo.type === "local";
+
+  // Only tool-created workspaces own their sync folder lifecycle.
+  if (!isLocalWorkspace && workspaceInfo.syncFolderId) {
     try {
       await removeSyncFolder(workspaceInfo.syncFolderId);
     } catch (err) {
@@ -615,8 +617,8 @@ async function handleDelete(sessionId: string) {
     }
   }
 
-  // 2. Remove git worktree
-  if (workspaceInfo.worktreePath && isValidPath(workspaceInfo.worktreePath) && fs.existsSync(workspaceInfo.worktreePath)) {
+  // Local Git Mode points at the user's real repo, so never remove it as a worktree.
+  if (!isLocalWorkspace && workspaceInfo.worktreePath && isValidPath(workspaceInfo.worktreePath) && fs.existsSync(workspaceInfo.worktreePath)) {
     try {
       const commonDir = (
         await runGitCommand(workspaceInfo.worktreePath, ["rev-parse", "--git-common-dir"])
@@ -638,6 +640,6 @@ async function handleDelete(sessionId: string) {
 
   return {
     status: "success" as const,
-    message: "Workspace deleted and cleaned up.",
+    message: isLocalWorkspace ? "Git Mode disabled for this session." : "Workspace deleted and cleaned up.",
   };
 }

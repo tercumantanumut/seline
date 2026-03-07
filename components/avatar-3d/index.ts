@@ -21,6 +21,9 @@ export type {
 export { AvatarRenderer } from "./avatar-renderer";
 export type { AvatarRendererProps } from "./avatar-renderer";
 
+export { AvatarPipWidget } from "./avatar-pip-widget";
+export type { AvatarPipWidgetProps } from "./avatar-pip-widget";
+
 export { EmotionBadge } from "./emotion-badge";
 export type { EmotionBadgeProps } from "./emotion-badge";
 
