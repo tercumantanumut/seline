@@ -1250,7 +1250,16 @@
       "cancel": "İptal",
       "discarding": "İptal ediliyor...",
       "discardChanges": "Değişiklikleri İptal Et",
-      "fetchFailed": "Çalışma alanı durumu alınamadı"
+      "fetchFailed": "Çalışma alanı durumu alınamadı",
+      "pushFailed": "Dal push edilemedi",
+      "pushSuccess": "Dal başarıyla push edildi",
+      "pushing": "Push ediliyor...",
+      "createPRFailed": "PR oluşturulamadı",
+      "createPRSuccess": "PR hazır",
+      "creatingPR": "PR oluşturuluyor...",
+      "pushAndCreatePR": "Push & PR Oluştur ({count})",
+      "pushOnly": "Push ({count})",
+      "viewPR": "PR #{number} Görüntüle"
     },
     "dashboard": {
       "activeWorkspaces": "Aktif Çalışma Alanları",
@@ -1304,6 +1313,7 @@
       "cleanupWorkspace": "Çalışma Alanını Temizle",
       "cleanupTitle": "Çalışma Alanını Temizle",
       "cleanupDescription": "Bu işlem, <strong>{branch}</strong> dalı için git worktree'yi kaldıracak ve tüm kaydedilmemiş değişiklikleri atacaktır. Bu işlem geri alınamaz.",
+      "cleanupDescriptionLocal": "Bu işlem bu oturum için <strong>{branch}</strong> dalındaki Git Modu'nu kapatır. Depo ve dosyalarınız yerinde kalır.",
       "cancel": "İptal",
       "cleaningUp": "Temizleniyor...",
       "cleanup": "Temizle"
@@ -2157,6 +2167,14 @@
         "deferredHelper": "~2000 token tasarrufu. Araçlar gerektiğinde searchTools ile keşfedilir.",
         "always": "Her Zaman Dahil Et",
         "alwaysHelper": "Tüm araçlar anında kullanılabilir. İstek başına daha fazla token kullanır."
+      },
+      "toolDisplay": {
+        "label": "Araç kartlarının görünümü",
+        "compact": "Kompakt kartlar",
+        "compactHelper": "Minimal görünümü korur; detaylar hover veya dokunma ile açılır.",
+        "detailed": "Detaylı canlı durum",
+        "detailedHelper": "Parametreleri, ilerlemeyi ve çıktı önizlemesini RPG tarzı canlı satırlarda gösterir.",
+        "devWorkspaceOverride": "Geliştirici çalışma alanı etkin olduğunda, çalışma alanı bağlamlarında araç kartları detaylı modda kalır."
       },
       "postEditHooks": {
         "heading": "Düzenleme sonrası kontroller",

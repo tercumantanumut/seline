@@ -221,19 +221,27 @@ export async function buildSystemPromptForRequest(
       String(v || "").replace(/[\r\n]/g, " ").replace(/^[#\[]/g, "");
     let workspaceBlock: string;
     if (wsInfo && wsInfo.status) {
+      const workspaceType = sanitizeWsField(wsInfo.type) || "worktree";
+      const workspaceLabel = workspaceType === "local" ? "local git repository workspace" : "git worktree workspace";
+      const pathLabel = workspaceType === "local" ? "Repository Path" : "Path";
+      const cleanupGuidance = workspaceType === "local"
+        ? `When done, disable Git Mode by clearing workspace metadata instead of removing the repository.`
+        : `When done, use workspace({ action: "delete" }) to clean up.`;
+
       workspaceBlock =
         `\n\n## Active Workspace\n` +
-        `You are working in a git worktree workspace:\n` +
+        `You are working in a ${workspaceLabel}:\n` +
+        `- Type: ${workspaceType}\n` +
         `- Branch: ${sanitizeWsField(wsInfo.branch) || "unknown"}\n` +
         `- Base: ${sanitizeWsField(wsInfo.baseBranch) || "unknown"}\n` +
-        `- Path: ${sanitizeWsField(wsInfo.worktreePath) || "unknown"}\n` +
+        `- ${pathLabel}: ${sanitizeWsField(wsInfo.worktreePath) || "unknown"}\n` +
         `- Status: ${sanitizeWsField(wsInfo.status)}\n` +
         (wsInfo.prUrl ? `- PR: ${sanitizeWsField(wsInfo.prUrl)}\n` : "") +
-        `\nFile tools (readFile, editFile, writeFile, localGrep) work in the worktree path. ` +
+        `\nFile tools (readFile, editFile, writeFile, localGrep) work in the workspace path. ` +
         `Use executeCommand for git operations (commit, push, gh pr create) and builds. ` +
         `When changes are ready, ask the user if they want to keep local, push, or create a PR. ` +
         `NEVER fabricate PR URLs — only use real URLs from gh CLI output. ` +
-        `When done, use workspace({ action: "delete" }) to clean up.`;
+        cleanupGuidance;
     } else {
       workspaceBlock =
         `\n\n[Developer Workspace]\n` +

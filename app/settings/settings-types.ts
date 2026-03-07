@@ -22,6 +22,7 @@ export interface AppSettings {
   utilityModel?: string;
   embeddingReindexRequired?: boolean;
   theme: "dark" | "light" | "system";
+  toolDisplayMode?: "compact" | "detailed";
   localUserId: string;
   localUserEmail: string;
   promptCachingEnabled?: boolean;
@@ -95,6 +96,7 @@ export interface FormState {
   openrouterArgs: string;
   theme: "dark" | "light" | "system";
   toolLoadingMode: "deferred" | "always";
+  toolDisplayMode: "compact" | "detailed";
   postEditHooksPreset: "off" | "fast" | "strict";
   postEditHooksEnabled: boolean;
   postEditTypecheckEnabled: boolean;
@@ -207,6 +209,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   openrouterArgs: "{}",
   theme: "dark",
   toolLoadingMode: "deferred",
+  toolDisplayMode: "compact",
   postEditHooksPreset: "off",
   postEditHooksEnabled: false,
   postEditTypecheckEnabled: false,
@@ -314,6 +317,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     openrouterArgs: data.openrouterArgs || "{}",
     theme: data.theme || "dark",
     toolLoadingMode: data.toolLoadingMode || "deferred",
+    toolDisplayMode: data.toolDisplayMode === "detailed" ? "detailed" : "compact",
     postEditHooksPreset: data.postEditHooksPreset ?? "off",
     postEditHooksEnabled: data.postEditHooksEnabled ?? false,
     postEditTypecheckEnabled: data.postEditTypecheckEnabled ?? false,

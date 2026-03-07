@@ -184,6 +184,7 @@ export interface AppSettings {
     // App preferences
     theme: "dark" | "light" | "system";
     toolLoadingMode?: "deferred" | "always";  // Tool loading strategy: deferred saves tokens, always loads all upfront
+    toolDisplayMode?: "compact" | "detailed"; // Tool card rendering strategy in chat UI
     postEditHooksPreset?: PostEditHooksPreset;   // Quick mode for post-edit checks: off, fast, strict
     postEditHooksEnabled?: boolean;              // Master toggle for all post-edit checks
     postEditTypecheckEnabled?: boolean;          // Run TypeScript typecheck after edits
@@ -282,6 +283,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     localUserEmail: "local@zlutty.ai",
     theme: "dark",
     toolLoadingMode: "deferred",  // Default to deferred loading to save tokens
+    toolDisplayMode: "compact",
     postEditHooksPreset: "off",
     postEditHooksEnabled: false,
     postEditTypecheckEnabled: false,

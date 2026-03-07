@@ -427,39 +427,82 @@ export function PreferencesSection({ formState, updateField }: PreferencesSectio
       </div>
 
       {/* Tool Loading Mode */}
-      <div>
-        <label className="mb-2 block font-mono text-sm text-terminal-muted">
-          {t("preferences.toolLoading.label")}
-        </label>
-        <div className="space-y-3">
-          <label className="flex items-start gap-3">
-            <input
-              type="radio"
-              name="toolLoadingMode"
-              value="deferred"
-              checked={formState.toolLoadingMode === "deferred"}
-              onChange={() => updateField("toolLoadingMode", "deferred")}
-              className="mt-1 size-4 accent-terminal-green"
-            />
-            <div>
-              <span className="font-mono text-terminal-dark">{t("preferences.toolLoading.deferred")}</span>
-              <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.deferredHelper")}</p>
-            </div>
+      <div className="space-y-4 rounded border border-terminal-border bg-terminal-cream/30 p-4">
+        <div>
+          <label className="mb-2 block font-mono text-sm text-terminal-muted">
+            {t("preferences.toolLoading.label")}
           </label>
-          <label className="flex items-start gap-3">
-            <input
-              type="radio"
-              name="toolLoadingMode"
-              value="always"
-              checked={formState.toolLoadingMode === "always" || !formState.toolLoadingMode}
-              onChange={() => updateField("toolLoadingMode", "always")}
-              className="mt-1 size-4 accent-terminal-green"
-            />
-            <div>
-              <span className="font-mono text-terminal-dark">{t("preferences.toolLoading.always")}</span>
-              <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.alwaysHelper")}</p>
-            </div>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="toolLoadingMode"
+                value="deferred"
+                checked={formState.toolLoadingMode === "deferred"}
+                onChange={() => updateField("toolLoadingMode", "deferred")}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">{t("preferences.toolLoading.deferred")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.deferredHelper")}</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="toolLoadingMode"
+                value="always"
+                checked={formState.toolLoadingMode === "always" || !formState.toolLoadingMode}
+                onChange={() => updateField("toolLoadingMode", "always")}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">{t("preferences.toolLoading.always")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolLoading.alwaysHelper")}</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="border-t border-terminal-border pt-4">
+          <label className="mb-2 block font-mono text-sm text-terminal-muted">
+            {t("preferences.toolDisplay.label")}
           </label>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="toolDisplayMode"
+                value="compact"
+                checked={formState.toolDisplayMode === "compact"}
+                onChange={() => updateField("toolDisplayMode", "compact")}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">{t("preferences.toolDisplay.compact")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolDisplay.compactHelper")}</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="toolDisplayMode"
+                value="detailed"
+                checked={formState.toolDisplayMode === "detailed"}
+                onChange={() => updateField("toolDisplayMode", "detailed")}
+                className="mt-1 size-4 accent-terminal-green"
+              />
+              <div>
+                <span className="font-mono text-terminal-dark">{t("preferences.toolDisplay.detailed")}</span>
+                <p className="font-mono text-xs text-terminal-muted">{t("preferences.toolDisplay.detailedHelper")}</p>
+              </div>
+            </label>
+          </div>
+          {formState.devWorkspaceEnabled && (
+            <p className="mt-3 rounded border border-terminal-green/30 bg-terminal-green/10 px-3 py-2 font-mono text-xs text-terminal-dark">
+              {t("preferences.toolDisplay.devWorkspaceOverride")}
+            </p>
+          )}
         </div>
       </div>
 

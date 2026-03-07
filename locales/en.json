@@ -1252,7 +1252,16 @@
       "cancel": "Cancel",
       "discarding": "Discarding...",
       "discardChanges": "Discard Changes",
-      "fetchFailed": "Failed to fetch workspace status"
+      "fetchFailed": "Failed to fetch workspace status",
+      "pushFailed": "Failed to push branch",
+      "pushSuccess": "Branch pushed successfully",
+      "pushing": "Pushing...",
+      "createPRFailed": "Failed to create pull request",
+      "createPRSuccess": "Pull request ready",
+      "creatingPR": "Creating PR...",
+      "pushAndCreatePR": "Push & Create PR ({count})",
+      "pushOnly": "Push ({count})",
+      "viewPR": "View PR #{number}"
     },
     "dashboard": {
       "activeWorkspaces": "Active Workspaces",
@@ -1306,6 +1315,7 @@
       "cleanupWorkspace": "Cleanup Workspace",
       "cleanupTitle": "Cleanup Workspace",
       "cleanupDescription": "This will remove the git worktree for branch <strong>{branch}</strong> and discard any uncommitted changes. This action cannot be undone.",
+      "cleanupDescriptionLocal": "This will disable Git Mode for branch <strong>{branch}</strong> in this session. Your repository and files stay exactly where they are.",
       "cancel": "Cancel",
       "cleaningUp": "Cleaning up...",
       "cleanup": "Cleanup"
@@ -2324,6 +2334,14 @@
         "deferredHelper": "Uses fewer tokens by loading tools only when needed.",
         "always": "Load all tools up front",
         "alwaysHelper": "Makes every tool immediately available, but each request uses more tokens."
+      },
+      "toolDisplay": {
+        "label": "How tool cards look",
+        "compact": "Compact cards",
+        "compactHelper": "Shows the minimal chip view and reveals details on hover or tap.",
+        "detailed": "Detailed live status",
+        "detailedHelper": "Shows RPG-style live status rows with parameters, progress, and output preview inline.",
+        "devWorkspaceOverride": "Developer workspace is enabled, so tool cards stay in detailed mode in workspace contexts."
       },
       "postEditHooks": {
         "heading": "After-edit checks",

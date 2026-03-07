@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
 import * as fs from "fs";
+import { generateText } from "ai";
 import { promisify } from "util";
 import {
   getSession,
@@ -9,9 +10,11 @@ import {
 } from "@/lib/db/queries";
 import { requireAuth } from "@/lib/auth/local-auth";
 import { loadSettings } from "@/lib/settings/settings-manager";
+import { resolveSessionUtilityModel, getSessionProviderTemperature } from "@/lib/ai/session-model-resolver";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
 import { isEBADFError, spawnWithFileCapture } from "@/lib/spawn-utils";
 import { GitService } from "@/lib/workspace/git-service";
+import { getSyncFolders } from "@/lib/vectordb/sync-folder-crud";
 import type {
   WorkspaceInfo,
   WorkspaceStatus,
@@ -19,6 +22,29 @@ import type {
 } from "@/lib/workspace/types";
 
 const execFileAsync = promisify(execFile);
+
+interface WorkspaceActionBody {
+  action: WorkspaceAction;
+  filePath?: string;
+  hunkPatch?: string;
+  message?: string;
+  folderPath?: string;
+}
+
+interface GitFolderDetection {
+  id: string;
+  path: string;
+  branch: string;
+  remoteUrl?: string;
+  isPrimary: boolean;
+}
+
+interface ExistingPullRequest {
+  number: number;
+  url: string;
+  isDraft?: boolean;
+  state?: string;
+}
 
 // Validate that a path is safe for use in shell commands
 function isValidWorktreePath(path: string): boolean {
@@ -108,6 +134,14 @@ function sanitizeWorkspacePatch(payload: unknown): Partial<WorkspaceInfo> {
 
 const GIT_TIMEOUT_MS = 30_000;
 const GIT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+const GH_TIMEOUT_MS = 30_000;
+const GH_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+const PR_TEMPLATE_CANDIDATES = [
+  ".github/pull_request_template.md",
+  ".github/PULL_REQUEST_TEMPLATE.md",
+  "pull_request_template.md",
+  "PULL_REQUEST_TEMPLATE.md",
+];
 
 // Default git options for child process git commands
 function gitExecOptions(cwd: string) {
@@ -116,6 +150,20 @@ function gitExecOptions(cwd: string) {
     encoding: "utf-8" as const,
     timeout: GIT_TIMEOUT_MS,
     maxBuffer: GIT_MAX_OUTPUT_BYTES,
+  };
+}
+
+function ghExecOptions(cwd: string) {
+  return {
+    cwd,
+    encoding: "utf-8" as const,
+    timeout: GH_TIMEOUT_MS,
+    maxBuffer: GH_MAX_OUTPUT_BYTES,
+    env: {
+      ...process.env,
+      GH_PROMPT_DISABLED: "1",
+      GIT_TERMINAL_PROMPT: "0",
+    },
   };
 }
 
@@ -169,7 +217,191 @@ async function runGitCommand(cwd: string, args: string[], input?: string): Promi
   }
 }
 
-// Parse `git status --porcelain` output into changed file list
+async function runGhCommand(cwd: string, args: string[], input?: string): Promise<string> {
+  const env = {
+    ...process.env,
+    GH_PROMPT_DISABLED: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  } as NodeJS.ProcessEnv;
+
+  if (typeof input === "string") {
+    const fb = await spawnWithFileCapture(
+      "gh",
+      args,
+      cwd,
+      env,
+      GH_TIMEOUT_MS,
+      GH_MAX_OUTPUT_BYTES,
+      input,
+    );
+    const exitCode = fb.exitCode ?? 1;
+    if (fb.timedOut) {
+      throw new Error(`gh command timed out after ${GH_TIMEOUT_MS}ms`);
+    }
+    if (exitCode !== 0) {
+      const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+      throw new Error(`gh command failed: ${detail}`);
+    }
+    return fb.stdout;
+  }
+
+  try {
+    const { stdout } = await execFileAsync("gh", args, ghExecOptions(cwd));
+    return stdout;
+  } catch (error) {
+    if (isEBADFError(error) && process.platform === "darwin") {
+      console.warn("[workspace route] gh execFile EBADF - retrying with file-capture fallback");
+      const fb = await spawnWithFileCapture(
+        "gh",
+        args,
+        cwd,
+        env,
+        GH_TIMEOUT_MS,
+        GH_MAX_OUTPUT_BYTES,
+      );
+      const exitCode = fb.exitCode ?? 1;
+      if (fb.timedOut) {
+        throw new Error(`gh command timed out after ${GH_TIMEOUT_MS}ms`);
+      }
+      if (exitCode !== 0) {
+        const detail = fb.stderr.trim() || fb.stdout.trim() || `exit code ${exitCode}`;
+        throw new Error(`gh command failed: ${detail}`);
+      }
+      return fb.stdout;
+    }
+    throw error;
+  }
+}
+
+function isCommandNotFoundError(error: unknown, command: string): boolean {
+  if (!error) return false;
+  const err = error as NodeJS.ErrnoException;
+  if (err.code === "ENOENT") return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(`spawn ${command} ENOENT`) || message.includes(`${command}: command not found`);
+}
+
+function extractHttpUrl(text: string): string | undefined {
+  const match = text.match(/https?:\/\/\S+/);
+  return match?.[0]?.trim();
+}
+
+function mapPrStatus(pr: ExistingPullRequest): NonNullable<WorkspaceInfo["prStatus"]> {
+  const state = (pr.state || "").toUpperCase();
+  if (state === "MERGED") return "merged";
+  if (state === "CLOSED") return "closed";
+  if (pr.isDraft) return "draft";
+  return "open";
+}
+
+function buildFallbackPrTitle(commitLog: string, branch?: string): string {
+  const firstSubject = commitLog
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.replace(/^[a-f0-9]+\s+/, "")
+    ?.trim();
+
+  if (firstSubject) {
+    return firstSubject.slice(0, 120);
+  }
+
+  if (branch) {
+    return branch.replace(/[-_/]+/g, " ").trim().slice(0, 120) || "Create pull request";
+  }
+
+  return "Create pull request";
+}
+
+function buildFallbackPrBody(commitLog: string, diffStat?: string, template?: string): string {
+  const commits = commitLog.trim()
+    ? commitLog
+        .trim()
+        .split("\n")
+        .map((line) => `- ${line.replace(/^[a-f0-9]+\s+/, "")}`)
+        .join("\n")
+    : "- No commit log available";
+
+  const summaryBlock = [
+    "## Summary",
+    commits,
+    "",
+    "## Test Notes",
+    "- Not run from the workspace UI.",
+  ].join("\n");
+
+  if (!template?.trim()) {
+    return summaryBlock;
+  }
+
+  return [template.trim(), "", "<!-- Auto-filled context -->", summaryBlock].join("\n");
+}
+
+function readPullRequestTemplate(cwd: string): string | null {
+  for (const relativePath of PR_TEMPLATE_CANDIDATES) {
+    const fullPath = `${cwd}/${relativePath}`;
+    if (fs.existsSync(fullPath)) {
+      return fs.readFileSync(fullPath, "utf-8");
+    }
+  }
+
+  const templateDirectory = `${cwd}/.github/PULL_REQUEST_TEMPLATE`;
+  if (fs.existsSync(templateDirectory)) {
+    try {
+      const firstMarkdownTemplate = fs
+        .readdirSync(templateDirectory)
+        .find((entry) => entry.toLowerCase().endsWith(".md"));
+      if (firstMarkdownTemplate) {
+        return fs.readFileSync(`${templateDirectory}/${firstMarkdownTemplate}`, "utf-8");
+      }
+    } catch {
+      // Ignore template directory read failures and fall back to generated content.
+    }
+  }
+
+  return null;
+}
+
+async function generatePullRequestBody(
+  sessionMetadata: Record<string, unknown> | null,
+  input: {
+    branch: string;
+    baseBranch: string;
+    commitLog: string;
+    diffStat?: string;
+    template?: string | null;
+  }
+): Promise<string> {
+  const { branch, baseBranch, commitLog, diffStat, template } = input;
+
+  try {
+    const { text } = await generateText({
+      model: resolveSessionUtilityModel(sessionMetadata),
+      temperature: getSessionProviderTemperature(sessionMetadata, 0.2),
+      maxOutputTokens: 1200,
+      prompt: [
+        "Write a concise but detailed GitHub pull request description in markdown.",
+        "Use factual language only. Do not invent tests or outcomes.",
+        "If a pull request template is provided, preserve its headings and fill it naturally.",
+        `Branch: ${branch}`,
+        `Base branch: ${baseBranch}`,
+        diffStat ? `Diff stat:\n${diffStat}` : "Diff stat: not available",
+        `Commit log:\n${commitLog || "No commit log available"}`,
+        template?.trim() ? `Pull request template:\n${template.trim()}` : "No pull request template was found.",
+      ].join("\n\n"),
+    });
+
+    const normalized = text.trim();
+    if (normalized) {
+      return normalized;
+    }
+  } catch (error) {
+    console.warn("[workspace route] Failed to generate PR body with AI, using fallback:", error);
+  }
+
+  return buildFallbackPrBody(commitLog, diffStat, template ?? undefined);
+}
+
 function parseGitPorcelain(
   output: string
 ): Array<{ path: string; status: "added" | "modified" | "deleted" | "renamed" }> {
@@ -190,8 +422,6 @@ function parseGitPorcelain(
     });
 }
 
-// Get live git status for a worktree path
-// Includes both uncommitted changes AND committed changes ahead of baseBranch
 async function getLiveGitStatus(worktreePath: string, baseBranch?: string): Promise<{
   changedFileList: WorkspaceStatus["changedFileList"];
   changedFiles: number;
@@ -208,21 +438,17 @@ async function getLiveGitStatus(worktreePath: string, baseBranch?: string): Prom
   }
 
   try {
-    // First check uncommitted changes
     const porcelain = await runGitCommand(worktreePath, ["status", "--porcelain"]);
     let changedFileList = parseGitPorcelain(porcelain);
-
     let diffStat: string | undefined;
 
     if (changedFileList.length > 0) {
-      // There are uncommitted changes — show those
       try {
         diffStat = (await runGitCommand(worktreePath, ["diff", "--stat"])).trim() || undefined;
       } catch {
         // diff --stat can fail if there are no commits yet
       }
     } else if (baseBranch && isValidBranchName(baseBranch)) {
-      // No uncommitted changes — check committed changes ahead of baseBranch
       try {
         const branchDiff = (
           await runGitCommand(worktreePath, ["diff", "--name-status", `${baseBranch}...HEAD`])
@@ -231,7 +457,7 @@ async function getLiveGitStatus(worktreePath: string, baseBranch?: string): Prom
         if (branchDiff) {
           changedFileList = branchDiff.split("\n").filter(Boolean).map((line) => {
             const [statusCode, ...pathParts] = line.split("\t");
-            const filePath = pathParts.join("\t"); // handle filenames with tabs
+            const filePath = pathParts.join("\t");
             let status: "added" | "modified" | "deleted" | "renamed" = "modified";
             if (statusCode === "A") status = "added";
             else if (statusCode === "D") status = "deleted";
@@ -259,12 +485,37 @@ async function getLiveGitStatus(worktreePath: string, baseBranch?: string): Prom
       changedFileList: [],
       changedFiles: 0,
       diffStat: undefined,
-      worktreeExists: true, // path exists but git command failed
+      worktreeExists: true,
     };
   }
 }
 
-// Helper to validate session ownership
+async function buildWorkspaceStatus(workspaceInfo: WorkspaceInfo): Promise<WorkspaceStatus> {
+  const workspaceStatus: WorkspaceStatus = { ...workspaceInfo, commitsAhead: 0 };
+
+  if (!workspaceInfo.worktreePath) {
+    return workspaceStatus;
+  }
+
+  const liveStatus = await getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
+  workspaceStatus.changedFileList = liveStatus.changedFileList;
+  workspaceStatus.changedFiles = liveStatus.changedFiles;
+  workspaceStatus.diffStat = liveStatus.diffStat;
+  workspaceStatus.worktreeExists = liveStatus.worktreeExists;
+
+  if (liveStatus.worktreeExists) {
+    try {
+      const gitService = new GitService(workspaceInfo.worktreePath);
+      const aheadBehind = await gitService.getAheadBehind(workspaceInfo.baseBranch);
+      workspaceStatus.commitsAhead = aheadBehind.ahead;
+    } catch {
+      workspaceStatus.commitsAhead = 0;
+    }
+  }
+
+  return workspaceStatus;
+}
+
 async function validateSessionOwnership(sessionId: string, userId: string) {
   const session = await getSession(sessionId);
   if (!session) {
@@ -276,11 +527,114 @@ async function validateSessionOwnership(sessionId: string, userId: string) {
   return { session };
 }
 
+async function isGitRepo(folderPath: string): Promise<boolean> {
+  if (!isValidWorktreePath(folderPath) || !fs.existsSync(folderPath)) {
+    return false;
+  }
+
+  try {
+    const result = (await runGitCommand(folderPath, ["rev-parse", "--is-inside-work-tree"])).trim();
+    return result === "true";
+  } catch {
+    return false;
+  }
+}
+
+async function getRemoteUrl(folderPath: string): Promise<string | undefined> {
+  try {
+    const remoteUrl = (await runGitCommand(folderPath, ["remote", "get-url", "origin"])).trim();
+    return remoteUrl || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function detectBaseBranch(folderPath: string, currentBranch: string): Promise<string> {
+  for (const candidate of ["main", "master"]) {
+    try {
+      await runGitCommand(folderPath, ["rev-parse", "--verify", candidate]);
+      return candidate;
+    } catch {
+      // Try the next base branch candidate.
+    }
+  }
+
+  return currentBranch;
+}
+
+async function listSessionGitFolders(session: Awaited<ReturnType<typeof getSession>>): Promise<GitFolderDetection[]> {
+  if (!session?.characterId) {
+    return [];
+  }
+
+  const syncFolders = await getSyncFolders(session.characterId);
+  const gitFolders = await Promise.all(
+    syncFolders.map(async (folder) => {
+      if (!(await isGitRepo(folder.folderPath))) {
+        return null;
+      }
+
+      const branch = (await runGitCommand(folder.folderPath, ["branch", "--show-current"])).trim() || "HEAD";
+      const gitFolder: GitFolderDetection = {
+        id: folder.id,
+        path: folder.folderPath,
+        branch,
+        isPrimary: Boolean(folder.isPrimary),
+      };
+      const remoteUrl = await getRemoteUrl(folder.folderPath);
+      if (remoteUrl) {
+        gitFolder.remoteUrl = remoteUrl;
+      }
+      return gitFolder;
+    })
+  );
+
+  return gitFolders.filter((folder) => folder !== null);
+}
+
+async function findSessionSyncFolder(
+  characterId: string | null,
+  folderPath: string
+) {
+  if (!characterId) return null;
+  const syncFolders = await getSyncFolders(characterId);
+  return syncFolders.find((folder) => folder.folderPath === folderPath) ?? null;
+}
+
+async function getExistingPullRequest(
+  cwd: string,
+  branch: string,
+  baseBranch: string
+): Promise<ExistingPullRequest | null> {
+  try {
+    const output = await runGhCommand(cwd, [
+      "pr",
+      "list",
+      "--head",
+      branch,
+      "--base",
+      baseBranch,
+      "--state",
+      "all",
+      "--json",
+      "number,url,isDraft,state",
+      "--limit",
+      "1",
+    ]);
+    const pulls = JSON.parse(output) as ExistingPullRequest[];
+    return pulls[0] ?? null;
+  } catch (error) {
+    console.warn("[workspace route] Failed to query existing PR:", error);
+    return null;
+  }
+}
+
 /**
  * GET /api/sessions/[id]/workspace
  *
- * Returns workspace info for a session, enriched with live git status
- * if a worktree path is configured and exists on disk.
+ * Returns workspace info for a session, enriched with live git status.
+ * If detect=true and the session has no workspace metadata yet, returns
+ * git-capable synced folders for one-click Git Mode activation.
  */
 export async function GET(
   req: NextRequest,
@@ -304,6 +658,13 @@ export async function GET(
     const { session } = ownershipResult;
     const metadata = session.metadata as Record<string, unknown> | null;
     const workspaceInfo = getWorkspaceInfo(metadata);
+    const url = new URL(req.url);
+    const wantDetect = url.searchParams.get("detect") === "true";
+    const wantDiff = url.searchParams.get("diff") === "true";
+
+    if (!workspaceInfo && wantDetect) {
+      return NextResponse.json({ gitFolders: await listSessionGitFolders(session) });
+    }
 
     if (!workspaceInfo) {
       return NextResponse.json(
@@ -312,25 +673,11 @@ export async function GET(
       );
     }
 
-    // Build workspace status with live git data
-    const workspaceStatus: WorkspaceStatus = { ...workspaceInfo };
-
-    if (workspaceInfo.worktreePath) {
-      const liveStatus = await getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
-      workspaceStatus.changedFileList = liveStatus.changedFileList;
-      workspaceStatus.changedFiles = liveStatus.changedFiles;
-      workspaceStatus.diffStat = liveStatus.diffStat;
-      workspaceStatus.worktreeExists = liveStatus.worktreeExists;
-    }
-
-    // Structured diff support: ?diff=true&type=unstaged&filePath=...&base=...&head=...
-    const url = new URL(req.url);
-    const wantDiff = url.searchParams.get("diff") === "true";
+    const workspaceStatus = await buildWorkspaceStatus(workspaceInfo);
 
     if (wantDiff && workspaceInfo.worktreePath) {
       try {
         const gitService = new GitService(workspaceInfo.worktreePath);
-
         const diffFilter: {
           type?: string;
           filePath?: string;
@@ -440,11 +787,6 @@ export async function PATCH(
 
 /**
  * POST /api/sessions/[id]/workspace
- *
- * Perform a workspace action:
- * - "refresh-status": Refresh live git status and persist to metadata
- * - "cleanup": Remove the git worktree and clear workspace info
- * - "sync-to-local": Generate a diff patch and apply it to the main repo
  */
 export async function POST(
   req: NextRequest,
@@ -467,27 +809,25 @@ export async function POST(
 
     const { session } = ownershipResult;
     const metadata = (session.metadata as Record<string, unknown>) || {};
-    const workspaceInfo = getWorkspaceInfo(metadata);
-
-    if (!workspaceInfo) {
-      return NextResponse.json(
-        { error: "No workspace info for this session" },
-        { status: 404 }
-      );
-    }
-
-    const body = (await req.json()) as {
-      action: WorkspaceAction;
-      filePath?: string;
-      hunkPatch?: string;
-      message?: string;
-    };
+    const body = (await req.json()) as WorkspaceActionBody;
     const { action } = body;
 
     if (!action) {
       return NextResponse.json(
         { error: "Missing action field" },
         { status: 400 }
+      );
+    }
+
+    if (action === "enable-git") {
+      return await handleEnableGit(id, session, metadata, body.folderPath);
+    }
+
+    const workspaceInfo = getWorkspaceInfo(metadata);
+    if (!workspaceInfo) {
+      return NextResponse.json(
+        { error: "No workspace info for this session" },
+        { status: 404 }
       );
     }
 
@@ -515,6 +855,12 @@ export async function POST(
       case "commit": {
         return await handleCommit(workspaceInfo, body.message);
       }
+      case "push": {
+        return await handlePush(id, metadata, workspaceInfo);
+      }
+      case "push-and-create-pr": {
+        return await handlePushAndCreatePR(id, session, metadata, workspaceInfo);
+      }
       default: {
         return NextResponse.json(
           { error: `Unknown action: ${action}` },
@@ -531,9 +877,62 @@ export async function POST(
   }
 }
 
-// ------------------------------------------------------------------
-// Action handlers
-// ------------------------------------------------------------------
+async function handleEnableGit(
+  sessionId: string,
+  session: Awaited<ReturnType<typeof getSession>>,
+  metadata: Record<string, unknown>,
+  folderPath?: string,
+) {
+  if (!folderPath || !isValidWorktreePath(folderPath)) {
+    return NextResponse.json(
+      { error: "A valid folderPath is required to enable Git Mode" },
+      { status: 400 }
+    );
+  }
+
+  const syncFolder = await findSessionSyncFolder(session?.characterId ?? null, folderPath);
+  if (!syncFolder) {
+    return NextResponse.json(
+      { error: "Selected folder is not one of this agent's synced folders" },
+      { status: 403 }
+    );
+  }
+
+  if (!(await isGitRepo(folderPath))) {
+    return NextResponse.json(
+      { error: "Selected folder is not a git repository" },
+      { status: 422 }
+    );
+  }
+
+  const branch = (await runGitCommand(folderPath, ["branch", "--show-current"])).trim() || "HEAD";
+  const baseBranch = await detectBaseBranch(folderPath, branch);
+  const repoUrl = await getRemoteUrl(folderPath);
+
+  const workspaceInfo: WorkspaceInfo = {
+    type: "local",
+    branch,
+    baseBranch,
+    worktreePath: folderPath,
+    repoUrl,
+    syncFolderId: syncFolder.id,
+    status: "active",
+    lastSyncedAt: new Date().toISOString(),
+  };
+
+  const updatedMetadata = {
+    ...metadata,
+    workspaceInfo,
+  };
+
+  const updatedSession = await updateSession(sessionId, { metadata: updatedMetadata });
+  const workspaceStatus = await buildWorkspaceStatus(workspaceInfo);
+
+  return NextResponse.json({
+    workspace: workspaceStatus,
+    session: updatedSession,
+  });
+}
 
 async function handleRefreshStatus(
   sessionId: string,
@@ -547,11 +946,10 @@ async function handleRefreshStatus(
     );
   }
 
-  const liveStatus = await getLiveGitStatus(workspaceInfo.worktreePath, workspaceInfo.baseBranch);
-
+  const workspaceStatus = await buildWorkspaceStatus(workspaceInfo);
   const updatedWorkspaceInfo: WorkspaceInfo = {
     ...workspaceInfo,
-    changedFiles: liveStatus.changedFiles,
+    changedFiles: workspaceStatus.changedFiles,
     lastSyncedAt: new Date().toISOString(),
   };
 
@@ -562,14 +960,12 @@ async function handleRefreshStatus(
 
   await updateSession(sessionId, { metadata: updatedMetadata });
 
-  const workspaceStatus: WorkspaceStatus = {
-    ...updatedWorkspaceInfo,
-    changedFileList: liveStatus.changedFileList,
-    diffStat: liveStatus.diffStat,
-    worktreeExists: liveStatus.worktreeExists,
-  };
-
-  return NextResponse.json({ workspace: workspaceStatus });
+  return NextResponse.json({
+    workspace: {
+      ...workspaceStatus,
+      ...updatedWorkspaceInfo,
+    },
+  });
 }
 
 async function handleCleanup(
@@ -579,27 +975,23 @@ async function handleCleanup(
 ) {
   const { worktreePath } = workspaceInfo;
 
-  if (worktreePath && isValidWorktreePath(worktreePath)) {
+  if (workspaceInfo.type !== "local" && worktreePath && isValidWorktreePath(worktreePath)) {
     if (fs.existsSync(worktreePath)) {
       try {
-        // Find the main repo directory by resolving the git common dir
         const commonDir = (await runGitCommand(worktreePath, ["rev-parse", "--git-common-dir"])).trim();
-        // The main repo is the parent of the .git directory
         const mainRepoDir = fs.realpathSync(
           commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
             ? commonDir.replace(/[/\\]\.git$/, "")
-            : commonDir + "/.."
+            : `${commonDir}/..`
         );
 
         await runGitCommand(mainRepoDir, ["worktree", "remove", worktreePath, "--force"]);
       } catch (err) {
         console.error("Failed to remove git worktree:", err);
-        // Continue anyway to clean up metadata
       }
     }
   }
 
-  // Clear workspace info from metadata
   const { workspaceInfo: _removed, ...restMetadata } = metadata;
   await updateSession(sessionId, { metadata: restMetadata });
 
@@ -607,10 +999,17 @@ async function handleCleanup(
 }
 
 async function handleSyncToLocal(
-  sessionId: string,
-  metadata: Record<string, unknown>,
+  _sessionId: string,
+  _metadata: Record<string, unknown>,
   workspaceInfo: WorkspaceInfo
 ) {
+  if (workspaceInfo.type === "local") {
+    return NextResponse.json(
+      { error: "Git Mode sessions already operate in the local repository" },
+      { status: 400 }
+    );
+  }
+
   const { worktreePath, baseBranch, branch } = workspaceInfo;
 
   if (!worktreePath || !isValidWorktreePath(worktreePath)) {
@@ -642,15 +1041,13 @@ async function handleSyncToLocal(
   }
 
   try {
-    // Find the main repository directory
     const commonDir = (await runGitCommand(worktreePath, ["rev-parse", "--git-common-dir"])).trim();
     const mainRepoDir = fs.realpathSync(
       commonDir.endsWith("/.git") || commonDir.endsWith("\\.git")
         ? commonDir.replace(/[/\\]\.git$/, "")
-        : commonDir + "/.."
+        : `${commonDir}/..`
     );
 
-    // Generate patch from the diff between base branch and feature branch
     let patch: string;
     try {
       patch = await runGitCommand(worktreePath, ["diff", `${baseBranch}...${branch}`]);
@@ -672,7 +1069,6 @@ async function handleSyncToLocal(
       });
     }
 
-    // Apply the patch to the main repo
     try {
       await runGitCommand(mainRepoDir, ["apply", "--check", "--3way", "-"], patch);
       await runGitCommand(mainRepoDir, ["apply", "--3way", "-"], patch);
@@ -686,7 +1082,6 @@ async function handleSyncToLocal(
       );
     }
 
-    // Count files from the patch itself — avoids counting pre-existing changes in mainRepoDir
     const appliedFiles = (patch.match(/^diff --git /gm) || []).length;
 
     return NextResponse.json({
@@ -826,4 +1221,240 @@ async function handleCommit(
       { status: 500 }
     );
   }
+}
+
+async function handlePush(
+  sessionId: string,
+  metadata: Record<string, unknown>,
+  workspaceInfo: WorkspaceInfo,
+) {
+  if (!workspaceInfo.worktreePath) {
+    return NextResponse.json(
+      { error: "No worktree path configured" },
+      { status: 400 }
+    );
+  }
+
+  if (!workspaceInfo.branch) {
+    return NextResponse.json(
+      { error: "No branch configured for this workspace" },
+      { status: 400 }
+    );
+  }
+
+  if (!fs.existsSync(workspaceInfo.worktreePath)) {
+    return NextResponse.json(
+      { error: "Worktree directory does not exist" },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const gitService = new GitService(workspaceInfo.worktreePath);
+    await gitService.push("origin", workspaceInfo.branch);
+
+    const updatedWorkspaceInfo: WorkspaceInfo = {
+      ...workspaceInfo,
+      lastSyncedAt: new Date().toISOString(),
+    };
+    await updateSession(sessionId, {
+      metadata: {
+        ...metadata,
+        workspaceInfo: updatedWorkspaceInfo,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      workspace: await buildWorkspaceStatus(updatedWorkspaceInfo),
+    });
+  } catch (error) {
+    console.error("Failed to push:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to push branch",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+async function handlePushAndCreatePR(
+  sessionId: string,
+  session: Awaited<ReturnType<typeof getSession>>,
+  metadata: Record<string, unknown>,
+  workspaceInfo: WorkspaceInfo,
+) {
+  if (!workspaceInfo.worktreePath) {
+    return NextResponse.json(
+      { error: "No worktree path configured" },
+      { status: 400 }
+    );
+  }
+
+  if (!workspaceInfo.branch || !workspaceInfo.baseBranch) {
+    return NextResponse.json(
+      { error: "Both branch and baseBranch are required to create a pull request" },
+      { status: 400 }
+    );
+  }
+
+  if (!fs.existsSync(workspaceInfo.worktreePath)) {
+    return NextResponse.json(
+      { error: "Worktree directory does not exist" },
+      { status: 404 }
+    );
+  }
+
+  try {
+    await runGhCommand(workspaceInfo.worktreePath, ["--version"]);
+  } catch (error) {
+    if (isCommandNotFoundError(error, "gh")) {
+      return NextResponse.json(
+        {
+          error: "GitHub CLI is not installed. Install gh to create pull requests from the workspace UI.",
+          installUrl: "https://cli.github.com/",
+        },
+        { status: 422 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: "Failed to verify GitHub CLI installation",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+
+  try {
+    await runGhCommand(workspaceInfo.worktreePath, ["auth", "status"]);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "GitHub CLI is not authenticated. Run `gh auth login` and try again.",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 401 }
+    );
+  }
+
+  const gitService = new GitService(workspaceInfo.worktreePath);
+
+  try {
+    await gitService.push("origin", workspaceInfo.branch);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "Failed to push branch before creating pull request",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+
+  let pullRequest = await getExistingPullRequest(
+    workspaceInfo.worktreePath,
+    workspaceInfo.branch,
+    workspaceInfo.baseBranch,
+  );
+
+  if (!pullRequest) {
+    const commitLog = (await gitService.getCommitLog(workspaceInfo.baseBranch, 20)).trim();
+    if (!commitLog) {
+      return NextResponse.json(
+        { error: "No commits are available to open a pull request" },
+        { status: 400 }
+      );
+    }
+
+    let diffStat: string | undefined;
+    try {
+      diffStat = (
+        await runGitCommand(workspaceInfo.worktreePath, [
+          "diff",
+          "--stat",
+          `${workspaceInfo.baseBranch}...HEAD`,
+        ])
+      ).trim() || undefined;
+    } catch {
+      diffStat = undefined;
+    }
+
+    const template = readPullRequestTemplate(workspaceInfo.worktreePath);
+    const prTitle = buildFallbackPrTitle(commitLog, workspaceInfo.branch);
+    const prBody = await generatePullRequestBody(session?.metadata as Record<string, unknown> | null, {
+      branch: workspaceInfo.branch,
+      baseBranch: workspaceInfo.baseBranch,
+      commitLog,
+      diffStat,
+      template,
+    });
+
+    try {
+      await runGhCommand(
+        workspaceInfo.worktreePath,
+        [
+          "pr",
+          "create",
+          "--title",
+          prTitle,
+          "--body-file",
+          "-",
+          "--head",
+          workspaceInfo.branch,
+          "--base",
+          workspaceInfo.baseBranch,
+          "--draft",
+        ],
+        prBody,
+      );
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "Failed to create pull request",
+          details: error instanceof Error ? error.message : String(error),
+        },
+        { status: 500 }
+      );
+    }
+
+    pullRequest = await getExistingPullRequest(
+      workspaceInfo.worktreePath,
+      workspaceInfo.branch,
+      workspaceInfo.baseBranch,
+    );
+  }
+
+  if (!pullRequest) {
+    return NextResponse.json(
+      { error: "Pull request was created but could not be resolved afterward" },
+      { status: 500 }
+    );
+  }
+
+  const updatedWorkspaceInfo: WorkspaceInfo = {
+    ...workspaceInfo,
+    prNumber: pullRequest.number,
+    prUrl: pullRequest.url || extractHttpUrl(pullRequest.url || ""),
+    prStatus: mapPrStatus(pullRequest),
+    status: "pr-open",
+    lastSyncedAt: new Date().toISOString(),
+  };
+
+  await updateSession(sessionId, {
+    metadata: {
+      ...metadata,
+      workspaceInfo: updatedWorkspaceInfo,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    created: pullRequest.state == null,
+    workspace: await buildWorkspaceStatus(updatedWorkspaceInfo),
+    prUrl: updatedWorkspaceInfo.prUrl,
+    prNumber: updatedWorkspaceInfo.prNumber,
+  });
 }

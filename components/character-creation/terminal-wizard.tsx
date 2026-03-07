@@ -47,7 +47,7 @@ interface WizardState {
   createdCharacterId: string | null;
   enabledMcpServers: string[];
   enabledMcpTools: string[];
-  mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>;
+  mcpToolPreferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>;
 }
 
 const initialState: WizardState = {
@@ -181,7 +181,7 @@ export function TerminalWizard() {
   };
 
   // Handle MCP tools submission
-  const handleMCPToolsSubmit = (servers: string[], tools: string[], preferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>) => {
+  const handleMCPToolsSubmit = (servers: string[], tools: string[], preferences: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>) => {
     setState((prev) => ({
       ...prev,
       enabledMcpServers: servers,

@@ -131,6 +131,8 @@ export const agentMetadataSchema = z.object({
       enabled: z.boolean().default(true),
       /** Loading mode: "always" loads immediately, "deferred" requires discovery */
       loadingMode: z.enum(["always", "deferred"]).default("deferred"),
+      /** Preferred visual tool card mode for this MCP tool in chat UIs */
+      displayMode: z.enum(["compact", "detailed"]).default("compact"),
     })
   ).optional(),
 

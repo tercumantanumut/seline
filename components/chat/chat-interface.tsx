@@ -8,7 +8,7 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { useTheme } from "@/components/theme/theme-provider";
 import { ChatProvider, useChatSetMessages } from "@/components/chat-provider";
 import { CharacterProvider, type CharacterDisplayData } from "@/components/assistant-ui/character-context";
-import { Loader2 } from "lucide-react";
+import { GitBranchIcon, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 import type { TaskEvent, TaskStatus } from "@/lib/background-tasks/types";
@@ -17,6 +17,7 @@ import { CharacterSidebar } from "@/components/chat/chat-sidebar";
 import { WorkspaceIndicator } from "@/components/workspace/workspace-indicator";
 import { DiffReviewPanel } from "@/components/workspace/diff-review-panel";
 import { getWorkspaceInfo } from "@/lib/workspace/types";
+import type { WorkspaceInfo, WorkspaceStatus } from "@/lib/workspace/types";
 import { AvatarRenderer } from "@/components/avatar-3d/avatar-renderer";
 import type { Avatar3DConfig, Avatar3DRef } from "@/components/avatar-3d/types";
 import { useOptionalVoice } from "@/components/assistant-ui/voice-context";
@@ -26,6 +27,14 @@ import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupR
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
 import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
 import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
+
+interface DetectedGitFolder {
+    id: string;
+    path: string;
+    branch: string;
+    remoteUrl?: string;
+    isPrimary: boolean;
+}
 
 /** A task qualifies as "background" if it's scheduled or a delegation. Plain
  *  foreground chat tasks (user typing in the active session) should NOT trigger
@@ -281,6 +290,9 @@ export default function ChatInterface({
     const [activeRun, setActiveRun] = useState<ActiveRunState | null>(null);
     const [isCancellingRun, setIsCancellingRun] = useState(false);
     const [isDiffPanelOpen, setIsDiffPanelOpen] = useState(false);
+    const [detectedGitFolders, setDetectedGitFolders] = useState<DetectedGitFolder[]>([]);
+    const [isDetectingGitFolders, setIsDetectingGitFolders] = useState(false);
+    const [isEnablingGitMode, setIsEnablingGitMode] = useState(false);
     const [avatarConfig, setAvatarConfig] = useState<Avatar3DConfig>({ enabled: false });
     const [avatarHidden, setAvatarHidden] = useState(false);
     const [avatarMuted, setAvatarMuted] = useState(false);
@@ -397,6 +409,73 @@ export default function ChatInterface({
         return metadata ? getWorkspaceInfo(metadata) : null;
     }, [sm.sessions, sessionId]);
 
+    const detectedPrimaryGitFolder = useMemo(
+        () => detectedGitFolders.find((folder) => folder.isPrimary) ?? detectedGitFolders[0] ?? null,
+        [detectedGitFolders]
+    );
+
+    const applyWorkspaceUpdate = useCallback((workspace: WorkspaceInfo | WorkspaceStatus | null) => {
+        if (!sessionId) return;
+        sm.setSessions((prev) => prev.map((session) => {
+            if (session.id !== sessionId) return session;
+            const nextMetadata = { ...(session.metadata || {}) };
+            if (workspace) {
+                nextMetadata.workspaceInfo = workspace;
+            } else {
+                delete nextMetadata.workspaceInfo;
+            }
+            return {
+                ...session,
+                metadata: nextMetadata,
+                updatedAt: new Date().toISOString(),
+            };
+        }));
+    }, [sessionId, sm.setSessions]);
+
+    const detectGitFolders = useCallback(async () => {
+        if (!sessionId) return;
+        if (currentWorkspaceInfo) {
+            setDetectedGitFolders([]);
+            return;
+        }
+
+        setIsDetectingGitFolders(true);
+        try {
+            const { data } = await resilientFetch<{ gitFolders?: DetectedGitFolder[] }>(
+                `/api/sessions/${sessionId}/workspace?detect=true`,
+                { retries: 0 }
+            );
+            setDetectedGitFolders(data?.gitFolders ?? []);
+        } catch {
+            setDetectedGitFolders([]);
+        } finally {
+            setIsDetectingGitFolders(false);
+        }
+    }, [currentWorkspaceInfo, sessionId]);
+
+    const handleEnableGitMode = useCallback(async () => {
+        if (!sessionId || !detectedPrimaryGitFolder) return;
+        setIsEnablingGitMode(true);
+        try {
+            const { data, error } = await resilientPost<{
+                workspace?: WorkspaceStatus;
+            }>(`/api/sessions/${sessionId}/workspace`, {
+                action: "enable-git",
+                folderPath: detectedPrimaryGitFolder.path,
+            });
+
+            if (error || !data?.workspace) {
+                return;
+            }
+
+            applyWorkspaceUpdate(data.workspace);
+            setDetectedGitFolders([]);
+            await sm.loadSessions({ silent: true, overrideCursor: null, preserveExtra: sm.userLoadedMoreRef.current });
+        } finally {
+            setIsEnablingGitMode(false);
+        }
+    }, [applyWorkspaceUpdate, detectedPrimaryGitFolder, sessionId, sm]);
+
     const adaptivePollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const adaptivePollBackoffRef = useRef(5000);
     const isPollingRef = useRef(false);
@@ -457,6 +536,10 @@ export default function ChatInterface({
         }, 200);
         return () => clearTimeout(timer);
     }, [pathname, sessionId, reloadSessionMessages]);
+
+    useEffect(() => {
+        void detectGitFolders();
+    }, [detectGitFolders]);
 
     // ── Reusable active-run checker ──────────────────────────────────────────
     // Extracted so it can be called on mount, visibility change, AND SSE reconnect.
@@ -648,6 +731,15 @@ export default function ChatInterface({
     useEffect(() => {
         if (typeof window === "undefined") return;
 
+        const handleWorkspaceStatusChanged = (event: Event) => {
+            const detail = (event as CustomEvent<{ sessionId?: string }>).detail;
+            if (detail?.sessionId && detail.sessionId !== sessionId) return;
+            void sm.loadSessions({ silent: true, overrideCursor: null, preserveExtra: sm.userLoadedMoreRef.current });
+            if (detail?.sessionId === sessionId && currentWorkspaceInfo?.status === "cleanup-pending") {
+                applyWorkspaceUpdate(null);
+            }
+        };
+
         const handleTaskCompleted = (event: Event) => {
             const detail = (event as CustomEvent<TaskEvent>).detail;
             if (!detail) return;
@@ -683,13 +775,15 @@ export default function ChatInterface({
             }
         };
 
+        window.addEventListener("workspace-status-changed", handleWorkspaceStatusChanged);
         window.addEventListener("background-task-completed", handleTaskCompleted);
         window.addEventListener("background-task-started", handleTaskStarted);
         return () => {
+            window.removeEventListener("workspace-status-changed", handleWorkspaceStatusChanged);
             window.removeEventListener("background-task-completed", handleTaskCompleted);
             window.removeEventListener("background-task-started", handleTaskStarted);
         };
-    }, [character.id, sm.loadSessions, reloadSessionMessages, sessionId]);
+    }, [applyWorkspaceUpdate, character.id, currentWorkspaceInfo?.status, sm.loadSessions, reloadSessionMessages, sessionId, sm.userLoadedMoreRef]);
 
     useEffect(() => {
         if (!sessionId) return;
@@ -886,13 +980,35 @@ export default function ChatInterface({
                             onForegroundRunFinished={handleForegroundRunFinished}
                         />
                         <div className="flex h-full flex-col gap-3">
-                            {currentWorkspaceInfo && (
+                            {(currentWorkspaceInfo || detectedPrimaryGitFolder || isDetectingGitFolders) && (
                                 <div className="flex items-center justify-end px-4 pt-2">
-                                    <WorkspaceIndicator
-                                        sessionId={sessionId}
-                                        workspaceInfo={currentWorkspaceInfo}
-                                        onOpenDiffPanel={() => setIsDiffPanelOpen(true)}
-                                    />
+                                    {currentWorkspaceInfo ? (
+                                        <WorkspaceIndicator
+                                            sessionId={sessionId}
+                                            workspaceInfo={currentWorkspaceInfo}
+                                            onOpenDiffPanel={() => setIsDiffPanelOpen(true)}
+                                        />
+                                    ) : detectedPrimaryGitFolder ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleEnableGitMode()}
+                                            disabled={isEnablingGitMode}
+                                            className="inline-flex items-center gap-2 rounded-md border border-terminal-dark/10 bg-terminal-dark px-3 py-1.5 text-xs font-mono text-terminal-cream transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
+                                            title={detectedPrimaryGitFolder.path}
+                                        >
+                                            {isEnablingGitMode ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <GitBranchIcon className="h-3.5 w-3.5" />
+                                            )}
+                                            <span>{isEnablingGitMode ? "Enabling Git Mode..." : `Enable Git Mode · ${detectedPrimaryGitFolder.branch}`}</span>
+                                        </button>
+                                    ) : (
+                                        <div className="inline-flex items-center gap-2 rounded-md border border-terminal-dark/10 bg-terminal-dark/5 px-3 py-1.5 text-xs font-mono text-terminal-muted">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Checking git repos...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {activeRun && (
@@ -950,6 +1066,7 @@ export default function ChatInterface({
                                 isBackgroundTaskRunning={Boolean(activeRun || bg.isProcessingInBackground)}
                                 isProcessingInBackground={bg.isProcessingInBackground}
                                 sessionId={sessionId}
+                                isWorkspaceContext={Boolean(currentWorkspaceInfo)}
                                 onCancelBackgroundRun={bg.handleCancelBackgroundRun}
                                 isCancellingBackgroundRun={bg.isCancellingBackgroundRun}
                                 canCancelBackgroundRun={Boolean(bg.processingRunId)}

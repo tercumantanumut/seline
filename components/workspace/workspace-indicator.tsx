@@ -72,7 +72,7 @@ function formatBranchName(branch: string): string {
  */
 function truncate(str: string, maxLen: number): string {
   if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + "\u2026";
+  return str.slice(0, maxLen) + "...";
 }
 
 export function WorkspaceIndicator({
@@ -89,6 +89,7 @@ export function WorkspaceIndicator({
   const branch = workspaceInfo.branch || "unknown";
   const displayBranch = truncate(formatBranchName(branch), 25);
   const fullBranch = branch;
+  const isLocalWorkspace = workspaceInfo.type === "local";
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -245,7 +246,7 @@ export function WorkspaceIndicator({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("cleanupTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t.rich("cleanupDescription", {
+              {t.rich(isLocalWorkspace ? "cleanupDescriptionLocal" : "cleanupDescription", {
                 branch,
                 strong: (chunks) => <strong className="font-semibold">{chunks}</strong>,
               })}

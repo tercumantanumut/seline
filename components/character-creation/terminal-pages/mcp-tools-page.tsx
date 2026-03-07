@@ -19,7 +19,19 @@ import { resilientFetch, resilientPost } from "@/lib/utils/resilient-fetch";
 interface MCPToolPreference {
     enabled: boolean;
     loadingMode: "always" | "deferred";
+    displayMode: "compact" | "detailed";
 }
+
+const DEFAULT_TOOL_PREFERENCE: MCPToolPreference = {
+    enabled: true,
+    loadingMode: "deferred",
+    displayMode: "compact",
+};
+
+const getPreferenceWithDefaults = (preference?: Partial<MCPToolPreference>): MCPToolPreference => ({
+    ...DEFAULT_TOOL_PREFERENCE,
+    ...preference,
+});
 
 interface MCPToolsPageProps {
     enabledMcpServers: string[];
@@ -71,9 +83,11 @@ export function MCPToolsPage({
     const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
 
     // NEW: Track per-tool preferences
-    const [toolPreferences, setToolPreferences] = useState<Record<string, MCPToolPreference>>(
-        mcpToolPreferences
-    );
+    const [toolPreferences, setToolPreferences] = useState<Record<string, MCPToolPreference>>(() => {
+        return Object.fromEntries(
+            Object.entries(mcpToolPreferences).map(([toolKey, preference]) => [toolKey, getPreferenceWithDefaults(preference)])
+        );
+    });
 
     const normalizeToolSelections = (
         incomingSelections: string[],
@@ -112,7 +126,11 @@ export function MCPToolsPage({
 
     // Sync preferences when prop changes
     useEffect(() => {
-        setToolPreferences(mcpToolPreferences);
+        setToolPreferences(
+            Object.fromEntries(
+                Object.entries(mcpToolPreferences).map(([toolKey, preference]) => [toolKey, getPreferenceWithDefaults(preference)])
+            )
+        );
     }, [mcpToolPreferences]);
 
     useEffect(() => {
@@ -179,7 +197,7 @@ export function MCPToolsPage({
 
                 if (!(toolKey in newPreferences)) {
                     const shouldEnable = newSelectedTools.has(toolKey) || newSelectedServers.has(tool.serverName);
-                    newPreferences[toolKey] = { enabled: shouldEnable, loadingMode: "deferred" };
+                    newPreferences[toolKey] = { ...DEFAULT_TOOL_PREFERENCE, enabled: shouldEnable };
                     hasChanges = true;
                 }
             });
@@ -236,7 +254,7 @@ export function MCPToolsPage({
                 newTools.delete(toolKey);
                 // Mark as disabled in preferences
                 newPreferences[toolKey] = {
-                    ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                    ...getPreferenceWithDefaults(newPreferences[toolKey]),
                     enabled: false,
                 };
             });
@@ -248,7 +266,7 @@ export function MCPToolsPage({
                 newTools.add(toolKey);
                 // Mark as enabled in preferences
                 newPreferences[toolKey] = {
-                    ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                    ...getPreferenceWithDefaults(newPreferences[toolKey]),
                     enabled: true,
                 };
             });
@@ -269,14 +287,14 @@ export function MCPToolsPage({
             newTools.delete(toolKey);
             // Mark as disabled in preferences
             newPreferences[toolKey] = {
-                ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                ...getPreferenceWithDefaults(newPreferences[toolKey]),
                 enabled: false,
             };
         } else {
             newTools.add(toolKey);
             // Mark as enabled in preferences
             newPreferences[toolKey] = {
-                ...(newPreferences[toolKey] ?? { loadingMode: "deferred" }),
+                ...getPreferenceWithDefaults(newPreferences[toolKey]),
                 enabled: true,
             };
         }
@@ -289,7 +307,7 @@ export function MCPToolsPage({
     // NEW: Toggle individual tool's loading mode
     const toggleToolLoadingMode = (serverName: string, toolName: string) => {
         const toolKey = `${serverName}:${toolName}`;
-        const currentPref = toolPreferences[toolKey] ?? { enabled: true, loadingMode: "deferred" as const };
+        const currentPref = getPreferenceWithDefaults(toolPreferences[toolKey]);
 
         const newPreferences = {
             ...toolPreferences,
@@ -453,7 +471,7 @@ export function MCPToolsPage({
                                                     {serverTools.map((tool) => {
                                                         const toolKey = `${serverName}:${tool.name}`;
                                                         const isToolEnabled = selectedTools.has(toolKey);
-                                                        const toolPref = toolPreferences[toolKey] ?? { enabled: true, loadingMode: "deferred" as const };
+                                                        const toolPref = getPreferenceWithDefaults(toolPreferences[toolKey]);
 
                                                         return (
                                                             <div key={tool.name} className="flex items-start justify-between gap-3 pl-8">

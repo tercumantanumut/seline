@@ -88,6 +88,7 @@ export async function PUT(request: NextRequest) {
       vectorSearchMaxLineLength: body.vectorSearchMaxLineLength !== undefined ? body.vectorSearchMaxLineLength : currentSettings.vectorSearchMaxLineLength,
       // Preferences
       toolLoadingMode: body.toolLoadingMode !== undefined ? body.toolLoadingMode : currentSettings.toolLoadingMode,
+      toolDisplayMode: body.toolDisplayMode !== undefined ? body.toolDisplayMode : currentSettings.toolDisplayMode,
       postEditHooksPreset: body.postEditHooksPreset !== undefined ? body.postEditHooksPreset : currentSettings.postEditHooksPreset,
       postEditHooksEnabled: body.postEditHooksEnabled !== undefined ? body.postEditHooksEnabled : currentSettings.postEditHooksEnabled,
       postEditTypecheckEnabled: body.postEditTypecheckEnabled !== undefined ? body.postEditTypecheckEnabled : currentSettings.postEditTypecheckEnabled,

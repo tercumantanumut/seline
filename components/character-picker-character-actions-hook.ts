@@ -39,7 +39,7 @@ export function useCharacterActions(
   // MCP tools editor state
   const [mcpToolEditorOpen, setMcpToolEditorOpen] = useState(false);
   const [mcpEditingCharacter, setMcpEditingCharacter] = useState<CharacterSummary | null>(null);
-  const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>>({});
+  const [mcpToolPreferences, setMcpToolPreferences] = useState<Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>>({});
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpTools, setMcpTools] = useState<string[]>([]);
   const [mcpRemovalWarningOpen, setMcpRemovalWarningOpen] = useState(false);
@@ -319,7 +319,7 @@ export function useCharacterActions(
     openMcpToolEditor,
     saveMcpTools,
     performMcpToolSave,
-    onUpdateMcp: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred" }>) => {
+    onUpdateMcp: (servers: string[], tools: string[], prefs: Record<string, { enabled: boolean; loadingMode: "always" | "deferred"; displayMode: "compact" | "detailed" }>) => {
       setMcpServers(servers);
       setMcpTools(tools);
       setMcpToolPreferences(prefs);

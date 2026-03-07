@@ -37,6 +37,13 @@ export interface GitCommitResult {
   };
 }
 
+export interface GitAheadBehindResult {
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+  comparisonRef?: string;
+}
+
 export function isValidWorktreePath(path: string): boolean {
   return (
     typeof path === "string" &&
@@ -504,5 +511,65 @@ export class GitService {
         deletions: result.summary.deletions,
       },
     };
+  }
+
+  async push(remote = "origin", branch?: string): Promise<string> {
+    const normalizedRemote = remote.trim();
+    if (!isSafeRefName(normalizedRemote)) {
+      throw new Error("Invalid git remote");
+    }
+
+    const targetBranch = (branch?.trim() || await this.runGitRaw(["branch", "--show-current"])).trim();
+    assertSafeRefName(targetBranch);
+    return this.runGitRaw(["push", "-u", normalizedRemote, targetBranch]);
+  }
+
+  async getAheadBehind(baseBranch?: string): Promise<GitAheadBehindResult> {
+    let comparisonRef: string | undefined;
+
+    try {
+      comparisonRef = (await this.runGitRaw(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])).trim();
+    } catch {
+      comparisonRef = undefined;
+    }
+
+    if (!comparisonRef && baseBranch) {
+      assertSafeRefName(baseBranch);
+      for (const candidate of [`origin/${baseBranch}`, baseBranch]) {
+        try {
+          await this.runGitRaw(["rev-parse", "--verify", candidate]);
+          comparisonRef = candidate;
+          break;
+        } catch {
+          // Try the next fallback ref.
+        }
+      }
+    }
+
+    if (!comparisonRef) {
+      return { ahead: 0, behind: 0, hasUpstream: false };
+    }
+
+    const counts = (await this.runGitRaw(["rev-list", "--left-right", "--count", `${comparisonRef}...HEAD`])).trim();
+    const [behindRaw = "0", aheadRaw = "0"] = counts.split(/\s+/);
+
+    return {
+      ahead: Number(aheadRaw) || 0,
+      behind: Number(behindRaw) || 0,
+      hasUpstream: comparisonRef.includes("/"),
+      comparisonRef,
+    };
+  }
+
+  async getCommitLog(baseBranch: string, maxCount = 20): Promise<string> {
+    assertSafeRefName(baseBranch);
+    const normalizedCount = Number.isFinite(maxCount) ? Math.max(1, Math.floor(maxCount)) : 20;
+    return this.runGitRaw([
+      "log",
+      `${baseBranch}..HEAD`,
+      "--oneline",
+      "--no-decorate",
+      `--max-count=${normalizedCount}`,
+    ]);
   }
 }

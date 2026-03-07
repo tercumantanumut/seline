@@ -51,8 +51,34 @@ interface DiffReviewPanelProps {
   workspaceInfo: WorkspaceInfo;
   isOpen: boolean;
   onClose: () => void;
-  onCreatePR?: () => void;
   onSyncToLocal?: () => void;
+}
+
+interface WorkspaceActionResponse {
+  success?: boolean;
+  workspace?: WorkspaceStatus;
+  prUrl?: string;
+  prNumber?: number;
+}
+
+function getActionErrorMessage(
+  error: string | null,
+  data: WorkspaceActionResponse | null,
+  fallback: string,
+): string {
+  if (typeof data?.workspace === "object") return fallback;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
+function shouldOfferPullRequest(workspace: WorkspaceStatus | WorkspaceInfo | null): boolean {
+  if (!workspace?.branch || !workspace.baseBranch) return false;
+  if (workspace.branch === workspace.baseBranch) return false;
+  return true;
+}
+
+function shouldShowSyncButton(workspace: WorkspaceStatus | WorkspaceInfo | null): boolean {
+  return workspace?.type !== "local";
 }
 
 type FileStatusType = "added" | "modified" | "deleted" | "renamed" | "copied";
@@ -195,7 +221,6 @@ export function DiffReviewPanel({
   workspaceInfo,
   isOpen,
   onClose,
-  onCreatePR,
   onSyncToLocal,
 }: DiffReviewPanelProps) {
   const t = useTranslations("workspace.diff");
@@ -218,9 +243,16 @@ export function DiffReviewPanel({
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [isStaging, setIsStaging] = useState<string | null>(null); // filePath or "all"
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
+  const [isCreatingPr, setIsCreatingPr] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
 
-  const branch = workspaceInfo.branch || "unknown";
+  const effectiveWorkspace = (workspaceStatus ?? workspaceInfo) as WorkspaceInfo | WorkspaceStatus;
+  const branch = effectiveWorkspace.branch || "unknown";
+  const commitsAhead = workspaceStatus?.commitsAhead ?? 0;
+  const hasOpenPr = Boolean(effectiveWorkspace.prUrl && effectiveWorkspace.prNumber);
+  const canCreatePr = shouldOfferPullRequest(effectiveWorkspace);
+  const showSyncButton = shouldShowSyncButton(effectiveWorkspace);
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -393,6 +425,85 @@ export function DiffReviewPanel({
 
   // ─── Existing actions ───────────────────────────────────────────────────
 
+  const postWorkspaceAction = useCallback(async (body: Record<string, unknown>) => {
+    const response = await fetch(`/api/sessions/${sessionId}/workspace`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    let data: WorkspaceActionResponse | null = null;
+    try {
+      data = (await response.json()) as WorkspaceActionResponse;
+    } catch {
+      data = null;
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      errorMessage: response.ok
+        ? null
+        : getActionErrorMessage(
+            response.status ? `HTTP ${response.status}` : null,
+            data,
+            `HTTP ${response.status}`
+          ),
+    };
+  }, [sessionId]);
+
+  const refreshWorkspaceData = useCallback(async () => {
+    await fetchDiffData();
+    window.dispatchEvent(
+      new CustomEvent("workspace-status-changed", { detail: { sessionId } })
+    );
+  }, [fetchDiffData, sessionId]);
+
+  const handlePush = useCallback(async () => {
+    setIsPushing(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push" });
+      if (!result.ok) {
+        toast.error(result.errorMessage || t("pushFailed"));
+        return;
+      }
+      if (result.data?.workspace) {
+        setWorkspaceStatus(result.data.workspace);
+      }
+      toast.success(t("pushSuccess"));
+      await refreshWorkspaceData();
+    } catch {
+      toast.error(t("pushFailed"));
+    } finally {
+      setIsPushing(false);
+    }
+  }, [postWorkspaceAction, refreshWorkspaceData, t]);
+
+  const handlePushAndCreatePr = useCallback(async () => {
+    setIsCreatingPr(true);
+    try {
+      const result = await postWorkspaceAction({ action: "push-and-create-pr" });
+      if (!result.ok) {
+        toast.error(result.errorMessage || t("createPRFailed"));
+        return;
+      }
+      if (result.data?.workspace) {
+        setWorkspaceStatus(result.data.workspace);
+      }
+      const prUrl = result.data?.prUrl ?? result.data?.workspace?.prUrl;
+      if (prUrl) {
+        window.open(prUrl, "_blank", "noopener,noreferrer");
+      }
+      toast.success(t("createPRSuccess"));
+      await refreshWorkspaceData();
+    } catch {
+      toast.error(t("createPRFailed"));
+    } finally {
+      setIsCreatingPr(false);
+    }
+  }, [postWorkspaceAction, refreshWorkspaceData, t]);
+
   const handleSyncToLocal = useCallback(async () => {
     if (onSyncToLocal) {
       onSyncToLocal();
@@ -408,6 +519,7 @@ export function DiffReviewPanel({
         toast.error(t("syncFailed"));
       } else {
         toast.success(t("syncSuccess"));
+        await refreshWorkspaceData();
       }
     } catch {
       toast.error(t("syncFailed"));
@@ -856,31 +968,61 @@ export function DiffReviewPanel({
 
               {/* Actions footer */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-terminal-border bg-terminal-cream">
-                {onCreatePR && (
+                {hasOpenPr && effectiveWorkspace.prUrl ? (
                   <Button
                     size="sm"
                     className="gap-1.5"
-                    onClick={onCreatePR}
+                    onClick={() => window.open(effectiveWorkspace.prUrl!, "_blank", "noopener,noreferrer")}
                   >
                     <GitPullRequestIcon className="w-3.5 h-3.5" />
-                    {t("createPR")}
+                    {t("viewPR", { number: effectiveWorkspace.prNumber ?? "" })}
+                  </Button>
+                ) : commitsAhead > 0 && canCreatePr ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePushAndCreatePr}
+                    disabled={isCreatingPr || isPushing}
+                  >
+                    {isCreatingPr ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isCreatingPr ? t("creatingPR") : t("pushAndCreatePR", { count: commitsAhead })}
+                  </Button>
+                ) : commitsAhead > 0 ? (
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handlePush}
+                    disabled={isPushing || isCreatingPr}
+                  >
+                    {isPushing ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <GitPullRequestIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isPushing ? t("pushing") : t("pushOnly", { count: commitsAhead })}
+                  </Button>
+                ) : null}
+
+                {showSyncButton && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleSyncToLocal}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? (
+                      <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <DownloadIcon className="w-3.5 h-3.5" />
+                    )}
+                    {isSyncing ? t("syncing") : t("syncToLocal")}
                   </Button>
                 )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={handleSyncToLocal}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <Loader2Icon className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <DownloadIcon className="w-3.5 h-3.5" />
-                  )}
-                  {isSyncing ? t("syncing") : t("syncToLocal")}
-                </Button>
 
                 <div className="flex-1" />
 
