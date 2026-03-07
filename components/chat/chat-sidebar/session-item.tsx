@@ -21,6 +21,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSidebarCollapsed } from "@/components/layout/shell";
+import { getSessionActivityTimestamp } from "@/components/chat/chat-interface-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +93,7 @@ export function SessionItem({
   const itemRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const skipBlurRef = useRef(false);
+  const { isVisible: isSidebarVisible } = useSidebarCollapsed();
 
   // Sync with global store for real-time updates
   const syncedSession = useSessionData(initialSession.id);
@@ -118,6 +121,7 @@ export function SessionItem({
       ? {
           title: syncedSession.title,
           updatedAt: syncedSession.updatedAt,
+          lastMessageAt: syncedSession.lastMessageAt,
           messageCount: syncedSession.messageCount,
           channelType: syncedSession.channelType,
         }
@@ -126,6 +130,7 @@ export function SessionItem({
 
   const effectiveChannel = session.channelType ?? session.metadata?.channelType;
   const messageCount = session.messageCount ?? 0;
+  const sessionTimestamp = getSessionActivityTimestamp(session);
 
   const formatSessionDate = useCallback(
     (dateStr: string): string => {
@@ -294,7 +299,7 @@ export function SessionItem({
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-mono text-terminal-muted/70 min-h-[16px]">
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {formatSessionDate(session.updatedAt)}
+                {formatSessionDate(sessionTimestamp)}
               </span>
               {messageCount > 0 ? (
                 <span>{t("sidebar.messageCount", { count: messageCount })}</span>
@@ -413,6 +418,7 @@ export function SessionItem({
         isCurrent={isCurrent}
         anchorRef={itemRef}
         onDismissed={handleBubbleDismissed}
+        hidden={!isSidebarVisible}
       />
     </div>
   );
