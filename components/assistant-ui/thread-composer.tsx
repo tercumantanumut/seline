@@ -36,7 +36,7 @@ import { useMCPReloadStatus } from "@/hooks/use-mcp-reload-status";
 import { useSessionComposerDraft } from "@/lib/hooks/use-session-composer-draft";
 import { useSessionComposerEditorState } from "@/lib/hooks/use-session-composer-editor-state";
 import { ContextWindowIndicator } from "./context-window-indicator";
-import { ActiveModelIndicator } from "./active-model-indicator";
+import { ModelSelector } from "./model-selector";
 import { ActiveDelegationsIndicator } from "./active-delegations-indicator";
 import FileMentionAutocomplete from "./file-mention-autocomplete";
 import { ComposerAttachment } from "./thread-message-components";
@@ -1035,7 +1035,6 @@ export const Composer: FC<{
                 isDeepResearchLoading={isDeepResearchLoading}
                 mcpIsReloading={mcpStatus.isReloading}
                 mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-                sessionId={sessionId}
                 onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
                 sttEnabled={sttEnabled}
                 isRecordingVoice={isRecordingVoice}
@@ -1095,7 +1094,6 @@ export const Composer: FC<{
               isDeepResearchLoading={isDeepResearchLoading}
               mcpIsReloading={mcpStatus.isReloading}
               mcpEstimatedTimeRemaining={mcpStatus.estimatedTimeRemaining}
-              sessionId={sessionId}
               onToggleDeepResearch={deepResearch?.toggleDeepResearchMode}
               sttEnabled={sttEnabled}
               isRecordingVoice={isRecordingVoice}
@@ -1131,7 +1129,7 @@ export const Composer: FC<{
               compact
             />
           </div>
-          <ActiveModelIndicator status={contextStatus} />
+          {sessionId && <ModelSelector sessionId={sessionId} status={contextStatus} />}
         </div>
       )}
 
