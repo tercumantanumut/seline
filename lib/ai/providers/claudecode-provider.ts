@@ -245,6 +245,13 @@ function isDictionary(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function getClaudeSdkParentToolUseId(msg: unknown): string | undefined {
+  if (!isDictionary(msg)) return undefined;
+  return typeof msg.parent_tool_use_id === "string" && msg.parent_tool_use_id.trim().length > 0
+    ? msg.parent_tool_use_id
+    : undefined;
+}
+
 export function normalizeClaudeSdkToolName(raw: unknown): string | undefined {
   if (typeof raw !== "string") return undefined;
   const trimmed = raw.trim();
@@ -284,15 +291,24 @@ function extractSdkToolResultsFromUserMessage(
     out.push({ toolCallId, output, ...(toolName ? { toolName } : {}) });
   };
 
-  const parentToolUseId = typeof msg.parent_tool_use_id === "string"
-    ? msg.parent_tool_use_id
-    : "";
-  if ("tool_use_result" in msg && parentToolUseId) {
+  const parentToolUseId = getClaudeSdkParentToolUseId(msg) ?? "";
+  const parentToolName = normalizeClaudeSdkToolName(msg.tool_name);
+  if (
+    "tool_use_result" in msg &&
+    parentToolUseId &&
+    (parentToolName === "Task" || parentToolName === "Agent")
+  ) {
     pushResult(
       parentToolUseId,
       (msg as { tool_use_result?: unknown }).tool_use_result,
-      normalizeClaudeSdkToolName(msg.tool_name),
+      parentToolName,
     );
+  }
+
+  // SDK subagent traffic is correlated via parent_tool_use_id. Keep only the
+  // root Task/Agent completion result for the bridge and ignore nested tool results.
+  if (parentToolUseId) {
+    return out;
   }
 
   const innerMessage = isDictionary(msg.message) ? msg.message : null;
@@ -1062,6 +1078,13 @@ function createStreamingClaudeCodeResponse(options: {
         for await (const rawMessage of query) {
           const message = rawMessage as { type?: string };
 
+          // Claude SDK annotates nested subagent traffic with parent_tool_use_id.
+          // Keep those events inside the root Task/Agent call instead of replaying
+          // every nested tool into the main SSE/chat stream.
+          if (getClaudeSdkParentToolUseId(rawMessage)) {
+            continue;
+          }
+
           if (message.type === "user") {
             if (sdkToolResultBridge) {
               const bridgedResults = extractSdkToolResultsFromUserMessage(message);
@@ -1517,6 +1540,10 @@ async function runClaudeAgentQuery(options: {
   try {
     for await (const rawMessage of query) {
       const message = rawMessage as { type?: string };
+
+      if (getClaudeSdkParentToolUseId(rawMessage)) {
+        continue;
+      }
 
       if (message.type === "stream_event") {
         const event = (message as { event?: unknown }).event;
