@@ -26,6 +26,7 @@ interface SessionActivityBubbleProps {
   hasActiveRun: boolean;
   isCurrent: boolean;
   anchorRef: RefObject<HTMLDivElement | null>;
+  hidden?: boolean;
   onDismissed?: () => void;
 }
 
@@ -232,6 +233,7 @@ export function SessionActivityBubble({
   hasActiveRun,
   isCurrent,
   anchorRef,
+  hidden = false,
   onDismissed,
 }: SessionActivityBubbleProps) {
   const swapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -390,47 +392,110 @@ export function SessionActivityBubble({
 
   // --- Portal positioning ---
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement | null>(null);
+  const updatePositionRef = useRef<() => void>(() => {});
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
-    if (!anchor || !visualModel) {
+    if (!anchor || !visualModel || hidden) {
+      updatePositionRef.current = () => {};
       setPos(null);
       return;
     }
 
     const update = () => {
-      const rect = anchor.getBoundingClientRect();
-      const scrollContainer = anchor.closest("[data-radix-scroll-area-viewport]");
-      const sidebarRect = scrollContainer?.getBoundingClientRect();
+      if (!anchor.isConnected || anchor.offsetParent === null) {
+        setPos(null);
+        return;
+      }
 
-      // Hide bubble if session item is scrolled out of sidebar viewport
+      const rect = anchor.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        setPos(null);
+        return;
+      }
+
+      const scrollContainer = anchor.closest("[data-radix-scroll-area-viewport]");
+      const sidebarRect = scrollContainer?.getBoundingClientRect() ?? anchor.closest("aside")?.getBoundingClientRect();
+
+      // Hide bubble if the anchor is outside the visible sidebar bounds.
       if (sidebarRect) {
-        const visible = rect.bottom > sidebarRect.top && rect.top < sidebarRect.bottom;
+        const visible =
+          rect.bottom > sidebarRect.top &&
+          rect.top < sidebarRect.bottom &&
+          rect.right > sidebarRect.left &&
+          rect.left < sidebarRect.right;
         if (!visible) {
           setPos(null);
           return;
         }
       }
 
-      setPos({
-        top: rect.top + rect.height / 2 - 14, // vertically centered on the session item
-        left: rect.right + 8, // 8px to the right of the session item (into chat area)
-      });
+      const bubbleWidth = bubbleRef.current?.offsetWidth ?? 0;
+      const bubbleHeight = bubbleRef.current?.offsetHeight ?? 0;
+      const chatViewport = document.querySelector("[data-chat-viewport='true']") as HTMLElement | null;
+      const chatRect = chatViewport?.getBoundingClientRect();
+
+      let left = rect.right + 8;
+      if (chatRect && bubbleWidth > 0) {
+        const maxLeftBeforeChat = chatRect.left - bubbleWidth - 16;
+        if (left > maxLeftBeforeChat) {
+          left = rect.left - bubbleWidth - 12;
+        }
+        left = Math.min(left, maxLeftBeforeChat);
+      }
+
+      left = Math.max(12, Math.min(left, window.innerWidth - bubbleWidth - 12));
+
+      let top = rect.top + rect.height / 2 - Math.max(14, bubbleHeight / 2);
+      top = Math.max(12, Math.min(top, window.innerHeight - Math.max(bubbleHeight, 28) - 12));
+
+      setPos({ top, left });
     };
 
+    updatePositionRef.current = update;
     update();
 
     const scrollContainer = anchor.closest("[data-radix-scroll-area-viewport]");
-    scrollContainer?.addEventListener("scroll", update, { passive: true });
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+
+    resizeObserver?.observe(anchor);
+    if (scrollContainer instanceof Element) {
+      resizeObserver?.observe(scrollContainer);
+      scrollContainer.addEventListener("scroll", update, { passive: true });
+    }
+    const sidebarContainer = anchor.closest("aside");
+    if (sidebarContainer instanceof Element) {
+      resizeObserver?.observe(sidebarContainer);
+    }
     window.addEventListener("resize", update, { passive: true });
 
     return () => {
-      scrollContainer?.removeEventListener("scroll", update);
+      if (scrollContainer instanceof Element) {
+        scrollContainer.removeEventListener("scroll", update);
+      }
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [anchorRef, visualModel]);
+  }, [anchorRef, hidden, visualModel]);
 
-  if (!visualModel || !pos) {
+  useLayoutEffect(() => {
+    if (!visualModel || hidden) {
+      return;
+    }
+
+    updatePositionRef.current();
+
+    if (typeof ResizeObserver === "undefined" || !bubbleRef.current) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => updatePositionRef.current());
+    resizeObserver.observe(bubbleRef.current);
+    return () => resizeObserver.disconnect();
+  }, [hidden, visualModel]);
+
+  if (!visualModel || !pos || hidden) {
     return null;
   }
 
@@ -439,6 +504,7 @@ export function SessionActivityBubble({
   const tone = toneClasses(primary.tone);
   const bubble = (
     <div
+      ref={bubbleRef}
       style={{
         position: "fixed",
         top: pos.top,

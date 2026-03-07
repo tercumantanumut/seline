@@ -1,7 +1,7 @@
 "use client";
 
 import type { FC, ReactNode } from "react";
-import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext, useMemo } from "react";
 import {
   MenuIcon,
   XIcon,
@@ -49,13 +49,17 @@ import { resilientPost } from "@/lib/utils/resilient-fetch";
 // — with love, Seline (https://github.com/tercumantanumut/seline)
 interface SidebarContextValue {
   isCollapsed: boolean;
+  isVisible: boolean;
   toggle: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextValue>({
   isCollapsed: false,
+  isVisible: true,
   toggle: () => {},
 });
+
+const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 768px)";
 
 export const useSidebarCollapsed = () => useContext(SidebarContext);
 
@@ -139,6 +143,28 @@ export const Shell: FC<ShellProps> = ({
   // Determine if we have a sidebar to show
   const hasSidebar = !!sidebar;
   const isMac = electronPlatform === "darwin";
+  const [isDesktopViewport, setIsDesktopViewport] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia(DESKTOP_SIDEBAR_MEDIA_QUERY);
+    const updateViewport = () => setIsDesktopViewport(mediaQuery.matches);
+    updateViewport();
+
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
+
+  const sidebarContextValue = useMemo(
+    () => ({
+      isCollapsed: desktopCollapsed,
+      isVisible: !hasSidebar || (isDesktopViewport ? !desktopCollapsed : sidebarOpen),
+      toggle: toggleDesktopSidebar,
+    }),
+    [desktopCollapsed, hasSidebar, isDesktopViewport, sidebarOpen, toggleDesktopSidebar]
+  );
+
   const sidebarHeaderContent = sidebarHeader ? (
     <div
       className={cn("flex items-center gap-2", desktopCollapsed && "md:hidden")}
@@ -177,18 +203,19 @@ export const Shell: FC<ShellProps> = ({
   }
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-terminal-cream">
-      {hasBackground && <BackgroundLayer config={background} />}
-      <WindowsTitleBar />
-      {/* Mobile overlay - only when sidebar exists */}
-      {hasSidebar && sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <SidebarContext.Provider value={sidebarContextValue}>
+      <div className="relative flex h-dvh flex-col overflow-hidden bg-terminal-cream">
+        {hasBackground && <BackgroundLayer config={background} />}
+        <WindowsTitleBar />
+        {/* Mobile overlay - only when sidebar exists */}
+        {hasSidebar && sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - only render if sidebar content is provided */}
         {hasSidebar && (
           <aside
@@ -518,8 +545,9 @@ export const Shell: FC<ShellProps> = ({
         </div>
       </div>
 
-      {/* Dev Logs Viewer - only shows in Electron */}
-      <DevLogsViewer />
-    </div>
+        {/* Dev Logs Viewer - only shows in Electron */}
+        <DevLogsViewer />
+      </div>
+    </SidebarContext.Provider>
   );
 };

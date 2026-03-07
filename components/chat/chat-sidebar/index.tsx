@@ -6,6 +6,7 @@ import { AvatarSelectionDialog } from "@/components/avatar-selection-dialog";
 import { ChannelConnectionsDialog } from "@/components/channels/channel-connections-dialog";
 import { resilientFetch } from "@/lib/utils/resilient-fetch";
 import type { CharacterDisplayData } from "@/components/assistant-ui/character-context";
+import { getSessionActivityTimestamp } from "@/components/chat/chat-interface-utils";
 import type { SessionChannelType, SessionInfo } from "./types";
 import { parseAsUTC, getDateBucket } from "./sidebar-utils";
 import { SidebarCharacterProfile } from "./sidebar-character-profile";
@@ -202,7 +203,7 @@ export function CharacterSidebar({
     };
     for (const session of sessions) {
       if (session.metadata?.pinned) continue; // pinned shown separately at top
-      const date = parseAsUTC(session.updatedAt);
+      const date = parseAsUTC(getSessionActivityTimestamp(session));
       if (isNaN(date.getTime())) {
         groups.older.push(session);
         continue;

@@ -11,6 +11,7 @@ import {
   getMessages,
   getOrCreateLocalUser,
   deleteMessagesNotIn,
+  listSessions,
 } from "@/lib/db/queries";
 import { nextOrderingIndex, allocateOrderingIndices, validateSessionOrdering } from "@/lib/session/message-ordering";
 import { getSessionWithMessages } from "@/lib/db/queries-sessions";
@@ -375,6 +376,46 @@ describe("Message Ordering", () => {
       status: "error",
       error: "Pattern parse failed",
     });
+  });
+
+  it("should list sessions by real conversation activity instead of tool churn", async () => {
+    const listUserId = "test-user-session-recency";
+    await getOrCreateLocalUser(listUserId, "session-recency@example.com");
+
+    const olderConversation = await createSession({ title: "Older conversation", userId: listUserId });
+    const newerConversation = await createSession({ title: "Newer conversation", userId: listUserId });
+    if (!olderConversation || !newerConversation) throw new Error("Failed to create sessions");
+
+    await createMessage({
+      sessionId: olderConversation.id,
+      role: "user",
+      content: [{ type: "text", text: "first real message" }],
+      orderingIndex: 1,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await createMessage({
+      sessionId: newerConversation.id,
+      role: "user",
+      content: [{ type: "text", text: "latest real message" }],
+      orderingIndex: 1,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await createMessage({
+      sessionId: olderConversation.id,
+      role: "tool",
+      content: [{ type: "tool-result", toolCallId: "tool-recency-1", result: { ok: true } }],
+      orderingIndex: 2,
+    });
+
+    const orderedSessions = await listSessions(listUserId, 10);
+    expect(orderedSessions.slice(0, 2).map((session) => session.id)).toEqual([
+      newerConversation.id,
+      olderConversation.id,
+    ]);
   });
 
   it("should load legacy tool-result output fields as final output-error state", async () => {

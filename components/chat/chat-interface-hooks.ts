@@ -272,15 +272,22 @@ export function useSessionManager({
         }
     }, [sessions, character.id, setSyncSessions]);
 
-    const refreshSessionTimestamp = useCallback((targetSessionId: string) => {
+    const refreshSessionTimestamp = useCallback((
+        targetSessionId: string,
+        options?: { includeActivity?: boolean }
+    ) => {
         const nextUpdatedAt = new Date().toISOString();
-        notifySessionUpdate(targetSessionId, { updatedAt: nextUpdatedAt });
+        const updates = options?.includeActivity
+            ? { updatedAt: nextUpdatedAt, lastMessageAt: nextUpdatedAt }
+            : { updatedAt: nextUpdatedAt };
+
+        notifySessionUpdate(targetSessionId, updates);
         setSessions((prev) => {
             let updated = false;
             const next = prev.map((session) => {
                 if (session.id !== targetSessionId) return session;
                 updated = true;
-                return { ...session, updatedAt: nextUpdatedAt };
+                return { ...session, ...updates };
             });
             if (!updated) return prev;
             return sortSessionsByUpdatedAt(next);

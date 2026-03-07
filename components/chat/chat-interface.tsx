@@ -855,7 +855,6 @@ export default function ChatInterface({
             if (now - lastProgressTimeRef.current < PROGRESS_THROTTLE_MS) return;
             lastProgressTimeRef.current = now;
             void reloadSessionMessages(sessionId, { force: true });
-            if (detail.sessionId) sm.refreshSessionTimestamp(detail.sessionId);
         };
         window.addEventListener("background-task-progress", handleTaskProgress);
         return () => window.removeEventListener("background-task-progress", handleTaskProgress);
@@ -897,7 +896,7 @@ export default function ChatInterface({
 
     const handleSessionActivity = useCallback(() => {
         if (!sessionId) return;
-        sm.refreshSessionTimestamp(sessionId);
+        sm.refreshSessionTimestamp(sessionId, { includeActivity: true });
     }, [sm.refreshSessionTimestamp, sessionId]);
 
     const handlePostCancel = useCallback(() => {
@@ -910,7 +909,7 @@ export default function ChatInterface({
         // Foreground runs already stream directly into useChat state.
         // Rehydrating from DB here can reintroduce stale branches/messages.
         sm.notifySessionUpdate(sessionId, { messageCount: messages.length });
-        sm.refreshSessionTimestamp(sessionId);
+        sm.refreshSessionTimestamp(sessionId, { includeActivity: true });
     }, [sessionId, sm.notifySessionUpdate, sm.refreshSessionTimestamp, messages.length]);
 
     if (sm.isLoading) {
