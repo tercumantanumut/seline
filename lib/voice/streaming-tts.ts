@@ -4,6 +4,74 @@
  */
 
 // ---------------------------------------------------------------------------
+// StableStreamingLifecycle
+// ---------------------------------------------------------------------------
+
+export interface StableStreamingLifecycleOptions {
+  onStart: () => void;
+  onStableEnd: () => void;
+  settleDelayMs?: number;
+}
+
+/**
+ * Shields the streaming TTS pipeline from brief run-state flickers caused by
+ * rapid tool-call sequencing. A run only truly ends after it stays idle for
+ * the settle window, so mid-sentence playback is not cut off between tool steps.
+ */
+export class StableStreamingLifecycle {
+  private wasRunning = false;
+  private active = false;
+  private settleTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onStart: () => void;
+  private readonly onStableEnd: () => void;
+  private readonly settleDelayMs: number;
+
+  constructor({ onStart, onStableEnd, settleDelayMs = 750 }: StableStreamingLifecycleOptions) {
+    this.onStart = onStart;
+    this.onStableEnd = onStableEnd;
+    this.settleDelayMs = settleDelayMs;
+  }
+
+  update(isRunning: boolean): void {
+    if (isRunning) {
+      this.clearSettleTimer();
+      if (!this.active) {
+        this.active = true;
+        this.onStart();
+      }
+      this.wasRunning = true;
+      return;
+    }
+
+    if (this.wasRunning && this.active && !this.settleTimer) {
+      this.settleTimer = setTimeout(() => {
+        this.settleTimer = null;
+        if (!this.active) {
+          return;
+        }
+        this.active = false;
+        this.onStableEnd();
+      }, this.settleDelayMs);
+    }
+
+    this.wasRunning = false;
+  }
+
+  cancel(): void {
+    this.clearSettleTimer();
+    this.wasRunning = false;
+    this.active = false;
+  }
+
+  private clearSettleTimer(): void {
+    if (this.settleTimer) {
+      clearTimeout(this.settleTimer);
+      this.settleTimer = null;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // SentenceSplitter
 // ---------------------------------------------------------------------------
 

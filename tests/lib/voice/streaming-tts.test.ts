@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SentenceSplitter, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
+import { SentenceSplitter, StableStreamingLifecycle, StreamingTTSQueue } from "@/lib/voice/streaming-tts";
 
 describe("SentenceSplitter", () => {
   it("holds short sentences until more prose arrives, then flushes trailing text", () => {
@@ -132,5 +132,55 @@ describe("StreamingTTSQueue", () => {
     expect(createObjectURL).toHaveBeenLastCalledWith(expect.any(Blob));
     expect(typeof freshBlobUrl).toBe("string");
     expect(revokeObjectURL).toHaveBeenCalledWith(freshBlobUrl);
+  });
+});
+
+
+describe("StableStreamingLifecycle", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not end the stream during a brief idle gap", () => {
+    const onStart = vi.fn();
+    const onStableEnd = vi.fn();
+    const lifecycle = new StableStreamingLifecycle({
+      onStart,
+      onStableEnd,
+      settleDelayMs: 750,
+    });
+
+    lifecycle.update(true);
+    lifecycle.update(false);
+    vi.advanceTimersByTime(500);
+    lifecycle.update(true);
+    vi.advanceTimersByTime(1000);
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStableEnd).not.toHaveBeenCalled();
+  });
+
+  it("ends the stream after the idle gap stays stable", () => {
+    const onStart = vi.fn();
+    const onStableEnd = vi.fn();
+    const lifecycle = new StableStreamingLifecycle({
+      onStart,
+      onStableEnd,
+      settleDelayMs: 750,
+    });
+
+    lifecycle.update(true);
+    lifecycle.update(false);
+    vi.advanceTimersByTime(749);
+    expect(onStableEnd).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStableEnd).toHaveBeenCalledTimes(1);
   });
 });
