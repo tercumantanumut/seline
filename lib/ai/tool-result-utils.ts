@@ -323,7 +323,7 @@ export function normalizeToolResultOutput(
 
     // If limited, update output with truncated version
     if (limitResult.limited) {
-      console.log(
+      console.debug(
         `[ToolResult] Limited ${toolName} output: ` +
           `${limitResult.originalLength} → ${limitResult.truncatedLength} chars ` +
           `(~${limitResult.estimatedTokens} tokens)`

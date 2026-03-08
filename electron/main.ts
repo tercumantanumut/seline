@@ -152,7 +152,7 @@ process.env.EMBEDDING_CACHE_DIR = embeddingCacheDir;
 // Module imports (after env is set so sub-modules see the correct paths)
 // ---------------------------------------------------------------------------
 
-import { initDebugLog, debugLog, debugError } from "./debug-logger";
+import { initDebugLog, debugLog, debugError, flushDebugLog } from "./debug-logger";
 import {
   mainWindow as getMainWindowRef,
   createWindow,
@@ -318,6 +318,7 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   debugLog("[App] window-all-closed event");
   stopNextServer();
+  flushDebugLog();
   if (process.platform !== "darwin") {
     debugLog("[App] Non-macOS - quitting app");
     app.quit();
@@ -331,6 +332,7 @@ app.on("before-quit", () => {
   closeAllBrowserSessionWindows();
   clearServerRestartTimer();
   stopNextServer();
+  flushDebugLog();
   void cleanupAllVoiceProcesses().catch((err) => {
     debugError("[App] Voice process cleanup failed:", err);
   });

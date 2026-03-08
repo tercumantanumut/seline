@@ -857,7 +857,7 @@ function createStreamingClaudeCodeResponse(options: {
 
             const approvalPrompt = buildPlanApprovalPrompt(readPlanModeFile(resolvedCwd));
 
-            console.log(
+            console.debug(
               `[ClaudeCode] Interactive tool gate: blocking ExitPlanMode (${toolUseId}) until user approves plan`,
             );
 
@@ -876,7 +876,7 @@ function createStreamingClaudeCodeResponse(options: {
                 ? result.message
                 : "";
 
-            console.log(
+            console.debug(
               `[ClaudeCode] Interactive tool gate: user responded to ExitPlanMode (${toolUseId}) — approved=${approved}`,
             );
 
@@ -905,7 +905,7 @@ function createStreamingClaudeCodeResponse(options: {
           if (!toolUseId || !interactiveSessionId) return {};
 
           const toolInput = (input as Record<string, unknown>).tool_input;
-          console.log(
+          console.debug(
             `[ClaudeCode] Interactive tool gate: blocking ${toolName} (${toolUseId}) until user answers`,
           );
 
@@ -919,7 +919,7 @@ function createStreamingClaudeCodeResponse(options: {
           // Store answers so we can override the SDK's auto-answer later
           storeUserAnswer(interactiveSessionId, toolUseId, answers);
 
-          console.log(
+          console.debug(
             `[ClaudeCode] Interactive tool gate: user answered ${toolName} (${toolUseId})`,
           );
 
@@ -1215,13 +1215,13 @@ function createStreamingClaudeCodeResponse(options: {
                   interactiveSessionId &&
                   (entry.toolName === "AskUserQuestion" || entry.toolName === "AskFollowupQuestion")
                 ) {
-                  console.log(
+                  console.debug(
                     `[ClaudeCode] SDK auto-answer for ${entry.toolName} (${entry.toolCallId}):`,
-                    JSON.stringify(entry.output, null, 2),
+                    JSON.stringify(entry.output),
                   );
                   const userAnswer = popUserAnswer(interactiveSessionId, entry.toolCallId);
                   if (userAnswer) {
-                    console.log(
+                    console.debug(
                       `[ClaudeCode] Overriding with user's answer:`,
                       JSON.stringify(userAnswer),
                     );
@@ -1496,7 +1496,7 @@ function createStreamingClaudeCodeResponse(options: {
           rawInputJsonDeltaChunks > 0 &&
           process.env.NODE_ENV !== "production"
         ) {
-          console.log(
+          console.debug(
             `[ClaudeCode] input_json_delta batching: raw=${rawInputJsonDeltaChunks}, emitted=${emittedInputJsonDeltaChunks}`,
           );
         }
@@ -1843,7 +1843,7 @@ export async function queryWithSdkOptions(options: {
       }
 
       const delay = getBackoffDelayMs(attempt);
-      console.log("[ClaudeCode] Retrying Agent SDK query", {
+      console.debug("[ClaudeCode] Retrying Agent SDK query", {
         attempt: attempt + 1,
         reason: classification.reason,
         delayMs: delay,
@@ -1966,7 +1966,7 @@ function createClaudeCodeFetch(): typeof fetch {
         }
 
         const delay = getBackoffDelayMs(attempt);
-        console.log("[ClaudeCode] Retrying Agent SDK request", {
+        console.debug("[ClaudeCode] Retrying Agent SDK request", {
           attempt: attempt + 1,
           reason: classification.reason,
           delayMs: delay,

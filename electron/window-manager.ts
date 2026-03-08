@@ -10,7 +10,7 @@ import {
 } from "electron";
 import * as path from "path";
 import * as fs from "fs";
-import { debugLog, debugError, setLogRendererWindow } from "./debug-logger";
+import { debugLog, debugError, debugVerbose, debugWarn, setLogRendererWindow } from "./debug-logger";
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -245,10 +245,16 @@ export async function createWindow(opts: CreateWindowOptions): Promise<void> {
     debugLog("[Window] webContents became responsive again");
   });
 
-  // Log console messages from the renderer
+  // Log console messages from the renderer (level-mapped)
   mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-    const levelNames = ["verbose", "info", "warning", "error"];
-    debugLog(`[Renderer ${levelNames[level] || level}] ${message} (${sourceId}:${line})`);
+    const tag = `[Renderer] ${message} (${sourceId}:${line})`;
+    if (level >= 3) {
+      debugError(tag);
+    } else if (level >= 2) {
+      debugWarn(tag);
+    } else {
+      debugVerbose(tag);
+    }
   });
 
   // ============================================================================

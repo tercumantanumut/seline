@@ -591,8 +591,8 @@ export function createAntigravityFetch(
     // Remove any API key header — we use OAuth Bearer token
     headers.delete("x-goog-api-key");
 
-    console.log(`[Antigravity] Request: ${action} for model ${effectiveModel}`);
-    console.log(`[Antigravity] URL: ${antigravityUrl}`);
+    console.debug(`[Antigravity] Request: ${action} for model ${effectiveModel}`);
+    console.debug(`[Antigravity] URL: ${antigravityUrl}`);
 
     // Helper to make a single request attempt (with recursive retry)
     const makeRequest = async (attempt: number): Promise<Response> => {
