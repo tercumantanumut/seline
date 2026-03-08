@@ -45,6 +45,96 @@ function summarizeString(value: string, maxLength: number): string {
   return `${compact.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
+/**
+ * Unwrap MCP-style content arrays: `{ content: [{ type: "text", text: "..." }] }`
+ * Returns the extracted text if the pattern matches, otherwise undefined.
+ */
+function unwrapMcpContent(record: Record<string, unknown>): string | undefined {
+  const content = record.content;
+  if (typeof content === "string") return content.trim() || undefined;
+  if (!Array.isArray(content)) return undefined;
+
+  const textItem = content.find(
+    (item): item is { type: string; text: string } =>
+      !!item &&
+      typeof item === "object" &&
+      (item as { type?: unknown }).type === "text" &&
+      typeof (item as { text?: unknown }).text === "string"
+  );
+
+  return textItem?.text?.trim() || undefined;
+}
+
+/**
+ * Build a human-readable key-value summary from an object's most meaningful fields,
+ * instead of dumping raw JSON.
+ */
+function summarizeObjectReadable(record: Record<string, unknown>, maxLength: number): string {
+  // Keys that are noise in a summary
+  const skipKeys = new Set([
+    "status", "type", "content", "_progressTruncated",
+    "images", "videos", "sources", "results",
+  ]);
+
+  // Prefer these keys in order for building the summary
+  const preferredOrder = [
+    "filePath", "file", "path", "name", "displayName",
+    "pattern", "query", "command", "description",
+    "answer", "matchCount", "totalMatchCount", "count",
+    "language", "lineRange", "totalLines",
+    "action", "branch", "url",
+  ];
+
+  const parts: string[] = [];
+  const seen = new Set<string>();
+
+  // First pass: preferred keys
+  for (const key of preferredOrder) {
+    if (seen.has(key) || skipKeys.has(key)) continue;
+    const val = record[key];
+    if (val === undefined || val === null) continue;
+    seen.add(key);
+    if (typeof val === "string") {
+      const short = val.length > 60 ? val.slice(0, 57) + "..." : val;
+      // For file paths, show just the filename
+      if ((key === "filePath" || key === "file" || key === "path") && short.includes("/")) {
+        parts.push(short.split("/").pop() || short);
+      } else {
+        parts.push(`${key}: ${short}`);
+      }
+    } else if (typeof val === "number" || typeof val === "boolean") {
+      parts.push(`${key}: ${val}`);
+    }
+    // Stop early if we have enough context
+    if (parts.join(", ").length > maxLength * 0.8) break;
+  }
+
+  // Second pass: remaining string/number/boolean fields
+  if (parts.length === 0) {
+    for (const [key, val] of Object.entries(record)) {
+      if (seen.has(key) || skipKeys.has(key)) continue;
+      if (val === undefined || val === null) continue;
+      if (typeof val === "string" && val.trim()) {
+        parts.push(`${key}: ${val.length > 50 ? val.slice(0, 47) + "..." : val}`);
+      } else if (typeof val === "number" || typeof val === "boolean") {
+        parts.push(`${key}: ${val}`);
+      }
+      if (parts.join(", ").length > maxLength * 0.8) break;
+    }
+  }
+
+  if (parts.length > 0) {
+    return summarizeString(parts.join(", "), maxLength);
+  }
+
+  // Last resort: JSON, but we tried
+  try {
+    return summarizeString(JSON.stringify(record), maxLength);
+  } catch {
+    return summarizeString(String(record), maxLength);
+  }
+}
+
 export function summarizeToolValue(value: unknown, maxLength: number = 120): string | undefined {
   if (value === undefined || value === null) return undefined;
 
@@ -74,18 +164,30 @@ export function summarizeToolValue(value: unknown, maxLength: number = 120): str
     if (Array.isArray(record.images)) return `${record.images.length} image${record.images.length === 1 ? "" : "s"}`;
     if (Array.isArray(record.videos)) return `${record.videos.length} video${record.videos.length === 1 ? "" : "s"}`;
     if (Array.isArray(record.sources)) return `${record.sources.length} source${record.sources.length === 1 ? "" : "s"}`;
+
+    // Unwrap MCP content arrays before checking text fields
+    const mcpText = unwrapMcpContent(record);
+    if (mcpText) {
+      // Try to parse as JSON in case the text wraps structured data
+      try {
+        const parsed = JSON.parse(mcpText);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return summarizeToolValue(parsed, maxLength);
+        }
+      } catch { /* not JSON, use as-is */ }
+      return summarizeString(mcpText, maxLength);
+    }
+
     if (typeof record.message === "string") return summarizeString(record.message, maxLength);
     if (typeof record.summary === "string") return summarizeString(record.summary, maxLength);
     if (typeof record.text === "string") return summarizeString(record.text, maxLength);
+    if (typeof record.answer === "string") return summarizeString(record.answer, maxLength);
     if (typeof record.stdout === "string") return summarizeString(record.stdout, maxLength);
     if (typeof record.error === "string") return summarizeString(record.error, maxLength);
     if (typeof record.errorText === "string") return summarizeString(record.errorText, maxLength);
 
-    try {
-      return summarizeString(JSON.stringify(value), maxLength);
-    } catch {
-      return summarizeString(String(value), maxLength);
-    }
+    // Build a human-readable summary from object fields instead of raw JSON
+    return summarizeObjectReadable(record, maxLength);
   }
 
   return summarizeString(String(value), maxLength);
@@ -189,6 +291,106 @@ export function summarizeToolOutput(value: unknown): string | undefined {
   return summarizeToolValue(value, 120);
 }
 
+/**
+ * Tool-aware output summarization. Produces a clean, contextual summary
+ * for known tool result shapes instead of generic value inspection.
+ */
+export function summarizeToolOutputByName(toolName: string, value: unknown): string | undefined {
+  if (!value || typeof value !== "object") return summarizeToolOutput(value);
+
+  const record = value as Record<string, unknown>;
+  const MAX = 140;
+
+  switch (toolName) {
+    case "readFile": {
+      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      const fileName = fp ? (fp.split("/").pop() || fp) : undefined;
+      const lines = typeof record.totalLines === "number" ? record.totalLines : undefined;
+      const lang = typeof record.language === "string" ? record.language : undefined;
+      const parts: string[] = [];
+      if (fileName) parts.push(fileName);
+      if (lang) parts.push(lang);
+      if (lines) parts.push(`${lines} lines`);
+      if (record.truncated) parts.push("truncated");
+      return parts.length > 0 ? parts.join(", ") : summarizeToolOutput(value);
+    }
+    case "editFile": {
+      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      const fileName = fp ? (fp.split("/").pop() || fp) : undefined;
+      if (fileName) {
+        const changed = typeof record.linesChanged === "number" ? `, ${record.linesChanged} lines changed` : "";
+        return `${fileName}${changed}`;
+      }
+      return summarizeToolOutput(value);
+    }
+    case "writeFile": {
+      const fp = typeof record.filePath === "string" ? record.filePath : undefined;
+      return fp ? (fp.split("/").pop() || fp) : summarizeToolOutput(value);
+    }
+    case "localGrep": {
+      const count = typeof record.matchCount === "number" ? record.matchCount : undefined;
+      const total = typeof record.totalMatchCount === "number" ? record.totalMatchCount : undefined;
+      const pattern = typeof record.pattern === "string" ? record.pattern : undefined;
+      if (count !== undefined && pattern) {
+        const countText = total && total > count ? `${count} of ${total}` : `${count}`;
+        return summarizeString(`${countText} matches for "${pattern}"`, MAX);
+      }
+      return summarizeToolOutput(value);
+    }
+    case "webSearch": {
+      if (typeof record.answer === "string") return summarizeString(record.answer, MAX);
+      const sources = Array.isArray(record.sources) ? record.sources : [];
+      if (sources.length > 0) return `${sources.length} source${sources.length === 1 ? "" : "s"} found`;
+      return summarizeToolOutput(value);
+    }
+    case "executeCommand": {
+      if (typeof record.stdout === "string" && record.stdout.trim()) {
+        return summarizeString(record.stdout.trim(), MAX);
+      }
+      if (typeof record.stderr === "string" && record.stderr.trim()) {
+        return summarizeString(record.stderr.trim(), MAX);
+      }
+      const exit = typeof record.exitCode === "number" ? record.exitCode : null;
+      if (exit !== null) return exit === 0 ? "Completed successfully" : `Exit code ${exit}`;
+      return summarizeToolOutput(value);
+    }
+    case "searchTools": {
+      const results = Array.isArray(record.results) ? record.results : [];
+      if (results.length > 0) {
+        const names = results
+          .map((r) => typeof r === "object" && r ? ((r as Record<string, unknown>).displayName || (r as Record<string, unknown>).name) : undefined)
+          .filter(Boolean)
+          .slice(0, 3);
+        return names.length > 0
+          ? summarizeString(`${results.length} found: ${names.join(", ")}`, MAX)
+          : `${results.length} tool${results.length === 1 ? "" : "s"} found`;
+      }
+      return summarizeToolOutput(value);
+    }
+    case "memorize":
+      return typeof record.message === "string" ? summarizeString(record.message, MAX) : "Memory saved";
+    case "scheduleTask":
+      return typeof record.message === "string" ? summarizeString(record.message, MAX) : "Task scheduled";
+    case "updatePlan":
+      return "Plan updated";
+    case "workspace": {
+      const msg = typeof record.message === "string" ? record.message : undefined;
+      return msg ? summarizeString(msg, MAX) : summarizeToolOutput(value);
+    }
+    case "describeImage":
+      return typeof record.description === "string" ? summarizeString(record.description, MAX) : summarizeToolOutput(value);
+    case "chromiumWorkspace": {
+      const action = typeof record.action === "string" ? record.action : undefined;
+      const title = typeof record.title === "string" ? record.title : undefined;
+      if (action && title) return `${action}: ${summarizeString(title, MAX - action.length - 2)}`;
+      if (action) return action;
+      return summarizeToolOutput(value);
+    }
+    default:
+      return summarizeToolOutput(value);
+  }
+}
+
 function asProgressToolPart(part: unknown): ProgressToolPartLike | null {
   if (!part || typeof part !== "object") return null;
   return part as ProgressToolPartLike;
@@ -252,7 +454,7 @@ function buildLiveStatusFromProgress(event: TaskProgressEvent): LiveToolStatus |
       phase: isError ? "error" : "completed",
       label: isError ? "Failed" : "Completed",
       detail: typeof part.errorText === "string" ? summarizeString(part.errorText, 120) : scopedDetail,
-      outputPreview: summarizeToolOutput(part.result ?? part.output),
+      outputPreview: summarizeToolOutputByName(canonicalToolName, part.result ?? part.output),
       updatedAt: Date.now(),
     };
   }
