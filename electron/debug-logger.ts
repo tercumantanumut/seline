@@ -10,6 +10,14 @@ const userDataPath = app.getPath("userData");
 export const DEBUG_LOG_FILE = path.join(userDataPath, "debug.log");
 
 // ---------------------------------------------------------------------------
+// Log levels
+// ---------------------------------------------------------------------------
+
+export type LogLevel = "verbose" | "info" | "warn" | "error";
+const LOG_LEVEL_ORDER: Record<LogLevel, number> = { verbose: 0, info: 1, warn: 2, error: 3 };
+let currentLogLevel: LogLevel = "info";
+
+// ---------------------------------------------------------------------------
 // Log buffer (for streaming to renderer)
 // ---------------------------------------------------------------------------
 
@@ -93,51 +101,105 @@ export function sendLogToRenderer(level: string, message: string): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Async write buffer — batches disk I/O instead of sync-writing per log line.
+// Flushes every 500ms or when the buffer exceeds 64KB.
+// ---------------------------------------------------------------------------
+
+let writeBuffer = "";
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL_MS = 500;
+const FLUSH_SIZE_THRESHOLD = 64 * 1024;
+
+function appendToBuffer(message: string): void {
+  writeBuffer += message;
+  if (writeBuffer.length >= FLUSH_SIZE_THRESHOLD) {
+    flushDebugLog();
+  } else if (!flushTimer) {
+    flushTimer = setTimeout(flushDebugLog, FLUSH_INTERVAL_MS);
+  }
+}
+
 /**
- * Debug logger that writes to both console and a file for production debugging.
+ * Flush the write buffer to disk. Call on app quit to ensure no logs are lost.
+ */
+export function flushDebugLog(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (writeBuffer.length === 0) return;
+  const data = writeBuffer;
+  writeBuffer = "";
+  try {
+    fs.appendFileSync(DEBUG_LOG_FILE, data);
+  } catch (e) {
+    console.error("[Debug] Failed to write to log file:", e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal unified log writer
+// ---------------------------------------------------------------------------
+
+function writeLog(level: LogLevel, args: unknown[]): void {
+  if (LOG_LEVEL_ORDER[level] < LOG_LEVEL_ORDER[currentLogLevel]) return;
+
+  const timestamp = new Date().toISOString();
+  const messageText = args
+    .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
+    .join(" ");
+
+  const levelTag = level === "info" ? "" : ` [${level.toUpperCase()}]`;
+  const message = `[${timestamp}]${levelTag} ${messageText}\n`;
+
+  if (level === "error") {
+    console.error(...args);
+  } else if (level === "warn") {
+    console.warn(...args);
+  } else {
+    console.log(...args);
+  }
+
+  sendLogToRenderer(level, messageText);
+  appendToBuffer(message);
+}
+
+// ---------------------------------------------------------------------------
+// Public logging functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Verbose logger – filtered out in production by default.
+ */
+export function debugVerbose(...args: unknown[]): void {
+  writeLog("verbose", args);
+}
+
+/**
+ * Debug logger (info level) that writes to console, renderer, and log file.
  */
 export function debugLog(...args: unknown[]): void {
-  const timestamp = new Date().toISOString();
-  const messageText = args.map(arg =>
-    typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg)
-  ).join(" ");
-  const message = `[${timestamp}] ${messageText}\n`;
-
-  // Always log to console
-  console.log(...args);
-
-  // Stream to renderer
-  sendLogToRenderer("info", messageText);
-
-  // Also write to file for production debugging
-  try {
-    fs.appendFileSync(DEBUG_LOG_FILE, message);
-  } catch (e) {
-    console.error("[Debug] Failed to write to log file:", e);
-  }
+  writeLog("info", args);
 }
 
 /**
- * Debug error logger.
+ * Warning logger.
+ */
+export function debugWarn(...args: unknown[]): void {
+  writeLog("warn", args);
+}
+
+/**
+ * Error logger.
  */
 export function debugError(...args: unknown[]): void {
-  const timestamp = new Date().toISOString();
-  const messageText = args.map(arg =>
-    typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg)
-  ).join(" ");
-  const message = `[${timestamp}] [ERROR] ${messageText}\n`;
-
-  console.error(...args);
-
-  // Stream to renderer
-  sendLogToRenderer("error", messageText);
-
-  try {
-    fs.appendFileSync(DEBUG_LOG_FILE, message);
-  } catch (e) {
-    console.error("[Debug] Failed to write to log file:", e);
-  }
+  writeLog("error", args);
 }
+
+// ---------------------------------------------------------------------------
+// Initialization
+// ---------------------------------------------------------------------------
 
 /**
  * Initialize the debug log file with a session header.
@@ -148,7 +210,25 @@ export function initDebugLog(opts: {
   execPath: string;
   resourcesPath: string;
 }): void {
+  // Set log level: env var override > isDev-based default
+  const envLevel = process.env.LOG_LEVEL as LogLevel | undefined;
+  if (envLevel && envLevel in LOG_LEVEL_ORDER) {
+    currentLogLevel = envLevel;
+  } else {
+    currentLogLevel = opts.isDev ? "verbose" : "info";
+  }
+
   try {
+    // Log rotation: if existing file > 10MB, rotate to .old
+    try {
+      const stats = fs.statSync(DEBUG_LOG_FILE);
+      if (stats.size > 10 * 1024 * 1024) {
+        const oldPath = DEBUG_LOG_FILE + ".old";
+        try { fs.unlinkSync(oldPath); } catch {}
+        fs.renameSync(DEBUG_LOG_FILE, oldPath);
+      }
+    } catch {}
+
     const header = `
 ================================================================================
 ELECTRON APP DEBUG LOG
@@ -158,6 +238,7 @@ Arch: ${process.arch}
 Electron Version: ${process.versions.electron}
 Node Version: ${process.versions.node}
 isDev: ${opts.isDev}
+logLevel: ${currentLogLevel}
 userDataPath: ${opts.userDataPath}
 process.execPath: ${opts.execPath}
 process.resourcesPath: ${opts.resourcesPath}

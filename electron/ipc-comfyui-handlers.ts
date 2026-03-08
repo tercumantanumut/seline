@@ -5,7 +5,7 @@ import {
 import * as path from "path";
 import * as fs from "fs";
 import { spawn } from "child_process";
-import { debugLog, debugError } from "./debug-logger";
+import { debugLog, debugError, debugVerbose } from "./debug-logger";
 import type { IpcHandlerContext } from "./ipc-handlers";
 import {
   COMFYUI_MODELS,
@@ -167,7 +167,7 @@ export function registerComfyUIHandlers(ctx: IpcHandlerContext): void {
         let progress = 10;
         build.stdout?.on("data", (data) => {
           const line = data.toString();
-          debugLog("[ComfyUI Build]", line);
+          debugVerbose("[ComfyUI Build]", line);
           progress = Math.min(progress + 2, 80);
           sendComfyUIProgress(mainWindow, { stage: "building", progress, message: line.trim().slice(0, 100) });
         });
@@ -343,7 +343,7 @@ export function registerComfyUIHandlers(ctx: IpcHandlerContext): void {
         let progress = 15;
         build.stdout?.on("data", (data) => {
           const line = data.toString();
-          debugLog("[ComfyUI Build]", line);
+          debugVerbose("[ComfyUI Build]", line);
           progress = Math.min(progress + 1, 40);
           sendComfyUIProgress(mainWindow, { stage: "building", progress, message: line.trim().slice(0, 100) });
         });

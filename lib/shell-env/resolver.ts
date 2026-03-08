@@ -1,4 +1,7 @@
-import { spawnSync } from "child_process";
+import { spawnSync, execSync } from "child_process";
+import * as fs from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 const SHELL_RESOLVE_TIMEOUT_MS = 3000;
 
@@ -57,22 +60,57 @@ function resolveShellEnvironmentOnce(): Record<string, string> {
         return {};
     }
 
+    // First try: normal spawnSync with pipes (works in dev, fails in Electron prod)
     for (const shellPath of getCandidateShells()) {
-        const probe = spawnSync(shellPath, ["-ilc", "env -0"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-            timeout: SHELL_RESOLVE_TIMEOUT_MS,
-            env: process.env,
-        });
+        try {
+            const probe = spawnSync(shellPath, ["-ilc", "env -0"], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+                timeout: SHELL_RESOLVE_TIMEOUT_MS,
+                env: process.env,
+            });
 
-        if (probe.error || probe.status !== 0 || !probe.stdout) {
-            continue;
-        }
+            if (probe.error || probe.status !== 0 || !probe.stdout) {
+                // If EBADF, break out and try the file-based fallback
+                if (probe.error && (probe.error as NodeJS.ErrnoException).code === "EBADF") {
+                    break;
+                }
+                continue;
+            }
 
-        const parsed = parseNullSeparatedEnvironment(probe.stdout);
-        if (Object.keys(parsed).length > 0) {
-            return parsed;
+            const parsed = parseNullSeparatedEnvironment(probe.stdout);
+            if (Object.keys(parsed).length > 0) {
+                return parsed;
+            }
+        } catch {
+            break;
         }
+    }
+
+    // Fallback: capture env to a temp file (avoids pipes entirely).
+    // Works in Electron's utilityProcess where spawn with pipes fails.
+    try {
+        const tmpFile = join(tmpdir(), `seline-env-${process.pid}-${Date.now()}.tmp`);
+        for (const shellPath of getCandidateShells()) {
+            try {
+                execSync(`${shellPath} -ilc 'env -0 > "${tmpFile}"'`, {
+                    stdio: "ignore",
+                    timeout: SHELL_RESOLVE_TIMEOUT_MS,
+                    env: process.env,
+                });
+                const raw = fs.readFileSync(tmpFile, "utf8");
+                try { fs.unlinkSync(tmpFile); } catch { /* noop */ }
+                const parsed = parseNullSeparatedEnvironment(raw);
+                if (Object.keys(parsed).length > 0) {
+                    return parsed;
+                }
+            } catch {
+                try { fs.unlinkSync(tmpFile); } catch { /* noop */ }
+                continue;
+            }
+        }
+    } catch {
+        // All attempts failed
     }
 
     return {};

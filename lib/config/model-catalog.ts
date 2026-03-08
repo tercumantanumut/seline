@@ -189,11 +189,11 @@ export const MODEL_METADATA: Record<
 // ---------------------------------------------------------------------------
 
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
+  anthropic: "claude-sonnet-4-6",
   openrouter: "openrouter/auto",
   antigravity: "claude-sonnet-4-6",
   codex: "gpt-5.4",
-  claudecode: "claude-sonnet-4-5-20250929",
+  claudecode: "claude-sonnet-4-6",
   kimi: "kimi-k2.5",
   minimax: "MiniMax-M2.1",
   ollama: "llama3.1:8b",

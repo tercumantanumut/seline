@@ -224,6 +224,7 @@
         "ttsElevenlabs": "ElevenLabs",
         "edgeTtsVoice": "Ses",
         "edgeTtsVoiceDesc": "70+ dilde 400+ yapay zeka sesi",
+        "edgeTtsPreview": "Sesi önizle",
         "avatar3d": "3D animasyonlu avatar",
         "avatar3dDesc": "Ajanla konusan dudak senkronize yuz",
         "emotionDetection": "Duygu algilama",
@@ -1460,6 +1461,11 @@
     "pauseUpdatesShort": "Duraklat",
     "resumeUpdates": "Güncellemeleri sürdür",
     "resumeUpdatesShort": "Sürdür",
+    "pausedToast": "Klasör izleme duraklatıldı",
+    "resumedToast": "Klasör izleme sürdürüldü",
+    "errorPause": "Klasör durdurulamadı",
+    "errorResume": "Klasör sürdürülemedi",
+    "resumeFirst": "Senkronlamadan önce klasörü sürdürün",
     "applySimpleDefaults": "Basit varsayılanları uygula",
     "applySimpleDefaultsShort": "Basit varsayılanlar",
     "statusSummary": "Durum: {syncing} senkronlanıyor, {synced} hazır, {paused} duraklatıldı",
@@ -2326,6 +2332,7 @@
         "edgeVoiceLabel": "Edge TTS sesi",
         "edgeVoiceHelper": "Edge TTS konuşma sentezi için kullanılan sesi seçin.",
         "edgeVoiceSearch": "İsim veya dil ile arayın...",
+        "edgeVoicePreview": "Sesi önizle",
         "elevenLabsTitle": "ElevenLabs hesap bilgileri",
         "elevenLabsDesc": "Yanıtların doğru ElevenLabs profilini kullanması için anahtarınızı ve sesinizi ekleyin.",
         "elevenLabsKeyLabel": "ElevenLabs API anahtarı",
@@ -3956,7 +3963,8 @@
     "selected": "Tamam",
     "voice": {
       "title": "Edge TTS Sesi",
-      "description": "Avatarınızın konuşacağı sesi seçin."
+      "description": "Avatarınızın konuşacağı sesi seçin.",
+      "preview": "Sesi önizle"
     },
     "error": {
       "tooLarge": "Maksimum 20MB",

@@ -5,7 +5,7 @@ import {
 import * as path from "path";
 import * as fs from "fs";
 import { spawn } from "child_process";
-import { debugLog, debugError } from "./debug-logger";
+import { debugLog, debugError, debugVerbose } from "./debug-logger";
 import type { IpcHandlerContext } from "./ipc-handlers";
 import type { BrowserWindow } from "electron";
 import {
@@ -242,7 +242,7 @@ export function registerFlux2Handlers(ctx: IpcHandlerContext): void {
           let progress = 15;
           build.stdout?.on("data", (data) => {
             const line = data.toString();
-            debugLog("[FLUX.2 Klein 4B Build]", line);
+            debugVerbose("[FLUX.2 Klein 4B Build]", line);
             progress = Math.min(progress + 1, 80);
             sendFlux2KleinProgress(mainWindow, "4b", { stage: "building", progress, message: line.trim().slice(0, 100) });
           });
@@ -410,7 +410,7 @@ export function registerFlux2Handlers(ctx: IpcHandlerContext): void {
           let progress = 15;
           build.stdout?.on("data", (data) => {
             const line = data.toString();
-            debugLog("[FLUX.2 Klein 9B Build]", line);
+            debugVerbose("[FLUX.2 Klein 9B Build]", line);
             progress = Math.min(progress + 1, 80);
             sendFlux2KleinProgress(mainWindow, "9b", { stage: "building", progress, message: line.trim().slice(0, 100) });
           });

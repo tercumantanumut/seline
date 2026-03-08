@@ -122,7 +122,7 @@ class ToolRegistry {
     }
 
     if (count > 0) {
-      console.log(`[ToolRegistry] Unregistered ${count} tools in category "${category}"`);
+      console.debug(`[ToolRegistry] Unregistered ${count} tools in category "${category}"`);
     }
 
     return count;
@@ -143,7 +143,7 @@ class ToolRegistry {
     }
 
     if (count > 0) {
-      console.log(`[ToolRegistry] Unregistered ${count} tools with prefix "${prefix}"`);
+      console.debug(`[ToolRegistry] Unregistered ${count} tools with prefix "${prefix}"`);
     }
 
     return count;

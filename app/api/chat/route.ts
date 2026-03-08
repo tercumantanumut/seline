@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         const session = await getSession(headerSessionId);
         if (session?.userId) {
           userId = session.userId;
-          console.log(`[CHAT API] Internal auth bypass for user ${userId}`);
+          console.debug(`[CHAT API] Internal auth bypass for user ${userId}`);
         } else {
           return new Response(
             JSON.stringify({ error: "Invalid session for scheduled task" }),
@@ -214,10 +214,10 @@ export async function POST(req: Request) {
     const taskSource = req.headers.get("X-Task-Source")?.toLowerCase();
     const isChannelSource = taskSource === "channel";
 
-    console.log(`[CHAT API] Session ID: header=${headerSessionId}, body=${bodySessionId}, using=${providedSessionId}, characterId=${characterId}, source=${taskSource || "chat"}`);
+    console.debug(`[CHAT API] Session ID: header=${headerSessionId}, body=${bodySessionId}, using=${providedSessionId}, characterId=${characterId}, source=${taskSource || "chat"}`);
 
     const lastMsg = messages[messages.length - 1];
-    console.log(`[CHAT API] Last message: role=${lastMsg?.role}, hasParts=${!!lastMsg?.parts}, partsCount=${lastMsg?.parts?.length}, hasAttachments=${!!(lastMsg as any)?.experimental_attachments}`);
+    console.debug(`[CHAT API] Last message: role=${lastMsg?.role}, hasParts=${!!lastMsg?.parts}, partsCount=${lastMsg?.parts?.length}, hasAttachments=${!!(lastMsg as any)?.experimental_attachments}`);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -312,7 +312,7 @@ export async function POST(req: Request) {
 
     const contextTracking = getContextInjectionTracking(sessionMetadata);
     const injectContext = shouldInjectContext(contextTracking, isNewSession, toolLoadingMode);
-    console.log(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
+    console.debug(`[CHAT API] Context injection: isNew=${isNewSession}, tracking=${JSON.stringify(contextTracking)}, inject=${injectContext}`);
 
     // ── Context window pre-flight check ───────────────────────────────────────
     const currentModelId = getSessionModelId(sessionMetadata);
@@ -341,9 +341,9 @@ export async function POST(req: Request) {
     }
 
     const streamToolResultBudgetTokens = MAX_STREAM_TOOL_RESULT_TOKENS;
-    console.log(`[CHAT API] Context window: ${contextCheck.status.status} (${contextCheck.status.formatted.current}/${contextCheck.status.formatted.max}), tool budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens`);
+    console.debug(`[CHAT API] Context window: ${contextCheck.status.status} (${contextCheck.status.formatted.current}/${contextCheck.status.formatted.max}), tool budget: ${streamToolResultBudgetTokens.toLocaleString()} tokens`);
     if (contextCheck.compactionResult?.success) {
-      console.log(`[CHAT API] Compaction completed: ${contextCheck.compactionResult.messagesCompacted} msgs, ${contextCheck.compactionResult.tokensFreed} tokens freed`);
+      console.debug(`[CHAT API] Compaction completed: ${contextCheck.compactionResult.messagesCompacted} msgs, ${contextCheck.compactionResult.tokensFreed} tokens freed`);
     }
 
     // ── Create agent run ───────────────────────────────────────────────────────
@@ -409,7 +409,7 @@ export async function POST(req: Request) {
         }
         const deleted = await deleteMessagesNotIn(sessionId, frontendIds);
         if (deleted > 0) {
-          console.log(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
+          console.debug(`[CHAT API] Edit/reload truncation: removed ${deleted} stale message(s)`);
         }
       }
     }
@@ -448,12 +448,12 @@ export async function POST(req: Request) {
           content: normalizedContent,
         });
         savedUserMessageId = lastMessage.id;
-        console.log(`[CHAT API] Updated existing user message (edit): ${lastMessage.id}`);
+        console.debug(`[CHAT API] Updated existing user message (edit): ${lastMessage.id}`);
       }
 
       persistedUserMessageId = savedUserMessageId;
       if (!isValidUUID || result) {
-        console.log(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
+        console.debug(`[CHAT API] Saved new user message: ${lastMessage.id} -> ${savedUserMessageId || 'SKIPPED (conflict)'}`);
       }
 
       const plainTextContent = getPlainTextFromContent(extractedContent);
@@ -469,7 +469,7 @@ export async function POST(req: Request) {
     }
 
     // ── Prepare messages (HYBRID approach) ────────────────────────────────────
-    console.log(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
+    console.debug(`[CHAT API] Using HYBRID approach: ${messages.length} frontend messages`);
     const { coreMessages, enhancedMessages } = await prepareMessagesForRequest({
       messages: messages as FrontendMessage[],
       sessionId,
@@ -508,7 +508,7 @@ export async function POST(req: Request) {
             }
             workflowPromptContext = resources.promptContext;
             workflowPromptContextInput = resources.promptContextInput;
-            console.log(`[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`);
+            console.debug(`[CHAT API] Resolved workflow ${workflowCtx.workflow.id} (role: ${resources.role}, shared plugins: ${resources.sharedResources.pluginIds.length}, shared folders: ${resources.sharedResources.syncFolderIds.length})`);
           }
         }
       } catch (workflowError) {
@@ -518,7 +518,7 @@ export async function POST(req: Request) {
 
     try {
       const hookCount = loadPluginHooks(scopedPlugins);
-      if (hookCount > 0) console.log(`[CHAT API] Loaded hooks from ${hookCount} scoped plugin(s)`);
+      if (hookCount > 0) console.debug(`[CHAT API] Loaded hooks from ${hookCount} scoped plugin(s)`);
     } catch (pluginHookError) {
       console.warn("[CHAT API] Failed to load scoped plugin hooks (non-fatal):", pluginHookError);
     }
@@ -696,13 +696,13 @@ export async function POST(req: Request) {
         Array.isArray(systemPromptValue) ? systemPromptValue : [],
         cachedMessages
       );
-      console.log(`[CACHE] Estimated savings: ${estimatedSavings.totalCacheableTokens} tokens cacheable, ~$${estimatedSavings.estimatedSavings.toFixed(4)} saved per hit`);
+      console.debug(`[CACHE] Estimated savings: ${estimatedSavings.totalCacheableTokens} tokens cacheable, ~$${estimatedSavings.estimatedSavings.toFixed(4)} saved per hit`);
     }
 
     // ── Stream setup ───────────────────────────────────────────────────────────
     const provider = getSessionProvider(sessionMetadata);
     configuredProvider = provider;
-    console.log(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
+    console.debug(`[CHAT API] Using LLM: ${getSessionDisplayName(sessionMetadata)}, inject=${injectContext}, caching=${useCaching ? "on" : "off"}`);
 
     // Think-tag filter: strip <think>...</think> blocks from non-Anthropic providers.
     // NOTE: This filter currently operates on text deltas as they are persisted to
@@ -715,7 +715,7 @@ export async function POST(req: Request) {
       ? createThinkTagFilter()
       : null;
     if (thinkTagFilter) {
-      console.log(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
+      console.debug(`[CHAT API] Think-tag filtering enabled for provider=${provider}, model=${currentModelId}`);
     }
 
     const runFinalized = { value: false };
@@ -855,11 +855,11 @@ export async function POST(req: Request) {
 
             const currentActiveTools = [...activeToolSet];
             if (stepNumber === 0) {
-              console.log(`[CHAT API] Step 0: Starting with ${currentActiveTools.length} active tools (mode: ${useDeferredLoading ? "deferred" : "always-include"})`);
+              console.debug(`[CHAT API] Step 0: Starting with ${currentActiveTools.length} active tools (mode: ${useDeferredLoading ? "deferred" : "always-include"})`);
             } else if (useDeferredLoading && discoveredTools.size > previouslyDiscoveredTools.size) {
               const newlyDiscovered = [...discoveredTools].filter(t => !previouslyDiscoveredTools.has(t));
               if (newlyDiscovered.length > 0) {
-                console.log(`[CHAT API] Step ${stepNumber}: Active tools now include newly discovered: ${newlyDiscovered.join(", ")}`);
+                console.debug(`[CHAT API] Step ${stepNumber}: Active tools now include newly discovered: ${newlyDiscovered.join(", ")}`);
               }
             }
 
@@ -868,7 +868,7 @@ export async function POST(req: Request) {
             const pendingPrompts = drainLivePromptQueue(runId);
             if (pendingPrompts.length > 0) {
               const stopRequested = pendingPrompts.some(e => e.stopIntent);
-              console.log(
+              console.debug(
                 `[CHAT API] Step ${stepNumber}: Injecting ${pendingPrompts.length} live prompt(s) (stopIntent=${stopRequested})`
               );
 
@@ -1123,7 +1123,7 @@ export async function POST(req: Request) {
         if (!retry) throw error;
 
         const delay = getBackoffDelayMs(attempt);
-        console.log("[CHAT API] Retrying stream creation", { attempt: attempt + 1, reason: classification.reason, delayMs: delay, provider });
+        console.debug("[CHAT API] Retrying stream creation", { attempt: attempt + 1, reason: classification.reason, delayMs: delay, provider });
         await sleepWithAbort(delay, streamAbortSignal);
       }
     }

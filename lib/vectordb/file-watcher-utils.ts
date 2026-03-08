@@ -7,7 +7,7 @@
  */
 
 import { join } from "path";
-import { access } from "fs/promises";
+import { access, readdir } from "fs/promises";
 import { loadSettings } from "@/lib/settings/settings-manager";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +46,35 @@ export function normalizeExtensions(extensions: string[]): string[] {
   return extensions.map((ext) =>
     ext.startsWith(".") ? ext.slice(1).toLowerCase() : ext.toLowerCase()
   );
+}
+
+// ---------------------------------------------------------------------------
+// File descriptor pressure helpers
+// ---------------------------------------------------------------------------
+
+const FD_COUNT_PATHS = ["/dev/fd", "/proc/self/fd"];
+
+export async function getOpenFileDescriptorCount(): Promise<number | null> {
+  for (const fdPath of FD_COUNT_PATHS) {
+    try {
+      const entries = await readdir(fdPath);
+      return entries.length;
+    } catch {
+      // Try the next platform-specific path.
+    }
+  }
+
+  return null;
+}
+
+export function getWatcherFdBudget(): number {
+  // Electron utilityProcess on macOS becomes fragile well before the process
+  // reaches the OS hard limit, so keep a lower ceiling there.
+  return process.platform === "darwin" ? 5000 : 10000;
+}
+
+export function getWatcherFdWarnThreshold(budget = getWatcherFdBudget()): number {
+  return Math.floor(budget * 0.8);
 }
 
 // ---------------------------------------------------------------------------

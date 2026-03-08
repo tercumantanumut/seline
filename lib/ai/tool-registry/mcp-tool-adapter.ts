@@ -499,7 +499,7 @@ export function createMCPToolWrapper(mcpTool: MCPDiscoveredTool): Tool {
 
     // Convert MCP input schema to AI SDK jsonSchema format
     const normalizedSchema = normalizeMcpInputSchema(mcpTool.inputSchema, mcpTool);
-    console.log(`[MCP] Normalized schema for ${serverName}:${toolName}:`, JSON.stringify(normalizedSchema));
+    console.debug(`[MCP] Normalized schema for ${serverName}:${toolName}:`, JSON.stringify(normalizedSchema));
     const schema = jsonSchema<Record<string, unknown>>(normalizedSchema as any);
 
     return tool({
@@ -571,10 +571,10 @@ export function registerMCPTools(): void {
         const factory: ToolFactory = () => createMCPToolWrapper(mcpTool);
 
         registry.register(toolId, metadata, factory);
-        console.log(`[MCP] Registered tool: ${toolId}`);
+        console.debug(`[MCP] Registered tool: ${toolId}`);
     }
 
-    console.log(`[MCP] Registered ${allTools.length} MCP tools`);
+    console.debug(`[MCP] Registered ${allTools.length} MCP tools`);
 }
 
 /**

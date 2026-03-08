@@ -8,7 +8,7 @@
  */
 
 import { db } from "@/lib/db/sqlite-client";
-import { agentSyncFolders, agentSyncFiles, characters } from "@/lib/db/sqlite-character-schema";
+import { agentSyncFolders, agentSyncFiles, characters, type AgentSyncFolder } from "@/lib/db/sqlite-character-schema";
 import { eq, and, sql, or } from "drizzle-orm";
 import { removeFileFromVectorDB, removeFolderFromVectorDB } from "./indexing";
 import { DEFAULT_IGNORE_PATTERNS, createIgnoreMatcher } from "./ignore-patterns";
@@ -173,6 +173,12 @@ export async function syncFolder(
 
   if (!folder) {
     result.errors.push("Folder not found");
+    return result;
+  }
+
+  // Don't run non-manual syncs on user-paused folders
+  if (folder.status === "paused" && trigger !== "manual") {
+    result.errors.push("Folder is paused");
     return result;
   }
 
@@ -365,12 +371,21 @@ export async function syncFolder(
 
     result.skippedReasons = skipReasons;
 
+    // Re-read folder status to check if user paused during sync
+    const [currentFolder] = await db
+      .select({ status: agentSyncFolders.status })
+      .from(agentSyncFolders)
+      .where(eq(agentSyncFolders.id, folderId));
+
+    // If user paused while sync was running, preserve paused state
+    const finalStatus = currentFolder?.status === "paused" ? "paused" : syncStatus;
+
     await db
       .update(agentSyncFolders)
       .set({
-        status: syncStatus,
+        status: finalStatus,
         lastSyncedAt: new Date().toISOString(),
-        lastError: errorSummary,
+        lastError: finalStatus === "paused" ? "Paused by user" : errorSummary,
         fileCount: allFolderFiles.length,
         chunkCount: totalChunkCount,
         skippedCount: result.filesSkipped,
@@ -394,13 +409,16 @@ export async function syncFolder(
       })
       .where(eq(agentSyncFolders.id, folderId));
 
-    if (!behavior.allowsWatcherEvents && isWatching(folderId)) {
+    // Don't restart watcher if folder was paused during sync
+    if (finalStatus === "paused") {
+      console.log(`[SyncService] Folder ${folderId} was paused during sync, skipping watcher restart`);
+    } else if (!behavior.allowsWatcherEvents && isWatching(folderId)) {
       await stopWatching(folderId);
     }
 
-    if (syncStatus === "synced" && behavior.allowsWatcherEvents && !isWatching(folderId)) {
+    if (finalStatus !== "paused" && syncStatus === "synced" && behavior.allowsWatcherEvents && !isWatching(folderId)) {
       const forcePolling =
-        process.platform !== "darwin" && process.platform !== "win32" && discoveredFiles.length > 500;
+        process.platform !== "win32" && discoveredFiles.length > 500;
       const watchConfig = {
         folderId,
         characterId: folder.characterId,
@@ -433,10 +451,21 @@ export async function syncFolder(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Sync failed";
     result.errors.push(errorMsg);
-    await db
-      .update(agentSyncFolders)
-      .set({ status: "error", lastError: errorMsg, updatedAt: new Date().toISOString() })
+
+    // Re-read DB status: if user paused during sync, preserve paused state
+    const [currentState] = await db
+      .select({ status: agentSyncFolders.status })
+      .from(agentSyncFolders)
       .where(eq(agentSyncFolders.id, folderId));
+
+    if (currentState?.status === "paused") {
+      console.log(`[SyncService] Folder ${folderId} was paused during sync error, preserving paused state`);
+    } else {
+      await db
+        .update(agentSyncFolders)
+        .set({ status: "error", lastError: errorMsg, updatedAt: new Date().toISOString() })
+        .where(eq(agentSyncFolders.id, folderId));
+    }
   } finally {
     syncingFolders.delete(folderId);
     syncingPaths.delete(folderPath);
@@ -559,6 +588,125 @@ export async function updateSyncFolderSettings(config: SyncFolderUpdateConfig): 
   notifyFolderChange(folder.characterId, { type: "updated", folderId });
 }
 
+/**
+ * Pause a sync folder — stops its watcher, cancels any in-flight sync,
+ * and persists `status: "paused"` so it survives restarts.
+ */
+export async function pauseSyncFolder(folderId: string): Promise<void> {
+  const [folder] = await db
+    .select()
+    .from(agentSyncFolders)
+    .where(eq(agentSyncFolders.id, folderId));
+
+  if (!folder) throw new Error("Folder not found");
+  if (folder.status === "paused") return; // Already paused, no-op
+
+  // Cancel any running sync first
+  if (isSyncing(folderId)) {
+    await cancelSyncByPath(folder.folderPath);
+  }
+
+  // Stop watcher if active
+  if (isWatching(folderId)) {
+    await stopWatching(folderId);
+  }
+
+  await db
+    .update(agentSyncFolders)
+    .set({
+      status: "paused",
+      lastError: "Paused by user",
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentSyncFolders.id, folderId));
+
+  notifyFolderChange(folder.characterId, { type: "updated", folderId });
+}
+
+/**
+ * Resume a paused sync folder — restores `status: "synced"` and
+ * restarts its watcher if the sync mode allows it.
+ */
+export async function resumeSyncFolder(folderId: string): Promise<void> {
+  const [folder] = await db
+    .select()
+    .from(agentSyncFolders)
+    .where(eq(agentSyncFolders.id, folderId));
+
+  if (!folder) throw new Error("Folder not found");
+  if (folder.status !== "paused") return; // Not paused, no-op
+
+  const { normalizedPath, error: pathError } = await validateSyncFolderPath(folder.folderPath);
+  if (pathError) {
+    await db
+      .update(agentSyncFolders)
+      .set({ lastError: `Paused: ${pathError}`, updatedAt: new Date().toISOString() })
+      .where(eq(agentSyncFolders.id, folderId));
+    throw new Error(pathError);
+  }
+
+  const folderPath = normalizedPath;
+  if (folderPath !== folder.folderPath) {
+    await db
+      .update(agentSyncFolders)
+      .set({ folderPath, updatedAt: new Date().toISOString() })
+      .where(eq(agentSyncFolders.id, folderId));
+  }
+
+  // Restore to synced (or pending if never synced)
+  const newStatus = (folder.fileCount ?? 0) > 0 ? "synced" : "pending";
+
+  await db
+    .update(agentSyncFolders)
+    .set({
+      status: newStatus,
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agentSyncFolders.id, folderId));
+
+  // Restart watcher if sync mode allows it and folder is synced
+  if (newStatus === "synced") {
+    const behavior = resolveFolderSyncBehavior({
+      indexingMode: folder.indexingMode,
+      syncMode: folder.syncMode,
+      syncCadenceMinutes: folder.syncCadenceMinutes,
+      maxFileSizeBytes: folder.maxFileSizeBytes,
+      chunkPreset: folder.chunkPreset,
+      chunkSizeOverride: folder.chunkSizeOverride,
+      chunkOverlapOverride: folder.chunkOverlapOverride,
+      reindexPolicy: folder.reindexPolicy,
+    });
+
+    if (behavior.allowsWatcherEvents && !isWatching(folderId)) {
+      const folderIncludeExtensions = normalizeExtensions(parseJsonArray(folder.includeExtensions));
+      const folderFileTypeFilters = normalizeExtensions(parseJsonArray(folder.fileTypeFilters));
+
+      try {
+        await startWatching({
+          folderId: folder.id,
+          characterId: folder.characterId,
+          folderPath,
+          recursive: folder.recursive,
+          includeExtensions: folderFileTypeFilters.length > 0 ? folderFileTypeFilters : folderIncludeExtensions,
+          excludePatterns: parseJsonArray(folder.excludePatterns),
+        });
+      } catch (watchError) {
+        await db
+          .update(agentSyncFolders)
+          .set({
+            status: "error",
+            lastError: watchError instanceof Error ? watchError.message : "Failed to start file watcher",
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(agentSyncFolders.id, folderId));
+      }
+    }
+  }
+
+  notifyFolderChange(folder.characterId, { type: "updated", folderId });
+}
+
 export async function syncAllFolders(
   characterId: string,
   parallelConfig: Partial<ParallelConfig> = {},
@@ -568,6 +716,7 @@ export async function syncAllFolders(
   const folders = await getSyncFolders(characterId);
   const results: SyncResult[] = [];
   for (const folder of folders) {
+    if (folder.status === "paused") continue;
     results.push(await syncFolder(folder.id, parallelConfig, forceReindex, trigger));
   }
   return results;

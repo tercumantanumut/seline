@@ -1,14 +1,14 @@
 import * as path from "path";
 import * as fs from "fs";
 import { utilityProcess, dialog, net } from "electron";
-import { debugLog, debugError } from "./debug-logger";
+import { debugLog, debugError, debugVerbose } from "./debug-logger";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 export const PROD_SERVER_PORT = 3456;
-const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|too many open files|System limit for number of file watchers reached)/i;
+const WATCHER_RESOURCE_ERROR_REGEX = /(EMFILE|ENOSPC|EBADF|EAGAIN|too many open files|System limit for number of file watchers reached)/i;
 const MAX_SERVER_RESTARTS = 3;
 const RESTART_RESET_INTERVAL = 5 * 60 * 1000;
 
@@ -108,16 +108,16 @@ export async function waitForServerReady(url: string, timeoutMs: number = 30000)
   while (Date.now() - startTime < timeoutMs) {
     attempts++;
     try {
-      debugLog(`[HealthCheck] Attempt ${attempts} - fetching ${url}`);
+      debugVerbose(`[HealthCheck] Attempt ${attempts} - fetching ${url}`);
       const response = await net.fetch(url);
-      debugLog(`[HealthCheck] Response status: ${response.status}`);
+      debugVerbose(`[HealthCheck] Response status: ${response.status}`);
 
       if (response.ok || response.status === 200) {
         debugLog(`[HealthCheck] Server is ready after ${attempts} attempts (${Date.now() - startTime}ms)`);
         return true;
       }
     } catch (e) {
-      debugLog(`[HealthCheck] Attempt ${attempts} failed:`, e instanceof Error ? e.message : e);
+      debugVerbose(`[HealthCheck] Attempt ${attempts} failed:`, e instanceof Error ? e.message : e);
     }
 
     await new Promise(resolve => setTimeout(resolve, pollInterval));
@@ -224,7 +224,7 @@ export async function startNextServer(opts: StartNextServerOptions): Promise<voi
 
     nextServer.stdout?.on("data", (data) => {
       const output = data.toString();
-      debugLog("[Next.js stdout]", output);
+      debugVerbose("[Next.js stdout]", output);
       if (output.includes("Ready") || output.includes("started server") || output.includes("Listening")) {
         debugLog("[Next.js] Server ready signal detected!");
         settleResolve();
@@ -236,7 +236,11 @@ export async function startNextServer(opts: StartNextServerOptions): Promise<voi
       debugError("[Next.js stderr]", output);
 
       if (WATCHER_RESOURCE_ERROR_REGEX.test(output)) {
-        debugError("[Next.js] Watcher resource exhaustion detected in embedded server process. Consider increasing ulimit (e.g. ulimit -n 65536) or excluding large directories from watch scope.");
+        debugError(
+          "[Next.js] Watcher resource exhaustion detected in embedded server process. " +
+          "Electron utilityProcess on macOS becomes fragile under FD pressure; exclude large sync subtrees " +
+          "(.venv, __pycache__, site-packages, node_modules, image/font assets) or sync a smaller folder."
+        );
       }
     });
 

@@ -10,9 +10,14 @@ import {
   setPrimaryFolder,
   cancelSyncById,
   updateSyncFolderSettings,
+  pauseSyncFolder,
+  resumeSyncFolder,
 } from "@/lib/vectordb/sync-service";
 import { getSetting } from "@/lib/settings/settings-manager";
 import { DEFAULT_IGNORE_PATTERNS } from "@/lib/vectordb/ignore-patterns";
+import { db } from "@/lib/db/sqlite-client";
+import { agentSyncFolders } from "@/lib/db/sqlite-character-schema";
+import { eq } from "drizzle-orm";
 
 const VALID_SYNC_MODES = ["auto", "manual", "scheduled", "triggered"] as const;
 const VALID_INDEXING_MODES = ["auto", "full", "files-only"] as const;
@@ -208,6 +213,19 @@ export async function POST(request: NextRequest) {
       const { folderId, characterId } = body;
 
       if (folderId) {
+        // Block manual syncs on paused folders — user must resume first
+        const [folder] = await db
+          .select({ status: agentSyncFolders.status })
+          .from(agentSyncFolders)
+          .where(eq(agentSyncFolders.id, folderId));
+
+        if (folder?.status === "paused") {
+          return NextResponse.json(
+            { error: "Folder is paused. Resume it before syncing." },
+            { status: 400 }
+          );
+        }
+
         const result = await syncFolder(folderId, {}, false, "manual");
         return NextResponse.json({ result, success: true });
       }
@@ -264,6 +282,32 @@ export async function POST(request: NextRequest) {
 
       const cancelled = await cancelSyncById(folderId);
       return NextResponse.json({ success: true, cancelled });
+    }
+
+    if (action === "pause") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for pause" },
+          { status: 400 }
+        );
+      }
+
+      await pauseSyncFolder(folderId);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "resume") {
+      const { folderId } = body;
+      if (!folderId) {
+        return NextResponse.json(
+          { error: "folderId is required for resume" },
+          { status: 400 }
+        );
+      }
+
+      await resumeSyncFolder(folderId);
+      return NextResponse.json({ success: true });
     }
 
     if (action === "set-primary") {

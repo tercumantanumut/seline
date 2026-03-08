@@ -51,11 +51,11 @@ export function SidebarCharacterProfile({
 
   return (
     <div className="shrink-0 px-4 pt-3 pb-2">
-      <div className="rounded-lg border border-terminal-border/30 bg-terminal-cream/80 p-3 shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-terminal-border/30 bg-terminal-cream/80 p-3 shadow-sm">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onOpenAvatarDialog}
-            className="relative group cursor-pointer"
+            className="relative group cursor-pointer shrink-0"
             title={t("sidebar.changeAvatar")}
             aria-label={t("sidebar.changeAvatar")}
           >
@@ -72,34 +72,32 @@ export function SidebarCharacterProfile({
             </div>
           </button>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="truncate font-semibold font-mono text-terminal-dark">
-                {character.displayName || character.name}
-              </h2>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onOpenFoldersDialog}
-                  className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-                >
-                  <FolderPlus className="mr-1 h-3.5 w-3.5" />
-                  <span className="text-[11px] font-mono">
-                    {t("sidebar.folders")}
-                  </span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onOpenChannelsDialog}
-                  className="h-7 px-2 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
-                >
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  <span className="text-[11px] font-mono">
-                    {t("sidebar.channels")}
-                  </span>
-                </Button>
-              </div>
+            <h2 className="truncate font-semibold font-mono text-terminal-dark">
+              {character.displayName || character.name}
+            </h2>
+            <div className="mt-1.5 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onOpenFoldersDialog}
+                className="h-6 px-1.5 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+              >
+                <FolderPlus className="mr-1 h-3 w-3" />
+                <span className="text-[10px] font-mono">
+                  {t("sidebar.folders")}
+                </span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onOpenChannelsDialog}
+                className="h-6 px-1.5 text-terminal-muted hover:text-terminal-green hover:bg-terminal-green/10"
+              >
+                <Plug className="mr-1 h-3 w-3" />
+                <span className="text-[10px] font-mono">
+                  {t("sidebar.channels")}
+                </span>
+              </Button>
             </div>
             {connectedCount > 0 && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1">

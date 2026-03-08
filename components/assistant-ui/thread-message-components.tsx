@@ -48,6 +48,7 @@ import { animate } from "animejs";
 import { useReducedMotion } from "@/lib/animations/hooks";
 import { ZLUTTY_EASINGS, ZLUTTY_DURATIONS } from "@/lib/animations/utils";
 import { useTranslations } from "next-intl";
+import { TextShimmer } from "@/components/ui/text-shimmer";
 
 /**
  * Wraps a by_name tool map so MCP-prefixed names (e.g. mcp__seline-platform__vectorSearch)
@@ -292,6 +293,17 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
     outputTokens: steps.reduce((sum, s) => sum + (s.usage?.completionTokens || 0), 0),
   } : undefined);
 
+  // Detect thinking state: message is streaming but has no visible text yet
+  const isThinking = useMemo(() => {
+    const status = message?.status;
+    if (status?.type !== "running") return false;
+    const parts = message?.content;
+    if (!parts || !Array.isArray(parts) || parts.length === 0) return true;
+    return !parts.some(
+      (p: { type: string; text?: string }) => p.type === "text" && (p.text?.length ?? 0) > 0
+    );
+  }, [message?.status, message?.content]);
+
   // Extract text content from message for YouTube preview detection
   const messageText = useMemo(() => {
     const content = message?.content;
@@ -337,6 +349,11 @@ export const AssistantMessage: FC<{ ttsEnabled?: boolean }> = ({ ttsEnabled = fa
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 flex-col gap-1 font-mono text-sm text-terminal-dark [overflow-wrap:anywhere]">
+          {isThinking && (
+            <TextShimmer className="font-mono text-sm" duration={12} spread={3}>
+              Thinking...
+            </TextShimmer>
+          )}
           <MessagePrimitive.Content
             components={{
               Text: MarkdownText,

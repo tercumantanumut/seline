@@ -686,7 +686,7 @@ Each product needs: id, name, imageUrl (required), price, sourceUrl (purchase li
         }),
         execute: async ({ query, products }) => {
           // Simply return the data - the UI component handles display
-          console.log(
+          console.debug(
             `[showProductImages] Displaying ${products.length} products for query: "${query}"`
           );
           return {
@@ -698,7 +698,7 @@ Each product needs: id, name, imageUrl (required), price, sourceUrl (purchase li
       })
   );
 
-  console.log(
+  console.debug(
     `[ToolRegistry] Registered ${registry.getToolNames().length} tools`
   );
 }
