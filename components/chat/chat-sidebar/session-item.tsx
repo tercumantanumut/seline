@@ -42,6 +42,7 @@ import {
 } from "@/lib/stores/session-sync-store";
 import { CHANNEL_TYPE_ICONS } from "./constants";
 import { SessionActivityBubble } from "./session-activity-bubble";
+import { calendarDaysAgo } from "./sidebar-utils";
 import type { SessionInfo } from "./types";
 
 interface SessionItemProps {
@@ -138,9 +139,7 @@ export function SessionItem({
       if (isNaN(date.getTime())) {
         return t("session.invalid");
       }
-      const now = new Date();
-      const diff = now.getTime() - date.getTime();
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const days = calendarDaysAgo(date);
       if (days === 0) {
         return formatter.dateTime(date, {
           hour: "2-digit",

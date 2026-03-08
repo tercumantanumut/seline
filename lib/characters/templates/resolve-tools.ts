@@ -66,6 +66,7 @@ export const DEFAULT_ENABLED_TOOLS: string[] = [
   ...UTILITY_TOOLS,
   "webSearch",
   "chromiumWorkspace",
+  "workspace",
 ];
 
 /** Tools that are EXCLUDED from the Selene template by design */
@@ -127,13 +128,9 @@ export function resolveSeleneTemplateTools(settings: AppSettings): ToolResolutio
   enabledTools.push("chromiumWorkspace");
   console.log("[SeleneTemplate] Chromium Workspace enabled: embedded browser automation");
 
-  // 6. Conditional: Developer Workspace (git worktree integration)
-  if (settings.devWorkspaceEnabled === true) {
-    enabledTools.push("workspace");
-    console.log("[SeleneTemplate] Workspace enabled: devWorkspaceEnabled=true");
-  } else {
-    console.log("[SeleneTemplate] Workspace disabled: devWorkspaceEnabled is not true");
-  }
+  // 6. Pre-selected conditional tools (enabled by default, user can toggle off)
+  enabledTools.push("workspace");
+  console.log("[SeleneTemplate] Workspace pre-selected: git worktree integration");
 
   // 7. Log excluded tools
   for (const toolId of EXCLUDED_TOOLS) {
