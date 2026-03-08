@@ -410,7 +410,7 @@ export function CharacterPicker() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && setSearchQuery("")}
               placeholder={t("searchPlaceholder")}
-              className="w-full pl-10 pr-4 py-2 bg-terminal-cream border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
+              className="w-full pl-10 pr-4 py-2 bg-terminal-cream/50 border border-terminal-border rounded-lg font-mono text-sm text-terminal-dark placeholder:text-terminal-muted focus:outline-none focus:ring-2 focus:ring-terminal-green/50 focus:border-terminal-green"
             />
           </div>
         )}
@@ -418,7 +418,7 @@ export function CharacterPicker() {
         <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <AnimatedCard data-animate-card hoverLift className={cn(
             "flex flex-col min-h-[180px]",
-            "border border-terminal-border/30 bg-terminal-cream shadow-sm"
+            "border border-terminal-border/30 bg-terminal-cream/50 shadow-sm"
           )}>
             <div className="h-[2px] w-full bg-gradient-to-r from-terminal-green/40 to-transparent" />
             <button

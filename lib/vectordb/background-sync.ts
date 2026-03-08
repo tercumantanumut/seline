@@ -8,6 +8,7 @@
 import { getSetting } from "@/lib/settings/settings-manager";
 import { syncStaleFolders, restartAllWatchers, recoverStuckSyncingFolders, getAllSyncFolders, cleanupOrphanedVectorTables } from "./sync-service";
 import { isDangerousPath } from "./dangerous-paths";
+import { compactAllAgentTables } from "./collections";
 import { resolveFolderSyncBehavior, shouldRunForTrigger } from "./sync-mode-resolver";
 import { db } from "@/lib/db/sqlite-client";
 import { agentSyncFolders } from "@/lib/db/sqlite-character-schema";
@@ -192,11 +193,9 @@ export async function initializeVectorSync(): Promise<void> {
     await cleanupOrphanedVectorTables();
 
     // 1d. Compact LanceDB tables to reclaim space and improve query performance.
-    //     Runs async so it doesn't block startup.
-    import("./collections").then(({ compactAllAgentTables }) =>
-      compactAllAgentTables().catch(err =>
-        console.error("[BackgroundSync] LanceDB compaction error:", err)
-      )
+    //     Fire-and-forget so it doesn't block startup.
+    compactAllAgentTables().catch(err =>
+      console.error("[BackgroundSync] LanceDB compaction error:", err)
     );
 
     // 2. Restart file watchers for all synced folders

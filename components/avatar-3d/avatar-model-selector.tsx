@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Check, Trash2 } from "lucide-react";
+import { Loader2, Upload, Check, Trash2, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resilientPatch } from "@/lib/utils/resilient-fetch";
 import { PRESET_AVATARS, type PresetAvatar } from "@/lib/avatar/preset-avatars";
+import {
+  getEdgeTTSVoicesGrouped,
+  findEdgeTTSVoice,
+  DEFAULT_EDGE_TTS_VOICE,
+} from "@/lib/tts/edge-tts-voices";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -47,15 +52,44 @@ export function Avatar3DModelSelector({
   const [error, setError] = useState<string | null>(null);
   // Optimistic local state — updates immediately on click, syncs from props on open
   const [localConfig, setLocalConfig] = useState<AvatarConfig | null>(currentAvatarConfig ?? null);
+  const [edgeTtsVoice, setEdgeTtsVoice] = useState(DEFAULT_EDGE_TTS_VOICE);
+  const [voiceSaving, setVoiceSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useTranslations("avatar3dModels");
+  const voiceGroups = useMemo(() => getEdgeTTSVoicesGrouped(), []);
 
   // Sync from props when dialog opens or props change
   useEffect(() => {
     if (open) {
       setLocalConfig(currentAvatarConfig ?? null);
+      // Load current Edge TTS voice from settings
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.edgeTtsVoice) setEdgeTtsVoice(data.edgeTtsVoice);
+        })
+        .catch(() => {});
     }
   }, [open, currentAvatarConfig]);
+
+  const handleVoiceChange = useCallback(async (voiceId: string) => {
+    const prev = edgeTtsVoice;
+    setEdgeTtsVoice(voiceId);
+    setVoiceSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edgeTtsVoice: voiceId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setEdgeTtsVoice(prev);
+      toast.error(t("error.save"));
+    } finally {
+      setVoiceSaving(false);
+    }
+  }, [edgeTtsVoice, t]);
 
   const currentPresetId = localConfig?.source === "preset"
     ? localConfig.presetId
@@ -278,6 +312,42 @@ export function Avatar3DModelSelector({
               </>
             )}
           </Button>
+        </div>
+
+        {/* Edge TTS Voice selector */}
+        <div className="space-y-2 pt-2 border-t border-terminal-border/40">
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4 text-terminal-muted" />
+            <p className="font-mono text-sm font-medium text-terminal-dark">
+              {t("voice.title")}
+            </p>
+            {voiceSaving && <Loader2 className="w-3 h-3 animate-spin text-terminal-muted" />}
+          </div>
+          <p className="font-mono text-[11px] text-terminal-muted">
+            {t("voice.description")}
+          </p>
+          {findEdgeTTSVoice(edgeTtsVoice) && (
+            <div className="px-3 py-1.5 rounded-lg bg-terminal-green/10 border border-terminal-green/20 font-mono text-xs text-terminal-dark">
+              <span className="font-semibold">{findEdgeTTSVoice(edgeTtsVoice)!.name}</span>
+              <span className="text-terminal-muted"> — {findEdgeTTSVoice(edgeTtsVoice)!.language} · {findEdgeTTSVoice(edgeTtsVoice)!.gender}</span>
+            </div>
+          )}
+          <select
+            value={edgeTtsVoice}
+            onChange={(e) => handleVoiceChange(e.target.value)}
+            disabled={voiceSaving}
+            className="w-full rounded-lg border border-terminal-border bg-terminal-cream/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green disabled:opacity-50"
+          >
+            {[...voiceGroups.entries()].map(([lang, voices]) => (
+              <optgroup key={lang} label={lang}>
+                {voices.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.gender})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
       </DialogContent>
     </Dialog>

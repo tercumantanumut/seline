@@ -213,6 +213,7 @@ export interface AppSettings {
     elevenLabsVoiceId?: string;
     openaiTtsVoice?: string;
     openaiTtsModel?: string;
+    edgeTtsVoice?: string;         // Edge TTS voice ID (e.g. "en-US-AriaNeural")
     ttsSummarizeThreshold?: number; // Chars above which to summarize before TTS
 
     // Audio Transcription (STT) settings
@@ -271,6 +272,9 @@ export interface AppSettings {
     // Browser automation settings
     chromiumBrowserMode?: "standalone" | "user-chrome";  // standalone = headless Playwright, user-chrome = user's Chrome profile
     chromiumUserProfilePath?: string;       // Custom Chrome profile path (empty = OS default)
+
+    // First-visit modals
+    hasSeenThemeChooser?: boolean;          // Whether user has seen the post-onboarding theme chooser
 
 }
 
@@ -343,6 +347,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     ttsSummarizeThreshold: 1500,
     openaiTtsVoice: "alloy",
     openaiTtsModel: "gpt-4o-mini-tts",
+    edgeTtsVoice: "en-US-AriaNeural",
     // STT defaults
     sttEnabled: true,
     sttProvider: "local",

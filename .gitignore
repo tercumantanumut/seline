@@ -97,7 +97,7 @@ models/**
 *.sqlite
 *.sqlite3
 .claude/
-
+public/mocks/
 # Meilisearch data
 data.ms/
 

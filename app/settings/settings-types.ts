@@ -160,6 +160,7 @@ export interface FormState {
   elevenLabsApiKey: string;
   elevenLabsVoiceId: string;
   openaiTtsVoice: string;
+  edgeTtsVoice: string;
   ttsSummarizeThreshold: number;
   sttEnabled: boolean;
   sttProvider: "openai" | "local" | "parakeet";
@@ -267,6 +268,7 @@ export const DEFAULT_FORM_STATE: FormState = {
   elevenLabsApiKey: "",
   elevenLabsVoiceId: "",
   openaiTtsVoice: "alloy",
+  edgeTtsVoice: "en-US-AriaNeural",
   ttsSummarizeThreshold: 500,
   sttEnabled: true,
   sttProvider: "local",
@@ -376,6 +378,7 @@ export function buildFormStateFromData(data: Record<string, any>): FormState {
     elevenLabsApiKey: data.elevenLabsApiKey ?? "",
     elevenLabsVoiceId: data.elevenLabsVoiceId ?? "",
     openaiTtsVoice: data.openaiTtsVoice ?? "alloy",
+    edgeTtsVoice: data.edgeTtsVoice ?? "en-US-AriaNeural",
     ttsSummarizeThreshold: data.ttsSummarizeThreshold ?? 500,
     sttEnabled: data.sttEnabled ?? true,
     sttProvider: data.sttProvider ?? "local",

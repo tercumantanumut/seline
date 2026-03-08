@@ -6,6 +6,11 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
 import type { GradientColor } from "@/components/ui/noisy-gradient-backgrounds";
+import {
+  EDGE_TTS_VOICES,
+  getEdgeTTSVoicesGrouped,
+  DEFAULT_EDGE_TTS_VOICE,
+} from "@/lib/tts/edge-tts-voices";
 
 /* ─── Types ─── */
 
@@ -18,6 +23,7 @@ export interface PathConfigState {
     // Fun
     sttProvider: "openai" | "local" | "parakeet";
     ttsProvider: "elevenlabs" | "openai" | "edge";
+    edgeTtsVoice: string;
     avatar3dEnabled: boolean;
     emotionDetectionEnabled: boolean;
     telegramBotToken: string;
@@ -28,6 +34,7 @@ export const DEFAULT_PATH_CONFIG: PathConfigState = {
     browserAutomationEnabled: true,
     sttProvider: "local",
     ttsProvider: "edge",
+    edgeTtsVoice: DEFAULT_EDGE_TTS_VOICE,
     avatar3dEnabled: true,
     emotionDetectionEnabled: false,
     telegramBotToken: "",
@@ -284,6 +291,49 @@ function FunConfigPanel({
                     </select>
                 </div>
             </motion.div>
+
+            {/* Edge TTS voice selector (shows when Edge TTS is selected) */}
+            <AnimatePresence>
+                {config.ttsProvider === "edge" && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden sm:col-span-2"
+                    >
+                        <div className="p-3 rounded-xl border border-white/[0.08] bg-white/[0.04]">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="font-mono text-sm text-white/90">
+                                    {t("config.edgeTtsVoice")}
+                                </span>
+                                <span className="font-mono text-[10px] text-white/30">
+                                    {t("config.edgeTtsVoiceDesc")}
+                                </span>
+                            </div>
+                            <select
+                                value={config.edgeTtsVoice}
+                                onChange={(e) =>
+                                    onChange({ edgeTtsVoice: e.target.value })
+                                }
+                                className={selectCls}
+                            >
+                                {[...getEdgeTTSVoicesGrouped().entries()].map(
+                                    ([lang, voices]) => (
+                                        <optgroup key={lang} label={lang}>
+                                            {voices.map((v) => (
+                                                <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.gender})
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ),
+                                )}
+                            </select>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* 3D Avatar toggle */}
             <motion.div

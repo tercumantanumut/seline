@@ -27,6 +27,7 @@ import type { ChatInterfaceProps, ActiveRunState, SessionState, ActiveRunLookupR
 import { getSessionSignature, getMessagesSignature } from "@/components/chat/chat-interface-utils";
 import { ChatSidebarHeader, ScheduledRunBanner } from "@/components/chat/chat-interface-parts";
 import { useBackgroundProcessing, useSessionManager } from "@/components/chat/chat-interface-hooks";
+import { ThemeChooserModal } from "@/components/theme/theme-chooser-modal";
 
 interface DetectedGitFolder {
     id: string;
@@ -301,6 +302,7 @@ export default function ChatInterface({
     const isForegroundStreamingRef = useRef(false);
     const [ttsAutoMode, setTtsAutoMode] = useState<string>("off");
     const [ttsEnabled, setTtsEnabled] = useState(false);
+    const [showThemeChooser, setShowThemeChooser] = useState(false);
 
     // Keep muted ref in sync with state (bridge reads ref, not state)
     useEffect(() => { avatarMutedRef.current = avatarMuted; }, [avatarMuted]);
@@ -322,6 +324,10 @@ export default function ChatInterface({
                 }
                 if (data?.ttsAutoMode) setTtsAutoMode(data.ttsAutoMode);
                 if (data?.ttsEnabled != null) setTtsEnabled(data.ttsEnabled);
+                // Show theme chooser for newly onboarded users who haven't seen it
+                if (data?.onboardingComplete && !data?.hasSeenThemeChooser) {
+                    setShowThemeChooser(true);
+                }
             })
             .catch(() => {});
     }, []);
@@ -882,6 +888,15 @@ export default function ChatInterface({
         sm.refreshSessionTimestamp(sessionId, { includeActivity: true });
     }, [sessionId, sm.notifySessionUpdate, sm.refreshSessionTimestamp, messages.length]);
 
+    const handleThemeChooserClose = useCallback(() => {
+        setShowThemeChooser(false);
+        fetch("/api/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hasSeenThemeChooser: true }),
+        }).catch(() => {});
+    }, []);
+
     if (sm.isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
@@ -1044,6 +1059,7 @@ export default function ChatInterface({
                     onClose={() => setIsDiffPanelOpen(false)}
                 />
             )}
+            <ThemeChooserModal open={showThemeChooser} onClose={handleThemeChooserClose} />
         </Shell>
     );
 }

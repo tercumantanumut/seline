@@ -163,6 +163,12 @@ function hasVisualMedia(result?: unknown): boolean {
   return false;
 }
 
+function isToolErrorResult(result?: ToolResult): boolean {
+  if (!result) return false;
+  const status = typeof result.status === "string" ? result.status.toLowerCase() : "";
+  return status === "error" || status === "failed" || status === "denied" || typeof result.error === "string";
+}
+
 const TOOL_RESULT_TEXT_CLASS = "text-sm text-terminal-muted font-mono transition-opacity duration-150 [overflow-wrap:anywhere]";
 const TOOL_RESULT_PRE_CLASS = "overflow-x-auto rounded bg-terminal-dark/5 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-terminal-dark";
 const TOOL_RESULT_ERROR_PRE_CLASS = "overflow-x-auto rounded bg-red-50 p-2 text-xs whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-red-600";
@@ -181,7 +187,7 @@ const ToolIcon: FC<{
     return <CircleNotch className={`${iconClass} animate-spin text-terminal-green`} weight="bold" />;
   }
 
-  if (result?.status === "error") {
+  if (isToolErrorResult(result)) {
     return <XCircle className={`${iconClass} text-red-600`} weight="fill" />;
   }
 
@@ -207,7 +213,7 @@ const ToolStatus: FC<{ isRunning: boolean; result?: ToolResult }> = memo(({
     );
   }
 
-  if (result?.status === "error") {
+  if (isToolErrorResult(result)) {
     return <span className="text-xs text-red-600 font-mono transition-opacity duration-150">{t("failed")}</span>;
   }
 
@@ -225,7 +231,7 @@ const ToolResultDisplay: FC<{ toolName: string; result: ToolResult }> = memo(({ 
   const canonicalToolName = getCanonicalToolName(toolName);
   const normalizedResult = unwrapMcpTextWrappedResult(result);
 
-  if (normalizedResult.status === "error") {
+  if (isToolErrorResult(normalizedResult)) {
     return (
       <div className="rounded bg-red-50 p-2 font-mono text-sm text-red-600 transition-all duration-150 [overflow-wrap:anywhere]">
         {normalizedResult.error || tResults("errorOccurred")}

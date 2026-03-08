@@ -79,16 +79,18 @@ function getResultCount(result: unknown): number | null {
   return null;
 }
 
-function getStatus(part: ToolCallPart): ToolCallBadgeStatus {
+function getStatus(part: ToolCallPartLike): ToolCallBadgeStatus {
   if (part.status?.type === "incomplete") return "error";
   if (part.status?.type === "running" || part.status?.type === "requires-action") {
     return "running";
   }
 
   const result = part.result as Record<string, unknown> | undefined;
-  const status = result?.status;
+  const status = typeof result?.status === "string" ? result.status.toLowerCase() : undefined;
 
-  if (status === "error") return "error";
+  if (part.isError || status === "error" || status === "failed" || status === "denied" || typeof result?.error === "string") {
+    return "error";
+  }
   if (part.result === undefined || status === "processing") return "running";
   return "completed";
 }
@@ -200,10 +202,6 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
     () => toolGroupExpansionState.get(expansionKey) ?? false
   );
 
-  const hasError = useMemo(() => {
-    return toolParts.some((part) => getStatus(part) === "error");
-  }, [toolParts]);
-
   const hasInteractiveUI = useMemo(() => {
     return toolParts.some((part) => TOOLS_AUTO_EXPAND.has(getCanonicalToolName(part.toolName)));
   }, [toolParts]);
@@ -236,8 +234,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
         : t.has(part.toolName)
           ? t(part.toolName)
           : canonicalToolName;
-      const liveStatus = partLike.toolCallId ? liveStatuses[partLike.toolCallId] : undefined;
-      const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, getStatus(part) === "running");
+      const canonicalStatus = getStatus(partLike);
+      const liveStatus = canonicalStatus === "running" && partLike.toolCallId
+        ? liveStatuses[partLike.toolCallId]
+        : undefined;
+      const phase = liveStatus?.phase ?? getFallbackToolPhase(part.result, canonicalStatus === "running");
       const detail = liveStatus?.detail;
       const inputPreview = liveStatus?.argsPreview ?? summarizeToolInput(partLike.input ?? partLike.args ?? partLike.argsText);
       const outputPreview = liveStatus?.outputPreview ?? summarizeToolOutput(part.result);
@@ -245,7 +246,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       return {
         key: partLike.toolCallId ?? `${part.toolName}-${index}`,
         label,
-        badgeStatus: liveStatus ? phaseToBadgeStatus(liveStatus.phase) : getStatus(part),
+        badgeStatus: liveStatus ? phaseToBadgeStatus(liveStatus.phase) : canonicalStatus,
         phase,
         count: getResultCount(part.result),
         detail,
@@ -257,7 +258,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
 
   const hasMedia = mediaPreviews.length > 0;
   const hasCompactReveal = !isDetailedMode && summaryItems.some(
-    (item) => item.detail || item.inputPreview || item.outputPreview
+    (item) => item.phase !== "error" && (item.detail || item.inputPreview || item.outputPreview)
   );
   const showCompactReveal = hasCompactReveal && !isExpanded && (isCompactRevealHovered || isCompactRevealPinned);
   const showChildren = isDetailedMode || isExpanded;
@@ -271,11 +272,11 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   }, [expansionKey]);
 
   useEffect(() => {
-    if ((isDetailedMode || hasError || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
+    if ((isDetailedMode || hasMedia || hasInteractiveUI) && !toolGroupExpansionState.has(expansionKey)) {
       setIsExpanded(true);
       toolGroupExpansionState.set(expansionKey, true);
     }
-  }, [expansionKey, hasError, hasInteractiveUI, hasMedia, isDetailedMode]);
+  }, [expansionKey, hasInteractiveUI, hasMedia, isDetailedMode]);
 
   const expansionCtx = useToolExpansion();
   const lastSignalRef = useRef(0);
@@ -340,6 +341,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       {showCompactReveal && (
         <div className={cn("mt-2 space-y-2 border-t pt-2", isGlass ? "border-white/10" : "border-terminal-dark/10")}>
           {summaryItems.map((item) => {
+            if (item.phase === "error") return null;
             const previewText = item.detail ?? item.inputPreview ?? item.outputPreview;
             if (!previewText) return null;
 

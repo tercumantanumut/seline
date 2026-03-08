@@ -101,6 +101,9 @@ function applyOnboardingPreferences(settings: ReturnType<typeof loadSettings>, b
             settings.ttsProvider = pathConfig.ttsProvider;
             settings.ttsEnabled = true;
         }
+        if (typeof pathConfig.edgeTtsVoice === "string" && pathConfig.edgeTtsVoice) {
+            settings.edgeTtsVoice = pathConfig.edgeTtsVoice;
+        }
         if (typeof pathConfig.avatar3dEnabled === "boolean") {
             settings.avatar3dEnabled = pathConfig.avatar3dEnabled;
         }

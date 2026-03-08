@@ -1,4 +1,5 @@
 import { tool, jsonSchema, generateText } from "ai";
+import { readFileSync, existsSync } from "fs";
 import { readLocalFile, fileExists } from "@/lib/storage/local-storage";
 import { getVisionModel } from "@/lib/ai/providers";
 import { withToolLogging } from "@/lib/ai/tool-registry/logging";
@@ -89,6 +90,32 @@ export async function imageToDataUrl(imageSource: string): Promise<string> {
     const base64 = buffer.toString("base64");
     const contentType = response.headers.get("content-type") || "image/png";
     return `data:${contentType};base64,${base64}`;
+  }
+
+  // Local filesystem path (file:// URL or absolute path)
+  let absolutePath: string | undefined;
+  if (imageSource.startsWith("file://")) {
+    absolutePath = decodeURIComponent(imageSource.replace(/^file:\/\//, ""));
+  } else if (imageSource.startsWith("/")) {
+    absolutePath = imageSource;
+  }
+
+  if (absolutePath) {
+    if (!existsSync(absolutePath)) {
+      throw new Error(`Local file not found: ${absolutePath}`);
+    }
+    const buffer = readFileSync(absolutePath);
+    const base64 = buffer.toString("base64");
+    const ext = absolutePath.split(".").pop()?.toLowerCase() || "png";
+    const mimeTypes: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+    };
+    const mimeType = mimeTypes[ext] || "image/png";
+    return `data:${mimeType};base64,${base64}`;
   }
 
   throw new Error(`Unsupported image format: ${imageSource.substring(0, 50)}...`);
