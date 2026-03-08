@@ -20,7 +20,7 @@ import {
   shouldRetry,
   sleepWithAbort,
 } from "@/lib/ai/retry/stream-recovery";
-import { readClaudeAgentSdkAuthStatus, getSdkExecutableConfig } from "@/lib/auth/claude-agent-sdk-auth";
+import { readClaudeAgentSdkAuthStatus, getSdkExecutableConfig, getSpawnClaudeCodeProcess } from "@/lib/auth/claude-agent-sdk-auth";
 import {
   mcpContextStore,
   type SelineMcpContext,
@@ -961,6 +961,7 @@ function createStreamingClaudeCodeResponse(options: {
         });
 
         const { executable: sdkExecutable, env: sdkEnv } = getSdkExecutableConfig();
+        const spawnClaudeCodeProcess = getSpawnClaudeCodeProcess();
 
         const query = claudeAgentQuery({
           prompt: options.prompt,
@@ -976,6 +977,7 @@ function createStreamingClaudeCodeResponse(options: {
             permissionMode: sdk?.permissionMode ?? "bypassPermissions",
             allowDangerouslySkipPermissions: true,
             env: sdkEnv,
+            ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
             ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
             ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),
             ...(sdk?.agents ? { agents: sdk.agents } : {}),
@@ -1613,6 +1615,7 @@ async function runClaudeAgentQuery(options: {
   const mergedHookMap = mergeHooks(selineHooks, sdk?.hooks);
 
   const { executable: sdkExecutable, env: sdkEnv } = getSdkExecutableConfig();
+  const spawnClaudeCodeProcess = getSpawnClaudeCodeProcess();
 
   const query = claudeAgentQuery({
     prompt: options.prompt,
@@ -1632,6 +1635,7 @@ async function runClaudeAgentQuery(options: {
       permissionMode: sdk?.permissionMode ?? "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       env: sdkEnv,
+      ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       // Seline platform tools exposed via in-process MCP server
       ...(selineMcpServers ? { mcpServers: selineMcpServers } : {}),

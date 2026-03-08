@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Search } from "lucide-react";
+import { Search, Volume2, Loader2, Square } from "lucide-react";
 import {
   EDGE_TTS_VOICES,
   getEdgeTTSVoicesGrouped,
@@ -20,6 +20,9 @@ interface EdgeTTSVoiceSelectorProps {
 export function EdgeTTSVoiceSelector({ value, onChange }: EdgeTTSVoiceSelectorProps) {
   const t = useTranslations("settings");
   const [search, setSearch] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const grouped = useMemo(() => getEdgeTTSVoicesGrouped(), []);
 
@@ -44,6 +47,44 @@ export function EdgeTTSVoiceSelector({ value, onChange }: EdgeTTSVoiceSelectorPr
 
   const currentVoice = findEdgeTTSVoice(value);
 
+  const stopPreview = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setPreviewing(false);
+  }, []);
+
+  const playPreview = useCallback(async () => {
+    // If already playing, stop
+    if (previewing) {
+      stopPreview();
+      return;
+    }
+
+    setPreviewing(true);
+    try {
+      const res = await fetch(`/api/tts/preview?voice=${encodeURIComponent(value)}`);
+      if (!res.ok) throw new Error("Preview failed");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = stopPreview;
+      audio.onerror = stopPreview;
+      await audio.play();
+    } catch {
+      stopPreview();
+    }
+  }, [value, previewing, stopPreview]);
+
   return (
     <SettingsField
       label={t("voice.tts.edgeVoiceLabel")}
@@ -62,11 +103,30 @@ export function EdgeTTSVoiceSelector({ value, onChange }: EdgeTTSVoiceSelectorPr
         />
       </div>
 
-      {/* Current selection display */}
+      {/* Current selection display with preview button */}
       {currentVoice && (
-        <div className="mb-2 px-3 py-1.5 rounded-lg bg-terminal-green/10 border border-terminal-green/20 font-mono text-xs text-terminal-dark">
-          <span className="font-semibold">{currentVoice.name}</span>
-          <span className="text-terminal-muted"> — {currentVoice.language} · {currentVoice.gender}</span>
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex-1 px-3 py-1.5 rounded-lg bg-terminal-green/10 border border-terminal-green/20 font-mono text-xs text-terminal-dark">
+            <span className="font-semibold">{currentVoice.name}</span>
+            <span className="text-terminal-muted"> — {currentVoice.language} · {currentVoice.gender}</span>
+          </div>
+          <button
+            type="button"
+            onClick={playPreview}
+            disabled={previewing && !audioRef.current}
+            className="shrink-0 w-8 h-8 rounded-lg border border-terminal-border bg-terminal-cream/50 dark:bg-terminal-cream-dark/30 flex items-center justify-center hover:bg-terminal-green/10 hover:border-terminal-green/30 transition-colors disabled:opacity-50"
+            title={t("voice.tts.edgeVoicePreview")}
+          >
+            {previewing ? (
+              audioRef.current ? (
+                <Square className="w-3.5 h-3.5 text-terminal-amber fill-terminal-amber" />
+              ) : (
+                <Loader2 className="w-3.5 h-3.5 text-terminal-muted animate-spin" />
+              )
+            ) : (
+              <Volume2 className="w-3.5 h-3.5 text-terminal-green" />
+            )}
+          </button>
         </div>
       )}
 
@@ -74,7 +134,7 @@ export function EdgeTTSVoiceSelector({ value, onChange }: EdgeTTSVoiceSelectorPr
       <select
         id="edgeTtsVoice"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { stopPreview(); onChange(e.target.value); }}
         aria-describedby="edgeTtsVoice-help"
         className="w-full rounded-lg border border-terminal-border bg-terminal-cream/50 dark:bg-terminal-cream-dark/30 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green"
       >

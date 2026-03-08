@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Check, Trash2, Volume2 } from "lucide-react";
+import { Loader2, Upload, Check, Trash2, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resilientPatch } from "@/lib/utils/resilient-fetch";
 import { PRESET_AVATARS, type PresetAvatar } from "@/lib/avatar/preset-avatars";
@@ -54,6 +54,9 @@ export function Avatar3DModelSelector({
   const [localConfig, setLocalConfig] = useState<AvatarConfig | null>(currentAvatarConfig ?? null);
   const [edgeTtsVoice, setEdgeTtsVoice] = useState(DEFAULT_EDGE_TTS_VOICE);
   const [voiceSaving, setVoiceSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useTranslations("avatar3dModels");
   const voiceGroups = useMemo(() => getEdgeTTSVoicesGrouped(), []);
@@ -90,6 +93,40 @@ export function Avatar3DModelSelector({
       setVoiceSaving(false);
     }
   }, [edgeTtsVoice, t]);
+
+  const stopPreview = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setPreviewing(false);
+  }, []);
+
+  const playPreview = useCallback(async () => {
+    if (previewing) {
+      stopPreview();
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const res = await fetch(`/api/tts/preview?voice=${encodeURIComponent(edgeTtsVoice)}`);
+      if (!res.ok) throw new Error("Preview failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = stopPreview;
+      audio.onerror = stopPreview;
+      await audio.play();
+    } catch {
+      stopPreview();
+    }
+  }, [edgeTtsVoice, previewing, stopPreview]);
 
   const currentPresetId = localConfig?.source === "preset"
     ? localConfig.presetId
@@ -327,14 +364,33 @@ export function Avatar3DModelSelector({
             {t("voice.description")}
           </p>
           {findEdgeTTSVoice(edgeTtsVoice) && (
-            <div className="px-3 py-1.5 rounded-lg bg-terminal-green/10 border border-terminal-green/20 font-mono text-xs text-terminal-dark">
-              <span className="font-semibold">{findEdgeTTSVoice(edgeTtsVoice)!.name}</span>
-              <span className="text-terminal-muted"> — {findEdgeTTSVoice(edgeTtsVoice)!.language} · {findEdgeTTSVoice(edgeTtsVoice)!.gender}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 px-3 py-1.5 rounded-lg bg-terminal-green/10 border border-terminal-green/20 font-mono text-xs text-terminal-dark">
+                <span className="font-semibold">{findEdgeTTSVoice(edgeTtsVoice)!.name}</span>
+                <span className="text-terminal-muted"> — {findEdgeTTSVoice(edgeTtsVoice)!.language} · {findEdgeTTSVoice(edgeTtsVoice)!.gender}</span>
+              </div>
+              <button
+                type="button"
+                onClick={playPreview}
+                disabled={previewing && !audioRef.current}
+                className="shrink-0 w-8 h-8 rounded-lg border border-terminal-border bg-terminal-cream/50 flex items-center justify-center hover:bg-terminal-green/10 hover:border-terminal-green/30 transition-colors disabled:opacity-50"
+                title={t("voice.preview")}
+              >
+                {previewing ? (
+                  audioRef.current ? (
+                    <Square className="w-3.5 h-3.5 text-terminal-amber fill-terminal-amber" />
+                  ) : (
+                    <Loader2 className="w-3.5 h-3.5 text-terminal-muted animate-spin" />
+                  )
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5 text-terminal-green" />
+                )}
+              </button>
             </div>
           )}
           <select
             value={edgeTtsVoice}
-            onChange={(e) => handleVoiceChange(e.target.value)}
+            onChange={(e) => { stopPreview(); handleVoiceChange(e.target.value); }}
             disabled={voiceSaving}
             className="w-full rounded-lg border border-terminal-border bg-terminal-cream/50 px-3 py-2 font-mono text-sm text-terminal-dark focus:border-terminal-green focus:outline-none focus:ring-1 focus:ring-terminal-green disabled:opacity-50"
           >

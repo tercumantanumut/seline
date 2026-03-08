@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, Volume2, Loader2, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { GradientBackground } from "@/components/ui/noisy-gradient-backgrounds";
@@ -232,6 +233,44 @@ function FunConfigPanel({
     onChange: (u: Partial<PathConfigState>) => void;
     t: ReturnType<typeof useTranslations>;
 }) {
+    const [previewing, setPreviewing] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const blobUrlRef = useRef<string | null>(null);
+
+    const stopPreview = useCallback(() => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
+        }
+        setPreviewing(false);
+    }, []);
+
+    const playPreview = useCallback(async () => {
+        if (previewing) {
+            stopPreview();
+            return;
+        }
+        setPreviewing(true);
+        try {
+            const res = await fetch(`/api/tts/preview?voice=${encodeURIComponent(config.edgeTtsVoice)}`);
+            if (!res.ok) throw new Error("Preview failed");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            blobUrlRef.current = url;
+            const audio = new Audio(url);
+            audioRef.current = audio;
+            audio.onended = stopPreview;
+            audio.onerror = stopPreview;
+            await audio.play();
+        } catch {
+            stopPreview();
+        }
+    }, [config.edgeTtsVoice, previewing, stopPreview]);
+
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Speech-to-text provider */}
@@ -311,25 +350,45 @@ function FunConfigPanel({
                                     {t("config.edgeTtsVoiceDesc")}
                                 </span>
                             </div>
-                            <select
-                                value={config.edgeTtsVoice}
-                                onChange={(e) =>
-                                    onChange({ edgeTtsVoice: e.target.value })
-                                }
-                                className={selectCls}
-                            >
-                                {[...getEdgeTTSVoicesGrouped().entries()].map(
-                                    ([lang, voices]) => (
-                                        <optgroup key={lang} label={lang}>
-                                            {voices.map((v) => (
-                                                <option key={v.id} value={v.id}>
-                                                    {v.name} ({v.gender})
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    ),
-                                )}
-                            </select>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={config.edgeTtsVoice}
+                                    onChange={(e) => {
+                                        stopPreview();
+                                        onChange({ edgeTtsVoice: e.target.value });
+                                    }}
+                                    className={cn(selectCls, "flex-1")}
+                                >
+                                    {[...getEdgeTTSVoicesGrouped().entries()].map(
+                                        ([lang, voices]) => (
+                                            <optgroup key={lang} label={lang}>
+                                                {voices.map((v) => (
+                                                    <option key={v.id} value={v.id}>
+                                                        {v.name} ({v.gender})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        ),
+                                    )}
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={playPreview}
+                                    disabled={previewing && !audioRef.current}
+                                    className="shrink-0 w-9 h-9 rounded-lg border border-white/10 bg-white/[0.07] flex items-center justify-center hover:bg-white/[0.12] hover:border-white/20 transition-colors disabled:opacity-50"
+                                    title={t("config.edgeTtsPreview")}
+                                >
+                                    {previewing ? (
+                                        audioRef.current ? (
+                                            <Square className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                        ) : (
+                                            <Loader2 className="w-3.5 h-3.5 text-white/50 animate-spin" />
+                                        )
+                                    ) : (
+                                        <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 )}

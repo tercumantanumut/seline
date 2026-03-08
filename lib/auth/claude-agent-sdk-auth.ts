@@ -1,8 +1,10 @@
 import path from "path";
 import { query as claudeAgentQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { SpawnOptions, SpawnedProcess } from "@anthropic-ai/claude-agent-sdk";
 import { isElectronProduction } from "@/lib/utils/environment";
 import { getNodeBinary } from "@/lib/auth/claude-login-process";
 import { getResolvedShellEnvironment } from "@/lib/shell-env/resolver";
+import { spawnSafe } from "@/lib/spawn-fifo";
 
 const DEFAULT_CLAUDE_AGENT_MODEL = "claude-sonnet-4-5-20250929";
 
@@ -21,6 +23,26 @@ const EBADF_RETRY_DELAY_MS = 2000;
  * PATH they see in Terminal.app), then fall back to `getNodeBinary()` directory
  * augmentation if the shell env resolver fails.
  */
+/**
+ * Returns a custom spawnClaudeCodeProcess for the Agent SDK.
+ *
+ * In Electron production builds, the utility process can't create stdio pipes
+ * (EBADF). This provides a FIFO-based spawn that avoids the issue.
+ * In development, returns undefined (SDK uses its default spawn).
+ */
+export function getSpawnClaudeCodeProcess(): ((options: SpawnOptions) => SpawnedProcess) | undefined {
+  if (!isElectronProduction()) return undefined;
+
+  return (options: SpawnOptions): SpawnedProcess => {
+    const proc = spawnSafe(options.command, options.args, {
+      cwd: options.cwd,
+      env: options.env as NodeJS.ProcessEnv,
+      signal: options.signal,
+    });
+    return proc as unknown as SpawnedProcess;
+  };
+}
+
 export function getSdkExecutableConfig(): {
   executable: "node";
   env: Record<string, string | undefined>;
@@ -158,6 +180,8 @@ async function readClaudeAgentSdkAuthStatusOnce(
 
   const { executable, env } = getSdkExecutableConfig();
 
+  const spawnClaudeCodeProcess = getSpawnClaudeCodeProcess();
+
   const sdkQuery = claudeAgentQuery({
     prompt: "Reply with OK.",
     options: {
@@ -169,6 +193,7 @@ async function readClaudeAgentSdkAuthStatusOnce(
       model: options.model || DEFAULT_CLAUDE_AGENT_MODEL,
       permissionMode: "plan",
       env,
+      ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
     },
   });
 
@@ -242,6 +267,8 @@ export async function attemptClaudeAgentSdkLogout(timeoutMs = 20_000): Promise<b
 
   const { executable, env } = getSdkExecutableConfig();
 
+  const spawnClaudeCodeProcess = getSpawnClaudeCodeProcess();
+
   const sdkQuery = claudeAgentQuery({
     prompt: "/logout",
     options: {
@@ -252,6 +279,7 @@ export async function attemptClaudeAgentSdkLogout(timeoutMs = 20_000): Promise<b
       maxTurns: 1,
       permissionMode: "plan",
       env,
+      ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
     },
   });
 

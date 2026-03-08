@@ -224,6 +224,7 @@
         "ttsElevenlabs": "ElevenLabs",
         "edgeTtsVoice": "Voice",
         "edgeTtsVoiceDesc": "400+ neural voices across 70+ languages",
+        "edgeTtsPreview": "Preview voice",
         "avatar3d": "3D animated avatar",
         "avatar3dDesc": "Lip-synced face that speaks with the agent",
         "emotionDetection": "Emotion detection",
@@ -2511,6 +2512,7 @@
         "edgeVoiceLabel": "Edge TTS voice",
         "edgeVoiceHelper": "Select the voice used for Edge TTS speech synthesis.",
         "edgeVoiceSearch": "Search voices by name or language...",
+        "edgeVoicePreview": "Preview voice",
         "elevenLabsTitle": "ElevenLabs account details",
         "elevenLabsDesc": "Add your key and voice so replies use the right ElevenLabs profile.",
         "elevenLabsKeyLabel": "ElevenLabs API key",
@@ -4017,7 +4019,8 @@
     "selected": "Done",
     "voice": {
       "title": "Edge TTS Voice",
-      "description": "Select the voice your avatar speaks with."
+      "description": "Select the voice your avatar speaks with.",
+      "preview": "Preview voice"
     },
     "error": {
       "tooLarge": "Max 20MB",
